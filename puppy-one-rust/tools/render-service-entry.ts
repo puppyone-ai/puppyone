@@ -104,8 +104,11 @@ window.__puppyoneRender = async (job) => {
       await fontsWithin(document.fonts.ready);
       renderMath(job);
     }
-    // A hidden page gets no animation frames: measuring lays the drawing
-    // out, and the native snapshot paints it.
+    // Fonts the drawing asks for start loading once it is laid out; it is
+    // measured in them. A hidden page gets no animation frames: measuring
+    // lays the drawing out, and the native snapshot paints it.
+    void stage.getBoundingClientRect();
+    await fontsWithin(document.fonts.ready);
     measure(job.id, stage);
   } catch (error) {
     stage.replaceChildren();

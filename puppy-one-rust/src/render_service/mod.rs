@@ -72,7 +72,11 @@ pub struct Rendered {
 pub enum State {
     Pending,
     Ready(Rendered),
+    /// Mermaid or KaTeX refused the source, saying why.
     Failed(SharedString),
+    /// No drawing could be made (no page, no answer, no snapshot); the
+    /// caller keeps its own rendering.
+    Unavailable,
 }
 
 /// The colours and type a diagram is drawn in (`getMermaidThemeSnapshot`'s
@@ -307,9 +311,8 @@ pub fn get(request: &Request, window: &mut Window, cx: &mut App) -> State {
     let window_id = window.window_handle().window_id();
     let needs_host = SERVICE.with(|s| !s.borrow().hosts.contains_key(&window_id));
     if needs_host && !open_host(window, cx) {
-        let failed = State::Failed("Unable to start the renderer.".into());
-        settle(key, failed.clone(), 0);
-        return failed;
+        settle(key, State::Unavailable, 0);
+        return State::Unavailable;
     }
     SERVICE.with(|s| {
         let mut s = s.borrow_mut();
@@ -339,7 +342,7 @@ pub fn get(request: &Request, window: &mut Window, cx: &mut App) -> State {
 fn page() -> String {
     "<!doctype html><html><head><meta charset=\"utf-8\">\
      <link rel=\"stylesheet\" href=\"__assets__/render-service.css\">\
-     <style>html,body{margin:0;padding:0}#stage{position:absolute;left:0;top:0;display:inline-block}</style>\
+     <style>html,body{margin:0;padding:0}#stage{position:absolute;left:0;top:0;display:inline-block;width:max-content}</style>\
      </head><body><div id=\"stage\"></div>\
      <script src=\"__assets__/render-service.js\"></script></body></html>"
         .into()
@@ -457,7 +460,7 @@ fn timed_out(window_id: WindowId, id: u64, cx: &mut App) {
         return;
     };
     if let Some(job) = &host.busy {
-        settle(job.key, State::Failed("Rendering timed out.".into()), 0);
+        settle(job.key, State::Unavailable, 0);
     }
     SERVICE.with(|s| {
         let mut s = s.borrow_mut();
@@ -536,7 +539,7 @@ fn answered(window_id: WindowId, reply: Reply, cx: &mut App) {
                     finish(window_id, key, State::Ready(rendered), bytes, cx);
                     return;
                 }
-                None => State::Failed("Unable to capture the drawing.".into()),
+                None => State::Unavailable,
             };
             finish(window_id, key, state, 0, cx);
         });

@@ -721,7 +721,7 @@ fn mermaid(source: &str, cx: &mut Context<'_>, path: &str) -> AnyElement {
         .justify_center()
         .overflow_scroll();
     let stage = match state {
-        State::Failed(_) => return code_block("mermaid", source, cx, path),
+        State::Failed(_) | State::Unavailable => return code_block("mermaid", source, cx, path),
         State::Ready(r) => {
             let fit = (available / r.width).min(1.);
             stage.child(

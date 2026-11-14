@@ -1,7 +1,8 @@
 //! Math (product features/math): `$formula$` inline and `$$` … `$$` or a
-//! fence labelled `math` as a block. The product typesets with KaTeX; the
-//! native editor shows the formula as Unicode text (`tex`), centred in the
-//! block's panel, and the caret inside a block shows its source above it.
+//! fence labelled `math` as a block. A block is typeset by the product's
+//! KaTeX in the render service (`crate::render_service`), centred in the
+//! block's panel; until it arrives the formula shows as Unicode text
+//! (`tex`). The caret inside a block shows its source above it.
 pub mod tex;
 mod widget;
 
@@ -28,7 +29,10 @@ pub struct MathBlock {
     pub range: Range<usize>,
     /// The formula's source between the delimiters.
     pub content: Range<usize>,
+    /// The Unicode rendering shown until the typeset formula arrives.
     pub text: String,
+    /// The TeX source KaTeX typesets.
+    pub source: String,
 }
 
 /// `^\s{0,3}\$\$\s*$`.
@@ -59,6 +63,7 @@ fn blocks(doc: &Buffer, code_lines: &[Range<usize>]) -> Vec<MathBlock> {
                 range: doc.line_range(line).start..doc.line_range(close).end,
                 content,
                 text: tex::convert(source),
+                source: source.to_owned(),
             });
         }
         line = close + 1;
@@ -84,6 +89,7 @@ impl MarkdownFeature for MathFeature {
                     range: fence.range.clone(),
                     content: fence.code.clone(),
                     text: tex::convert(cx.doc.slice(fence.code.clone())),
+                    source: cx.doc.slice(fence.code.clone()).to_owned(),
                 });
             }
         }

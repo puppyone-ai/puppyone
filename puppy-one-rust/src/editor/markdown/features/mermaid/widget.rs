@@ -362,6 +362,10 @@ impl BlockWidget for MermaidBlockWidget {
                         error = Some(message.clone());
                         LAST_GOOD.with(|l| l.borrow().get(&key).cloned())
                     }
+                    State::Unavailable => {
+                        error = Some(SharedString::default());
+                        LAST_GOOD.with(|l| l.borrow().get(&key).cloned())
+                    }
                     State::Pending => LAST_GOOD.with(|l| l.borrow().get(&key).cloned()),
                 };
                 match shown {
