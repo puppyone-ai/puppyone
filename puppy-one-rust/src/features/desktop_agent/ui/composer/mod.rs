@@ -12,7 +12,7 @@ mod toolbar;
 
 use super::agent_chat_view_model::AgentChatViewModel;
 use super::agent_theme::AgentTheme;
-use super::panel::elements::mention_chip;
+use super::elements::mention_chip;
 use super::pickers::SessionPickers;
 use crate::agent::contract::dto::{DraftReference, PromptMention, ReferenceStatus, SlashCommand};
 use crate::features::desktop_agent::application::agent_controller_state::AgentControllerState;

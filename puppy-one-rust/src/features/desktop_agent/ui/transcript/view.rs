@@ -305,7 +305,7 @@ impl Render for TranscriptView {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .child(super::super::panel::elements::dots(
+                        .child(super::super::elements::dots(
                             "agent-startup-loading",
                             a.loader,
                         )),

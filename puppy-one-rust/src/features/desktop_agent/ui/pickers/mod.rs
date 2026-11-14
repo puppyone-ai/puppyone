@@ -2,7 +2,7 @@
 //! composer toolbar and of `BuiltInAgentCompute`. One picker is open at a
 //! time; a choice leaves as [`PickerEvent::Select`].
 use super::agent_theme::AgentTheme;
-use super::panel::elements::effort_label;
+use super::elements::effort_label;
 use crate::features::desktop_agent::domain::agent_session_controls::{
     AgentSessionControl, AgentSessionControlId,
 };

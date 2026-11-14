@@ -10,6 +10,7 @@ pub mod agent_theme;
 pub mod agent_tool_group_presentation;
 pub mod composer;
 pub mod docks;
+pub mod elements;
 pub mod empty_state;
 pub mod panel;
 pub mod pickers;

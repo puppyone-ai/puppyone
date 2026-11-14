@@ -6,7 +6,7 @@ use super::super::activity::agent_activity_views::{
 };
 use super::super::activity::agent_tool_steps::{AgentToolStepSegment, agent_tool_step_segments};
 use super::super::agent_theme::AgentTheme;
-use super::super::panel::elements::{
+use super::super::elements::{
     EVIDENCE_RAIL_INLINE, OpenFile, context_divider, evidence_branch, evidence_tree,
     metadata_element, plan_list, prose_branch, status_icon_element, step_icon, step_line,
     subject_element,

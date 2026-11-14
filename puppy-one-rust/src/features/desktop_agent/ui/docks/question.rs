@@ -1,7 +1,7 @@
 //! `AgentQuestionDock`: the runtime's questions, their options and free
 //! answers, Skip and Continue.
 use super::super::agent_theme::AgentTheme;
-use super::super::panel::elements::{ButtonTone, agent_button};
+use super::super::elements::{ButtonTone, agent_button};
 use super::{DockEvent, DocksView};
 use crate::agent::contract::dto::Question;
 use crate::features::desktop_agent::application::agent_session_controller::QuestionResolution;

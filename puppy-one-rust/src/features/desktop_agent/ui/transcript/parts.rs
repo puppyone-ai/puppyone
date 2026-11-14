@@ -1,7 +1,7 @@
 //! `TranscriptRow`, `AgentPartRenderer` and `AgentMessagePart`: one row of
 //! the transcript, the user's prompt and the Agent's answer.
 use super::super::agent_theme::AgentTheme;
-use super::super::panel::elements::{mention_chip, run_feedback};
+use super::super::elements::{mention_chip, run_feedback};
 use super::view::{CONTENT_MAX, INSET, PAD_BOTTOM, PAD_TOP, TranscriptView};
 use crate::agent::contract::dto::Part;
 use crate::features::desktop_agent::domain::agent_activity_presentation::format_agent_duration;

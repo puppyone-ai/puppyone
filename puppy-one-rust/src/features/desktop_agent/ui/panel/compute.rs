@@ -2,7 +2,7 @@
 //! Settings exclusively owns connection configuration. Without Payments,
 //! PuppyOne's own compute is not a route at all and the only remaining step
 //! is the user's own connection.
-use super::elements::{ButtonTone, agent_button};
+use super::super::elements::{ButtonTone, agent_button};
 use super::{AgentChatPanelEvent, AgentChatTabPanel};
 use crate::agent::contract::dto::Model;
 use crate::features::desktop_agent::domain::agent_session_controls::{

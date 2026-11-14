@@ -7,10 +7,11 @@
 //! empty state, notices); the hosted Agent's conversation composes the same
 //! views in `features/cloud`.
 mod compute;
-pub mod elements;
+mod dock;
 #[cfg(feature = "dev-capture")]
 mod fixture;
 mod ingestion;
+mod launcher;
 mod routing;
 mod status;
 mod view_model;

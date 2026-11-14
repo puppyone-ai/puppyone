@@ -2,7 +2,7 @@
 //! `AgentHistoryNotice`, with the run-status rules they follow.
 use super::super::agent_history_presentation::agent_history_notice;
 use super::super::agent_theme::AgentTheme;
-use super::super::panel::elements::run_feedback;
+use super::super::elements::run_feedback;
 use super::view::{CONTENT_MAX, TranscriptInput, TranscriptView};
 use crate::agent::contract::dto::{AgentProjection, ConnectionStatus, Part, Turn};
 use crate::features::desktop_agent::application::agent_controller_state::AgentSubmissionStage;

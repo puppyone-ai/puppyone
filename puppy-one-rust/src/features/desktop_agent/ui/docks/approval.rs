@@ -1,7 +1,7 @@
 //! `AgentApprovalDock`: the request on top of the approval queue, its
 //! command, scope and the decisions the runtime offers.
 use super::super::agent_theme::AgentTheme;
-use super::super::panel::elements::{ButtonTone, agent_button};
+use super::super::elements::{ButtonTone, agent_button};
 use super::{DockEvent, DocksView};
 use crate::agent::contract::dto::{Approval, RecordRef};
 use crate::localization::{Arg, bidi_isolate, t, tf};
