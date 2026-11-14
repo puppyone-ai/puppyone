@@ -4,14 +4,12 @@
 //! Discovery waits for the explicit permission; rows are locators only, and
 //! opening one is the workbench's job (`HistoryBrowserEvent::Open`).
 use super::agent_theme::AgentTheme;
-use crate::agent::contract::dto::{RuntimeDescriptor, SessionDiscovery, SessionMetadata};
-use crate::features::desktop_agent::application::conversation_history_controller::{
-    ConversationHistoryController, ConversationHistoryState,
-};
+use crate::agent::contract::dto::{SessionDiscovery, SessionMetadata};
+use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryState;
+use crate::features::desktop_agent::application::conversation_history_source::ConversationHistorySource;
 use crate::features::desktop_agent::domain::agent_chat_history_target::{
     AuxiliaryWorkbenchHistoryTarget, create_agent_chat_history_target,
 };
-use crate::features::desktop_agent::infrastructure::cloud::{Hub, LABEL};
 use crate::ui::agent_brand_mark::{AgentMark, monochrome_mark};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::{Icon, tooltip};
@@ -22,6 +20,7 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
+use std::rc::Rc;
 
 /// `--desktop-chrome-height` in the right sidebar.
 const TOOLBAR: f32 = 40.;
@@ -167,97 +166,8 @@ fn complete_coverage(source: &SessionDiscovery) -> bool {
     source.coverage.as_deref() == Some("complete")
 }
 
-/// Where the conversations come from.
-#[derive(Clone)]
-pub enum HistorySource {
-    /// The project's Agent service history.
-    Agent(ConversationHistoryController),
-    /// `CloudAgentHistory`: the hosted target's shared locators.
-    Hosted(std::sync::Arc<Hub>),
-}
-
-impl HistorySource {
-    fn snapshot(&self) -> ConversationHistoryState {
-        match self {
-            Self::Agent(controller) => controller.get_snapshot(),
-            Self::Hosted(hub) => hosted_history(hub),
-        }
-    }
-    fn refresh(&self) {
-        match self {
-            Self::Agent(controller) => drop(controller.refresh()),
-            Self::Hosted(hub) => hub.refresh_history(),
-        }
-    }
-}
-
-/// `CloudAgentHistory`: server locators adapted, never transcripts.
-fn hosted_history(hub: &Hub) -> ConversationHistoryState {
-    let history = hub.history();
-    let sessions: Vec<SessionMetadata> = history
-        .sessions
-        .iter()
-        .map(|session| {
-            let title = session
-                .title
-                .clone()
-                .filter(|t| !t.is_empty())
-                .unwrap_or_else(|| tr("agent.header.newChat").to_string());
-            SessionMetadata {
-                id: session.id.clone(),
-                provider: "cloud-pi".into(),
-                runtime_id: Some("cloud-pi".into()),
-                runtime: Some(RuntimeDescriptor {
-                    id: "cloud-pi".into(),
-                    display_name: LABEL.into(),
-                    icon_key: Some("puppyone-agent".into()),
-                    ..RuntimeDescriptor::default()
-                }),
-                provider_session_id: Some(session.id.clone()),
-                title,
-                created_at: session.updated_at.clone(),
-                updated_at: session.updated_at.clone(),
-                terminal_state: Some("idle".into()),
-                ..SessionMetadata::default()
-            }
-        })
-        .collect();
-    let status = if history.error.is_some() {
-        "failed"
-    } else if history.loaded {
-        "complete"
-    } else {
-        "not-requested"
-    };
-    ConversationHistoryState {
-        sources: vec![(
-            "cloud-pi".into(),
-            SessionDiscovery {
-                runtime_id: Some("cloud-pi".into()),
-                status: status.into(),
-                coverage: Some(
-                    if history.sessions.len() < 200 {
-                        "complete"
-                    } else {
-                        "unknown"
-                    }
-                    .into(),
-                ),
-                indexed: history.sessions.len() as i64,
-                ..SessionDiscovery::default()
-            },
-        )],
-        sessions,
-        loading: !history.loaded && history.loading,
-        loaded: history.loaded || history.error.is_some(),
-        refreshing: history.loaded && history.loading,
-        error: history.error,
-        ..Default::default()
-    }
-}
-
 pub struct HistoryBrowser {
-    source: HistorySource,
+    source: Rc<dyn ConversationHistorySource>,
     /// Discovery has the user's permission (`historyDiscoveryEnabled`).
     enabled: bool,
     excluded: Vec<String>,
@@ -278,7 +188,7 @@ impl EventEmitter<HistoryBrowserEvent> for HistoryBrowser {}
 impl HistoryBrowser {
     /// The browser over `source` (retained while hidden).
     pub fn new(
-        source: HistorySource,
+        source: Rc<dyn ConversationHistorySource>,
         enabled: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -294,30 +204,10 @@ impl HistoryBrowser {
             input
         });
         cx.observe(&search, |_, _, cx| cx.notify()).detach();
-        let (notify, mut changes) = tokio::sync::mpsc::unbounded_channel::<()>();
-        let unsubscribe: Box<dyn FnOnce()> = match &source {
-            HistorySource::Agent(controller) => {
-                Box::new(controller.subscribe(std::rc::Rc::new(move || {
-                    let _ = notify.send(());
-                })))
-            }
-            HistorySource::Hosted(hub) => {
-                let (wake, woken) = crate::wake::Wake::channel();
-                let id = hub.watch_history(wake);
-                cx.spawn(async move |_, _| {
-                    while woken.recv().await.is_ok() {
-                        if notify.send(()).is_err() {
-                            break;
-                        }
-                    }
-                })
-                .detach();
-                let hub = hub.clone();
-                Box::new(move || hub.unwatch(id))
-            }
-        };
+        let (wake, changes) = crate::wake::Wake::channel();
+        let unsubscribe = source.watch(wake);
         cx.spawn(async move |this, cx| {
-            while changes.recv().await.is_some() {
+            while changes.recv().await.is_ok() {
                 while changes.try_recv().is_ok() {}
                 if this.update(cx, |_, cx| cx.notify()).is_err() {
                     break;
@@ -352,11 +242,7 @@ impl HistoryBrowser {
             return;
         }
         self.enabled = true;
-        match &self.source {
-            HistorySource::Agent(controller) => controller.activate(),
-            // `useEffect(() => void workbench.refreshHistory())`.
-            HistorySource::Hosted(hub) => hub.refresh_history(),
-        }
+        self.source.activate();
         cx.notify();
     }
     /// Sessions already open in a tab (`excludedResourceIds`).
@@ -822,9 +708,7 @@ impl HistoryBrowser {
                     .when(!more_disabled, |d| {
                         d.hover(move |s| s.bg(row_hover).text_color(muted))
                             .on_click(cx.listener(|s, _, _, cx| {
-                                if let HistorySource::Agent(controller) = &s.source {
-                                    drop(controller.load_more());
-                                }
+                                s.source.load_more();
                                 cx.notify();
                             }))
                     })

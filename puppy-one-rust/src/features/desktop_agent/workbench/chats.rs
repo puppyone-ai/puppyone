@@ -10,6 +10,7 @@ use crate::features::desktop_agent::application::agent_client_port::AgentClientP
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
 use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
 use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryController;
+use crate::features::desktop_agent::application::conversation_history_source::ConversationHistorySource;
 use crate::features::desktop_agent::application::ui_runtime::UiRuntime;
 use crate::features::desktop_agent::domain::agent_chat_history_target::{
     AuxiliaryWorkbenchHistoryTarget, parse_agent_chat_history_target,
@@ -19,9 +20,7 @@ use crate::features::desktop_agent::infrastructure::host::{
     agent_host_client::AgentHostClient, agent_host_global::agent_host,
     project_agent_client::create_project_agent_client_provider, window_runtime::WindowUiRuntime,
 };
-use crate::features::desktop_agent::ui::agent_conversation_history::{
-    HistoryBrowser, HistorySource,
-};
+use crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser;
 use crate::features::desktop_agent::ui::panel::{AgentChatTabPanel, AgentRouting};
 use crate::features::local_agents::hidden_agent_chat_runtime_ids;
 use crate::features::settings::AgentRoutingPreferences;
@@ -473,10 +472,10 @@ impl AgentChats {
         window: &mut Window,
         cx: &mut App,
     ) -> Result<Entity<HistoryBrowser>, String> {
-        let (source, enabled) = match &self.hosted {
-            Some(hub) => (HistorySource::Hosted(hub.clone()), true),
+        let (source, enabled): (Rc<dyn ConversationHistorySource>, bool) = match &self.hosted {
+            Some(hub) => (Rc::new(cloud::HostedHistory(hub.clone())), true),
             None => (
-                HistorySource::Agent(self.project_agents(root, cx)?.history.clone()),
+                Rc::new(self.project_agents(root, cx)?.history.clone()),
                 discovery,
             ),
         };

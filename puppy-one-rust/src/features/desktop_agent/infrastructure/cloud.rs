@@ -14,8 +14,10 @@
 //!   against the exact run.
 //! - A run whose publication is `committed` invalidates the Cloud content
 //!   once (`onPublication`); chat text is never parsed for success.
+mod history;
 mod projection;
 
+pub use history::HostedHistory;
 pub use projection::project_cloud_agent_runs;
 
 use crate::{
