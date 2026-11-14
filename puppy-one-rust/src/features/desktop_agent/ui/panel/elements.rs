@@ -19,7 +19,7 @@ use gpui_kit::base::{h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
 
 /// Opens a workspace path from a transcript row.
-pub(super) type OpenFile = std::rc::Rc<dyn Fn(String, &mut Window, &mut App)>;
+pub type OpenFile = std::rc::Rc<dyn Fn(String, &mut Window, &mut App)>;
 
 /// `--agent-evidence-*` geometry.
 pub const EVIDENCE_ROW: f32 = 26.;

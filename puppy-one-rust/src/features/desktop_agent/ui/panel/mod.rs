@@ -15,14 +15,13 @@ mod fixture;
 mod hosted;
 mod routing;
 mod status;
-mod transcript;
 
 use super::agent_chat_view_model::{
     AgentChatRuntime, AgentChatViewModel, AgentChatViewOptions, derive_agent_chat_runtime,
     derive_agent_chat_view_model,
 };
-use super::agent_tool_group_presentation::AgentTranscriptRow;
-use crate::agent::contract::dto::{Part, PromptMention};
+use super::transcript::{TranscriptEvent, TranscriptInput, TranscriptView};
+use crate::agent::contract::dto::PromptMention;
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentSessionPreparation,
 };
@@ -33,7 +32,7 @@ use crate::ui::appearance::ActiveAppearance;
 use crate::ui::form_input::{InputEvent, TextInput};
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 pub use routing::AgentRouting;
@@ -89,21 +88,8 @@ pub struct AgentChatTabPanel {
     composer: Entity<TextInput>,
     /// The controller draft the composer last showed (text, mentions).
     shown_draft: (String, Vec<PromptMention>),
-    transcript: ListState,
-    rows: Vec<AgentTranscriptRow>,
-    parts: HashMap<String, std::sync::Arc<Part>>,
-    row_signatures: Vec<(String, blake3::Hash)>,
-    /// `seenPartIdsRef`: parts that already entered once do not animate.
-    follow: bool,
-    unread: usize,
-    transcript_width: f32,
-    /// Standalone shell disclosures (`rowId:partId`).
-    expanded: HashSet<String>,
-    /// `AgentToolActivityGroup`'s single open step, per row.
-    group_selected: HashMap<String, String>,
-    open_folds: HashSet<String>,
-    run_summary_open: bool,
-    history_notice_open: bool,
+    /// The conversation (`AgentTranscript`).
+    transcript: Entity<TranscriptView>,
     diagnostics_open: bool,
     recovery_details_open: bool,
     /// `pendingConnectionModel`.
@@ -129,10 +115,6 @@ pub struct AgentChatTabPanel {
     payments: bool,
     /// The user's routing preferences (`preferredRuntimeId`, `preferredRoute`).
     routing: AgentRouting,
-    /// `useAgentStreamPresentation`: each streaming answer's displayed text,
-    /// and the frame driver that catches it up.
-    stream_text: HashMap<String, String>,
-    stream_frames: Option<Task<()>>,
     /// The pixel lab's UI state, until its conversation shows.
     #[cfg(feature = "dev-capture")]
     lab: Option<fixture::LabState>,
@@ -266,17 +248,11 @@ impl AgentChatTabPanel {
             cx.notify()
         })
         .detach();
-        let transcript = ListState::new(0, ListAlignment::Top, px(300.));
-        let weak = cx.entity().downgrade();
-        transcript.set_scroll_handler(move |event, _, cx| {
-            let _ = weak.update(cx, |s, cx| {
-                s.follow = event.visible_range.end >= event.count;
-                if s.follow {
-                    s.unread = 0;
-                }
-                cx.notify();
-            });
-        });
+        let transcript = cx.new(TranscriptView::new);
+        cx.subscribe(&transcript, |s: &mut Self, _, event, cx| match event {
+            TranscriptEvent::OpenFile(path) => s.open_file(path.clone(), cx),
+        })
+        .detach();
         Self {
             controller,
             hosted,
@@ -286,17 +262,6 @@ impl AgentChatTabPanel {
             composer,
             shown_draft: Default::default(),
             transcript,
-            rows: Vec::new(),
-            parts: HashMap::new(),
-            row_signatures: Vec::new(),
-            follow: true,
-            unread: 0,
-            transcript_width: 0.,
-            expanded: HashSet::new(),
-            group_selected: HashMap::new(),
-            open_folds: HashSet::new(),
-            run_summary_open: false,
-            history_notice_open: false,
             diagnostics_open: false,
             recovery_details_open: false,
             pending_connection_model: None,
@@ -316,8 +281,6 @@ impl AgentChatTabPanel {
             compute_access_prompt: false,
             payments: false,
             routing: AgentRouting::default(),
-            stream_text: HashMap::new(),
-            stream_frames: None,
             #[cfg(feature = "dev-capture")]
             lab: None,
             _store: store,
@@ -408,8 +371,8 @@ impl AgentChatTabPanel {
                 self.last_presentation = Some(presentation.clone());
                 cx.emit(AgentChatPanelEvent::Presentation);
             }
-            self.refresh_transcript(&state, &view);
-            self.sync_stream_presentation(cx);
+            let input = TranscriptInput::of(&state, &view);
+            self.transcript.update(cx, |t, cx| t.set_input(input, cx));
             cx.notify();
             return;
         }
@@ -442,8 +405,8 @@ impl AgentChatTabPanel {
             self.last_presentation = Some(presentation.clone());
             cx.emit(AgentChatPanelEvent::Presentation);
         }
-        self.refresh_transcript(&state, &view);
-        self.sync_stream_presentation(cx);
+        let input = TranscriptInput::of(&state, &view);
+        self.transcript.update(cx, |t, cx| t.set_input(input, cx));
         #[cfg(feature = "dev-capture")]
         self.apply_lab_state(cx);
         cx.notify();
@@ -468,7 +431,7 @@ impl AgentChatTabPanel {
             return;
         }
         self.compute_access_prompt = false;
-        self.follow = true;
+        self.transcript.update(cx, |t, _| t.follow_latest());
         match self.hosted() {
             Some(chat) => chat.submit(state.draft.clone()),
             None => drop(self.controller.submit(&state.draft)),
@@ -532,7 +495,19 @@ impl Render for AgentChatTabPanel {
             Some(chat) => self.render_hosted_status(chat, cx),
             None => self.render_status(&state, &view, cx),
         });
-        let conversation = self.render_conversation(&state, &view, window, cx);
+        // `desktop-agent-conversation-region` and the empty-state overlay.
+        let empty = view.show_ready_empty_state.then(|| {
+            div()
+                .absolute()
+                .inset_0()
+                .child(self.render_empty_state(&view, cx))
+        });
+        let conversation = div()
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .child(self.transcript.clone())
+            .children(empty);
         // The hosted composer stays while its conversation loads.
         let dock = (!view.startup_loading || hosted.is_some())
             .then(|| self.render_dock(&state, &view, window, cx));
