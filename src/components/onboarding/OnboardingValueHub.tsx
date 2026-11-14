@@ -29,7 +29,7 @@ function hubPoint(angle: number, radius: number) {
  * every kind, in one neat pile, and the Agents they use around them. It only
  * illustrates the copy beside it, so assistive technology skips it.
  */
-export function OnboardingValueHub() {
+export function OnboardingValueHub({ label }: { label?: string } = {}) {
   const { t } = useLocalization();
   return (
     <div className="onboarding-value-hub" aria-hidden="true">
@@ -55,7 +55,7 @@ export function OnboardingValueHub() {
             <b>HTML</b>
           </span>
         </div>
-        <span className="onboarding-value-hub-label">{t("onboarding.value.center")}</span>
+        <span className="onboarding-value-hub-label">{label ?? t("onboarding.value.center")}</span>
       </div>
       {HUB_AGENTS.map(({ id, angle, radius, size }, index) => {
         const { x, y } = hubPoint(angle, radius);

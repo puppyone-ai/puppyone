@@ -1,4 +1,4 @@
-import { AgentBrandImage, AgentMonochromeBrandImage } from "@puppyone/shared-ui";
+import { AgentBrandImage, AgentMonochromeBrandImage, getAgentBrand } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { Link2 } from "lucide-react";
 import type { CSSProperties } from "react";
@@ -97,12 +97,17 @@ export function OnboardingValueEditScene() {
 }
 
 /**
- * Third scene: the dashboard's own link goes to ChatGPT, which takes it over and
+ * Third scene: the dashboard's own link goes to an Agent, which takes it over and
  * edits it where it lives. The code beside the link is only another way to send it.
  */
-export function OnboardingValueForwardScene() {
+export function OnboardingValueForwardScene({
+  agent = "chatgpt",
+}: {
+  agent?: "chatgpt" | "grok-bot";
+} = {}) {
   const { t } = useLocalization();
   const name = t("onboarding.value.scene.dashboard");
+  const agentName = getAgentBrand(agent)?.displayName ?? "ChatGPT";
   return (
     <div className="onboarding-scene onboarding-scene-forward">
       <svg className="onboarding-scene-wire" viewBox="0 0 380 380">
@@ -114,7 +119,7 @@ export function OnboardingValueForwardScene() {
           <MonthlyLine className="onboarding-scene-settled" />
           <span className="onboarding-scene-peak" style={after(3.2)}>{t("onboarding.value.scene.peak")}</span>
           <span className="onboarding-scene-changed" style={after(3.2)}>
-            <b>{t("onboarding.value.scene.changedBy", { agent: "ChatGPT" })}</b>
+            <b>{t("onboarding.value.scene.changedBy", { agent: agentName })}</b>
           </span>
         </span>
         <span className="onboarding-scene-share">
@@ -127,7 +132,10 @@ export function OnboardingValueForwardScene() {
       </span>
       <span className="onboarding-scene-phone">
         <span className="onboarding-scene-phone-app">
-          <AgentMonochromeBrandImage brandId="chatgpt" />ChatGPT
+          {agent === "chatgpt"
+            ? <AgentMonochromeBrandImage brandId="chatgpt" />
+            : <AgentBrandImage brandId={agent} />}
+          {agentName}
         </span>
         <span className="onboarding-scene-message is-mine is-link" style={after(0.3)}>
           <span className="onboarding-scene-link-thumb"><i /><i /><i /></span>

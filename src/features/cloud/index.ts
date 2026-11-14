@@ -16,8 +16,11 @@ export {
 } from "./history";
 export type { AccessPointCatalogKind } from "./access-points";
 export {
+  CloudSignInDialog,
+  closeCloudSignInDialog,
   getCloudAuthEmail,
   getCloudAuthSession,
+  openCloudSignInDialog,
   resolveCloudAuthState,
   useCloudSessionForEnvironment,
 } from "./auth";

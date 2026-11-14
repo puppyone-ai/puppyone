@@ -1,5 +1,6 @@
 import { useLocalization } from "@puppyone/localization";
-import { useCloudAuthController } from "../hooks/useCloudAuthController";
+import { useWindowNavigation } from "../../../components/WindowNavigation";
+import { CloudSignInDialog, openCloudSignInDialog } from "../auth";
 
 /**
  * "Sign in" at the trailing end of the Header while no account is signed in.
@@ -7,10 +8,12 @@ import { useCloudAuthController } from "../hooks/useCloudAuthController";
  */
 export function HeaderSignInButton({ apiBaseUrl }: { apiBaseUrl: string }) {
   const { t } = useLocalization();
-  const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
-  // Stays available while waiting: asking again reopens the browser page.
-  return <button type="button" className="desktop-titlebar-action homepage-cloud-sign-in"
-    aria-label={t("cloud.auth.signInToCloud")} onClick={auth.startSignIn}>
-    {t("cloud.auth.signIn")}
-  </button>;
+  const hasNavigationAccount = Boolean(useWindowNavigation()?.account);
+  return <>
+    <button type="button" className="desktop-titlebar-action homepage-cloud-sign-in"
+      aria-label={t("cloud.auth.signInToCloud")} onClick={() => openCloudSignInDialog(apiBaseUrl)}>
+      {t("cloud.auth.signIn")}
+    </button>
+    {!hasNavigationAccount && <CloudSignInDialog />}
+  </>;
 }

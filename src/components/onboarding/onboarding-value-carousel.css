@@ -4,7 +4,7 @@
   display: grid;
   flex: 0 0 auto;
   justify-items: center;
-  gap: 14px;
+  gap: var(--onboarding-carousel-gap, 14px);
 }
 
 .onboarding-value-stage {
@@ -96,7 +96,7 @@
 }
 
 /* Reading, pointing or working on the page holds the moment; so does the page's own entrance. */
-:is(.onboarding-home-value:hover, .onboarding-home-value:focus-within, .is-empty-state-intro) .onboarding-value-dot > i {
+:is(.onboarding-home-value:hover, .onboarding-home-value:focus-within, .is-empty-state-intro, .onboarding-value-carousel[data-pause-on-hover="true"]:hover) .onboarding-value-dot > i {
   animation-play-state: paused;
 }
 
@@ -600,6 +600,13 @@
 .onboarding-scene-phone-app svg {
   width: 13px;
   height: 13px;
+}
+
+.onboarding-scene-phone-app img {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  border-radius: 50%;
 }
 
 .onboarding-scene-message {
