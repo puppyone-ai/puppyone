@@ -22,7 +22,8 @@ let server;
 const MINIMUM_WIDTH = 720;
 const MINIMUM_HEIGHT = 520;
 const PROJECT_COLUMN = 640;
-const EMPTY_COLUMN = 440;
+/** First run's column beside its picture; below 860px it narrows so the picture still fits. */
+const emptyColumn = (width) => (width < 860 ? 360 : 440);
 const TITLE_INSET = 32;
 /** From the head to the first group's label. */
 const GROUP_LABEL_GAP = 12;
@@ -33,7 +34,11 @@ const GRID_COLUMNS = 5;
 const PROJECT_TYPE = ["12px/400", "12px/500", "13px/600", "14px/400"];
 /** Under a folder a name is a caption, so the Grid has no body type. */
 const GRID_TYPE = ["12px/400", "12px/500", "13px/600"];
-const EMPTY_TYPE = ["14px/400", "19px/500"];
+// The product's name in the caption, the promise and keys in the body, the title in display.
+const EMPTY_TYPE = ["12px/500", "14px/400", "25px/600"];
+/** The default window: the picture at its full size. */
+const VALUE_WIDTH = 1180;
+const VALUE_HEIGHT = 760;
 
 const evaluate = (source) => window.webContents.executeJavaScript(source);
 async function until(expression) {
@@ -141,6 +146,7 @@ async function runSmoke() {
         await validateProjectsHead(theme, width, height);
         await validateProjectsArea(theme, width, height);
       }
+      await validateFirstRunAtDefaultSize(theme);
       await validateToolbar(theme);
       await validateMenuPlacement(theme);
       await validatePointerFocus(theme);
@@ -171,6 +177,8 @@ async function validateChrome(context, theme, column, width) {
     const controls = [...document.querySelectorAll('.onboarding-launcher button')];
     return {
       brand:rect(brand), launcher:rect(document.querySelector('.onboarding-launcher')),
+      // First run centres the picture and the column as one group; with projects, the column alone.
+      centred:rect(document.querySelector('.onboarding-home-value') ?? brand),
       mark:mark?.getAttribute('src').split('/').pop() ?? null,
       markFilter:mark ? getComputedStyle(mark).filter : null,
       headerMark:!!document.querySelector('.desktop-titlebar .onboarding-header-brand :is(img, svg)'),
@@ -189,7 +197,7 @@ async function validateChrome(context, theme, column, width) {
   assert.ok(!page.titleClipped, `${context}: the title is not cut`);
   assert.ok(!page.outside && !page.sideways, `${context}: controls stay onscreen`);
   assert.equal(page.brand.width, column, `${context}: the column keeps its width`);
-  assert.ok(Math.abs(page.brand.x + page.brand.width / 2 - width / 2) < 1, `${context}: the column is centred`);
+  assert.ok(Math.abs(page.centred.x + page.centred.width / 2 - width / 2) < 1, `${context}: the page is centred`);
   assert.equal(page.launcher.x, page.brand.x, `${context}: one left edge`);
 }
 
@@ -197,7 +205,8 @@ async function validateFirstRun(theme, width, height) {
   const context = `empty/${theme}/${width}x${height}`;
   await open({ theme, state: "empty", width, height });
   await until("[...document.querySelectorAll('.onboarding-entry-import img')].every(image => image.complete && image.naturalWidth > 0)");
-  await validateChrome(context, theme, EMPTY_COLUMN, width);
+  await validateChrome(context, theme, emptyColumn(width), width);
+  await validateValueHub(context, width, height);
   { const levels = await evaluate(typeLevels); assert.deepEqual(levels, EMPTY_TYPE, `${context}: two levels of type (${levels})`); }
   const page = await evaluate(`(() => { ${rects}
     const create = document.querySelector('[data-onboarding-action=create]');
@@ -213,11 +222,11 @@ async function validateFirstRun(theme, width, height) {
       title:document.querySelector('.onboarding-brand-name').textContent };
   })()`);
   assert.equal(page.reduced, true, `${context}: visual smoke skips the full intro animation`);
-  assert.equal(page.title, "Start with your files. Agent-ready.", `${context}: the first-run title`);
+  assert.equal(page.title, "What your Agents make is yours to keep", `${context}: the first-run title`);
   assert.equal(page.label, "New project", context);
   assert.equal(page.primaryBorder, "0px", `${context}: no rule around the create action`);
   assert.equal(page.primaryFill, "rgba(0, 0, 0, 0)", `${context}: first run has no surface`);
-  assert.equal(page.create.width, EMPTY_COLUMN, `${context}: New spans the column`);
+  assert.equal(page.create.width, emptyColumn(width), `${context}: New spans the column`);
   assert.equal(page.open.y, page.import.y, `${context}: the other entries share a row`);
   assert.equal(page.open.width, page.import.width, `${context}: the other entries are equal keys`);
   assert.equal(page.open.x, page.create.x, `${context}: one left edge`);
@@ -256,6 +265,39 @@ async function validateFirstRun(theme, width, height) {
   press("Escape");
   await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'import'");
   console.log(`Passed ${context}`);
+}
+
+/** Wide windows picture the person's files among their Agents, beside the column and inside the page. */
+async function validateFirstRunAtDefaultSize(theme) {
+  const context = `value-hub/${theme}/${VALUE_WIDTH}x${VALUE_HEIGHT}`;
+  await open({ theme, state: "empty", width: VALUE_WIDTH, height: VALUE_HEIGHT });
+  await validateChrome(context, theme, emptyColumn(VALUE_WIDTH), VALUE_WIDTH);
+  await validateValueHub(context, VALUE_WIDTH, VALUE_HEIGHT);
+  await shot(`first-run-value-${theme}`);
+  console.log(`Passed ${context}`);
+}
+
+/** Every window size pictures the files among their Agents, beside the column and inside the page. */
+async function validateValueHub(context, width, height) {
+  await until("[...document.querySelectorAll('.onboarding-value-hub img')].every(image => image.complete && image.naturalWidth > 0)");
+  const page = await evaluate(`(() => { ${rects}
+    const hub = document.querySelector('.onboarding-value-hub');
+    const parts = [hub, ...hub.querySelectorAll('.onboarding-value-agent, .onboarding-value-hub-label')].map(rect);
+    const files = rect(hub.querySelector('.onboarding-value-files'));
+    const covered = [...hub.querySelectorAll('.onboarding-value-agent-name')].map(rect)
+      .some((name) => name.x < files.right && name.right > files.x && name.y < files.bottom && name.bottom > files.y);
+    return { hub:rect(hub), launcher:rect(document.querySelector('.onboarding-launcher')), parts,
+      agents:hub.querySelectorAll('.onboarding-value-agent').length, covered, hidden:hub.getAttribute('aria-hidden'),
+      sideways:document.documentElement.scrollWidth > innerWidth, chrome:document.querySelector('.desktop-titlebar').getBoundingClientRect().bottom };
+  })()`);
+  assert.equal(page.hidden, "true", `${context}: the picture is decoration`);
+  assert.equal(page.agents, 8, `${context}: the Agents around the files`);
+  assert.ok(page.hub.right <= page.launcher.x - 24, `${context}: the picture stands beside the column`);
+  assert.ok(Math.abs(page.hub.y + page.hub.height / 2 - (page.launcher.y + page.launcher.height / 2)) < 40, `${context}: picture and column share a middle`);
+  assert.ok(page.parts.every((part) => part.x >= 0 && part.right <= width && part.y >= page.chrome && part.bottom <= height), `${context}: every name stays onscreen`);
+  assert.equal(page.sideways, false, `${context}: nothing scrolls sideways`);
+  // A name never covers a file: the names on the upper half sit above their marks.
+  assert.equal(page.covered, false, `${context}: no Agent's name lies over the files`);
 }
 
 async function validateImportPicker(context) {

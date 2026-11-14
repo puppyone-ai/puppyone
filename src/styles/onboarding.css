@@ -76,7 +76,8 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-  --onboarding-title-primary-gap: 20px;
+  width: min(900px, 100%);
+  --onboarding-title-primary-gap: 28px;
   --onboarding-primary-actions-gap: 8px;
   grid-template-columns: minmax(0, 1fr);
 }
@@ -183,19 +184,83 @@
   color: var(--desktop-titlebar-text-muted);
 }
 
-/* First run has nothing to frame yet, so the Puppy and a line greet you above the keys. */
+/* First run has nothing to frame yet. Beside a picture of the person's files and the
+   Agents around them, the product's name, what it is for and the keys read as one column. */
+.onboarding-home-value {
+  /* The picture and its gap step down with the window rather than leave it. */
+  --onboarding-hub-size: 380px;
+  --onboarding-hub-scale: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 56px;
+}
+
+@media (max-width: 1039px) {
+  .onboarding-home-value {
+    --onboarding-hub-size: 320px;
+    --onboarding-hub-scale: 0.84;
+    gap: 40px;
+  }
+}
+
+/* Down to the smallest window, the column narrows so the picture still fits beside it. */
+@media (max-width: 859px) {
+  .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
+    --onboarding-column-width: 360px;
+  }
+
+  .onboarding-home-value {
+    --onboarding-hub-size: 260px;
+    --onboarding-hub-scale: 0.68;
+    gap: 28px;
+  }
+}
+
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
   flex-direction: column;
-  gap: 16px;
-  text-align: center;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.onboarding-brand-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--po-text-muted);
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: var(--onboarding-row-line-height);
 }
 
 .onboarding-shell[data-onboarding-state="empty"] :is(.onboarding-brand-mark, .onboarding-brand-mark-artwork) {
-  width: 48px;
-  max-width: 48px;
-  height: 48px;
-  flex-basis: 48px;
+  width: 20px;
+  max-width: 20px;
+  height: 20px;
+  flex-basis: 20px;
 }
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-copy {
+  gap: 12px;
+}
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-name {
+  color: var(--po-text);
+  font-size: var(--po-type-ui-display, 25px);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 1.3;
+}
+
+.onboarding-brand-pitch {
+  margin: 0;
+  color: var(--po-text-muted);
+  font-size: var(--onboarding-row-font-size);
+  line-height: 1.65;
+  text-wrap: balance;
+}
+
 
 .onboarding-home-primary {
   display: grid;

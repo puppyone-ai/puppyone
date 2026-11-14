@@ -9,6 +9,8 @@ type OnboardingHomeLayoutProps = {
   primaryKind: OnboardingPrimarySectionKind;
   primary: ReactNode;
   actions: ReactNode;
+  /** First run pictures what the page is for beside it. */
+  aside?: ReactNode;
 };
 
 /**
@@ -20,14 +22,22 @@ export function OnboardingHomeLayout({
   primaryKind,
   primary,
   actions,
+  aside,
 }: OnboardingHomeLayoutProps) {
-  return (
+  const launcher = (
     <div className="onboarding-launcher">
       {brand}
       <OnboardingPrimarySection kind={primaryKind}>
         {primary}
       </OnboardingPrimarySection>
       {actions}
+    </div>
+  );
+  if (!aside) return launcher;
+  return (
+    <div className="onboarding-home-value">
+      {aside}
+      {launcher}
     </div>
   );
 }

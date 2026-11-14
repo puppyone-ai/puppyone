@@ -93,12 +93,14 @@ export function expectBrandLockup(
     expect(brand?.textContent).toBe("puppyone");
     expect(lockup?.querySelector("img")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
+    expect(lockup?.querySelectorAll("p")).toHaveLength(0);
   } else {
     expect(mark?.getAttribute("src")).toContain(expectedMarkAsset);
     expect(mark?.getAttribute("alt")).toBe("");
-    expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("Start with your files. Agent-ready.");
+    expect(lockup?.querySelector(".onboarding-brand-eyebrow")?.textContent).toBe("puppyone");
+    expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("What your Agents make is yours to keep");
+    expect([...lockup!.querySelectorAll("p")].map((line) => line.className)).toEqual(["onboarding-brand-pitch"]);
   }
-  expect(lockup?.querySelectorAll("p")).toHaveLength(0);
   expect(lockup?.querySelector(".onboarding-brand-tagline")).toBeNull();
   expect(lockup?.querySelector(".onboarding-brand-version")).toBeNull();
   expect(container.querySelector(".onboarding-brand-context")).toBeNull();

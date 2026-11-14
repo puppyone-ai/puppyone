@@ -68,6 +68,7 @@ describe("Homepage visual contract", () => {
         "var(--po-text-size-caption, 11px)",
         "var(--po-type-ui-body, 14px)",
         "var(--po-type-ui-caption, 12px)",
+        "var(--po-type-ui-display, 25px)",
         "var(--po-type-ui-heading, 19px)",
         "var(--po-type-ui-meta, 13px)",
       ]);
@@ -119,7 +120,7 @@ describe("Homepage visual contract", () => {
         /\.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*58px;[^}]*--onboarding-primary-actions-gap:\s*30px;/s,
       );
       expect(onboardingCss).toMatch(
-        /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*20px;[^}]*--onboarding-primary-actions-gap:\s*8px;/s,
+        /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*28px;[^}]*--onboarding-primary-actions-gap:\s*8px;/s,
       );
       expect(onboardingCss).toMatch(
         /\.onboarding-brand-lockup\s*\{[^}]*margin-block-end:\s*var\(--onboarding-title-primary-gap\);/s,

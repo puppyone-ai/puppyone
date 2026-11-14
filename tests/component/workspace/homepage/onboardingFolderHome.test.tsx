@@ -11,15 +11,15 @@ import { createProjectResult, expectBrandLockup, installFirstLaunchTelemetryBrid
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 setUpOnboardingHome();
 
-const agentReadyMessages = {
-  de: "Deine Dateien. Für Agents bereit.",
-  en: "Start with your files. Agent-ready.",
-  es: "Tus archivos. Listos para Agents.",
-  fr: "Vos fichiers. Prêts pour les Agents.",
-  ja: "自分のファイルから。Agent 対応。",
-  ko: "내 파일로 시작. Agent 지원.",
-  "pt-BR": "Seus arquivos. Prontos para Agents.",
-  "zh-Hans": "从你的文件开始。为 Agent 就绪。",
+const valueTitles = {
+  de: "Was deine Agents erstellen, gehört dir",
+  en: "What your Agents make is yours to keep",
+  es: "Lo que crean tus Agents es tuyo",
+  fr: "Ce que vos Agents créent vous appartient",
+  ja: "Agent が作ったものは、あなたの資産です",
+  ko: "Agent가 만든 것은 모두 내 자산입니다",
+  "pt-BR": "O que seus Agents criam é seu",
+  "zh-Hans": "Agent 做的东西，都是你的资产",
 } as const;
 
 describe("project folder home", () => {
@@ -37,13 +37,29 @@ describe("project folder home", () => {
     expect(document.querySelector(".onboarding-project-dialog")).toBeNull();
   });
 
-  it("localizes the agent-ready brand promise in every renderer locale", () => {
-    for (const [locale, expected] of Object.entries(agentReadyMessages)) {
+  it("localizes the first-run value promise in every renderer locale", () => {
+    for (const [locale, expected] of Object.entries(valueTitles)) {
       const messages = JSON.parse(
         readFileSync(`locales/renderer/${locale}/onboarding.json`, "utf8"),
       ) as Record<string, string>;
-      expect(messages["brand.agentReadyMessage"], locale).toBe(expected);
+      expect(messages["value.title"], locale).toBe(expected);
+      // The picture names the files and the Agents; the line under the title stays one breath long.
+      expect(messages["value.body"]?.length, locale).toBeLessThanOrEqual(130);
+      expect(messages["value.center"], locale).toBeTruthy();
+      expect(messages["value.folder"], locale).toBeTruthy();
+      expect(messages, locale).not.toHaveProperty("brand.agentReadyMessage");
     }
+  });
+
+  it("pictures every kind of file among the Agents on first run only", () => {
+    const empty = renderHome({ projectItems: [] });
+    const hub = empty.querySelector(".onboarding-home-value > .onboarding-value-hub");
+    expect(hub?.getAttribute("aria-hidden")).toBe("true");
+    expect([...hub!.querySelectorAll(".onboarding-value-file > b")].map((tag) => tag.textContent))
+      .toEqual(["Folder", "MD", "CSV", "HTML"]);
+    expect(hub!.querySelectorAll(".onboarding-value-agent")).toHaveLength(8);
+    expect(hub!.querySelector(".onboarding-value-hub-label")?.textContent).toBe("Your project");
+    expect(hub!.nextElementSibling?.classList.contains("onboarding-launcher")).toBe(true);
   });
 
   it("applies the effective Sub Theme on the real onboarding appearance root", () => {

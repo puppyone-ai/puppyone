@@ -29,6 +29,7 @@ import { useCloudProjectGroups } from "./onboarding/useCloudProjectGroups";
 import { useProjectGroupFocus, type HomepagePlaceFocus } from "./onboarding/useProjectGroupFocus";
 import { useWindowNavigation } from "./WindowNavigation";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
+import { OnboardingValueHub } from "./onboarding/OnboardingValueHub";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
 import { OtherComputersLabel, type CloudCopy, type ProjectAudience } from "./project-audience";
@@ -363,6 +364,7 @@ export function MinimalOnboarding({
             />
           )}
           actions={entry.actions}
+          aside={hasProjects ? undefined : <OnboardingValueHub />}
         />
         {!hasProjects && projectGroups?.({ ...groupsBase, cloud: [], local: null })}
 

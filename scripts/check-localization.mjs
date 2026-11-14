@@ -26,6 +26,10 @@ const allowedUserInterfaceLiterals = new Set([
   // Decorative sharing example: keep the product URL identical in every locale.
   "puppyone.ai/…",
   "md",
+  // File-type tags on the first-run picture name formats, not words.
+  "MD",
+  "CSV",
+  "HTML",
 ]);
 
 const expectedLocales = ["en", "es", "pt-BR", "fr", "de", "ja", "ko", "zh-Hans"];

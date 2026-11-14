@@ -51,7 +51,10 @@ export function OnboardingHeaderBrand() {
   );
 }
 
-/** First-run states the file-first promise; returning users get straight to their projects. */
+/**
+ * First-run says what the person's files become here, under the product's name;
+ * returning users get straight to their projects.
+ */
 export function OnboardingBrandLockup({ state, resolvedTheme, toolbar, trailing }: OnboardingBrandLockupProps) {
   const { t } = useLocalization();
   const hasProjects = state === "projects";
@@ -59,14 +62,18 @@ export function OnboardingBrandLockup({ state, resolvedTheme, toolbar, trailing 
   return (
     <header className="onboarding-brand-lockup">
       {hasProjects ? toolbar : (<>
-        <span className="onboarding-brand-mark" aria-hidden="true">
-          <PuppyBrandMark
-            className="onboarding-brand-mark-artwork"
-            tone={resolvedTheme === "light" ? "lite" : "dark"}
-          />
+        <span className="onboarding-brand-eyebrow">
+          <span className="onboarding-brand-mark" aria-hidden="true">
+            <PuppyBrandMark
+              className="onboarding-brand-mark-artwork"
+              tone={resolvedTheme === "light" ? "lite" : "dark"}
+            />
+          </span>
+          {t("onboarding.brand.name")}
         </span>
         <div className="onboarding-brand-copy">
-          <h1 className="onboarding-brand-name">{t("onboarding.brand.agentReadyMessage")}</h1>
+          <h1 className="onboarding-brand-name">{t("onboarding.value.title")}</h1>
+          <p className="onboarding-brand-pitch">{t("onboarding.value.body")}</p>
         </div>
       </>)}
       {trailing}
