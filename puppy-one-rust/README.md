@@ -211,6 +211,33 @@ src/editor/
   host/        文档宿主协议（open / snapshot / saved / history）、窗格菜单与查找
 ```
 
+## v0.4.4 对齐（2026-11-14）
+
+参照 TS v0.4.4（`5e87974ef`，`product-source.json` 固定）。用户能看到的部分：
+
+- **标题栏**：`[位置] / [文件夹]`。位置菜单列出 Home、本机、每个空间与 Create space，以及账号行。
+- **首页**：按地点分组，依次是本机、每个空间、Shared projects。
+- **Settings**：只管一个空间（Members、Plan、Account）。
+- **编辑器与引导**：
+  - Excalidraw 白板（`.excalidraw`）；
+  - HTML 页面要用所在文件夹时先询问，链接走原生导航；
+  - Getting Started v2，以及首次启动读取剪贴板里的商店链接；
+  - 从其他应用导入（Obsidian、VS Code、Cursor、Typora，原地加入首页，受实验开关控制）。
+- **其他修复**：
+  - 项目文件夹移动或消失时会提示，原地改名的能找回；
+  - Claude Code 用自己的登录也算已认证，并能找到 Homebrew 装的 Claude Code；
+  - Git 元数据每 2 s 对账；
+  - reqwest 跟随系统代理。
+- **其他电脑**按 v0.4.4 的发布门控关闭。Settings › Computer access 和 Host 文件夹的 2 s 对账已实现，但门控下不可见。
+
+逐项清单与已知差异见 PARITY_TODO 和桌面清单《PuppyOne-Rust-对齐v0.4.4-TODO-2026-11-14》。真实 qubits 验收（不付款；所建的项目、空间和邀请在结束时删除）：
+
+```bash
+cargo test -p po-workspace --features test-support -- workspace::acceptance --ignored --nocapture --test-threads=1
+```
+
+Plan 页的像素夹具：`PUPPYONE_CAPTURE_SCENARIO="plan-fixture:team"`（另有 `free`、`enterprise`、`scheduled`），需带 `dev-capture` 构建。它对应 v0.4.4 的 `#cloud-plans-visual-smoke`。
+
 ## 其他电脑（PuppyOne Host，qubits@686d41c49）
 
 默认关闭：构建开关 `PUPPYONE_HOST_DEVICES_ENABLED`，或 Settings › Experimental › Other computers（账号可用时显示）。打开后：

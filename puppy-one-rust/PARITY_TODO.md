@@ -5,7 +5,21 @@
 
 **qubits@686d41c49 对齐（2026-11-08）**：首页三类受众、Cloud 空间与团队发布、"谁能打开"、新建对话框、退役 Share 与服务对话框、Cloud 打开失败分类与推送合同码、Cloud Agents、单文件窗口、`puppyone open`、其他电脑（访问端与 Rust 原生 Host）。各组合同、提交、测试与真实 Cloud 收据、未覆盖项见 puppy-issues [Rust Alignment with qubits 686d41c49](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/qubits-alignment.md#verification)；迁移映射登记在 `tools/ui-migration-map.json`。
 
-**v0.4.4 对齐（2026-11-14 起，进行中）**：159 个提交的差距（空间与标题栏、首页按地点分组、Create space、设置限定一个空间与 Members / Plan、Excalidraw 白板、HTML 文件夹访问与链接、Getting Started v2、从其他应用导入、项目文件夹丢失、Claude Code 登录、Git 元数据对账、其他电脑发布门控）。逐项清单与 ID（PN / RT / SC / TB / HG / CS / ST / MB / PL / AP / WB / HT / OB / IM / FA / AX / GW / HX / AC）见《PuppyOne-Rust-对齐v0.4.4-TODO-2026-11-14》；各组落地后合同在上面的 puppy-issues 文档原位更新。
+**v0.4.4 对齐（2026-11-14，已实现并验收，未推送）**：159 个提交的差距（空间与标题栏、首页按地点分组、Create space、设置限定一个空间与 Members / Plan、Excalidraw 白板、HTML 文件夹访问与链接、Getting Started v2、从其他应用导入、项目文件夹丢失、Claude Code 登录、Git 元数据对账、其他电脑发布门控）。逐项清单与 ID（PN / RT / SC / TB / HG / CS / ST / MB / PL / AP / WB / HT / OB / IM / FA / AX / GW / HX / AC）见《PuppyOne-Rust-对齐v0.4.4-TODO-2026-11-14》；各组落地后合同在上面的 puppy-issues 文档原位更新。
+
+v0.4.4 收尾（`f677bd014`）：
+- 各组全部提交，`tools/verify.py` 全过。
+- 真实 qubits 上两项验收通过：
+  - Cloud 项目链路；
+  - 空间、成员、Plan、Create space 与邀请，结束时撤销邀请、删除空间。
+  - qubits 的 catalog 里没有可购买的套餐，所以没有走报价和 checkout。
+- Plan 用 v0.4.4 的 harness 做了两种主题的像素对照。
+- 已知差异：
+  - 白板的 SDK 打成一个 8.5 MB 脚本，切换主题后撤销历史清空；
+  - HTML 的文件夹询问用系统对话框，页面摘要用 blake3；
+  - Find it… 没有起始目录（GPUI 的限制）；
+  - Computer access 在 Host 状态读取失败时显示“未共享”。
+- 证据见 puppy-issues 的 `qubits-alignment.md#v044-alignment`。
 
 ## 0. 工作方法
 
