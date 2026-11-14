@@ -18,6 +18,7 @@ pub fn normalize_name(kind: Entry, input: &str) -> Result<String, &'static str> 
         Entry::Csv => matches!(ext, Some("csv" | "tsv")),
         Entry::Html => matches!(ext, Some("htm" | "html" | "xhtml")),
         Entry::Json => matches!(ext, Some("json" | "jsonl")),
+        Entry::Whiteboard => lower.ends_with(".excalidraw") || lower.ends_with(".excalidraw.json"),
         Entry::Text => ext.is_some(),
         _ => lower.ends_with(kind.extension()),
     };
@@ -37,6 +38,14 @@ mod tests {
             "Readme.MDX"
         );
         assert_eq!(normalize_name(Entry::Csv, "Table").unwrap(), "Table.csv");
+        assert_eq!(
+            normalize_name(Entry::Whiteboard, "Plan").unwrap(),
+            "Plan.excalidraw"
+        );
+        assert_eq!(
+            normalize_name(Entry::Whiteboard, "Plan.Excalidraw.json").unwrap(),
+            "Plan.Excalidraw.json"
+        );
         for name in ["", "..", "a/b", "a\\b", "a\0b"] {
             assert!(normalize_name(Entry::Text, name).is_err())
         }

@@ -273,6 +273,10 @@ impl FileFormat {
     }
     /// `isTextLikeFileFormat`.
     pub fn is_text_like(&self) -> bool {
+        // A whiteboard is JSON text, opened by its own editor.
+        if self.id == "excalidraw" {
+            return true;
+        }
         matches!(
             self.category,
             Category::Markdown | Category::Text | Category::Code
@@ -309,6 +313,7 @@ pub const SEMANTIC_KINDS: &[&str] = &[
     "app",
     "context-map",
     "workflow",
+    "whiteboard",
     "markdown",
     "json",
     "html",
@@ -373,6 +378,13 @@ mod tests {
         // Compound extensions win over their last segment; exact names and
         // directory-qualified patterns win over extensions.
         assert_eq!(of("flow.puppyflow.json").id, "puppyflow");
+        // v0.4.4: a whiteboard, in either spelling, ahead of plain JSON.
+        for name in ["plan.excalidraw", "plan.excalidraw.json"] {
+            let board = of(name);
+            assert_eq!(board.id, "excalidraw");
+            assert_eq!(board.semantic_kind(), "whiteboard");
+            assert!(board.is_text_like());
+        }
         assert_eq!(of("app.js.map").id, "json");
         assert_eq!(of("CMakeLists.txt").id, "cmake");
         assert_eq!(of("repo/.claude/agents/review.md").id, "markdown");

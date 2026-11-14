@@ -17,4 +17,5 @@ pub mod placeholder;
 pub mod structured;
 pub mod text;
 pub mod web;
+pub mod whiteboard;
 pub mod workspace_port;

@@ -1,22 +1,22 @@
 {
  "schema": 2,
- "sourceCommit": "686d41c49ffd80734617e3b66061e615b5848e7b",
+ "sourceCommit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
  "inputs": {
   "src/shared-ui/file/fileIconThemeRegistry.tsx": "b590dd4ff86744262452b06f60aa6a8d0bd35a6f9cfcb4dc4c2ecbbbb3ff47d8",
-  "src/shared-ui/file/fileIconTypes.ts": "430e51f0160fb2c431c9ecc12cc2fdd03c4db70d3087f66a5cd8a4ec7515a61c",
-  "src/shared-ui/file/fileIcons.tsx": "e2b8ecad84eb00aec4ebe6c8834d9188fa3992ddeee6b9736201fb8d3efc58f7",
-  "src/shared-ui/file/icon-themes/default/glyphs.tsx": "a59be23e22647c93016aeab9fa469480db1f0b079f7ceb7eed71e0d627cdf28a",
+  "src/shared-ui/file/fileIconTypes.ts": "85fa3f132329305d1a2dae7b245b8c6b4480f3e5191d0647d5556f22d6983705",
+  "src/shared-ui/file/fileIcons.tsx": "923489031652dc2b7cfbf15e8a99976e79a19dec0823fb67ccbaba321a505733",
+  "src/shared-ui/file/icon-themes/default/glyphs.tsx": "8a3f5f87c81046ecab87372a4fe6038f3a2fa08f070028c884f00c91a627a31c",
   "src/shared-ui/file/icon-themes/default/index.ts": "66c3ac494202465dda0091d77964fdf35dcd38909883a7fc81a49871d8ba247e",
-  "src/shared-ui/file/icon-themes/default/previews.tsx": "f3f5444acb53e1c3ff7c091303523bbfc66bebb64cd50ae1c48970935ca28999",
+  "src/shared-ui/file/icon-themes/default/previews.tsx": "9f2e2a738995bb47b5fc570c73672aac07f23c3ff31f8a3cf4b02128f00e37a9",
   "src/shared-ui/file/icon-themes/iconThemeTypes.ts": "790c16bb05dba4b619172f1e4bd50b9ba0b531e6a18b1a514cbd79564909da09",
   "src/shared-ui/file/icon-themes/registry.ts": "30b739d8552545f52972e355e26d00a52d4db7a3cab3690adf6789b79aff5829",
   "src/shared-ui/file/icon-themes/shared/PreviewShell.tsx": "c22d45e6dca114d51e035fcf8a04b048fa7ceabacb0f2aa2779d300080981a70",
   "src/shared-ui/file/icon-themes/shared/glyphLine.ts": "8828a607d818a6bf8a6c703cf8aa78994a94b8f96600a83df57fc309a4104367",
-  "src/shared-ui/file/icon-themes/shared/semanticGlyphs.tsx": "f68e7c60d2fb61f2b155f057ab2fb413935027181f0780e3293ceee1f571b5b4",
+  "src/shared-ui/file/icon-themes/shared/semanticGlyphs.tsx": "e7a96d23998ed3599802d0d560d1a91422619f60d7ff81856948aaa2bba87928",
   "src/shared-ui/file/icon-themes/themeFactory.tsx": "869a5bf186e31aca8d7a3c267f30cb1ec6ec33358f8e93147440cab2fb3d3bdb",
   "src/shared-ui/icons/productIcons.tsx": "5d7091884cb5840c491a24e5ac4a3a4e923366374ad3f2c73e68b9ed5a946a05",
-  "src/shared-ui/core/fileFormats.ts": "85744c66b094615589a4ba03fa18b37fd0d482172637049031e69ee262c7b6a9",
-  "shared/fileFormats.json": "38d5453755412bbd4f4c0af78c8ed57af2bf3ce1a4ea07e0102be36e6f6cc17f",
+  "src/shared-ui/core/fileFormats.ts": "fa6b9b498d468fd22fa1c0129fc815154a28543ee82efaca52cf56179084d915",
+  "shared/fileFormats.json": "4121ae78dd4b9fa0b23a4a080b7aefe1169cd89648335ceed557fbeda7f737c5",
   "public/fonts/geist/Geist-Variable.woff2": "e24cec106619c03f0b3519e31b9bc55e0d5e926b6a95b8d798cd8cef215b1505",
   "node_modules/lucide-react/package.json": "fc04d9363ba3f8403287b181f66fd6a276c9cc9e2a0b3836ac46d64f6807079c",
   "node_modules/lucide-react/dist/esm/icons/database.js": "d01eb407b528a3542dea96d5af61a3c0617b1dab4fbf458c69872dc690bb891a",
@@ -27,6 +27,7 @@
   "app",
   "context-map",
   "workflow",
+  "whiteboard",
   "markdown",
   "json",
   "html",
@@ -140,6 +141,22 @@
       {
        "mode": "line",
        "value": 24
+      }
+     ],
+     "bindings": [
+      {
+       "token": "accent",
+       "alpha": 1
+      }
+     ]
+    },
+    "whiteboard": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" data-file-icon-shape=\"whiteboard-diagram\"><rect x=\"3.5\" y=\"3.5\" width=\"11\" height=\"11\" rx=\"1.5\"></rect><rect x=\"5.75\" y=\"5.75\" width=\"2.9\" height=\"2.9\" rx=\"0.5\"></rect><circle cx=\"11.15\" cy=\"11.15\" r=\"1.5\"></circle><path d=\"m8.65 8.65 1.45 1.45\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
       }
      ],
      "bindings": [

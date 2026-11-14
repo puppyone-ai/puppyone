@@ -200,6 +200,7 @@ impl MediaView {
                 ipc: Some(Ipc(tx)),
                 policy: None,
                 frames: None,
+                disk_assets: None,
             };
             cx.new(|_| WebFrame::new(Some(content), self.dark))
         });

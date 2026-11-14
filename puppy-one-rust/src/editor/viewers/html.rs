@@ -123,6 +123,7 @@ fn content(text: &str, folder: Option<PathBuf>, source: Option<Source>) -> Conte
         ipc: None,
         policy: Some(html_preview::INTERACTIVE_HEADER),
         frames: None,
+        disk_assets: None,
     }
 }
 

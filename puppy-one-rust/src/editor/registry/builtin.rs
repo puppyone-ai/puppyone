@@ -9,7 +9,7 @@ use super::contribution::{
 };
 use crate::editor::viewers::{
     app_preview, code, csv, database, html, image, media, office, pdf, placeholder, structured,
-    text,
+    text, whiteboard,
 };
 
 fn yes(_: &ViewerMatch, _: &str) -> bool {
@@ -56,6 +56,18 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             matches: |m| m.format.id == "puppyflow",
             editable: Some(yes),
             presentation: Native(structured::open_puppyflow),
+        },
+        ViewerImplementation {
+            id: "excalidraw",
+            policy: Some(ProviderPolicy {
+                profile: Profile::EditableDocument,
+                source_toggle: true,
+                semantic_inputs: &[SemanticInput::AssetResolver],
+                document_directory: true,
+            }),
+            matches: |m| m.format.id == "excalidraw",
+            editable: Some(yes),
+            presentation: Native(whiteboard::open),
         },
         ViewerImplementation {
             id: "json",

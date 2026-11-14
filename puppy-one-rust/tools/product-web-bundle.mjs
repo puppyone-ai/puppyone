@@ -19,11 +19,18 @@ const WEBKIT_COMPAT = `(()=>{const d=TextDecoder.prototype.decode;const r=v=>v&&
 
 /**
  * name: output stem (`<name>.js`, `<name>.css`, `<name>.json`);
- * entry: the tools/ entry module; styles: product CSS files, in order;
+ * entry: the tools/ entry module; styles: product CSS files, in order
+ * (a `node_modules/` path names a package's own stylesheet);
  * workers: { asset: product worker source } served as `__assets__/<asset>`;
- * baseUrl: `import.meta.env.BASE_URL` for public assets.
+ * baseUrl: `import.meta.env.BASE_URL` for public assets;
+ * conditions: package export conditions (`production` builds);
+ * plugins: esbuild plugins that adapt third-party code as the product's
+ * Vite plugins do; packages: dependencies whose versions the receipt pins;
+ * cssExternal / cssRewrite: stylesheet URLs left for the page to load
+ * (a package's own fonts) and how the built sheet names them.
  */
-export async function bundleProductPage({name, entry, styles, workers = {}, baseUrl = './'}) {
+export async function bundleProductPage({name, entry, styles, workers = {}, baseUrl = './',
+  conditions = [], plugins = [], packages = [], cssExternal = [], cssRewrite = text => text}) {
   const check = process.argv.includes('--check');
   const product = await productRoot(process.argv.slice(2).find(a => !a.startsWith('--')));
   const modules = path.join(product, 'node_modules');
@@ -55,14 +62,14 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
     },
   };
   const common = {
-    absWorkingDir: product, nodePaths: [modules], alias, bundle: true, write: false, format: 'iife', platform: 'browser',
+    absWorkingDir: product, nodePaths: [modules], alias, conditions, bundle: true, write: false, format: 'iife', platform: 'browser',
     jsx: 'automatic', minify: true, legalComments: 'eof', target: 'safari16', logLevel: 'error', metafile: true,
     banner: {js: WEBKIT_COMPAT},
     define: {'process.env.NODE_ENV': '"production"', 'import.meta.env': JSON.stringify({DEV: false, PROD: true, MODE: 'production', BASE_URL: baseUrl})},
     loader: {'.css': 'empty', '.svg': 'empty', '.png': 'empty', '.woff2': 'empty'},
   };
   const entrySource = await readFile(path.join(root, entry), 'utf8');
-  const script = await build({...common, plugins: [workerHost],
+  const script = await build({...common, plugins: [workerHost, ...plugins],
     stdin: {contents: entrySource, resolveDir: product, loader: 'tsx', sourcefile: path.basename(entry)}, outfile: `${name}.js`});
   const files = {[`${name}.js`]: script.outputFiles[0].text};
   const inputs = Object.keys(script.metafile.inputs);
@@ -79,18 +86,21 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
     absWorkingDir: product, stdin: {contents: sheet.map(p => `@import ${JSON.stringify('./' + p)};`).join('\n'), resolveDir: product, loader: 'css'},
     bundle: true, write: false, minify: true, metafile: true, outfile: `${name}.css`, logLevel: 'error',
     loader: {'.woff2': 'empty', '.woff': 'empty', '.ttf': 'empty', '.svg': 'empty', '.png': 'empty'},
-    external: ['/fonts/*', '/assets/*'],
+    external: ['/fonts/*', '/assets/*', ...cssExternal],
   });
-  files[`${name}.css`] = css.outputFiles[0].text.replaceAll('url(/fonts/', 'url(fonts/').replaceAll('url("/fonts/', 'url("fonts/');
+  files[`${name}.css`] = cssRewrite(css.outputFiles[0].text).replaceAll('url(/fonts/', 'url(fonts/').replaceAll('url("/fonts/', 'url("fonts/');
   inputs.push(...Object.keys(css.metafile.inputs));
   const sources = [...new Set(inputs)]
     .filter(p => !p.startsWith('<') && !p.startsWith('(disabled):') && p !== path.basename(entry) && !p.includes('node_modules/')).sort();
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
   const sourceHashes = Object.fromEntries(await Promise.all(sources.map(async p => [p, hash(await readFile(path.resolve(product, p)))])));
+  const versions = Object.fromEntries(await Promise.all(packages.map(async p =>
+    [p, JSON.parse(await readFile(path.join(modules, p, 'package.json'), 'utf8')).version])));
   const receipt = {
     sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {cwd: product, encoding: 'utf8'}).trim(),
     entry,
     entryHash: hash(entrySource),
+    ...(packages.length ? {packages: versions} : {}),
     outputs: Object.fromEntries(Object.entries(files).map(([file, text]) => [file, hash(text)])),
     sourceHashes,
   };
@@ -102,7 +112,8 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
       if (committed !== text) stale.push(file);
     }
     const committed = JSON.parse(await readFile(path.join(target, `${name}.json`), 'utf8').catch(() => '{}'));
-    if (JSON.stringify(committed.sourceHashes) !== JSON.stringify(sourceHashes)) stale.push(`${name}.json`);
+    if (JSON.stringify(committed.sourceHashes) !== JSON.stringify(sourceHashes)
+      || JSON.stringify(committed.packages) !== JSON.stringify(receipt.packages)) stale.push(`${name}.json`);
     if (stale.length) throw new Error(`Stale ${name} assets: ${stale.join(', ')} (run node tools/import-${name}.mjs)`);
     console.log(`${name} assets verified (${sources.length} product sources)`);
   } else {
@@ -112,6 +123,7 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
     const size = Object.values(files).reduce((sum, text) => sum + text.length, 0);
     console.log(`${name} imported: ${(size / 1024).toFixed(0)} KiB across ${Object.keys(files).length} files, ${sources.length} product sources`);
   }
+  return {product, modules, receipt};
 }
 
 /** The product tokens and typography every bundled page reads. */

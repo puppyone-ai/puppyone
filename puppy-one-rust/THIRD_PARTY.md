@@ -75,6 +75,23 @@ and @lezer/common and highlight (MIT) with style-mod, w3c-keyname and crelt
 lucide-react (ISC) and tslib (0BSD). License comments are kept at the end of
 the script. It runs only in the HTML viewer's Edit-mode WebView.
 
+## Excalidraw whiteboard bundle
+
+`assets/web/excalidraw.{js,css}` is the product's whiteboard
+(`ExcalidrawViewer` over its `ExcalidrawDocumentModel`) bundled against the
+product checkout by `tools/import-excalidraw.mjs`, with a receipt in
+`assets/web/excalidraw.json`. It includes `@excalidraw/excalidraw` 0.18.1
+(MIT) and the dependencies it loads, such as Mermaid with
+@excalidraw/mermaid-to-excalidraw, KaTeX and React (MIT). The product's host
+patches apply, and the build redirects the SDK's CDN font fallback to the
+app's own fonts and makes scene-listener cleanup idempotent, as the product's
+build does. The SDK's fonts are shipped unchanged from the pinned npm package
+(`tools/fetch-excalidraw-fonts.py`, which checks the lockfile's sha512 and
+each file's digest) in `Resources/excalidraw/fonts`. The SDK license ships as
+`EXCALIDRAW_LICENSE.txt` and the fonts' embedded copyright and license
+notices as `EXCALIDRAW_FONT_NOTICES.txt` (`licenses/excalidraw/`, copied
+from the product). It runs only in the whiteboard's WebView.
+
 ## Terminal custom glyphs
 
 `assets/terminal-glyphs.json` holds xterm.js's custom glyph definitions

@@ -96,7 +96,19 @@ pub struct Content {
     /// Origins the page's own frames may load (App Preview's running app);
     /// everything else stays refused.
     pub frames: Option<Frames>,
+    /// The app's own resources too large to embed (the whiteboard's fonts),
+    /// served from a folder at `__assets__/{prefix}/…`.
+    pub disk_assets: Option<DiskAssets>,
 }
+/// A folder of trusted app resources: `prefix` names it under `__assets__/`;
+/// a missing folder or file is a 404, never a fallback elsewhere.
+#[derive(Clone, Debug)]
+pub struct DiskAssets {
+    pub prefix: &'static str,
+    pub dir: PathBuf,
+}
+/// One app resource from disk at most (Xiaolai's largest shard is ~1 MB).
+const DISK_ASSET_MAX_BYTES: u64 = 8 * 1024 * 1024;
 /// Frame origins a page may load, changed while it runs.
 #[derive(Clone, Debug, Default)]
 pub struct Frames(pub std::sync::Arc<std::sync::Mutex<Vec<String>>>);
@@ -251,6 +263,16 @@ pub fn respond(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
         return (200, "text/html; charset=utf-8", html.clone().into_bytes());
     }
     if let Some(name) = path.strip_prefix("__assets__/") {
+        if let Some(disk) = &content.disk_assets
+            && let Some(relative) = name
+                .strip_prefix(disk.prefix)
+                .and_then(|n| n.strip_prefix('/'))
+        {
+            return match resolve(&disk.dir, relative) {
+                Some(file) => serve_with(&file, DISK_ASSET_MAX_BYTES),
+                None => (404, "text/plain", b"Not found".to_vec()),
+            };
+        }
         return match content.assets.iter().find(|(n, _)| *n == name) {
             Some((n, bytes)) => (200, mime_for(Path::new(n)), bytes.to_vec()),
             None => (404, "text/plain", b"Not found".to_vec()),
@@ -281,8 +303,11 @@ pub fn respond(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
     }
 }
 fn serve(content: &Content, file: &Path) -> (u16, &'static str, Vec<u8>) {
+    serve_with(file, content.max_bytes)
+}
+fn serve_with(file: &Path, max_bytes: u64) -> (u16, &'static str, Vec<u8>) {
     match std::fs::metadata(file) {
-        Ok(meta) if meta.len() > content.max_bytes => (
+        Ok(meta) if meta.len() > max_bytes => (
             413,
             "text/plain",
             b"Resource exceeds its preview budget".to_vec(),
@@ -382,6 +407,50 @@ mod tests {
     use super::*;
 
     #[test]
+    fn disk_assets_serve_their_folder_only_and_never_as_resources() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("fonts/Virgil")).unwrap();
+        std::fs::write(dir.path().join("fonts/Virgil/Virgil.woff2"), b"wOF2").unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.txt"), "x").unwrap();
+        let content = Content {
+            root: None,
+            source: None,
+            entry: Entry::Html("<p>board</p>".into()),
+            max_bytes: 0,
+            assets: vec![("excalidraw.js", b"x()")],
+            ipc: None,
+            policy: None,
+            frames: None,
+            disk_assets: Some(DiskAssets {
+                prefix: "excalidraw",
+                dir: dir.path().into(),
+            }),
+        };
+        let (status, mime, body) =
+            respond(&content, "/__assets__/excalidraw/fonts/Virgil/Virgil.woff2");
+        assert_eq!(
+            (status, mime, body.as_slice()),
+            (200, "font/woff2", &b"wOF2"[..])
+        );
+        // The embedded assets are still there; nothing leaves the folder.
+        assert_eq!(respond(&content, "/__assets__/excalidraw.js").0, 200);
+        assert_eq!(
+            respond(&content, "/__assets__/excalidraw/fonts/none.woff2").0,
+            404
+        );
+        assert_eq!(
+            respond(&content, "/__assets__/excalidraw/../secret.txt").0,
+            404
+        );
+        assert_eq!(respond(&content, "/__assets__/excalidrawfonts/x").0, 404);
+        assert_eq!(
+            respond_local(&content, "/__assets__/excalidraw/fonts/Virgil/Virgil.woff2").0,
+            404
+        );
+    }
+
+    #[test]
     fn resources_stay_inside_the_granted_root_and_budget() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir(dir.path().join("assets")).unwrap();
@@ -404,6 +473,7 @@ mod tests {
             ipc: None,
             policy: None,
             frames: None,
+            disk_assets: None,
         };
         assert_eq!(
             respond(&content, "/__assets__/r.js").1,
@@ -479,6 +549,7 @@ mod tests {
             ipc: None,
             policy: None,
             frames: None,
+            disk_assets: None,
         };
         assert_eq!(respond(&content, "/style.css").0, 200);
         assert_eq!(respond(&content, "/../style.css").0, 404);

@@ -204,6 +204,7 @@ impl StructuredView {
             ipc: Some(Ipc(tx)),
             policy: None,
             frames: None,
+            disk_assets: None,
         };
         self.ready = false;
         self.pane.clear();

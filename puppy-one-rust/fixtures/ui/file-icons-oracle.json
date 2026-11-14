@@ -1,6 +1,19 @@
 {
- "sourceCommit": "686d41c49ffd80734617e3b66061e615b5848e7b",
+ "sourceCommit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
  "classification": [
+  {
+   "name": "sample.excalidraw",
+   "kind": "whiteboard"
+  },
+  {
+   "name": "sample.excalidraw.json",
+   "kind": "whiteboard"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.excalidraw+json",
+   "kind": "whiteboard"
+  },
   {
    "name": "sample.contextmap",
    "kind": "context-map"
@@ -3534,6 +3547,11 @@
   },
   {
    "name": "unknown.zzz",
+   "type": "whiteboard",
+   "kind": "whiteboard"
+  },
+  {
+   "name": "unknown.zzz",
    "type": "markdown",
    "kind": "markdown"
   },
@@ -4150,6 +4168,118 @@
    "size": 56,
    "strokes": [
     1.333
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 1,
+   "strokes": [
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 9,
+   "strokes": [
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 10,
+   "strokes": [
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 12,
+   "strokes": [
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 13,
+   "strokes": [
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 14,
+   "strokes": [
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 15,
+   "strokes": [
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 16,
+   "strokes": [
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 17,
+   "strokes": [
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 18,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 20,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 24,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 32,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "whiteboard",
+   "size": 56,
+   "strokes": [
+    1
    ]
   },
   {

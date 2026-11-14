@@ -581,7 +581,7 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
 
-    /// The list the product publishes (qubits@686d41c49
+    /// The list the product publishes (v0.4.4 5e87974ef
     /// `createFileModeExtensions` over `shared/fileFormats.json`).
     #[test]
     fn a_file_window_opens_the_products_extensions() {

@@ -1,6 +1,31 @@
 {
  "formats": [
   {
+   "id": "excalidraw",
+   "label": "Whiteboard",
+   "semanticKind": "whiteboard",
+   "mimeTypesByExtension": {
+    ".excalidraw": "application/vnd.excalidraw+json",
+    ".excalidraw.json": "application/vnd.excalidraw+json"
+   },
+   "extensions": [
+    ".excalidraw",
+    ".excalidraw.json"
+   ],
+   "mimeTypes": [
+    "application/vnd.excalidraw+json"
+   ],
+   "category": "data",
+   "defaultViewer": "excalidraw-editor",
+   "availableViewers": [
+    "excalidraw-editor",
+    "monaco-code"
+   ],
+   "editable": true,
+   "ingestStrategy": "parse-structured",
+   "monacoLanguage": "json"
+  },
+  {
    "id": "context-map",
    "label": "Context Map",
    "semanticKind": "context-map",

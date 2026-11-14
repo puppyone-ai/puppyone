@@ -241,6 +241,22 @@ pub fn display_name(name: &str, folder: bool) -> (String, Option<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Every format the registry knows draws in every theme: a new kind
+    /// (v0.4.4's `whiteboard`) arrives with its glyph or fails here, not at
+    /// the first tree that lists such a file.
+    #[test]
+    fn every_known_format_has_a_glyph_in_every_theme() {
+        for format in formats::all() {
+            for theme in catalog().themes.values() {
+                assert!(
+                    theme.glyphs.contains_key(format.semantic_kind()),
+                    "{} has no {} glyph",
+                    theme.id,
+                    format.semantic_kind()
+                );
+            }
+        }
+    }
     #[test]
     fn classification_and_display_follow_the_product_registry() {
         let oracle: serde_json::Value =

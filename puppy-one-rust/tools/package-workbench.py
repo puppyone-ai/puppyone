@@ -9,6 +9,7 @@ import plistlib
 import re
 import shutil
 import subprocess
+import sys
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--qa-root', type=Path, help='Existing disposable workspace for the isolated QA app')
@@ -94,7 +95,17 @@ def package(path, name, identifier, environment=None):
         frameworks.mkdir(parents=True, exist_ok=True)
         shutil.copy2(pdfium, frameworks / pdfium.name)
         shutil.copy2(root / 'vendor/pdfium/LICENSE', resources / 'PDFIUM_LICENSE.txt')
+    # The whiteboard's fonts (tools/fetch-excalidraw-fonts.py), served from
+    # Resources/excalidraw; a bundle without them draws text in system fonts.
+    fonts = root / 'vendor/excalidraw/fonts'
+    if fonts.is_dir():
+        subprocess.run([sys.executable, str(root / 'tools/fetch-excalidraw-fonts.py'), '--check'], check=True)
+        shutil.copytree(fonts, resources / 'excalidraw/fonts', dirs_exist_ok=True)
+    else:
+        print('warning: no Excalidraw fonts; run tools/fetch-excalidraw-fonts.py', file=sys.stderr)
     for source, destination in [
+        (root / 'licenses/excalidraw/LICENSE', 'EXCALIDRAW_LICENSE.txt'),
+        (root / 'licenses/excalidraw/FONT-NOTICES.txt', 'EXCALIDRAW_FONT_NOTICES.txt'),
         (root / 'README.md', 'README.md'),
         (root / 'THIRD_PARTY.md', 'THIRD_PARTY.md'),
         (root.parent / 'LICENSE', 'LICENSE'),
