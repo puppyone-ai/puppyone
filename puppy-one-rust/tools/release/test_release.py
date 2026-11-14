@@ -6,6 +6,7 @@ from pathlib import Path
 import bundle
 import icon
 import identity
+import sign
 
 COMMIT = 'a' * 40
 
@@ -77,6 +78,32 @@ class InfoPlistTest(unittest.TestCase):
                                   bundle.document_types(), bundle.cli_declaration())
         self.assertEqual(dev['CFBundleVersion'], '0.4.4')
         self.assertEqual(dev['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['puppyone-development'])
+
+
+class SigningPlanTest(unittest.TestCase):
+    """`macos-release-policy.test.mjs`'s credential cases."""
+
+    def test_dev_and_internal_are_always_ad_hoc(self):
+        env = {'CSC_NAME': 'Developer ID Application: X', 'APPLE_KEYCHAIN_PROFILE': 'p'}
+        for channel in ('dev', 'internal'):
+            self.assertEqual(sign.plan(channel, env),
+                             {'signing': None, 'notarization': None, 'release': False, 'errors': []})
+
+    def test_stable_needs_a_signer_and_one_complete_notarization_set(self):
+        self.assertEqual(sign.plan('stable', {})['errors'],
+                         ['set CSC_LINK or CSC_NAME for Developer ID signing',
+                          'configure one complete notarization credential set'])
+        ready = sign.plan('stable', {'CSC_NAME': 'Developer ID Application: X',
+                                     'APPLE_ID': 'a', 'APPLE_APP_SPECIFIC_PASSWORD': 'b', 'APPLE_TEAM_ID': 'c'})
+        self.assertTrue(ready['release'])
+        self.assertEqual(ready['notarization'], 'Apple ID')
+        self.assertEqual(ready['errors'], [])
+        partial = sign.plan('stable', {'CSC_LINK': '/x.p12', 'APPLE_API_KEY': 'k'})
+        self.assertFalse(partial['release'])
+        self.assertEqual(partial['errors'], [
+            'CSC_LINK must be protected by CSC_KEY_PASSWORD',
+            'App Store Connect API key notarization credentials are incomplete: missing '
+            'APPLE_API_KEY_ID, APPLE_API_ISSUER'])
 
 
 class IconTest(unittest.TestCase):

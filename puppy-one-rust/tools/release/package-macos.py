@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Package a GPUI release build for macOS, locally: build the executable with
 the release's coordinates stamped in, assemble the bundle with its channel's
-identity, icon, public Cloud configuration and build information. Nothing is
-uploaded or published.
+identity, icon, public Cloud configuration and build information, sign it
+(Developer ID and notarization for stable when the credentials are in the
+environment, ad hoc otherwise; see sign.py), and make the installer disk
+image and the update archive. Nothing is uploaded or published.
 
     VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 \\
     VITE_DESKTOP_CLOUD_WEB_URL=https://puppyone.ai \\
@@ -10,8 +12,10 @@ uploaded or published.
 
 Published channels (internal, stable) need a clean tree, a build number and
 a passing `tools/verify.py` receipt for the source being packaged. `--dry-run`
-prints the plan and builds nothing.
+prints the plan and builds nothing; `--release` refuses to package a stable
+build that could not be signed and notarized.
 """
+import platform
 import argparse
 import json
 import os
@@ -25,8 +29,10 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / 'tools'))
 import bundle  # noqa: E402
+import dmg  # noqa: E402
 import icon  # noqa: E402
 import identity  # noqa: E402
+import sign  # noqa: E402
 from product_source import product_root  # noqa: E402
 
 
@@ -49,6 +55,8 @@ def main():
     parser.add_argument('--out', type=Path, default=ROOT / 'artifacts/release')
     parser.add_argument('--skip-build', action='store_true', help='Reuse the stamped target/package build')
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--release', action='store_true',
+                        help='Stable only: fail unless it can be Developer ID signed and notarized')
     args = parser.parse_args()
 
     commit, dirty = identity.source_state(ROOT)
@@ -61,10 +69,20 @@ def main():
     except ValueError as error:
         raise SystemExit(str(error))
     policy = identity.policy(args.channel)
-    app = args.out / args.channel / f'{policy["name"]}.app'
+    out = args.out / args.channel
+    app = out / f'{policy["name"]}.app'
     stamps = identity.build_environment(release)
+    signing = sign.plan(args.channel, os.environ)
     print(f'{policy["name"]} {release["version"]} ({policy["id"]}) → {app}')
     print(f'Cloud: {cloud["apiBase"]} · {cloud["webOrigin"]}')
+    if signing['release']:
+        print(f'Signing: Developer ID, notarized ({signing["notarization"]})')
+    else:
+        print('Signing: ad hoc, not notarized')
+        for error in signing['errors']:
+            print(f'warning: not release-ready: {error}', file=sys.stderr)
+    if args.release and (args.channel != 'stable' or not signing['release']):
+        raise SystemExit('--release needs a stable build with complete signing and notarization credentials')
     if args.dry_run:
         print('Build environment: ' + ' '.join(f'{k}={v}' for k, v in stamps.items()))
         return
@@ -90,7 +108,22 @@ def main():
         'build-info.json': (json.dumps(release, indent=2) + '\n').encode(),
     })
     icon.build(ROOT / 'assets/release' / policy['icon'], app / 'Contents/Resources/icon.icns')
-    print(f'Packaged {app}')
+
+    arch = {'arm64': 'arm64', 'x86_64': 'x64'}[platform.machine()]
+    stem = f'puppyone-gpui-{release["version"]}-{arch}'
+    with sign.keychain(signing['signing'] if signing['release'] else None) as (signer, keychain):
+        sign.sign(app, signer, keychain)
+        if signing['release']:
+            sign.notarize(app, signing['notarization'], os.environ)
+            sign.verify_release_app(app)
+        archive = dmg.archive(app, out / f'{stem}.zip')
+        image = dmg.create(app, out / f'{stem}.dmg', f'{policy["name"]} Installer',
+                           ROOT / 'assets/release/dmg-background.tiff')
+        sign.sign(image, signer, keychain)
+        if signing['release']:
+            sign.notarize(image, signing['notarization'], os.environ)
+    for artifact in (app, archive, image):
+        print(f'Packaged {artifact}')
 
 
 if __name__ == '__main__':
