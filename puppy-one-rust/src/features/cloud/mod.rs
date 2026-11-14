@@ -20,9 +20,6 @@ mod workspace_agents;
 #[cfg(test)]
 pub use agent::{CloudAgentController, CloudAgentConversation, Hub, LABEL as HOSTED_AGENT_LABEL};
 pub use agent::{HostedChats, hosted_installation};
-#[cfg(feature = "dev-capture")]
-pub use workspace_agents::lab_client as lab_agents_client;
-pub use workspace_agents::{CloudAgents, CopyStatus, Opener, status as agent_status};
 pub use billing::{
     PlanSnapshot, cached as cached_billing, fetch as fetch_billing, namespace as billing_namespace,
     settle as settle_billing,
@@ -38,3 +35,6 @@ pub use spaces::{
     CloudSpaces, Status as SpacesStatus, global as global_spaces, mark as space_mark,
     name as space_name, plan_badge as space_plan_badge, read as global_spaces_read,
 };
+#[cfg(feature = "dev-capture")]
+pub use workspace_agents::lab_client as lab_agents_client;
+pub use workspace_agents::{CloudAgents, CopyStatus, Opener, status as agent_status};
