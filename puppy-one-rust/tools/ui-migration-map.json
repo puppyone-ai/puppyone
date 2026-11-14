@@ -423,12 +423,69 @@
         "src/features/settings/main/AccountAICredits.tsx",
         "src/features/settings/main/SeatsSettingsView.tsx",
         "src/features/settings/main/planPricing.ts",
-        "src/features/settings/main/useAccountPlan.ts"
+        "src/features/settings/main/useAccountPlan.ts",
+        "src/features/settings/main/CloudPlans.tsx",
+        "src/features/settings/main/PlanUsageBar.tsx",
+        "src/features/settings/main/PlanLoading.tsx"
       ],
       "targets": [
-        "src/features/settings/main/account_settings_view.rs"
+        "src/features/settings/main/account_settings_view.rs",
+        "src/features/settings/main/plan/mod.rs",
+        "src/features/settings/main/plan/view.rs",
+        "src/features/settings/main/plan/format.rs",
+        "src/workspace/cloud/pricing.rs"
       ],
-      "remaining": "Signed-out states only. Sign-in, credits, plans and seats need cloud services (PARITY_TODO.md §5)."
+      "remaining": "v0.4.4 Plan (Your plan, the 24-cell hours rail, storage warning, three plan cards and add-ons) and the Account plan row are native over scripted billing. Plan card columns follow the last measured width; the storage disclosure is a line rather than <details>; not pixel-compared (AC-2).",
+      "evidence": [
+        "test:offers_three_plans_with_one_price_each_and_the_same_allowances",
+        "test:bills_a_team_per_person_and_names_a_legacy_plan_by_its_new_name",
+        "test:a_quote_says_whether_it_pays_now_waits_or_keeps",
+        "test:the_status_pill_and_the_rail_follow_the_holding_and_reading",
+        "test:plan_cards_share_a_row_above_600px",
+        "test:the_plan_page_shows_the_spaces_own_usage",
+        "test:settings_manage_one_space_its_members_and_its_plan"
+      ]
+    },
+    {
+      "name": "Window navigation (places and account)",
+      "status": "partial",
+      "sources": [
+        "src/components/WindowNavigation.tsx",
+        "src/components/WindowNavigationRows.tsx",
+        "src/app/space-navigation.css"
+      ],
+      "targets": [
+        "src/app/chrome/navigation.rs",
+        "src/app/chrome/project_menu.rs",
+        "src/app/chrome/mod.rs",
+        "src/app/command/events.rs"
+      ],
+      "evidence": [
+        "test:a_place_opens_the_homepage_on_it_and_escape_closes_the_menu",
+        "test:a_space_made_from_the_place_menu_opens_its_members_ready_to_invite"
+      ],
+      "remaining": "Home, the places (this computer, every space, Create space) and the account rows open from the place button and the Homepage brand; Sign in sits at the Header's end while signed out. Not pixel-compared at v0.4.4 5e87974ef."
+    },
+    {
+      "name": "Space settings and Create space",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/SpaceSettings.tsx",
+        "src/features/settings/main/SpaceSettingsView.tsx",
+        "src/features/settings/main/CreateTeamDialog.tsx"
+      ],
+      "targets": [
+        "src/features/settings/main/space_settings_view.rs",
+        "src/app/create_space.rs",
+        "src/workspace/cloud/services.rs",
+        "src/features/settings/settings_workspace_surface.rs"
+      ],
+      "evidence": [
+        "test:settings_manage_one_space_its_members_and_its_plan",
+        "test:a_space_made_from_the_place_menu_opens_its_members_ready_to_invite",
+        "test:members_and_plan_open_settings_on_that_space"
+      ],
+      "remaining": "Members (rename, roles, remove, invite with its link, transfer) and Create space are native over scripted organization APIs. A failure says one fixed sentence rather than the server's words; acceptance on hosted qubits is pending (AC)."
     },
     {
       "name": "Local Agents settings and inventory",
@@ -617,7 +674,8 @@
         "src/features/app-shell/useProjectSwitcherSurface.ts",
         "src/components/DesktopMenu.tsx",
         "src/styles/menus.css",
-        "src/components/useAnchoredOverlayPosition.ts"
+        "src/components/useAnchoredOverlayPosition.ts",
+        "src/features/app-shell/projectMenuGroups.ts"
       ],
       "targets": [
         "src/app/chrome/project_menu.rs",
@@ -630,11 +688,11 @@
       ],
       "evidence": [
         "test:project_popup_toggle_outside_and_escape_restore_focus",
-        "test:the_place_menu_states_the_place_and_escape_closes_it",
+        "test:a_place_opens_the_homepage_on_it_and_escape_closes_the_menu",
         "test:the_rail_offers_rename_and_unlink_for_a_remembered_project",
         "test:project_menu_home_shows_the_homepage_and_hides_the_editor"
       ],
-      "remaining": "The recent-project list, Open a folder, Home, the place menu (Put in the Cloud, History, Open in Cloud) and per-project row actions are native; the menus have not been pixel-compared at qubits@671143f2a."
+      "remaining": "v0.4.4: the title bar reads [place] / [folder]; the folder menu lists the current place's folders (projectMenuGroups) and Home only where no place menu is; the rail hides the folder segment only. Not pixel-compared at v0.4.4 5e87974ef."
     },
     {
       "name": "Home page",
@@ -683,7 +741,7 @@
       "remaining": "The Grid folder wall and List with their remembered switch, sort, row actions, the New project split button, template links (pasted on the page or opened) and dragging a project out as its path are native. The create dialog asks who can open the project first (qubits@686d41c49); All my devices waits for the other computers (DV). The place filter and Paste template link were retired. The homepage has not been pixel-compared at qubits@686d41c49."
     },
     {
-      "name": "Homepage audience groups",
+      "name": "Homepage place groups",
       "status": "partial",
       "sources": [
         "src/components/onboarding/OnboardingProjectGroups.tsx",
@@ -691,7 +749,8 @@
         "src/components/onboarding/OnboardingProjectToolbar.tsx",
         "src/components/onboarding/OnboardingProjectLayoutSwitch.tsx",
         "src/components/onboarding/ProjectFolderGlyph.tsx",
-        "src/components/onboarding/useProjectListNavigation.ts"
+        "src/components/onboarding/useProjectListNavigation.ts",
+        "src/components/onboarding/useProjectGroupFocus.ts"
       ],
       "targets": [
         "src/app/home/groups.rs",
@@ -702,16 +761,17 @@
         "src/app/home/mod.rs"
       ],
       "evidence": [
-        "test:shared_projects_group_by_audience_team_first",
-        "test:unresolved_ownership_stays_reachable_and_folders_stay_local",
-        "test:a_writable_team_stays_empty_and_takes_a_dragged_unlinked_folder",
-        "test:known_sharing_survives_and_the_personal_area_takes_a_drop",
-        "test:without_device_sharing_an_empty_personal_space_offers_no_drop",
-        "test:the_homepage_groups_projects_by_who_can_open_them",
+        "test:every_space_shows_after_this_computer_even_empty_or_read_only",
+        "test:a_space_heading_names_its_plan_and_says_which_shared_spaces_this_account_owns",
+        "test:a_dragged_folder_publishes_to_the_writable_space_it_is_dropped_on",
+        "test:unresolved_cloud_projects_keep_their_own_group",
+        "test:shared_folders_stay_here_and_other_computers_follow",
+        "test:the_homepage_groups_projects_by_the_place_that_holds_them",
         "test:a_folder_dropped_on_a_team_opens_its_publication_to_that_team",
+        "test:members_and_plan_open_settings_on_that_space",
         "test:keys_walk_rows_and_cells_like_the_product"
       ],
-      "remaining": "Team Share Project, My Share Project, Shared projects and On this computer, each its own grid, with in-page drops on a team and one monochrome folder, are native. The owner's other computers in My Share Project wait for DV. Not pixel-compared at qubits@686d41c49."
+      "remaining": "v0.4.4: This computer, then every space (even empty, with its mark, plan, Owner and Members & plan), then shared projects without a known space, then other computers (gated off). A place asked for from the title bar is scrolled to and lit (useProjectGroupFocus). Grid of 5×120px cells with 10px gutters; checked by offscreen capture, not pixel-compared at v0.4.4 5e87974ef."
     },
     {
       "name": "Who can open it (project audience)",
@@ -721,16 +781,15 @@
       ],
       "targets": [
         "src/app/audience.rs",
-        "src/app/project_place.rs",
+        "src/app/home/mod.rs",
         "src/app/project_actions.rs"
       ],
       "evidence": [
-        "test:an_unlinked_folder_can_be_copied_to_a_team_and_reaches_only_this_computer",
-        "test:a_linked_copy_hangs_under_the_audience_whose_space_holds_it",
-        "test:a_broken_link_offers_its_remedy_and_disconnect_only_when_possible",
-        "test:nothing_to_say_is_no_audience"
+        "test:a_folder_reaches_beyond_this_computer_only_through_devices_or_a_copy",
+        "test:nothing_to_say_is_no_audience",
+        "test:a_linked_folder_opens_its_cloud_project_in_the_same_window"
       ],
-      "remaining": "The three audiences and the Cloud copy's rows are native in the Header place menu and the Homepage project menu. Turning All my devices on or off waits for DV. No pixel comparison."
+      "remaining": "v0.4.4 shows the audience only in the Homepage project menu (projectAudience in MinimalOnboarding): devices, and a team copy to open or make; the place menu no longer carries it, and the Cloud copy's problem and Send rows have no producer. Turning All my devices on or off is gated off with hosts. No pixel comparison."
     },
     {
       "name": "Cloud spaces and team publication",
@@ -749,9 +808,11 @@
         "src/app/window_cloud.rs"
       ],
       "evidence": [
-        "test:a_missing_personal_space_is_provisioned_once_and_comes_first",
+        "test:a_missing_own_space_is_provisioned_once_and_comes_first",
+        "test:an_older_deployment_provisions_the_personal_space_as_the_default",
         "test:an_undescribed_space_makes_the_answer_unusable",
-        "test:spaces_sort_personal_then_by_name",
+        "test:spaces_sort_own_first_then_by_name_as_the_product_compares",
+        "test:a_space_keeps_one_tone_wherever_it_appears",
         "test:a_folder_dropped_on_a_team_opens_its_publication_to_that_team"
       ],
       "remaining": "Discovery, the per-account cache, the publication intent and the explicit organization target are native over scripted transports; acceptance against a real Cloud is pending (VA-1)."
@@ -1665,16 +1726,24 @@
         "src/features/cloud/billing/cloudBillingState.ts",
         "src/features/cloud/billing/useCloudBillingController.ts",
         "src/features/cloud/organization/CloudOrganizationTeamPage.tsx",
-        "src/features/cloud/organization/organization.css"
+        "src/features/cloud/organization/organization.css",
+        "src/features/cloud/billing/billingReadCache.ts"
       ],
       "targets": [
         "src/workspace/cloud/billing.rs",
-        "src/features/settings/main/plan_settings_view.rs"
+        "src/workspace/cloud/pricing.rs",
+        "src/workspace/cloud/cache.rs",
+        "src/features/cloud/billing.rs",
+        "src/features/settings/main/plan/mod.rs"
       ],
       "evidence": [
-        "test:the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage"
+        "test:the_catalog_reads_add_ons_and_refuses_private_or_broken_ones",
+        "test:a_summary_states_a_change_that_waits_for_renewal_and_the_add_ons_held",
+        "test:an_add_on_change_is_held_to_its_space_pack_and_outcome",
+        "test:the_cache_is_bounded_namespaced_and_serves_stale_snapshots",
+        "test:the_plan_page_reads_billing_only_with_payments_on_and_keeps_readings_through_an_outage"
       ],
-      "remaining": "Settings › Plan reads billing through workspace::cloud::billing, which cloudBilling turns on. The organization Billing page went with the services Hub (qubits@6f896add1); the Team page is reached from the first publication's organization step. Seat quotes are verified against a scripted server only."
+      "remaining": "Settings › Plan reads one space's billing through workspace::cloud::billing with the in-memory read cache (30 s, keyed by session, space and API). Quotes and checkout are verified against scripted servers; acceptance on hosted qubits is pending (AC)."
     },
     {
       "name": "Cloud History graph model",
@@ -1956,18 +2025,17 @@
       ],
       "targets": [
         "src/app/project_place.rs",
-        "src/app/header.rs",
-        "src/app/audience.rs"
+        "src/app/chrome/project_menu.rs",
+        "src/app/header.rs"
       ],
       "evidence": [
         "test:notices_follow_the_association",
-        "test:the_place_menu_states_the_place_and_escape_closes_it",
-        "test:an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu",
-        "test:a_cloud_project_offers_its_folder_and_a_folder_states_its_link",
+        "test:the_place_names_a_space_or_this_computer_and_states_a_link",
+        "test:a_place_opens_the_homepage_on_it_and_escape_closes_the_menu",
         "test:a_local_address_is_the_folder_that_holds_it_shortened",
         "test:a_vanished_cloud_projects_link_is_ended_from_its_notice"
       ],
-      "remaining": "The place menu (address, who can open it with the Cloud copy's Open, problem and Send rows, History for a hosted project), LocalFolderCloudNotice and CloudLinkDisconnectDialog are native. A folder on another computer (HostFolderPlace) waits for DV. Not pixel-compared at qubits@686d41c49."
+      "remaining": "v0.4.4: the place button (SpaceMark, Cloud or this computer, at most 160px, with the link's state) opens navigation only; the address, audience and History rows are gone. LocalFolderCloudNotice and CloudLinkDisconnectDialog are native. Not pixel-compared at v0.4.4 5e87974ef."
     },
     {
       "name": "Cloud workspace Agents",
@@ -2133,6 +2201,31 @@
         "artifact:structured-native/puppyflow-light.png"
       ],
       "remaining": "The product's PuppyFlowViewer and StructuredDocumentModel are bundled from the pinned sources and run in WKWebView; the native surface owns the text, saves, reloads, menu undo/redo and read-only input. Run validates enabled steps only, as in the product. The theme switch rebuilds the page on the current text, which resets its history."
+    },
+    {
+      "name": "Excalidraw whiteboard",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/viewers/excalidraw/**"
+      ],
+      "targets": [
+        "src/editor/viewers/whiteboard.rs",
+        "tools/excalidraw-entry.tsx",
+        "tools/import-excalidraw.mjs",
+        "tools/fetch-excalidraw-fonts.py",
+        "assets/web/excalidraw.json",
+        "src/editor/registry/builtin.rs",
+        "src/platform/webview.rs",
+        "src/features/create_new/create_entry_menu_registry.rs"
+      ],
+      "evidence": [
+        "test:board_edits_become_the_document_and_links_open_their_documents",
+        "test:the_bundle_rewrites_the_font_fallback_and_carries_the_host_patches",
+        "test:the_page_carries_the_board_and_names_the_sdk_assets",
+        "test:disk_assets_serve_their_folder_only_and_never_as_resources",
+        "test:a_layout_saved_before_the_whiteboard_offers_it_before_custom_files"
+      ],
+      "remaining": "The product's ExcalidrawViewer and ExcalidrawDocumentModel are bundled from the pinned sources (SDK 0.18.1, production build, the product's host patches and its two build rewrites) and run in WKWebView; the native surface owns the text, saves, reloads, read-only view mode and menu undo/redo, and resolves element links. The SDK's fonts are served from disk. Embedded HTML pages show the product's unavailable placeholder (no asset resolver). The SDK and its lazily loaded tools (Mermaid, KaTeX) are one script parsed when a board opens, where Vite splits them into chunks. The theme switch rebuilds the page, which resets the board's history."
     },
     {
       "name": "Context Map viewer",
@@ -2403,9 +2496,9 @@
         "src/theme.rs"
       ],
       "evidence": [
-        "test:other_computers_folders_join_my_share_project",
         "test:another_computers_folder_opens_here_and_runs_there",
-        "test:a_folder_here_opens_to_my_other_computers_after_i_allow_it"
+        "test:a_folder_here_opens_to_my_other_computers_after_i_allow_it",
+        "test:a_saved_choice_cannot_open_other_computers_past_the_release_gate"
       ],
       "remaining": "No reference-image comparison yet for the remote folder list, the sharing dialog or the remote tools; the native confirmations are product dialogs rather than system alerts."
     },
