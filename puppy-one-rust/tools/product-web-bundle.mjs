@@ -62,12 +62,15 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
     },
   };
   const common = {
-    absWorkingDir: product, nodePaths: [modules], alias, conditions, bundle: true, write: false, format: 'iife', platform: 'browser',
+    absWorkingDir: product, nodePaths: [modules], alias, bundle: true, write: false, format: 'iife', platform: 'browser',
     jsx: 'automatic', minify: true, legalComments: 'eof', target: 'safari16', logLevel: 'error', metafile: true,
     banner: {js: WEBKIT_COMPAT},
     define: {'process.env.NODE_ENV': '"production"', 'import.meta.env': JSON.stringify({DEV: false, PROD: true, MODE: 'production', BASE_URL: baseUrl})},
     loader: {'.css': 'empty', '.svg': 'empty', '.png': 'empty', '.woff2': 'empty'},
   };
+  // Custom conditions replace esbuild's default `module` condition: only
+  // a build that names its own sets them.
+  if (conditions.length) common.conditions = conditions;
   const entrySource = await readFile(path.join(root, entry), 'utf8');
   const script = await build({...common, plugins: [workerHost, ...plugins],
     stdin: {contents: entrySource, resolveDir: product, loader: 'tsx', sourcefile: path.basename(entry)}, outfile: `${name}.js`});

@@ -67,6 +67,9 @@ enum Step {
     /// `hosts-fixture`: the owner's other computers of
     /// `#homepage-computers-visual-smoke`, this one sharing three folders.
     HostsFixture,
+    /// `plan-fixture:<state>`: Settings › Plan as `#cloud-plans-visual-smoke`
+    /// shows it (`free`, `team`, `enterprise`, `scheduled`).
+    PlanFixture(String),
     /// `host-share:<absolute path>`: the sharing dialog for that folder.
     HostShare(PathBuf),
     HomeHover(usize),
@@ -140,6 +143,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
+                "plan-fixture" => Step::PlanFixture(arg.to_string()),
                 "host-share" => Step::HostShare(path()),
                 "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
                 "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
@@ -578,6 +582,17 @@ impl Shell {
                 self.explorer
                     .session
                     .update(cx, |e, cx| e.toggle_pin(&path, cx));
+            }
+            Step::PlanFixture(state) => {
+                // An available account and Cloud with payments, nothing behind them.
+                crate::features::cloud::account::install_offline(cx);
+                self.prefs.store.update(cx, |p, _| {
+                    p.state.experimental.cloud_workspace = true;
+                    p.state.experimental.payments = true;
+                });
+                self.open_modal(Modal::Task(Task::Settings), cx);
+                let settings = self.dialogs.read(cx).settings.clone();
+                settings.update(cx, |s, cx| s.install_plan_lab(state, cx));
             }
             Step::HostShare(path) => {
                 let path = path.clone();

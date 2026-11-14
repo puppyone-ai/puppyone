@@ -59,6 +59,10 @@ pub(in crate::features::settings) struct PlanPage {
     controller: Controller,
     /// `.desktop-plan-storage-details[open]`.
     storage_open: bool,
+    /// Captures: `#cloud-plans-visual-smoke`'s space, signed in, with its
+    /// fixed readings; nothing is read.
+    #[cfg(feature = "dev-capture")]
+    lab: Option<crate::workspace::cloud::spaces::Space>,
 }
 
 impl SettingsWorkspaceSurface {
@@ -76,10 +80,93 @@ impl SettingsWorkspaceSurface {
             org,
         ))
     }
+    /// Whether someone is signed in, and the space Plan is on.
+    pub(super) fn plan_reader(
+        &self,
+        cx: &App,
+    ) -> (bool, Option<crate::workspace::cloud::spaces::Space>) {
+        #[cfg(feature = "dev-capture")]
+        if let Some(space) = &self.plan_page.lab {
+            return (true, Some(space.clone()));
+        }
+        (
+            crate::features::cloud::account::broker_and_binding(cx).is_some(),
+            self.settings_space(cx),
+        )
+    }
+    /// Captures: `#cloud-plans-visual-smoke?state=<state>` (`free`, `team`,
+    /// `enterprise`, `scheduled`), its readings as the harness fixes them.
+    #[cfg(feature = "dev-capture")]
+    pub fn install_plan_lab(&mut self, state: &str, cx: &mut Context<Self>) {
+        use serde_json::json;
+        const GB: u64 = 1_000_000_000;
+        let usage = |used: u64, granted: u64, bytes: u64, limit: u64| {
+            json!({
+                "runtime": {"org_id": "o1", "available_units": granted - used, "reserved_units": 0,
+                    "granted_units": granted, "consumed_units": used,
+                    "allowance": {"granted_units": granted, "consumed_units": used, "reserved_units": 0,
+                        "resets_at": "2026-12-01T00:00:00Z", "unit_seconds": 60}},
+                "storage": {"logical_bytes": bytes, "limit_bytes": limit, "percent": null,
+                    "threshold_percent": 0},
+            })
+        };
+        let (summary, usage) = match state {
+            "team" => (
+                json!({"org_id": "o1", "plan_id": "team_v2", "status": "active", "seat_quantity": 1,
+                    "current_period_end": "2026-12-08T00:00:00Z", "cancel_at_period_end": false,
+                    "add_ons": [{"add_on_id": "agent_hours_100", "quantity": 1, "status": "active",
+                        "cancel_at_period_end": false, "current_period_end": null}]}),
+                usage(122 * 60, 140 * 60, 32 * GB / 10, 10 * GB),
+            ),
+            "enterprise" => (
+                json!({"org_id": "o1", "plan_id": "enterprise_v2", "status": "active", "seat_quantity": 5,
+                    "current_period_end": "2026-12-08T00:00:00Z", "cancel_at_period_end": false,
+                    "add_ons": []}),
+                usage(61 * 60, 200 * 60, 41 * GB, 100 * GB),
+            ),
+            "scheduled" => (
+                json!({"org_id": "o1", "plan_id": "enterprise_v2", "status": "active", "seat_quantity": 3,
+                    "current_period_end": "2026-12-08T12:00:00Z", "pending_plan_id": "team_v2",
+                    "pending_seat_quantity": 1, "pending_effective_at": "2026-12-08T12:00:00Z",
+                    "cancel_at_period_end": false, "add_ons": []}),
+                usage(30 * 60, 120 * 60, 12 * GB, 60 * GB),
+            ),
+            _ => (
+                json!({"org_id": "o1", "plan_id": "free", "status": "free", "seat_quantity": 1}),
+                usage(3 * 60, 5 * 60, 4 * GB / 10, GB),
+            ),
+        };
+        self.plan_page = PlanPage {
+            context: Some(("lab".into(), "o1".into())),
+            snapshot: PlanSnapshot {
+                summary: serde_json::from_value(summary).ok(),
+                usage: serde_json::from_value(usage).ok(),
+                organization: Some("o1".into()),
+                can_manage_billing: Some(true),
+                ..Default::default()
+            },
+            lab: Some(crate::workspace::cloud::spaces::Space {
+                id: "o1".into(),
+                name: "Acme Research".into(),
+                role: Some("owner".into()),
+                can_manage_space: true,
+                can_create_projects: true,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        self.seed_seats();
+        self.page = super::Page::Plan;
+        cx.notify();
+    }
     /// `useAccountPlan`: the space's readings, cached ones painted at once;
     /// `force` asks the server for all of them. A new space or session
     /// starts the controller over.
     pub(in crate::features::settings) fn load_plan(&mut self, force: bool, cx: &mut Context<Self>) {
+        #[cfg(feature = "dev-capture")]
+        if self.plan_page.lab.is_some() {
+            return;
+        }
         let Some((client, namespace, org)) = self.plan_scope(cx) else {
             let epoch = self.plan_page.epoch + 1;
             self.plan_page = PlanPage {

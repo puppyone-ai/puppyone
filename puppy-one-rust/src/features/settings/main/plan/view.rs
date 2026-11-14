@@ -102,10 +102,9 @@ impl SettingsWorkspaceSurface {
         if !self.preferences.read(cx).state.experimental.payments {
             return div().into_any_element();
         }
-        let signed_in = crate::features::cloud::account::broker_and_binding(cx).is_some();
+        let (signed_in, space) = self.plan_reader(cx);
         let restoring = crate::features::cloud::account::status(cx)
             == Some(crate::cloud::auth::Status::Restoring);
-        let space = self.settings_space(cx);
         let page = &self.plan_page;
         let org = page
             .context
