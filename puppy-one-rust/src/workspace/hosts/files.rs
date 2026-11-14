@@ -27,6 +27,8 @@ use std::{
 pub const TEMP_PREFIX: &str = ".puppyone-write-";
 const MAX_EVENT_PATHS: usize = 256;
 const COALESCE: Duration = Duration::from_millis(100);
+/// `WATCH_RECONCILE_MS`: directory event streams can silently omit changes.
+const RECONCILE: Duration = Duration::from_secs(2);
 
 /// One folder as the host registered it now.
 #[derive(Clone, Debug, PartialEq)]
@@ -107,6 +109,77 @@ fn decode(content: &str) -> Result<Vec<u8>, &'static str> {
     Ok(bytes)
 }
 
+/// The folder, admitted for `capability` and still at its registered
+/// place.
+fn admit(folders: &dyn Folders, folder: &str, capability: Capability) -> Result<Dir, &'static str> {
+    let grant = folders.resolve(folder).ok_or("folder_unavailable")?;
+    if !grant.active || !grant.capabilities.contains(&capability) {
+        return Err("folder_unavailable");
+    }
+    let canonical = grant.root.canonicalize().map_err(|_| "root_changed")?;
+    if canonical != grant.root {
+        return Err("root_changed");
+    }
+    Dir::open_ambient_dir(&canonical, ambient_authority()).map_err(|_| "root_changed")
+}
+
+/// `snapshot`: each file and directory's metadata, `.git`, write
+/// temporaries and links left out, never the contents; at most
+/// [`MAX_DIRECTORY_ENTRIES`] entries.
+fn snapshot(dir: &Dir) -> Result<HashMap<String, String>, &'static str> {
+    let mut state = HashMap::new();
+    let mut pending = vec![String::new()];
+    while let Some(name) = pending.pop() {
+        for item in dir.read_dir(at(&name)).map_err(io)? {
+            let item = item.map_err(io)?;
+            let child = item.file_name().to_string_lossy().into_owned();
+            if child.eq_ignore_ascii_case(".git") || child.starts_with(TEMP_PREFIX) {
+                continue;
+            }
+            if state.len() >= MAX_DIRECTORY_ENTRIES {
+                return Err("too_many_entries");
+            }
+            let path = if name.is_empty() {
+                child
+            } else {
+                format!("{name}/{child}")
+            };
+            let Ok(metadata) = dir.symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.file_type().is_symlink() || !(metadata.is_file() || metadata.is_dir()) {
+                continue;
+            }
+            state.insert(path.clone(), version(&metadata));
+            if metadata.is_dir() {
+                pending.push(path);
+            }
+        }
+    }
+    Ok(state)
+}
+fn version(metadata: &cap_std::fs::Metadata) -> String {
+    #[cfg(unix)]
+    {
+        use cap_std::fs::MetadataExt;
+        format!(
+            "{}:{}:{}:{}:{}.{}:{}.{}",
+            metadata.dev(),
+            metadata.ino(),
+            metadata.mode(),
+            metadata.len(),
+            metadata.mtime(),
+            metadata.mtime_nsec(),
+            metadata.ctime(),
+            metadata.ctime_nsec()
+        )
+    }
+    #[cfg(not(unix))]
+    {
+        format!("{}:{}", metadata.len(), modified_ns(metadata))
+    }
+}
+
 pub struct FileService {
     folders: Arc<dyn Folders>,
     /// One write, move or remove of a name at a time.
@@ -125,15 +198,7 @@ impl FileService {
     /// The folder, admitted for `capability` and still at its registered
     /// place.
     fn admit(&self, folder: &str, capability: Capability) -> Result<Dir, &'static str> {
-        let grant = self.folders.resolve(folder).ok_or("folder_unavailable")?;
-        if !grant.active || !grant.capabilities.contains(&capability) {
-            return Err("folder_unavailable");
-        }
-        let canonical = grant.root.canonicalize().map_err(|_| "root_changed")?;
-        if canonical != grant.root {
-            return Err("root_changed");
-        }
-        Dir::open_ambient_dir(&canonical, ambient_authority()).map_err(|_| "root_changed")
+        admit(self.folders.as_ref(), folder, capability)
     }
     /// An existing name: every segment a real directory, the last a real
     /// file or directory, none a link.
@@ -389,8 +454,10 @@ impl FileService {
     }
 
     /// Coalesced change notifications for one folder: `{paths, reset}`, a
-    /// reset first and whenever too much changed at once. Ends when the
-    /// returned watch is dropped.
+    /// reset first and whenever too much changed at once. Every 2 s the
+    /// folder's metadata is compared with the last look, for what the
+    /// system's events missed; a folder no longer served or moved ends the
+    /// watch with a reset. Ends when the returned watch is dropped.
     pub fn watch(
         &self,
         folder: &str,
@@ -400,6 +467,12 @@ impl FileService {
         let grant = self.folders.resolve(folder).ok_or("folder_unavailable")?;
         self.admit(folder, Capability::Read)?;
         let root = grant.root;
+        let folders = self.folders.clone();
+        let folder = folder.to_owned();
+        // The baseline is taken before the watch answers.
+        let mut previous = admit(folders.as_ref(), &folder, Capability::Read)
+            .and_then(|dir| snapshot(&dir))
+            .ok();
         let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
         let events = tx.clone();
         let base = root.clone();
@@ -426,7 +499,40 @@ impl FileService {
         std::thread::Builder::new()
             .name("puppyone-host-watch".into())
             .spawn(move || {
-                while let Ok(first) = rx.recv() {
+                let mut reconcile_at = std::time::Instant::now() + RECONCILE;
+                loop {
+                    let wait = reconcile_at.saturating_duration_since(std::time::Instant::now());
+                    let first = match rx.recv_timeout(wait) {
+                        Ok(first) => first,
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                            reconcile_at = std::time::Instant::now() + RECONCILE;
+                            let current = admit(folders.as_ref(), &folder, Capability::Read)
+                                .and_then(|dir| snapshot(&dir));
+                            match current {
+                                Err("folder_unavailable" | "root_changed") => {
+                                    on_event(Vec::new(), true);
+                                    break;
+                                }
+                                Err(_) => on_event(Vec::new(), true),
+                                Ok(current) => {
+                                    if let Some(paths) =
+                                        previous.as_ref().map(|p| differences(p, &current))
+                                    {
+                                        if paths.len() > MAX_EVENT_PATHS {
+                                            on_event(Vec::new(), true);
+                                        } else if !paths.is_empty() {
+                                            on_event(paths, false);
+                                        }
+                                    } else {
+                                        on_event(Vec::new(), true);
+                                    }
+                                    previous = Some(current);
+                                }
+                            }
+                            continue;
+                        }
+                    };
                     let mut changed: Vec<String> = Vec::new();
                     let mut reset = false;
                     let mut take = |relative: Option<String>| match relative {
@@ -465,6 +571,25 @@ impl FileService {
             _stop: tx,
         })
     }
+}
+/// The names added, changed or gone between two looks, sorted.
+fn differences(
+    previous: &HashMap<String, String>,
+    current: &HashMap<String, String>,
+) -> Vec<String> {
+    let mut paths: Vec<String> = current
+        .iter()
+        .filter(|(name, version)| previous.get(*name) != Some(*version))
+        .map(|(name, _)| name.clone())
+        .chain(
+            previous
+                .keys()
+                .filter(|n| !current.contains_key(*n))
+                .cloned(),
+        )
+        .collect();
+    paths.sort();
+    paths
 }
 /// A running watch; dropping it ends it.
 pub struct Watch {
@@ -632,6 +757,48 @@ mod tests {
             capabilities: vec![Capability::Read],
         })));
         assert_eq!(moved.list("f", ""), Err("root_changed"));
+    }
+
+    #[test]
+    fn the_metadata_reconcile_names_what_changed_and_ends_with_its_folder() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temp.path().join("docs")).unwrap();
+        std::fs::write(temp.path().join("docs/a.md"), "a").unwrap();
+        std::fs::create_dir(temp.path().join(".git")).unwrap();
+        let dir = Dir::open_ambient_dir(temp.path(), ambient_authority()).unwrap();
+        let before = snapshot(&dir).unwrap();
+        assert_eq!(before.len(), 2, "{before:?}");
+        std::fs::write(temp.path().join("docs/a.md"), "changed").unwrap();
+        std::fs::write(temp.path().join("b.md"), "b").unwrap();
+        std::fs::write(temp.path().join(format!("{TEMP_PREFIX}x")), "t").unwrap();
+        let after = snapshot(&dir).unwrap();
+        assert_eq!(differences(&before, &after), ["b.md", "docs/a.md"]);
+        std::fs::remove_file(temp.path().join("b.md")).unwrap();
+        assert_eq!(differences(&after, &snapshot(&dir).unwrap()), ["b.md"]);
+
+        let root = temp.path().canonicalize().unwrap().join("shared");
+        std::fs::create_dir(&root).unwrap();
+        let files = FileService::new(Arc::new(One(Grant {
+            root: root.clone(),
+            active: true,
+            capabilities: vec![Capability::Read],
+        })));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let watch = files
+            .watch("f", move |paths, reset| {
+                let _ = tx.send((paths, reset));
+            })
+            .unwrap();
+        std::fs::remove_dir(&root).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(8);
+        loop {
+            match rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())) {
+                Ok(_) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => panic!("the watch went on"),
+            }
+        }
+        drop(watch);
     }
 
     #[test]
