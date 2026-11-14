@@ -19,13 +19,48 @@ struct Orbiting {
 /// `HUB_AGENTS`: an odd number on two loose orbits, each its own size, so the
 /// ring reads as company gathering rather than a diagram.
 const AGENTS: [Orbiting; 7] = [
-    Orbiting { id: "chatgpt", angle: -90., radius: 44., size: 13. },
-    Orbiting { id: "claude", angle: -36., radius: 36., size: 12. },
-    Orbiting { id: "cursor", angle: 14., radius: 45., size: 10.5 },
-    Orbiting { id: "gemini", angle: 64., radius: 37., size: 11.5 },
-    Orbiting { id: "github-copilot", angle: 116., radius: 45., size: 10.5 },
-    Orbiting { id: "manus", angle: 166., radius: 36., size: 11.5 },
-    Orbiting { id: "devin", angle: 216., radius: 44., size: 10.5 },
+    Orbiting {
+        id: "chatgpt",
+        angle: -90.,
+        radius: 44.,
+        size: 13.,
+    },
+    Orbiting {
+        id: "claude",
+        angle: -36.,
+        radius: 36.,
+        size: 12.,
+    },
+    Orbiting {
+        id: "cursor",
+        angle: 14.,
+        radius: 45.,
+        size: 10.5,
+    },
+    Orbiting {
+        id: "gemini",
+        angle: 64.,
+        radius: 37.,
+        size: 11.5,
+    },
+    Orbiting {
+        id: "github-copilot",
+        angle: 116.,
+        radius: 45.,
+        size: 10.5,
+    },
+    Orbiting {
+        id: "manus",
+        angle: 166.,
+        radius: 36.,
+        size: 11.5,
+    },
+    Orbiting {
+        id: "devin",
+        angle: 216.,
+        radius: 44.,
+        size: 10.5,
+    },
 ];
 /// The two dashed orbits, as shares of the side, and their mix of accent.
 const ORBITS: [(f32, f32); 2] = [(0.365, 0.28), (0.445, 0.16)];
@@ -43,12 +78,21 @@ pub(super) fn scene(t: &Theme, layout: Layout, clock: Clock) -> AnyElement {
     let turn = clock
         .motion
         .map_or(0., |s| (s / TURN_SECONDS).fract() * std::f32::consts::TAU);
-    let orbits = ORBITS.map(|(radius, accent)| (side * radius, theme::mix(t.accent, t.border, accent)));
+    let orbits =
+        ORBITS.map(|(radius, accent)| (side * radius, theme::mix(t.accent, t.border, accent)));
     let orbits = paint::paint(move |bounds, window| {
         for (radius, color) in orbits {
             // `stroke-dasharray: 2 5` with round caps on a 1px stroke: each
             // dash reaches half a pixel past both ends, from 3 o'clock round.
-            paint::dashed_ring(window, bounds.center(), radius, [3., 4.], 1., turn - 0.5 / radius, color);
+            paint::dashed_ring(
+                window,
+                bounds.center(),
+                radius,
+                [3., 4.],
+                1.,
+                turn - 0.5 / radius,
+                color,
+            );
         }
     });
     let center = v_flex()
@@ -162,7 +206,10 @@ fn pile(t: &Theme, zoom: f32) -> impl IntoElement {
 fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
     let u = |v: f32| paint::u(zoom, v);
     let (tag, accent): (SharedString, Rgba) = match kind {
-        Kind::Folder => (tr("onboarding.value.folder").into(), theme::alpha(t.text, 0.55)),
+        Kind::Folder => (
+            tr("onboarding.value.folder").into(),
+            theme::alpha(t.text, 0.55),
+        ),
         Kind::Sheet => ("CSV".into(), t.file.sheet),
         Kind::Markdown => ("MD".into(), t.file.markdown),
         Kind::Html => ("HTML".into(), t.file.html),
@@ -212,7 +259,12 @@ fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
                 .child(tag),
         );
     let line = |width: f32, height: f32, color: Rgba| {
-        div().w(relative(width)).h(u(height)).flex_none().rounded(u(2.)).bg(color)
+        div()
+            .w(relative(width))
+            .h(u(height))
+            .flex_none()
+            .rounded(u(2.))
+            .bg(color)
     };
     let text = theme::alpha(t.text, 0.13);
     match kind {
@@ -232,10 +284,15 @@ fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
                 .bg(ground),
         ),
         // A table: its header row in the sheet's colour.
-        Kind::Sheet => card.child(div().grid().grid_cols(3).gap(u(2.)).children((0..9).map(|cell| {
-            let weight = if cell < 3 { 0.4 } else { 0.14 };
-            div().h(u(7.)).rounded(u(1.)).bg(theme::alpha(t.file.sheet, weight))
-        }))),
+        Kind::Sheet => card.child(div().grid().grid_cols(3).gap(u(2.)).children((0..9).map(
+            |cell| {
+                let weight = if cell < 3 { 0.4 } else { 0.14 };
+                div()
+                    .h(u(7.))
+                    .rounded(u(1.))
+                    .bg(theme::alpha(t.file.sheet, weight))
+            },
+        ))),
         // A note: a heading and three lines of text.
         Kind::Markdown => card
             .child(line(0.6, 5., theme::alpha(t.text, 0.6)))
@@ -243,17 +300,25 @@ fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
             .child(line(1., 4., text))
             .child(line(0.55, 4., text)),
         // A page: a banner over a small bar chart.
-        Kind::Html => card.child(line(1., 8., theme::mix(t.file.html, t.text, 0.75))).child(
-            div()
-                .h(u(24.))
-                .flex()
-                .items_end()
-                .gap(u(5.))
-                .pl(u(2.))
-                .pr(u(30.))
-                .children([(0.45, 0.55), (0.7, 0.75), (0.95, 1.)].map(|(height, weight)| {
-                    div().flex_1().h(relative(height)).rounded_t(u(2.)).bg(theme::alpha(t.accent, weight))
-                })),
-        ),
+        Kind::Html => card
+            .child(line(1., 8., theme::mix(t.file.html, t.text, 0.75)))
+            .child(
+                div()
+                    .h(u(24.))
+                    .flex()
+                    .items_end()
+                    .gap(u(5.))
+                    .pl(u(2.))
+                    .pr(u(30.))
+                    .children(
+                        [(0.45, 0.55), (0.7, 0.75), (0.95, 1.)].map(|(height, weight)| {
+                            div()
+                                .flex_1()
+                                .h(relative(height))
+                                .rounded_t(u(2.))
+                                .bg(theme::alpha(t.accent, weight))
+                        }),
+                    ),
+            ),
     }
 }

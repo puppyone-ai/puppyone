@@ -1051,7 +1051,8 @@ impl Homepage {
             self.intro_empty = Some(true);
         }
         // `home-empty-<moment>` opens that moment.
-        self.moments.lab(&std::env::var("PUPPYONE_LAB").unwrap_or_default());
+        self.moments
+            .lab(&std::env::var("PUPPYONE_LAB").unwrap_or_default());
     }
     /// Dev builds: Alt+Shift+L replays the intro on an empty Homepage.
     pub(in crate::app) fn replay_intro(&mut self, cx: &mut Context<Self>) -> bool {
@@ -1133,9 +1134,13 @@ impl Homepage {
         let has_projects = self.has_projects(cx);
         let busy = self.session.busy;
         let pad = metric::UTILITY_PADDING_INLINE;
-        let page_w = if has_projects { PAGE_WIDTH } else { PAGE_WIDTH_EMPTY }
-            .min(w - pad * 2.)
-            .max(0.);
+        let page_w = if has_projects {
+            PAGE_WIDTH
+        } else {
+            PAGE_WIDTH_EMPTY
+        }
+        .min(w - pad * 2.)
+        .max(0.);
         let column = if has_projects {
             COLUMN_PROJECTS
         } else {

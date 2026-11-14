@@ -34,9 +34,21 @@ struct Moment {
 /// `VALUE_SLIDES`, in their fixed order. A new moment is one more row here,
 /// its copy in `assets/onboarding-value.json` and its scene module.
 const MOMENTS: [Moment; 3] = [
-    Moment { id: "assets", seconds: 4., scene: hub::scene },
-    Moment { id: "edit", seconds: 4.5, scene: edit::scene },
-    Moment { id: "forward", seconds: 5., scene: forward::scene },
+    Moment {
+        id: "assets",
+        seconds: 4.,
+        scene: hub::scene,
+    },
+    Moment {
+        id: "edit",
+        seconds: 4.5,
+        scene: edit::scene,
+    },
+    Moment {
+        id: "forward",
+        seconds: 5.,
+        scene: forward::scene,
+    },
 ];
 
 /// The time a scene is drawn at. `None` is at rest: every step has ended and
@@ -68,12 +80,38 @@ pub(super) struct Layout {
 }
 pub(super) fn layout(width: f32) -> Layout {
     if width >= 1040. {
-        Layout { hub: 270., scale: 0.71, gap: 64., column: 400. }
+        Layout {
+            hub: 270.,
+            scale: 0.71,
+            gap: 64.,
+            column: 400.,
+        }
     } else if width >= 860. {
-        Layout { hub: 250., scale: 0.66, gap: 48., column: 400. }
+        Layout {
+            hub: 250.,
+            scale: 0.66,
+            gap: 48.,
+            column: 400.,
+        }
     } else {
-        Layout { hub: 220., scale: 0.58, gap: 32., column: 340. }
+        Layout {
+            hub: 220.,
+            scale: 0.58,
+            gap: 32.,
+            column: 340.,
+        }
     }
+}
+
+/// Nothing moves on by itself and every moment shows its outcome: with
+/// reduced motion, and in the pixel lab, as the reference finishes its
+/// animations before capturing.
+fn at_rest(cx: &App) -> bool {
+    #[cfg(feature = "dev-capture")]
+    let lab = crate::lab::settled();
+    #[cfg(not(feature = "dev-capture"))]
+    let lab = false;
+    lab || cx.reduce_motion()
 }
 
 /// Which moment is open, since when, and how far its dot has filled.
@@ -171,7 +209,7 @@ impl Homepage {
     ) -> AnyElement {
         let t = cx.palette();
         let now = Instant::now();
-        let rest = crate::lab::settled() || cx.reduce_motion();
+        let rest = at_rest(cx);
         if !rest {
             let holding = self.moments.hovered || self.intro.is_some();
             self.moments.tick(now, holding);
@@ -212,7 +250,11 @@ impl Homepage {
     /// fills as its moment plays (full at rest, as with no animation).
     fn moment_dots(&self, t: &Theme, rest: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let ink = t.text;
-        let fill = if rest { 1. } else { self.moments.progress.clamp(0., 1.) };
+        let fill = if rest {
+            1.
+        } else {
+            self.moments.progress.clamp(0., 1.)
+        };
         h_flex()
             .flex_none()
             .items_center()
@@ -264,7 +306,7 @@ impl Homepage {
     /// shows.
     pub(super) fn moment_copy(&self, cx: &App) -> impl IntoElement {
         let t = cx.palette();
-        let rest = crate::lab::settled() || cx.reduce_motion();
+        let rest = at_rest(cx);
         let shown = self.moments.shown(Instant::now(), rest);
         div()
             .w_full()
@@ -336,9 +378,17 @@ mod tests {
         // Pointing at the page holds the dot where it is, however long.
         moments.tick(after(start, 30.), true);
         assert_eq!(moments.index, 0);
-        assert!((moments.progress - 0.5).abs() < 0.01, "{}", moments.progress);
+        assert!(
+            (moments.progress - 0.5).abs() < 0.01,
+            "{}",
+            moments.progress
+        );
         moments.tick(after(start, 31.), false);
-        assert!((moments.progress - 0.75).abs() < 0.01, "{}", moments.progress);
+        assert!(
+            (moments.progress - 0.75).abs() < 0.01,
+            "{}",
+            moments.progress
+        );
     }
 
     #[test]
@@ -347,7 +397,10 @@ mod tests {
         let start = Instant::now();
         moments.open(2, start);
         let shown = moments.shown(after(start, 0.1), false);
-        assert_eq!(shown.iter().map(|(index, ..)| *index).collect::<Vec<_>>(), [0, 2]);
+        assert_eq!(
+            shown.iter().map(|(index, ..)| *index).collect::<Vec<_>>(),
+            [0, 2]
+        );
         // The incoming one waits its lag; the outgoing one is gone after the fade.
         assert!(shown[1].1 < 0.001, "{}", shown[1].1);
         let settled = moments.shown(after(start, 1.), false);

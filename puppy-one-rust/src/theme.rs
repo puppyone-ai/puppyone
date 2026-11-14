@@ -415,6 +415,11 @@ pub fn native_resize_grip(dark: bool) -> (Rgba, Option<Rgba>) {
         (rgb(0x666666), None)
     }
 }
+/// A QR code's modules and quiet ground (`.onboarding-scene-qr`: `#111` on
+/// `#fff`), the same in every theme, as a code must read.
+pub fn qr_ink() -> (Rgba, Rgba) {
+    (rgb(0x111111), rgb(0xffffff))
+}
 /// CSS `color-mix(in srgb, c p%, transparent)`.
 pub fn alpha(c: Rgba, weight: f32) -> Rgba {
     Rgba {

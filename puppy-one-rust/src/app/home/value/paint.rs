@@ -41,10 +41,12 @@ pub(super) fn ring(color: Rgba, width: Pixels) -> BoxShadow {
 }
 
 /// Paints into the element's own bounds.
-pub(super) fn paint(
-    draw: impl Fn(Bounds<Pixels>, &mut Window) + 'static,
-) -> impl IntoElement {
-    canvas(|_, _, _| (), move |bounds, _, window, _| draw(bounds, window)).size_full()
+pub(super) fn paint(draw: impl Fn(Bounds<Pixels>, &mut Window) + 'static) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| draw(bounds, window),
+    )
+    .size_full()
 }
 
 /// A dashed ring (`stroke-dasharray`), turned `turn` radians.
@@ -57,11 +59,16 @@ pub(super) fn dashed_ring(
     turn: f32,
     color: Rgba,
 ) {
-    let mut builder =
-        PathBuilder::stroke(px(width)).dash_array(&[px(dash[0]), px(dash[1])]);
-    let start = point(center.x + px(radius * turn.cos()), center.y + px(radius * turn.sin()));
+    let mut builder = PathBuilder::stroke(px(width)).dash_array(&[px(dash[0]), px(dash[1])]);
+    let start = point(
+        center.x + px(radius * turn.cos()),
+        center.y + px(radius * turn.sin()),
+    );
     builder.move_to(start);
-    let half = point(center.x - px(radius * turn.cos()), center.y - px(radius * turn.sin()));
+    let half = point(
+        center.x - px(radius * turn.cos()),
+        center.y - px(radius * turn.sin()),
+    );
     builder.arc_to(point(px(radius), px(radius)), px(0.), false, true, half);
     builder.arc_to(point(px(radius), px(radius)), px(0.), false, true, start);
     if let Ok(path) = builder.build() {
@@ -134,13 +141,21 @@ pub(super) fn turned_rect(
     let (sin, cos) = degrees.to_radians().sin_cos();
     let turn = |p: Point<Pixels>| {
         let (x, y) = (f32::from(p.x - pivot.x), f32::from(p.y - pivot.y));
-        point(pivot.x + px(x * cos - y * sin), pivot.y + px(x * sin + y * cos))
+        point(
+            pivot.x + px(x * cos - y * sin),
+            pivot.y + px(x * sin + y * cos),
+        )
     };
     let (w, h) = (f32::from(size.width), f32::from(size.height));
     let r = radius.min(w / 2.).min(h / 2.);
     // The outline, corners as short polylines so the turn stays exact.
     let mut outline = Vec::new();
-    for (cx, cy, from) in [(w - r, r, -90f32), (w - r, h - r, 0.), (r, h - r, 90.), (r, r, 180.)] {
+    for (cx, cy, from) in [
+        (w - r, r, -90f32),
+        (w - r, h - r, 0.),
+        (r, h - r, 90.),
+        (r, r, 180.),
+    ] {
         for k in 0..=6 {
             let a = (from + 15. * k as f32).to_radians();
             outline.push(turn(point(
@@ -163,13 +178,22 @@ pub(super) fn turned_rect(
 
 /// A QR code's look, not a code: three finder squares and a fixed scatter
 /// (`QrMark`, the same seed), `side` square at `origin`.
-pub(super) fn qr_mark(window: &mut Window, origin: Point<Pixels>, side: f32, color: Rgba) {
+pub(super) fn qr_mark(
+    window: &mut Window,
+    origin: Point<Pixels>,
+    side: f32,
+    color: Rgba,
+    ground: Rgba,
+) {
     const SIZE: usize = 21;
     // The product draws it in a `-1 -1 23 23` viewBox: a module of quiet edge.
     let cell = side / (SIZE as f32 + 2.);
     let at = |x: f32, y: f32, w: f32, h: f32| {
         Bounds::new(
-            point(origin.x + px((x + 1.) * cell), origin.y + px((y + 1.) * cell)),
+            point(
+                origin.x + px((x + 1.) * cell),
+                origin.y + px((y + 1.) * cell),
+            ),
             size(px(w * cell), px(h * cell)),
         )
     };
@@ -178,7 +202,7 @@ pub(super) fn qr_mark(window: &mut Window, origin: Point<Pixels>, side: f32, col
         for (inset, filled) in [(0., true), (1., false), (2., true)] {
             let edge = 7. - inset * 2.;
             let bounds = at(fx + inset, fy + inset, edge, edge);
-            window.paint_quad(fill(bounds, if filled { color } else { gpui::white().into() }));
+            window.paint_quad(fill(bounds, if filled { color } else { ground }));
         }
     }
     // In JavaScript numbers, as the product computes it: the product exceeds
