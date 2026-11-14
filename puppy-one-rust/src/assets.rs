@@ -156,6 +156,7 @@ embedded! {
     "icons" / "plus.svg",
     "icons" / "refresh-cw.svg",
     "icons" / "rotate-ccw.svg",
+    "icons" / "rotate-cw.svg",
     "icons" / "rows-2.svg",
     "icons" / "rows-3.svg",
     "icons" / "scissors.svg",

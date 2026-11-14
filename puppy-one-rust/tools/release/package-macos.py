@@ -4,7 +4,8 @@ the release's coordinates stamped in, assemble the bundle with its channel's
 identity, icon, public Cloud configuration and build information, sign it
 (Developer ID and notarization for stable when the credentials are in the
 environment, ad hoc otherwise; see sign.py), and make the installer disk
-image and the update archive. Nothing is uploaded or published.
+image, the update archive and its feed metadata (`<channel>-mac.yml`).
+Nothing is uploaded or published.
 
     VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 \\
     VITE_DESKTOP_CLOUD_WEB_URL=https://puppyone.ai \\
@@ -30,6 +31,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / 'tools'))
 import bundle  # noqa: E402
 import dmg  # noqa: E402
+import feed  # noqa: E402
 import icon  # noqa: E402
 import identity  # noqa: E402
 import sign  # noqa: E402
@@ -54,6 +56,8 @@ def main():
     parser.add_argument('--base-version', help="Defaults to the pinned product's version")
     parser.add_argument('--out', type=Path, default=ROOT / 'artifacts/release')
     parser.add_argument('--skip-build', action='store_true', help='Reuse the stamped target/package build')
+    parser.add_argument('--update-feed-url', default=os.environ.get('PUPPYONE_UPDATE_FEED_URL'),
+                        help='HTTPS directory the app checks for <channel>-mac.yml (internal/stable)')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--release', action='store_true',
                         help='Stable only: fail unless it can be Developer ID signed and notarized')
@@ -71,10 +75,14 @@ def main():
     policy = identity.policy(args.channel)
     out = args.out / args.channel
     app = out / f'{policy["name"]}.app'
-    stamps = identity.build_environment(release)
+    try:
+        stamps = identity.build_environment(release, args.update_feed_url)
+    except ValueError as error:
+        raise SystemExit(str(error))
     signing = sign.plan(args.channel, os.environ)
     print(f'{policy["name"]} {release["version"]} ({policy["id"]}) → {app}')
     print(f'Cloud: {cloud["apiBase"]} · {cloud["webOrigin"]}')
+    print(f'Update feed: {stamps.get("PUPPYONE_UPDATE_FEED_URL", "none (updates disabled)")}')
     if signing['release']:
         print(f'Signing: Developer ID, notarized ({signing["notarization"]})')
     else:
@@ -122,7 +130,8 @@ def main():
         sign.sign(image, signer, keychain)
         if signing['release']:
             sign.notarize(image, signing['notarization'], os.environ)
-    for artifact in (app, archive, image):
+    metadata = feed.write(out, args.channel, release['version'], [archive])
+    for artifact in (app, archive, image, metadata):
         print(f'Packaged {artifact}')
 
 

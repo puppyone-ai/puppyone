@@ -497,6 +497,8 @@ pub struct Theme {
     /// the stroke and its 1px ring while it is dragged.
     pub pane_resizer_active: Rgba,
     pub pane_resizer_ring: Rgba,
+    /// `--desktop-titlebar-update-accent`: the titlebar's update action.
+    pub update_accent: Rgba,
     // Status.
     pub accent: Rgba,
     pub accent_text: Rgba,
@@ -756,6 +758,7 @@ impl Theme {
             control: c("control"),
             control_hover: c("control-hover"),
             focus: resizer,
+            update_accent: if dark { rgb(0x60a5fa) } else { rgb(0x2563eb) },
             focus_ring: c("focus-ring"),
             selection: c("text-selection-bg"),
             // color-mix(in srgb, var(--po-pane-resizer-blue) 55%, var(--po-divider))

@@ -82,24 +82,12 @@ impl Shell {
                 crate::platform::desktop::show_about_panel();
                 return;
             }
-            // `checkForUpdatesFromNativeMenu`: this build has no update
-            // service, so the native answer is `createUnavailableDialog`.
+            // `checkForUpdatesFromNativeMenu`.
             Command::CheckForUpdates => {
-                let message = crate::localization::tf(
-                    "native.update.manual.unavailable.message",
-                    &[("appName", windows::APP_NAME.into())],
-                );
-                let detail = crate::localization::t("native.update.manual.unavailable.detail");
-                // Only OK: nothing waits for the answer.
-                drop(window.prompt(
-                    PromptLevel::Info,
-                    &message,
-                    Some(detail),
-                    &[PromptButton::ok(crate::localization::t(
-                        "native.update.manual.ok",
-                    ))],
-                    cx,
-                ));
+                let handle = window.window_handle();
+                cx.defer(move |cx| {
+                    crate::features::updates::check_from_menu(handle, windows::APP_NAME, cx)
+                });
                 return;
             }
             _ => {}

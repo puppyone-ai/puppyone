@@ -18,7 +18,10 @@ use crate::{
     },
 };
 use gpui::{prelude::*, *};
-use gpui_kit::base::{Selectable, h_flex};
+use gpui_kit::{
+    base::{Selectable, h_flex},
+    component::Sizable as _,
+};
 use std::rc::Rc;
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
@@ -394,4 +397,83 @@ pub(super) fn cloud_status(
         .justify_end()
         .children(feedback)
         .into_any_element()
+}
+
+/// `DesktopUpdateTitlebarButton`: Download (automatic downloads off),
+/// Restart once the update is ready, a turning arrow while it installs.
+#[derive(IntoElement)]
+pub(super) struct UpdateButton {
+    kind: crate::features::updates::Titlebar,
+    label: String,
+    on_click: Option<ClickHandler>,
+}
+impl UpdateButton {
+    pub fn new(state: &crate::features::updates::UpdateState) -> Option<Self> {
+        use crate::features::updates::{Titlebar, words};
+        let kind = crate::features::updates::titlebar(state)?;
+        let version = words::version(state);
+        let label = match kind {
+            Titlebar::Available => tf("updates.title.available", &[("version", version.into())]),
+            Titlebar::Ready => tf("updates.detail.downloaded", &[("version", version.into())]),
+            Titlebar::Installing => tr("updates.detail.installing").into(),
+        };
+        Some(Self {
+            kind,
+            label,
+            on_click: None,
+        })
+    }
+    pub fn on_click(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(Rc::new(handler));
+        self
+    }
+}
+impl RenderOnce for UpdateButton {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        use crate::features::updates::Titlebar;
+        let t = cx.palette();
+        let accent = t.update_accent;
+        let interactive = self.kind != Titlebar::Installing;
+        let (icon, text) = match self.kind {
+            Titlebar::Available => ("download", "updates.action.download"),
+            Titlebar::Ready => ("rotate-cw", "updates.action.restart"),
+            Titlebar::Installing => ("rotate-cw", "updates.action.restarting"),
+        };
+        let mut glyph = Icon::new(icon).with_size(px(15.)).stroke(2.3).color(accent);
+        if !interactive {
+            glyph = glyph.spinning("titlebar-update-spin");
+        }
+        let ty = theme::ty().header;
+        let hover = theme::mix(accent, t.hover, 0.18);
+        let on_click = self.on_click.filter(|_| interactive);
+        h_flex()
+            .id("titlebar-update")
+            .flex_none()
+            .h(px(theme::control()))
+            .max_w(px(220.))
+            .gap(px(6.))
+            .px(px(6.))
+            .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
+            .bg(Rgba { a: 0.12, ..accent })
+            .when(interactive, |d| d.hover(move |d| d.bg(hover)))
+            .child(glyph)
+            .child(
+                div()
+                    .min_w_0()
+                    .max_w(px(180.))
+                    .truncate()
+                    .text_size(px(ty.content))
+                    .line_height(px(ty.line_height))
+                    .text_color(theme::mix(accent, t.text, 0.72))
+                    .child(tr(text)),
+            )
+            .when_some(on_click, |d, handler| {
+                d.cursor(theme::clickable_cursor())
+                    .on_click(move |e, w, cx| handler(e, w, cx))
+            })
+            .tooltip(crate::ui::components::tooltip(self.label))
+    }
 }

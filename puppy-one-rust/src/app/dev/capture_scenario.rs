@@ -67,6 +67,8 @@ enum Step {
     /// `hosts-fixture`: the owner's other computers of
     /// `#homepage-computers-visual-smoke`, this one sharing three folders.
     HostsFixture,
+    /// `updates-fixture:<preview>`: the update service in one state.
+    UpdatesFixture(String),
     /// `plan-fixture:<state>`: Settings › Plan as `#cloud-plans-visual-smoke`
     /// shows it (`free`, `team`, `enterprise`, `scheduled`).
     PlanFixture(String),
@@ -144,6 +146,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
                 "plan-fixture" => Step::PlanFixture(arg.to_string()),
+                "updates-fixture" => Step::UpdatesFixture(arg.to_string()),
                 "host-share" => Step::HostShare(path()),
                 "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
                 "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
@@ -582,6 +585,9 @@ impl Shell {
                 self.explorer
                     .session
                     .update(cx, |e, cx| e.toggle_pin(&path, cx));
+            }
+            Step::UpdatesFixture(preview) => {
+                crate::features::updates::install_fixture(preview, cx);
             }
             Step::PlanFixture(state) => {
                 // An available account and Cloud with payments, nothing behind them.

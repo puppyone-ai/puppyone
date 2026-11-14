@@ -228,6 +228,23 @@ pub fn format_decimal_in(code: &str, value: f64, max_fraction: usize) -> String 
     let (negative, text) = number_in(code, value, 0, max_fraction);
     if negative { format!("-{text}") } else { text }
 }
+/// `formatNumber(value, {style: "percent", maximumFractionDigits: 0})` in
+/// `code`: Spanish, French and German set the sign apart with a no-break
+/// space.
+pub fn format_percent_in(code: &str, value: f64) -> String {
+    let (negative, text) = number_in(code, value * 100., 0, 0);
+    let sign = if matches!(code, "es" | "fr" | "de") {
+        "\u{a0}%"
+    } else {
+        "%"
+    };
+    format!("{}{text}{sign}", if negative { "-" } else { "" })
+}
+/// `format_percent_in` in the current locale.
+pub fn format_percent(value: f64) -> String {
+    let code = CURRENT.with(|c| c.borrow().clone());
+    format_percent_in(&code, value)
+}
 /// `formatNumber(value)` (`Intl.NumberFormat`) for an integer in the current
 /// locale.
 pub fn format_number(value: i64) -> String {
@@ -691,7 +708,9 @@ mod tests {
         for case in oracle["cases"].as_array().unwrap() {
             let locale = case["locale"].as_str().unwrap();
             let value = case["value"].as_f64().unwrap();
-            let actual = if case["kind"] == "currency" {
+            let actual = if case["kind"] == "percent" {
+                super::format_percent_in(locale, value)
+            } else if case["kind"] == "currency" {
                 super::format_currency_in(
                     locale,
                     value,

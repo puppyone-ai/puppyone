@@ -381,6 +381,54 @@
   },
   {
    "locale": "en",
+   "kind": "percent",
+   "value": 0,
+   "expected": "0%"
+  },
+  {
+   "locale": "en",
+   "kind": "percent",
+   "value": 0.05,
+   "expected": "5%"
+  },
+  {
+   "locale": "en",
+   "kind": "percent",
+   "value": 0.125,
+   "expected": "13%"
+  },
+  {
+   "locale": "en",
+   "kind": "percent",
+   "value": 0.29,
+   "expected": "29%"
+  },
+  {
+   "locale": "en",
+   "kind": "percent",
+   "value": 0.42,
+   "expected": "42%"
+  },
+  {
+   "locale": "en",
+   "kind": "percent",
+   "value": 0.995,
+   "expected": "100%"
+  },
+  {
+   "locale": "en",
+   "kind": "percent",
+   "value": 1,
+   "expected": "100%"
+  },
+  {
+   "locale": "en",
+   "kind": "percent",
+   "value": 12.345,
+   "expected": "1,235%"
+  },
+  {
+   "locale": "en",
    "kind": "currency",
    "value": 0,
    "currency": "USD",
@@ -836,6 +884,54 @@
    "value": -0.04,
    "max": 2,
    "expected": "-0,04"
+  },
+  {
+   "locale": "es",
+   "kind": "percent",
+   "value": 0,
+   "expected": "0 %"
+  },
+  {
+   "locale": "es",
+   "kind": "percent",
+   "value": 0.05,
+   "expected": "5 %"
+  },
+  {
+   "locale": "es",
+   "kind": "percent",
+   "value": 0.125,
+   "expected": "13 %"
+  },
+  {
+   "locale": "es",
+   "kind": "percent",
+   "value": 0.29,
+   "expected": "29 %"
+  },
+  {
+   "locale": "es",
+   "kind": "percent",
+   "value": 0.42,
+   "expected": "42 %"
+  },
+  {
+   "locale": "es",
+   "kind": "percent",
+   "value": 0.995,
+   "expected": "100 %"
+  },
+  {
+   "locale": "es",
+   "kind": "percent",
+   "value": 1,
+   "expected": "100 %"
+  },
+  {
+   "locale": "es",
+   "kind": "percent",
+   "value": 12.345,
+   "expected": "1235 %"
   },
   {
    "locale": "es",
@@ -1297,6 +1393,54 @@
   },
   {
    "locale": "pt-BR",
+   "kind": "percent",
+   "value": 0,
+   "expected": "0%"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "percent",
+   "value": 0.05,
+   "expected": "5%"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "percent",
+   "value": 0.125,
+   "expected": "13%"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "percent",
+   "value": 0.29,
+   "expected": "29%"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "percent",
+   "value": 0.42,
+   "expected": "42%"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "percent",
+   "value": 0.995,
+   "expected": "100%"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "percent",
+   "value": 1,
+   "expected": "100%"
+  },
+  {
+   "locale": "pt-BR",
+   "kind": "percent",
+   "value": 12.345,
+   "expected": "1.235%"
+  },
+  {
+   "locale": "pt-BR",
    "kind": "currency",
    "value": 0,
    "currency": "USD",
@@ -1752,6 +1896,54 @@
    "value": -0.04,
    "max": 2,
    "expected": "-0,04"
+  },
+  {
+   "locale": "fr",
+   "kind": "percent",
+   "value": 0,
+   "expected": "0 %"
+  },
+  {
+   "locale": "fr",
+   "kind": "percent",
+   "value": 0.05,
+   "expected": "5 %"
+  },
+  {
+   "locale": "fr",
+   "kind": "percent",
+   "value": 0.125,
+   "expected": "13 %"
+  },
+  {
+   "locale": "fr",
+   "kind": "percent",
+   "value": 0.29,
+   "expected": "29 %"
+  },
+  {
+   "locale": "fr",
+   "kind": "percent",
+   "value": 0.42,
+   "expected": "42 %"
+  },
+  {
+   "locale": "fr",
+   "kind": "percent",
+   "value": 0.995,
+   "expected": "100 %"
+  },
+  {
+   "locale": "fr",
+   "kind": "percent",
+   "value": 1,
+   "expected": "100 %"
+  },
+  {
+   "locale": "fr",
+   "kind": "percent",
+   "value": 12.345,
+   "expected": "1 235 %"
   },
   {
    "locale": "fr",
@@ -2213,6 +2405,54 @@
   },
   {
    "locale": "de",
+   "kind": "percent",
+   "value": 0,
+   "expected": "0 %"
+  },
+  {
+   "locale": "de",
+   "kind": "percent",
+   "value": 0.05,
+   "expected": "5 %"
+  },
+  {
+   "locale": "de",
+   "kind": "percent",
+   "value": 0.125,
+   "expected": "13 %"
+  },
+  {
+   "locale": "de",
+   "kind": "percent",
+   "value": 0.29,
+   "expected": "29 %"
+  },
+  {
+   "locale": "de",
+   "kind": "percent",
+   "value": 0.42,
+   "expected": "42 %"
+  },
+  {
+   "locale": "de",
+   "kind": "percent",
+   "value": 0.995,
+   "expected": "100 %"
+  },
+  {
+   "locale": "de",
+   "kind": "percent",
+   "value": 1,
+   "expected": "100 %"
+  },
+  {
+   "locale": "de",
+   "kind": "percent",
+   "value": 12.345,
+   "expected": "1.235 %"
+  },
+  {
+   "locale": "de",
    "kind": "currency",
    "value": 0,
    "currency": "USD",
@@ -2671,6 +2911,54 @@
   },
   {
    "locale": "ja",
+   "kind": "percent",
+   "value": 0,
+   "expected": "0%"
+  },
+  {
+   "locale": "ja",
+   "kind": "percent",
+   "value": 0.05,
+   "expected": "5%"
+  },
+  {
+   "locale": "ja",
+   "kind": "percent",
+   "value": 0.125,
+   "expected": "13%"
+  },
+  {
+   "locale": "ja",
+   "kind": "percent",
+   "value": 0.29,
+   "expected": "29%"
+  },
+  {
+   "locale": "ja",
+   "kind": "percent",
+   "value": 0.42,
+   "expected": "42%"
+  },
+  {
+   "locale": "ja",
+   "kind": "percent",
+   "value": 0.995,
+   "expected": "100%"
+  },
+  {
+   "locale": "ja",
+   "kind": "percent",
+   "value": 1,
+   "expected": "100%"
+  },
+  {
+   "locale": "ja",
+   "kind": "percent",
+   "value": 12.345,
+   "expected": "1,235%"
+  },
+  {
+   "locale": "ja",
    "kind": "currency",
    "value": 0,
    "currency": "USD",
@@ -3129,6 +3417,54 @@
   },
   {
    "locale": "ko",
+   "kind": "percent",
+   "value": 0,
+   "expected": "0%"
+  },
+  {
+   "locale": "ko",
+   "kind": "percent",
+   "value": 0.05,
+   "expected": "5%"
+  },
+  {
+   "locale": "ko",
+   "kind": "percent",
+   "value": 0.125,
+   "expected": "13%"
+  },
+  {
+   "locale": "ko",
+   "kind": "percent",
+   "value": 0.29,
+   "expected": "29%"
+  },
+  {
+   "locale": "ko",
+   "kind": "percent",
+   "value": 0.42,
+   "expected": "42%"
+  },
+  {
+   "locale": "ko",
+   "kind": "percent",
+   "value": 0.995,
+   "expected": "100%"
+  },
+  {
+   "locale": "ko",
+   "kind": "percent",
+   "value": 1,
+   "expected": "100%"
+  },
+  {
+   "locale": "ko",
+   "kind": "percent",
+   "value": 12.345,
+   "expected": "1,235%"
+  },
+  {
+   "locale": "ko",
    "kind": "currency",
    "value": 0,
    "currency": "USD",
@@ -3584,6 +3920,54 @@
    "value": -0.04,
    "max": 2,
    "expected": "-0.04"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "percent",
+   "value": 0,
+   "expected": "0%"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "percent",
+   "value": 0.05,
+   "expected": "5%"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "percent",
+   "value": 0.125,
+   "expected": "13%"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "percent",
+   "value": 0.29,
+   "expected": "29%"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "percent",
+   "value": 0.42,
+   "expected": "42%"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "percent",
+   "value": 0.995,
+   "expected": "100%"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "percent",
+   "value": 1,
+   "expected": "100%"
+  },
+  {
+   "locale": "zh-Hans",
+   "kind": "percent",
+   "value": 12.345,
+   "expected": "1,235%"
   },
   {
    "locale": "zh-Hans",

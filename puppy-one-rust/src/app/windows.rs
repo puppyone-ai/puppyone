@@ -212,6 +212,10 @@ pub fn cancel_quit(cx: &mut App) {
     if cx.has_global::<Registry>() {
         cx.global_mut::<Registry>().quitting = false;
     }
+    // `handleQuitCancelled`: a restart to update did not happen.
+    if let Some(updates) = crate::features::updates::global(cx) {
+        updates.update(cx, |u, cx| u.quit_cancelled(cx));
+    }
 }
 
 /// The product's application name (`application-identity.mjs`).

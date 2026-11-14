@@ -63,9 +63,19 @@ def release_identity(base_version, channel, commit, build_number=None, built_at=
     }
 
 
-def build_environment(release):
-    """The `PUPPYONE_BUILD_*` stamps `platform::build_identity` reads."""
-    return {
+def update_feed(value):
+    """`PUPPYONE_UPDATE_FEED_URL`: an HTTPS directory holding
+    `<channel>-mac.yml`, without credentials or a query."""
+    url = urlsplit(value or '')
+    if url.scheme != 'https' or not url.hostname or url.username or url.password or url.query or url.fragment:
+        raise ValueError(f'The update feed must be an HTTPS directory: {value}')
+    return value.rstrip('/')
+
+
+def build_environment(release, feed=None):
+    """The `PUPPYONE_BUILD_*` stamps `platform::build_identity` reads, and
+    the update feed `platform::updates` reads (never for dev)."""
+    stamps = {
         'PUPPYONE_BUILD_CHANNEL': release['channel'],
         'PUPPYONE_BUILD_VERSION': release['version'],
         'PUPPYONE_BUILD_ID': release['buildId'],
@@ -74,6 +84,9 @@ def build_environment(release):
         'PUPPYONE_BUILD_DIRTY': 'true' if release['sourceDirty'] else 'false',
         'MACOSX_DEPLOYMENT_TARGET': MINIMUM_SYSTEM_VERSION,
     }
+    if feed and release['channel'] != 'dev':
+        stamps['PUPPYONE_UPDATE_FEED_URL'] = update_feed(feed)
+    return stamps
 
 
 def _endpoint(value, official=True):

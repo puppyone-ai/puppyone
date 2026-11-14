@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 import bundle
+import feed
 import icon
 import identity
 import sign
@@ -104,6 +105,37 @@ class SigningPlanTest(unittest.TestCase):
             'CSC_LINK must be protected by CSC_KEY_PASSWORD',
             'App Store Connect API key notarization credentials are incomplete: missing '
             'APPLE_API_KEY_ID, APPLE_API_ISSUER'])
+
+
+class FeedTest(unittest.TestCase):
+    """`desktopUpdateFeedVerifier.test.mjs`: what is written reads back."""
+
+    def test_written_metadata_passes_the_verifier(self):
+        with tempfile.TemporaryDirectory() as out:
+            archive = Path(out) / 'puppyone-gpui-0.4.5-arm64.zip'
+            archive.write_bytes(b'archive')
+            meta = feed.parse(feed.write(out, 'stable', '0.4.5', [archive],
+                                         released='2026-11-15T00:00:00.000Z').read_text())
+            self.assertEqual(meta['version'], '0.4.5')
+            self.assertEqual(meta['files'][0]['size'], 7)
+            self.assertEqual(meta['sha512'], feed.sha512(archive))
+
+    def test_broken_metadata_is_refused(self):
+        with self.assertRaises(ValueError) as refused:
+            feed.parse('version: v1\nfiles:\n  - url: a.dmg\n    sha512: abc\n    size: 0\npath: b\nsha512: x\nreleaseDate: soon\n')
+        for problem in ['version must be', 'base64 SHA-512', 'positive byte size', 'ZIP payload',
+                        'path must identify', 'releaseDate']:
+            self.assertIn(problem, str(refused.exception))
+
+    def test_only_https_feeds_are_stamped_and_never_for_dev(self):
+        release = identity.release_identity('0.4.4', 'internal', COMMIT, '3')
+        feed_url = 'https://updates.puppyone.ai/desktop/gpui/internal/mac/latest/'
+        self.assertEqual(identity.build_environment(release, feed_url)['PUPPYONE_UPDATE_FEED_URL'],
+                         feed_url.rstrip('/'))
+        self.assertNotIn('PUPPYONE_UPDATE_FEED_URL',
+                         identity.build_environment(identity.release_identity('0.4.4', 'dev', COMMIT), feed_url))
+        with self.assertRaises(ValueError):
+            identity.build_environment(release, 'http://updates.puppyone.ai/x')
 
 
 class IconTest(unittest.TestCase):

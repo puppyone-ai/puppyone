@@ -239,6 +239,8 @@ fn main() {
         }
         #[cfg(not(feature = "dev-capture"))]
         features::telemetry::init(cx);
+        // `createUpdateService`: a restart to update quits the ordinary way.
+        features::updates::init(app::windows::quit_all, cx);
         // `appPreviewRuntime.closeAll()`: running App Previews stop with the
         // app; the quit waits for their process groups, bounded.
         cx.on_app_quit(|_| {

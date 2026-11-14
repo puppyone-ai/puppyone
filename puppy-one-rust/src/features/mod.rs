@@ -15,5 +15,6 @@ pub mod source_control;
 pub mod sub_theme_catalog;
 pub mod telemetry;
 pub mod terminal;
+pub mod updates;
 
 pub mod workbench;
