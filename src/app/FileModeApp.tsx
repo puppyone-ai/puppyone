@@ -17,6 +17,7 @@ import {
   type DocumentDataNode,
   type EditorPaneMenuContribution,
   type EditorPaneMenuSegmentedControl,
+  type EditorPaneMenuToggle,
   type MarkdownWorkspaceEnvironment,
 } from "@puppyone/shared-ui";
 import { DesktopWindowChrome } from "../components/DesktopWindowChrome";
@@ -112,27 +113,33 @@ function FileHeaderContext({ name }: { name: string }) {
 }
 
 type FileHeaderControls = Readonly<{
+  /** The document's own switches, such as Edit and the source panel: pressed commands. */
+  toggles: readonly EditorPaneMenuToggle[];
   switches: readonly EditorPaneMenuSegmentedControl[];
   settings: EditorPaneMenuContribution | null;
 }>;
 
+const isHeaderToggle = (item: EditorPaneMenuContribution["viewItems"][number]): item is EditorPaneMenuToggle =>
+  item.kind === "toggle" && item.icon !== undefined;
+
 /**
- * What the editor hands a project pane's menu, split for the Header: its view
- * as one control showing the current view, anything else behind the pane's
- * menu. Null when the editor hands over nothing.
+ * What the editor hands a project pane's menu, split for the Header: its own
+ * switches as pressed commands, a view as one control showing the current
+ * view, anything else behind the pane's menu. Null when it hands over nothing.
  */
 function splitMenuContribution(contribution: EditorPaneMenuContribution | null): FileHeaderControls | null {
   if (!contribution) return null;
+  const toggles = contribution.viewItems.filter(isHeaderToggle);
   const switches = contribution.viewItems.filter(
     (item): item is EditorPaneMenuSegmentedControl => item.kind === "segmented",
   );
-  const settingsItems = contribution.viewItems.filter((item) => item.kind !== "segmented");
-  if (!switches.length && !settingsItems.length) return null;
-  return { switches, settings: settingsItems.length ? { ...contribution, viewItems: settingsItems } : null };
+  const settingsItems = contribution.viewItems.filter((item) => item.kind !== "segmented" && !isHeaderToggle(item));
+  if (!toggles.length && !switches.length && !settingsItems.length) return null;
+  return { toggles, switches, settings: settingsItems.length ? { ...contribution, viewItems: settingsItems } : null };
 }
 
 /** The file's controls, as Header commands beside each other like a project's tools. */
-function FileControls({ name, switches, settings }: FileHeaderControls & { name: string | null }) {
+function FileControls({ name, toggles, switches, settings }: FileHeaderControls & { name: string | null }) {
   const { t } = useLocalization();
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -140,6 +147,18 @@ function FileControls({ name, switches, settings }: FileHeaderControls & { name:
   const label = name ? t("editor.panes.actionsFor", { name }) : t("editor.panes.actions");
   return (
     <>
+      {toggles.map((item) => (
+        <Tooltip key={item.id} content={item.label}><button
+          type="button"
+          className="desktop-titlebar-action file-mode-window__toggle"
+          data-control={item.id}
+          aria-label={item.label}
+          aria-pressed={item.checked}
+          onClick={() => item.setChecked(!item.checked)}
+        >
+          {item.icon}
+        </button></Tooltip>
+      ))}
       {switches.map((item) => (
         <EditorViewModeMenu
           key={item.id}
@@ -148,6 +167,9 @@ function FileControls({ name, switches, settings }: FileHeaderControls & { name:
           className="desktop-titlebar-action file-mode-window__view-mode"
         />
       ))}
+      {settings && (toggles.length > 0 || switches.length > 0) && (
+        <span className="desktop-titlebar-action-divider" aria-hidden="true" />
+      )}
       {settings && <FileSettingsMenu
         buttonRef={buttonRef}
         label={label}
@@ -299,6 +321,8 @@ function FileModeDocument({ target, dataPort, node }: OpenedFile & { node: Docum
         onRetry={source.retry}
         showHeader={false}
         hideSourceView={!sourceToggle}
+        // The page to read, an Edit switch, and its source in a panel beside it, from the Header.
+        documentControls="edit-and-source-panel"
         // Edits are saved as they are made, as in a project window.
         editorSaveMode="auto"
         htmlTrustMode="safe"

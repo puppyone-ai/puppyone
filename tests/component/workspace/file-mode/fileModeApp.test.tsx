@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   fileChanged: { value: () => undefined as void },
   platformCapabilities: { value: null as null | Record<string, unknown> },
   menuItems: { value: [] as Array<
-    | { kind: "toggle"; id: string; label: string; checked: boolean; setChecked: (checked: boolean) => void }
+    | { kind: "toggle"; id: string; label: string; checked: boolean; setChecked: (checked: boolean) => void; icon?: React.ReactNode }
     | { kind: "segmented"; id: string; label: string; value: string; options: Array<{ id: string; label: string; icon: React.ReactNode }>; setValue: (value: string) => void }
   > },
   appearance: {
@@ -132,6 +132,8 @@ describe("FileModeApp", () => {
       // Markdown keeps its source view, as in a project pane.
       hideSourceView: false,
       htmlTrustMode: "safe",
+      // The Header offers Edit and the source panel instead of a view menu.
+      documentControls: "edit-and-source-panel",
       workspaceRoot: "/notes",
       editorInteractionPreferences: expect.objectContaining({ showSaveStatus: false }),
     }));
@@ -199,6 +201,31 @@ describe("FileModeApp", () => {
     expect(document.querySelector(".desktop-editor-pane-menu-close-action")).toBeNull();
     act(() => item?.click());
     expect(setChecked).toHaveBeenCalledWith(false);
+  });
+
+  it("shows the document's own switches as pressed Header commands, apart from its settings", async () => {
+    const setEditing = vi.fn();
+    const setSourcePanel = vi.fn();
+    mocks.menuItems.value = [
+      { kind: "toggle", id: "document-editing", label: "Edit", checked: false, setChecked: setEditing, icon: <svg /> },
+      { kind: "toggle", id: "document-source-panel", label: "Source code", checked: true, setChecked: setSourcePanel, icon: <svg /> },
+      { kind: "toggle", id: "html-folder-access", label: "Folder access", checked: false, setChecked: vi.fn() },
+    ];
+    await mount();
+
+    const actions = container.querySelector(".desktop-titlebar-actions")!;
+    const buttons = [...actions.querySelectorAll<HTMLButtonElement>("button")];
+    expect(buttons.map((button) => [button.getAttribute("aria-label"), button.getAttribute("aria-pressed")])).toEqual([
+      ["Edit", "false"],
+      ["Source code", "true"],
+      ["Actions for plan.md", null],
+    ]);
+    // The Header's own divider keeps the switches apart from the settings menu.
+    expect(actions.querySelector(".file-mode-window__toggle + .file-mode-window__toggle + .desktop-titlebar-action-divider")).not.toBeNull();
+    act(() => buttons[0]!.click());
+    act(() => buttons[1]!.click());
+    expect(setEditing).toHaveBeenCalledWith(true);
+    expect(setSourcePanel).toHaveBeenCalledWith(false);
   });
 
   it("keeps a view switch and settings side by side in the Header", async () => {

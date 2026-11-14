@@ -87,6 +87,8 @@ const headerControls = (window) => evaluate(window, `(async () => {
   const buttons = [...actions.querySelectorAll("button")];
   return {
     buttons: buttons.length,
+    // The document's own switches, pressed or not, such as Edit and the source panel.
+    switches: [...actions.querySelectorAll(".file-mode-window__toggle")].map((button) => button.dataset.control + (button.getAttribute("aria-pressed") === "true" ? ":on" : ":off")),
     // Header commands, in sight without the pointer anywhere near, at the project Header's icon size.
     headerCommands: buttons.every((button) => button.classList.contains("desktop-titlebar-action")
       && getComputedStyle(button).opacity === "1" && button.querySelector("svg").getBoundingClientRect().width === 15),
@@ -100,19 +102,40 @@ async function clickWithMouse(window, selector) {
     const { left, top, width, height } = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
     return { x: Math.round(left + width / 2), y: Math.round(top + height / 2) };
   })()`);
+  // As a real pointer does: onto the target, then press.
+  window.webContents.sendInputEvent({ type: "mouseMove", x, y });
   for (const type of ["mouseDown", "mouseUp"]) window.webContents.sendInputEvent({ type, x, y, button: "left", clickCount: 1 });
   await wait(300);
 }
-/** Picks a view from the Header's view menu by its place in the list. */
-const chooseView = (window, index) => evaluate(window, `(async () => {
-  const menu = await ${openMenu}(document.querySelector("${HEADER} .file-mode-window__view-mode"), ".desktop-editor-view-mode-menu");
-  menu.querySelectorAll("[role=menuitemradio]")[${index}].click();
-})()`);
+/** The Header switch for `control` ("document-editing" or "document-source-panel"). */
+const switchSelector = (control) => `${HEADER} .file-mode-window__toggle[data-control="${control}"]`;
+const switchOn = (window, control) => evaluate(window, `document.querySelector(${JSON.stringify(switchSelector(control))})?.getAttribute("aria-pressed") === "true"`);
+/**
+ * Presses a Header switch with the real mouse until it is `on`. A loaded machine can drop
+ * a synthetic press, so one that did not take is pressed again.
+ */
+async function setSwitch(window, control, on) {
+  for (let attempt = 0; attempt < 3 && await switchOn(window, control) !== on; attempt += 1) {
+    await clickWithMouse(window, switchSelector(control));
+    await until(async () => (await switchOn(window, control)) === on, `${control} to turn ${on ? "on" : "off"}`, 3_000).catch(() => undefined);
+  }
+  check(`${control} turns ${on ? "on" : "off"}`, await switchOn(window, control), on);
+}
+const SOURCE_PANEL = ".document-source-split__source .cm-editor";
+/** Types into the source panel, at the end of its text. */
+async function typeInSource(window, text) {
+  await evaluate(window, `document.querySelector(${JSON.stringify(`${SOURCE_PANEL} .cm-content`)}).focus()`);
+  // The editor's own go-to-end shortcut.
+  const modifiers = [process.platform === "darwin" ? "meta" : "control"];
+  for (const type of ["keyDown", "keyUp"]) window.webContents.sendInputEvent({ type, keyCode: "End", modifiers });
+  await wait(100);
+  window.webContents.insertText(text);
+}
 /** Source of a page function: the colour an element shows, from itself or the nearest painted ancestor. */
 const visibleColour = `((element) => { for (; element; element = element.parentElement) { const colour = getComputedStyle(element).backgroundColor; if (colour !== "rgba(0, 0, 0, 0)") return colour; } return null; })`;
-const editorText = (window) => evaluate(window, `document.querySelector(".cm-content")?.innerText ?? ""`);
+const editorText = (window) => evaluate(window, `document.querySelector(".document-source-split__page .cm-content")?.innerText ?? ""`);
 async function type(window, text) {
-  await evaluate(window, `document.querySelector(".cm-content").focus()`);
+  await evaluate(window, `document.querySelector(".document-source-split__page .cm-content").focus()`);
   window.webContents.insertText(text);
   await until(async () => (await editorText(window)).includes(text), "the typed text");
 }
@@ -183,6 +206,8 @@ async function prepareFixtures() {
   await fs.writeFile(path.join(site, "style.css"), "h1 { color: rgb(0, 187, 102); }\n");
   await fs.writeFile(path.join(site, "long-page.html"), `<!doctype html><html><head><meta charset="utf-8"></head><body>
 <h1 id="banner">Long page</h1>${"<p>A paragraph long enough to scroll under the title bar.</p>".repeat(120)}</body></html>`);
+  await fs.writeFile(path.join(site, "editable.html"), `<!doctype html><html><head><meta charset="utf-8"></head><body><h1 id="title">Editable</h1>
+<p id="body">A page to edit beside its source.</p></body></html>`);
   await fs.writeFile(path.join(site, "page.html"), `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head>
 <body><h1 id="title">Page</h1><pre id="out">running</pre><script>
 (async () => {
@@ -237,25 +262,18 @@ async function coldStart() {
   check("Header can drag the window", await evaluate(window, `getComputedStyle(document.querySelector("${HEADER}")).webkitAppRegion`), "drag");
   check("Header draws the project Header's divider", await evaluate(window, `getComputedStyle(document.querySelector("${HEADER}"), "::after").content !== "none"`));
   check("the document starts below the Header", await evaluate(window, `document.querySelector(".file-mode-window__document").getBoundingClientRect().top === document.querySelector("${HEADER}").getBoundingClientRect().bottom`));
-  check("Markdown shows its current view in the Header", await headerControls(window), { buttons: 1, headerCommands: true, views: 2, settings: 0 });
-  await clickWithMouse(window, ".file-mode-window__view-mode");
-  await clickWithMouse(window, '.desktop-editor-view-mode-menu [role=menuitemradio][aria-checked="true"]');
-  check("the view menu closes after a mouse pick", await exists(window, ".desktop-editor-view-mode-menu"), false);
+  check("Markdown offers Edit and its source in the Header", await headerControls(window), {
+    buttons: 2, switches: ["document-editing:off", "document-source-panel:off"], headerCommands: true, views: 0, settings: 0,
+  });
   check("project shell is not mounted", await exists(window, ".desktop-editor-pane"), false);
   check("project application is not loaded", await evaluate(window, `performance.getEntriesByType("resource").some((entry) => /\\/src\\/App\\.tsx/.test(entry.name))`), false);
   await until(() => evaluate(window, `[...document.querySelectorAll("img")].some((image) => image.complete && image.naturalWidth > 0)`), "the relative image");
   check("relative image shows", true);
   await until(() => exists(window, ".cm-md-mermaid-svg-root"), "the Mermaid diagram");
   check("Mermaid shows", true);
-  const beforeViews = await read(inDocs("plan.md"));
-  await chooseView(window, 1);
-  await until(async () => !(await exists(window, ".cm-md-mermaid-svg-root")), "the Markdown source view");
-  await chooseView(window, 0);
-  await until(() => exists(window, ".cm-md-mermaid-svg-root"), "the rendered Markdown again");
-  check("Markdown switches between rendered and source from the Header", true);
-  check("switching views leaves the file unchanged", await read(inDocs("plan.md")), beforeViews);
   check("document uses the window width", await evaluate(window, `document.querySelector(".cm-editor").getBoundingClientRect().width === innerWidth`));
   await screenshot(window, "markdown");
+  await markdownEditAndSource(window);
 
   // A name too long for the Header gives way before it reaches the traffic lights or the file's controls.
   const long = await openAndWait(inDocs(LONG_NAME), ".cm-editor");
@@ -299,9 +317,68 @@ async function scrollbars() {
   await closeAndWait(window);
 }
 
+/** A Markdown file opens to read; Edit lets it change; the source beside it edits the same text. */
+async function markdownEditAndSource(window) {
+  const file = inDocs("plan.md");
+  const original = await read(file);
+  const pageEditor = ".document-source-split__page .markdown-codemirror-editor";
+  check("Markdown opens to read", await evaluate(window, `document.querySelector(${JSON.stringify(pageEditor)}).dataset.readonly`), "true");
+  // Real keystrokes, as a reader presses them. (insertText, an IME commit, crashes Chromium's
+  // renderer on a focused page that cannot be edited; no reader's typing takes that path.)
+  await clickWithMouse(window, ".document-source-split__page .cm-line");
+  for (const key of "nope") {
+    for (const type of ["keyDown", "char", "keyUp"]) window.webContents.sendInputEvent({ type, keyCode: key });
+  }
+  await wait(600);
+  check("typing while reading changes nothing", await read(file), original);
+
+  await setSwitch(window, "document-editing", true);
+  check("Edit lets the page change", await evaluate(window, `document.querySelector(${JSON.stringify(pageEditor)}).dataset.readonly`), "false");
+  await setSwitch(window, "document-editing", false);
+
+  await setSwitch(window, "document-source-panel", true);
+  await until(() => exists(window, SOURCE_PANEL), "the source panel");
+  check("the source opens beside the page, which keeps its diagram", await evaluate(window, `(() => {
+    const page = document.querySelector(".document-source-split__page").getBoundingClientRect();
+    const source = document.querySelector(".document-source-split__source").getBoundingClientRect();
+    return { besideThePage: source.left >= page.right, diagram: !!document.querySelector(".document-source-split__page .cm-md-mermaid-svg-root") };
+  })()`), { besideThePage: true, diagram: true });
+  check("the source shows the file", await evaluate(window, `document.querySelector(${JSON.stringify(`${SOURCE_PANEL} .cm-content`)}).innerText.startsWith("# Plan")`));
+  check("opening the source leaves the file unchanged", await read(file), original);
+
+  // The page still only reads; the source edits, and the page shows it at once.
+  await typeInSource(window, "\nFrom the source panel.");
+  await until(async () => (await editorText(window)).includes("From the source panel."), "the page to show the source edit");
+  await until(async () => (await read(file)).includes("From the source panel."), "the source edit to reach the file");
+  check("an edit in the source shows on the page and reaches the file", true);
+
+  await setSwitch(window, "document-editing", true);
+  await type(window, "From the page. ");
+  await until(() => evaluate(window, `document.querySelector(${JSON.stringify(`${SOURCE_PANEL} .cm-content`)}).innerText.includes("From the page. ")`), "the source to show the page edit");
+  check("an edit on the page shows in the source", true);
+  await screenshot(window, "markdown-source-panel");
+
+  // The divider moves with the keyboard as well as the mouse.
+  const sourceWidth = () => evaluate(window, `document.querySelector(".document-source-split__source").getBoundingClientRect().width`);
+  const before = await sourceWidth();
+  await evaluate(window, `document.querySelector(".document-source-split__divider").focus()`);
+  for (const type of ["keyDown", "keyUp"]) window.webContents.sendInputEvent({ type, keyCode: "Left" });
+  await until(async () => (await sourceWidth()) > before, "the source panel to widen");
+  check("the divider widens the source panel", true);
+
+  await setSwitch(window, "document-source-panel", false);
+  await setSwitch(window, "document-editing", false);
+  check("closing the source leaves the page alone", await exists(window, SOURCE_PANEL), false);
+  // Back to the file as the saving checks expect it.
+  await fs.writeFile(file, original);
+  await evaluate(window, `window.dispatchEvent(new Event("focus"))`);
+  await until(async () => !(await editorText(window)).includes("From the source panel."), "the page to take the restored file");
+}
+
 async function savingAndOutsideChanges(window) {
   const file = inDocs("plan.md");
   const original = await read(file);
+  await setSwitch(window, "document-editing", true);
   // As in a project window: what is typed is in the file, with no save step and nothing asking to save.
   await type(window, "typed ");
   await until(async () => (await read(file)).includes("typed "), "the edit to reach the file");
@@ -357,7 +434,7 @@ async function routing(window) {
 async function csv() {
   const window = await openAndWait(inDocs("table.csv"), ".csv-table-editor__table");
   await screenshot(window, "csv");
-  check("CSV settings sit behind the Header menu", await headerControls(window), { buttons: 1, headerCommands: true, views: 0, settings: 4 });
+  check("CSV settings sit behind the Header menu", await headerControls(window), { buttons: 1, switches: [], headerCommands: true, views: 0, settings: 4 });
   await evaluate(window, `(() => {
     const cell = document.querySelector('input[data-csv-row="1"][data-csv-column="1"]');
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(cell, "Paris");
@@ -393,7 +470,9 @@ async function html() {
   check("page scripts cannot read local files", results, {
     "fetch sibling": "BLOCKED", "fetch nested": "BLOCKED", "xhr sibling": "BLOCKED", "json module": "BLOCKED",
   });
-  check("HTML shows its current view in the Header", await headerControls(window), { buttons: 1, headerCommands: true, views: 3, settings: 0 });
+  check("HTML offers Edit and its source in the Header", await headerControls(window), {
+    buttons: 2, switches: ["document-editing:off", "document-source-panel:off"], headerCommands: true, views: 0, settings: 0,
+  });
   check("page still loads its own stylesheet", await frame.executeJavaScript(`getComputedStyle(document.getElementById("title")).color`), "rgb(0, 187, 102)");
   const area = await evaluate(window, `(() => { const { width, height } = document.querySelector("iframe").getBoundingClientRect(); return { width, height, windowWidth: innerWidth, windowHeight: innerHeight }; })()`);
   report.htmlArea = area;
@@ -415,6 +494,30 @@ async function pageFrame(window, selector, exclude = null) {
   }, "the page frame");
 }
 
+/** An HTML page opens to interact with; its source edits beside it, and the page follows; Edit edits the page itself. */
+async function htmlEditAndSource() {
+  const file = path.join(site, "editable.html");
+  const window = await openAndWait(file, "iframe");
+  let frame = await pageFrame(window, "#title");
+  await setSwitch(window, "document-source-panel", true);
+  await until(() => exists(window, SOURCE_PANEL), "the HTML source panel");
+  check("the page stays beside its source", await exists(window, ".document-source-split__page iframe"));
+
+  await typeInSource(window, '\n<p id="added">Added in the source.</p>');
+  await until(async () => (await read(file)).includes("Added in the source."), "the source edit to reach the file");
+  frame = await pageFrame(window, "#added");
+  check("the page beside the source shows an edit made there", await frame.executeJavaScript(`document.getElementById("added").textContent`), "Added in the source.");
+  await screenshot(window, "html-source-panel");
+
+  await setSwitch(window, "document-editing", true);
+  await until(() => exists(window, ".document-source-split__page .html-visual-editor"), "the page to open for editing");
+  check("Edit edits the page with its source still open", await exists(window, SOURCE_PANEL));
+  await screenshot(window, "html-editing-with-source");
+  await setSwitch(window, "document-editing", false);
+  await setSwitch(window, "document-source-panel", false);
+  await closeAndWait(window);
+}
+
 /** An HTML page sits below the Header and scrolls inside its own frame on the product scrollbar. */
 async function htmlScrolling() {
   const page = await openAndWait(path.join(site, "long-page.html"), "iframe");
@@ -434,6 +537,7 @@ async function closing() {
 
   // Closed the moment after typing, before anything else happens: the edit is still saved.
   const save = await openAndWait(inDocs("save.md"), ".cm-editor");
+  await setSwitch(save, "document-editing", true);
   await evaluate(save, `document.querySelector(".cm-content").focus()`);
   save.webContents.insertText("written ");
   await closeAndWait(save);
@@ -526,7 +630,7 @@ async function run() {
     report.stage = "cold start";
     const window = await coldStart();
     for (const [stage, scenario] of Object.entries({
-      windowAuthority, routing, savingAndOutsideChanges, csv, dataSafety, html, htmlScrolling, closing, projectWindows,
+      windowAuthority, routing, savingAndOutsideChanges, csv, dataSafety, html, htmlEditAndSource, htmlScrolling, closing, projectWindows,
     })) {
       report.stage = stage;
       await scenario(window);
