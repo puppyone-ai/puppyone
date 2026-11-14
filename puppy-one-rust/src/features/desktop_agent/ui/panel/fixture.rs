@@ -609,8 +609,12 @@ impl AgentChatTabPanel {
             return;
         }
         if lab.picker {
-            self.picker_open =
-                Some(crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId::Model);
+            self.pickers.update(cx, |p, cx| {
+                p.lab_open(
+                    crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId::Model,
+                    cx,
+                )
+            });
         }
         if lab.expand_command && !self.transcript.update(cx, |t, cx| t.lab_expand_command(cx)) {
             return;

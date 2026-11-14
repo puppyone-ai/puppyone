@@ -6,13 +6,13 @@
 //! A hosted chat (`CloudAgentConversation`) renders through the same view
 //! from its `CloudAgentController`; it has no Agent-service controller, so an
 //! inert one keeps the local-only controls harmless.
-mod composer;
 mod compute;
 mod docks;
 pub mod elements;
 #[cfg(feature = "dev-capture")]
 mod fixture;
 mod hosted;
+mod ingestion;
 mod routing;
 mod status;
 
@@ -20,8 +20,9 @@ use super::agent_chat_view_model::{
     AgentChatRuntime, AgentChatViewModel, AgentChatViewOptions, derive_agent_chat_runtime,
     derive_agent_chat_view_model,
 };
+use super::composer::{ComposerEvent, ComposerInput, ComposerView, can_submit};
+use super::pickers::{PickerEvent, SessionPickers};
 use super::transcript::{TranscriptEvent, TranscriptInput, TranscriptView};
-use crate::agent::contract::dto::PromptMention;
 use crate::features::desktop_agent::application::agent_controller_state::{
     AgentControllerPhase, AgentControllerState, AgentSessionPreparation,
 };
@@ -29,7 +30,7 @@ use crate::features::desktop_agent::application::agent_session_controller::Agent
 use crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId;
 use crate::features::desktop_agent::infrastructure::cloud::CloudAgentController;
 use crate::ui::appearance::ActiveAppearance;
-use crate::ui::form_input::{InputEvent, TextInput};
+use crate::ui::form_input::TextInput;
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
 use std::collections::HashMap;
@@ -85,20 +86,19 @@ pub struct AgentChatTabPanel {
     command_target: bool,
     /// The user's Active Chat visibility settings.
     hidden_runtime_ids: Vec<String>,
-    composer: Entity<TextInput>,
-    /// The controller draft the composer last showed (text, mentions).
-    shown_draft: (String, Vec<PromptMention>),
+    /// `AgentComposer`, and the session pickers it shares with
+    /// `BuiltInAgentCompute`.
+    composer: Entity<ComposerView>,
+    pickers: Entity<SessionPickers>,
+    /// Asks the panel to hand the composer its part again, after a change
+    /// of the panel's own policy (routing, compute, hidden runtimes).
+    refresh: tokio::sync::mpsc::UnboundedSender<()>,
     /// The conversation (`AgentTranscript`).
     transcript: Entity<TranscriptView>,
     diagnostics_open: bool,
     recovery_details_open: bool,
     /// `pendingConnectionModel`.
     pending_connection_model: Option<String>,
-    picker_open: Option<AgentSessionControlId>,
-    picker_active: Option<usize>,
-    picker_query: Entity<TextInput>,
-    picker_focus: FocusHandle,
-    picker_scroll: ScrollHandle,
     dock_scroll: ScrollHandle,
     /// `AgentQuestionDock`'s answers per question index, per request.
     question_answers: HashMap<String, HashMap<usize, Vec<String>>>,
@@ -201,51 +201,30 @@ impl AgentChatTabPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let composer = cx.new(|cx| {
-            TextInput::new(
-                crate::localization::t("agent.composer.placeholder.default"),
-                true,
-                64_000,
-                window,
-                cx,
-            )
-        });
-        composer.update(cx, |input, _| {
-            // One 1.5em line at rest; Enter sends, Shift+Enter breaks the line.
-            let size = crate::theme::ty().left.content;
-            input.prompt_text = Some((size, size * 1.5));
-            input.placeholder_color = Some(|t| super::agent_theme::AgentTheme::new(t).text_subtle);
-            input.min_height = size * 1.5;
-            input.appearance = false;
-            input.submit_on_enter = true;
-            input.paste_files = true;
-            input.token_renderer = Some(composer::token_renderer());
-        });
-        // `onPaste`: pasted images and files become references.
-        cx.subscribe(
-            &composer,
-            |s: &mut Self, _, pasted: &crate::ui::form_input::PastedFiles, cx| {
-                s.paste_files(pasted, cx)
-            },
-        )
+        let (refresh, mut refreshes) = tokio::sync::mpsc::unbounded_channel::<()>();
+        cx.spawn_in(window, async move |this, cx| {
+            while refreshes.recv().await.is_some() {
+                while refreshes.try_recv().is_ok() {}
+                let synced = this.update_in(cx, |s, window, cx| {
+                    let state = s.state();
+                    let view = s.view_model(&state);
+                    s.sync_composer(&state, &view, window, cx);
+                });
+                if synced.is_err() {
+                    break;
+                }
+            }
+        })
         .detach();
-        cx.subscribe_in(
-            &composer,
-            window,
-            |s, _, event: &InputEvent, window, cx| match event {
-                InputEvent::Submit => s.submit(window, cx),
-                InputEvent::Changed => s.composer_changed(cx),
-            },
-        )
+        let pickers = cx.new(|cx| SessionPickers::new(window, cx));
+        cx.subscribe(&pickers, |s: &mut Self, _, event, cx| match event {
+            PickerEvent::Select { id, value } => s.select_session_control(*id, value.clone(), cx),
+        })
         .detach();
-        let picker_query = cx.new(|cx| {
-            let mut input = TextInput::new("", false, 200, window, cx);
-            input.appearance = false;
-            input
-        });
-        cx.observe(&picker_query, |s: &mut Self, _, cx| {
-            s.picker_active = None;
-            cx.notify()
+        cx.observe(&pickers, |_, _, cx| cx.notify()).detach();
+        let composer = cx.new(|cx| ComposerView::new(pickers.clone(), window, cx));
+        cx.subscribe_in(&composer, window, |s, _, event, window, cx| {
+            s.composer_event(event, window, cx)
         })
         .detach();
         let transcript = cx.new(TranscriptView::new);
@@ -260,16 +239,12 @@ impl AgentChatTabPanel {
             command_target: true,
             hidden_runtime_ids,
             composer,
-            shown_draft: Default::default(),
+            pickers,
+            refresh,
             transcript,
             diagnostics_open: false,
             recovery_details_open: false,
             pending_connection_model: None,
-            picker_open: None,
-            picker_active: None,
-            picker_query,
-            picker_focus: cx.focus_handle(),
-            picker_scroll: ScrollHandle::new(),
             dock_scroll: ScrollHandle::new(),
             question_answers: HashMap::new(),
             question_inputs: HashMap::new(),
@@ -317,6 +292,7 @@ impl AgentChatTabPanel {
     pub fn set_payments(&mut self, payments: bool, cx: &mut Context<Self>) {
         if self.payments != payments {
             self.payments = payments;
+            self.refresh_composer();
             cx.notify();
         }
     }
@@ -324,6 +300,7 @@ impl AgentChatTabPanel {
     /// `hiddenRuntimeIds`.
     pub fn set_hidden_runtime_ids(&mut self, hidden: Vec<String>, cx: &mut Context<Self>) {
         self.hidden_runtime_ids = hidden;
+        self.refresh_composer();
         cx.notify();
     }
 
@@ -363,8 +340,8 @@ impl AgentChatTabPanel {
     /// The controller published a new snapshot.
     fn on_state_change(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let state = self.state();
-        self.sync_composer(&state, window, cx);
         let view = self.view_model(&state);
+        self.sync_composer(&state, &view, window, cx);
         if let Some(chat) = self.hosted.clone() {
             let presentation = hosted::hosted_presentation(&chat.snapshot(), &chat.hub().history());
             if self.last_presentation.as_ref() != Some(&presentation) {
@@ -427,7 +404,7 @@ impl AgentChatTabPanel {
             cx.notify();
             return;
         }
-        if !composer::can_submit(&state, &view) || !view.routing_ready {
+        if !can_submit(&state, &view) || !view.routing_ready {
             return;
         }
         self.compute_access_prompt = false;
@@ -435,6 +412,62 @@ impl AgentChatTabPanel {
         match self.hosted() {
             Some(chat) => chat.submit(state.draft.clone()),
             None => drop(self.controller.submit(&state.draft)),
+        }
+        cx.notify();
+    }
+
+    /// The composer's part of the chat (`AgentComposer`'s props).
+    fn sync_composer(
+        &mut self,
+        state: &AgentControllerState,
+        view: &AgentChatViewModel,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let controller = self.controller.clone();
+        let input = ComposerInput::of(state, view, |id| controller.get_reference_preview_url(id));
+        self.composer
+            .update(cx, |c, cx| c.set_input(input, window, cx));
+    }
+
+    /// The panel's own policy changed what the composer shows.
+    fn refresh_composer(&self) {
+        let _ = self.refresh.send(());
+    }
+
+    /// `AgentComposer`'s callbacks.
+    fn composer_event(
+        &mut self,
+        event: &ComposerEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            ComposerEvent::DraftChanged {
+                text,
+                mentions,
+                removed,
+            } => {
+                for id in removed {
+                    self.controller.remove_reference(id);
+                }
+                match self.hosted() {
+                    Some(chat) => chat.set_draft(text.clone()),
+                    None => self.controller.set_draft_document(text, mentions),
+                }
+            }
+            ComposerEvent::RemoveReference(id) => self.controller.remove_reference(id),
+            ComposerEvent::Submit => self.submit(window, cx),
+            ComposerEvent::Stop => match self.hosted() {
+                Some(chat) => chat.stop(),
+                None => drop(self.controller.stop()),
+            },
+            ComposerEvent::Paste(pasted) => self.paste_files(pasted, cx),
+            ComposerEvent::PickFiles => self.pick_external_files(window, cx),
+            ComposerEvent::PickWorkspace => drop(self.controller.pick_workspace_references()),
+            ComposerEvent::Command(name) => self
+                .controller
+                .set_draft_document(&format!("/{name} "), &[]),
         }
         cx.notify();
     }
@@ -455,6 +488,7 @@ impl AgentChatTabPanel {
                 .requires_new_model_connection_session(Some(&value))
         {
             self.pending_connection_model = Some(value);
+            self.refresh_composer();
             cx.notify();
             return;
         }

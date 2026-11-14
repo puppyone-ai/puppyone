@@ -101,6 +101,7 @@ impl AgentChatTabPanel {
             return;
         }
         self.routing = routing;
+        self.refresh_composer();
         self.apply_routing_preferences(cx);
         cx.notify();
     }

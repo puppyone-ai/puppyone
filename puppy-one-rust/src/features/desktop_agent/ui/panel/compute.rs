@@ -130,6 +130,7 @@ impl AgentChatTabPanel {
                 }
                 s.compute_revision = revision;
                 s.compute = Some(snapshot);
+                s.refresh_composer();
                 cx.notify();
             })
             .ok();
@@ -219,7 +220,10 @@ impl AgentChatTabPanel {
                         })
                         .collect(),
                 };
-                summary = summary.child(self.session_picker(&control, 220., disabled, cx));
+                let picker = self
+                    .pickers
+                    .update(cx, |p, cx| p.picker(&control, 220., disabled, cx));
+                summary = summary.child(picker);
             }
             section = section.child(summary);
         }

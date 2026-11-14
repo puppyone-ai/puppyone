@@ -671,6 +671,7 @@ impl AgentChatTabPanel {
                                 .on_click(cx.listener(
                                     |s, _, _, cx| {
                                         s.pending_connection_model = None;
+                                        s.refresh_composer();
                                         cx.notify();
                                     },
                                 )),
@@ -686,6 +687,7 @@ impl AgentChatTabPanel {
                                 .on_click(cx.listener(
                                     move |s, _, _, cx| {
                                         s.pending_connection_model = None;
+                                        s.refresh_composer();
                                         drop(s.controller.start_new_model_connection(&model));
                                         cx.notify();
                                     },
@@ -722,8 +724,7 @@ impl AgentChatTabPanel {
         if let Some(activities) = self.render_provider_activities(state, cx) {
             dock = dock.child(activities);
         }
-        dock.child(self.render_composer(state, view, window, cx))
-            .into_any_element()
+        dock.child(self.composer.clone()).into_any_element()
     }
 
     /// `AgentRecoverySurface`.

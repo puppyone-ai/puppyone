@@ -59,6 +59,7 @@ pub struct TextInput {
 impl EventEmitter<InputEvent> for TextInput {}
 
 /// Images or files pasted into an input with `paste_files`.
+#[derive(Clone)]
 pub struct PastedFiles {
     pub images: Vec<gpui::Image>,
     pub paths: Vec<std::path::PathBuf>,
@@ -215,6 +216,11 @@ impl TextInput {
             }
             true
         }))
+    }
+    /// The editor's text now, consistent with [`Self::token_spans`]; the
+    /// cached [`Self::text`] follows only once the edit's events ran.
+    pub fn current_text(&self, cx: &App) -> String {
+        dispatch!(&self.field, |s| s.read(cx).value().to_string())
     }
     /// The ids of the tokens in the text, in order.
     pub fn token_ids(&self, cx: &App) -> Vec<String> {
