@@ -7,12 +7,12 @@ import "./onboarding-value-carousel.css";
 /**
  * First run tells one story in three moments, in this order: what you make is kept
  * as yours, you change it by pointing at it, and any Agent can be handed it. Each
- * holds long enough to read once; the last has the most to watch.
+ * holds about a second past its last step, long enough to see how it ends.
  */
 export const VALUE_SLIDES = [
-  { id: "assets", seconds: 6.5 },
-  { id: "edit", seconds: 6.5 },
-  { id: "forward", seconds: 8 },
+  { id: "assets", seconds: 4 },
+  { id: "edit", seconds: 4.5 },
+  { id: "forward", seconds: 5 },
 ] as const;
 
 export type ValueSlideIndex = 0 | 1 | 2;
