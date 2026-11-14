@@ -21,11 +21,16 @@ fn data() -> &'static Value {
                 .unwrap()
                 .extend(messages.as_object().unwrap().clone());
         }
-        // `tools/import-sign-in-explainer.py`: CloudSignInDialog copy ahead of
-        // the v0.4.4 pin, projected from qubits with per-file SHA-256 hashes.
-        let sign_in: Value = serde_json::from_str(include_str!("../assets/sign-in-explainer.json"))
-            .expect("sign-in explainer catalogs");
-        for (locale, messages) in sign_in["locales"].as_object().unwrap() {
+        // Copy ahead of the v0.4.4 pin, each projected from one qubits commit
+        // with per-file SHA-256 hashes: CloudSignInDialog
+        // (`tools/import-sign-in-explainer.py`) and first run's moments
+        // (`tools/import-onboarding-value.py`).
+        let ahead = [
+            include_str!("../assets/sign-in-explainer.json"),
+            include_str!("../assets/onboarding-value.json"),
+        ]
+        .map(|source| serde_json::from_str::<Value>(source).expect("catalog ahead of the pin"));
+        for (locale, messages) in ahead.iter().flat_map(|a| a["locales"].as_object().unwrap()) {
             data["catalogs"][locale]
                 .as_object_mut()
                 .unwrap()

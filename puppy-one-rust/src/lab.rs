@@ -217,7 +217,7 @@ impl Lab {
             } else {
                 let shell_view = cx.new(|cx| {
                     let mut view = crate::app::Shell::new(window, cx);
-                    view.lab_home(shell == "home-empty", cx);
+                    view.lab_home(shell.starts_with("home-empty"), cx);
                     view
                 });
                 cx.observe(&shell_view, |_, _, cx| cx.notify()).detach();

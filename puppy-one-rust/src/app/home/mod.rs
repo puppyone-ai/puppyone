@@ -6,8 +6,9 @@
 //! With projects, the page is their area: a quiet head (sort and layout,
 //! then New project with the other ways to start behind its arrow) and the
 //! projects by the place that holds them ([`groups`]), each group as the Grid or the
-//! List ([`projects`]), from the head to the page's end. First run greets
-//! with the Puppy and the ways to start.
+//! List ([`projects`]), from the head to the page's end. First run shows
+//! what a project is for in three moments beside the ways to start
+//! ([`value`]).
 //!
 //! - [`create_project`]: the "Create a project" dialog
 //! - [`folder`]: the project folder and its marks
@@ -63,17 +64,19 @@ mod intro;
 pub(in crate::app) mod project_entry;
 mod projects;
 mod template_import;
+mod value;
 pub(super) use create_project::CreateProject;
 pub(super) use import_repository::ImportRepository;
 pub(in crate::app) use projects::HomeMenu;
 pub(super) use template_import::TemplateImport;
 
 /// `--onboarding-column-width`: room for five folders across with
-/// projects, 440px on first run.
+/// projects (first run's steps with the window, [`value::layout`]).
 const COLUMN_PROJECTS: f32 = 640.;
-const COLUMN_EMPTY: f32 = 440.;
-/// `.onboarding-homepage { width: min(680px, 100%) }`.
+/// `.onboarding-homepage { width: min(680px, 100%) }`; first run's picture
+/// and column share `min(900px, 100%)`.
 const PAGE_WIDTH: f32 = 680.;
+const PAGE_WIDTH_EMPTY: f32 = 900.;
 /// `HOMEPAGE_FIRST_PAINT_BUDGET_MS`: the longest a list waits.
 const FIRST_PAINT_BUDGET: Duration = Duration::from_millis(4000);
 /// `SPACES_WAIT_MS`: how long a first visit waits for the spaces that group
@@ -190,6 +193,8 @@ pub(in crate::app) struct Homepage {
     pub error: Option<String>,
     /// The empty-state intro that is playing.
     pub(in crate::app) intro: Option<crate::ui::motion::Timeline>,
+    /// First run's moments: which is open and how far its dot has filled.
+    moments: value::Moments,
     /// Whether the visible Homepage had no projects at the last change
     /// (`None` while it is hidden, so showing it again replays the intro).
     intro_empty: Option<bool>,
@@ -337,6 +342,7 @@ impl Homepage {
             dragging_path: None,
             error: None,
             intro: None,
+            moments: value::Moments::default(),
             intro_empty: None,
             disclosure_shown: false,
             create: None,
@@ -1044,6 +1050,8 @@ impl Homepage {
         if played {
             self.intro_empty = Some(true);
         }
+        // `home-empty-<moment>` opens that moment.
+        self.moments.lab(&std::env::var("PUPPYONE_LAB").unwrap_or_default());
     }
     /// Dev builds: Alt+Shift+L replays the intro on an empty Homepage.
     pub(in crate::app) fn replay_intro(&mut self, cx: &mut Context<Self>) -> bool {
@@ -1125,11 +1133,13 @@ impl Homepage {
         let has_projects = self.has_projects(cx);
         let busy = self.session.busy;
         let pad = metric::UTILITY_PADDING_INLINE;
-        let page_w = PAGE_WIDTH.min(w - pad * 2.).max(0.);
+        let page_w = if has_projects { PAGE_WIDTH } else { PAGE_WIDTH_EMPTY }
+            .min(w - pad * 2.)
+            .max(0.);
         let column = if has_projects {
             COLUMN_PROJECTS
         } else {
-            COLUMN_EMPTY
+            value::layout(w).column
         }
         .min(page_w);
         let error = self.error.clone().map(|error| {
@@ -1227,33 +1237,14 @@ impl Homepage {
                 )
                 .children(error)
         } else {
-            // First run: the Puppy and a line, New project, then Open a
-            // folder and Import side by side.
+            // First run: the open moment's title and line, New project, then
+            // Open a folder and Import side by side, beside the moments'
+            // picture (`OnboardingBrandLockup` with `valueSlide`).
             let brand = v_flex()
                 .flex_none()
                 .w_full()
-                .items_center()
-                .gap(px(16.))
-                .mb(px(20.))
-                .text_color(t.muted)
-                .child(
-                    img(SharedString::from(if t.dark {
-                        "brand/puppy-dark-onboarding.svg"
-                    } else {
-                        "brand/puppy-lite.svg"
-                    }))
-                    .size(px(48.))
-                    .object_fit(ObjectFit::Contain)
-                    .flex_shrink_0(),
-                )
-                .child(
-                    div()
-                        .text_size(px(theme::ty().ui.heading))
-                        .line_height(relative(1.25))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_center()
-                        .child(tr("onboarding.brand.agentReadyMessage")),
-                );
+                .mb(px(28.))
+                .child(self.moment_copy(cx));
             let primary = div()
                 .w_full()
                 .mb(px(8.))
@@ -1278,17 +1269,18 @@ impl Homepage {
                         .on_click(cx.listener(|s, _, _, cx| s.command(Command::OpenFolder, cx))),
                 )
                 .child(self.import_action(t, busy, cx).flex_1().min_w_0());
+            let column = v_flex()
+                .flex_none()
+                .w(px(column))
+                .child(brand)
+                .child(primary)
+                .child(actions)
+                .into_any_element();
             v_flex()
                 .w(px(page_w))
                 .items_center()
                 .gap(px(30.))
-                .child(
-                    v_flex()
-                        .w(px(column))
-                        .child(brand)
-                        .child(primary)
-                        .child(actions),
-                )
+                .child(self.first_run_row(w, column, window, cx))
                 .children(error)
         }
         .when_some(intro, |d, opacity| d.opacity(opacity));
