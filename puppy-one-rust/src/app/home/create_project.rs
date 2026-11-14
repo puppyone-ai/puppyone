@@ -125,7 +125,7 @@ fn create_folder(
     name: &str,
     locale: &str,
 ) -> Result<(PathBuf, Option<String>), String> {
-    let plan = builtin::getting_started(locale);
+    let plan = builtin::getting_started(locale, builtin::GETTING_STARTED_VERSION)?;
     let path = templates::materialize(parent, name, &plan)?;
     Ok((path, plan.initial_open))
 }
@@ -809,8 +809,9 @@ mod tests {
         assert_ne!(operation(&mut current, "b", "Notes"), first);
     }
 
-    /// A new project starts with Getting started, in the app's language,
-    /// and opens on it; an existing folder is never reused.
+    /// A new project starts with Getting started v2 (its guide and three
+    /// samples), in the app's language, and opens on the guide; an
+    /// existing folder is never reused.
     #[test]
     fn a_new_project_starts_with_its_guide() {
         let temp = tempfile::tempdir().unwrap();
@@ -818,7 +819,20 @@ mod tests {
         assert_eq!(open.as_deref(), Some("Getting Started.md"));
         let guide = std::fs::read_to_string(created.join("Getting Started.md")).unwrap();
         assert!(guide.starts_with("# "));
-        assert_eq!(std::fs::read_dir(&created).unwrap().count(), 1);
+        let mut files: Vec<String> = std::fs::read_dir(&created)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        files.sort();
+        assert_eq!(
+            files,
+            [
+                "Formats.csv",
+                "Getting Started.md",
+                "How It Works.html",
+                "Workspace Map.excalidraw"
+            ]
+        );
         assert!(
             create_folder(temp.path(), "Notes", "en")
                 .unwrap_err()

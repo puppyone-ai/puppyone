@@ -446,6 +446,49 @@ fn a_new_project_opens_on_its_getting_started_guide(cx: &mut TestAppContext) {
 /// H-20, W-7: a template link opens its card; "Get a copy" writes the
 /// verified files under a name no folder has, and the copy opens on its
 /// first document — in a window of its own when a project is open here.
+/// v0.4.4 `claimCopiedTemplateOnce`: someone who installed from the store
+/// page with its link copied is offered the template on a first launch,
+/// once per profile; any other copied text is left alone.
+#[gpui::test]
+fn a_link_copied_from_the_store_is_offered_once_on_a_first_launch(cx: &mut TestAppContext) {
+    crate::platform::templates::store::install_test_store(&[("Plan.md", "# Week\n")]);
+    let (view, cx) = setup(cx);
+    let link = format!(
+        "https://www.puppyone.ai/t/{}",
+        crate::platform::templates::package::fixtures::ID
+    );
+    cx.update(|_, cx| cx.write_to_clipboard(ClipboardItem::new_string(link.clone())));
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false)
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the copied link", &|s, cx| {
+        s.home.read(cx).template.as_ref().is_some_and(|i| i.copied)
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(s.prefs.store.read(cx).state.copied_template_checked);
+        assert!(
+            s.home
+                .read(cx)
+                .template
+                .as_ref()
+                .unwrap()
+                .url
+                .ends_with(crate::platform::templates::package::fixtures::ID)
+        );
+    });
+    // Put away, it is not offered again from the same clipboard.
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.close_template(w, cx))
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.offer_copied_template(w, cx))
+    });
+    view.read_with(cx, |s, cx| assert!(s.home.read(cx).template.is_none()));
+}
+
 #[gpui::test]
 fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
     crate::platform::templates::store::install_test_store(&[("Plan.md", "# Week\n")]);

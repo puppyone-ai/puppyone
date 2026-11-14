@@ -317,6 +317,9 @@ pub struct Preferences {
     pub homepage_project_sort: HomepageSort,
     /// `puppyone.desktop.firstRunSignInCompleted.v1`.
     pub first_run_sign_in_completed: bool,
+    /// `puppyone.desktop.copiedTemplateChecked.v1`: the clipboard was
+    /// looked at once for a store link copied before installing.
+    pub copied_template_checked: bool,
     /// `puppyone.desktop.explorer-pins.v1:<project>`: each project's pinned
     /// files, by its folder path (or its Cloud storage).
     pub explorer_pins: std::collections::BTreeMap<String, ExplorerPins>,
@@ -427,6 +430,7 @@ impl Default for Preferences {
             homepage_project_layout: HomepageLayout::Grid,
             homepage_project_sort: HomepageSort::Modified,
             first_run_sign_in_completed: false,
+            copied_template_checked: false,
             explorer_pins: Default::default(),
         }
     }

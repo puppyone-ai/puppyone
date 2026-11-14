@@ -1032,7 +1032,10 @@ impl Homepage {
                 return self.restoring_view(cx).into_any_element();
             }
             Some(account) if self.released_for.as_ref() != Some(&account) => {
-                cx.defer_in(window, |h, _, cx| h.release_first_paint(cx));
+                cx.defer_in(window, |h, window, cx| {
+                    h.release_first_paint(cx);
+                    h.offer_copied_template(window, cx);
+                });
             }
             Some(_) => {}
         }

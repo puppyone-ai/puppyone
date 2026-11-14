@@ -132,6 +132,17 @@ pub fn share_link(template: &TemplateRef, origin: &str) -> String {
         None => format!("{origin}/t/{}", template.id),
     }
 }
+/// `templateLinkFromCopiedText`: the store link in text someone copied.
+/// Anything that is not a whole template link, alone, is someone else's
+/// text and is left as it was found.
+pub fn from_copied_text(value: &str, origin: &str, channel: Channel) -> Option<String> {
+    if !looks_like(value) {
+        return None;
+    }
+    parse(value, origin, channel)
+        .ok()
+        .map(|template| share_link(&template, origin))
+}
 /// `looksLikeTemplateLink`: a cheap test for pasted text; it proves
 /// nothing, and the link is still parsed before anything is asked.
 pub fn looks_like(value: &str) -> bool {
@@ -230,5 +241,26 @@ mod tests {
         assert!(!looks_like("hello world"));
         assert!(!looks_like(&format!("https://www.puppyone.ai/x/{ID}")));
         assert!(require_id("0d3b7a4e-1f2a-6b5c-8d9e-0123456789ab").is_err());
+    }
+
+    #[test]
+    fn only_a_whole_store_link_is_taken_from_the_clipboard() {
+        let link = format!("https://www.puppyone.ai/t/{ID}?release={RELEASE}");
+        assert_eq!(
+            from_copied_text(&format!(" {link}\n"), STORE_ORIGIN, Channel::Stable).as_deref(),
+            Some(link.as_str())
+        );
+        for text in [
+            format!("Try this: {link}"),
+            format!("https://github.com/t/{ID}"),
+            "a shopping list".into(),
+            String::new(),
+        ] {
+            assert_eq!(
+                from_copied_text(&text, STORE_ORIGIN, Channel::Stable),
+                None,
+                "{text}"
+            );
+        }
     }
 }

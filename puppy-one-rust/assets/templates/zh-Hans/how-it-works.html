@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>puppyone 怎么用</title>
+  <style>
+    :root { color-scheme: light dark; --text: #1f2328; --muted: #656d76; --surface: #ffffff; --raised: #f6f8fa; --line: #d8dee4; --accent: #1f2328; }
+    @media (prefers-color-scheme: dark) { :root { --text: #e6edf3; --muted: #9198a1; --surface: #16181d; --raised: #1f232a; --line: #30363d; --accent: #e6edf3; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--surface); color: var(--text); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", "Noto Sans", sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 24px 56px; }
+    .eyebrow { margin: 0 0 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.25; }
+    .lead { margin: 10px 0 28px; color: var(--muted); }
+    [role="tablist"] { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    [role="tab"] { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+    [role="tab"] span { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--raised); font-size: 12px; font-weight: 600; }
+    [role="tab"]:hover { background: var(--raised); }
+    [role="tab"][aria-selected="true"] { border-color: var(--accent); background: var(--accent); color: var(--surface); }
+    [role="tab"][aria-selected="true"] span { background: var(--surface); color: var(--text); }
+    .step { padding: 24px 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+    .step + .step { margin-top: 12px; }
+    .step[hidden] { display: none; }
+    .count { margin: 0; color: var(--muted); font-size: 13px; }
+    .step h2 { margin: 4px 0 8px; font-size: 20px; }
+    .step p { margin: 0; }
+    .step ul { margin: 14px 0 0; padding-left: 20px; }
+    .step li + li { margin-top: 6px; }
+    nav { display: flex; justify-content: space-between; margin-top: 16px; }
+    nav button { padding: 7px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+    nav button:hover:not(:disabled) { background: var(--raised); }
+    nav button:disabled { opacity: .4; cursor: default; }
+    footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">puppyone</p>
+    <h1>puppyone 怎么用</h1>
+    <p class="lead">开始之前，先了解这四件事。</p>
+    <div role="tablist" aria-label="puppyone 怎么用">
+      <button type="button" role="tab" id="tab-1" aria-controls="step-1" aria-selected="true"><span>1</span>文件就在你的文件夹里</button>
+      <button type="button" role="tab" id="tab-2" aria-controls="step-2" aria-selected="false"><span>2</span>每种文件都用合适的方式打开</button>
+      <button type="button" role="tab" id="tab-3" aria-controls="step-3" aria-selected="false"><span>3</span>和 Agent 一起工作</button>
+      <button type="button" role="tab" id="tab-4" aria-controls="step-4" aria-selected="false"><span>4</span>带上已有的内容</button>
+    </div>
+    <section class="step" role="tabpanel" id="step-1" aria-labelledby="tab-1">
+      <p class="count">第 1 步，共 4 步</p>
+      <h2>文件就在你的文件夹里</h2>
+      <p>一个项目就是你电脑上的一个文件夹，puppyone 把你的内容保存成里面的普通文件。</p>
+      <ul>
+        <li>Obsidian、代码编辑器等其他应用也能打开同样的文件。</li>
+        <li>创建项目不会上传任何内容。</li>
+        <li>删除的文件不会自动生成回来。</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-2" aria-labelledby="tab-2">
+      <p class="count">第 2 步，共 4 步</p>
+      <h2>每种文件都用合适的方式打开</h2>
+      <p>puppyone 会为每个文件选择合适的视图，不用为每种格式各开一个应用。</p>
+      <ul>
+        <li>边写边排版的 Markdown 笔记</li>
+        <li>能像电子表格一样编辑的 CSV</li>
+        <li>网页、白板、PDF 和 Office 文档</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-3" aria-labelledby="tab-3">
+      <p class="count">第 3 步，共 4 步</p>
+      <h2>和 Agent 一起工作</h2>
+      <p>在 Agent 面板或设置中选择并配置 Agent，它处理的就是这个项目里的文件。</p>
+      <ul>
+        <li>请它整理笔记、总结表格或起草文档。</li>
+        <li>在保留它提出的修改前先检查内容。</li>
+        <li>使用云端模型时，发送的内容可能由对应模型服务商处理。</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-4" aria-labelledby="tab-4">
+      <p class="count">第 4 步，共 4 步</p>
+      <h2>带上已有的内容</h2>
+      <p>从你已有的文件开始，而不是从一张白纸开始。</p>
+      <ul>
+        <li>把文件拖进左侧文件列表。</li>
+        <li>把已有文件夹或 Obsidian 知识库直接作为项目打开。</li>
+        <li>导入 Notion（导出为 Markdown &amp; CSV）和 Airtable（导出为 CSV）的内容。</li>
+      </ul>
+    </section>
+    <nav hidden>
+      <button type="button" data-move="-1">上一步</button>
+      <button type="button" data-move="1">下一步</button>
+    </nav>
+    <footer>这个页面是项目里的一个普通 HTML 文件。切换到编辑就能改文字，也可以请 Agent 重新设计它。</footer>
+  </main>
+  <script>
+    const tabs = [...document.querySelectorAll("[role=tab]")];
+    const steps = [...document.querySelectorAll(".step")];
+    const [previous, next] = document.querySelectorAll("[data-move]");
+    let current = 0;
+    function show(index) {
+      current = Math.max(0, Math.min(steps.length - 1, index));
+      steps.forEach((step, position) => { step.hidden = position !== current; });
+      tabs.forEach((tab, position) => tab.setAttribute("aria-selected", String(position === current)));
+      previous.disabled = current === 0;
+      next.disabled = current === steps.length - 1;
+    }
+    tabs.forEach((tab, index) => tab.addEventListener("click", () => show(index)));
+    for (const button of [previous, next]) button.addEventListener("click", () => show(current + Number(button.dataset.move)));
+    document.querySelector("nav").hidden = false;
+    show(0);
+  </script>
+</body>
+</html>

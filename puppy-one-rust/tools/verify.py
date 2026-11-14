@@ -40,6 +40,7 @@ commands = [
     ('agent-marks', ['python3', 'tools/import-agent-marks.py', '--check']),
     ('ui-assets', ['node', 'tools/import-ui-assets.mjs', '--check']),
     ('formats', ['python3', 'tools/import-formats.py', '--check']),
+    ('templates', ['python3', 'tools/import-templates.py', '--check']),
     ('file-icons', ['node', 'tools/import-file-icons.mjs', '--check']),
     ('html-visual', ['node', 'tools/import-html-visual.mjs', '--check']),
     ('office-viewer', ['node', 'tools/import-office-viewer.mjs', '--check']),

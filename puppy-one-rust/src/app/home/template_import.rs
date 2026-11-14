@@ -29,6 +29,9 @@ pub(in crate::app) struct TemplateImport {
     pub(in crate::app) error: Option<String>,
     /// A project is open here, and a copy must not take its place.
     pub(in crate::app) new_window: bool,
+    /// Found in the clipboard on a first launch, so the card says where it
+    /// came from.
+    pub(in crate::app) copied: bool,
 }
 
 impl Homepage {
@@ -63,10 +66,47 @@ impl Homepage {
             submitting: false,
             error: None,
             new_window: self.session.root.is_some() && !self.session.home,
+            copied: false,
         }));
         self.open_dialog(DialogKey::TemplateImport, cx);
         self.resolve_template(window, cx);
         cx.notify();
+    }
+    /// `claimCopiedTemplateOnce`: a first launch with nothing to list looks
+    /// once per profile for the store link the store page copied before
+    /// installing. Only a whole store link counts; a card already showing a
+    /// link the store sent goes first.
+    pub(in crate::app) fn offer_copied_template(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.preferences.read(cx).state.copied_template_checked
+            || !self.session.home
+            || self.session.restoring
+            || self.has_projects(cx)
+        {
+            return;
+        }
+        self.preferences.update(cx, |p, cx| {
+            p.change(|p| p.copied_template_checked = true, cx)
+        });
+        if self.template.is_some() {
+            return;
+        }
+        use crate::platform::{build_identity, templates::link};
+        let channel = build_identity::current().channel;
+        let Some(url) = cx
+            .read_from_clipboard()
+            .and_then(|item| item.text())
+            .and_then(|text| link::from_copied_text(&text, &link::store_origin(), channel))
+        else {
+            return;
+        };
+        self.open_template_link(url, window, cx);
+        if let Some(import) = self.template_import() {
+            import.copied = true;
+        }
     }
     fn template_import(&mut self) -> Option<&mut TemplateImport> {
         self.template.as_deref_mut()
@@ -110,7 +150,7 @@ impl Homepage {
         })
         .detach();
     }
-    pub(super) fn close_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::app) fn close_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.template_import().is_some_and(|i| i.submitting) {
             return;
         }
@@ -235,6 +275,9 @@ impl Homepage {
             body = body.child(note(tr("onboarding.template.loading").into()));
         }
         if let Some(detail) = &import.detail {
+            if import.copied {
+                body = body.child(note(tr("onboarding.template.copiedNote").into()));
+            }
             let facts = [
                 Some(detail.author.clone()).filter(|a| !a.is_empty()),
                 detail.file_count.map(|count| {
