@@ -24,8 +24,30 @@ mod forward;
 mod hub;
 mod paint;
 
-/// `VALUE_SLIDES`: each moment's id and how long it holds.
-const MOMENTS: [(&str, f32); 3] = [("assets", 4.), ("edit", 4.5), ("forward", 5.)];
+/// One moment: its copy keys (`onboarding.value.<id>.*`), how long it holds
+/// before the next opens, and the picture it plays.
+struct Moment {
+    id: &'static str,
+    seconds: f32,
+    scene: fn(&Theme, Layout, Clock) -> AnyElement,
+}
+/// `VALUE_SLIDES`, in their fixed order. A new moment is one more row here,
+/// its copy in `assets/onboarding-value.json` and its scene module.
+const MOMENTS: [Moment; 3] = [
+    Moment { id: "assets", seconds: 4., scene: hub::scene },
+    Moment { id: "edit", seconds: 4.5, scene: edit::scene },
+    Moment { id: "forward", seconds: 5., scene: forward::scene },
+];
+
+/// The time a scene is drawn at. `None` is at rest: every step has ended and
+/// nothing drifts, as with reduced motion and in the pixel lab.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct Clock {
+    /// Seconds since the moment opened (its steps).
+    pub moment: Option<f32>,
+    /// Seconds of the pictures' endless motion (orbits, drift).
+    pub motion: Option<f32>,
+}
 /// `.onboarding-value-slide` and `.onboarding-brand-copy` cross-fade:
 /// `opacity 420ms ease`, the incoming one `120ms` later.
 const FADE: f32 = 0.42;
@@ -99,7 +121,7 @@ impl Moments {
         if holding {
             return;
         }
-        self.progress += elapsed.as_secs_f32() / MOMENTS[self.index].1;
+        self.progress += elapsed.as_secs_f32() / MOMENTS[self.index].seconds;
         if self.progress >= 1. {
             self.open((self.index + 1) % MOMENTS.len(), now);
         }
@@ -109,7 +131,7 @@ impl Moments {
     pub(in crate::app::home) fn lab(&mut self, scenario: &str) {
         if let Some(index) = MOMENTS
             .iter()
-            .position(|(id, _)| scenario.contains(&format!("home-empty-{id}")))
+            .position(|moment| scenario.contains(&format!("home-empty-{}", moment.id)))
         {
             self.index = index;
         }
@@ -156,23 +178,14 @@ impl Homepage {
             window.request_animation_frame();
         }
         let layout = layout(width);
-        let drift = if rest {
-            None
-        } else {
-            Some((now - self.moments.since).as_secs_f32())
-        };
-        let stage = self
-            .moments
-            .shown(now, rest)
-            .into_iter()
-            .fold(div().relative().size(px(layout.hub)).flex_none(), |stage, (index, opacity, time)| {
-                let scene = match index {
-                    0 => hub::scene(&t, layout, drift),
-                    1 => edit::scene(&t, layout.scale, time),
-                    _ => forward::scene(&t, layout.scale, time),
-                };
+        let motion = (!rest).then(|| (now - self.moments.since).as_secs_f32());
+        let stage = self.moments.shown(now, rest).into_iter().fold(
+            div().relative().size(px(layout.hub)).flex_none(),
+            |stage, (index, opacity, moment)| {
+                let scene = (MOMENTS[index].scene)(&t, layout, Clock { moment, motion });
                 stage.child(div().absolute().inset_0().opacity(opacity).child(scene))
-            });
+            },
+        );
         let carousel = v_flex()
             .flex_none()
             .items_center()
@@ -204,7 +217,8 @@ impl Homepage {
             .flex_none()
             .items_center()
             .gap(px(2.))
-            .children(MOMENTS.iter().enumerate().map(|(index, (id, _))| {
+            .children(MOMENTS.iter().enumerate().map(|(index, moment)| {
+                let id = moment.id;
                 let open = index == self.moments.index;
                 let group = SharedString::from(format!("home-value-dot-{index}"));
                 div()
@@ -257,7 +271,8 @@ impl Homepage {
             .grid()
             .grid_cols(1)
             .grid_rows(1)
-            .children(MOMENTS.iter().enumerate().map(move |(index, (id, _))| {
+            .children(MOMENTS.iter().enumerate().map(move |(index, moment)| {
+                let id = moment.id;
                 let opacity = shown
                     .iter()
                     .find(|(shown, _, _)| *shown == index)
@@ -283,5 +298,72 @@ impl Homepage {
                             .child(tr(&format!("onboarding.value.{id}.body"))),
                     )
             }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    fn after(start: Instant, seconds: f32) -> Instant {
+        start + Duration::from_secs_f32(seconds)
+    }
+
+    #[test]
+    fn each_moment_opens_the_next_when_its_dot_is_full_and_the_last_leads_back() {
+        let mut moments = Moments::default();
+        let start = Instant::now();
+        moments.tick(start, false);
+        // Each moment holds for its own time, in the fixed order.
+        moments.tick(after(start, 3.9), false);
+        assert_eq!(moments.index, 0);
+        moments.tick(after(start, 4.05), false);
+        assert_eq!(moments.index, 1);
+        assert_eq!(moments.progress, 0.);
+        moments.tick(after(start, 8.6), false);
+        assert_eq!(moments.index, 2);
+        moments.tick(after(start, 13.7), false);
+        assert_eq!(moments.index, 0);
+    }
+
+    #[test]
+    fn a_held_moment_does_not_move_on() {
+        let mut moments = Moments::default();
+        let start = Instant::now();
+        moments.tick(start, false);
+        moments.tick(after(start, 2.), false);
+        // Pointing at the page holds the dot where it is, however long.
+        moments.tick(after(start, 30.), true);
+        assert_eq!(moments.index, 0);
+        assert!((moments.progress - 0.5).abs() < 0.01, "{}", moments.progress);
+        moments.tick(after(start, 31.), false);
+        assert!((moments.progress - 0.75).abs() < 0.01, "{}", moments.progress);
+    }
+
+    #[test]
+    fn opening_a_moment_by_its_dot_fades_the_open_one_out() {
+        let mut moments = Moments::default();
+        let start = Instant::now();
+        moments.open(2, start);
+        let shown = moments.shown(after(start, 0.1), false);
+        assert_eq!(shown.iter().map(|(index, ..)| *index).collect::<Vec<_>>(), [0, 2]);
+        // The incoming one waits its lag; the outgoing one is gone after the fade.
+        assert!(shown[1].1 < 0.001, "{}", shown[1].1);
+        let settled = moments.shown(after(start, 1.), false);
+        assert_eq!(settled.len(), 1);
+        assert_eq!((settled[0].0, settled[0].1), (2, 1.));
+        // At rest only the open moment shows, every step ended.
+        assert_eq!(moments.shown(after(start, 0.1), true), vec![(2, 1., None)]);
+    }
+
+    #[test]
+    fn the_picture_steps_down_with_the_window() {
+        assert_eq!(layout(1280.).hub, 270.);
+        assert_eq!(layout(1039.).hub, 250.);
+        let narrow = layout(720.);
+        assert_eq!((narrow.hub, narrow.column), (220., 340.));
+        // The smallest window still holds the picture beside the column.
+        assert!(narrow.hub + narrow.gap + narrow.column <= 720. - 2. * 28.);
     }
 }

@@ -25,6 +25,21 @@ pub(super) fn step(time: Option<f32>, delay: f32, duration: f32) -> f32 {
     }
 }
 
+/// CSS `box-shadow: 0 <y> <blur> <spread> <color>`.
+pub(super) fn shadow(color: Rgba, y: Pixels, blur: Pixels, spread: Pixels) -> BoxShadow {
+    BoxShadow {
+        color: color.into(),
+        offset: point(px(0.), y),
+        blur_radius: blur,
+        spread_radius: spread,
+        inset: false,
+    }
+}
+/// A solid ring outside the box (`box-shadow: 0 0 0 <width> <color>`).
+pub(super) fn ring(color: Rgba, width: Pixels) -> BoxShadow {
+    shadow(color, px(0.), px(0.), width)
+}
+
 /// Paints into the element's own bounds.
 pub(super) fn paint(
     draw: impl Fn(Bounds<Pixels>, &mut Window) + 'static,
