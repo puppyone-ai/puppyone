@@ -64,6 +64,12 @@ enum Step {
     Scroll(f32),
     /// A left click at a window point.
     Click(f32, f32),
+    /// The pointer moved to a window point.
+    Move(f32, f32),
+    /// The left button pressed / released at a window point (a drag is
+    /// press, moves and release, each its own frame).
+    Press(f32, f32),
+    Release(f32, f32),
     Command(crate::app::Command),
     /// `wait:<ms>`: let asynchronous content (a web page) settle.
     Wait(u64),
@@ -148,9 +154,18 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home" => Step::Command(crate::app::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
                 "scroll" => Step::Scroll(arg.trim().parse().ok()?),
-                "click" => {
-                    let (x, y) = arg.split_once(',')?;
-                    Step::Click(x.trim().parse().ok()?, y.trim().parse().ok()?)
+                "click" | "move" | "press" | "release" => {
+                    let n: Vec<f32> = arg
+                        .split(',')
+                        .map(|v| v.trim().parse().ok())
+                        .collect::<Option<_>>()?;
+                    match (name, n.as_slice()) {
+                        ("click", &[x, y]) => Step::Click(x, y),
+                        ("move", &[x, y]) => Step::Move(x, y),
+                        ("press", &[x, y]) => Step::Press(x, y),
+                        ("release", &[x, y]) => Step::Release(x, y),
+                        _ => return None,
+                    }
                 }
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
@@ -387,6 +402,39 @@ impl Shell {
                         delta: ScrollDelta::Pixels(point(px(0.), px(-*by))),
                         modifiers: Modifiers::default(),
                         touch_phase: TouchPhase::Moved,
+                    }),
+                    cx,
+                );
+            }
+            Step::Move(x, y) => {
+                window.dispatch_event(
+                    PlatformInput::MouseMove(MouseMoveEvent {
+                        position: point(px(*x), px(*y)),
+                        pressed_button: None,
+                        modifiers: Modifiers::default(),
+                    }),
+                    cx,
+                );
+            }
+            Step::Press(x, y) => {
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        button: MouseButton::Left,
+                        position: point(px(*x), px(*y)),
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    cx,
+                );
+            }
+            Step::Release(x, y) => {
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        button: MouseButton::Left,
+                        position: point(px(*x), px(*y)),
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
                     }),
                     cx,
                 );
