@@ -172,6 +172,25 @@ for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
         continue
     if hosted_agent.search(code(path)):
         errors.append(f'{path.relative_to(root)}: the Agent window names the hosted Agent; it composes the shared views')
+# The window reaches the Agent host through its public surface: the
+# contract and its error, the host handle, product identities and the local
+# inventory (`connections`), model connections and tasks. An infrastructure
+# adapter may reach a runtime's services; tests and fixtures reach anything.
+# The Agent window's views see the contract alone.
+agent_surface = {'contract', 'agent_error', 'host', 'connections', 'model_connections', 'tasks'}
+agent_module = re.compile(r'crate\s*::\s*agent\s*::\s*(\w+)')
+for path in [*(root / 'src/features').rglob('*.rs'), *(root / 'src/app').rglob('*.rs')]:
+    if fixture(path) or 'infrastructure' in path.parts or path.stem == 'infrastructure':
+        continue
+    for found in agent_module.finditer(code(path)):
+        if found.group(1) not in agent_surface:
+            errors.append(f'{path.relative_to(root)}: reaches the Agent host\'s {found.group(1)}; use its public surface')
+for path in (root / 'src/features/desktop_agent/ui').rglob('*.rs'):
+    if fixture(path):
+        continue
+    for found in agent_module.finditer(code(path)):
+        if found.group(1) != 'contract':
+            errors.append(f'{path.relative_to(root)}: an Agent view reads agent::{found.group(1)}; views see the contract')
 # Features are reached through their facades (`features/<name>/mod.rs`):
 # their modules are private, but for the few public API modules below, and
 # nothing names another feature's internals.
