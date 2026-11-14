@@ -16,6 +16,7 @@ import type {
   ContextMapWorkspaceEnvironment,
   DocumentNavigationPort,
   DocumentSourceKind,
+  DocumentControls,
   EditorInteractionPreferences,
   MarkdownDialectId,
   MarkdownHtmlTrustMode,
@@ -41,6 +42,7 @@ export type DataNodeEditorHostProps = {
   onDocumentPersisted?: (commit: DocumentPersistedCommit) => void;
   aiEditFile?: AiEditFile | null;
   hideSourceView?: boolean;
+  documentControls?: DocumentControls;
   fileIconTheme?: FileIconThemeId;
   editorInteractionPreferences?: EditorInteractionPreferences;
   saveMode?: EditorSaveMode;
@@ -76,6 +78,7 @@ export function DataNodeEditorHost({
   onDocumentPersisted,
   aiEditFile = null,
   hideSourceView = false,
+  documentControls = "view-switch",
   fileIconTheme = "default",
   editorInteractionPreferences,
   saveMode = "manual",
@@ -123,6 +126,7 @@ export function DataNodeEditorHost({
       onDocumentPersisted={onDocumentPersisted}
       aiEditFile={aiEditFile}
       hideSourceView={hideSourceView}
+      documentControls={documentControls}
       fileIconTheme={fileIconTheme}
       editorInteractionPreferences={editorInteractionPreferences}
       saveMode={saveMode}

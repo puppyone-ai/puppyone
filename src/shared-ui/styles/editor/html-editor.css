@@ -1,6 +1,7 @@
 .html-document-editor { --html-editor-accent: var(--po-accent, #2563eb); position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; contain: inline-size; }
 .html-document-editor > .native-preview, .html-document-editor > .code-codemirror-editor { flex: 1; min-height: 0; }
-.html-document-editor > .native-preview { padding: 0; }
+/* The same surfaces in a page and source panel (DocumentSourceSplit). */
+.html-document-editor > .native-preview, .html-document-editor .document-source-split__page > .native-preview { padding: 0; }
 .html-document-editor .native-preview-frame { border: 0; border-radius: 0; }
 .html-empty-page { flex: 1; min-height: 0; padding: 24px; text-align: center; }
 .html-empty-page > span { max-width: 360px; color: var(--po-text-muted); }

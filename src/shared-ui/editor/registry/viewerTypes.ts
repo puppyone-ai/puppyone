@@ -47,6 +47,14 @@ export type EditorDocument = {
 };
 
 export type EditorMode = "live" | "source";
+
+/**
+ * How a host offers a document's views. "view-switch": one control choosing a
+ * view, as a project pane's menu does. "edit-and-source-panel": the page to
+ * read, an Edit switch, and the source in a panel beside the page, as a file
+ * window's Header does.
+ */
+export type DocumentControls = "view-switch" | "edit-and-source-panel";
 export type EditorSaveMode = "manual" | "auto";
 export type EditorInteractionPreferences = Readonly<{
   showSaveStatus: boolean;
@@ -179,6 +187,8 @@ export type PresetViewerRenderContext = EditorViewerMatch & {
   error?: string | null;
   canEdit: boolean;
   hideSourceView: boolean;
+  /** How the host offers a document's views; see DocumentControls. */
+  documentControls: DocumentControls;
   fileIconTheme: FileIconThemeId;
   editorInteractionPreferences: EditorInteractionPreferences;
   htmlTrustMode: MarkdownHtmlTrustMode;

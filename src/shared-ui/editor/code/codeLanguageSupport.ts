@@ -8,6 +8,7 @@ export type CodeLanguageKey =
   | "json"
   | "jsx"
   | "less"
+  | "markdown"
   | "plaintext"
   | "python"
   | "scss"
@@ -96,6 +97,10 @@ async function loadLanguage(languageKey: CodeLanguageKey): Promise<Extension> {
       const { json } = await import("@codemirror/lang-json");
       return json();
     }
+    case "markdown": {
+      const { markdown } = await import("@codemirror/lang-markdown");
+      return markdown();
+    }
     case "python": {
       const { python } = await import("@codemirror/lang-python");
       return python();
@@ -129,6 +134,7 @@ function normalizeLanguage(language: string | null | undefined): CodeLanguageKey
   if (value === "py") return "python";
   if (value === "bash" || value === "zsh" || value === "sh") return "shell";
   if (value === "yml") return "yaml";
+  if (value === "md") return "markdown";
   if (value === "text" || value === "txt") return "plaintext";
   return isCodeLanguageKey(value) ? value : "plaintext";
 }
@@ -141,6 +147,7 @@ function isCodeLanguageKey(value: string): value is CodeLanguageKey {
     "json",
     "jsx",
     "less",
+    "markdown",
     "plaintext",
     "python",
     "scss",

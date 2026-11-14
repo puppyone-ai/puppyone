@@ -10,8 +10,10 @@ import {
   type ReactNode,
 } from "react";
 import { useLocalization } from "@puppyone/localization/react";
+import { Code2, Pencil } from "lucide-react";
 import { PlainTextEditor } from "../code/PlainTextEditor";
-import type { EditorMode } from "../../registry/viewerTypes";
+import { DocumentSourceSplit } from "../../host/DocumentSourceSplit";
+import type { DocumentControls, EditorMode } from "../../registry/viewerTypes";
 import type {
   EditorSourceRevision,
   EditorSourceSnapshotPort,
@@ -49,6 +51,10 @@ export type TextEditorFrameProps = {
   sourceSnapshotMode?: boolean;
   renderLive: (content: string, controls: TextEditorControls) => ReactNode;
   renderSource?: (content: string, controls: TextEditorControls) => ReactNode;
+  /** How the host offers the views. With a source panel the live view also needs `renderSourcePanel`. */
+  documentControls?: DocumentControls;
+  /** The source beside the live view, which edits the same text; `canEdit` says whether it may. */
+  renderSourcePanel?: (content: string, canEdit: boolean) => ReactNode;
 };
 
 export function TextEditorFrame({
@@ -68,11 +74,17 @@ export function TextEditorFrame({
   sourceSnapshotMode = false,
   renderLive,
   renderSource,
+  documentControls = "view-switch",
+  renderSourcePanel,
 }: TextEditorFrameProps) {
   const { t } = useLocalization();
   const editingSource = useEditableDocumentSource();
   const publishPaneMenuContribution = useEditorPaneMenuContributionPublisher();
-  const [mode, setMode] = useState<EditorMode>(hideSourceView ? "live" : defaultMode);
+  // The page to read, an Edit switch, and the source in a panel beside it.
+  const withSourcePanel = documentControls === "edit-and-source-panel" && Boolean(renderSourcePanel);
+  const [mode, setMode] = useState<EditorMode>(hideSourceView || withSourcePanel ? "live" : defaultMode);
+  const [editing, setEditing] = useState(false);
+  const [sourcePanel, setSourcePanel] = useState(false);
   const [draft, setDraft] = useState(content);
   const [editorValue, setEditorValue] = useState(content);
   const documentIdRef = useRef(documentId);
@@ -107,7 +119,9 @@ export function TextEditorFrame({
     draftRevisionCounterRef.current = 0;
     draftRevisionRef.current = createDraftRevision(documentId, 0);
     sourceSnapshotRef.current = { content, revision: draftRevisionRef.current };
-    setMode(hideSourceView ? "live" : defaultMode);
+    setMode(hideSourceView || withSourcePanel ? "live" : defaultMode);
+    setEditing(false);
+    setSourcePanel(false);
     setDraft(content);
     setEditorValue(content);
   }, [
@@ -117,6 +131,7 @@ export function TextEditorFrame({
     documentVersion,
     editingSource,
     hideSourceView,
+    withSourcePanel,
   ]);
 
   useEffect(() => {
@@ -262,7 +277,8 @@ export function TextEditorFrame({
   };
 
   const controls: TextEditorControls = {
-    canEdit,
+    // With a source panel the live view reads until Edit is on.
+    canEdit: canEdit && (!withSourcePanel || editing),
     onChange: handleDraftChange,
     onSourceRevisionChange: handleSourceRevisionChange,
     onSnapshotPortChange: handleSnapshotPortChange,
@@ -286,8 +302,27 @@ export function TextEditorFrame({
   }, [switchMode]);
 
   useLayoutEffect(() => {
+    if (!withSourcePanel || !publishPaneMenuContribution) return undefined;
+    publishPaneMenuContribution({
+      documentId,
+      viewItems: [
+        ...(canEdit ? [{
+          kind: "toggle" as const, id: "document-editing", label: t("editor.controls.edit"),
+          icon: <Pencil size={16} />, checked: editing, setChecked: setEditing,
+        }] : []),
+        ...(!hideSourceView ? [{
+          kind: "toggle" as const, id: "document-source-panel", label: t("editor.controls.source"),
+          icon: <Code2 size={16} />, checked: sourcePanel, setChecked: setSourcePanel,
+        }] : []),
+      ],
+    });
+    return () => publishPaneMenuContribution(null);
+  }, [canEdit, documentId, editing, hideSourceView, publishPaneMenuContribution, sourcePanel, t, withSourcePanel]);
+
+  useLayoutEffect(() => {
     if (
       hideSourceView
+      || withSourcePanel
       || modeControlPlacement !== "pane-menu"
       || !publishPaneMenuContribution
     ) return undefined;
@@ -329,6 +364,7 @@ export function TextEditorFrame({
     setPaneMenuMode,
     sourceModeLabel,
     t,
+    withSourcePanel,
   ]);
 
   useEffect(() => {
@@ -343,23 +379,36 @@ export function TextEditorFrame({
         || !host.contains(eventTarget)
       ) return;
       event.preventDefault();
-      switchMode(mode === "live" ? "source" : "live");
+      if (withSourcePanel) setSourcePanel((open) => !open);
+      else switchMode(mode === "live" ? "source" : "live");
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [enableModeToggleShortcut, hideSourceView, mode, switchMode]);
+  }, [enableModeToggleShortcut, hideSourceView, mode, switchMode, withSourcePanel]);
+
+  const liveSurface = (
+    <div
+      className="editor-live-surface"
+      data-scroll-owner={liveScrollOwner}
+      data-po-scrollbar={liveScrollOwner === "frame" ? "content" : undefined}
+    >
+      {renderLive(sourceSnapshotMode ? editorValue : draft, controls)}
+    </div>
+  );
+  if (withSourcePanel) {
+    return (
+      <section className="editor-host" ref={hostRef}>
+        <DocumentSourceSplit
+          page={liveSurface}
+          source={sourcePanel && !hideSourceView ? renderSourcePanel?.(sourceSnapshotMode ? editorValue : draft, canEdit) : null}
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="editor-host" ref={hostRef}>
-      {mode === "live" ? (
-        <div
-          className="editor-live-surface"
-          data-scroll-owner={liveScrollOwner}
-          data-po-scrollbar={liveScrollOwner === "frame" ? "content" : undefined}
-        >
-          {renderLive(sourceSnapshotMode ? editorValue : draft, controls)}
-        </div>
-      ) : renderSource ? (
+      {mode === "live" ? liveSurface : renderSource ? (
         <div
           className="editor-live-surface"
           data-scroll-owner={liveScrollOwner}

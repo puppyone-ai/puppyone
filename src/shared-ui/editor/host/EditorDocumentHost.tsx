@@ -14,6 +14,7 @@ import type {
   ContextMapWorkspaceEnvironment,
   DocumentNavigationPort,
   EditorDocument,
+  DocumentControls,
   EditorInteractionPreferences,
   EditorSaveMode,
   MarkdownHtmlTrustMode,
@@ -59,6 +60,7 @@ export type EditorDocumentHostProps = {
   onDocumentPersisted?: (commit: DocumentPersistedCommit) => void;
   aiEditFile?: AiEditFile | null;
   hideSourceView?: boolean;
+  documentControls?: DocumentControls;
   fileIconTheme?: FileIconThemeId;
   editorInteractionPreferences?: EditorInteractionPreferences;
   saveMode?: EditorSaveMode;
@@ -104,6 +106,7 @@ function EditorDocumentSurface({
   onDocumentPersisted,
   aiEditFile = null,
   hideSourceView = false,
+  documentControls = "view-switch",
   fileIconTheme = "default",
   editorInteractionPreferences = DEFAULT_EDITOR_INTERACTION_PREFERENCES,
   saveMode = "manual",
@@ -240,6 +243,7 @@ function EditorDocumentSurface({
         error,
         canEdit,
         hideSourceView,
+        documentControls,
         fileIconTheme,
         editorInteractionPreferences,
         htmlTrustMode,

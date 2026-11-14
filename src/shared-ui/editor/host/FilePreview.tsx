@@ -28,6 +28,7 @@ import type {
   ContextMapWorkspaceEnvironment,
   DocumentNavigationPort,
   DocumentSourceKind,
+  DocumentControls,
   EditorInteractionPreferences,
   MarkdownDialectId,
   MarkdownHtmlTrustMode,
@@ -60,6 +61,7 @@ export type FilePreviewProps = {
   documentPersistence?: DocumentPersistencePort | null;
   onDocumentPersisted?: (commit: DocumentPersistedCommit) => void;
   hideSourceView?: boolean;
+  documentControls?: DocumentControls;
   fileIconTheme?: FileIconThemeId;
   editorInteractionPreferences?: EditorInteractionPreferences;
   editorSaveMode?: EditorSaveMode;
@@ -98,6 +100,7 @@ export function FilePreview({
   documentPersistence = null,
   onDocumentPersisted,
   hideSourceView = false,
+  documentControls = "view-switch",
   fileIconTheme = "default",
   editorInteractionPreferences,
   editorSaveMode = "manual",
@@ -210,6 +213,7 @@ export function FilePreview({
                 documentPersistence={documentPersistence}
                 onDocumentPersisted={onDocumentPersisted}
                 hideSourceView={hideSourceView}
+                documentControls={documentControls}
                 fileIconTheme={fileIconTheme}
                 editorInteractionPreferences={editorInteractionPreferences}
                 saveMode={editorSaveMode}
