@@ -27,7 +27,7 @@ fn serve_cli(outcome: async_channel::Sender<bool>, cx: &mut App) {
     let info = cli_control::AppInfo {
         name: app::windows::APP_NAME.into(),
         version: identity.version.clone(),
-        channel: format!("{:?}", identity.channel).to_lowercase(),
+        channel: identity.channel.key().into(),
     };
     let endpoint = cli_control::endpoint(&platform::data_dir(), unsafe { libc::getuid() });
     let incoming = match cli_control::serve(&endpoint, info.clone()) {
@@ -76,12 +76,16 @@ fn main() {
         platform::agent_activity::hook::run();
         return;
     }
+    if std::env::args().nth(1).as_deref() == Some(platform::build_identity::FLAG) {
+        println!("{}", platform::build_identity::current().json());
+        return;
+    }
     // PuppyOne Host: no windows, its own state and lock; it keeps sharing
     // this computer's folders after the App quits.
     if std::env::args().any(|a| a == workspace::hosts::process::HOST_ARGUMENT) {
         std::process::exit(workspace::hosts::process::run(
             &platform::data_dir(),
-            env!("CARGO_PKG_VERSION"),
+            &platform::build_identity::current().version,
         ));
     }
     // `requestSingleInstanceLock`: a later launch hands its command line to
@@ -247,6 +251,11 @@ fn main() {
             async {}
         })
         .detach();
+        // A packaged app answers its channel's return links.
+        let identity = platform::build_identity::current();
+        if identity.packaged {
+            platform::url_scheme::claim(platform::templates::link::scheme(identity.channel));
+        }
         // What the launch itself was asked to open (a file or folder from
         // Finder) arrives before launching finishes and replaces the window
         // the launch would otherwise open (`openPendingPaths`).

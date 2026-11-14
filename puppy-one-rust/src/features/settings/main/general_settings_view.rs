@@ -48,8 +48,10 @@ impl SettingsWorkspaceSurface {
             }));
             options
         });
-        let version = env!("CARGO_PKG_VERSION");
-        let diagnostics = format!("PuppyOne GPUI\nChannel: dev\nVersion: {version}\n");
+        let build = crate::features::build_info::current();
+        let diagnostics = build.diagnostics;
+        let channel = tr(build.channel_key);
+        let version = build.version;
         let copied = self.is_copied("build-version");
         let copy_label = tr(if copied {
             "shell.build.copy.copied"
@@ -64,7 +66,7 @@ impl SettingsWorkspaceSurface {
                     .truncate()
                     .text_color(t.text)
                     .text_size(px(theme::ty().ui.label))
-                    .child(format!("{} · {version}", tr("shell.build.channel.dev"))),
+                    .child(format!("{channel} · {version}")),
             )
             .child(
                 Button::new("copy-build")

@@ -474,6 +474,13 @@ fn open_template_link(url: &str, cx: &mut App) -> bool {
     }
     true
 }
+/// `isDesktopReturnUrl`: the channel's own `<scheme>://open` brings the app
+/// forward. A cold launch makes its first window anyway, so the link adds
+/// nothing then.
+fn is_return_link(url: &str) -> bool {
+    use crate::platform::{build_identity, templates::link};
+    url == format!("{}://open", link::scheme(build_identity::current().channel))
+}
 /// Paths the platform asked us to open (`openPathFromSystem`): a folder in
 /// a new window; a Markdown, CSV or HTML file in its own file window. Other
 /// files cannot be opened on their own. `true` when a window now shows one.
@@ -482,6 +489,12 @@ pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) -> bool {
     for url in urls {
         if open_template_link(&url, cx) {
             shown = true;
+            continue;
+        }
+        if is_return_link(&url) {
+            if !live(cx).is_empty() {
+                reveal_or_create(cx);
+            }
             continue;
         }
         let Some(path) = url::Url::parse(&url)
@@ -592,6 +605,17 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
     use std::ffi::OsString;
+
+    #[test]
+    fn only_this_channels_open_link_is_a_return_link() {
+        // An unstamped test build is Dev.
+        assert!(is_return_link("puppyone-development://open"));
+        assert!(!is_return_link("puppyone://open"));
+        assert!(!is_return_link("puppyone-development://open/x"));
+        assert!(!is_return_link(
+            "puppyone-development://templates/import?id=a"
+        ));
+    }
 
     #[test]
     fn the_last_folder_or_file_on_the_command_line_is_the_target() {

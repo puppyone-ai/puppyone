@@ -2,12 +2,9 @@
 """Package a source-verified local build; never sign, install, or launch it."""
 import argparse
 from datetime import datetime
-import hashlib
 import json
 from pathlib import Path
-import plistlib
 import re
-import shutil
 import subprocess
 import sys
 
@@ -18,6 +15,8 @@ parser.add_argument('--kit-preview-root', type=Path, help='Package only a new GP
 parser.add_argument('--kit-preview-name', default='PuppyOne GPUI Kit Preview', help='Distinct app name when preserving an already-running Kit preview')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(root / 'tools/release'))
+import bundle
 if args.kit_preview_root and (args.qa_root or args.preview_root):
     parser.error('--kit-preview-root cannot replace an existing QA/continuous preview')
 if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 -]{0,63}', args.kit_preview_name):
@@ -28,8 +27,7 @@ if custom_kit_name and not args.kit_preview_root:
     parser.error('--kit-preview-name requires --kit-preview-root')
 
 
-def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+digest = bundle.digest
 
 
 def verified_receipt(relative):
@@ -70,83 +68,13 @@ version = datetime.now().strftime('%Y%m%d.%H%M%S')
 app = root / (f'artifacts/{args.kit_preview_name}.app' if kit_root else 'artifacts/PuppyOne GPUI Workbench.app')
 
 
-def file_mode_extensions():
-    """`createFileModeExtensions` over the bundled format registry."""
-    registry = json.loads((root / 'assets/formats/file-formats.json').read_text())
-    extensions = {'.html', '.htm'}
-    for fmt in registry.get('formats', []):
-        if fmt.get('id') in ('markdown', 'csv'):
-            extensions |= {e.lower() for e in fmt.get('extensions', []) if e.startswith('.')}
-    covered = lambda e: any(o != e and e.endswith(o) for o in extensions)
-    return sorted(e for e in extensions if not covered(e))
-
-
 def package(path, name, identifier, environment=None):
-    contents = path / 'Contents'
-    executable = contents / 'MacOS/puppy-one-rust'
-    resources = contents / 'Resources'
-    executable.parent.mkdir(parents=True, exist_ok=True)
-    resources.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(binary, executable)
-    # PDFium (tools/fetch-pdfium.py): the PDF viewer looks in ../Frameworks.
-    pdfium = root / 'vendor/pdfium/lib/libpdfium.dylib'
-    if pdfium.is_file():
-        frameworks = contents / 'Frameworks'
-        frameworks.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(pdfium, frameworks / pdfium.name)
-        shutil.copy2(root / 'vendor/pdfium/LICENSE', resources / 'PDFIUM_LICENSE.txt')
-    # The whiteboard's fonts (tools/fetch-excalidraw-fonts.py), served from
-    # Resources/excalidraw; a bundle without them draws text in system fonts.
-    fonts = root / 'vendor/excalidraw/fonts'
-    if fonts.is_dir():
-        subprocess.run([sys.executable, str(root / 'tools/fetch-excalidraw-fonts.py'), '--check'], check=True)
-        shutil.copytree(fonts, resources / 'excalidraw/fonts', dirs_exist_ok=True)
-    else:
-        print('warning: no Excalidraw fonts; run tools/fetch-excalidraw-fonts.py', file=sys.stderr)
-    for source, destination in [
-        (root / 'licenses/excalidraw/LICENSE', 'EXCALIDRAW_LICENSE.txt'),
-        (root / 'licenses/excalidraw/FONT-NOTICES.txt', 'EXCALIDRAW_FONT_NOTICES.txt'),
-        (root / 'README.md', 'README.md'),
-        (root / 'THIRD_PARTY.md', 'THIRD_PARTY.md'),
-        (root.parent / 'LICENSE', 'LICENSE'),
-        (root / 'assets/OpenSans-OFL.txt', 'OpenSans-OFL.txt'),
-        (root / 'assets/agents/lobe-icons-license.txt', 'AGENT_ICONS_LICENSE.txt'),
-    ]:
-        shutil.copy2(source, resources / destination)
-    # `FILE_MODE_DOCUMENT_TYPES` (`macos.mjs`): the files a file window
-    # opens, joining the system's list without claiming the default app.
-    # No folder type: a folder arrives through `open -a` or a second launch.
-    document_types = [
-        {'CFBundleTypeName': type_name, 'LSItemContentTypes': [content_type],
-         'CFBundleTypeRole': 'Editor', 'LSHandlerRank': 'Alternate'}
-        for type_name, content_type in [
-            ('Markdown', 'net.daringfireball.markdown'),
-            ('CSV', 'public.comma-separated-values-text'),
-            ('HTML', 'public.html'),
-        ]
-    ]
-    # `createFileModeExtensions`: one list decides File Mode, the CLI's
-    # declaration below and the protocol's `hello` (`file_mode_extensions`).
-    open_extensions = file_mode_extensions()
-    document_types[0]['CFBundleTypeExtensions'] = [e[1:] for e in open_extensions
-                                                     if e not in ('.csv', '.htm', '.html')]
-    document_types[1]['CFBundleTypeExtensions'] = ['csv']
-    document_types[2]['CFBundleTypeExtensions'] = ['html', 'htm']
-    info = {'CFBundleDocumentTypes': document_types,
-            # `CLI_INFO_PLIST_KEYS`: what `puppyone open` reads before it
-            # starts the app; the data directory names the control socket.
-            'PuppyOneCliProtocol': 1, 'PuppyOneCliUserDataName': 'PuppyOne GPUI',
-            'PuppyOneOpenExtensions': open_extensions, 'PuppyOneOpenMaxBytes': 1024 * 1024,
-            'CFBundleExecutable': 'puppy-one-rust', 'CFBundleIdentifier': identifier,
-            'CFBundleName': name, 'CFBundlePackageType': 'APPL',
-            'CFBundleShortVersionString': '0.1.0', 'CFBundleVersion': version,
-            'NSHighResolutionCapable': True}
-    if environment:
-        info['LSEnvironment'] = environment
-    with (contents / 'Info.plist').open('wb') as f:
-        plistlib.dump(info, f)
-    if digest(executable) != digest(binary):
-        raise SystemExit(f'Packaged binary mismatch: {path}')
+    bundle.assemble(path, binary, {
+        'CFBundleDocumentTypes': bundle.document_types(), **bundle.cli_declaration(),
+        'CFBundleExecutable': bundle.EXECUTABLE, 'CFBundleIdentifier': identifier,
+        'CFBundleName': name, 'CFBundlePackageType': 'APPL',
+        'CFBundleShortVersionString': '0.1.0', 'CFBundleVersion': version,
+        'NSHighResolutionCapable': True}, environment)
 
 
 if kit_root:

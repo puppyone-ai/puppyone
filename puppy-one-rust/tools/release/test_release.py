@@ -1,0 +1,93 @@
+"""Unit tests for the release tooling: `python3 -m unittest discover -s tools/release`."""
+import tempfile
+import unittest
+from pathlib import Path
+
+import bundle
+import icon
+import identity
+
+COMMIT = 'a' * 40
+
+
+class ReleaseIdentityTest(unittest.TestCase):
+    """`release-identity.test.mjs`'s cases for the GPUI build."""
+
+    def test_versions_follow_the_channel(self):
+        dev = identity.release_identity('0.4.4', 'dev', COMMIT, dirty=True)
+        self.assertEqual(dev['version'], '0.4.4-dev.gaaaaaaaa.dirty')
+        self.assertEqual(dev['buildId'], 'gaaaaaaaa')
+        internal = identity.release_identity('0.4.4', 'internal', COMMIT, '12')
+        self.assertEqual(internal['version'], '0.4.4-internal.12')
+        stable = identity.release_identity('0.4.4', 'stable', COMMIT, '12')
+        self.assertEqual(stable['version'], '0.4.4')
+        self.assertEqual(stable['runtime'], 'gpui')
+
+    def test_published_builds_refuse_what_cannot_be_released(self):
+        for args in [('0.4', 'stable', COMMIT, '1'), ('0.4.4', 'stable', 'abc', '1'),
+                     ('0.4.4', 'stable', COMMIT, None), ('0.4.4', 'internal', COMMIT, '0'),
+                     ('0.4.4', 'qubits', COMMIT, '1')]:
+            with self.assertRaises(ValueError, msg=args):
+                identity.release_identity(*args)
+        with self.assertRaises(ValueError):
+            identity.release_identity('0.4.4', 'stable', COMMIT, '1', dirty=True)
+
+    def test_stamps_name_every_coordinate(self):
+        release = identity.release_identity('0.4.4', 'internal', COMMIT, '3', built_at='2026-11-14T00:00:00.000Z')
+        stamps = identity.build_environment(release)
+        self.assertEqual(stamps['PUPPYONE_BUILD_VERSION'], '0.4.4-internal.3')
+        self.assertEqual(stamps['PUPPYONE_BUILD_DIRTY'], 'false')
+        self.assertEqual(stamps['MACOSX_DEPLOYMENT_TARGET'], identity.MINIMUM_SYSTEM_VERSION)
+
+
+class CloudConfigurationTest(unittest.TestCase):
+    """`Environment::new`'s allowlist, so a bundle never ships what the app refuses."""
+
+    def test_puppyone_hosts_and_loopback_are_accepted(self):
+        self.assertEqual(identity.cloud_configuration('https://api.puppyone.ai/api/v1/', 'https://puppyone.ai/'),
+                         {'schemaVersion': 1, 'apiBase': 'https://api.puppyone.ai/api/v1',
+                          'webOrigin': 'https://puppyone.ai'})
+        identity.cloud_configuration('http://127.0.0.1:9090/api/v1', 'http://localhost:3000')
+
+    def test_anything_else_is_refused(self):
+        for api, web in [(None, 'https://puppyone.ai'),
+                         ('http://api.puppyone.ai/api/v1', 'https://puppyone.ai'),
+                         ('https://api.example.com/api/v1', 'https://puppyone.ai'),
+                         ('https://api.puppyone.ai/v1', 'https://puppyone.ai'),
+                         ('https://api.puppyone.ai/api/v1', 'https://puppyone.ai/app'),
+                         ('https://u:p@api.puppyone.ai/api/v1', 'https://puppyone.ai'),
+                         ('https://api.puppyone.ai/api/v1?x=1', 'https://puppyone.ai')]:
+            with self.assertRaises(ValueError, msg=(api, web)):
+                identity.cloud_configuration(api, web)
+
+
+class InfoPlistTest(unittest.TestCase):
+    def test_the_bundle_declares_its_channel(self):
+        release = identity.release_identity('0.4.4', 'internal', COMMIT, '7')
+        info = identity.info_plist(release, bundle.document_types(), bundle.cli_declaration())
+        self.assertEqual(info['CFBundleIdentifier'], 'ai.puppyone.desktop.gpui.internal')
+        self.assertEqual(info['CFBundleShortVersionString'], '0.4.4')
+        self.assertEqual(info['CFBundleVersion'], '7')
+        self.assertEqual(info['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['puppyone-internal'])
+        self.assertEqual(info['LSMinimumSystemVersion'], '12.0')
+        self.assertEqual(info['CFBundleIconFile'], 'icon.icns')
+        self.assertEqual(info['PuppyOneCliUserDataName'], 'PuppyOne GPUI')
+        self.assertIn('md', info['CFBundleDocumentTypes'][0]['CFBundleTypeExtensions'])
+        dev = identity.info_plist(identity.release_identity('0.4.4', 'dev', COMMIT),
+                                  bundle.document_types(), bundle.cli_declaration())
+        self.assertEqual(dev['CFBundleVersion'], '0.4.4')
+        self.assertEqual(dev['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['puppyone-development'])
+
+
+class IconTest(unittest.TestCase):
+    def test_every_channel_icon_builds_a_complete_icns(self):
+        for channel in identity.CHANNELS:
+            source = bundle.ROOT / 'assets/release' / identity.policy(channel)['icon']
+            with tempfile.TemporaryDirectory() as out:
+                destination = Path(out) / 'icon.icns'
+                icon.build(source, destination)
+                self.assertEqual(destination.read_bytes()[:4], b'icns')
+
+
+if __name__ == '__main__':
+    unittest.main()
