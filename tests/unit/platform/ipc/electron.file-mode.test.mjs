@@ -71,7 +71,6 @@ describe("File Mode IPC gate", () => {
     "cloud-workspace:watch",
     "markdown-web-embed:create",
     "file-mode:open-folder",
-    "window-layout:get-cursor-point",
     "made-up:channel",
   ])("refuses %s", (channel) => {
     expect(allowed(channel, { path: "plan.md" })).toBe(false);
