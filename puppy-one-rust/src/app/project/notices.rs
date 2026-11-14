@@ -1,6 +1,6 @@
 //! `.desktop-workspace-notice-stack`: what is wrong with the workspace's
 //! change subscription (`workspaceSurfaceError`), with Retry, under the
-//! local folder's Cloud notice that leads it.
+//! notices about the window's folder that lead it.
 use super::{ProjectEvent, ProjectLifecycle};
 use crate::{
     geometry::Rect,
@@ -11,13 +11,13 @@ use gpui::{prelude::*, *};
 
 impl ProjectLifecycle {
     /// The stack 12px below the top of the editor region `editor`, 16px in
-    /// from its end (`end` from the window's), led by `folder` — the
-    /// local folder's Cloud notice.
+    /// from its end (`end` from the window's), led by `folder` — what is
+    /// said about the window's folder (it cannot be opened, its Cloud link).
     pub(in crate::app) fn notices(
         &self,
         editor: Rect,
         end: f32,
-        folder: Option<FloatingNotice>,
+        folder: Vec<FloatingNotice>,
         weak: WeakEntity<Self>,
     ) -> Option<AnyElement> {
         let stack = || {
@@ -29,7 +29,7 @@ impl ProjectLifecycle {
             )
         };
         let Some(message) = &self.record.notice else {
-            return folder.map(|folder| stack().child(folder).into_any_element());
+            return (!folder.is_empty()).then(|| stack().children(folder).into_any_element());
         };
         let dismiss = weak.clone();
         Some(

@@ -12,6 +12,7 @@ pub mod editor_state_storage;
 pub mod electron_import;
 pub mod environment;
 pub mod feedback;
+pub mod folder_availability;
 pub mod git;
 pub mod git_diff;
 pub mod git_history;

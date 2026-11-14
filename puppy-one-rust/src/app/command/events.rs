@@ -199,6 +199,19 @@ impl Shell {
         }
         cx.notify();
     }
+    /// `ProjectFolderNotices` and `LocalFolderCloudNotice`: what is said
+    /// about the window's folder, the one that cannot be opened first.
+    pub(in crate::app) fn folder_notices(
+        &self,
+        cx: &App,
+    ) -> Vec<crate::ui::components::FloatingNotice> {
+        self.home
+            .read(cx)
+            .folder_notice()
+            .into_iter()
+            .chain(self.cloud.read(cx).local_folder_notice_view(cx))
+            .collect()
+    }
     /// The Settings page `page`, opened.
     pub(in crate::app) fn open_settings(
         &mut self,

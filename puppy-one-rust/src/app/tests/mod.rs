@@ -11,6 +11,7 @@ mod dialog_layer;
 mod editing;
 mod explorer_pane;
 mod file_window;
+mod folder_availability;
 mod home_groups;
 mod homepage;
 mod other_computers;

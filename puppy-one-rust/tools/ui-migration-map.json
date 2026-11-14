@@ -800,6 +800,28 @@
       "remaining": "v0.4.4: This computer, then every space (even empty, with its mark, plan, Owner and Members & plan), then shared projects without a known space, then other computers (gated off). A place asked for from the title bar is scrolled to and lit (useProjectGroupFocus). Grid of 5×120px cells with 10px gutters; checked by offscreen capture, not pixel-compared at v0.4.4 5e87974ef."
     },
     {
+      "name": "Project folder availability and relocation",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/folder-availability/**"
+      ],
+      "targets": [
+        "src/app/home/folder_status.rs",
+        "src/platform/folder_availability.rs",
+        "src/app/home/projects/list.rs",
+        "src/app/project/notices.rs",
+        "src/features/settings/preference_types.rs"
+      ],
+      "evidence": [
+        "test:a_renamed_folder_is_found_again_from_the_homepage",
+        "test:a_window_whose_folder_moved_says_so_and_follows_it",
+        "test:a_folder_renamed_where_it_was_is_found_again",
+        "test:a_folder_on_a_disk_that_is_away_is_disconnected_not_gone",
+        "test:a_status_says_what_happened_and_what_helps"
+      ],
+      "remaining": "Statuses (available, missing, disk not connected, not permitted, not a folder), the folder found renamed in place by its dev:ino identity, the Homepage caption and dialog, the window notice, and relocation (the record moves; a window showing it reopens it there) are native. Find it… opens the system picker where it last was (GPUI's open panel takes no starting folder). Main's one-time candidate tokens are not needed in one process; the chosen folder is probed again before use. A relocated folder that had been shared is not offered again (other computers are off in this release). A folder read failure in the workbench does not yet re-check its availability; activation does."
+    },
+    {
       "name": "Who can open it (project audience)",
       "status": "partial",
       "sources": [

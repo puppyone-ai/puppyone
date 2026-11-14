@@ -778,7 +778,7 @@ impl Render for Shell {
                 self.frame.layout.editor,
                 w - self.frame.layout.editor.right(),
             );
-            let folder = self.cloud.read(cx).local_folder_notice_view(cx);
+            let folder = self.folder_notices(cx);
             let project = self.session.project.downgrade();
             root = root
                 .children(

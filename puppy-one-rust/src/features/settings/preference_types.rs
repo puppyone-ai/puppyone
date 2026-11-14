@@ -235,6 +235,10 @@ pub struct RecentProject {
     /// to the owner's other computers under, as recorded when it was shared.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_folder: Option<String>,
+    /// `fsIdentity` (`fs:<dev>:<ino>`), read while the folder is there, so a
+    /// folder renamed where it was can be found again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fs_identity: Option<String>,
 }
 /// `HOMEPAGE_PROJECT_LAYOUTS`: how the Homepage arranges its projects.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -517,9 +521,33 @@ impl Preferences {
                     .unwrap_or_else(|| path.display().to_string()),
                 opened_at: now,
                 host_folder: None,
+                fs_identity: None,
             });
         }
         self.recent_projects.splice(0..0, added);
+    }
+    /// `relocateRecentWorkspacePath`: the project lives at `to` now, under
+    /// its new name, in its place on the list. Sharing named the old place,
+    /// so it does not follow; `true` when it had been shared.
+    pub fn relocate_project(&mut self, from: &std::path::Path, to: &std::path::Path) -> bool {
+        let Some(index) = self.recent_projects.iter().position(|p| p.path == from) else {
+            return false;
+        };
+        let record = &mut self.recent_projects[index];
+        let was_shared = record.host_folder.take().is_some();
+        record.path = to.to_path_buf();
+        record.name = to
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| to.display().to_string());
+        record.fs_identity = None;
+        let mut position = 0;
+        self.recent_projects.retain(|p| {
+            let keep = position == index || p.path != to;
+            position += 1;
+            keep
+        });
+        was_shared
     }
     pub fn remember_project(&mut self, path: &std::path::Path, now: u64) {
         let name = self
@@ -539,6 +567,11 @@ impl Preferences {
             .iter()
             .find(|p| p.path == path)
             .and_then(|p| p.host_folder.clone());
+        let fs_identity = self
+            .recent_projects
+            .iter()
+            .find(|p| p.path == path)
+            .and_then(|p| p.fs_identity.clone());
         self.recent_projects.retain(|p| p.path != path);
         self.recent_projects.insert(
             0,
@@ -547,6 +580,7 @@ impl Preferences {
                 name,
                 opened_at: now,
                 host_folder,
+                fs_identity,
             },
         );
     }

@@ -75,6 +75,9 @@ pub(super) enum DialogKey {
     HostSharing,
     /// `CreateTeamDialog`: start a space.
     CreateSpace,
+    /// A project's folder that cannot be opened (`UnavailableProjectDialog`,
+    /// the confirmation of a different folder).
+    ProjectFolder,
 }
 
 type RenderDialog = Rc<dyn Fn(Size<Pixels>, &mut Window, &mut App) -> AnyElement>;

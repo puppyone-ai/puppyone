@@ -55,6 +55,7 @@ use std::{
 pub(in crate::app) mod create_project;
 mod first_run;
 pub(in crate::app) mod folder;
+mod folder_status;
 pub(in crate::app) mod groups;
 mod import_repository;
 pub(in crate::app) mod import_sources;
@@ -203,6 +204,14 @@ pub(in crate::app) struct Homepage {
     pub(in crate::app) import_picker: Option<import_sources::ImportPicker>,
     /// Where other apps keep their records; tests set their own.
     pub(in crate::app) app_places: Option<crate::platform::app_folders::Places>,
+    /// The listed folders that cannot be opened now, and why.
+    pub(in crate::app) unavailable: HashMap<PathBuf, folder_status::FolderStatus>,
+    /// The open project's folder, when it cannot be opened now.
+    pub(in crate::app) window_folder: Option<(PathBuf, folder_status::FolderStatus)>,
+    /// The folder question on screen, its failure and a relocation on its way.
+    pub(in crate::app) folder_question: Option<folder_status::FolderQuestion>,
+    folder_error: Option<String>,
+    folder_busy: bool,
 }
 impl EventEmitter<HomeEvent> for Homepage {}
 
@@ -237,6 +246,10 @@ impl Homepage {
             if h.session.home {
                 h.read_hosts(true, cx);
             }
+            // A disk plugged in again, a folder put back.
+            h.read_for = None;
+            h.refresh_activity(cx);
+            h.check_window_folder(cx);
         })
         .detach();
         // Presence changes while the page is open: a quiet poll keeps
@@ -326,12 +339,22 @@ impl Homepage {
             import: None,
             import_picker: None,
             app_places: None,
+            unavailable: HashMap::new(),
+            window_folder: None,
+            folder_question: None,
+            folder_error: None,
+            folder_busy: false,
         }
     }
     /// What the window shows changed.
     pub fn set_session(&mut self, session: SessionView, cx: &mut Context<Self>) {
         if self.session != session {
+            let root_changed =
+                self.session.root != session.root || self.session.home != session.home;
             self.session = session;
+            if root_changed {
+                self.check_window_folder(cx);
+            }
             self.refresh(cx);
         }
     }
@@ -506,6 +529,9 @@ impl Homepage {
                 (None, None) => None,
             },
             DialogKey::ProjectEntry => Some(self.project_entry_dialog(cx).into_any_element()),
+            DialogKey::ProjectFolder => self
+                .project_folder_dialog(cx)
+                .map(IntoElement::into_any_element),
             _ => None,
         }
         .unwrap_or_else(|| Empty.into_any_element())
@@ -516,6 +542,7 @@ impl Homepage {
             DialogKey::CreateProject => self.close_create_project(window, cx),
             DialogKey::TemplateImport => self.close_template(window, cx),
             DialogKey::ImportRepository => self.close_import(window, cx),
+            DialogKey::ProjectFolder => self.close_folder_question(cx),
             _ => self.close_project_entry(cx),
         }
     }
@@ -641,6 +668,11 @@ impl Homepage {
         }
         self.read_for = Some(paths.clone());
         self.reading = true;
+        let identities: HashMap<PathBuf, Option<String>> = self
+            .recent(cx)
+            .iter()
+            .map(|p| (p.path.clone(), p.fs_identity.clone()))
+            .collect();
         let read = cx.background_executor().spawn(async move {
             paths
                 .into_iter()
@@ -648,7 +680,15 @@ impl Homepage {
                     let changed = project_activity::last_modified(&path);
                     let remote = project_activity::remote_urls(&path)
                         .map(|urls| locator::canonical_locator(urls.iter().map(String::as_str)));
-                    (path, changed, remote)
+                    // Whether it opens; and what it is, while it is there.
+                    let was = identities.get(&path).cloned().flatten();
+                    let status = folder_status::read_status(&path, was.as_deref());
+                    let identity = status
+                        .is_none()
+                        .then(|| crate::platform::folder_availability::identity(&path))
+                        .flatten()
+                        .filter(|now| Some(now) != was.as_ref());
+                    (path, changed, remote, status, identity)
                 })
                 .collect::<Vec<_>>()
         });
@@ -657,11 +697,35 @@ impl Homepage {
             let _ = this.update(cx, |s, cx| {
                 s.locators = read
                     .iter()
-                    .filter_map(|(path, _, remote)| Some((path.clone(), remote.clone()?)))
+                    .filter_map(|(path, _, remote, _, _)| Some((path.clone(), remote.clone()?)))
                     .collect();
+                s.unavailable = read
+                    .iter()
+                    .filter_map(|(path, _, _, status, _)| Some((path.clone(), status.clone()?)))
+                    .collect();
+                let learned: Vec<(PathBuf, String)> = read
+                    .iter()
+                    .filter_map(|(path, _, _, _, identity)| Some((path.clone(), identity.clone()?)))
+                    .collect();
+                if !learned.is_empty() {
+                    s.preferences.update(cx, |p, cx| {
+                        p.change(
+                            |p| {
+                                for (path, identity) in &learned {
+                                    if let Some(project) =
+                                        p.recent_projects.iter_mut().find(|r| r.path == *path)
+                                    {
+                                        project.fs_identity = Some(identity.clone());
+                                    }
+                                }
+                            },
+                            cx,
+                        )
+                    });
+                }
                 s.activity = read
                     .into_iter()
-                    .map(|(path, changed, _)| (path, changed))
+                    .map(|(path, changed, _, _, _)| (path, changed))
                     .collect();
                 s.reading = false;
                 // The list is whole: it may be seen now.
@@ -1453,6 +1517,7 @@ mod tests {
             name: name.into(),
             opened_at: 0,
             host_folder: None,
+            fs_identity: None,
         };
         assert_eq!(project_name(&project("Notes", "/a/notes")), "Notes");
         assert_eq!(project_name(&project("", "/a/notes")), "notes");

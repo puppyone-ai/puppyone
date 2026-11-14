@@ -60,6 +60,7 @@ pub fn import(data: &ElectronData) -> Preferences {
             name: r.name.clone(),
             opened_at: r.opened_at,
             host_folder: None,
+            fs_identity: None,
         })
         .collect();
     if let Some(language) = &data.language

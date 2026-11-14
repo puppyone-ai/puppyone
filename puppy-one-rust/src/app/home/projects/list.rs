@@ -425,10 +425,17 @@ impl Homepage {
         let hover_id = item.id.clone();
         let focus_id = item.id.clone();
         let open = item.clone();
+        // A folder that cannot be opened now asks what to do instead, and
+        // does not drag.
+        let unavailable = item
+            .local_path
+            .as_deref()
+            .filter(|path| self.folder_status(Path::new(path)).is_some())
+            .map(PathBuf::from);
         let drag = item
             .local_path
             .clone()
-            .filter(|path| !busy && !path.trim().is_empty())
+            .filter(|path| !busy && !path.trim().is_empty() && unavailable.is_none())
             .map(|path| ProjectDrag {
                 path: path.trim().to_owned(),
                 label: item_name(item).into(),
@@ -458,7 +465,10 @@ impl Homepage {
             )
             .when(!busy && !inactive, |d| {
                 d.cursor(theme::clickable_cursor())
-                    .on_click(cx.listener(move |s, _, _, cx| s.open_item(&open, cx)))
+                    .on_click(cx.listener(move |s, _, _, cx| match &unavailable {
+                        Some(path) => s.open_unavailable(path.clone(), cx),
+                        None => s.open_item(&open, cx),
+                    }))
             })
             .when_some(drag, |d, drag| {
                 let host = cx.weak_entity();
@@ -529,9 +539,16 @@ impl Homepage {
         let ty = theme::ty().ui;
         let name = item_name(item);
         let linked = item.linked.is_some();
-        let detail = match &item.local_path {
-            Some(path) => parent_for_display(Path::new(path)),
-            None => item_caption(item),
+        let status = item
+            .local_path
+            .as_deref()
+            .and_then(|path| self.folder_status(Path::new(path)));
+        let detail = match (&item.local_path, status) {
+            (Some(_), Some(status)) => {
+                tr(super::super::folder_status::status_caption(status)).into()
+            }
+            (Some(path), None) => parent_for_display(Path::new(path)),
+            (None, _) => item_caption(item),
         };
         let modified = item.modified.filter(|m| *m > 0).map(|ms| {
             modification_time(
@@ -546,7 +563,12 @@ impl Homepage {
         // `.desktop-menu-item:disabled` (0.58, the disabled ink) inside the
         // folder's own fade (0.5).
         let inactive = item.remote.as_ref().is_some_and(|r| !r.available());
-        let fade = inactive.then_some(0.5 * 0.58);
+        // `[data-unavailable] .onboarding-project-icon`: 0.4.
+        let fade = if inactive {
+            Some(0.5 * 0.58)
+        } else {
+            status.map(|_| 0.4)
+        };
         let name_color = if inactive {
             t.text_disabled
         } else if linked && !lit {
@@ -597,7 +619,7 @@ impl Homepage {
                     .min_w_0()
                     .items_baseline()
                     .gap(px(7.))
-                    .when_some(fade, |d, fade| d.opacity(fade))
+                    .when(inactive, |d| d.opacity(0.5 * 0.58))
                     .child(
                         h_flex()
                             .min_w_0()
@@ -620,7 +642,8 @@ impl Homepage {
                                 .min_w_0()
                                 .truncate()
                                 .text_size(px(ty.caption))
-                                .text_color(t.subtle)
+                                // `.onboarding-project-status`.
+                                .text_color(if status.is_some() { t.muted } else { t.subtle })
                                 .child(detail),
                         )
                     }),
@@ -703,12 +726,19 @@ impl Homepage {
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join(" · ");
-        // An offline computer's folder fades (`data-inactive`, 0.5).
+        // An offline computer's folder fades (`data-inactive`, 0.5); one
+        // that cannot be opened here fades its folder and says why
+        // (`[data-unavailable]`, 0.4, `.onboarding-project-status`).
         let fade = item
             .remote
             .as_ref()
             .is_some_and(|r| !r.available())
             .then_some(0.5);
+        let status = item
+            .local_path
+            .as_deref()
+            .and_then(|path| self.folder_status(Path::new(path)))
+            .map(super::super::folder_status::status_caption);
         let tile = self
             .open_control(("home-tile", index), item, focus, busy, keys, cx)
             .w_full()
@@ -726,7 +756,12 @@ impl Homepage {
             .when(busy, |d| d.opacity(0.58))
             .when(self.dragging_item(item, cx), |d| d.opacity(0.62))
             .tooltip(crate::ui::components::tooltip(tooltip))
-            .child(super::folder::grid_folder(rise, lit, fade, t))
+            .child(super::folder::grid_folder(
+                rise,
+                lit,
+                fade.or(status.map(|_| 0.4)),
+                t,
+            ))
             .child(
                 // `.onboarding-project-tile-label`: the name, and in a shared
                 // group the small mark of where it lives.
@@ -747,7 +782,17 @@ impl Homepage {
                             .child(name),
                     )
                     .when(marks, |d| d.child(place_mark(item, t))),
-            );
+            )
+            .children(status.map(|key| {
+                div()
+                    .mt(px(-6.))
+                    .max_w_full()
+                    .truncate()
+                    .text_size(px(theme::ty().ui.caption))
+                    .line_height(px(16.))
+                    .text_color(t.muted)
+                    .child(tr(key))
+            }));
         let actions = self.project_actions_trigger(index, item, is_stop, busy, cx);
         let cloud_link = item
             .linked
