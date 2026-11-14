@@ -27,7 +27,6 @@ import { OnboardingEntryMenu } from "./onboarding/OnboardingEntryMenu";
 import { OnboardingProjectToolbar, useHomepageProjectView } from "./onboarding/OnboardingProjectToolbar";
 import { useCloudProjectGroups } from "./onboarding/useCloudProjectGroups";
 import { useProjectGroupFocus, type HomepagePlaceFocus } from "./onboarding/useProjectGroupFocus";
-import { useWindowNavigation } from "./WindowNavigation";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingValueCarousel, type ValueSlideIndex } from "./onboarding/OnboardingValueCarousel";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
@@ -131,7 +130,6 @@ export function MinimalOnboarding({
   focusPlace,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
-  const navigation = useWindowNavigation();
   useProjectGroupFocus(focusPlace);
   const desktopPlatform = useDesktopPlatformCapabilities();
   const [error, setError] = useState<string | null>(initialError);
@@ -342,7 +340,8 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowChrome context={hasProjects || navigation?.account ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
+      {/* The page tells first run's story, so the Header is what names the product. */}
+      <DesktopWindowChrome context={<OnboardingHeaderBrand />} actions={cloudAccountStatus} />
       <section
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}
@@ -350,7 +349,7 @@ export function MinimalOnboarding({
         {...(showEmptyStateIntro ? { inert: "" } : {})}
       >
         <OnboardingHomeLayout
-          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} valueSlide={valueSlide} toolbar={(
+          brand={<OnboardingBrandLockup state={onboardingState} valueSlide={valueSlide} toolbar={(
             <OnboardingProjectToolbar view={projectView} disabled={busy}>
               <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={busy} onChange={setProjectLayout} />
             </OnboardingProjectToolbar>

@@ -76,6 +76,7 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
+  --onboarding-column-width: 400px;
   width: min(900px, 100%);
   --onboarding-title-primary-gap: 28px;
   --onboarding-primary-actions-gap: 8px;
@@ -145,31 +146,6 @@
   min-width: 0;
 }
 
-.onboarding-brand-mark {
-  display: grid;
-  box-sizing: border-box;
-  width: var(--po-control-size-tight);
-  height: var(--po-control-size-tight);
-  flex: 0 0 var(--po-control-size-tight);
-  place-items: center;
-}
-
-.onboarding-brand-mark-artwork {
-  display: block;
-  width: var(--po-control-size-tight);
-  max-width: var(--po-control-size-tight);
-  height: var(--po-control-size-tight);
-  object-fit: contain;
-  pointer-events: none;
-}
-
-/* Keep the canonical brand asset intact while reducing its visual weight on
- * dark onboarding surfaces. The transformed warm-white face resolves near
- * the adjacent --po-text-muted silver; dark linework remains crisp. */
-.onboarding-shell.dark .onboarding-brand-mark-artwork {
-  filter: grayscale(1) brightness(0.7);
-}
-
 .onboarding-brand-name {
   margin: 0;
   font-family: var(--po-font-sans);
@@ -184,66 +160,52 @@
   color: var(--desktop-titlebar-text-muted);
 }
 
-/* First run has nothing to frame yet. Beside a picture of the person's files and the
-   Agents around them, the product's name, what it is for and the keys read as one column. */
+/* First run has nothing to frame yet. A picture of the moment on the left, and on the
+   right what it means and the keys. The picture stays the quieter of the two: it
+   illustrates the words, it does not compete with them. */
 .onboarding-home-value {
   /* The picture and its gap step down with the window rather than leave it. */
-  --onboarding-hub-size: 380px;
-  --onboarding-hub-scale: 1;
+  --onboarding-hub-size: 300px;
+  --onboarding-hub-scale: 0.79;
+  --onboarding-hub-mark: 36px;
   display: flex;
   width: 100%;
   min-width: 0;
   align-items: center;
   justify-content: center;
-  gap: 56px;
+  gap: 64px;
 }
 
 @media (max-width: 1039px) {
   .onboarding-home-value {
-    --onboarding-hub-size: 320px;
-    --onboarding-hub-scale: 0.84;
-    gap: 40px;
+    --onboarding-hub-size: 280px;
+    --onboarding-hub-scale: 0.74;
+    gap: 48px;
   }
 }
 
 /* Down to the smallest window, the column narrows so the picture still fits beside it. */
 @media (max-width: 859px) {
   .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-    --onboarding-column-width: 360px;
+    --onboarding-column-width: 340px;
   }
 
   .onboarding-home-value {
-    --onboarding-hub-size: 260px;
-    --onboarding-hub-scale: 0.68;
-    gap: 28px;
+    --onboarding-hub-size: 240px;
+    --onboarding-hub-scale: 0.63;
+    --onboarding-hub-mark: 32px;
+    gap: 32px;
   }
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
   flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-.onboarding-brand-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--po-text-muted);
-  font-size: var(--onboarding-caption-font-size);
-  font-weight: var(--po-text-weight-medium, 500);
-  line-height: var(--onboarding-row-line-height);
-}
-
-.onboarding-shell[data-onboarding-state="empty"] :is(.onboarding-brand-mark, .onboarding-brand-mark-artwork) {
-  width: 20px;
-  max-width: 20px;
-  height: 20px;
-  flex-basis: 20px;
+  align-items: stretch;
+  gap: 0;
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-copy {
-  gap: 10px;
+  gap: 12px;
 }
 
 /* Each moment's words share one cell and cross-fade with the picture. */
@@ -273,21 +235,23 @@
   }
 }
 
+/* Each title is written as two short lines; the break is part of the copy. */
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-name {
   color: var(--po-text);
   font-size: var(--po-type-ui-display, 25px);
   font-weight: var(--po-text-weight-semibold, 600);
-  line-height: 1.3;
+  line-height: 1.28;
+  white-space: pre-line;
+  text-wrap: wrap;
 }
 
 .onboarding-brand-pitch {
   margin: 0;
   color: var(--po-text-muted);
-  font-size: var(--po-type-ui-meta, 13px);
+  font-size: var(--onboarding-row-font-size);
   line-height: 1.6;
-  text-wrap: balance;
+  text-wrap: pretty;
 }
-
 
 .onboarding-home-primary {
   display: grid;

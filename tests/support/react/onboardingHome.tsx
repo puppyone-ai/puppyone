@@ -3,7 +3,6 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../src/preferenceStorage";
-import { PUPPY_BRAND_MARK_ASSETS } from "../../../src/components/brand/PuppyBrandMark";
 import type { WorkspaceImportSourceResult, WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, DesktopTelemetryState } from "../../../src/types/electron";
 import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../src/preferences";
 import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "./homeWithEntryFlow";
@@ -82,23 +81,18 @@ export function renderHome(
 export function expectBrandLockup(
   container: HTMLElement,
   state: "empty" | "projects" = "empty",
-  expectedMarkAsset: string = PUPPY_BRAND_MARK_ASSETS.dark,
 ) {
   const lockup = container.querySelector(".onboarding-brand-lockup");
-  const brand = state === "projects" ? container.querySelector(".desktop-titlebar .onboarding-header-brand") : lockup;
-  const mark = brand?.querySelector<HTMLImageElement>("img");
+  // On every Homepage the Header names the product, in words alone; the page carries no mark.
+  const brand = container.querySelector(".desktop-titlebar .onboarding-header-brand");
+  expect(brand?.textContent).toBe("puppyone");
+  expect(brand?.querySelector("img, svg")).toBeNull();
+  expect(lockup?.querySelector("img")).toBeNull();
   if (state === "projects") {
-    // The Header names the product without its mark.
-    expect(mark).toBeNull();
-    expect(brand?.textContent).toBe("puppyone");
-    expect(lockup?.querySelector("img")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
     expect(lockup?.querySelectorAll("p")).toHaveLength(0);
   } else {
-    expect(mark?.getAttribute("src")).toContain(expectedMarkAsset);
-    expect(mark?.getAttribute("alt")).toBe("");
-    expect(lockup?.querySelector(".onboarding-brand-eyebrow")?.textContent).toBe("puppyone");
-    expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("What your Agents make is yours to keep");
+    expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("What your Agents make\nis yours to keep");
     // One line under each of first run's three moments; only the open one is shown.
     expect([...lockup!.querySelectorAll("p")].map((line) => line.className)).toEqual(Array(3).fill("onboarding-brand-pitch"));
   }

@@ -2,7 +2,6 @@
  * @vitest-environment happy-dom
  */
 import { readFileSync } from "node:fs";
-import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyBrandMark";
 import { EMPTY_STATE_INTRO_FALLBACK_TIMEOUT_MS } from "../../../../src/components/onboarding/emptyStateIntro";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -12,14 +11,14 @@ import { createProjectResult, expectBrandLockup, installFirstLaunchTelemetryBrid
 setUpOnboardingHome();
 
 const valueTitles = {
-  de: "Was deine Agents erstellen, gehört dir",
-  en: "What your Agents make is yours to keep",
-  es: "Lo que crean tus Agents es tuyo",
-  fr: "Ce que vos Agents créent vous appartient",
-  ja: "Agent が作ったものは、あなたの資産です",
-  ko: "Agent가 만든 것은 모두 내 자산입니다",
-  "pt-BR": "O que seus Agents criam é seu",
-  "zh-Hans": "Agent 做的东西，都是你的资产",
+  de: "Was deine Agents erstellen,\ngehört dir",
+  en: "What your Agents make\nis yours to keep",
+  es: "Lo que crean tus Agents\nes tuyo",
+  fr: "Ce que vos Agents créent\nvous appartient",
+  ja: "Agent が作ったものは、\nあなたの資産です",
+  ko: "Agent가 만든 것은\n모두 내 자산입니다",
+  "pt-BR": "O que seus Agents criam\né seu",
+  "zh-Hans": "Agent 做的东西，\n都是你的资产",
 } as const;
 
 describe("project folder home", () => {
@@ -76,11 +75,11 @@ describe("project folder home", () => {
     });
     const dots = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-value-dot")];
     expect(dots.map((dot) => dot.getAttribute("aria-label"))).toEqual(["Your assets", "Circle to edit", "Send to an Agent"]);
-    expect(moment()).toEqual({ picture: "assets", title: "What your Agents make is yours to keep",
+    expect(moment()).toEqual({ picture: "assets", title: "What your Agents make\nis yours to keep",
       hidden: [null, "true", "true"], current: ["true", null, null] });
 
     act(() => dots[2]!.click());
-    expect(moment()).toEqual({ picture: "forward", title: "Send the QR code to any Agent",
+    expect(moment()).toEqual({ picture: "forward", title: "Send the QR code\nto any Agent",
       hidden: ["true", "true", null], current: [null, null, "true"] });
 
     // The open dot's fill ending is what moves the story on, and the last moment leads back to the first.
@@ -90,7 +89,7 @@ describe("project folder home", () => {
     finish();
     expect(moment().picture).toBe("assets");
     finish();
-    expect(moment()).toMatchObject({ picture: "edit", title: "Circle it, say it, done" });
+    expect(moment()).toMatchObject({ picture: "edit", title: "Circle it, say it,\nand it’s done" });
   });
 
   it("leaves the moments out once there are projects", () => {
@@ -251,14 +250,8 @@ describe("project folder home", () => {
     expect(actions).toBeNull();
   });
 
-  it("uses Puppy Lite only when the resolved theme is light", () => {
-    const container = renderHome({}, { themeMode: "light" });
-
-    expectBrandLockup(
-      container,
-      "empty",
-      PUPPY_BRAND_MARK_ASSETS.lite,
-    );
+  it("tells first run's story without a mark in either theme", () => {
+    expectBrandLockup(renderHome({}, { themeMode: "light" }));
   });
 
   it("names the product in the Header in words alone", () => {

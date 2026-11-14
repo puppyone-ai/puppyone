@@ -94,15 +94,6 @@ describe("Homepage visual contract", () => {
       expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*8px;[^}]*--onboarding-primary-actions-gap:\s*0;/s);
     });
 
-    it("tones the canonical Puppy mark down only on dark onboarding surfaces", () => {
-      expect(onboardingCss).toMatch(
-        /\.onboarding-shell\.dark \.onboarding-brand-mark-artwork\s*\{[^}]*filter:\s*grayscale\(1\) brightness\(0\.7\);/s,
-      );
-      expect(onboardingCss).not.toMatch(
-        /(?:^|\n)\.onboarding-brand-mark-artwork\s*\{[^}]*filter:/s,
-      );
-    });
-
     it("uses one page skeleton and one framed primary section for both home states", () => {
       expect(onboardingCss).toMatch(
         /\.onboarding-launcher\s*\{[^}]*display:\s*grid;[^}]*width:\s*var\(--onboarding-column-width\);[^}]*gap:\s*0;/s,

@@ -23,7 +23,7 @@ const MINIMUM_WIDTH = 720;
 const MINIMUM_HEIGHT = 520;
 const PROJECT_COLUMN = 640;
 /** First run's column beside its picture; below 860px it narrows so the picture still fits. */
-const emptyColumn = (width) => (width < 860 ? 360 : 440);
+const emptyColumn = (width) => (width < 860 ? 340 : 400);
 const TITLE_INSET = 32;
 /** From the head to the first group's label. */
 const GROUP_LABEL_GAP = 12;
@@ -34,8 +34,8 @@ const GRID_COLUMNS = 5;
 const PROJECT_TYPE = ["12px/400", "12px/500", "13px/600", "14px/400"];
 /** Under a folder a name is a caption, so the Grid has no body type. */
 const GRID_TYPE = ["12px/400", "12px/500", "13px/600"];
-// The product's name in the caption, each moment's line in the meta, the keys in the body, the title in display.
-const EMPTY_TYPE = ["12px/500", "13px/400", "14px/400", "25px/600"];
+// Each moment's line and the keys in the body, its title in display.
+const EMPTY_TYPE = ["14px/400", "25px/600"];
 /** The default window: the picture at its full size. */
 const VALUE_WIDTH = 1180;
 const VALUE_HEIGHT = 760;
@@ -180,7 +180,6 @@ async function validateChrome(context, theme, column, width) {
       // First run centres the picture and the column as one group; with projects, the column alone.
       centred:rect(document.querySelector('.onboarding-home-value') ?? brand),
       mark:mark?.getAttribute('src').split('/').pop() ?? null,
-      markFilter:mark ? getComputedStyle(mark).filter : null,
       headerMark:!!document.querySelector('.desktop-titlebar .onboarding-header-brand :is(img, svg)'),
       titleClipped:!!title && title.scrollWidth > title.clientWidth + 1,
       outside:controls.some(control => { const r = control.getBoundingClientRect(); return r.width && (r.left < 0 || r.right > innerWidth || r.top < 38); }),
@@ -188,12 +187,7 @@ async function validateChrome(context, theme, column, width) {
     };
   })()`);
   assert.equal(page.headerMark, false, `${context}: the Header names the product in words alone`);
-  if (column === PROJECT_COLUMN) {
-    assert.equal(page.mark, null, `${context}: with projects, the page carries no mark either`);
-  } else {
-    assert.equal(page.mark, theme === "light" ? "puppy-lite.svg" : "puppy-dark.svg", `${context}: the product's mark for this place`);
-    assert.equal(page.markFilter, theme === "light" ? "none" : "grayscale(1) brightness(0.7)", `${context}: the mark's treatment`);
-  }
+  assert.equal(page.mark, null, `${context}: the page carries no mark; the Header names the product`);
   assert.ok(!page.titleClipped, `${context}: the title is not cut`);
   assert.ok(!page.outside && !page.sideways, `${context}: controls stay onscreen`);
   assert.equal(page.brand.width, column, `${context}: the column keeps its width`);
@@ -222,7 +216,7 @@ async function validateFirstRun(theme, width, height) {
       title:document.querySelector('.onboarding-brand-name').textContent };
   })()`);
   assert.equal(page.reduced, true, `${context}: visual smoke skips the full intro animation`);
-  assert.equal(page.title, "What your Agents make is yours to keep", `${context}: the first-run title`);
+  assert.equal(page.title, "What your Agents make\nis yours to keep", `${context}: the first-run title`);
   assert.equal(page.label, "New project", context);
   assert.equal(page.primaryBorder, "0px", `${context}: no rule around the create action`);
   assert.equal(page.primaryFill, "rgba(0, 0, 0, 0)", `${context}: first run has no surface`);

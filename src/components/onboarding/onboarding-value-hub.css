@@ -218,11 +218,11 @@
   justify-items: center;
   gap: 5px;
   /* The mark, not the mark with its name, sits on the circle. */
-  transform: translate(-50%, -20px);
+  transform: translate(-50%, calc(var(--onboarding-hub-mark, 40px) / -2));
 }
 
 .onboarding-value-agent.is-above {
-  transform: translate(-50%, calc(-100% + 20px));
+  transform: translate(-50%, calc(-100% + var(--onboarding-hub-mark, 40px) / 2));
 }
 
 .onboarding-value-agent.is-above .onboarding-value-agent-name {
@@ -231,8 +231,8 @@
 
 .onboarding-value-agent-mark {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: var(--onboarding-hub-mark, 40px);
+  height: var(--onboarding-hub-mark, 40px);
   place-items: center;
   border-radius: 50%;
   background: var(--po-panel-raised, var(--po-canvas));
@@ -240,8 +240,8 @@
 }
 
 .onboarding-value-agent-mark :is(img, svg) {
-  width: 22px;
-  height: 22px;
+  width: calc(var(--onboarding-hub-mark, 40px) * 0.52);
+  height: calc(var(--onboarding-hub-mark, 40px) * 0.52);
   color: var(--po-text);
   object-fit: contain;
 }

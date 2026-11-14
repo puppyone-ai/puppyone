@@ -181,10 +181,10 @@ describe("Homepage project layouts", () => {
     expect(brand.querySelector("img, svg")).toBeNull();
   });
 
-  it("names nothing in the Header until there are projects, when the page greets you itself", () => {
+  it("names the product in the Header on first run too, while the page tells its story", () => {
     const { container } = renderHome({ projectItems: [] });
-    expect(container.querySelector(".desktop-titlebar .onboarding-header-brand")).toBeNull();
-    expect(container.querySelector(".onboarding-brand-lockup img")).not.toBeNull();
+    expect(container.querySelector(".desktop-titlebar .onboarding-header-brand")?.textContent).toBe("puppyone");
+    expect(container.querySelector(".onboarding-brand-lockup img")).toBeNull();
   });
 
   it("puts New in words and the other ways to start behind an arrow, without an icon", () => {

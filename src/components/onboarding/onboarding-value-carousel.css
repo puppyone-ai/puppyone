@@ -363,39 +363,39 @@
 
 /* The moment plays only while it is open, and each step ends where the picture rests. */
 .is-active .onboarding-scene-edit .onboarding-scene-selection {
-  animation: onboarding-scene-select 2.9s ease both;
+  animation: onboarding-scene-select 2.3s ease both;
 }
 
 .is-active .onboarding-scene-edit .onboarding-scene-selection b.is-picked {
-  animation: onboarding-scene-picked 2.9s ease both;
+  animation: onboarding-scene-picked 2.3s ease both;
 }
 
 .is-active .onboarding-scene-edit .onboarding-scene-selection b.is-done {
-  animation: onboarding-scene-appear 0.3s ease 2.6s backwards;
+  animation: onboarding-scene-appear 0.3s ease 2s backwards;
 }
 
 .is-active .onboarding-scene-prompt {
-  animation: onboarding-scene-rise 0.45s ease 0.9s backwards;
+  animation: onboarding-scene-rise 0.45s ease 0.6s backwards;
 }
 
 .is-active .onboarding-scene-bars {
-  animation: onboarding-scene-bars-out 2.6s ease both;
+  animation: onboarding-scene-bars-out 2s ease both;
 }
 
 .is-active .onboarding-scene-redrawn :is(.onboarding-scene-area) {
-  animation: onboarding-scene-appear 0.6s ease 2.3s backwards;
+  animation: onboarding-scene-appear 0.6s ease 1.7s backwards;
 }
 
 .is-active .onboarding-scene-redrawn .onboarding-scene-line {
-  animation: onboarding-scene-draw 0.9s ease 2s backwards;
+  animation: onboarding-scene-draw 0.9s ease 1.4s backwards;
 }
 
 .is-active .onboarding-scene-card > i.is-flash {
-  animation: onboarding-scene-flash 1s ease 3.4s both;
+  animation: onboarding-scene-flash 1s ease 2.6s both;
 }
 
 .is-active .onboarding-scene-grid-pick {
-  animation: onboarding-scene-flash-box 1s ease 3.8s both;
+  animation: onboarding-scene-flash-box 1s ease 3s both;
 }
 
 @keyframes onboarding-scene-select {
@@ -439,10 +439,10 @@
 
 /* ---------- forward: hand the code to an Agent ---------- */
 .onboarding-scene-forward .onboarding-scene-card.is-dashboard {
-  top: 78px;
-  left: 2px;
-  width: 214px;
-  height: 236px;
+  top: 88px;
+  left: 14px;
+  width: 206px;
+  height: 222px;
   gap: 5px;
   padding: 12px;
 }
@@ -511,15 +511,15 @@
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--po-text-muted);
   font-size: 9px;
   line-height: 12px;
 }
 
 .onboarding-scene-qr {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   padding: 2px;
   border: 1px solid var(--po-border);
   border-radius: 5px;
@@ -545,30 +545,30 @@
 
 .onboarding-scene-phone {
   position: absolute;
-  top: 12px;
-  left: 240px;
+  top: 42px;
+  left: 236px;
   display: flex;
   box-sizing: border-box;
-  width: 142px;
-  height: 340px;
+  width: 136px;
+  height: 296px;
   flex-direction: column;
   gap: 6px;
-  padding: 26px 8px 10px;
+  padding: 22px 8px 10px;
   overflow: hidden;
-  border: 5px solid color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
-  border-radius: 24px;
+  border: 1.5px solid var(--po-border-strong, var(--po-border));
+  border-radius: 22px;
   background: var(--po-panel-raised, var(--po-canvas));
   box-shadow: 0 18px 36px -20px var(--po-shadow);
 }
 
 .onboarding-scene-phone::before {
   position: absolute;
-  top: 7px;
+  top: 8px;
   left: 50%;
-  width: 40px;
-  height: 9px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
+  width: 30px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--po-border-strong, var(--po-border));
   content: "";
   transform: translateX(-50%);
 }
