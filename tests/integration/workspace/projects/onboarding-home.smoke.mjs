@@ -285,7 +285,7 @@ async function validateValueHub(context, width, height) {
       sideways:document.documentElement.scrollWidth > innerWidth, chrome:document.querySelector('.desktop-titlebar').getBoundingClientRect().bottom };
   })()`);
   assert.equal(page.hidden, "true", `${context}: the picture is decoration`);
-  assert.equal(page.agents, 8, `${context}: the Agents around the files`);
+  assert.equal(page.agents, 7, `${context}: an odd number of Agents around the files`);
   assert.ok(page.hub.right <= page.launcher.x - 24, `${context}: the picture stands beside the column`);
   assert.ok(Math.abs(page.hub.y + page.hub.height / 2 - (page.launcher.y + page.launcher.height / 2)) < 40, `${context}: picture and column share a middle`);
   assert.ok(page.parts.every((part) => part.x >= 0 && part.right <= width && part.y >= page.chrome && part.bottom <= height), `${context}: every name stays onscreen`);

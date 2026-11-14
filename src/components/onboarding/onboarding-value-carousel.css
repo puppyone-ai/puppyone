@@ -506,25 +506,38 @@
   white-space: nowrap;
 }
 
-.onboarding-scene-send {
+/* The dashboard's own link, and beside it the code that is only another way to send it. */
+.onboarding-scene-share {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
   margin-top: 6px;
-  color: var(--po-text-muted);
+}
+
+.onboarding-scene-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-accent) 12%, transparent);
+  color: var(--po-accent-text, var(--po-accent));
   font-size: 9px;
-  line-height: 12px;
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 11px;
+  white-space: nowrap;
 }
 
 .onboarding-scene-qr {
-  width: 34px;
-  height: 34px;
+  width: 22px;
+  height: 22px;
   padding: 2px;
   border: 1px solid var(--po-border);
-  border-radius: 5px;
+  border-radius: 4px;
   background: #fff;
   fill: #111;
+  opacity: 0.8;
 }
 
 .onboarding-scene-wire {
@@ -545,12 +558,12 @@
 
 .onboarding-scene-phone {
   position: absolute;
-  top: 42px;
+  top: 66px;
   left: 236px;
   display: flex;
   box-sizing: border-box;
   width: 136px;
-  height: 296px;
+  height: 252px;
   flex-direction: column;
   gap: 6px;
   padding: 22px 8px 10px;
@@ -605,20 +618,57 @@
   color: var(--po-canvas);
 }
 
-.onboarding-scene-message.is-image {
-  display: grid;
-  justify-items: center;
-  gap: 3px;
+/* The link arrives as a preview of the file itself, so the Agent is plainly handed it. */
+.onboarding-scene-message.is-link {
+  display: flex;
+  max-width: 96%;
+  align-items: center;
+  gap: 6px;
   padding: 5px;
   border: 1px solid var(--po-border);
   background: var(--po-panel-raised, var(--po-canvas));
-  color: var(--po-accent-text, var(--po-accent));
+  color: var(--po-text);
 }
 
-.onboarding-scene-message.is-image .onboarding-scene-qr {
-  width: 44px;
-  height: 44px;
-  border: 0;
+.onboarding-scene-link-thumb {
+  display: flex;
+  box-sizing: border-box;
+  width: 28px;
+  height: 24px;
+  flex: none;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--po-text) 6%, transparent);
+}
+
+.onboarding-scene-link-thumb i {
+  flex: 1;
+  border-radius: 1px;
+  background: var(--onboarding-scene-chart);
+}
+
+.onboarding-scene-link-thumb i:nth-child(1) { height: 40%; opacity: 0.55; }
+.onboarding-scene-link-thumb i:nth-child(2) { height: 65%; opacity: 0.75; }
+.onboarding-scene-link-thumb i:nth-child(3) { height: 90%; }
+
+.onboarding-scene-link-text {
+  display: grid;
+  min-width: 0;
+}
+
+.onboarding-scene-link-text b {
+  overflow: hidden;
+  font-size: 8.5px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-scene-link-text code {
+  color: var(--po-accent-text, var(--po-accent));
 }
 
 .onboarding-scene-message code {

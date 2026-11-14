@@ -59,9 +59,11 @@ describe("project folder home", () => {
     expect(carousel?.nextElementSibling?.classList.contains("onboarding-launcher")).toBe(true);
     expect(carousel!.querySelector(".onboarding-value-stage")?.getAttribute("aria-hidden")).toBe("true");
     const hub = carousel!.querySelector(".onboarding-value-slide.is-active .onboarding-value-hub")!;
-    expect([...hub.querySelectorAll(".onboarding-value-file > b")].map((tag) => tag.textContent))
-      .toEqual(["Folder", "MD", "CSV", "HTML"]);
-    expect(hub.querySelectorAll(".onboarding-value-agent")).toHaveLength(8);
+    // One pile, back to front: the folder last, the page itself first.
+    expect([...hub.querySelectorAll(".onboarding-value-card > b")].map((tag) => tag.textContent))
+      .toEqual(["Folder", "CSV", "MD", "HTML"]);
+    // An odd number of Agents, so the ring never reads as a symmetric diagram.
+    expect(hub.querySelectorAll(".onboarding-value-agent")).toHaveLength(7);
     expect(hub.querySelector(".onboarding-value-hub-label")?.textContent).toBe("Your project");
   });
 
@@ -74,12 +76,12 @@ describe("project folder home", () => {
       current: [...container.querySelectorAll(".onboarding-value-dot")].map((dot) => dot.getAttribute("aria-current")),
     });
     const dots = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-value-dot")];
-    expect(dots.map((dot) => dot.getAttribute("aria-label"))).toEqual(["Your assets", "Circle to edit", "Send to an Agent"]);
+    expect(dots.map((dot) => dot.getAttribute("aria-label"))).toEqual(["Your assets", "Circle to edit", "Hand to an Agent"]);
     expect(moment()).toEqual({ picture: "assets", title: "What your Agents make\nis yours to keep",
       hidden: [null, "true", "true"], current: ["true", null, null] });
 
     act(() => dots[2]!.click());
-    expect(moment()).toEqual({ picture: "forward", title: "Send the QR code\nto any Agent",
+    expect(moment()).toEqual({ picture: "forward", title: "Hand the link to an Agent\nand it takes over",
       hidden: ["true", "true", null], current: [null, null, "true"] });
 
     // The open dot's fill ending is what moves the story on, and the last moment leads back to the first.

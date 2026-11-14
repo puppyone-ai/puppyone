@@ -165,9 +165,8 @@
    illustrates the words, it does not compete with them. */
 .onboarding-home-value {
   /* The picture and its gap step down with the window rather than leave it. */
-  --onboarding-hub-size: 300px;
-  --onboarding-hub-scale: 0.79;
-  --onboarding-hub-mark: 36px;
+  --onboarding-hub-size: 270px;
+  --onboarding-hub-scale: 0.71;
   display: flex;
   width: 100%;
   min-width: 0;
@@ -178,8 +177,8 @@
 
 @media (max-width: 1039px) {
   .onboarding-home-value {
-    --onboarding-hub-size: 280px;
-    --onboarding-hub-scale: 0.74;
+    --onboarding-hub-size: 250px;
+    --onboarding-hub-scale: 0.66;
     gap: 48px;
   }
 }
@@ -191,9 +190,8 @@
   }
 
   .onboarding-home-value {
-    --onboarding-hub-size: 240px;
-    --onboarding-hub-scale: 0.63;
-    --onboarding-hub-mark: 32px;
+    --onboarding-hub-size: 220px;
+    --onboarding-hub-scale: 0.58;
     gap: 32px;
   }
 }

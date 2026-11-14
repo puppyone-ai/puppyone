@@ -1,35 +1,39 @@
-/* First-run picture: the person's files in the middle, the Agents they use around
-   them. An illustration in the theme's own surfaces and file accents, so it follows
-   every theme and colour mode without art of its own. */
+/* First-run picture: the person's files in one pile in the middle, the Agents they
+   use drifting around them. Drawn in the theme's own surfaces and file accents, so it
+   follows every theme and colour mode without art of its own. */
 .onboarding-value-hub {
   position: relative;
   flex: 0 0 auto;
   width: var(--onboarding-hub-size);
   height: var(--onboarding-hub-size);
-  margin-block-end: 12px;
   user-select: none;
 }
 
-.onboarding-value-hub-lines {
+/* Two loose orbits instead of spokes: the Agents are around the files, not wired to them. */
+.onboarding-value-hub-orbits {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
+  animation: onboarding-value-hub-turn 120s linear infinite;
 }
 
-.onboarding-value-hub-lines line {
-  stroke: color-mix(in srgb, var(--po-accent) 38%, var(--po-border));
-  stroke-width: 1.25;
-  stroke-dasharray: 3 6;
+.onboarding-value-hub-orbits circle {
+  fill: none;
+  stroke: color-mix(in srgb, var(--po-accent) 28%, var(--po-border));
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
   stroke-linecap: round;
-  /* Each line runs from an Agent to the files, so the dashes travel inward. */
-  animation: onboarding-value-hub-flow 1.6s linear infinite;
 }
 
-@keyframes onboarding-value-hub-flow {
+.onboarding-value-hub-orbits circle + circle {
+  stroke: color-mix(in srgb, var(--po-accent) 16%, var(--po-border));
+}
+
+@keyframes onboarding-value-hub-turn {
   to {
-    stroke-dashoffset: -9;
+    transform: rotate(360deg);
   }
 }
 
@@ -39,16 +43,8 @@
   left: 50%;
   display: grid;
   justify-items: center;
-  gap: 18px;
+  gap: 12px;
   transform: translate(-50%, -50%);
-}
-
-.onboarding-value-hub-label,
-.onboarding-value-agent-name {
-  /* Names sit on the page's own ground, over the lines that run past them. */
-  padding-inline: 4px;
-  border-radius: 4px;
-  background: var(--po-canvas);
 }
 
 .onboarding-value-hub-label {
@@ -59,103 +55,100 @@
   white-space: nowrap;
 }
 
+/* ---------- the pile ---------- */
+/* Each file sits a step up and to the right of the one in front of it, so every kind
+   shows its name along the edge the next one leaves open. */
 .onboarding-value-files {
   position: relative;
-  /* The files shrink with the picture; the names around them keep their size. */
-  zoom: var(--onboarding-hub-scale, 1);
-  width: 188px;
-  height: 140px;
+  width: 142px;
+  height: 126px;
+  zoom: calc(var(--onboarding-hub-scale, 1) * 1.25);
 }
 
-.onboarding-value-file {
+.onboarding-value-card {
   --onboarding-file-accent: var(--po-file-accent-default);
   position: absolute;
   display: flex;
   box-sizing: border-box;
-  width: 92px;
-  height: 66px;
+  width: 100px;
+  height: 74px;
   flex-direction: column;
   gap: 5px;
-  padding: 9px;
+  padding: 20px 9px 9px;
   border: 1px solid var(--po-border);
-  border-radius: 8px;
+  border-radius: 7px;
   background: var(--po-panel-raised, var(--po-canvas));
-  box-shadow: 0 10px 22px -12px var(--po-shadow);
+  box-shadow: 0 8px 18px -12px var(--po-shadow);
 }
 
-.onboarding-value-file > i {
+.onboarding-value-card.is-folder { top: 9px; left: 42px; }
+.onboarding-value-card.is-sheet { top: 23px; left: 28px; --onboarding-file-accent: var(--po-file-accent-sheet); }
+.onboarding-value-card.is-markdown { top: 37px; left: 14px; --onboarding-file-accent: var(--po-file-accent-markdown); }
+
+.onboarding-value-card.is-html {
+  --onboarding-file-accent: var(--po-file-accent-html);
+  top: 51px;
+  left: 0;
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--po-accent) 9%, transparent),
+    0 12px 24px -12px var(--po-shadow);
+}
+
+.onboarding-value-card > b {
+  position: absolute;
+  top: 3px;
+  right: 6px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: var(--onboarding-file-accent);
+  color: var(--po-text-inverse);
+  font-family: var(--po-font-sans);
+  font-size: 7.5px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* The folder is the pile's last card, told apart by its tab and its ink. */
+.onboarding-value-card.is-folder {
+  border-start-start-radius: 0;
+  background: color-mix(in srgb, var(--po-text) 6%, var(--po-panel-raised, var(--po-canvas)));
+}
+
+.onboarding-value-card.is-folder::before {
+  position: absolute;
+  top: -9px;
+  left: -1px;
+  width: 36px;
+  height: 9px;
+  box-sizing: border-box;
+  border: 1px solid var(--po-border);
+  border-block-end: 0;
+  border-radius: 4px 6px 0 0;
+  background: inherit;
+  content: "";
+}
+
+.onboarding-value-card.is-folder > b {
+  background: color-mix(in srgb, var(--po-text) 55%, transparent);
+}
+
+.onboarding-value-card > i {
   display: block;
   height: 4px;
   border-radius: 2px;
   background: color-mix(in srgb, var(--po-text) 13%, transparent);
 }
 
-.onboarding-value-file > b {
-  position: absolute;
-  inset-inline-end: 6px;
-  inset-block-end: 6px;
-  padding: 2px 4px;
-  border-radius: 3px;
-  background: var(--onboarding-file-accent);
-  color: var(--po-text-inverse);
-  font-family: var(--po-font-sans);
-  font-size: 8px;
-  font-weight: var(--po-text-weight-semibold, 600);
-  line-height: 1;
-  letter-spacing: 0.04em;
+.onboarding-value-card > i.is-heading {
+  width: 60%;
+  height: 5px;
+  background: color-mix(in srgb, var(--po-text) 60%, transparent);
 }
 
-.onboarding-value-file.is-folder {
-  top: 6px;
-  left: 0;
-  border-start-start-radius: 0;
-  background: color-mix(in srgb, var(--po-text) 5%, var(--po-panel-raised, var(--po-canvas)));
-  transform: rotate(-6deg);
-}
-
-.onboarding-value-file.is-folder > b {
-  background: color-mix(in srgb, var(--po-text) 55%, transparent);
-}
-
-.onboarding-value-file > .onboarding-value-folder-tab {
-  position: absolute;
-  top: -9px;
-  left: -1px;
-  width: 38px;
-  height: 9px;
-  box-sizing: border-box;
-  border: 1px solid var(--po-border);
-  border-block-end: 0;
-  border-radius: 4px 4px 0 0;
-  background: inherit;
-}
-
-.onboarding-value-file.is-markdown {
-  --onboarding-file-accent: var(--po-file-accent-markdown);
-  top: 0;
-  left: 94px;
-  transform: rotate(5deg);
-}
-
-.onboarding-value-file.is-markdown > i:not(.is-heading) {
-  width: 88%;
-}
-
-.onboarding-value-file > i.is-heading {
-  width: 58%;
-  height: 6px;
-  background: color-mix(in srgb, var(--po-text) 70%, transparent);
-}
-
-.onboarding-value-file.is-markdown > i.is-short {
-  width: 46%;
-}
-
-.onboarding-value-file.is-sheet {
-  --onboarding-file-accent: var(--po-file-accent-sheet);
-  top: 72px;
-  left: 4px;
-  transform: rotate(3deg);
+.onboarding-value-card > i.is-short {
+  width: 55%;
 }
 
 .onboarding-value-sheet {
@@ -166,38 +159,27 @@
 
 .onboarding-value-sheet i {
   display: block;
-  height: 8px;
+  height: 7px;
   border-radius: 1px;
-  background: color-mix(in srgb, var(--onboarding-file-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--onboarding-file-accent) 14%, transparent);
 }
 
 .onboarding-value-sheet i:nth-child(-n + 3) {
-  background: color-mix(in srgb, var(--onboarding-file-accent) 38%, transparent);
+  background: color-mix(in srgb, var(--onboarding-file-accent) 40%, transparent);
 }
 
-.onboarding-value-file.is-html {
-  --onboarding-file-accent: var(--po-file-accent-html);
-  top: 72px;
-  left: 92px;
-  transform: rotate(-3deg);
-  box-shadow:
-    0 0 0 7px color-mix(in srgb, var(--po-accent) 10%, transparent),
-    0 0 0 16px color-mix(in srgb, var(--po-accent) 5%, transparent),
-    0 12px 24px -10px var(--po-shadow);
-}
-
-.onboarding-value-file > i.is-banner {
-  height: 12px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--onboarding-file-accent) 80%, var(--po-text));
+.onboarding-value-card > i.is-banner {
+  height: 8px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--onboarding-file-accent) 75%, var(--po-text));
 }
 
 .onboarding-value-bars {
   display: flex;
-  height: 26px;
+  height: 24px;
   align-items: flex-end;
-  gap: 6px;
-  padding-inline: 4px 30px;
+  gap: 5px;
+  padding-inline: 2px 30px;
 }
 
 .onboarding-value-bars i {
@@ -211,50 +193,37 @@
 .onboarding-value-bars i:nth-child(2) { height: 70%; opacity: 0.75; }
 .onboarding-value-bars i:nth-child(3) { height: 95%; }
 
+/* ---------- the Agents ---------- */
+/* Marks alone, each its own size, each drifting on its own beat. */
 .onboarding-value-agent {
+  --onboarding-agent-side: calc(var(--onboarding-hub-size) * var(--onboarding-agent-size, 12) / 100);
   position: absolute;
   display: grid;
-  width: 88px;
-  justify-items: center;
-  gap: 5px;
-  /* The mark, not the mark with its name, sits on the circle. */
-  transform: translate(-50%, calc(var(--onboarding-hub-mark, 40px) / -2));
-}
-
-.onboarding-value-agent.is-above {
-  transform: translate(-50%, calc(-100% + var(--onboarding-hub-mark, 40px) / 2));
-}
-
-.onboarding-value-agent.is-above .onboarding-value-agent-name {
-  order: -1;
-}
-
-.onboarding-value-agent-mark {
-  display: grid;
-  width: var(--onboarding-hub-mark, 40px);
-  height: var(--onboarding-hub-mark, 40px);
+  width: var(--onboarding-agent-side);
+  height: var(--onboarding-agent-side);
   place-items: center;
   border-radius: 50%;
   background: var(--po-panel-raised, var(--po-canvas));
   box-shadow: 0 0 0 1px var(--po-border), 0 6px 14px -8px var(--po-shadow);
+  transform: translate(-50%, -50%);
+  animation: onboarding-value-agent-drift 6s ease-in-out var(--onboarding-agent-drift, 0s) infinite alternate;
 }
 
-.onboarding-value-agent-mark :is(img, svg) {
-  width: calc(var(--onboarding-hub-mark, 40px) * 0.52);
-  height: calc(var(--onboarding-hub-mark, 40px) * 0.52);
+.onboarding-value-agent :is(img, svg) {
+  width: 52%;
+  height: 52%;
   color: var(--po-text);
   object-fit: contain;
 }
 
-.onboarding-value-agent-name {
-  color: var(--po-text-muted);
-  font-size: var(--po-text-size-caption, 11px);
-  line-height: 14px;
-  white-space: nowrap;
+@keyframes onboarding-value-agent-drift {
+  from { translate: 0 -2px; }
+  to { translate: 0 3px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .onboarding-value-hub-lines line {
+  .onboarding-value-hub-orbits,
+  .onboarding-value-agent {
     animation: none;
   }
 }

@@ -1,5 +1,6 @@
 import { AgentBrandImage, AgentMonochromeBrandImage } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
+import { Link2 } from "lucide-react";
 import type { CSSProperties } from "react";
 
 /** A step that appears this long after its scene does. */
@@ -34,7 +35,8 @@ function MonthlyLine({ className }: { className: string }) {
 
 /**
  * A QR code's look, not a code: three finder squares and a fixed scatter, so the
- * picture never invites a scan that leads nowhere.
+ * picture never invites a scan that leads nowhere. It stands beside the link as
+ * one more way to hand it over.
  */
 function QrMark({ className }: { className: string }) {
   const size = 21;
@@ -94,26 +96,32 @@ export function OnboardingValueEditScene() {
   );
 }
 
-/** Third scene: the dashboard's code goes to ChatGPT, which sees it, reads it, and edits it where it lives. */
+/**
+ * Third scene: the dashboard's own link goes to ChatGPT, which takes it over and
+ * edits it where it lives. The code beside the link is only another way to send it.
+ */
 export function OnboardingValueForwardScene() {
   const { t } = useLocalization();
   const name = t("onboarding.value.scene.dashboard");
   return (
     <div className="onboarding-scene onboarding-scene-forward">
       <svg className="onboarding-scene-wire" viewBox="0 0 380 380">
-        <path d="M 214 284 C 230 282, 228 230, 236 206" pathLength={1} />
+        <path d="M 196 286 C 226 284, 222 220, 236 196" pathLength={1} />
       </svg>
       <span className="onboarding-scene-card is-dashboard">
         <DashboardHead />
         <span className="onboarding-scene-chart">
           <MonthlyLine className="onboarding-scene-settled" />
-          <span className="onboarding-scene-peak" style={after(3.5)}>{t("onboarding.value.scene.peak")}</span>
-          <span className="onboarding-scene-changed" style={after(3.5)}>
+          <span className="onboarding-scene-peak" style={after(3.2)}>{t("onboarding.value.scene.peak")}</span>
+          <span className="onboarding-scene-changed" style={after(3.2)}>
             <b>{t("onboarding.value.scene.changedBy", { agent: "ChatGPT" })}</b>
           </span>
         </span>
-        <span className="onboarding-scene-send">
-          {t("onboarding.value.scene.send")}
+        <span className="onboarding-scene-share">
+          <span className="onboarding-scene-link">
+            <Link2 size={11} strokeWidth={2} aria-hidden="true" />
+            <span>{t("onboarding.value.scene.send")}</span>
+          </span>
           <QrMark className="onboarding-scene-qr" />
         </span>
       </span>
@@ -121,14 +129,16 @@ export function OnboardingValueForwardScene() {
         <span className="onboarding-scene-phone-app">
           <AgentMonochromeBrandImage brandId="chatgpt" />ChatGPT
         </span>
-        <span className="onboarding-scene-message is-mine is-image" style={after(0.3)}>
-          <QrMark className="onboarding-scene-qr" />
-          <code>puppyone.ai/…</code>
+        <span className="onboarding-scene-message is-mine is-link" style={after(0.3)}>
+          <span className="onboarding-scene-link-thumb"><i /><i /><i /></span>
+          <span className="onboarding-scene-link-text">
+            <b>{name}</b>
+            <code>puppyone.ai/…</code>
+          </span>
         </span>
-        <span className="onboarding-scene-message" style={after(1)}>{t("onboarding.value.scene.seen", { name })}</span>
-        <span className="onboarding-scene-message" style={after(1.7)}>{t("onboarding.value.scene.read")}</span>
-        <span className="onboarding-scene-message is-mine" style={after(2.4)}>{t("onboarding.value.scene.ask")}</span>
-        <span className="onboarding-scene-message is-done" style={after(3.1)}>{t("onboarding.value.scene.saved")}</span>
+        <span className="onboarding-scene-message" style={after(1.1)}>{t("onboarding.value.scene.opened", { name })}</span>
+        <span className="onboarding-scene-message is-mine" style={after(2)}>{t("onboarding.value.scene.ask")}</span>
+        <span className="onboarding-scene-message is-done" style={after(2.8)}>{t("onboarding.value.scene.saved")}</span>
       </span>
     </div>
   );
