@@ -36,14 +36,14 @@ use std::{
     rc::Rc,
 };
 
-/// `.cm-md-math-inline-widget { padding-inline: 0.08em }`.
-const INLINE_IMAGE_PAD: f32 = 0.08;
-
 /// Room a leaf keeps for a drawn inline image, and the image.
 pub struct Room {
     pub range: Range<usize>,
     pub text: SharedString,
     pub image: crate::render_service::Rendered,
+    /// Space kept on each side of the image.
+    pub pad: f32,
+    pub radius: f32,
 }
 
 pub struct RenderCx<'a> {
@@ -580,17 +580,16 @@ impl RenderCx<'_> {
         }
     }
 
-    /// The inline images fully inside `source` that are drawn, each with
-    /// the room the leaf keeps for it: its width and `padding-inline:
-    /// 0.08em` on both sides, in spaces of the line's font. Drawn on the
-    /// line's background (over the editor's).
+    /// The inline images fully inside `source` that are ready, each with
+    /// the room the leaf keeps for it: its width and its padding on both
+    /// sides, in spaces of the line's font.
     fn ready_images(
         &mut self,
         source: &Range<usize>,
         style: &TextStyle,
         background: Option<Rgba>,
+        width: f32,
     ) -> Vec<Room> {
-        use crate::render_service::{self, State};
         let d = self.decorations;
         let first = d
             .inline_images
@@ -603,19 +602,16 @@ impl RenderCx<'_> {
             .collect();
         let mut rooms = Vec::new();
         for image in found {
-            let mut request = image.request.clone();
-            if let Some(line) = background
-                && let Some(editor) = crate::editor::tokens::parse_color(&request.background)
+            if let Some(drawn) = (image.draw)(background, width, style.size, self.window, self.app)
             {
-                request.background = render_service::hex(crate::editor::tokens::over(line, editor));
-            }
-            if let State::Ready(drawn) = render_service::get(&request, self.window, self.app) {
-                let pad = INLINE_IMAGE_PAD * style.size;
+                let pad = image.pad * style.size;
                 let text = self.room(drawn.width + 2. * pad, style);
                 rooms.push(Room {
                     range: image.range,
                     text,
                     image: drawn,
+                    pad,
+                    radius: image.radius,
                 });
             }
         }
@@ -703,9 +699,9 @@ impl RenderCx<'_> {
         let row = baseline::chromium_line_height(self.scale, style.line_height_px());
         let line_baseline =
             baseline::chromium_baseline(self.scale, style, self.primary_metrics(style), 0.);
-        let pad = INLINE_IMAGE_PAD * style.size;
         let mut out = Vec::new();
         for room in &self.rooms {
+            let pad = room.pad;
             let index = leaf.to_display(room.range.start - leaf.source.start, false);
             let Some(at) = shaped.position_for_index(index, px(row)) else {
                 continue;
@@ -718,6 +714,7 @@ impl RenderCx<'_> {
                     .top(px(y + f32::from(at.y) + line_baseline - image.baseline))
                     .w(px(image.width))
                     .h(px(image.height))
+                    .rounded(px(room.radius))
                     .into_any_element(),
             );
         }
@@ -876,7 +873,8 @@ impl RenderCx<'_> {
     ) -> (AnyElement, f32) {
         let (p, b) = (style.padding, style.border);
         let x = b.left + p.left;
-        self.rooms = self.ready_images(&source, &style.text, style.background);
+        let column = (width - x - p.right - b.right).max(0.);
+        self.rooms = self.ready_images(&source, &style.text, style.background, column);
         let (lift, drop) = self.shifted_growth(&source, &style.text);
         let (image_lift, image_drop) = self.image_growth(&style.text);
         let (lift, drop) = (lift.max(image_lift), drop.max(image_drop));

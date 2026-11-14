@@ -107,6 +107,7 @@ impl<'a> Builder<'a> {
                 style: &mut style,
                 hidden: &mut self.hidden,
                 replaced: &mut self.replaced,
+                inline_images: &mut self.inline_images,
             };
             for feature in cx.features {
                 feature.decorate_line(&mut decoration);
@@ -138,6 +139,8 @@ pub struct LineDecoration<'b> {
     /// Source the line hides, and source it shows as other text.
     pub hidden: &'b mut Vec<Range<usize>>,
     pub replaced: &'b mut Vec<(Range<usize>, SharedString)>,
+    /// Replaced source drawn as an image in the text (a picture beside text).
+    pub inline_images: &'b mut Vec<crate::editor::view::decoration::InlineImage>,
 }
 
 /// A feature decorating its block (around its widget).

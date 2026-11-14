@@ -110,13 +110,28 @@ pub struct Decorations {
     pub surface: Surface,
 }
 
-/// A replaced range drawn as an image in the text flow, on its line's
-/// baseline, once the render service has it.
-#[derive(Clone, Debug, PartialEq)]
+/// A replaced range drawn as an image in the text flow once it is ready
+/// (an inline formula, a picture beside text).
+#[derive(Clone)]
 pub struct InlineImage {
     pub range: Range<usize>,
-    pub request: crate::render_service::Request,
+    /// Inline padding on each side, in ems of the line's font.
+    pub pad: f32,
+    /// Corner radius of the drawn image.
+    pub radius: f32,
+    pub draw: DrawInline,
 }
+/// The image for a line: its background (a formula is drawn on it), the
+/// line's width and font size. `None` while it is not ready.
+pub type DrawInline = std::rc::Rc<
+    dyn Fn(
+        Option<gpui::Rgba>,
+        f32,
+        f32,
+        &mut gpui::Window,
+        &mut gpui::App,
+    ) -> Option<crate::render_service::Rendered>,
+>;
 
 /// Text set as `<sup>` or `<sub>`: at its own size and colour, its baseline
 /// shifted (`vertical-align: super` / `sub`). One shaped run has one size,

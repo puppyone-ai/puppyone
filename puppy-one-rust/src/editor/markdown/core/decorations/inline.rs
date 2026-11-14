@@ -208,19 +208,34 @@ impl Builder<'_> {
             .and_then(|s| s.strip_suffix('$'))
             .unwrap_or(source);
         let t = crate::editor::tokens::Tokens::get(self.cx.theme.dark, self.cx.theme.scale);
+        let editor = t.color("--po-editor-bg");
+        let request = Request {
+            kind: Kind::Math {
+                display: false,
+                color: hex(t.color("--po-md-content-color")),
+                font_size: t.len("--po-md-math-inline-font-size", 15.),
+            },
+            source: tex.to_owned(),
+            background: hex(editor),
+            scale: 1.,
+        };
         self.inline_images
             .push(crate::editor::view::decoration::InlineImage {
                 range,
-                request: Request {
-                    kind: Kind::Math {
-                        display: false,
-                        color: hex(t.color("--po-md-content-color")),
-                        font_size: t.len("--po-md-math-inline-font-size", 15.),
-                    },
-                    source: tex.to_owned(),
-                    background: hex(t.color("--po-editor-bg")),
-                    scale: 1.,
-                },
+                // `.cm-md-math-inline-widget { padding-inline: 0.08em }`.
+                pad: 0.08,
+                radius: 0.,
+                draw: std::rc::Rc::new(move |line, _, _, window, cx| {
+                    let mut request = request.clone();
+                    // On the line's own background (snapshots are opaque).
+                    if let Some(line) = line {
+                        request.background = hex(crate::editor::tokens::over(line, editor));
+                    }
+                    match crate::render_service::get(&request, window, cx) {
+                        crate::render_service::State::Ready(drawn) => Some(drawn),
+                        _ => None,
+                    }
+                }),
             });
     }
 

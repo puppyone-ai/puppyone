@@ -4,8 +4,9 @@
 //! alone on its line is a block (`is-block`: natural size within the
 //! column); otherwise each sits inline (at most 320px tall). `alt|300` or
 //! `alt|300x200` (an embed's alias) sets the size. A double click reveals
-//! the source; a linked image follows its link. Images beside text stay
-//! source: one shaped text run has no room for a picture.
+//! the source; a linked image follows its link. An image beside text sits
+//! in the text (`vertical-align: middle`, at most 320px tall), its alt text
+//! standing in until it decodes or when it cannot load.
 pub mod cache;
 mod embed;
 pub mod source;
@@ -21,9 +22,11 @@ use crate::editor::{
         selection::Selection,
         state::{EditorState, Transaction},
     },
-    view::{command::Command, style::Embed},
+    view::{command::Command, decoration::InlineImage, style::Embed},
 };
+use crate::render_service::Rendered;
 use embed::{ImageEmbed, Item};
+use gpui::SharedString;
 use std::{
     hash::{Hash, Hasher},
     ops::Range,
@@ -120,8 +123,54 @@ fn item(cx: &LineDecoration, e: &Element, document: &Path) -> Option<Item> {
         key: source.as_ref().map(|s| s.key(cx.assets)),
         source,
         link,
+        image: image_el.range.clone(),
     })
 }
+
+/// `.cm-md-image-widget` in a line with text: each image drawn where its
+/// source is, its alt text (or source) standing in until it decodes.
+fn inline(cx: &mut LineDecoration, items: Vec<Item>) {
+    let radius = cx.theme.block.radius;
+    for item in items {
+        let (Some(key), Some(source)) = (item.key, item.source) else {
+            continue;
+        };
+        if cx.preview.reveal.as_ref() == Some(&item.image) {
+            continue;
+        }
+        let assets = cx.assets.cloned();
+        let size = item.size;
+        cx.replaced
+            .push((item.image.clone(), SharedString::from(item.label)));
+        cx.inline_images.push(InlineImage {
+            range: item.image,
+            pad: 0.,
+            radius,
+            draw: Rc::new(move |_, column, font, _, app| {
+                let cache::State::Ready {
+                    image,
+                    width,
+                    height,
+                } = cache::get(&key, &source, assets.as_ref(), app)
+                else {
+                    return None;
+                };
+                let (width, height) = embed::fit(size, false, (width, height), column);
+                Some(Rendered {
+                    image,
+                    width,
+                    height,
+                    // `vertical-align: middle`: the middle at half the
+                    // x-height above the baseline.
+                    baseline: height / 2. + X_HEIGHT / 2. * font,
+                })
+            }),
+        });
+    }
+}
+
+/// The x-height of the body face, in ems.
+const X_HEIGHT: f32 = 0.5;
 
 impl MarkdownFeature for ImageFeature {
     fn id(&self) -> &'static str {
@@ -162,6 +211,8 @@ impl MarkdownFeature for ImageFeature {
         // Outermost elements of the content, in order.
         let mut items = Vec::new();
         let mut at = start;
+        // Text beside the images (or a link that is not one).
+        let mut mixed = false;
         let mut candidates: Vec<&Element> = cx
             .syntax
             .elements_in(start..range.end)
@@ -177,15 +228,21 @@ impl MarkdownFeature for ImageFeature {
                 continue;
             }
             if !cx.doc.slice(at..e.range.start).trim().is_empty() {
-                return;
+                mixed = true;
             }
+            // A link that is not an image is text, its images still found.
             let Some(item) = item(cx, e, &document) else {
-                return;
+                mixed = true;
+                continue;
             };
             at = e.range.end;
             items.push(item);
         }
-        if items.is_empty() || !cx.doc.slice(at..range.end).trim().is_empty() {
+        if items.is_empty() {
+            return;
+        }
+        if mixed || !cx.doc.slice(at..range.end).trim().is_empty() {
+            inline(cx, items);
             return;
         }
         // `getImageDisplayModeOnLine`: alone on the raw line, unlinked.

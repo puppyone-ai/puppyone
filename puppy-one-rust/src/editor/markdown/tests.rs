@@ -246,9 +246,16 @@ fn an_image_line_shows_its_images_and_reveals_on_request(cx: &mut TestAppContext
                 .collect::<Vec<_>>()
         })
     };
-    // Images (and a linked one) fill the first line; beside text they stay source.
+    // Images (and a linked one) fill the first line; one beside text sits
+    // in the text, its alt text standing in until it decodes.
     assert_eq!(embeds(&view, cx), vec![true, false, false]);
     assert!(hidden(&view, cx).contains(&(0..41)));
+    view.update(cx, |v, _| {
+        let d = v.decorations();
+        let images: Vec<_> = d.inline_images.iter().map(|i| i.range.clone()).collect();
+        assert_eq!(images, vec![50..61]);
+        assert!(d.replaced.iter().any(|(r, s)| *r == (50..61) && s == "c"));
+    });
     view.update_in(cx, |v, w, cx| {
         v.run_command(
             &Command::new(
