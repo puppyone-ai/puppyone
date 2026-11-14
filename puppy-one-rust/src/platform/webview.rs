@@ -100,8 +100,8 @@ pub struct Content {
     /// served from a folder at `__assets__/{prefix}/…`.
     pub disk_assets: Option<DiskAssets>,
     /// The page may not leave its entry document (an HTML page that uses
-    /// its folder runs offline): every other navigation is refused, not
-    /// even handed to the browser.
+    /// its folder runs offline) or the origins `frames` allows: every other
+    /// navigation is refused, not even handed to the browser.
     pub locked: bool,
 }
 /// A folder of trusted app resources: `prefix` names it under `__assets__/`;

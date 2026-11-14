@@ -161,12 +161,14 @@ impl WebHost {
             .with_drag_drop_handler(|_| true)
             .with_navigation_handler(move |url| {
                 // A locked page stays its entry document (its fragments
-                // only move within it).
+                // only move within it) or its frames' origins, and hands
+                // nothing to the browser.
                 if locked {
                     let entry = entry_url();
                     return url == entry
                         || url.strip_prefix(&entry).is_some_and(|r| r.starts_with('#'))
-                        || url == "about:blank";
+                        || url == "about:blank"
+                        || frames.as_ref().is_some_and(|frames| frames.allows(&url));
                 }
                 // `about:srcdoc` is inline content the page already holds
                 // (the HTML visual editor's sandboxed projection frame).

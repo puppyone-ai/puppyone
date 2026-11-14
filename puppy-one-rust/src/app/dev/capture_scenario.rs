@@ -62,6 +62,8 @@ enum Step {
     ExplorerDrag(f32),
     /// A wheel scroll of this many pixels down over the editor's middle.
     Scroll(f32),
+    /// A left click at a window point.
+    Click(f32, f32),
     Command(crate::app::Command),
     /// `wait:<ms>`: let asynchronous content (a web page) settle.
     Wait(u64),
@@ -146,6 +148,10 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home" => Step::Command(crate::app::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
                 "scroll" => Step::Scroll(arg.trim().parse().ok()?),
+                "click" => {
+                    let (x, y) = arg.split_once(',')?;
+                    Step::Click(x.trim().parse().ok()?, y.trim().parse().ok()?)
+                }
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
                 "plan-fixture" => Step::PlanFixture(arg.to_string()),
@@ -381,6 +387,28 @@ impl Shell {
                         delta: ScrollDelta::Pixels(point(px(0.), px(-*by))),
                         modifiers: Modifiers::default(),
                         touch_phase: TouchPhase::Moved,
+                    }),
+                    cx,
+                );
+            }
+            Step::Click(x, y) => {
+                let position = point(px(*x), px(*y));
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        button: MouseButton::Left,
+                        position,
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    cx,
+                );
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        button: MouseButton::Left,
+                        position,
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
                     }),
                     cx,
                 );
