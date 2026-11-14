@@ -55,9 +55,17 @@ impl Builder<'_> {
                     self.hide(e.range.start..content.start, SourceSyntax::WikiLink, reveal);
                     self.hide(content.end..e.range.end, SourceSyntax::WikiLink, reveal);
                     let href = Some(SharedString::from(token.target.clone()));
+                    let resolved = (!token.target.starts_with('#'))
+                        .then(|| cx.references.map(|r| r.resolve(&token.target)))
+                        .flatten();
+                    let mut classes = Class::SYNTAX_LINK | Class::WIKI_LINK_LABEL;
+                    if resolved.as_ref().is_some_and(|r| !r.exists) {
+                        classes |= Class::IS_MISSING;
+                    }
+                    self.link_state(content.clone(), resolved.as_ref());
                     self.spans.push(ClassSpan {
                         range: content,
-                        classes: Class::SYNTAX_LINK | Class::WIKI_LINK_LABEL,
+                        classes,
                         href,
                     });
                 }
@@ -83,6 +91,12 @@ impl Builder<'_> {
                     if is_external(&href) {
                         classes |= Class::IS_EXTERNAL;
                     }
+                    // `cm-md-document-link-label`: a link to a workspace file.
+                    let resolved = cx.references.and_then(|r| r.markdown(&href));
+                    if resolved.as_ref().is_some_and(|r| !r.exists) {
+                        classes |= Class::IS_MISSING;
+                    }
+                    self.link_state(content.clone(), resolved.as_ref());
                     let href = SharedString::from(href);
                     for marker in [e.range.start..content.start, content.end..e.range.end] {
                         if reveal {
@@ -197,6 +211,33 @@ impl Builder<'_> {
 }
 
 impl Builder<'_> {
+    /// `.is-missing` (dotted) and `.is-ambiguous` (dashed) under a link
+    /// label whose workspace target is missing or names several files.
+    fn link_state(
+        &mut self,
+        label: Range<usize>,
+        resolved: Option<&crate::editor::navigation::Resolution>,
+    ) {
+        use crate::editor::view::decoration::Underline;
+        let Some(resolved) = resolved else { return };
+        let inline = &self.cx.theme.inline;
+        let size = self.cx.theme.body.text.size;
+        let (color, dash, gap) = if !resolved.exists {
+            (inline.missing_underline, 1., 2.)
+        } else if resolved.ambiguous {
+            (inline.ambiguous_underline, 3., 2.)
+        } else {
+            return;
+        };
+        self.underlines.push(Underline {
+            range: label,
+            color,
+            dash,
+            gap,
+            size,
+        });
+    }
+
     /// An inline formula (`$…$`) to be typeset by KaTeX
     /// (`.cm-md-math-inline-widget .katex`), in the content colour at the
     /// inline math size.

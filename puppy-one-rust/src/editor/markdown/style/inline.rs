@@ -26,6 +26,12 @@ pub struct InlineStyle {
     /// `.cm-md-syntax-highlight`: `color-mix(in srgb, var(--po-accent) 32%,
     /// transparent)`.
     pub highlight_background: Rgba,
+    /// `.is-missing`: a dotted underline, `color-mix(in srgb,
+    /// var(--po-accent) 46%, transparent)`.
+    pub missing_underline: Rgba,
+    /// `.is-ambiguous`: a dashed underline, `color-mix(in srgb,
+    /// currentColor 62%, transparent)` (the link colour).
+    pub ambiguous_underline: Rgba,
 }
 
 impl InlineStyle {
@@ -49,6 +55,20 @@ impl InlineStyle {
                 Rgba {
                     a: accent.a * 0.32,
                     ..accent
+                }
+            },
+            missing_underline: {
+                let accent = t.color("--po-accent");
+                Rgba {
+                    a: accent.a * 0.46,
+                    ..accent
+                }
+            },
+            ambiguous_underline: {
+                let link = t.color("--po-md-link-color");
+                Rgba {
+                    a: link.a * 0.62,
+                    ..link
                 }
             },
         }

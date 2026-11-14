@@ -99,6 +99,7 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
         let marks = b.marks();
         return Decorations {
             inline_images: Vec::new(),
+            underlines: Vec::new(),
             blocks: b.blocks,
             marks,
             hidden: Vec::new(),
@@ -189,8 +190,16 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
     let mut inline_images = std::mem::take(&mut b.inline_images);
     inline_images.retain(|i| replaced.iter().any(|(r, _)| *r == i.range));
     inline_images.sort_by_key(|i| i.range.start);
+    let mut underlines = std::mem::take(&mut b.underlines);
+    underlines.retain(|u| {
+        !hidden
+            .iter()
+            .any(|h| h.start <= u.range.start && u.range.end <= h.end)
+    });
+    underlines.sort_by_key(|u| u.range.start);
     Decorations {
         inline_images,
+        underlines,
         blocks: b.blocks,
         marks,
         atomic,

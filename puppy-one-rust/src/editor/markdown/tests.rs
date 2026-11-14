@@ -319,3 +319,42 @@ fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppCon
         assert_eq!(v.state().selection, Selection::range(0, v.text().len()));
     });
 }
+
+#[gpui::test]
+fn missing_and_ambiguous_link_targets_are_underlined(cx: &mut TestAppContext) {
+    use crate::editor::navigation::{Document, ReferenceContext, ReferenceIndex};
+    let text = "[[here]] [[gone]] [[dup]] [x](gone.md)\n\nend";
+    let doc = |path: &str| Document {
+        path: path.into(),
+        name: path.rsplit('/').next().unwrap().into(),
+    };
+    let index = ReferenceIndex::new(vec![
+        doc("note.md"),
+        doc("here.md"),
+        doc("a/dup.md"),
+        doc("b/dup.md"),
+    ]);
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        if let Some(md) = v.extension_mut::<MarkdownExtension>() {
+            md.references = Some(ReferenceContext {
+                source: "note.md".into(),
+                index: std::sync::Arc::new(index),
+            });
+        }
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.update(cx, |v, _| {
+        let lines: Vec<_> = v
+            .decorations()
+            .underlines
+            .iter()
+            .map(|u| (u.range.clone(), u.dash))
+            .collect();
+        // `gone` (dotted) twice, `dup` (dashed); `here` resolves.
+        assert_eq!(lines, vec![(11..15, 1.), (20..23, 3.), (27..28, 1.)]);
+    });
+}

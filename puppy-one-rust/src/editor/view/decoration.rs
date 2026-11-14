@@ -107,7 +107,22 @@ pub struct Decorations {
     /// Replaced source drawn by the render service once it is ready (an
     /// inline formula): its replacement shows until then (sorted by start).
     pub inline_images: Vec<InlineImage>,
+    /// Dotted or dashed lines under text, which Kit marks cannot draw
+    /// (sorted by start).
+    pub underlines: Vec<Underline>,
     pub surface: Surface,
+}
+
+/// `text-decoration` in a dotted or dashed style: 1px segments `dash` long,
+/// `gap` apart, `text-underline-offset: 2px` under the baseline of text
+/// `size` tall.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Underline {
+    pub range: Range<usize>,
+    pub color: Rgba,
+    pub dash: f32,
+    pub gap: f32,
+    pub size: f32,
 }
 
 /// A replaced range drawn as an image in the text flow once it is ready
