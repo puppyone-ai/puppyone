@@ -175,6 +175,108 @@ impl WebHost {
     }
     /// Runs trusted host script in the entry document (a message to the
     /// page's own receiver; never document content).
+    /// A host that never paints (the render service's page) laid out at
+    /// `width` × `height` logical pixels; it stays hidden.
+    #[cfg(target_os = "macos")]
+    pub fn resize_hidden(&self, width: f32, height: f32) {
+        let _ = self.state.view.set_bounds(wry::Rect {
+            position: wry::dpi::LogicalPosition::new(0., 0.).into(),
+            size: wry::dpi::LogicalSize::new(width.max(1.), height.max(1.)).into(),
+        });
+    }
+    /// `takeSnapshotWithConfiguration`: the page's `rect` (logical pixels)
+    /// drawn `width` logical pixels wide at the window's backing scale, as
+    /// PNG. WebKit draws a hidden view's snapshot as well, after its next
+    /// layout. `done` runs on the main thread.
+    #[cfg(target_os = "macos")]
+    pub fn snapshot(
+        &self,
+        rect: (f32, f32, f32, f32),
+        width: f32,
+        done: impl FnOnce(Option<Vec<u8>>) + 'static,
+    ) {
+        use objc2::{class, msg_send, runtime::AnyObject};
+        use wry::WebViewExtMacOS;
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        struct Rect {
+            x: f64,
+            y: f64,
+            width: f64,
+            height: f64,
+        }
+        // SAFETY: CGRect's layout and Objective-C encoding.
+        unsafe impl objc2::Encode for Rect {
+            const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
+                "CGRect",
+                &[
+                    objc2::Encoding::Struct("CGPoint", &[f64::ENCODING, f64::ENCODING]),
+                    objc2::Encoding::Struct("CGSize", &[f64::ENCODING, f64::ENCODING]),
+                ],
+            );
+        }
+        let done = RefCell::new(Some(done));
+        let handler = block2::RcBlock::new(move |image: *mut AnyObject, _error: *mut AnyObject| {
+            // SAFETY: WebKit hands back an NSImage (or nil) on the main
+            // thread; every object is used only inside this call.
+            let png = unsafe {
+                (!image.is_null())
+                    .then(|| {
+                        let tiff: *mut AnyObject = msg_send![image, TIFFRepresentation];
+                        let rep: *mut AnyObject =
+                            msg_send![class!(NSBitmapImageRep), imageRepWithData: tiff];
+                        if rep.is_null() {
+                            return None;
+                        }
+                        let properties: *mut AnyObject =
+                            msg_send![class!(NSDictionary), dictionary];
+                        // NSBitmapImageFileTypePNG
+                        let data: *mut AnyObject =
+                            msg_send![rep, representationUsingType: 4usize, properties: properties];
+                        if data.is_null() {
+                            return None;
+                        }
+                        let length: usize = msg_send![data, length];
+                        let bytes: *const u8 = msg_send![data, bytes];
+                        Some(std::slice::from_raw_parts(bytes, length).to_vec())
+                    })
+                    .flatten()
+            };
+            if let Some(done) = done.borrow_mut().take() {
+                done(png);
+            }
+        });
+        let view = self.state.view.webview();
+        let view: *const AnyObject = objc2::rc::Retained::as_ptr(&view).cast();
+        let (x, y, w, h) = rect;
+        // SAFETY: a live WKWebView and a fresh configuration on the main thread.
+        unsafe {
+            let configuration: *mut AnyObject = msg_send![class!(WKSnapshotConfiguration), new];
+            let _: () = msg_send![configuration, setRect: Rect {
+                x: x as f64,
+                y: y as f64,
+                width: w as f64,
+                height: h as f64,
+            }];
+            let number: *mut AnyObject =
+                msg_send![class!(NSNumber), numberWithDouble: width as f64];
+            let _: () = msg_send![configuration, setSnapshotWidth: number];
+            let _: () = msg_send![configuration, setAfterScreenUpdates: true];
+            let _: () = msg_send![view, takeSnapshotWithConfiguration: configuration, completionHandler: &*handler];
+            let _: () = msg_send![configuration, release];
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    pub fn resize_hidden(&self, _width: f32, _height: f32) {}
+    #[cfg(not(target_os = "macos"))]
+    pub fn snapshot(
+        &self,
+        _rect: (f32, f32, f32, f32),
+        _width: f32,
+        done: impl FnOnce(Option<Vec<u8>>) + 'static,
+    ) {
+        done(None);
+    }
     pub fn evaluate(&self, script: &str) {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         let _ = self.state.view.evaluate_script(script);

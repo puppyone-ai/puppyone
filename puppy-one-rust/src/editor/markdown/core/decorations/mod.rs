@@ -112,6 +112,7 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
         syntax: cx.syntax,
         theme: cx.theme,
         assets: cx.assets,
+        diagrams: &cx.preview.diagrams,
     };
     let mut line = 0;
     while line < count {

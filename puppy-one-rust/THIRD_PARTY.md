@@ -92,6 +92,18 @@ each file's digest) in `Resources/excalidraw/fonts`. The SDK license ships as
 notices as `EXCALIDRAW_FONT_NOTICES.txt` (`licenses/excalidraw/`, copied
 from the product). It runs only in the whiteboard's WebView.
 
+## Diagram and formula render page
+
+`assets/web/render-service.{js,css}` is the page the native render service
+(`src/render_service`) draws Markdown diagrams and formulas in: the product's
+Mermaid host settings and SVG sanitizer with Mermaid 11.17.0 (MIT), and KaTeX
+0.16.47 (MIT) with its WOFF2 fonts inlined in the stylesheet, bundled against
+the product checkout by `tools/import-render-service.mjs` (receipt in
+`assets/web/render-service.json`). Both licenses ship as
+`MERMAID_LICENSE.txt` and `KATEX_LICENSE.txt` (`licenses/render-service/`,
+copied from the pinned npm packages). The page runs hidden, offline and
+locked to its own document; only its snapshots reach the window.
+
 ## Terminal custom glyphs
 
 `assets/terminal-glyphs.json` holds xterm.js's custom glyph definitions

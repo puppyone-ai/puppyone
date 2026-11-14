@@ -86,6 +86,8 @@ def assemble(app, binary, info, environment=None, resources=None):
     for source, destination in [
         (ROOT / 'licenses/excalidraw/LICENSE', 'EXCALIDRAW_LICENSE.txt'),
         (ROOT / 'licenses/excalidraw/FONT-NOTICES.txt', 'EXCALIDRAW_FONT_NOTICES.txt'),
+        (ROOT / 'licenses/render-service/MERMAID_LICENSE.txt', 'MERMAID_LICENSE.txt'),
+        (ROOT / 'licenses/render-service/KATEX_LICENSE.txt', 'KATEX_LICENSE.txt'),
         (ROOT / 'README.md', 'README.md'),
         (ROOT / 'THIRD_PARTY.md', 'THIRD_PARTY.md'),
         (ROOT.parent / 'LICENSE', 'LICENSE'),

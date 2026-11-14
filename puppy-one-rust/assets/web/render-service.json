@@ -1,0 +1,34 @@
+{
+  "sourceCommit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
+  "entry": "tools/render-service-entry.ts",
+  "entryHash": "58e6c1ae88bc108148e37587a392f6c22e5575a035f91dcf35e7eca27a135183",
+  "packages": {
+    "mermaid": "11.17.0",
+    "katex": "0.16.47"
+  },
+  "outputs": {
+    "render-service.js": "d64e8072d2ee3520d1926e48a0630847533dc26d6e2f801080c4b83d880f2e89",
+    "render-service.css": "e548b99a5348ad7e7e9b68c6a474d28864fcfe875f7823a96050387b53c7eec7"
+  },
+  "sourceHashes": {
+    "src/shared-ui/core/dataResourcePath.ts": "78ab58a2a0f53f92ea6d5d46439fefac4be5cbd701cc6381d9b6e9798aab36b0",
+    "src/shared-ui/core/resourcePath.ts": "d25dc64fe07471bd736bb98f5798929d530b74222813e5fb9a8c587f2de7d118",
+    "src/shared-ui/core/resourceUri.ts": "168b6997c30e39a348d7c8540fb2fdf88fe8e6b43aff491ff221121f99fe43e4",
+    "src/shared-ui/core/typography.ts": "644b78f15d7ab45892af54a9c87df10c776804dca5dfd861b7aaee0d10899725",
+    "src/shared-ui/editor/document-session/ResourceOperationQueue.ts": "cab89d7346bac7c4eab0fa45be258b8b8ca39113661dceff78ba4e3675be3991",
+    "src/shared-ui/editor/document-session/documentIdentity.ts": "2dd548e309de949022cf5f16c3825e52ea85d1dc55bde0376129e9ee85e483cd",
+    "src/shared-ui/editor/markdown/features/html/htmlBlockStructure.ts": "18b68129eb52bc77d88d836b0eb7cdecfd2a5a8ff978a2af89123c547a6c70fc",
+    "src/shared-ui/editor/markdown/features/html/htmlTagTokenizer.ts": "d1385ed8f6fd01a116591a39ca085a082fd9f9741a7990a02c94436e9ca4ccdb",
+    "src/shared-ui/editor/markdown/features/html/inlineHtmlDomAdapter.ts": "8061be358aa790d2968e1b2c146ad14c5e6ba79802db7570cc1a642d45e3bafe",
+    "src/shared-ui/editor/markdown/features/html/inlineHtmlPolicy.ts": "8cc53b83420eb644a09049029c3cf576b3ac4b03c403d335bd80f6914fd5f5ed",
+    "src/shared-ui/editor/markdown/features/mermaid/mermaidRenderService.ts": "c9df37f1c77cdf4d6db5b2e5be009a7744551770b649c712ae44ff67839e1b2b",
+    "src/shared-ui/editor/markdown/features/mermaid/mermaidRenderer.ts": "8865384bc841b1a57c1b35f9c99f5ffcf3f07c0c34ac373ab3006cd1a0653939",
+    "src/shared-ui/editor/markdown/platform/policy/markdownHtmlProfiles.ts": "f5746343430cfcfe706ce02cf0bf5b4ef65ddca7876c63f53aeffb6f1d74c9d5",
+    "src/shared-ui/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy.ts": "fa2794c54d19c69fd8fe7d062d1a0bc22885857f4ecd03a0a4d5bef38b026920",
+    "src/shared-ui/editor/markdown/platform/policy/markdownUrlPolicy.ts": "1abdce5b27ac1651a6af4e06f954a950a41b1cb417becc1b937525181c4b99fd",
+    "src/shared-ui/editor/runtime/EditorHostLeases.ts": "5caffff397cbd5caff9267b5ad52228e51e0a3928feb98bd8160afc6708be7bd",
+    "src/shared-ui/editor/runtime/editorRuntimeAdmission.ts": "88bae89003ca0acbbd3ac2d8f8d5b91b9ffbe46290e216489a71fa0dda38d3fd",
+    "src/shared-ui/performance/rendererPerformance.ts": "87a540e4bc0a4c610103426246956ceed9e35b50344aaebae93b6fea1c0141fd",
+    "src/styles/typography/foundations.css": "5a02ef0503ff34b6d20334f0048c0cb5e18f91381dde86a7ff812c27f89a1282"
+  }
+}

@@ -41,7 +41,7 @@ uuid = { version = "1", features = ["v4"] }
 wry = "=0.57.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-block2 = { version = "=0.6.2", optional = true }
+block2 = "=0.6.2"
 objc2 = "=0.6.4"
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
@@ -56,6 +56,6 @@ gpui-kit = { version = "=0.8.0", features = ["test-support"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 
 [features]
-dev-capture = ["gpui-kit/test-support", "dep:block2", "po-platform/dev-capture", "po-workspace/dev-capture", "po-ui/dev-capture"]
+dev-capture = ["gpui-kit/test-support", "po-platform/dev-capture", "po-workspace/dev-capture", "po-ui/dev-capture"]
 # The window's tests reach into the editors.
 test-support = ["po-ui/test-support", "po-workspace/test-support"]

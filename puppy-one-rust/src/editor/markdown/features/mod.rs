@@ -9,6 +9,7 @@ pub mod front_matter;
 pub mod html;
 pub mod image;
 pub mod math;
+pub mod mermaid;
 pub mod rule;
 pub mod table;
 pub mod task;

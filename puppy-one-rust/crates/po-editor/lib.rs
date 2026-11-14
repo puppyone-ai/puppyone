@@ -9,6 +9,8 @@ mod bench;
 pub mod documents;
 #[path = "../../src/editor/mod.rs"]
 pub mod editor;
+#[path = "../../src/render_service/mod.rs"]
+pub mod render_service;
 #[path = "../../src/web_host.rs"]
 pub mod web_host;
 

@@ -108,8 +108,10 @@ def main():
     if stamped.returncode != 0 or json.loads(stamped.stdout or '{}').get('version') != release['version']:
         raise SystemExit(f'{binary} is not stamped as {release["version"]}; build it with this script')
 
-    if app.exists():
-        shutil.rmtree(app)
+    # The channel's folder holds this build's artifacts only.
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
     info = identity.info_plist(release, bundle.document_types(), bundle.cli_declaration())
     bundle.assemble(app, binary, info, resources={
         'desktop-cloud.json': json.dumps(cloud).encode(),

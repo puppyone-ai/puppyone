@@ -40,6 +40,8 @@ pub struct WidgetFactoryCx<'a> {
     pub theme: &'a MarkdownTheme,
     /// Where the document's media resolve and load from.
     pub assets: Option<&'a crate::editor::registry::DocumentAssets>,
+    /// The pane's diagram zoom and deferred renders.
+    pub diagrams: &'a super::state::DiagramViews,
 }
 
 /// What a command sees.
