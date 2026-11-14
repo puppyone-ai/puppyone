@@ -27,7 +27,12 @@ impl WorkbenchLauncher {
             return;
         }
         let discovery = self.history_discovery(cx);
-        match self.chats.history_browser(&root, discovery, window, cx) {
+        // `CloudAgentHistory` in Cloud, the project's Agent History here.
+        let browser = match self.hosted.history_browser(window, cx) {
+            Some(browser) => Ok(browser),
+            None => self.chats.history_browser(&root, discovery, window, cx),
+        };
+        match browser {
             Ok(browser) => self.install_history(tab, browser, window, cx),
             Err(error) => {
                 self.launch_errors.insert(group, error);
@@ -81,7 +86,7 @@ impl WorkbenchLauncher {
                 };
                 if let Some(group) = workbench.read(cx).group_of(tab) {
                     workbench.update(cx, |w, cx| w.clear_creation_failure(cx));
-                    if self.chats.is_hosted() {
+                    if self.hosted.is_open() {
                         self.open_hosted_history_target(group, tab, target.id.clone(), window, cx);
                     } else {
                         self.restore_history_target(group, tab, target.clone(), window, cx);
@@ -226,7 +231,7 @@ impl WorkbenchLauncher {
         let Some(root) = workbench.read(cx).root().cloned() else {
             return;
         };
-        let session = self.chats.hosted_session(&session_id);
+        let session = self.hosted.session(&session_id);
         match self.hosted_chat(&root, tab, session, window, cx) {
             Ok(item) => {
                 self.history.remove(&tab);

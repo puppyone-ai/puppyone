@@ -3,21 +3,20 @@
 //! policy comes from the chat view model of the controller's snapshot; this
 //! view only owns presentation memory (disclosures, pickers, scroll).
 //!
-//! A hosted chat (`CloudAgentConversation`) renders through the same view
-//! from its `CloudAgentController`; it has no Agent-service controller, so an
-//! inert one keeps the local-only controls harmless.
+//! The panel composes the shared chat views (transcript, docks, composer,
+//! empty state, notices); the hosted Agent's conversation composes the same
+//! views in `features/cloud`.
 mod compute;
 pub mod elements;
 #[cfg(feature = "dev-capture")]
 mod fixture;
-mod hosted;
 mod ingestion;
 mod routing;
 mod status;
+mod view_model;
 
 use super::agent_chat_view_model::{
-    AgentChatRuntime, AgentChatViewModel, AgentChatViewOptions, derive_agent_chat_runtime,
-    derive_agent_chat_view_model,
+    AgentChatRuntime, AgentChatViewModel, derive_agent_chat_runtime,
 };
 use super::composer::{ComposerEvent, ComposerInput, ComposerView, can_submit};
 use super::docks::{DockEvent, DocksInput, DocksView};
@@ -31,13 +30,13 @@ use crate::features::desktop_agent::application::agent_controller_state::{
 };
 use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
 use crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId;
-use crate::features::desktop_agent::infrastructure::cloud::CloudAgentController;
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
 use std::rc::Rc;
 
 pub use routing::AgentRouting;
+pub use view_model::default_chat_view_model;
 
 actions!(agent_panel, [SubmitPrompt]);
 
@@ -80,8 +79,6 @@ impl EventEmitter<AgentChatPanelEvent> for AgentChatTabPanel {}
 /// `AgentChatTabPanel`.
 pub struct AgentChatTabPanel {
     controller: AgentSessionController,
-    /// The hosted conversation, for a hosted chat.
-    hosted: Option<Rc<CloudAgentController>>,
     /// `presented` / `commandTarget`.
     presented: bool,
     command_target: bool,
@@ -147,7 +144,6 @@ impl AgentChatTabPanel {
         .detach();
         let mut panel = Self::build(
             controller,
-            None,
             hidden_runtime_ids,
             Box::new(unsubscribe),
             window,
@@ -158,44 +154,8 @@ impl AgentChatTabPanel {
         panel
     }
 
-    /// `CloudAgentConversation` over `chat`, which wakes `changes`.
-    pub fn new_hosted(
-        chat: CloudAgentController,
-        changes: async_channel::Receiver<()>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        cx.spawn_in(window, async move |this, cx| {
-            while changes.recv().await.is_ok() {
-                if this
-                    .update_in(cx, |s, window, cx| s.on_state_change(window, cx))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        })
-        .detach();
-        let inert = AgentSessionController::new(
-            "",
-            Rc::new(|| None),
-            crate::features::desktop_agent::infrastructure::host::window_runtime::WindowUiRuntime::create(cx),
-        );
-        let mut panel = Self::build(
-            inert,
-            Some(Rc::new(chat)),
-            Vec::new(),
-            Box::new(|| {}),
-            window,
-            cx,
-        );
-        panel.on_state_change(window, cx);
-        panel
-    }
-
     fn build(
         controller: AgentSessionController,
-        hosted: Option<Rc<CloudAgentController>>,
         hidden_runtime_ids: Vec<String>,
         store: Box<dyn FnOnce()>,
         window: &mut Window,
@@ -238,7 +198,6 @@ impl AgentChatTabPanel {
         .detach();
         Self {
             controller,
-            hosted,
             presented: true,
             command_target: true,
             hidden_runtime_ids,
@@ -307,10 +266,7 @@ impl AgentChatTabPanel {
     }
 
     fn state(&self) -> AgentControllerState {
-        match self.hosted() {
-            Some(chat) => hosted::hosted_controller_state(&chat.snapshot()),
-            None => self.controller.get_snapshot(),
-        }
+        self.controller.get_snapshot()
     }
 
     fn runtime_view(&self, state: &AgentControllerState) -> AgentChatRuntime {
@@ -318,25 +274,18 @@ impl AgentChatTabPanel {
     }
 
     fn view_model(&self, state: &AgentControllerState) -> AgentChatViewModel {
-        let runtime = self.runtime_view(state);
-        let compute = self.compute_view(&runtime.runtime_models, state.selected_model.as_deref());
-        let preferences_ready =
-            routing::pending_preferences(state, &runtime.runtime_models, &self.routing).ready();
-        let mut view = derive_agent_chat_view_model(
+        view_model::chat_view_model(
             state,
-            runtime,
-            &AgentChatViewOptions {
+            &view_model::ChatPolicy {
+                hidden_runtime_ids: &self.hidden_runtime_ids,
                 presented: self.presented,
                 pending_connection_model: self.pending_connection_model.clone(),
-                compute_ready: compute.ready,
-                compute_access_required: compute.access_required.map(str::to_string),
-                preferences_ready,
+                compute: self.compute.as_ref(),
+                payments: self.payments,
+                compute_access_prompt: self.compute_access_prompt,
+                routing: &self.routing,
             },
-        );
-        if let Some(chat) = self.hosted() {
-            hosted::hosted_view(&mut view, &chat.snapshot());
-        }
-        view
+        )
     }
 
     /// The controller published a new snapshot.
@@ -344,16 +293,6 @@ impl AgentChatTabPanel {
         let state = self.state();
         let view = self.view_model(&state);
         self.sync_composer(&state, &view, window, cx);
-        if let Some(chat) = self.hosted.clone() {
-            let presentation = hosted::hosted_presentation(&chat.snapshot(), &chat.hub().history());
-            if self.last_presentation.as_ref() != Some(&presentation) {
-                self.last_presentation = Some(presentation.clone());
-                cx.emit(AgentChatPanelEvent::Presentation);
-            }
-            self.sync_views(&state, &view, cx);
-            cx.notify();
-            return;
-        }
         // `useAgentRoutingPreferences`: the command target initializes its
         // controller.
         if self.command_target && !state.initialized && state.phase == AgentControllerPhase::Idle {
@@ -409,10 +348,7 @@ impl AgentChatTabPanel {
         }
         self.compute_access_prompt = false;
         self.transcript.update(cx, |t, _| t.follow_latest());
-        match self.hosted() {
-            Some(chat) => chat.submit(state.draft.clone()),
-            None => drop(self.controller.submit(&state.draft)),
-        }
+        drop(self.controller.submit(&state.draft));
         cx.notify();
     }
 
@@ -455,18 +391,11 @@ impl AgentChatTabPanel {
     /// `AgentApprovalDock` / `AgentQuestionDock`: the person decided.
     fn dock_event(&mut self, event: &DockEvent, cx: &mut Context<Self>) {
         match event {
-            DockEvent::Approve {
-                request_id,
-                decision,
-            } => match self.hosted() {
-                // `controller.approve(approval.requestId, decision === "accept")`.
-                Some(chat) => chat.approve(request_id.clone(), *decision == "accept"),
-                None => {
-                    if let Some(decision) = ApprovalDecision::parse(decision) {
-                        drop(self.controller.resolve_approval(decision));
-                    }
+            DockEvent::Approve { decision, .. } => {
+                if let Some(decision) = ApprovalDecision::parse(decision) {
+                    drop(self.controller.resolve_approval(decision));
                 }
-            },
+            }
             DockEvent::Answer(resolution) => {
                 drop(self.controller.resolve_question(resolution.clone()))
             }
@@ -496,17 +425,11 @@ impl AgentChatTabPanel {
                 for id in removed {
                     self.controller.remove_reference(id);
                 }
-                match self.hosted() {
-                    Some(chat) => chat.set_draft(text.clone()),
-                    None => self.controller.set_draft_document(text, mentions),
-                }
+                self.controller.set_draft_document(text, mentions);
             }
             ComposerEvent::RemoveReference(id) => self.controller.remove_reference(id),
             ComposerEvent::Submit => self.submit(window, cx),
-            ComposerEvent::Stop => match self.hosted() {
-                Some(chat) => chat.stop(),
-                None => drop(self.controller.stop()),
-            },
+            ComposerEvent::Stop => drop(self.controller.stop()),
             ComposerEvent::Paste(pasted) => self.paste_files(pasted, cx),
             ComposerEvent::PickFiles => self.pick_external_files(window, cx),
             ComposerEvent::PickWorkspace => drop(self.controller.pick_workspace_references()),
@@ -569,11 +492,9 @@ impl Render for AgentChatTabPanel {
                     }
                 }),
             );
-        let hosted = self.hosted().map(|chat| chat.snapshot());
-        let status = view.show_status.then(|| match &hosted {
-            Some(chat) => self.render_hosted_status(chat, cx),
-            None => self.render_status(&state, &view, cx),
-        });
+        let status = view
+            .show_status
+            .then(|| self.render_status(&state, &view, cx));
         // `desktop-agent-conversation-region` and the empty-state overlay.
         let empty = view
             .show_ready_empty_state
@@ -584,9 +505,7 @@ impl Render for AgentChatTabPanel {
             .min_h_0()
             .child(self.transcript.clone())
             .children(empty);
-        // The hosted composer stays while its conversation loads.
-        let dock = (!view.startup_loading || hosted.is_some())
-            .then(|| self.render_dock(&state, &view, cx));
+        let dock = (!view.startup_loading).then(|| self.render_dock(&state, &view, cx));
         panel.children(status).child(conversation).children(dock)
     }
 }

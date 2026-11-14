@@ -248,7 +248,7 @@ impl WorkbenchLauncher {
             // Cloud reads the hosted Agent's own history (`CloudAgentHistory`).
             s.open_history(group, tab, window, cx)
         }));
-        let cloud = self.chats.is_hosted();
+        let cloud = self.hosted.is_open();
 
         let mut entries = v_flex().gap(px(1.)).child(external);
         // `discoveryPhase="ready"`: no local discovery in Cloud.

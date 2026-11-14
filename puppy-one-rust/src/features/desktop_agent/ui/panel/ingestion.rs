@@ -45,9 +45,6 @@ impl AgentChatTabPanel {
         pasted: &crate::ui::form_input::PastedFiles,
         cx: &mut Context<Self>,
     ) {
-        if self.hosted().is_some() {
-            return;
-        }
         let files: Vec<AgentFile> = pasted
             .images
             .iter()

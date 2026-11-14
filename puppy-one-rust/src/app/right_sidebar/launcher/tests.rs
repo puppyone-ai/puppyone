@@ -88,7 +88,7 @@ fn a_hosted_location_offers_its_agent_only(cx: &mut TestAppContext) {
         assert!(
             l.visible_installations()
                 .iter()
-                .all(|i| i.id != crate::features::desktop_agent::hosted_installation().id)
+                .all(|i| i.id != crate::features::cloud::hosted_installation().id)
         );
     });
 }

@@ -151,10 +151,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
     view.read_with(cx, |s, cx| {
         let offered = s.sidebar.read(cx).launcher.read(cx).visible_installations();
         assert_eq!(offered.len(), 1);
-        assert_eq!(
-            offered[0].label,
-            crate::features::desktop_agent::HOSTED_AGENT_LABEL
-        );
+        assert_eq!(offered[0].label, crate::features::cloud::HOSTED_AGENT_LABEL);
     });
     // Opening the Agent sidebar sends nothing.
     view.update_in(cx, |s, w, cx| s.command(Command::ToggleRightSidebar, w, cx));

@@ -1,10 +1,8 @@
-//! The Agent chat contribution's window state (`projectAgentControllers.ts`,
-//! `lazy.ts`'s preparation and `CloudAgentWorkbench`): this window's Agent
-//! bridge, each open project's controllers and History, the hosted target's
-//! Hubs, and the routing every open chat follows.
+//! The Agent chat contribution's window state (`projectAgentControllers.ts`
+//! and `lazy.ts`'s preparation): this window's Agent bridge, each open
+//! project's controllers and History, and the routing every open chat
+//! follows. The hosted Agent's chats are the Cloud feature's.
 use super::item::{AgentChatItem, Release};
-use crate::agent::connections::legacy_local_agent_inventory::Installation;
-use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::agent::host::agent_host::AgentHostHandle;
 use crate::features::desktop_agent::application::agent_client_port::AgentClientPort;
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
@@ -15,7 +13,6 @@ use crate::features::desktop_agent::application::ui_runtime::UiRuntime;
 use crate::features::desktop_agent::domain::agent_chat_history_target::{
     AuxiliaryWorkbenchHistoryTarget, parse_agent_chat_history_target,
 };
-use crate::features::desktop_agent::infrastructure::cloud::{self, CloudAgentController, Hub};
 use crate::features::desktop_agent::infrastructure::host::{
     agent_host_client::AgentHostClient, agent_host_global::agent_host,
     project_agent_client::create_project_agent_client_provider, window_runtime::WindowUiRuntime,
@@ -25,26 +22,11 @@ use crate::features::desktop_agent::ui::panel::{AgentChatTabPanel, AgentRouting}
 use crate::features::local_agents::hidden_agent_chat_runtime_ids;
 use crate::features::settings::AgentRoutingPreferences;
 use crate::features::settings::PreferencesStore;
-use crate::wake::Wake;
-use crate::workspace::cloud::agent::{AgentTarget, BrokerTransport, Client, Session};
 use futures_util::future::LocalBoxFuture;
 use gpui::{App, AppContext as _, Entity, WeakEntity, Window};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::Arc;
-
-/// `CLOUD_AGENT_LABEL`'s creation recipe: the only runtime a Cloud launcher
-/// offers (no local discovery, no terminal).
-pub fn hosted_installation() -> Installation {
-    Installation {
-        runtime: Runtime::PuppyOne,
-        id: cloud::INSTALLATION_ID,
-        label: cloud::LABEL.into(),
-        executable: PathBuf::new(),
-        chat: true,
-    }
-}
 
 /// This window's Agent bridge (the preload's `agent:*` API): its frames
 /// arrive on the window's executor, and closing the window releases its
@@ -116,10 +98,6 @@ pub struct AgentChats {
     preferences: Option<Entity<PreferencesStore>>,
     /// Every chat panel this window opened.
     panels: Vec<(PathBuf, WeakEntity<AgentChatTabPanel>)>,
-    /// The hosted location shown, and the Hubs of the targets seen (by
-    /// storage, account binding and workbench).
-    hosted: Option<Arc<Hub>>,
-    hubs: HashMap<String, Arc<Hub>>,
 }
 
 impl AgentChats {
@@ -134,8 +112,6 @@ impl AgentChats {
             payments: false,
             preferences: None,
             panels: Vec::new(),
-            hosted: None,
-            hubs: HashMap::new(),
         }
     }
 
@@ -373,98 +349,8 @@ impl AgentChats {
         )
     }
 
-    /// The hosted Project's Agent (`useCloudAgentWorkspace`): tabs persist
-    /// per API, account and target; one Hub per binding and workbench. The
-    /// Workbench location of its tabs.
-    pub fn open_hosted(
-        &mut self,
-        target: AgentTarget,
-        published: Box<dyn Fn() + Send + Sync>,
-    ) -> PathBuf {
-        let identity = format!(
-            "{}#{}#{}#{}",
-            target.storage, target.binding.instance, target.binding.epoch, target.workbench
-        );
-        let hub = self
-            .hubs
-            .entry(identity)
-            .or_insert_with(|| {
-                let transport = Arc::new(BrokerTransport {
-                    broker: target.broker.clone(),
-                    binding: target.binding.clone(),
-                    cancel: Default::default(),
-                    wait: crate::workspace::cloud::agent::BATCH_WAIT,
-                });
-                Hub::new(
-                    Client::new(transport, target.project.clone(), target.workbench.clone()),
-                    target.storage.clone(),
-                    cloud::storage_dir(),
-                    published,
-                )
-            })
-            .clone();
-        self.hosted = Some(hub);
-        PathBuf::from(format!(
-            "puppyone-cloud-agent-{}",
-            blake3::hash(target.storage.as_bytes()).to_hex()
-        ))
-    }
-
-    /// The hosted location over `hub`.
-    #[cfg(test)]
-    pub fn open_hosted_hub(&mut self, hub: Arc<Hub>) {
-        self.hosted = Some(hub);
-    }
-
-    /// A local project is shown.
-    pub fn close_hosted(&mut self) {
-        self.hosted = None;
-    }
-
-    /// Whether the hosted Agent is shown.
-    pub fn is_hosted(&self) -> bool {
-        self.hosted.is_some()
-    }
-
-    /// `CloudAgentWorkbench.prepare(id, session)`: a hosted chat of the
-    /// location `root` whose receipts persist under `key`; a History
-    /// `session` opens it.
-    pub fn hosted_chat(
-        &mut self,
-        root: &Path,
-        key: &str,
-        session: Option<Session>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Result<AgentChatItem, String> {
-        let hub = self
-            .hosted
-            .clone()
-            .ok_or_else(|| String::from("The hosted Agent is not open."))?;
-        let (wake, changes) = Wake::channel();
-        let chat = CloudAgentController::new(hub, key, session, wake)?;
-        let panel = cx.new(|cx| AgentChatTabPanel::new_hosted(chat, changes, window, cx));
-        self.track(root, &panel);
-        Ok(AgentChatItem::new(
-            panel,
-            Release::Hosted,
-            root.to_path_buf(),
-            self.preferences.clone(),
-        ))
-    }
-
-    /// The hosted History's conversation `id`.
-    pub fn hosted_session(&self, id: &str) -> Option<Session> {
-        self.hosted
-            .as_ref()?
-            .history()
-            .sessions
-            .into_iter()
-            .find(|s| s.id == id)
-    }
-
-    /// The chat contribution's `history.renderBrowser`: the hosted target's
-    /// locators (no discovery permission), or the project's Agent History.
+    /// The chat contribution's `history.renderBrowser`: the project's Agent
+    /// History, discovering only with the user's permission.
     pub fn history_browser(
         &mut self,
         root: &Path,
@@ -472,14 +358,9 @@ impl AgentChats {
         window: &mut Window,
         cx: &mut App,
     ) -> Result<Entity<HistoryBrowser>, String> {
-        let (source, enabled): (Rc<dyn ConversationHistorySource>, bool) = match &self.hosted {
-            Some(hub) => (Rc::new(cloud::HostedHistory(hub.clone())), true),
-            None => (
-                Rc::new(self.project_agents(root, cx)?.history.clone()),
-                discovery,
-            ),
-        };
-        Ok(cx.new(|cx| HistoryBrowser::new(source, enabled, window, cx)))
+        let source: Rc<dyn ConversationHistorySource> =
+            Rc::new(self.project_agents(root, cx)?.history.clone());
+        Ok(cx.new(|cx| HistoryBrowser::new(source, discovery, window, cx)))
     }
 
     /// Dev captures: every chat of `root` is prepared, or failed.

@@ -1216,7 +1216,7 @@ mod tests {
     fn a_hosted_chat_with_an_unconfirmed_submission_cannot_close(cx: &mut TestAppContext) {
         use crate::cloud::auth::Cancellation;
         use crate::cloud::auth::model::ApiRequest;
-        use crate::features::desktop_agent::Hub;
+        use crate::features::cloud::{CloudAgentConversation, HostedChats, Hub};
         use crate::workspace::cloud::agent::Client;
         use crate::workspace::cloud::agent::Error;
         use crate::workspace::cloud::agent::Event;
@@ -1271,13 +1271,13 @@ mod tests {
         );
         let (view, cx) = cx.add_window_view(Workbench::new);
         // The hosted contribution's chat, placed as its launcher would.
-        let mut chats = crate::features::desktop_agent::AgentChats::new(0);
-        chats.open_hosted_hub(hub);
+        let mut hosted = HostedChats::default();
+        hosted.open_hub(hub);
         view.update_in(cx, |s, w, cx| {
             let root = PathBuf::from(format!("cloud-test-{}", uuid::Uuid::new_v4()));
             s.attach(root.clone(), cx);
             s.project_mut().unwrap().loading = false;
-            let item = chats.hosted_chat(&root, "tab:0", None, w, cx).unwrap();
+            let item = hosted.chat(&root, "tab:0", None, w, cx).unwrap();
             s.place(0, None, Rc::new(item), cx);
         });
         let (tab, chat) = view.read_with(cx, |s, _| {
@@ -1288,7 +1288,7 @@ mod tests {
                 .find_map(|(id, c)| match c {
                     Content::Item { item, .. } => item
                         .view()
-                        .downcast::<crate::features::desktop_agent::AgentChatTabPanel>()
+                        .downcast::<CloudAgentConversation>()
                         .ok()
                         .map(|chat| (*id, chat)),
                     _ => None,
@@ -1306,16 +1306,20 @@ mod tests {
                 std::thread::sleep(std::time::Duration::from_millis(5));
             }
         };
-        let hosted = |cx: &App,
-                      f: &dyn Fn(
-            &crate::features::desktop_agent::CloudAgentController,
-        ) -> bool| { chat.read(cx).hosted().is_some_and(f) };
-        chat.update(cx, |c, _| c.hosted().unwrap().submit("hello".into()));
+        let hosted =
+            |cx: &App, f: &dyn Fn(&crate::features::cloud::CloudAgentController) -> bool| {
+                f(chat.read(cx).chat())
+            };
+        chat.update(cx, |c, _| c.chat().submit("hello".into()));
         settle(cx, "the lost receipt", &|cx| {
             hosted(cx, &|c| {
                 let state = c.snapshot();
                 state.error.is_some() && !state.submitting && !c.can_release()
             })
+        });
+        // The conversation draws its status, transcript and composer.
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
         });
         view.update(cx, |s, cx| {
             s.close(tab, false, cx);
@@ -1328,9 +1332,12 @@ mod tests {
         });
         // The retry confirms; the running tab now closes without asking.
         script.accept.store(true, Ordering::SeqCst);
-        chat.update(cx, |c, _| c.hosted().unwrap().retry());
+        chat.update(cx, |c, _| c.chat().retry());
         settle(cx, "the confirmation", &|cx| {
             hosted(cx, &|c| c.can_release())
+        });
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
         });
         view.update(cx, |s, cx| {
             s.close(tab, false, cx);

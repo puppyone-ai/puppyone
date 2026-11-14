@@ -2,8 +2,7 @@
 //! shared locators, adapted to the browser's state; never transcripts.
 use super::{Hub, LABEL};
 use crate::agent::contract::dto::{RuntimeDescriptor, SessionDiscovery, SessionMetadata};
-use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryState;
-use crate::features::desktop_agent::application::conversation_history_source::ConversationHistorySource;
+use crate::features::desktop_agent::{ConversationHistorySource, ConversationHistoryState};
 use crate::localization::t as tr;
 use crate::wake::Wake;
 use std::sync::Arc;

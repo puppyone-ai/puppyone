@@ -12,7 +12,8 @@ mod tests;
 mod view;
 
 use crate::agent::connections::legacy_local_agent_inventory::{self as agents, Installation};
-use crate::features::desktop_agent::{AgentChats, HistoryBrowser, hosted_installation};
+use crate::features::cloud::{HostedChats, hosted_installation};
+use crate::features::desktop_agent::{AgentChats, HistoryBrowser};
 use crate::features::local_agents::agent_chat_runtime_id;
 use crate::features::settings::{AgentRoutingPreferences, PreferencesStore};
 use crate::features::terminal::TerminalItem;
@@ -52,9 +53,11 @@ struct LauncherMenu {
 
 pub(crate) struct WorkbenchLauncher {
     workbench: WeakEntity<Workbench>,
-    /// The Agent chat contribution: this window's Agent bridge, the
-    /// projects' controllers and the hosted location.
+    /// The Agent chat contribution: this window's Agent bridge and the
+    /// projects' controllers.
     chats: AgentChats,
+    /// The hosted Agent's contribution: its Hubs and the location shown.
+    hosted: HostedChats,
     installations: Vec<Installation>,
     /// Local agent ids hidden in Settings → Local Agents.
     hidden_agents: Vec<String>,
@@ -117,6 +120,7 @@ impl WorkbenchLauncher {
         Self {
             workbench,
             chats: AgentChats::new(window.window_handle().window_id().as_u64()),
+            hosted: HostedChats::default(),
             installations: vec![],
             hidden_agents: vec![],
             scanning: true,
@@ -180,7 +184,7 @@ impl WorkbenchLauncher {
     }
     /// A local folder's workbench: this machine's Agents and terminals.
     pub fn show_local(&mut self, root: PathBuf, cx: &mut Context<Self>) {
-        self.chats.close_hosted();
+        self.hosted.close();
         self.show(root, cx);
     }
     /// The hosted Project's Agent (`useCloudAgentWorkspace`).
@@ -190,7 +194,7 @@ impl WorkbenchLauncher {
         cx: &mut Context<Self>,
     ) {
         let (flag, wake) = (self.cloud_published.clone(), self.wake.clone());
-        let root = self.chats.open_hosted(
+        let root = self.hosted.open(
             target,
             Box::new(move || {
                 flag.store(true, Ordering::SeqCst);
@@ -208,13 +212,13 @@ impl WorkbenchLauncher {
     /// Whether the hosted Agent is shown.
     #[cfg(test)]
     pub fn is_hosted(&self) -> bool {
-        self.chats.is_hosted()
+        self.hosted.is_open()
     }
     /// Installations offered by launchers: detected agents the user has not
     /// hidden, then the bundled Built-in Agent (never hidden); in Cloud, the
     /// hosted Agent only.
     pub(crate) fn visible_installations(&self) -> Vec<Installation> {
-        if self.chats.is_hosted() {
+        if self.hosted.is_open() {
             return vec![hosted_installation()];
         }
         self.installations
@@ -250,8 +254,8 @@ impl WorkbenchLauncher {
         cx: &mut Context<Self>,
     ) -> Result<Rc<dyn WorkbenchItem>, String> {
         let item = self
-            .chats
-            .hosted_chat(root, &format!("tab:{tab}"), session, window, cx)?;
+            .hosted
+            .chat(root, &format!("tab:{tab}"), session, window, cx)?;
         Ok(Rc::new(item))
     }
     /// `prepareAgentChatWorkbenchItem(project, itemId, runtimeId)` or, with
@@ -301,7 +305,7 @@ impl WorkbenchLauncher {
             )
         };
         // Cloud: the hosted Agent only, no session lease of this machine.
-        if self.chats.is_hosted() {
+        if self.hosted.is_open() {
             if !installation.as_ref().is_some_and(|i| i.chat) || !can_chat {
                 return;
             }
@@ -366,7 +370,7 @@ impl WorkbenchLauncher {
     ) -> Result<Rc<dyn WorkbenchItem>, String> {
         match item {
             // The tab's saved receipts reopen its conversation.
-            RetainedItem::Chat { .. } if self.chats.is_hosted() => {
+            RetainedItem::Chat { .. } if self.hosted.is_open() => {
                 self.hosted_chat(root, tab, None, window, cx)
             }
             RetainedItem::Chat {

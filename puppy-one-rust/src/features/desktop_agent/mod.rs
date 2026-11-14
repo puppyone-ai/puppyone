@@ -1,6 +1,8 @@
 //! `desktop-agent`: the Agent window. Its application layer talks to the
 //! Agent host through a typed client port, its views read the typed display
-//! model, and [`workbench`] contributes the chat tab to the Workbench.
+//! model, and [`workbench`] contributes the chat tab to the Workbench. Its
+//! chat views are shared: the hosted Agent's conversation (in the Cloud
+//! feature) composes them over its own controller.
 mod application;
 mod domain;
 #[cfg(any(test, feature = "dev-capture"))]
@@ -21,8 +23,23 @@ pub use workbench::{AgentChatItem, lab_history_browser};
 // What other features' tests drive.
 #[cfg(test)]
 pub use domain::agent_chat_history_target::AgentChatHistoryPayload;
-#[cfg(test)]
-pub use infrastructure::cloud::{CloudAgentController, Hub, LABEL as HOSTED_AGENT_LABEL};
-#[cfg(test)]
-pub use ui::panel::AgentChatTabPanel;
-pub use workbench::{AgentChats, hosted_installation};
+pub use workbench::AgentChats;
+
+// The shared chat surface: what a conversation container (the hosted
+// Agent's) composes over its own controller.
+pub use application::agent_controller_state::{
+    AgentControllerPhase, AgentControllerState, ReplicaStatus,
+};
+pub use application::conversation_history_controller::ConversationHistoryState;
+pub use application::conversation_history_source::ConversationHistorySource;
+pub use ui::agent_chat_view_model::AgentChatViewModel;
+pub use ui::agent_theme::AgentTheme;
+pub use ui::composer::{ComposerEvent, ComposerInput, ComposerView, can_submit};
+pub use ui::docks::{DockEvent, DocksInput, DocksView};
+pub use ui::empty_state::EmptyStateView;
+pub use ui::panel::elements::{ButtonTone, agent_button};
+pub use ui::panel::{AgentChatTabPresentation, SubmitPrompt, default_chat_view_model};
+pub use ui::pickers::SessionPickers;
+pub use ui::provider_notices::ProviderNoticesView;
+pub use ui::transcript::{TranscriptEvent, TranscriptInput, TranscriptView};
+pub use workbench::{agent_chat_close_copy, present_agent_chat_workbench_item};

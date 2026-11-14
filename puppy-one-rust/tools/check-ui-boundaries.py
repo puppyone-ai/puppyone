@@ -127,8 +127,7 @@ for path in (root / 'src/features/desktop_agent/ui').rglob('*.rs'):
 # `agent::contract::protocol`); JSON stays in the contract, and in the Cloud
 # Agent's API client.
 for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
-    if fixture(path) or (root / 'src/features/desktop_agent/infrastructure/cloud') in [path, *path.parents] \
-            or path == root / 'src/features/desktop_agent/infrastructure/cloud.rs':
+    if fixture(path):
         continue
     source = path.read_text().split('#[cfg(test)]')[0]
     if re.search(r'serde_json|\bValue\b|json!|contract::js', source):
@@ -165,6 +164,14 @@ for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
         continue
     if provider_name.search(code(path)):
         errors.append(f'{path.relative_to(root)}: names a concrete runtime; the Agent window outside its views is provider-neutral')
+# The Agent window's chat views are shared: the hosted Agent's conversation
+# (`features/cloud/agent`) composes them; they never name the hosted Agent.
+hosted_agent = re.compile(r'features\s*::\s*cloud\b|workspace\s*::\s*cloud\s*::\s*agent\b')
+for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
+    if fixture(path):
+        continue
+    if hosted_agent.search(code(path)):
+        errors.append(f'{path.relative_to(root)}: the Agent window names the hosted Agent; it composes the shared views')
 # Features are reached through their facades (`features/<name>/mod.rs`):
 # their modules are private, but for the few public API modules below, and
 # nothing names another feature's internals.

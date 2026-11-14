@@ -1,11 +1,13 @@
 //! Cloud as the window offers it: the signed-in account, the Projects
 //! catalog and the spaces they live in, the first publication, a hosted
-//! Project's Agents, a checkout's association and PuppyOne compute. The Cloud client
+//! Project's Agents and its hosted Agent, a checkout's association and
+//! PuppyOne compute. The Cloud client
 //! underneath (sign-in broker, publication journal) is [`crate::cloud`].
 //!
 //! [`account`] is the account's public face (sign-in, status, the broker
 //! and binding); everything else is reached through these exports.
 pub mod account;
+mod agent;
 mod agents;
 mod billing;
 mod catalog;
@@ -15,6 +17,9 @@ mod publish;
 mod repository;
 mod spaces;
 
+#[cfg(test)]
+pub use agent::{CloudAgentController, CloudAgentConversation, Hub, LABEL as HOSTED_AGENT_LABEL};
+pub use agent::{HostedChats, hosted_installation};
 #[cfg(feature = "dev-capture")]
 pub use agents::lab_client as lab_agents_client;
 pub use agents::{CloudAgents, CopyStatus, Opener, status as agent_status};
