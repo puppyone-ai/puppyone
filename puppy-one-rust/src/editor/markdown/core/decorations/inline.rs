@@ -171,6 +171,10 @@ impl Builder<'_> {
                                     lower: false,
                                 });
                         }
+                        // `MathInlineWidget`: KaTeX's formula once drawn.
+                        if e.kind == Kind::MathInline {
+                            self.inline_math(e.range.clone());
+                        }
                         let classes = match e.kind {
                             Kind::MathInline => Some(Class::MATH),
                             Kind::FootnoteReference => Some(Class::FOOTNOTE_REFERENCE),
@@ -193,6 +197,33 @@ impl Builder<'_> {
 }
 
 impl Builder<'_> {
+    /// An inline formula (`$…$`) to be typeset by KaTeX
+    /// (`.cm-md-math-inline-widget .katex`), in the content colour at the
+    /// inline math size.
+    fn inline_math(&mut self, range: std::ops::Range<usize>) {
+        use crate::render_service::{Kind, Request, hex};
+        let source = self.cx.doc.slice(range.clone());
+        let tex = source
+            .strip_prefix('$')
+            .and_then(|s| s.strip_suffix('$'))
+            .unwrap_or(source);
+        let t = crate::editor::tokens::Tokens::get(self.cx.theme.dark, self.cx.theme.scale);
+        self.inline_images
+            .push(crate::editor::view::decoration::InlineImage {
+                range,
+                request: Request {
+                    kind: Kind::Math {
+                        display: false,
+                        color: hex(t.color("--po-md-content-color")),
+                        font_size: t.len("--po-md-math-inline-font-size", 15.),
+                    },
+                    source: tex.to_owned(),
+                    background: hex(t.color("--po-editor-bg")),
+                    scale: 1.,
+                },
+            });
+    }
+
     /// `applyInlineHtmlPlan`: the tags hide like delimiters (a `q`'s show as
     /// its quotation marks) and the content takes the element's default
     /// presentation: weight, slant, rules, monospace, `mark`'s system

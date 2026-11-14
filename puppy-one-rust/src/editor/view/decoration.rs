@@ -104,7 +104,18 @@ pub struct Decorations {
     pub replaced: Vec<(Range<usize>, SharedString)>,
     /// Text set as `<sup>` / `<sub>` (sorted by start).
     pub superscripts: Vec<Superscript>,
+    /// Replaced source drawn by the render service once it is ready (an
+    /// inline formula): its replacement shows until then (sorted by start).
+    pub inline_images: Vec<InlineImage>,
     pub surface: Surface,
+}
+
+/// A replaced range drawn as an image in the text flow, on its line's
+/// baseline, once the render service has it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InlineImage {
+    pub range: Range<usize>,
+    pub request: crate::render_service::Request,
 }
 
 /// Text set as `<sup>` or `<sub>`: at its own size and colour, its baseline

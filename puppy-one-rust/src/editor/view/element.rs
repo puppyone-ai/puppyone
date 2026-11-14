@@ -150,6 +150,7 @@ impl EditorElement {
             scale: window.scale_factor(),
             keys: Default::default(),
             text_end: (1, 0.),
+            rooms: Vec::new(),
             window,
             app: cx,
         };
