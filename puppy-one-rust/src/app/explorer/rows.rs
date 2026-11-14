@@ -253,11 +253,16 @@ impl Explorer {
         } else {
             vec![item.path.clone()]
         };
+        // Only a selection drags another row than this one: the rest need
+        // no scan of every row.
         let single_file = drag_paths.len() == 1
-            && tree
-                .rows
-                .iter()
-                .any(|row| row.path == drag_paths[0] && !row.folder);
+            && if drag_paths[0] == item.path {
+                !item.folder
+            } else {
+                tree.rows
+                    .iter()
+                    .any(|row| row.path == drag_paths[0] && !row.folder)
+            };
         let workspace = session.workspace().cloned();
         let lit = self
             .menu

@@ -378,12 +378,16 @@ impl ExplorerSession {
         self.refresh = Some(cx.spawn(async move |this, cx| {
             let listings = read.await;
             let _ = this.update(cx, |s, cx| {
+                crate::platform::watchdog::activity("explorer.refresh");
                 if s.tree.id != tree_id {
                     return;
                 }
+                // One projection for the whole reread, not one per folder.
+                let mut read = Vec::with_capacity(listings.len());
+                let mut failed = Vec::new();
                 for (path, listing) in listings {
                     match listing {
-                        Ok(nodes) => s.tree.refresh_children(&path, nodes),
+                        Ok(nodes) => read.push((path, nodes)),
                         // A lease that ended (its change stream failed) is
                         // the workspace notice's to report, with its Retry.
                         Err(error)
@@ -395,14 +399,10 @@ impl ExplorerSession {
                         Err(error) if path.as_os_str().is_empty() => {
                             cx.emit(SessionEvent::Error(error.to_string()))
                         }
-                        Err(error) => {
-                            if let Some(node) = s.tree.find_mut(&path) {
-                                node.error = Some(error.to_string());
-                            }
-                        }
+                        Err(error) => failed.push((path, error.to_string())),
                     }
                 }
-                s.tree.rebuild();
+                s.tree.refresh_folders(read, failed);
                 cx.emit(SessionEvent::ReferencesChanged);
                 cx.notify();
             });
@@ -563,11 +563,15 @@ impl ExplorerSession {
             for path in &outcome.removed {
                 tree.remove_selection(path);
             }
+            let mut read = Vec::with_capacity(outcome.listings.len());
             for (folder, listing) in outcome.listings {
                 match listing {
-                    Ok(nodes) => tree.refresh_children(&folder, nodes),
+                    Ok(nodes) => read.push((folder, nodes)),
                     Err(error) => cx.emit(SessionEvent::Error(error.to_string())),
                 }
+            }
+            if !read.is_empty() {
+                tree.refresh_folders(read, vec![]);
             }
             if let Some(path) = outcome.select {
                 tree.select(&path, false, false);
