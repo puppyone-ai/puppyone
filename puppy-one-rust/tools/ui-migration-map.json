@@ -1208,15 +1208,26 @@
         "src/editor/viewers/html.rs",
         "src/editor/viewers/html_visual.rs",
         "tools/html-visual-entry.tsx",
-        "tools/import-html-visual.mjs"
+        "tools/import-html-visual.mjs",
+        "src/editor/viewers/html_interact.rs",
+        "src/editor/viewers/html_page.rs",
+        "src/editor/viewers/html_preview.rs",
+        "src/platform/html_page_store.rs",
+        "src/web_host.rs"
       ],
       "evidence": [
         "test:html_edit_mode_applies_page_edits_to_the_source_and_its_history",
         "test:utf16_changes_apply_to_the_mirror_or_are_refused",
         "test:the_entry_page_boots_the_bundle_without_letting_text_close_its_script",
-        "test:previews_carry_the_interaction_stylesheet_and_empty_pages_are_recognised"
+        "test:previews_carry_the_interaction_stylesheet_and_empty_pages_are_recognised",
+        "test:an_html_page_asks_before_it_uses_its_folder",
+        "test:the_folder_answers_inside_itself_and_refuses_a_stale_write",
+        "test:links_resolve_against_the_pages_own_base_not_its_served_url",
+        "test:a_page_keeps_only_plain_text_files_beside_itself",
+        "test:an_allowance_is_per_page_text_and_the_most_recent_200_are_kept",
+        "test:page_storage_keeps_strings_within_its_limit"
       ],
-      "remaining": "Interact runs the page in the system WebView; Edit runs the product's HtmlVisualSurface (source index, edit compiler, projection, frame bridge, toolbar, block rail, text input) bundled from the product into the WebView, with the native code editor owning text, history and saves; Source is the native code editor. Not pixel-compared; the Edit page's toolbar uses the bundled Geist Sans and the active Sub Theme tokens. Cloud documents cannot import images (no provider write); the standalone options menu (HtmlViewMenu) is the pane menu instead."
+      "remaining": "Interact runs the page in the system WebView; Edit runs the product's HtmlVisualSurface (source index, edit compiler, projection, frame bridge, toolbar, block rail, text input) bundled from the product into the WebView, with the native code editor owning text, history and saves; Source is the native code editor. Not pixel-compared; the Edit page's toolbar uses the bundled Geist Sans and the active Sub Theme tokens. Cloud documents cannot import images (no provider write); the standalone options menu (HtmlViewMenu) is the pane menu instead. v0.4.4 folder access and links are native: a page naming the folder picker is asked about before it runs (a system prompt whose Return default is Don't allow; v0.4.4 uses a product dialog), the allowance is kept per page path and text digest (at most 200), and an allowed page runs offline, locked to itself, with the folder bridge over the workspace provider and a host-kept localStorage (256 K characters). The page is the web view's own document, so it posts through window.ipc. Clicked links resolve through document navigation (workspace documents open in the workbench, addresses in the browser) with the four failure notices. The host's scripts lead the page's head, ahead of its own policy, so the author's CSP is never loosened with a nonce. Listed files carry no modification time."
     },
     {
       "name": "Viewer registry",

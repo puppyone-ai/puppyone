@@ -205,6 +205,7 @@ impl StructuredView {
             policy: None,
             frames: None,
             disk_assets: None,
+            locked: false,
         };
         self.ready = false;
         self.pane.clear();

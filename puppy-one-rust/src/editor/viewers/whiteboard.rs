@@ -144,6 +144,7 @@ impl WhiteboardView {
                 prefix: FONT_PREFIX,
                 dir,
             }),
+            locked: false,
         };
         self.ready = false;
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));

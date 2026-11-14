@@ -43,6 +43,7 @@ impl WebHost {
             (255, 255, 255, 255)
         };
         let frames = content.frames.clone();
+        let locked = content.locked;
         let mut builder = wry::WebViewBuilder::new();
         if let Some(ipc) = content.ipc.clone() {
             builder = builder.with_ipc_handler(move |request: wry::http::Request<String>| {
@@ -107,6 +108,14 @@ impl WebHost {
             // pane in the product).
             .with_drag_drop_handler(|_| true)
             .with_navigation_handler(move |url| {
+                // A locked page stays its entry document (its fragments
+                // only move within it).
+                if locked {
+                    let entry = entry_url();
+                    return url == entry
+                        || url.strip_prefix(&entry).is_some_and(|r| r.starts_with('#'))
+                        || url == "about:blank";
+                }
                 // `about:srcdoc` is inline content the page already holds
                 // (the HTML visual editor's sandboxed projection frame).
                 if url.starts_with(SCHEME) || url == "about:blank" || url == "about:srcdoc" {

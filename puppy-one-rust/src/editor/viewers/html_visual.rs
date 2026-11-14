@@ -138,6 +138,7 @@ impl Session {
             policy: None,
             frames: None,
             disk_assets: None,
+            locked: false,
         };
         #[cfg(not(test))]
         drop(tx);

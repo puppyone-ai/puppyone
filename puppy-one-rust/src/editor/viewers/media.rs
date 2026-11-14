@@ -201,6 +201,7 @@ impl MediaView {
                 policy: None,
                 frames: None,
                 disk_assets: None,
+                locked: false,
             };
             cx.new(|_| WebFrame::new(Some(content), self.dark))
         });

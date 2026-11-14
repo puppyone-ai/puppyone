@@ -99,6 +99,10 @@ pub struct Content {
     /// The app's own resources too large to embed (the whiteboard's fonts),
     /// served from a folder at `__assets__/{prefix}/…`.
     pub disk_assets: Option<DiskAssets>,
+    /// The page may not leave its entry document (an HTML page that uses
+    /// its folder runs offline): every other navigation is refused, not
+    /// even handed to the browser.
+    pub locked: bool,
 }
 /// A folder of trusted app resources: `prefix` names it under `__assets__/`;
 /// a missing folder or file is a 404, never a fallback elsewhere.
@@ -426,6 +430,7 @@ mod tests {
                 prefix: "excalidraw",
                 dir: dir.path().into(),
             }),
+            locked: false,
         };
         let (status, mime, body) =
             respond(&content, "/__assets__/excalidraw/fonts/Virgil/Virgil.woff2");
@@ -474,6 +479,7 @@ mod tests {
             policy: None,
             frames: None,
             disk_assets: None,
+            locked: false,
         };
         assert_eq!(
             respond(&content, "/__assets__/r.js").1,
@@ -550,6 +556,7 @@ mod tests {
             policy: None,
             frames: None,
             disk_assets: None,
+            locked: false,
         };
         assert_eq!(respond(&content, "/style.css").0, 200);
         assert_eq!(respond(&content, "/../style.css").0, 404);

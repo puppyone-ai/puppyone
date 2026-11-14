@@ -7,18 +7,20 @@
 //! Edit (`HtmlVisualSurface`, `html_visual`) is offered while the document
 //! is editable; the page maps elements back to source offsets with the
 //! product's compiler and falls back to Interact with "unsupported" when it
-//! cannot.
-use super::{code, html_preview, html_visual, web::WebFrame};
+//! cannot. Interact itself, with folder access and links, is
+//! [`html_interact`].
+use super::{
+    code,
+    html_interact::{Access, BUDGET, Interact},
+    html_visual,
+};
 use crate::{
     editor::{
-        registry::{
-            PaneEntries, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
-            document_folder, document_source,
-        },
-        workbench::pane::{Segment, Segmented},
+        navigation::ReferenceContext,
+        registry::{PaneEntries, SurfaceEvents, SurfaceRequest, ViewerSurface},
+        workbench::pane::{Item, ItemKind, Segment, Segmented},
     },
     localization::t,
-    platform::webview::{Budgeted, Content, Entry, Source},
     theme,
     typography::Scale,
     ui::appearance::ActiveAppearance,
@@ -26,13 +28,11 @@ use crate::{
 use gpui::{prelude::*, *};
 use std::{
     cell::{Cell, RefCell},
-    path::PathBuf,
     rc::Rc,
 };
 
-const INTERACTION_CSS: &str = include_str!("../../../assets/web/html-preview-interaction.css");
-/// `html-artifact` resourcePolicy.maxSourceBytes.
-const BUDGET: u64 = 4 * 1024 * 1024;
+/// The pane menu's folder access toggle (`html-folder-access`).
+const FOLDER_ACCESS: &str = "html-folder-access";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Mode {
@@ -43,44 +43,21 @@ enum Mode {
 
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
     let source: Rc<dyn ViewerSurface> = Rc::from(code::open(request, window, cx));
-    let text = match request.input {
-        SurfaceInput::Text(text) => text.to_owned(),
-        _ => String::new(),
-    };
-    let folder = document_folder(request.id);
-    let assets = document_source(request.id);
-    let frame = cx.new(|_| {
-        WebFrame::new(
-            Some(content(&text, folder.clone(), assets.clone())),
-            request.dark,
-        )
-    });
+    let interact = Interact::new(request, source.clone(), window, cx);
+    interact.refresh(cx);
     let empty = cx.new(|_| EmptyPage);
     Box::new(HtmlSurface {
         source,
-        frame,
+        interact,
         empty,
-        is_empty: Rc::new(Cell::new(is_empty_page(&text))),
         mode: Rc::new(Cell::new(Mode::Preview)),
-        folder,
-        assets,
         dark: Cell::new(request.dark),
-        name: request.name.to_owned(),
+        name: RefCell::new(request.name.to_owned()),
         read_only: Cell::new(false),
         visual: Rc::new(RefCell::new(None)),
-        notice: Rc::new(RefCell::new(None)),
     })
 }
 
-/// The preview document (`buildHtmlPreviewDocument`, interactive): the
-/// product's policy, a `<base>` for the document's folder and the
-/// interaction stylesheet lead its head.
-pub fn preview_html(text: &str) -> String {
-    let style =
-        format!("<style id=\"puppyone-html-preview-interaction\">{INTERACTION_CSS}</style>");
-    let base = format!("{}://local/", crate::platform::webview::SCHEME);
-    html_preview::interactive_document(text, &base, &style)
-}
 /// `htmlDocumentEmpty`: nothing but whitespace, comments and an empty skeleton.
 pub fn is_empty_page(text: &str) -> bool {
     let mut rest = text.to_string();
@@ -104,83 +81,45 @@ pub fn is_empty_page(text: &str) -> bool {
     .fold(lower, |acc, tag| acc.replace(tag, ""));
     stripped.trim().is_empty()
 }
-/// `projectCloudHtml`: a hosted document's assets come through its
-/// provider, at most 64 references and 4 MiB per projection.
-const MAX_REFERENCES: usize = 64;
-fn content(text: &str, folder: Option<PathBuf>, source: Option<Source>) -> Content {
-    Content {
-        source: source.filter(|_| folder.is_none()).map(|source| {
-            Source(std::sync::Arc::new(Budgeted::new(
-                source,
-                MAX_REFERENCES,
-                BUDGET,
-            )))
-        }),
-        root: folder,
-        entry: Entry::Html(preview_html(text)),
-        max_bytes: BUDGET,
-        assets: vec![],
-        ipc: None,
-        policy: Some(html_preview::INTERACTIVE_HEADER),
-        frames: None,
-        disk_assets: None,
-    }
-}
-
 struct HtmlSurface {
     source: Rc<dyn ViewerSurface>,
-    frame: Entity<WebFrame>,
+    /// Interact's page, its decisions and the editor's notice
+    /// (`editor.html.unsupported`, a link that could not open).
+    interact: Interact,
     empty: Entity<EmptyPage>,
-    is_empty: Rc<Cell<bool>>,
     mode: Rc<Cell<Mode>>,
-    folder: Option<PathBuf>,
-    assets: Option<Source>,
     dark: Cell<bool>,
-    name: String,
+    name: RefCell<String>,
     read_only: Cell<bool>,
     /// The Edit page while Edit mode is shown.
     visual: Rc<RefCell<Option<html_visual::Session>>>,
-    /// `editor.html.unsupported` after Edit could not map the document.
-    notice: Rc<RefCell<Option<SharedString>>>,
 }
 impl HtmlSurface {
-    fn refresh_preview(&self, cx: &mut App) {
-        refresh_preview(
-            &*self.source,
-            &self.frame,
-            &self.is_empty,
-            &self.folder,
-            &self.assets,
-            cx,
-        );
-    }
     /// `canVisualEdit`: an editable HTML document.
     fn can_visual_edit(&self) -> bool {
-        let lower = self.name.to_ascii_lowercase();
+        let lower = self.name.borrow().to_ascii_lowercase();
         !self.read_only.get() && (lower.ends_with(".html") || lower.ends_with(".htm"))
     }
     fn start_visual(&self, window: &mut Window, cx: &mut App) -> bool {
         let text = self.source.text(cx).unwrap_or_default();
-        if !html_visual::admits(&self.name, &text) {
-            *self.notice.borrow_mut() = Some(t("editor.html.unsupported").into());
+        let name = self.name.borrow().clone();
+        if !html_visual::admits(&name, &text) {
+            *self.interact.notice.borrow_mut() = Some(t("editor.html.unsupported").into());
             return false;
         }
         let unavailable: html_visual::Unavailable = {
-            let (mode, visual, notice) =
-                (self.mode.clone(), self.visual.clone(), self.notice.clone());
-            let (source, frame, is_empty) = (
-                self.source.clone(),
-                self.frame.clone(),
-                self.is_empty.clone(),
+            let (mode, visual, interact) = (
+                self.mode.clone(),
+                self.visual.clone(),
+                self.interact.clone(),
             );
-            let (folder, assets) = (self.folder.clone(), self.assets.clone());
             Rc::new(move |window, cx| {
                 if mode.get() != Mode::Edit {
                     return;
                 }
-                refresh_preview(&*source, &frame, &is_empty, &folder, &assets, cx);
+                interact.refresh(cx);
                 mode.set(Mode::Preview);
-                *notice.borrow_mut() = Some(t("editor.html.unsupported").into());
+                *interact.notice.borrow_mut() = Some(t("editor.html.unsupported").into());
                 // Dropping the session closes its page after this message.
                 let visual = visual.clone();
                 window.on_next_frame(move |_, _| drop(visual.borrow_mut().take()));
@@ -190,9 +129,9 @@ impl HtmlSurface {
         let session = html_visual::Session::start(
             html_visual::Params {
                 text,
-                name: self.name.clone(),
-                folder: self.folder.clone(),
-                assets: self.assets.clone(),
+                name,
+                folder: self.interact.folder(),
+                assets: self.interact.assets(),
                 dark: self.dark.get(),
                 enabled: !self.read_only.get(),
                 budget: BUDGET,
@@ -206,20 +145,11 @@ impl HtmlSurface {
         true
     }
 }
-fn refresh_preview(
-    source: &dyn ViewerSurface,
-    frame: &Entity<WebFrame>,
-    is_empty: &Cell<bool>,
-    folder: &Option<PathBuf>,
-    assets: &Option<Source>,
-    cx: &mut App,
-) {
-    let text = source.text(cx).unwrap_or_default();
-    is_empty.set(is_empty_page(&text));
-    let content = content(&text, folder.clone(), assets.clone());
-    frame.update(cx, |f, cx| f.set_content(Some(content), cx));
-}
 impl ViewerSurface for HtmlSurface {
+    fn set_reference_context(&self, context: Option<ReferenceContext>, cx: &mut App) {
+        self.interact.set_references(context.clone());
+        self.source.set_reference_context(context, cx);
+    }
     fn element(&self) -> AnyElement {
         let body = match self.mode.get() {
             Mode::Source => return self.source.element(),
@@ -227,13 +157,13 @@ impl ViewerSurface for HtmlSurface {
                 Some(session) => session.frame.clone().into_any_element(),
                 None => div().size_full().into_any_element(),
             },
-            Mode::Preview if self.is_empty.get() => self.empty.clone().into_any_element(),
-            Mode::Preview => self.frame.clone().into_any_element(),
+            Mode::Preview if self.interact.is_empty.get() => self.empty.clone().into_any_element(),
+            Mode::Preview => self.interact.element(),
         };
         // Native web content draws above the window: the notice sits in
         // flow above it instead of floating over it.
-        let notice = self.notice.borrow().clone().map(|text| {
-            let notice = self.notice.clone();
+        let notice = self.interact.notice.borrow().clone().map(|text| {
+            let notice = self.interact.notice.clone();
             div().flex_shrink_0().p(px(8.)).child(
                 crate::ui::components::FloatingNotice::new("html-editor-notice", text)
                     .tone(crate::ui::components::NoticeTone::Danger)
@@ -252,6 +182,8 @@ impl ViewerSurface for HtmlSurface {
             .into_any_element()
     }
     fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
+        // A clicked link opens its document through the same events.
+        self.interact.set_events(events.clone());
         // Source edits reach an open Edit page as a new mirror.
         let (visual, source) = (self.visual.clone(), self.source.clone());
         let forward: SurfaceEvents = Rc::new(move |event, cx| {
@@ -275,7 +207,7 @@ impl ViewerSurface for HtmlSurface {
         self.source.replace_text(text, window, cx);
         // External changes reach the running page too (disk-first).
         match self.mode.get() {
-            Mode::Preview => self.refresh_preview(cx),
+            Mode::Preview => self.interact.refresh(cx),
             Mode::Edit => {
                 let text = self.source.text(cx).unwrap_or_default();
                 if let Some(session) = self.visual.borrow().as_ref() {
@@ -286,6 +218,8 @@ impl ViewerSurface for HtmlSurface {
         }
     }
     fn rebind_name(&self, name: &str, cx: &mut App) {
+        *self.name.borrow_mut() = name.to_owned();
+        self.interact.rename(name);
         self.source.rebind_name(name, cx);
     }
     fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
@@ -306,7 +240,7 @@ impl ViewerSurface for HtmlSurface {
         if self.mode.get() == Mode::Edit {
             if read_only {
                 // `!canVisualEdit` leaves Edit for Interact.
-                self.refresh_preview(cx);
+                self.interact.refresh(cx);
                 self.mode.set(Mode::Preview);
                 self.visual.borrow_mut().take();
             } else if restyle {
@@ -319,7 +253,7 @@ impl ViewerSurface for HtmlSurface {
     }
     fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
         if name == "html-reload" {
-            self.frame.update(cx, |f, _| f.reload());
+            self.interact.frame.update(cx, |f, _| f.reload());
         } else {
             self.source.command(name, window, cx);
         }
@@ -362,6 +296,15 @@ impl ViewerSurface for HtmlSurface {
                 Mode::Source => "source",
             },
         });
+        // A page that asks for its folder can be allowed or stopped here.
+        let access = self.interact.access();
+        if !matches!(access, Access::None | Access::Checking) {
+            entries.items.push(Item {
+                id: FOLDER_ACCESS,
+                label: t("editor.html.folderAccessToggle").into(),
+                kind: ItemKind::Toggle(access == Access::Allowed),
+            });
+        }
         entries
     }
     fn pane_segment(&self, id: &'static str, window: &mut Window, cx: &mut App) {
@@ -373,9 +316,9 @@ impl ViewerSurface for HtmlSurface {
         if next == self.mode.get() || next == Mode::Edit && !self.can_visual_edit() {
             return;
         }
-        self.notice.borrow_mut().take();
+        self.interact.notice.borrow_mut().take();
         if self.source.composing(cx) {
-            *self.notice.borrow_mut() = Some(t("editor.html.finishComposition").into());
+            *self.interact.notice.borrow_mut() = Some(t("editor.html.finishComposition").into());
             return;
         }
         if next == Mode::Edit {
@@ -386,7 +329,7 @@ impl ViewerSurface for HtmlSurface {
             self.visual.borrow_mut().take();
         }
         if next == Mode::Preview {
-            self.refresh_preview(cx);
+            self.interact.refresh(cx);
         }
         self.mode.set(next);
         if next == Mode::Source
@@ -396,6 +339,10 @@ impl ViewerSurface for HtmlSurface {
         }
     }
     fn pane_item(&self, id: &'static str, window: &mut Window, cx: &mut App) {
+        if id == FOLDER_ACCESS {
+            let allowed = self.interact.access() == Access::Allowed;
+            return self.interact.set_allowed(!allowed, cx);
+        }
         self.source.pane_item(id, window, cx);
     }
     #[cfg(test)]
@@ -404,6 +351,11 @@ impl ViewerSurface for HtmlSurface {
             .borrow()
             .as_ref()
             .is_some_and(|s| s.deliver(body))
+    }
+    #[cfg(test)]
+    fn html_page_deliver(&self, body: &str, cx: &mut App) -> Option<SharedString> {
+        self.interact.deliver(body, cx);
+        self.interact.notice()
     }
     #[cfg(test)]
     fn code_editor(&self) -> Option<Entity<code::CodeView>> {
@@ -447,14 +399,20 @@ mod tests {
 
     #[test]
     fn previews_carry_the_interaction_stylesheet_and_empty_pages_are_recognised() {
-        let page = preview_html("<html><head><title>x</title></head><body>hi</body></html>");
+        use super::super::{html_interact::preview_html, html_preview::INTERACTIVE_CSP};
+        let page = preview_html(
+            "<html><head><title>x</title></head><body>hi</body></html>",
+            INTERACTIVE_CSP,
+            "",
+        );
         assert!(page.contains("puppyone-html-preview-interaction"));
         assert!(
             page.find("puppyone-html-preview-interaction").unwrap() < page.find("</head>").unwrap()
         );
         assert!(page.contains("connect-src https:"));
         assert!(
-            preview_html("<p>bare</p>").starts_with("<meta http-equiv=\"Content-Security-Policy\"")
+            preview_html("<p>bare</p>", INTERACTIVE_CSP, "")
+                .starts_with("<meta http-equiv=\"Content-Security-Policy\"")
         );
         assert!(is_empty_page(
             "<!DOCTYPE html>\n<html><head></head><body>\n</body></html>"

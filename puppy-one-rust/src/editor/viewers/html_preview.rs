@@ -32,13 +32,62 @@ pub const INTERACTIVE_HEADER: &str = concat!(
     allow-popups-to-escape-sandbox allow-scripts"
 );
 
-/// `buildHtmlPreviewDocument` for the interactive policy: `<base>` and
-/// `<meta http-equiv=refresh>` leave the page; the policy, a `<base>` for
-/// the resolved resource folder with `target="_self"` and `extra` lead its
-/// head. `base` is the folder relative resources resolve against.
-pub fn interactive_document(raw: &str, base: &str, extra: &str) -> String {
+/// `readHtmlBaseHref`: the page's own `<base href>`, which its links are
+/// resolved against (never the private resource URL it is served from).
+pub fn base_href(raw: &str) -> Option<String> {
+    scan(raw).original_base
+}
+
+/// `buildHtmlPreviewDocument`: `<base>` and `<meta http-equiv=refresh>`
+/// leave the page; `csp` (the interactive or the offline policy), a `<base>`
+/// for the resolved resource folder with `target="_self"` and `extra` lead
+/// its head, ahead of the page's own policy, which therefore never has to
+/// admit them. `base` is the folder relative resources resolve against.
+pub fn interactive_document(raw: &str, base: &str, csp: &str, extra: &str) -> String {
+    let Scan {
+        out,
+        head_end,
+        html_end,
+        original_base,
+    } = scan(raw);
+    let resolved = match original_base {
+        Some(href) => url::Url::parse(base)
+            .and_then(|b| b.join(href.trim()))
+            .ok()
+            .filter(|u| {
+                matches!(u.scheme(), "https") || [SCHEME, LOCAL_SCHEME].contains(&u.scheme())
+            })
+            .map(String::from),
+        None => Some(base.to_owned()),
+    };
+    let base_tag = match resolved {
+        Some(href) => format!(
+            "<base href=\"{}\" target=\"_self\">",
+            escape_attribute(&href)
+        ),
+        None => "<base target=\"_self\">".to_owned(),
+    };
+    let lead = format!(
+        "<meta http-equiv=\"Content-Security-Policy\" content=\"{}\">{base_tag}{extra}",
+        escape_attribute(csp)
+    );
+    match head_end.or(html_end) {
+        Some(at) => format!("{}{lead}{}", &out[..at], &out[at..]),
+        None => format!("{lead}{out}"),
+    }
+}
+
+/// The page without its `<base>` and refresh, where its head and html
+/// start tags end, and the first `<base href>` it had.
+struct Scan {
+    out: String,
+    head_end: Option<usize>,
+    html_end: Option<usize>,
+    original_base: Option<String>,
+}
+fn scan(raw: &str) -> Scan {
     let mut original_base = None;
-    let mut out = String::with_capacity(raw.len() + extra.len() + 512);
+    let mut out = String::with_capacity(raw.len() + 512);
     let mut head_end = None;
     let mut html_end = None;
     let mut rest = raw;
@@ -90,30 +139,11 @@ pub fn interactive_document(raw: &str, base: &str, extra: &str) -> String {
         advance(&mut rest, at + end);
     }
     out.push_str(rest);
-    let resolved = match original_base {
-        Some(href) => url::Url::parse(base)
-            .and_then(|b| b.join(href.trim()))
-            .ok()
-            .filter(|u| {
-                matches!(u.scheme(), "https") || [SCHEME, LOCAL_SCHEME].contains(&u.scheme())
-            })
-            .map(String::from),
-        None => Some(base.to_owned()),
-    };
-    let base_tag = match resolved {
-        Some(href) => format!(
-            "<base href=\"{}\" target=\"_self\">",
-            escape_attribute(&href)
-        ),
-        None => "<base target=\"_self\">".to_owned(),
-    };
-    let lead = format!(
-        "<meta http-equiv=\"Content-Security-Policy\" content=\"{}\">{base_tag}{extra}",
-        escape_attribute(INTERACTIVE_CSP)
-    );
-    match head_end.or(html_end) {
-        Some(at) => format!("{}{lead}{}", &out[..at], &out[at..]),
-        None => format!("{lead}{out}"),
+    Scan {
+        out,
+        head_end,
+        html_end,
+        original_base,
     }
 }
 
@@ -238,6 +268,7 @@ mod tests {
         let page = interactive_document(
             "<!doctype html><html><head><title>t</title></head><body><p>x</p></body></html>",
             BASE,
+            INTERACTIVE_CSP,
             "<style id=\"s\"></style>",
         );
         let csp = page.find("Content-Security-Policy").unwrap();
@@ -247,7 +278,9 @@ mod tests {
         assert!(page.contains(&format!("<base href=\"{BASE}\" target=\"_self\">")));
         assert!(page.contains("<style id=\"s\"></style>"));
         assert!(page.ends_with("<body><p>x</p></body></html>"));
-        assert!(interactive_document("<p>bare</p>", BASE, "").starts_with("<meta"));
+        assert!(
+            interactive_document("<p>bare</p>", BASE, INTERACTIVE_CSP, "").starts_with("<meta")
+        );
     }
 
     #[test]
@@ -255,16 +288,23 @@ mod tests {
         let page = interactive_document(
             "<head><base href=\"assets/\"><base href=\"https://x.test/\"><meta http-equiv=\"Refresh\" content=\"0;url=https://x.test\"></head>",
             BASE,
+            INTERACTIVE_CSP,
             "",
         );
         assert!(!page.contains("Refresh"));
         assert!(page.contains("<base href=\"puppyone-preview://local/assets/\" target=\"_self\">"));
         assert_eq!(page.matches("<base").count(), 1);
         for unsafe_base in ["file:///etc/", "javascript:alert(1)", "http://x.test/"] {
-            let page = interactive_document(&format!("<base href='{unsafe_base}'>"), BASE, "");
+            let page = interactive_document(
+                &format!("<base href='{unsafe_base}'>"),
+                BASE,
+                INTERACTIVE_CSP,
+                "",
+            );
             assert!(page.contains("<base target=\"_self\">"), "{unsafe_base}");
         }
-        let https = interactive_document("<base href=https://cdn.test/a/>", BASE, "");
+        let https =
+            interactive_document("<base href=https://cdn.test/a/>", BASE, INTERACTIVE_CSP, "");
         assert!(https.contains("<base href=\"https://cdn.test/a/\" target=\"_self\">"));
     }
 
@@ -272,7 +312,8 @@ mod tests {
     fn script_text_comments_and_quoted_angles_are_not_tags() {
         let raw = "<head><!-- <base href=x> --><script>let s = '<base href=y>';</script>\
             <div title=\"a > b\"><base href=z></div></head>";
-        let page = interactive_document(raw, BASE, "");
+        let page = interactive_document(raw, BASE, INTERACTIVE_CSP, "");
+        assert_eq!(base_href(raw).as_deref(), Some("z"));
         assert!(page.contains("<!-- <base href=x> -->"));
         assert!(page.contains("let s = '<base href=y>';"));
         assert!(page.contains("<div title=\"a > b\"></div>"));

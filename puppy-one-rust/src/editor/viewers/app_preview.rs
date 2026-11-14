@@ -151,6 +151,7 @@ impl AppPreviewView {
             policy: None,
             frames: Some(self.frames.clone()),
             disk_assets: None,
+            locked: false,
         };
         self.ready = false;
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));

@@ -7,6 +7,8 @@ pub mod csv;
 pub mod database;
 pub mod external;
 pub mod html;
+pub mod html_interact;
+pub mod html_page;
 pub mod html_preview;
 pub mod html_visual;
 pub mod image;

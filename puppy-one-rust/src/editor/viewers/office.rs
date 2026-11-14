@@ -247,6 +247,7 @@ impl OfficeView {
             policy: None,
             frames: None,
             disk_assets: None,
+            locked: false,
         };
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
         self._inbox = Some(cx.spawn(async move |this, cx| {

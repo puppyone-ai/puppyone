@@ -10,6 +10,8 @@ use crate::{
     formats::FileFormat,
     typography::Scale,
 };
+#[cfg(test)]
+use gpui::SharedString;
 use gpui::{AnyElement, App, FocusHandle, Subscription, Window};
 use std::rc::Rc;
 
@@ -156,6 +158,11 @@ pub trait ViewerSurface {
     #[cfg(test)]
     fn html_visual_deliver(&self, _body: &str) -> bool {
         false
+    }
+    /// A message from the HTML Interact page, and the notice it left.
+    #[cfg(test)]
+    fn html_page_deliver(&self, _body: &str, _cx: &mut App) -> Option<SharedString> {
+        None
     }
     #[cfg(feature = "test-support")]
     fn csv_editor(&self) -> Option<gpui::Entity<crate::editor::csv::CsvEditor>> {

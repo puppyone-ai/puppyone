@@ -24,6 +24,19 @@ fn setup<'a>(
     Rc<RefCell<Vec<ClientMessage>>>,
     &'a mut VisualTestContext,
 ) {
+    setup_with(cx, "doc-1", None, name, text)
+}
+fn setup_with<'a>(
+    cx: &'a mut TestAppContext,
+    id: &str,
+    workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
+    name: &str,
+    text: &str,
+) -> (
+    Entity<DocumentEditor>,
+    Rc<RefCell<Vec<ClientMessage>>>,
+    &'a mut VisualTestContext,
+) {
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
@@ -43,8 +56,9 @@ fn setup<'a>(
         })
         .detach()
     });
+    view.update(cx, |v, _| v.set_workspace(workspace));
     let open = HostMessage::Open {
-        id: "doc-1".into(),
+        id: id.into(),
         name: name.into(),
         text: text.into(),
         revision: 0,
@@ -588,6 +602,91 @@ fn html_edit_mode_applies_page_edits_to_the_source_and_its_history(cx: &mut Test
     view.update(cx, |v, cx| {
         assert_eq!(v.contribution(cx).segmented.unwrap().value, "preview")
     });
+}
+
+/// v0.4.4 `useHtmlFolderAccessDecision`: a page naming the folder picker is
+/// asked about before it runs; the answer belongs to that page text, the
+/// pane menu changes it, and an allowed page cannot follow links.
+#[gpui::test]
+fn an_html_page_asks_before_it_uses_its_folder(cx: &mut TestAppContext) {
+    use crate::localization::t;
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let folder = root.join("site");
+    std::fs::create_dir(&folder).unwrap();
+    std::fs::write(folder.join("tasks.md"), "- a\n").unwrap();
+    let workspace = crate::workspace::Workspace::open(&root).unwrap();
+    let page = "<!doctype html><html><head></head><body><a href=\"https://example.test/\">x</a>\
+        <script>showDirectoryPicker()</script></body></html>";
+    crate::editor::registry::set_document_folder("doc-html-folder", Some(folder.clone()));
+    let (view, _, cx) = setup_with(
+        cx,
+        "doc-html-folder",
+        Some(workspace),
+        "site/tracker.html",
+        page,
+    );
+    let toggle = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext| {
+        view.update(cx, |v, cx| {
+            v.contribution(cx)
+                .items
+                .iter()
+                .find(|i| i.id == "html-folder-access")
+                .map(|i| i.kind.clone())
+        })
+    };
+    // The page waits for the answer; "Don't allow" is the default.
+    cx.run_until_parked();
+    assert_eq!(
+        cx.pending_prompt().map(|p| p.0),
+        Some(t("editor.html.folderAccessTitle").to_owned())
+    );
+    cx.simulate_prompt_answer(t("editor.html.folderAccessAllow"));
+    cx.run_until_parked();
+    assert_eq!(toggle(&view, cx), Some(ItemKind::Toggle(true)));
+    // Allowed, it runs offline: a clicked link only says why it stays.
+    let link = r#"{"type":"link","href":"https://example.test/"}"#;
+    let notice = view.update(cx, |v, cx| {
+        v.surface.as_ref().unwrap().html_page_deliver(link, cx)
+    });
+    assert_eq!(
+        notice.as_deref(),
+        Some(t("editor.html.linkFailure.offline"))
+    );
+    assert_eq!(cx.opened_url(), None);
+    // The pane menu stops it; the page runs as any other and its link opens.
+    view.update_in(cx, |v, w, cx| {
+        v.run_pane_action(Action::Item("html-folder-access"), w, cx)
+    });
+    cx.run_until_parked();
+    assert_eq!(toggle(&view, cx), Some(ItemKind::Toggle(false)));
+    view.update(cx, |v, cx| {
+        v.surface.as_ref().unwrap().html_page_deliver(link, cx)
+    });
+    assert_eq!(cx.opened_url().as_deref(), Some("https://example.test/"));
+    // Declined, the same page is not asked again; once allowed, an edit
+    // to it asks again, saying it changed.
+    view.update_in(cx, |v, w, cx| {
+        v.run_pane_action(Action::Item("html-folder-access"), w, cx)
+    });
+    cx.run_until_parked();
+    assert!(!cx.has_pending_prompt());
+    assert_eq!(toggle(&view, cx), Some(ItemKind::Toggle(true)));
+    view.update_in(cx, |v, w, cx| {
+        v.surface
+            .as_ref()
+            .unwrap()
+            .replace_text(&page.replace("x</a>", "y</a>"), w, cx)
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        cx.pending_prompt().map(|p| p.0),
+        Some(t("editor.html.folderAccessChangedTitle").to_owned())
+    );
+    cx.simulate_prompt_answer(t("editor.html.folderAccessDecline"));
+    cx.run_until_parked();
+    assert_eq!(toggle(&view, cx), Some(ItemKind::Toggle(false)));
+    crate::editor::registry::set_document_folder("doc-html-folder", None);
 }
 
 #[gpui::test]
