@@ -514,30 +514,78 @@ fn inspects_the_native_account_model_catalog_with_user_only_settings_and_the_cla
     });
 }
 
+/// v0.4.4 `2fef8cfa9`: Claude Code owns credential selection and billing;
+/// whatever source its SDK reports is used without an API key.
 #[test]
-fn does_not_route_third_party_product_traffic_through_claude_subscription_oauth() {
+fn uses_claude_codes_reported_credential_without_requiring_an_api_key() {
     run_local(async {
-        let query = inspection_query(json!({
-            "email": "subscriber@example.test",
-            "subscriptionType": "pro",
-            "apiProvider": "firstParty",
-            "tokenSource": "oauth",
-        }));
-        let fixture = create_adapter(
-            inspection_sdk(query),
-            json!({ "PATH": "/usr/bin", "HOME": "/home/test" }),
-            None,
-        );
-        let inspection = fixture.adapter.inspect().await.unwrap();
-        assert_eq!(inspection["account"]["account"], Value::Null);
-        assert_eq!(inspection["account"]["requiresRuntimeSetup"], true);
-        assert!(
-            inspection["account"]["error"]
-                .as_str()
-                .unwrap()
-                .contains("subscription OAuth cannot be used")
-        );
-        fixture.adapter.dispose().await.unwrap();
+        for account in [
+            json!({ "email": "subscriber@example.test", "subscriptionType": "pro",
+                "apiProvider": "firstParty", "tokenSource": "oauth" }),
+            json!({ "apiProvider": "firstParty", "tokenSource": "ANTHROPIC_AUTH_TOKEN" }),
+            json!({ "apiProvider": "bedrock" }),
+        ] {
+            let query = inspection_query(account.clone());
+            let fixture = create_adapter(
+                inspection_sdk(query),
+                json!({ "PATH": "/usr/bin", "HOME": "/home/test" }),
+                None,
+            );
+            let inspection = fixture.adapter.inspect().await.unwrap();
+            assert_eq!(
+                inspection["account"]["account"]["type"], account["apiProvider"],
+                "{account}"
+            );
+            assert_eq!(
+                inspection["account"]["account"]["planType"],
+                account
+                    .get("subscriptionType")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+                "{account}"
+            );
+            assert_eq!(
+                inspection["account"]["requiresRuntimeSetup"], false,
+                "{account}"
+            );
+            assert!(inspection["account"].get("error").is_none(), "{account}");
+            fixture.adapter.dispose().await.unwrap();
+        }
+    });
+}
+
+/// Without a native credential source, a model catalog still asks to sign in.
+#[test]
+fn requires_sign_in_when_there_is_no_native_credential_source() {
+    run_local(async {
+        for account in [
+            json!({}),
+            json!({ "apiProvider": "firstParty", "email": "subscriber@example.test",
+                "subscriptionType": "pro" }),
+            json!({ "apiProvider": "firstParty", "tokenSource": "none", "apiKeySource": "none" }),
+        ] {
+            let query = inspection_query(account.clone());
+            let fixture = create_adapter(
+                inspection_sdk(query),
+                json!({ "PATH": "/usr/bin", "HOME": "/home/test" }),
+                None,
+            );
+            let inspection = fixture.adapter.inspect().await.unwrap();
+            assert!(!inspection["models"].as_array().unwrap().is_empty());
+            assert_eq!(inspection["account"]["account"], Value::Null, "{account}");
+            assert_eq!(
+                inspection["account"]["requiresRuntimeSetup"], true,
+                "{account}"
+            );
+            assert!(
+                inspection["account"]["error"]
+                    .as_str()
+                    .unwrap()
+                    .contains("Sign in to Claude Code"),
+                "{account}"
+            );
+            fixture.adapter.dispose().await.unwrap();
+        }
     });
 }
 

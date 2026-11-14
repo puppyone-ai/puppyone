@@ -121,19 +121,18 @@ pub fn normalize_account(value: Option<&Value>, models: &[Value], environment: &
     let empty = Value::Null;
     let account = value.filter(|v| v.is_object()).unwrap_or(&empty);
     let field = |key: &str| js::truthy_opt(account.get(key));
-    let has_native_identity = field("email")
-        || field("organization")
-        || field("subscriptionType")
-        || field("tokenSource")
-        || field("apiKeySource")
-        || field("apiProvider");
-    let has_api_key = field("apiKeySource")
-        || environment
-            .get("ANTHROPIC_API_KEY")
-            .is_some_and(|key| !key.is_empty());
+    // Claude Code owns credential selection and billing. Its SDK reports the
+    // effective credential source without exposing the credential here.
+    let has_native_credential = ["tokenSource", "apiKeySource"].iter().any(|key| {
+        let source = bounded(account.get(*key), 160).to_lowercase();
+        !source.is_empty() && source != "none"
+    });
+    let has_api_key = environment
+        .get("ANTHROPIC_API_KEY")
+        .is_some_and(|key| !key.is_empty());
     let supported_cloud = field("apiProvider")
         && account.get("apiProvider").and_then(Value::as_str) != Some("firstParty");
-    let authenticated = has_api_key || supported_cloud;
+    let authenticated = has_native_credential || has_api_key || supported_cloud;
     let mut result = Obj::new()
         .set(
             "account",
@@ -151,10 +150,8 @@ pub fn normalize_account(value: Option<&Value>, models: &[Value], environment: &
         .set("requiresOpenaiAuth", false)
         .set("requiresRuntimeSetup", !authenticated);
     if !authenticated {
-        let error = if has_native_identity {
-            "Claude subscription OAuth cannot be used by a third-party product. Configure an Anthropic API key or a supported cloud provider, then refresh."
-        } else if !models.is_empty() {
-            "Configure an Anthropic API key or a supported cloud provider for Claude Code, then refresh."
+        let error = if !models.is_empty() {
+            "Sign in to Claude Code or configure an Anthropic API key or a supported cloud provider, then refresh."
         } else {
             "Claude Code authentication and model access are unavailable."
         };

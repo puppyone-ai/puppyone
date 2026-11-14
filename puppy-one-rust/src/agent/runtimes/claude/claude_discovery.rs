@@ -241,7 +241,7 @@ pub async fn discover_claude_runtime(
             js::to_js_string(local.get("version"))
         )
     } else if compatible["status"] == "not-installed" {
-        "Claude Code was not found. Install the native Claude Code product, configure an API key or supported cloud provider, then refresh.".into()
+        "Claude Code was not found. Install Claude Code, complete its sign-in or provider setup, then refresh.".into()
     } else {
         redact_secret_text(&js::to_js_string(compatible.get("message")))
     };

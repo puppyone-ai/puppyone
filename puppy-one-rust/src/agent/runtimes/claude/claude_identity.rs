@@ -10,7 +10,7 @@ pub static CLAUDE_RUNTIME_MANIFEST: LazyLock<Value> = LazyLock::new(|| {
     define_agent_runtime_manifest(&json!({
         "id": "claude",
         "displayName": "Claude Agent",
-        "description": "Anthropic's official Agent SDK runtime using separately configured API or supported cloud credentials.",
+        "description": "Anthropic's official Agent SDK runtime using Claude Code's native authentication and billing.",
         "iconKey": "claude",
         "priority": 40,
         "execution": {
