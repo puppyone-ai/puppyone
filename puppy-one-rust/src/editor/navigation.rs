@@ -20,6 +20,10 @@ pub enum Syntax {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Status {
     Resolved,
+    /// Not in the hydrated Explorer yet, with paths to try: the workbench
+    /// can load a path its metadata has not seen
+    /// (`resolveWorkspaceCandidatesOnOpen`).
+    Unresolved,
     Ambiguous,
     Missing,
 }
@@ -284,6 +288,8 @@ pub fn resolve(raw: &str, resolver: Option<&Resolve>) -> Option<Reference> {
                 Status::Ambiguous
             } else if resolution.exists && resolution.path.is_some() {
                 Status::Resolved
+            } else if !candidates.is_empty() {
+                Status::Unresolved
             } else {
                 Status::Missing
             };
@@ -397,5 +403,21 @@ mod tests {
             }
         ));
         assert!(!can_open(&missing));
+        // Not in the Explorer yet, but with paths to try: openable.
+        let elsewhere = |_: &str| {
+            Some(Resolution {
+                candidates: vec!["data/table.csv".into()],
+                ..Resolution::default()
+            })
+        };
+        let unresolved = resolve("./data/table.csv", Some(&elsewhere)).unwrap();
+        assert!(matches!(
+            unresolved,
+            Reference::Workspace {
+                status: Status::Unresolved,
+                ..
+            }
+        ));
+        assert!(can_open(&unresolved));
     }
 }

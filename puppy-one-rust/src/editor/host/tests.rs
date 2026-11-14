@@ -619,7 +619,7 @@ fn an_html_page_asks_before_it_uses_its_folder(cx: &mut TestAppContext) {
     let page = "<!doctype html><html><head></head><body><a href=\"https://example.test/\">x</a>\
         <script>showDirectoryPicker()</script></body></html>";
     crate::editor::registry::set_document_folder("doc-html-folder", Some(folder.clone()));
-    let (view, _, cx) = setup_with(
+    let (view, messages, cx) = setup_with(
         cx,
         "doc-html-folder",
         Some(workspace),
@@ -664,6 +664,37 @@ fn an_html_page_asks_before_it_uses_its_folder(cx: &mut TestAppContext) {
         v.surface.as_ref().unwrap().html_page_deliver(link, cx)
     });
     assert_eq!(cx.opened_url().as_deref(), Some("https://example.test/"));
+    // A file the Explorer has not loaded yet still opens; nothing there
+    // says the linked file is missing.
+    view.update(cx, |v, cx| {
+        let index = crate::editor::navigation::ReferenceIndex::new(vec![]);
+        v.surface.as_ref().unwrap().set_reference_context(
+            Some(crate::editor::navigation::ReferenceContext {
+                source: "site/tracker.html".into(),
+                index: std::sync::Arc::new(index),
+            }),
+            cx,
+        )
+    });
+    let follow = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext, href: &str| {
+        let body = format!(r#"{{"type":"link","href":"{href}"}}"#);
+        view.update(cx, |v, cx| {
+            v.surface.as_ref().unwrap().html_page_deliver(&body, cx)
+        });
+        cx.run_until_parked();
+        view.update(cx, |v, cx| {
+            v.surface.as_ref().unwrap().html_page_deliver("{}", cx)
+        })
+    };
+    follow(&view, cx, "tasks.md");
+    assert!(messages.borrow().iter().any(|m| matches!(
+        m,
+        ClientMessage::OpenPaths { paths } if paths == &vec!["site/tasks.md".to_string()]
+    )));
+    assert_eq!(
+        follow(&view, cx, "gone.md").as_deref(),
+        Some(t("editor.html.linkFailure.missing"))
+    );
     // Declined, the same page is not asked again; once allowed, an edit
     // to it asks again, saying it changed.
     view.update_in(cx, |v, w, cx| {

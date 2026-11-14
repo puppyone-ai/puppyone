@@ -504,12 +504,39 @@ impl Interact {
         match reference {
             Some(reference) if navigation::can_open(&reference) => match reference {
                 Reference::External { href, .. } => cx.open_url(&href),
-                Reference::Workspace { candidates, .. } => {
-                    let events = self.state.borrow().events.clone();
-                    if let Some(events) = events {
-                        events(SurfaceEvent::OpenPaths(candidates), cx);
-                    }
+                // Not in the Explorer yet: the paths that are there open, and
+                // none means the linked file is missing.
+                Reference::Workspace {
+                    status: Status::Unresolved,
+                    candidates,
+                    ..
+                } if self.workspace.is_some() => {
+                    let workspace = self.workspace.clone();
+                    let found = cx.background_executor().spawn(async move {
+                        candidates
+                            .into_iter()
+                            .filter(|path| {
+                                workspace.as_ref().is_some_and(|w| {
+                                    w.entry_exists(Path::new(path.trim_start_matches('/')))
+                                        .unwrap_or(false)
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                    });
+                    let this = self.clone();
+                    cx.spawn(async move |cx| {
+                        let found = found.await;
+                        cx.update(|cx| {
+                            if found.is_empty() {
+                                this.fail("missing", cx)
+                            } else {
+                                this.open(found, cx)
+                            }
+                        });
+                    })
+                    .detach();
                 }
+                Reference::Workspace { candidates, .. } => self.open(candidates, cx),
                 Reference::Denied { .. } => {}
             },
             Some(Reference::Workspace {
@@ -517,6 +544,13 @@ impl Interact {
                 ..
             }) => self.fail("missing", cx),
             _ => self.fail("unavailable", cx),
+        }
+    }
+    /// The workbench opens the linked document.
+    fn open(&self, paths: Vec<String>, cx: &mut App) {
+        let events = self.state.borrow().events.clone();
+        if let Some(events) = events {
+            events(SurfaceEvent::OpenPaths(paths), cx);
         }
     }
     /// A message from the page, as its web view would post it.
