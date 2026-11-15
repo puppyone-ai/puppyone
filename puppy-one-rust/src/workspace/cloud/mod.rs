@@ -13,6 +13,7 @@ pub mod graph;
 pub mod history;
 pub mod locator;
 mod model;
+mod mutations;
 pub mod opening;
 pub mod pricing;
 pub mod publish;
@@ -286,7 +287,10 @@ impl DataPort for Cloud {
         if folder {
             self.shared.change("mkdir", &path, None)?;
         } else {
-            let _serial = self.shared.mutations.lock().unwrap();
+            let _serial = self
+                .shared
+                .mutations
+                .acquire(&[&path], || self.shared.check())?;
             self.shared.check()?;
             if text.contains(['\0', '\r']) {
                 return Err(Error::from("Invalid Cloud template text"));
@@ -328,7 +332,10 @@ impl DocumentStoragePort for Cloud {
         )
     }
     fn write(&self, path: &RelativePath, baseline: &Revision, text: &str) -> Result<WriteResult> {
-        let _serial = self.shared.mutations.lock().unwrap();
+        let _serial = self
+            .shared
+            .mutations
+            .acquire(&[path], || self.shared.check())?;
         self.shared.check()?;
         let mut version = model::Version::parse(
             baseline,
@@ -396,7 +403,7 @@ impl Cloud {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let entries = self.shared.list(&parent)?;
+        let entries = self.shared.fresh_list(&parent)?;
         let active = ["-wal", "-shm", "-journal", ".wal"].iter().any(|suffix| {
             let sidecar = format!("{name}{suffix}");
             entries.iter().any(|e| e.name == sidecar)
@@ -423,9 +430,9 @@ impl ResourceWatchPort for Cloud {
             &self.shared.runtime,
             path,
         )?;
-        self.hub.subscribe(notify)
+        self.hub.subscribe(Some(path.clone()), notify)
     }
     fn watch_root(&self, notify: Notify) -> Result<WatchSubscription> {
-        self.hub.subscribe(notify)
+        self.hub.subscribe(None, notify)
     }
 }

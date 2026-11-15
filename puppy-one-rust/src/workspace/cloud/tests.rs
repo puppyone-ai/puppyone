@@ -1204,7 +1204,7 @@ fn directory_contract_rejects_duplicates_escape_names_and_unbounded_results() {
     }
 }
 #[test]
-fn parser_handles_fragmented_utf8_crlf_and_bounded_reset_only_frames() {
+fn parser_handles_fragmented_utf8_crlf_and_bounded_change_frames() {
     let message = format!(
         "event: change\r\ndata: {{\"generation\":\"{GENERATION}\",\"reset\":true,\"paths\":[\"你好.md\"]}}\r\n\r\n"
     );
@@ -1212,7 +1212,7 @@ fn parser_handles_fragmented_utf8_crlf_and_bounded_reset_only_frames() {
     let mut count = 0;
     for byte in message.bytes() {
         parser
-            .feed(&[byte], GENERATION, &mut || count += 1)
+            .feed(&[byte], GENERATION, &mut |_| count += 1)
             .unwrap();
     }
     assert_eq!(count, 1);
@@ -1223,7 +1223,7 @@ fn parser_handles_fragmented_utf8_crlf_and_bounded_reset_only_frames() {
     ] {
         assert!(
             events::Parser::default()
-                .feed(message.as_bytes(), GENERATION, &mut || panic!(
+                .feed(message.as_bytes(), GENERATION, &mut |_| panic!(
                     "invalid reset"
                 ))
                 .is_err()
@@ -1231,14 +1231,14 @@ fn parser_handles_fragmented_utf8_crlf_and_bounded_reset_only_frames() {
     }
     assert!(
         events::Parser::default()
-            .feed(&vec![b'x'; 32769], GENERATION, &mut || {})
+            .feed(&vec![b'x'; 32769], GENERATION, &mut |_| {})
             .is_err()
     );
     assert_eq!(
         events::Parser::default().feed(
             b"event: unavailable\ndata: {\"retryable\":true}\n\n",
             GENERATION,
-            &mut || {}
+            &mut |_| {}
         ),
         Err(auth::Error::Unavailable)
     );
@@ -1252,13 +1252,16 @@ fn database_previews_refuse_active_sidecars_and_keep_one_snapshot() {
         .lock()
         .unwrap()
         .insert("data.sqlite".into(), Some(sqlite.clone()));
-    let ws = f.open();
+    let (ws, shared) = f.scoped();
+    let (_watch, _) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    ws.list(p("")).unwrap(); // A live cached listing predates the WAL.
     let preview = ws.resource(p("data.sqlite")).unwrap();
     match preview.data().unwrap() {
         PreviewData::Bytes { bytes, .. } => assert_eq!(&bytes[..], &sqlite[..]),
         other => panic!("{other:?}"),
     }
-    // A write-ahead log beside it means the database needs recovery.
+    // A write-ahead log means recovery even before its SSE hint arrives.
     f.state
         .files
         .lock()
@@ -1270,7 +1273,7 @@ fn database_previews_refuse_active_sidecars_and_keep_one_snapshot() {
     assert!(ws.resource(p("image.png")).is_ok());
 }
 #[test]
-fn one_provider_runs_its_mutations_one_at_a_time() {
+fn creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight() {
     let f = Fixture::new();
     let ws = Arc::new(f.open());
     let old = ws.read(p("live.md")).unwrap();
@@ -1280,18 +1283,160 @@ fn one_provider_runs_its_mutations_one_at_a_time() {
         thread::spawn(move || ws.save(&old, "first\n").map(|_| ()))
     };
     wait(|| f.state.write.arrived.load(Ordering::SeqCst) == 1);
+    let (created, creation) = std::sync::mpsc::channel();
     let creating = {
         let ws = ws.clone();
-        thread::spawn(move || ws.create_entry(p(""), "folder", true, "").map(|_| ()))
+        thread::spawn(move || {
+            let result = ws.create_entry(p(""), "folder", true, "").map(|_| ());
+            let _ = created.send(result);
+        })
     };
-    // The folder waits behind the save still on the wire.
-    thread::sleep(Duration::from_millis(150));
-    assert_eq!(f.state.count("POST", "/files"), 0);
+    // TS live-workspace-editing: unrelated creation must not wait for typing.
+    let creation = creation.recv_timeout(Duration::from_secs(2));
+    let unchanged = f.state.files.lock().unwrap()["live.md"].clone();
     f.state.write.release();
+    creating.join().unwrap();
     saving.join().unwrap().unwrap();
-    creating.join().unwrap().unwrap();
+    creation
+        .expect("unrelated creation waited for the slow save")
+        .unwrap();
+    assert_eq!(unchanged.as_deref(), Some(b"live before Git\n".as_slice()));
     assert_eq!(f.state.count("POST", "/files"), 1);
     assert_eq!(ws.read(p("live.md")).unwrap().text, "first\n");
+}
+
+fn cached_folders(f: &Fixture, ws: &Workspace) {
+    for folder in ["", "docs", "docs/deep", "other"] {
+        ws.list(p(folder)).unwrap();
+    }
+    f.state.requests.lock().unwrap().clear();
+}
+fn changed_paths(f: &Fixture, paths: &[&str]) {
+    f.state.event(&format!(
+        "event: change\ndata: {}\n\n",
+        json!({"generation":GENERATION,"paths":paths})
+    ));
+}
+fn list_requests(f: &Fixture) -> Vec<String> {
+    f.state
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|(method, path)| {
+            let url = url::Url::parse(&format!("http://fixture{path}")).unwrap();
+            (method == "GET" && url.path().ends_with("/files")).then(|| {
+                url.query_pairs()
+                    .find(|(k, _)| k == "path")
+                    .unwrap()
+                    .1
+                    .into_owned()
+            })
+        })
+        .collect()
+}
+fn seed_folders(f: &Fixture) {
+    f.state.files.lock().unwrap().extend([
+        ("docs".into(), None),
+        ("docs/deep".into(), None),
+        ("other".into(), None),
+        ("docs/guide.md".into(), Some(b"guide".to_vec())),
+    ]);
+}
+#[test]
+fn saving_keeps_live_listings_and_creating_invalidates_only_its_parent() {
+    let f = Fixture::new();
+    seed_folders(&f);
+    let (ws, shared) = f.scoped();
+    let (_watch, _) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    cached_folders(&f, &ws);
+    let before = ws.read(p("live.md")).unwrap();
+    ws.save(&before, "saved").unwrap();
+    for folder in ["", "docs", "docs/deep", "other"] {
+        ws.list(p(folder)).unwrap();
+    }
+    assert!(
+        list_requests(&f).is_empty(),
+        "saving must not re-list directories"
+    );
+    ws.create_entry(p("docs"), "new.md", false, "fresh")
+        .unwrap();
+    for folder in ["", "docs", "docs/deep", "other"] {
+        ws.list(p(folder)).unwrap();
+    }
+    assert_eq!(list_requests(&f), ["docs"]);
+}
+#[test]
+fn scoped_events_drop_the_named_subtree_and_unknown_events_drop_every_listing() {
+    let f = Fixture::new();
+    seed_folders(&f);
+    let (ws, shared) = f.scoped();
+    let (_watch, count) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    _watch.next();
+    for (paths, expected) in [
+        (vec!["docs/guide.md"], vec!["docs"]),
+        (vec!["docs"], vec!["", "docs", "docs/deep"]),
+    ] {
+        cached_folders(&f, &ws);
+        let before = count.load(Ordering::SeqCst);
+        changed_paths(&f, &paths);
+        wait(|| count.load(Ordering::SeqCst) > before);
+        for folder in ["", "docs", "docs/deep", "other"] {
+            ws.list(p(folder)).unwrap();
+        }
+        assert_eq!(list_requests(&f), expected);
+        // Consume the coalesced wake so the next change can notify again.
+        _watch.next();
+    }
+    cached_folders(&f, &ws);
+    let before = shared.epoch.load(Ordering::SeqCst);
+    f.state.reset();
+    wait(|| shared.epoch.load(Ordering::SeqCst) > before);
+    for folder in ["", "docs", "docs/deep", "other"] {
+        ws.list(p(folder)).unwrap();
+    }
+    assert_eq!(list_requests(&f), ["", "docs", "docs/deep", "other"]);
+}
+#[test]
+fn a_move_invalidates_both_parents_and_a_delete_invalidates_the_subtree() {
+    let f = Fixture::new();
+    seed_folders(&f);
+    let (ws, shared) = f.scoped();
+    let (_watch, _) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    cached_folders(&f, &ws);
+    ws.move_entry(p("docs/guide.md"), p("other")).unwrap();
+    for folder in ["", "docs", "docs/deep", "other"] {
+        ws.list(p(folder)).unwrap();
+    }
+    assert_eq!(list_requests(&f), ["docs", "other"]);
+    f.state.requests.lock().unwrap().clear();
+    ws.remove_entry(p("docs")).unwrap();
+    for folder in ["", "docs", "docs/deep", "other"] {
+        ws.list(p(folder)).unwrap();
+    }
+    assert_eq!(list_requests(&f), ["", "docs", "docs/deep"]);
+}
+#[test]
+fn failed_requests_and_stopped_watches_cannot_leave_authoritative_listings() {
+    let f = Fixture::new();
+    seed_folders(&f);
+    let (ws, shared) = f.scoped();
+    let (watch, _) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    cached_folders(&f, &ws);
+    assert!(ws.read(p("missing.md")).is_err());
+    for folder in ["", "docs", "docs/deep", "other"] {
+        ws.list(p(folder)).unwrap();
+    }
+    assert_eq!(list_requests(&f), ["", "docs", "docs/deep", "other"]);
+    drop(watch);
+    f.state.requests.lock().unwrap().clear();
+    ws.list(p("")).unwrap();
+    ws.list(p("")).unwrap();
+    assert_eq!(list_requests(&f), ["", ""]);
 }
 #[test]
 fn a_cloud_workspace_bounds_text_at_8_mib() {

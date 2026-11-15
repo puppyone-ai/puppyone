@@ -1,4 +1,4 @@
-//! One bounded reset stream per admitted provider, shared by document and tree
+//! One bounded change stream per admitted provider, shared by document and tree
 //! subscriptions. No file polling, cursor journal, wake POST or mutation replay.
 use super::{
     client::{Shared, map_error},
@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 struct Sink {
+    path: Option<RelativePath>,
     slot: Weak<Mutex<Option<WatchEvent>>>,
     notify: Notify,
 }
@@ -39,7 +40,11 @@ impl Hub {
             }),
         })
     }
-    pub fn subscribe(self: &Arc<Self>, notify: Notify) -> Result<WatchSubscription> {
+    pub fn subscribe(
+        self: &Arc<Self>,
+        path: Option<RelativePath>,
+        notify: Notify,
+    ) -> Result<WatchSubscription> {
         self.shared.check()?;
         // Revalidate after registration even when another subscriber already
         // owns the stream: an event may have occurred between read and watch.
@@ -57,10 +62,12 @@ impl Hub {
             state.sinks.insert(
                 id,
                 Sink {
+                    path,
                     slot: Arc::downgrade(&events),
                     notify: notify.clone(),
                 },
             );
+            self.shared.retain_listings();
             if state.active.is_none() {
                 let run = Uuid::new_v4();
                 let cancel = self.shared.cancel.child();
@@ -81,7 +88,9 @@ impl Hub {
             events,
             cancel: WatchCancellation::new(move || {
                 let mut state = hub.state.lock().unwrap();
-                state.sinks.remove(&id);
+                if state.sinks.remove(&id).is_some() {
+                    hub.shared.release_listings();
+                }
                 if state.sinks.is_empty()
                     && let Some((_, cancel)) = state.active.take()
                 {
@@ -96,8 +105,9 @@ impl Hub {
             if !state.active.as_ref().is_some_and(|(id, _)| *id == run) {
                 return;
             }
-            if matches!(event, WatchEvent::Invalidated) {
-                self.shared.invalidate();
+            match &event {
+                WatchEvent::Changed(paths) => self.shared.invalidate_paths(paths, true),
+                WatchEvent::Invalidated | WatchEvent::Failed(_) => self.shared.invalidate(),
             }
             state.sinks.values().cloned().collect::<Vec<_>>()
         };
@@ -118,8 +128,19 @@ impl Hub {
 }
 fn deliver(sinks: Vec<Sink>, event: WatchEvent) {
     for sink in sinks {
+        if let (Some(path), WatchEvent::Changed(paths)) = (&sink.path, &event)
+            && !paths
+                .iter()
+                .any(|changed| path.as_path().starts_with(changed.as_path()))
+        {
+            continue;
+        }
         if let Some(slot) = sink.slot.upgrade() {
-            let wake = slot.lock().unwrap().replace(event.clone()).is_none();
+            let mut slot = slot.lock().unwrap();
+            let pending = slot.take();
+            let wake = pending.is_none();
+            *slot = Some(pending.map_or_else(|| event.clone(), |p| p.coalesce(event.clone())));
+            drop(slot);
             if wake {
                 (sink.notify)();
             }
@@ -164,9 +185,12 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
                         }
                     }
                     StreamEvent::Data(bytes) => {
-                        parser.feed(bytes, &shared.runtime.generation, &mut || {
+                        parser.feed(bytes, &shared.runtime.generation, &mut |paths| {
                             if let Some(hub) = hub.upgrade() {
-                                hub.publish(run, WatchEvent::Invalidated);
+                                hub.publish(
+                                    run,
+                                    paths.map_or(WatchEvent::Invalidated, WatchEvent::Changed),
+                                );
                             }
                         })?
                     }
@@ -208,12 +232,37 @@ pub(super) struct Parser {
     data: String,
     cr: bool,
 }
+/// `workspaceEventPaths`: malformed hints have unknown scope, never a partial
+/// list which could conceal a changed document. Length is JavaScript UTF-16.
+fn event_paths(value: &serde_json::Value) -> Option<Vec<RelativePath>> {
+    let items = value.as_array()?;
+    if items.is_empty() || items.len() > 256 {
+        return None;
+    }
+    let mut paths = Vec::new();
+    for item in items {
+        let text = item.as_str()?;
+        if text.encode_utf16().count() > 4096
+            || text.contains(['\\', '\0'])
+            || text
+                .split('/')
+                .any(|s| s.is_empty() || s == "." || s == "..")
+        {
+            return None;
+        }
+        let path = RelativePath::new(std::path::Path::new(text)).ok()?;
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    Some(paths)
+}
 impl Parser {
     pub fn feed(
         &mut self,
         bytes: &[u8],
         generation: &str,
-        reset: &mut dyn FnMut(),
+        reset: &mut dyn FnMut(Option<Vec<RelativePath>>),
     ) -> auth::model::Result<()> {
         for byte in bytes {
             if self.cr {
@@ -235,7 +284,11 @@ impl Parser {
         }
         Ok(())
     }
-    fn line(&mut self, generation: &str, reset: &mut dyn FnMut()) -> auth::model::Result<()> {
+    fn line(
+        &mut self,
+        generation: &str,
+        reset: &mut dyn FnMut(Option<Vec<RelativePath>>),
+    ) -> auth::model::Result<()> {
         let bytes = std::mem::take(&mut self.line);
         let line = std::str::from_utf8(&bytes).map_err(|_| auth::Error::InvalidResponse)?;
         if line.is_empty() {
@@ -252,7 +305,8 @@ impl Parser {
                         auth::Error::Http(409)
                     });
                 }
-                if value["reset"] != true {
+                let paths = event_paths(&value["paths"]);
+                if value["reset"] != true && paths.is_none() {
                     return Err(auth::Error::InvalidResponse);
                 }
                 if value["generation"].as_str() != Some(generation) {
@@ -261,7 +315,7 @@ impl Parser {
                         auth::ServiceCode::GenerationChanged,
                     ));
                 }
-                reset();
+                reset(paths);
             }
             self.size = 0;
             self.data.clear();
@@ -280,5 +334,144 @@ impl Parser {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        path::Path,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+    fn path(value: &str) -> RelativePath {
+        RelativePath::new(Path::new(value)).unwrap()
+    }
+    fn paths(values: &[&str]) -> WatchEvent {
+        WatchEvent::Changed(values.iter().map(|p| path(p)).collect())
+    }
+
+    #[test]
+    fn actual_typescript_event_parser_oracle_including_fragmented_unicode() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../fixtures/test-parity-oracle.json"))
+                .unwrap();
+        for (index, case) in fixture["eventCases"].as_array().unwrap().iter().enumerate() {
+            let frame = case["frame"].as_str().unwrap();
+            for chunk in [1, 3, 17, frame.len()] {
+                let mut parser = Parser::default();
+                let mut events = Vec::new();
+                let mut valid = true;
+                for bytes in frame.as_bytes().chunks(chunk) {
+                    if parser
+                        .feed(bytes, "one", &mut |paths| {
+                            events.push(paths.map(|paths| {
+                                paths
+                                    .iter()
+                                    .map(|p| p.as_path().to_str().unwrap().to_owned())
+                                    .collect::<Vec<_>>()
+                            }));
+                        })
+                        .is_err()
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
+                assert_eq!(
+                    valid,
+                    case["valid"].as_bool().unwrap(),
+                    "TS case {index}, chunk {chunk}"
+                );
+                assert_eq!(
+                    serde_json::json!(events),
+                    case["events"],
+                    "TS case {index}, chunk {chunk}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scoped_changes_accept_legacy_and_current_wire_shapes_and_deduplicate_paths() {
+        for legacy in [true, false] {
+            let data = serde_json::json!({"generation":"one","reset":legacy,"paths":["docs/你好.md","b.md","docs/你好.md"]});
+            let frame = format!("event: change\r\ndata: {data}\r\n\r\n");
+            let mut events = Vec::new();
+            let mut parser = Parser::default();
+            for byte in frame.bytes() {
+                parser
+                    .feed(&[byte], "one", &mut |p| events.push(p))
+                    .unwrap();
+            }
+            assert_eq!(events, vec![Some(vec![path("docs/你好.md"), path("b.md")])]);
+        }
+    }
+
+    #[test]
+    fn invalid_path_hints_reset_everything_only_with_the_legacy_reset_flag() {
+        use serde_json::json;
+        for hints in [
+            json!([]),
+            json!(["docs/a.md", ""]),
+            json!(["docs/../secret"]),
+            json!(["./a.md"]),
+            json!(["/etc/passwd"]),
+            json!(["docs//a.md"]),
+            json!(["docs\\a.md"]),
+            json!(["a\0.md"]),
+            json!([42]),
+            json!(["a".repeat(4097)]),
+            json!(["😀".repeat(2049)]),
+            json!((0..257).map(|i| format!("{i}.md")).collect::<Vec<_>>()),
+            json!(null),
+        ] {
+            for legacy in [true, false] {
+                let frame = format!(
+                    "event: change\ndata: {}\n\n",
+                    json!({"generation":"one","reset":legacy,"paths":hints})
+                );
+                let mut events = Vec::new();
+                let result =
+                    Parser::default().feed(frame.as_bytes(), "one", &mut |p| events.push(p));
+                assert_eq!(result.is_ok(), legacy, "{hints}");
+                assert_eq!(events, if legacy { vec![None] } else { vec![] });
+            }
+        }
+    }
+
+    #[test]
+    fn only_matching_documents_wake_and_coalescing_never_loses_an_unknown_scope() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let slot = Arc::new(Mutex::new(None));
+        let wake = count.clone();
+        let sink = Sink {
+            path: Some(path("docs/a.md")),
+            slot: Arc::downgrade(&slot),
+            notify: Arc::new(move || {
+                wake.fetch_add(1, Ordering::SeqCst);
+            }),
+        };
+        deliver(vec![sink.clone()], paths(&["other/a.md"]));
+        assert!(slot.lock().unwrap().is_none());
+        deliver(vec![sink.clone()], paths(&["docs"]));
+        deliver(vec![sink.clone()], paths(&["docs/a.md"]));
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+        assert!(matches!(&*slot.lock().unwrap(), Some(WatchEvent::Changed(p)) if p.len()==2));
+        deliver(vec![sink.clone()], WatchEvent::Invalidated);
+        deliver(vec![sink], paths(&["docs/a.md"]));
+        assert!(matches!(
+            &*slot.lock().unwrap(),
+            Some(WatchEvent::Invalidated)
+        ));
+    }
+
+    #[test]
+    fn too_many_coalesced_paths_fall_back_to_a_full_revalidation() {
+        let many = WatchEvent::Changed((0..256).map(|i| path(&format!("{i}.md"))).collect());
+        assert!(matches!(
+            many.coalesce(paths(&["last.md"])),
+            WatchEvent::Invalidated
+        ));
     }
 }

@@ -68,7 +68,29 @@ pub trait ResourcePort: Send + Sync {
 #[derive(Clone, Debug)]
 pub enum WatchEvent {
     Invalidated,
+    /// Validated relative paths; an unknown/overflowed scope is Invalidated.
+    Changed(Vec<RelativePath>),
     Failed(Error),
+}
+impl WatchEvent {
+    pub(crate) fn coalesce(self, next: Self) -> Self {
+        match (self, next) {
+            (_, Self::Failed(error)) => Self::Failed(error),
+            (Self::Invalidated, Self::Changed(_)) | (_, Self::Invalidated) => Self::Invalidated,
+            (Self::Changed(mut paths), Self::Changed(more)) => {
+                for path in more {
+                    if !paths.contains(&path) {
+                        paths.push(path);
+                    }
+                    if paths.len() > 256 {
+                        return Self::Invalidated;
+                    }
+                }
+                Self::Changed(paths)
+            }
+            (_, next) => next,
+        }
+    }
 }
 pub type Notify = Arc<dyn Fn() + Send + Sync>;
 pub struct WatchCancellation {
