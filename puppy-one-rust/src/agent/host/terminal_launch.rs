@@ -28,6 +28,14 @@ pub struct TerminalAgentLaunch {
     pub environment: EnvMap,
 }
 impl TerminalAgentLaunch {
+    pub fn into_shell_agent(self) -> crate::platform::terminal::shell::AgentCommand {
+        crate::platform::terminal::shell::AgentCommand {
+            executable_path: self.executable_path,
+            args: self.args,
+            display_name: Some(self.display_name),
+            environment: Some(self.environment),
+        }
+    }
     pub fn into_command(self) -> crate::platform::terminal::LaunchCommand {
         crate::platform::terminal::LaunchCommand {
             executable: self.executable_path.into(),

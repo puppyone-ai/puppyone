@@ -7432,6 +7432,114 @@
           "test": "platform::terminal::tests::closing_a_terminal_during_preparation_releases_its_lease_without_starting_the_late_command"
         }
       ]
+    },
+    {
+      "id": "terminal-interactive-shell-owner",
+      "acceptance": "Native Agent terminals launch an interactive shell with the trusted executable and fixed arguments encoded as inert shell words. Resolved environments skip initial rc processing before the Agent and load the prompt after it exits; uncaptured bash/zsh environments run login initialization while passing the launch command in argv, so startup reads cannot consume it. Six real, isolated bash/zsh PTY cases verify environment ordering, literal spaces/apostrophes/command substitution/semicolons, both success and failure exits, a writable remaining shell, process exit and host-lease cleanup. Injected write and flush failures after a real PTY starts both report TERMINAL_AGENT_START_FAILED only after waiting for the child and releasing its lease. Pure serialization covers POSIX, PowerShell, cmd CRT quotes and batch expansion rejection; actual Windows PTYs remain a separate acceptance requirement. This row does not claim startup-cover or color-probe behavior.",
+      "typescript": [
+        {
+          "path": "tests/integration/terminal/startup/electron.terminal-agent-launch.test.mjs",
+          "sha256": "a301d81855eb304e720439aed6cdeb53af5bc17012ce805833f3daafda7a516e",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Terminal Agent launch boundary > keeps the shell session writable after bootstrapping an Agent"
+            },
+            {
+              "index": 8,
+              "name": "Terminal Agent launch boundary > closes a fallback host shell if the Agent bootstrap cannot be written"
+            },
+            {
+              "index": 9,
+              "name": "Terminal Agent command serialization > preserves a Windows npm launcher path and refuses percent expansion"
+            },
+            {
+              "index": 11,
+              "name": "Terminal Agent command serialization > quotes POSIX executable paths and arguments as inert shell words"
+            },
+            {
+              "index": 12,
+              "name": "Terminal Agent command serialization > uses native PowerShell invocation syntax on Windows"
+            },
+            {
+              "index": 13,
+              "name": "Terminal Agent command serialization > quotes native executable arguments for cmd.exe on Windows"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/terminal/startup/electron.terminal-shell-startup.test.mjs",
+          "sha256": "ec8655304e52b100261f6f0652bee620c2c0291e8e0b87f87f4e0af8a7bac666",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal startup with a real /bin/zsh PTY > runs the Agent with the resolved environment before loading prompt configuration"
+            },
+            {
+              "index": 1,
+              "name": "Terminal startup with a real /bin/zsh PTY > preserves launch arguments across startup input and returns to a shell after Agent exit 0"
+            },
+            {
+              "index": 2,
+              "name": "Terminal startup with a real /bin/zsh PTY > preserves launch arguments across startup input and returns to a shell after Agent exit 1"
+            },
+            {
+              "index": 3,
+              "name": "Terminal startup with a real /bin/bash PTY > runs the Agent with the resolved environment before loading prompt configuration"
+            },
+            {
+              "index": 4,
+              "name": "Terminal startup with a real /bin/bash PTY > preserves launch arguments across startup input and returns to a shell after Agent exit 0"
+            },
+            {
+              "index": 5,
+              "name": "Terminal startup with a real /bin/bash PTY > preserves launch arguments across startup input and returns to a shell after Agent exit 1"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::tests::posix_powershell_and_cmd_preserve_literal_words_and_batch_refuses_expansion"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::tests::initialized_environments_skip_startup_before_the_agent_and_keep_a_shell_after_exit"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::tests::uncaptured_zsh_uses_login_initialization_and_argv_instead_of_stdin_bootstrap"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::bootstrap_tests::a_failed_bootstrap_write_or_flush_waits_for_the_real_shell_and_releases_its_session"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::pty_tests::bash_uses_resolved_environment_before_loading_prompt_configuration"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::pty_tests::bash_startup_read_preserves_arguments_and_shell_after_successful_agent_exit"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::pty_tests::bash_startup_read_preserves_arguments_and_shell_after_failed_agent_exit"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::pty_tests::zsh_uses_resolved_environment_before_loading_prompt_configuration"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::pty_tests::zsh_startup_read_preserves_arguments_and_shell_after_successful_agent_exit"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::pty_tests::zsh_startup_read_preserves_arguments_and_shell_after_failed_agent_exit"
+        }
+      ]
     }
   ],
   "openAcceptance": [

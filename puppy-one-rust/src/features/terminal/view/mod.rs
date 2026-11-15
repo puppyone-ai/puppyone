@@ -62,13 +62,17 @@ impl TerminalView {
         let owner = crate::features::agent_presence::owner(window);
         Self::start(
             move |wake| {
-                Terminal::spawn_prepared(root, launcher, wake, owner, move || {
-                    if launcher == "shell" {
-                        return Ok(None);
-                    }
-                    crate::agent::host::resolve_terminal_launch_now(launcher)
-                        .map(|launch| Some(launch.into_command()))
-                        .map_err(|error| error.message)
+                Terminal::spawn_shell_prepared(root, launcher, wake, owner, move || {
+                    let agent = if launcher == "shell" {
+                        None
+                    } else {
+                        Some(
+                            crate::agent::host::resolve_terminal_launch_now(launcher)
+                                .map_err(|error| error.message)?
+                                .into_shell_agent(),
+                        )
+                    };
+                    crate::platform::terminal::shell::ShellHost::system(agent.as_ref())
                 })
             },
             agent,

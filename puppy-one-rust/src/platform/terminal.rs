@@ -1,3 +1,7 @@
+pub mod shell;
+// Real PTY cases share the application-wide concurrent-start budget.
+#[cfg(test)]
+static PTY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 use crate::wake::Wake;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::{
@@ -10,13 +14,18 @@ use std::{
     },
     time::Duration,
 };
-/// A verified CLI's argument and environment recipe, passed directly to the PTY
-/// without shell interpolation. Shell sessions use `None`.
+/// A process recipe passed directly to the PTY. An Agent session builds an
+/// interactive shell recipe from its verified executable and fixed arguments.
 #[derive(Clone, Debug, Default)]
 pub struct LaunchCommand {
     pub executable: PathBuf,
     pub arguments: Vec<String>,
     pub environment: Vec<(String, String)>,
+}
+struct PreparedLaunch {
+    command: Option<LaunchCommand>,
+    bootstrap: Option<String>,
+    replace_environment: bool,
 }
 pub enum Event {
     Data(Vec<u8>),
@@ -134,6 +143,49 @@ impl Terminal {
         owner: String,
         prepare: impl FnOnce() -> Result<Option<LaunchCommand>, String> + Send + 'static,
     ) -> Self {
+        Self::spawn_with_bootstrap(root, launcher, wake, owner, move || {
+            Ok(PreparedLaunch {
+                command: prepare()?,
+                bootstrap: None,
+                replace_environment: false,
+            })
+        })
+    }
+    /// Starts an interactive shell whose first foreground command is the Agent.
+    /// The preparation boundary still runs before PTY allocation and can fail closed.
+    pub fn spawn_shell_prepared(
+        root: PathBuf,
+        launcher: &'static str,
+        wake: Wake,
+        owner: String,
+        prepare: impl FnOnce() -> Result<shell::ShellHost, String> + Send + 'static,
+    ) -> Self {
+        Self::spawn_with_bootstrap(root, launcher, wake, owner, move || {
+            let host = prepare()?;
+            Ok(PreparedLaunch {
+                command: Some(host.command),
+                bootstrap: host.bootstrap_input,
+                replace_environment: true,
+            })
+        })
+    }
+    fn spawn_with_bootstrap(
+        root: PathBuf,
+        launcher: &'static str,
+        wake: Wake,
+        owner: String,
+        prepare: impl FnOnce() -> Result<PreparedLaunch, String> + Send + 'static,
+    ) -> Self {
+        Self::spawn_with_bootstrap_writer(root, launcher, wake, owner, prepare, write_bootstrap)
+    }
+    fn spawn_with_bootstrap_writer(
+        root: PathBuf,
+        launcher: &'static str,
+        wake: Wake,
+        owner: String,
+        prepare: impl FnOnce() -> Result<PreparedLaunch, String> + Send + 'static,
+        bootstrap_writer: impl FnOnce(&mut dyn Write, &str) -> Result<(), String> + Send + 'static,
+    ) -> Self {
         let (tx, rx) = mpsc::sync_channel(64);
         let (out, events) = mpsc::sync_channel(128);
         let stop = Arc::new(AtomicBool::new(false));
@@ -170,7 +222,8 @@ impl Terminal {
                 if stopping.load(Ordering::Acquire) {
                     return Ok(());
                 }
-                let launch = prepare().map_err(anyhow::Error::msg)?;
+                let prepared = prepare().map_err(anyhow::Error::msg)?;
+                let launch = prepared.command;
                 if stopping.load(Ordering::Acquire) {
                     return Ok(());
                 }
@@ -197,6 +250,9 @@ impl Terminal {
                             .unwrap_or_else(|| PathBuf::from("/bin/zsh"))
                     });
                 let mut command = CommandBuilder::new(executable);
+                if prepared.replace_environment {
+                    command.env_clear();
+                }
                 if shell {
                     command.arg("-l");
                 }
@@ -253,6 +309,9 @@ impl Terminal {
                         notifier.notify();
                     }
                 });
+                if let Some(bootstrap) = prepared.bootstrap {
+                    bootstrap_writer(&mut writer, &bootstrap).map_err(anyhow::Error::msg)?;
+                }
                 loop {
                     #[cfg(unix)]
                     foreground_pid.store(
@@ -305,6 +364,8 @@ impl Terminal {
             })();
             // The child was waited for (or never started): release the slot
             // and end the session's file activity (`onExit`).
+            child_pid.store(0, Ordering::Release);
+            foreground_pid.store(0, Ordering::Release);
             drop(lease);
             if !activity.is_empty() {
                 super::agent_activity::host::Host::global()
@@ -334,6 +395,12 @@ impl Terminal {
     pub fn resize(&self, rows: u16, cols: u16) {
         let _ = self.tx.try_send(Request::Resize(rows, cols));
     }
+}
+fn write_bootstrap(writer: &mut dyn Write, input: &str) -> Result<(), String> {
+    writer
+        .write_all(input.as_bytes())
+        .and_then(|()| writer.flush())
+        .map_err(|_| "TERMINAL_AGENT_START_FAILED".to_owned())
 }
 /// The far side of a [`Terminal::bridged`] session: what it is asked, and
 /// where its output goes.
@@ -385,6 +452,7 @@ mod tests {
     #[test]
     fn closing_a_terminal_during_preparation_releases_its_lease_without_starting_the_late_command()
     {
+        let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dir = tempfile::tempdir().unwrap();
         let marker = dir.path().join("must-not-start");
         let command_marker = marker.clone();
@@ -439,6 +507,7 @@ mod tests {
     }
     #[test]
     fn verified_cli_arguments_and_environment_reach_the_real_pty_without_shell_interpolation() {
+        let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dir = tempfile::tempdir().unwrap();
         let terminal = Terminal::spawn_command(
             dir.path().into(),
@@ -482,6 +551,7 @@ mod tests {
     #[test]
     #[ignore = "real PTY integration; run explicitly on a desktop host"]
     fn real_pty_input_resize_and_cleanup() {
+        let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dir = tempfile::tempdir().unwrap();
         let terminal = Terminal::spawn(
             dir.path().into(),
