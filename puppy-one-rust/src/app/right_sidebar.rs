@@ -49,6 +49,8 @@ pub(super) enum SidebarEvent {
     OpenSettings(Page),
     /// A hosted run's changes were accepted.
     CloudPublished,
+    /// A Changes operation failed, or its failure was dismissed.
+    GitFailure,
     /// History closed itself: the window takes the focus back.
     Closed,
 }
@@ -122,6 +124,7 @@ impl RightSidebar {
                 cx.emit(SidebarEvent::OpenFile(PathBuf::from(path)))
             }
             SourceControlEvent::Surface => s.store(cx),
+            SourceControlEvent::Failure => cx.emit(SidebarEvent::GitFailure),
         })
         .detach();
         // History's Close and Back leave the sidebar closed on the workbench.

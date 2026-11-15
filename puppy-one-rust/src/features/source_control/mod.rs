@@ -8,6 +8,7 @@
 mod cloud_history;
 pub(crate) use cloud_history::{relative_time, short_date};
 mod diff;
+mod failure;
 mod history;
 mod refresh;
 
@@ -129,6 +130,9 @@ pub enum SourceControlEvent {
     /// `onOpenHistory` / `onBack`: the sidebar now shows History or the
     /// Changes list (`rightSidebarSurface`).
     Surface,
+    /// An operation failed, or its failure was dismissed: the window shows
+    /// or closes `GitOperationErrorDialog` ([`SourceControl::has_failure`]).
+    Failure,
 }
 /// `GitSidebarPanelId` of the local status panels, in display order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -270,8 +274,13 @@ pub struct SourceControl {
     rx: mpsc::Receiver<(u64, ResultValue)>,
     wake: Wake,
     pub snapshot: Option<Snapshot>,
+    /// The status could not be read.
     pub error: Option<String>,
-    operation_error: bool,
+    /// The last operation's failure, while its dialog is open.
+    failure: Option<failure::Failure>,
+    /// The dialog's "Copied" and its reset.
+    prompt_copied: bool,
+    prompt_reset: Option<Task<()>>,
     busy: bool,
     /// The running mutation's label (`gitOperationLoading`).
     running: Option<&'static str>,
@@ -353,7 +362,9 @@ impl SourceControl {
             wake,
             snapshot: None,
             error: None,
-            operation_error: false,
+            failure: None,
+            prompt_copied: false,
+            prompt_reset: None,
             busy: false,
             running: None,
             queued_operation: None,
@@ -399,7 +410,7 @@ impl SourceControl {
         self.root = Some(root);
         self.snapshot = None;
         self.error = None;
-        self.operation_error = false;
+        self.dismiss_failure(cx);
         self.busy = false;
         self.running = None;
         self.queued_operation = None;
@@ -540,8 +551,7 @@ impl SourceControl {
         }
         self.busy = true;
         self.running = Some(op.label());
-        self.error = None;
-        self.operation_error = false;
+        self.dismiss_failure(cx);
         self.detail = None;
         self.selection += 1;
         self.task(move |root, cancel| ResultValue::Status(git::operate(&root, &op, cancel)));
@@ -558,7 +568,7 @@ impl SourceControl {
             match result {
                 ResultValue::Status(result) => {
                     self.busy = false;
-                    let was_mutation = self.running.take().is_some();
+                    let running = self.running.take();
                     match result {
                         Ok(snapshot) => {
                             let changed = self.snapshot.as_ref() != Some(&snapshot);
@@ -566,19 +576,22 @@ impl SourceControl {
                                 self.sections = project_sections(&snapshot);
                             }
                             self.snapshot = Some(snapshot);
-                            if !self.operation_error {
-                                self.error = None;
-                            }
+                            self.error = None;
                             if self.history_open && changed {
                                 self.load_history();
                             }
                         }
-                        Err(e) => {
-                            if was_mutation || !self.operation_error {
-                                self.error = Some(e);
-                                self.operation_error = was_mutation;
+                        // `runGitOperation`: the failure's dialog, then
+                        // the status read again.
+                        Err(e) => match running {
+                            Some(label) => {
+                                let workspace = self.root.as_ref().map(|r| r.display().to_string());
+                                self.failure = Some(failure::Failure::new(label, &e, workspace));
+                                self.dirty = true;
+                                cx.emit(SourceControlEvent::Failure);
                             }
-                        }
+                            None => self.error = Some(e),
+                        },
                     }
                 }
                 ResultValue::Watching(watch) => self.git_watch = watch,
@@ -1405,7 +1418,6 @@ impl SourceControl {
                 )
                 .on_click(cx.listener(|s, _, _, cx| {
                     s.error = None;
-                    s.operation_error = false;
                     cx.notify();
                 })),
             )
@@ -1948,6 +1960,47 @@ mod tests {
                 matches!(s.detail.as_ref().unwrap().files, Some(Ok(ref files)) if files.is_empty())
             );
         });
+    }
+    #[gpui::test]
+    fn a_failed_operation_opens_its_dialog_and_a_failed_read_does_not(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(SourceControl::new);
+        let failures = std::rc::Rc::new(std::cell::Cell::new(0));
+        let seen = failures.clone();
+        cx.update(|_, cx| {
+            cx.subscribe(&view, move |_, event: &SourceControlEvent, _| {
+                if *event == SourceControlEvent::Failure {
+                    seen.set(seen.get() + 1);
+                }
+            })
+            .detach()
+        });
+        view.update_in(cx, |s, w, cx| {
+            s.busy = true;
+            s.running = Some("push");
+            s.tx.send((
+                0,
+                ResultValue::Status(Err("! [rejected] (fetch first)".into())),
+            ))
+            .unwrap();
+            s.poll(w, cx);
+            let failure = s.failure.clone().unwrap();
+            assert_eq!(failure.operation, "push");
+            assert!(failure.recommends_pull());
+            assert!(s.error.is_none() && s.dirty);
+            // A status read that fails is the sidebar's own note.
+            s.busy = false;
+            s.tx.send((0, ResultValue::Status(Err("index locked".into()))))
+                .unwrap();
+            s.poll(w, cx);
+            assert_eq!(s.error.as_deref(), Some("index locked"));
+            assert!(s.has_failure());
+            // The next run closes the dialog.
+            s.busy = false;
+            s.operation(Operation::Pull, cx);
+            assert!(!s.has_failure());
+        });
+        cx.run_until_parked();
+        assert_eq!(failures.get(), 2);
     }
     #[gpui::test]
     fn reads_follow_invalidations_and_the_metadata_watch_not_a_clock(cx: &mut TestAppContext) {

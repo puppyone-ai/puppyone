@@ -425,6 +425,7 @@ impl Shell {
                 self.session.docs.update(cx, |d, _| d.observe_publication());
             }
             SidebarEvent::Closed => self.frame.focus.focus(window, cx),
+            SidebarEvent::GitFailure => return self.git_failure(cx),
         }
         self.receive(window, cx);
         cx.notify();
@@ -522,6 +523,33 @@ impl Shell {
 
 /// What the runtime, the Explorer, the panes and the window ask of it.
 impl Shell {
+    /// `GitOperationErrorDialog` follows the Changes failure: shown while
+    /// one is open, closed once it is dismissed or replaced by a new run.
+    fn git_failure(&mut self, cx: &mut Context<Self>) {
+        let source_control = self.sidebar.read(cx).source_control.clone();
+        let open = source_control.read(cx).has_failure();
+        self.dialogs.update(cx, |d, cx| {
+            if !open {
+                d.close(DialogKey::GitFailure, cx);
+                return;
+            }
+            let dismissed = source_control.downgrade();
+            let source_control = source_control.downgrade();
+            d.open_owned(
+                DialogKey::GitFailure,
+                move |_, _, cx| {
+                    source_control
+                        .update(cx, |s, cx| s.failure_dialog(cx))
+                        .unwrap_or_else(|_| Empty.into_any_element())
+                },
+                move |_, cx| {
+                    let _ = dismissed.update(cx, |s, cx| s.dismiss_failure(cx));
+                },
+                cx,
+            );
+        });
+        cx.notify();
+    }
     /// The workers' news: the window pumps the runtime, and draws again
     /// when what it shows changed.
     pub(in crate::app) fn woke(

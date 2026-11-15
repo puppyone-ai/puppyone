@@ -213,6 +213,9 @@ impl RenderOnce for Dialog {
         });
         let surface = div()
             .id(self.id.clone())
+            // A press on the dialog must not reach the backdrop behind it,
+            // which dismisses (`DialogPopup`'s occlusion).
+            .occlude()
             .flex()
             .flex_col()
             .w(self.width.min(viewport.width - px(32.)))

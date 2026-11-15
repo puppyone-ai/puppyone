@@ -125,6 +125,13 @@ pub fn run(
     if result?.success() {
         Ok(out)
     } else {
-        Err(String::from_utf8_lossy(&err).trim().to_owned())
+        // `getGitErrorOutput`: stderr, else stdout (`git commit` with
+        // nothing staged says so only there).
+        let err = String::from_utf8_lossy(&err).trim().to_owned();
+        Err(if err.is_empty() {
+            String::from_utf8_lossy(&out).trim().to_owned()
+        } else {
+            err
+        })
     }
 }

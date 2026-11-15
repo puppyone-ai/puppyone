@@ -81,6 +81,8 @@ pub(super) enum DialogKey {
     ProjectFolder,
     /// A viewer's question (`HtmlFolderAccessDialog`).
     Question,
+    /// `GitOperationErrorDialog`: a Changes operation failed.
+    GitFailure,
 }
 
 type RenderDialog = Rc<dyn Fn(Size<Pixels>, &mut Window, &mut App) -> AnyElement>;
