@@ -119,7 +119,7 @@ impl Samples {
 
 /// One result line the tool parses.
 pub fn report(surface: &str, lines: usize, first: f64, scroll: &Samples, resize: &Samples) {
-    println!(
+    po_platform::outputln!(
         "BENCH {}",
         serde_json::json!({
             "surface": surface,
@@ -144,7 +144,7 @@ pub fn report_edit(
     ime: &Samples,
     find_typing: &Samples,
 ) {
-    println!(
+    po_platform::outputln!(
         "BENCH {}",
         serde_json::json!({
             "surface": surface,

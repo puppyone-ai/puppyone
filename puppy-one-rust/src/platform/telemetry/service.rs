@@ -94,9 +94,10 @@ impl Default for Deps {
                 (u64::from_le_bytes(bytes) >> 11) as f64 / (1u64 << 53) as f64
             }),
             warn: Box::new(|e| {
-                eprintln!(
+                crate::diagnosticln!(
                     "Desktop telemetry delivery failed (retryable: {}, status: {:?}).",
-                    e.retryable, e.status
+                    e.retryable,
+                    e.status
                 )
             }),
             timers: true,

@@ -1135,7 +1135,7 @@ impl Inner {
                 error.and_then(scoped_timeout_ms),
             )
         });
-        eprintln!("Agent display feed entered recovery {detail}");
+        po_platform::diagnosticln!("Agent display feed entered recovery {detail}");
     }
 
     fn handle_ended(&self, error: &AgentError) -> bool {

@@ -133,7 +133,7 @@ fn schedule_offscreen(
                     Ok(())
                 });
                 if let Err(error) = result {
-                    eprintln!("Screenshot failed: {error:#}");
+                    po_platform::diagnosticln!("Screenshot failed: {error:#}");
                 }
                 window.remove_window();
             });
@@ -188,7 +188,7 @@ pub fn schedule(
                 .await;
             let _ = cx.update(|window, _| {
                 if let Err(error) = result {
-                    eprintln!("Screenshot failed: {error:#}");
+                    po_platform::diagnosticln!("Screenshot failed: {error:#}");
                 }
                 window.remove_window();
             });

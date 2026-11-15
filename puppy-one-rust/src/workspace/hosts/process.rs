@@ -85,7 +85,7 @@ pub fn run(app_data: &Path, app_version: &str) -> i32 {
             _ = stopped.recv() => {}
             served = serving => {
                 if let Ok(Err(error)) = served {
-                    eprintln!("PuppyOne Host failed to start: {error}");
+                    po_platform::diagnosticln!("PuppyOne Host failed to start: {error}");
                     return 1;
                 }
             }

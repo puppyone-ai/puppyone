@@ -168,7 +168,7 @@ impl AgentHostHandle {
                                     store.close().await;
                                 }
                                 if let Err(error) = closed {
-                                    eprintln!("puppyone failed to drain Agent sessions during quit: {error}");
+                                    po_platform::diagnosticln!("puppyone failed to drain Agent sessions during quit: {error}");
                                 }
                                 let _ = reply.send(());
                                 return;
@@ -338,7 +338,9 @@ fn production_services(
         let store = attachment_store.clone();
         tokio::task::spawn_local(async move {
             if let Err(error) = store.initialize().await {
-                eprintln!("puppyone failed to initialize Agent attachment staging: {error}");
+                po_platform::diagnosticln!(
+                    "puppyone failed to initialize Agent attachment staging: {error}"
+                );
             }
         });
     }

@@ -8,7 +8,7 @@
 pub fn claim(scheme: &str) {
     #[cfg(target_os = "macos")]
     if let Err(error) = macos::claim(scheme) {
-        eprintln!("Unable to register the PuppyOne return link: {error}");
+        crate::diagnosticln!("Unable to register the PuppyOne return link: {error}");
     }
     #[cfg(not(target_os = "macos"))]
     let _ = scheme;

@@ -306,7 +306,7 @@ impl Render for Lab {
             });
             if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), &geometry)
             {
-                eprintln!("Lab capture failed: {error:#}");
+                po_platform::diagnosticln!("Lab capture failed: {error:#}");
             }
         }
         let t = theme::Theme::new(self.dark);

@@ -202,7 +202,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "agent-history" => Step::AgentHistory,
                 "agent-history-open" => Step::AgentHistoryOpen,
                 other => {
-                    eprintln!("Unknown capture step {other:?}");
+                    po_platform::diagnosticln!("Unknown capture step {other:?}");
                     return None;
                 }
             })

@@ -120,7 +120,7 @@ pub fn suspend_leftover(cx: &App) {
                 let stopped = peer.call("execStopAll", json!({})).await;
                 let shut = peer.call("shutdown", json!({})).await;
                 if let Some(error) = [paused, stopped, shut].into_iter().find_map(Result::err) {
-                    eprintln!("Unable to suspend Host during rollout: {error}");
+                    po_platform::diagnosticln!("Unable to suspend Host during rollout: {error}");
                 }
             })
         })

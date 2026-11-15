@@ -148,7 +148,7 @@ impl AgentControllerStore {
                 && phase != state.phase
                 && !agent_controller_transitions(state.phase).contains(&phase)
             {
-                eprintln!(
+                po_platform::diagnosticln!(
                     "Invalid Agent controller transition: {} -> {}",
                     state.phase.as_str(),
                     phase.as_str()
@@ -179,7 +179,7 @@ impl AgentControllerStore {
             .collect();
         for listener in listeners {
             if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| listener())).is_err() {
-                eprintln!("Agent display subscriber failed");
+                po_platform::diagnosticln!("Agent display subscriber failed");
             }
         }
     }

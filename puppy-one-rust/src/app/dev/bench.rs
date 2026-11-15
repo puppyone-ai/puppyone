@@ -153,7 +153,7 @@ fn pane_motion_frame_cost() {
             std::thread::sleep(std::time::Duration::from_millis(4));
         }
         let rendered = renders(cx) - before;
-        println!(
+        po_platform::outputln!(
             "PANES {label:<6} command {command:6.2}ms  frames {:3}  mean {:5.2}ms  p95 {:5.2}ms  max {:6.2}ms  Explorer renders {rendered}",
             frames.0.len(),
             frames.mean(),
@@ -179,7 +179,7 @@ fn pane_motion_frame_cost() {
         frames.0.push(bench::draw(cx));
     }
     cx.simulate_mouse_up(at(232.), MouseButton::Left, Modifiers::default());
-    println!(
+    po_platform::outputln!(
         "PANES drag   samples {:3}  mean {:5.2}ms  p95 {:5.2}ms  max {:6.2}ms  Explorer renders {}",
         frames.0.len(),
         frames.mean(),

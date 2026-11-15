@@ -138,7 +138,7 @@ impl Shell {
                 if *new_window {
                     cx.defer(move |cx| {
                         if let Err(error) = windows::open_created(path, open, cx) {
-                            eprintln!("Could not open the new window: {error:#}");
+                            po_platform::diagnosticln!("Could not open the new window: {error:#}");
                         }
                     });
                     return;

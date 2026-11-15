@@ -33,7 +33,7 @@ fn serve_cli(outcome: async_channel::Sender<bool>, cx: &mut App) {
     let incoming = match cli_control::serve(&endpoint, info.clone()) {
         Ok(incoming) => incoming,
         Err(error) => {
-            eprintln!("Unable to accept command-line requests: {error}");
+            po_platform::diagnosticln!("Unable to accept command-line requests: {error}");
             return;
         }
     };
@@ -77,7 +77,7 @@ fn main() {
         return;
     }
     if std::env::args().nth(1).as_deref() == Some(platform::build_identity::FLAG) {
-        println!("{}", platform::build_identity::current().json());
+        po_platform::outputln!("{}", platform::build_identity::current().json());
         return;
     }
     // PuppyOne Host: no windows, its own state and lock; it keeps sharing

@@ -532,7 +532,7 @@ pub fn open_path(path: PathBuf, cx: &mut App) -> bool {
     } else if super::file_mode::is_file_mode_file(&path) {
         open_file(path, cx).is_ok()
     } else {
-        eprintln!(
+        po_platform::diagnosticln!(
             "This file type cannot be opened on its own: {}",
             path.display()
         );

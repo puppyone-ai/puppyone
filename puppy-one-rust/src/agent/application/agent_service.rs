@@ -88,7 +88,7 @@ impl AgentService {
                 let lifecycle = lifecycle.clone();
                 spawn_local(async move {
                     if let Err(error) = lifecycle.close_sessions_for_window(owner).await {
-                        eprintln!(
+                        po_platform::diagnosticln!(
                             "Unable to stop Agent resources after window destruction: {error}"
                         );
                     }

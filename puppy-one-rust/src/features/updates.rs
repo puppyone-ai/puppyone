@@ -410,7 +410,7 @@ impl Updates {
             if let Err(error) =
                 updates::write_automatic_download(&crate::platform::data_dir(), enabled)
             {
-                eprintln!("Unable to save the update preference: {error}");
+                po_platform::diagnosticln!("Unable to save the update preference: {error}");
                 return;
             }
             self.publish(|s| s.automatically_download = enabled, cx);

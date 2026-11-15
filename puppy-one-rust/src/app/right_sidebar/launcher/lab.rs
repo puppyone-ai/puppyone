@@ -170,7 +170,7 @@ impl WorkbenchLauncher {
             .find(|i| agent_chat_runtime_id(i) == runtime_id)
             .cloned()
         else {
-            eprintln!("No detected Agent for {runtime_id:?}");
+            po_platform::diagnosticln!("No detected Agent for {runtime_id:?}");
             return true;
         };
         let group = workbench.read(cx).active_group();

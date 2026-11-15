@@ -123,9 +123,9 @@ pub struct ConsoleLogger;
 impl Logger for ConsoleLogger {
     fn warn(&self, message: &str, detail: Value) {
         if detail.is_null() {
-            eprintln!("{message}");
+            po_platform::diagnosticln!("{message}");
         } else {
-            eprintln!("{message} {detail}");
+            po_platform::diagnosticln!("{message} {detail}");
         }
     }
 }

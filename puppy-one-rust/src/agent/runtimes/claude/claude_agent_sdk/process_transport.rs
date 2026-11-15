@@ -391,7 +391,7 @@ fn spawn_local_process(
             }
             let text = String::from_utf8_lossy(&buffer[..read]);
             if debug {
-                eprintln!("{text}");
+                po_platform::diagnosticln!("{text}");
             }
             if let Some(on_stderr) = on_stderr.as_ref() {
                 on_stderr(&text);

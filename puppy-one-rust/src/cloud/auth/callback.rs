@@ -97,7 +97,7 @@ pub(super) fn run(
         if let Ok(mut candidate) = rx.try_recv() {
             if let Input::Rejected(reason) = candidate.input {
                 // `describeHandoffRejection`: the reason, never the form.
-                eprintln!("Cloud sign-in handoff was rejected: {reason}");
+                po_platform::diagnosticln!("Cloud sign-in handoff was rejected: {reason}");
                 respond(&mut candidate.stream, (400, Outcome::Failed), locale, None);
                 break Err(Error::InvalidResponse);
             }
