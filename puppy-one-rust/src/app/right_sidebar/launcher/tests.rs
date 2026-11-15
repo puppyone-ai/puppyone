@@ -20,7 +20,11 @@ fn compose(
         let weak = cx.weak_entity();
         cx.new(|cx| WorkbenchLauncher::new(weak, window, cx))
     });
-    workbench.update(cx, |w, _| w.set_host(Rc::new(launcher.clone())));
+    // Keep the same host notification wiring as the production composition.
+    workbench.update(cx, |w, cx| {
+        w.set_host(Rc::new(launcher.clone()));
+        cx.observe(&launcher, |_, _, cx| cx.notify()).detach();
+    });
     (workbench, launcher, cx)
 }
 
@@ -123,6 +127,10 @@ fn allowing_history_records_permission_and_enables_its_browser_once(cx: &mut Tes
     let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        let _ = window.draw(cx);
+    });
     let calls = Rc::new(Cell::new(0));
     let browser = launcher.update_in(cx, |l, window, cx| {
         let browser =

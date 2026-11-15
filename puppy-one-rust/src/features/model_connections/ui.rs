@@ -74,8 +74,15 @@ pub struct ModelConnections {
 impl EventEmitter<Saved> for ModelConnections {}
 impl ModelConnections {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::with_loader(window, cx, client::load)
+    }
+    fn with_loader(
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        load: impl FnOnce(Wake) -> std::sync::mpsc::Receiver<Result<Vec<ModelConnection>, String>>,
+    ) -> Self {
         let (wake, rx) = Wake::channel();
-        let result = client::load(wake.clone());
+        let result = load(wake.clone());
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
                 if this.update_in(cx, |s, _, cx| s.receive(cx)).is_err() {
@@ -1179,9 +1186,10 @@ mod tests {
     /// The page with no connections read and nothing pending.
     fn page(cx: &mut TestAppContext) -> (Entity<ModelConnections>, &mut VisualTestContext) {
         cx.update(gpui_kit::init);
-        let (view, cx) = cx.add_window_view(ModelConnections::new);
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            ModelConnections::with_loader(window, cx, |_| std::sync::mpsc::sync_channel(1).1)
+        });
         view.update(cx, |s, _| {
-            s.rx = std::sync::mpsc::sync_channel(1).1;
             s.busy = false;
             s.loaded = true;
         });
