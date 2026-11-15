@@ -127,10 +127,142 @@
   background: var(--po-canvas);
 }
 
+.cloud-screen-live[data-interactive="false"] {
+  cursor: default;
+}
+
 .cloud-screen-viewer {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+}
+
+.cloud-screen-viewer[data-interactive="false"] {
+  pointer-events: none;
+  user-select: none;
+}
+
+.cloud-screen-takeover-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: transparent;
+  transition: background-color 140ms ease;
+}
+
+.cloud-screen-live[data-interactive="false"]:hover .cloud-screen-takeover-gate,
+.cloud-screen-live[data-interactive="false"]:focus-within .cloud-screen-takeover-gate {
+  background: color-mix(in srgb, var(--po-canvas) 14%, transparent);
+}
+
+.cloud-screen-takeover-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 15px;
+  border: 1px solid color-mix(in srgb, var(--po-text) 16%, var(--po-border-subtle));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-surface-elevated, var(--po-surface)) 92%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--po-text) 14%, transparent);
+  color: var(--po-text);
+  font: var(--po-type-ui-meta);
+  font-weight: 500;
+  cursor: var(--po-clickable-cursor, default);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px) scale(0.98);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.cloud-screen-live[data-interactive="false"]:hover .cloud-screen-takeover-button,
+.cloud-screen-live[data-interactive="false"]:focus-within .cloud-screen-takeover-button {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.cloud-screen-takeover-button:hover {
+  background: var(--po-surface-elevated, var(--po-surface));
+  border-color: color-mix(in srgb, var(--po-text) 28%, var(--po-border-subtle));
+}
+
+.cloud-screen-takeover-button:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .cloud-screen-live[data-interactive="false"] .cloud-screen-takeover-button {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+}
+
+.cloud-screen-takeover-glyph {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.cloud-screen-release-bar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.cloud-screen-release-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border: 1px solid color-mix(in srgb, var(--po-text) 14%, var(--po-border-subtle));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-surface-elevated, var(--po-surface)) 86%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--po-text) 12%, transparent);
+  color: var(--po-text);
+  font: var(--po-type-ui-meta);
+  cursor: var(--po-clickable-cursor, default);
+  opacity: 0.78;
+  pointer-events: auto;
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.cloud-screen-release-button:hover {
+  opacity: 1;
+  background: var(--po-surface-elevated, var(--po-surface));
+  border-color: color-mix(in srgb, var(--po-text) 26%, var(--po-border-subtle));
+}
+
+.cloud-screen-release-button:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 2px;
+}
+
+.cloud-screen-release-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--po-success, var(--po-accent));
 }
 
 .cloud-screen-live-status {

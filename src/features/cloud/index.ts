@@ -52,5 +52,5 @@ export { loadBillingCatalog, loadBillingResource, loadBillingSummary, loadBillin
 export type { BillingReadScope } from "./billing/billingReadCache";
 export { createCloudBillingContextKey } from "./billing/cloudBillingState";
 export { SpaceMark, SpacePlanBadge, useSpaceName } from "./spaces/SpaceMark";
-export { CloudScreenThumbnail } from "./sandbox/CloudComputerScreen";
+export { CloudScreenLiveViewport, CloudScreenThumbnail } from "./sandbox/CloudComputerScreen";
 export { cloudScreenViewer, type CloudScreenViewerStatus } from "./sandbox/screenTransports";

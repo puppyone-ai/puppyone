@@ -1,8 +1,20 @@
-import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { useLocalization } from "@puppyone/localization";
 import { statusOf, type CloudSandbox, type CloudSandboxSettings, type CloudScreenSession } from "../files/contracts";
 import { CLOUD_SCREEN_RECONNECTS, cloudScreenAvailability, type CloudScreenAvailability } from "./cloudScreenState";
-import { cloudScreenViewer, type CloudScreenViewerStatus } from "./screenTransports";
+import {
+  cloudScreenViewer,
+  type CloudScreenViewerProps,
+  type CloudScreenViewerStatus,
+} from "./screenTransports";
 import "./cloud-computer-screen.css";
 
 /** A small screen under the explorer; opening it shows the screen in the editor area. */
@@ -127,13 +139,111 @@ function ScreenStream({ transport, connect, onWake }: {
     </ScreenNotice>;
   }
   const connecting = connection.state === "requesting" || connection.status !== "connected";
-  return <section className="cloud-screen-live" aria-label={t("cloud.sandbox.screen.label")}
-    aria-busy={connecting}>
-    {connection.state === "open" && <Suspense fallback={null}>
-      <Viewer session={connection.session} onStatus={onStatus} />
-    </Suspense>}
-    {connecting && <p className="cloud-screen-live-status" role="status">{t("cloud.sandbox.screen.connecting")}</p>}
-  </section>;
+  return (
+    <CloudScreenLiveViewport
+      Viewer={Viewer}
+      session={connection.state === "open" ? connection.session : null}
+      connecting={connecting}
+      onStatus={onStatus}
+    />
+  );
+}
+
+/**
+ * Shared live computer screen stage. Starts read-only so moving or clicking the
+ * outer pointer never hijacks the inner desktop; hovering reveals "Take control"
+ * ("接管"), and clicking outside or "Release control" exits back to view-only.
+ */
+export function CloudScreenLiveViewport({
+  Viewer,
+  session,
+  connecting,
+  onStatus,
+  className,
+  children,
+}: {
+  Viewer: ComponentType<CloudScreenViewerProps>;
+  session: CloudScreenSession | null;
+  connecting: boolean;
+  onStatus: (status: CloudScreenViewerStatus) => void;
+  className?: string;
+  children?: ReactNode;
+}) {
+  const { t } = useLocalization();
+  const stageRef = useRef<HTMLElement>(null);
+  const [interactive, setInteractive] = useState(false);
+
+  useEffect(() => {
+    if (connecting || !session) {
+      setInteractive(false);
+    }
+  }, [connecting, session]);
+
+  useEffect(() => {
+    if (!interactive) return undefined;
+    const onOutsidePointerDown = (event: PointerEvent) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      if (event.target instanceof Node && !stage.contains(event.target)) {
+        setInteractive(false);
+      }
+    };
+    document.addEventListener("pointerdown", onOutsidePointerDown, true);
+    return () => document.removeEventListener("pointerdown", onOutsidePointerDown, true);
+  }, [interactive]);
+
+  const readyToControl = Boolean(session) && !connecting;
+  const activeInteractive = readyToControl && interactive;
+
+  return (
+    <section
+      ref={stageRef}
+      className={className ? `cloud-screen-live ${className}` : "cloud-screen-live"}
+      data-interactive={activeInteractive ? "true" : "false"}
+      aria-label={t("cloud.sandbox.screen.label")}
+      aria-busy={connecting}
+    >
+      {children}
+      {session && (
+        <Suspense fallback={null}>
+          <Viewer
+            session={session}
+            interactive={activeInteractive}
+            onStatus={onStatus}
+          />
+        </Suspense>
+      )}
+      {readyToControl && !activeInteractive && (
+        <div className="cloud-screen-takeover-gate">
+          <button
+            type="button"
+            className="cloud-screen-takeover-button"
+            onClick={() => setInteractive(true)}
+          >
+            <PointerGlyph className="cloud-screen-takeover-glyph" />
+            <span>{t("cloud.sandbox.screen.take-control")}</span>
+          </button>
+        </div>
+      )}
+      {activeInteractive && (
+        <div className="cloud-screen-release-bar">
+          <button
+            type="button"
+            className="cloud-screen-release-button"
+            onClick={() => setInteractive(false)}
+          >
+            <span className="cloud-screen-release-dot" aria-hidden="true" />
+            <span>{t("cloud.sandbox.screen.release-control")}</span>
+          </button>
+        </div>
+      )}
+      {connecting && (
+        <p className="cloud-screen-live-status" role="status">
+          {t("cloud.sandbox.screen.connecting")}
+        </p>
+      )}
+    </section>
+  );
 }
 
 function ScreenGlyph({ className }: { className: string }) {
@@ -141,4 +251,12 @@ function ScreenGlyph({ className }: { className: string }) {
     <rect className="cloud-screen-glyph-display" x="1.5" y="1.5" width="17" height="10.5" rx="2.25" />
     <path className="cloud-screen-glyph-stand" d="M10 12v2.25M7.25 14.5h5.5" />
   </svg>;
+}
+
+function PointerGlyph({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M4.25 2.5 12.25 8.1l-3.4.55 1.75 3.85-1.65.75-1.75-3.85-2.95 2.35Z" />
+    </svg>
+  );
 }

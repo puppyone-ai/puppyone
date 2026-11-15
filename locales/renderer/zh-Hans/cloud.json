@@ -1151,6 +1151,8 @@
   "sandbox.screen.connecting": "正在连接…",
   "sandbox.screen.disconnected": "屏幕连接已断开。",
   "sandbox.screen.retry": "重新连接",
+  "sandbox.screen.take-control": "接管",
+  "sandbox.screen.release-control": "退出接管",
   "settings.tab.computer": "云电脑",
   "settings.computer.title": "云电脑",
   "settings.computer.detail": "选择你在这个项目里的云电脑提供哪些功能。这些设置只影响你自己的云电脑。",

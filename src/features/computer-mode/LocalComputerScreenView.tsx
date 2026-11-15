@@ -1,12 +1,16 @@
 import { useLocalization } from "@puppyone/localization";
 import { Monitor, Moon, Play, Sparkles } from "lucide-react";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type {
   LocalComputerRecord,
   LocalComputerRuntimeInfo,
   LocalComputerScreenSession,
 } from "../../../shared/local-computers/types";
-import { cloudScreenViewer, type CloudScreenViewerStatus } from "../cloud";
+import {
+  CloudScreenLiveViewport,
+  cloudScreenViewer,
+  type CloudScreenViewerStatus,
+} from "../cloud";
 
 export type LocalComputerScreenViewProps = Readonly<{
   computer: LocalComputerRecord;
@@ -132,10 +136,16 @@ export function LocalComputerScreenView({
   if (Viewer && stream.kind === "open") {
     const connecting = stream.viewerStatus !== "connected";
     return (
-      <section
-        className="cloud-screen-live computer-mode-live-screen"
-        aria-label={t("cloud.sandbox.screen.label")}
-        aria-busy={connecting}
+      <CloudScreenLiveViewport
+        Viewer={Viewer}
+        session={{
+          url: stream.session.url,
+          protocols: stream.session.protocols ?? ["binary"],
+          transport: "vnc",
+        }}
+        connecting={connecting}
+        onStatus={onViewerStatus}
+        className="computer-mode-live-screen"
       >
         <div className="computer-mode-live-toolbar">
           <span className="computer-mode-live-pill">
@@ -151,22 +161,7 @@ export function LocalComputerScreenView({
             {t("onboarding.computerMode.screen.sleepAction")}
           </button>
         </div>
-        <Suspense fallback={null}>
-          <Viewer
-            session={{
-              url: stream.session.url,
-              protocols: stream.session.protocols ?? ["binary"],
-              transport: "vnc",
-            }}
-            onStatus={onViewerStatus}
-          />
-        </Suspense>
-        {connecting && (
-          <p className="cloud-screen-live-status" role="status">
-            {t("cloud.sandbox.screen.connecting")}
-          </p>
-        )}
-      </section>
+      </CloudScreenLiveViewport>
     );
   }
 

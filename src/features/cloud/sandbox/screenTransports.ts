@@ -6,6 +6,7 @@ export type CloudScreenViewerStatus = "connecting" | "connected" | "disconnected
 
 export type CloudScreenViewerProps = {
   session: CloudScreenSession;
+  interactive?: boolean;
   onStatus: (status: CloudScreenViewerStatus) => void;
 };
 

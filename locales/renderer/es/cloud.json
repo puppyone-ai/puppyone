@@ -1151,6 +1151,8 @@
   "sandbox.screen.connecting": "Connecting…",
   "sandbox.screen.disconnected": "The screen disconnected.",
   "sandbox.screen.retry": "Reconnect",
+  "sandbox.screen.take-control": "Tomar el control",
+  "sandbox.screen.release-control": "Soltar el control",
   "settings.tab.computer": "Cloud Computer",
   "settings.computer.title": "Cloud Computer",
   "settings.computer.detail": "Choose what your Cloud Computer for this project provides. These choices are yours alone.",
