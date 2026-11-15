@@ -30,7 +30,7 @@ const DETAIL_OFFSET: f32 = 24.;
 
 impl ProjectLifecycle {
     /// The skeleton of the Explorer tree in a column `width` wide.
-    fn explorer_skeleton(width: f32, cx: &App) -> impl IntoElement {
+    fn explorer_skeleton(width: f32) -> impl IntoElement {
         let stride = theme::sidebar_stride();
         let row = stride - 2.;
         let inner = (width - metric::SIDEBAR_ROW_LEFT_GAP * 2.).max(0.);
@@ -59,10 +59,6 @@ impl ProjectLifecycle {
                 [icon, label]
             })
             .collect::<Vec<_>>();
-        let style = cx
-            .try_global::<crate::ui::appearance::Appearance>()
-            .map(|a| a.loading_style)
-            .unwrap_or_default();
         div()
             .pt(px(12.))
             .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
@@ -71,7 +67,6 @@ impl ProjectLifecycle {
                 inner,
                 stride * SKELETON_DEPTHS.len() as f32,
                 shapes,
-                style,
             ))
     }
     /// `ProjectPreparation` over a `w`×`h` window below the Header, or
@@ -169,7 +164,7 @@ impl ProjectLifecycle {
                                 .h(px(explorer.h))
                                 .bg(t.sidebar)
                                 .overflow_hidden()
-                                .child(Self::explorer_skeleton(explorer.w, cx)),
+                                .child(Self::explorer_skeleton(explorer.w)),
                         )
                     },
                 )

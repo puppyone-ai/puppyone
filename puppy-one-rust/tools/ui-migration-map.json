@@ -342,13 +342,9 @@
         "src/features/settings/main/InterfaceStyleSetting.tsx"
       ],
       "targets": [
-        "src/features/settings/main/appearance_settings_view.rs",
-        "src/ui/loading/mod.rs",
-        "src/ui/loading/model.rs",
-        "assets/ui-assets.json",
-        "tools/import-ui-assets.mjs"
+        "src/features/settings/main/appearance_settings_view.rs"
       ],
-      "remaining": "Theme mode cards, theme pack (built-in and installed, the effective mode's selection, a missing requested theme listed), Open Themes Folder and Add Theme, the content-font override notice, catalog errors and loading issues, file icons, Git layout, loading animation, Header elements and pointer cursors are live. Interface styles (Windows XP) remain P3 (D-6) and are shown disabled."
+      "remaining": "Theme mode cards, theme pack (built-in and installed, the effective mode's selection, a missing requested theme listed), Open Themes Folder and Add Theme, the content-font override notice, catalog errors and loading issues, file icons, Header elements, pointer cursors and the Default interface style row are live. Windows XP skin and the loading-style picker are retired in the native port."
     },
     {
       "name": "Typography settings page",
@@ -2992,8 +2988,6 @@
       "sources": [
         "src/shared-ui/primitives/LoadingMark.tsx",
         "src/shared-ui/primitives/LoadingPlaceholder.tsx",
-        "src/shared-ui/primitives/OrderedDither.tsx",
-        "src/shared-ui/primitives/orderedDitherField.ts",
         "src/shared-ui/styles/loading-mark.css",
         "src/shared-ui/styles/loading-placeholder.css"
       ],
@@ -3006,11 +3000,20 @@
         "src/ui/asset_gallery.rs"
       ],
       "evidence": [
-        "test:real_typescript_dither_frames_match_byte_for_byte",
         "test:rounded_keyframes_and_reduced_motion_keep_the_product_figures",
         "test:loading_material_migrates_without_discarding_other_preferences"
       ],
-      "remaining": "LoadingMark (rounded relay and Bayer dither, xs/sm/md, inline and area layouts, five tones) and placeholder skeleton layers run on one App clock with the imported geometry; dither frames match the TS oracle byte for byte and reduced motion holds the product's still figures. The loading style comes from the Appearance global instead of LoadingPlaceholderStyleProvider; InlineLoading's mark-plus-label is composed per surface; the asset gallery has no recorded pixel comparison against Chromium."
+      "remaining": "LoadingMark (rounded relay, xs/sm/md, inline and area layouts, five tones) and placeholder skeleton layers run on one App clock with the imported geometry; reduced motion holds the product's still figures. InlineLoading's mark-plus-label is composed per surface; the asset gallery has no recorded pixel comparison against Chromium."
+    },
+    {
+      "name": "Ordered dither loading material",
+      "status": "excluded",
+      "sources": [
+        "src/shared-ui/primitives/OrderedDither.tsx",
+        "src/shared-ui/primitives/orderedDitherField.ts"
+      ],
+      "targets": [],
+      "reason": "Retired in the native port: only the single rounded loading material is kept, and the Appearance page does not expose a loading-style picker."
     },
     {
       "name": "Floating notices",

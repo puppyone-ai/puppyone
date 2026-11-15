@@ -1,6 +1,6 @@
 //! The window's side of the preferences: the shared store, and what the
 //! window projects of it itself — the process-wide appearance (theme, Sub
-//! Theme, type scale, fonts, cursors, loading style, language), the Agent
+//! Theme, type scale, fonts, cursors, language), the Agent
 //! and editor switches, and the pane layout. Every other owner takes its
 //! own part (`observe_slice`).
 use super::{command::app_menus, panes::StoredPanes};
@@ -17,7 +17,6 @@ struct AppearanceInputs {
     text_scale: crate::typography::Scale,
     fonts: crate::typography::fonts::Selection,
     pointer_cursors: bool,
-    loading_style: crate::ui::loading::LoadingStyle,
     locale: String,
 }
 impl AppearanceInputs {
@@ -28,7 +27,6 @@ impl AppearanceInputs {
             text_scale: p.text_scale,
             fonts: p.fonts.clone(),
             pointer_cursors: p.pointer_cursors,
-            loading_style: p.loading_style,
             locale: p.locale.clone(),
         }
     }
@@ -113,7 +111,6 @@ impl WindowPreferences {
             cx,
         );
         crate::ui::appearance::Appearance::new(self.dark, &sub_theme, scale, p.pointer_cursors)
-            .with_loading(p.loading_style)
             .with_fonts(p.fonts.normalized())
             .apply(Some(window), cx);
         let code = crate::localization::resolve_preference(

@@ -277,9 +277,6 @@ pub struct Preferences {
     pub file_icon_theme: String,
     pub show_file_icons: bool,
     pub git_sidebar_layout: GitSidebarLayout,
-    /// Shared material for every loading mark and placeholder. Old PulseGrid
-    /// preferences are ignored; absent / unknown styles default to rounded.
-    pub loading_style: crate::ui::loading::LoadingStyle,
     pub pointer_cursors: bool,
     pub header_changes: bool,
     pub header_terminal: bool,
@@ -404,7 +401,6 @@ impl Default for Preferences {
             file_icon_theme: "default".into(),
             show_file_icons: true,
             git_sidebar_layout: GitSidebarLayout::Cards,
-            loading_style: Default::default(),
             pointer_cursors: false,
             header_changes: true,
             header_terminal: true,
@@ -618,21 +614,21 @@ fn stored_width(width: f32, minimum: f32, default: f32) -> f32 {
 mod tests {
     #[test]
     fn loading_material_migrates_without_discarding_other_preferences() {
-        use crate::ui::loading::LoadingStyle;
         for value in [
             serde_json::json!({"loading_animation":"ikun", "locale":"ja", "file_icon_theme":"classic"}),
             serde_json::json!({"loading_style":"retired", "locale":"ja", "file_icon_theme":"classic"}),
+            serde_json::json!({"loading_style":"dither", "locale":"ja", "file_icon_theme":"classic"}),
         ] {
             let p = super::Preferences::from_stored(value).unwrap();
-            assert_eq!(p.loading_style, LoadingStyle::Rounded);
             assert_eq!(p.locale, "ja");
             assert_eq!(p.file_icon_theme, "default");
+            assert!(
+                serde_json::to_value(&p)
+                    .unwrap()
+                    .get("loading_style")
+                    .is_none()
+            );
         }
-        let p =
-            super::Preferences::from_stored(serde_json::json!({"loading_style":"dither"})).unwrap();
-        assert_eq!(p.loading_style, LoadingStyle::Dither);
-        let restored = super::Preferences::from_stored(serde_json::to_value(p).unwrap()).unwrap();
-        assert_eq!(restored.loading_style, LoadingStyle::Dither);
     }
     use super::*;
     #[test]

@@ -27,8 +27,8 @@ pub(in crate::features::settings) struct SpacePage {
     role: MemberRole,
     invite_url: Option<String>,
     transfer_to: Option<String>,
-    name: Entity<TextInput>,
-    email: Entity<TextInput>,
+    pub(in crate::features::settings) name: Entity<TextInput>,
+    pub(in crate::features::settings) email: Entity<TextInput>,
     epoch: u64,
     /// The window whose keyboard goes to the invitation field once the
     /// owner's page shows (`focusInvite`).
@@ -36,6 +36,17 @@ pub(in crate::features::settings) struct SpacePage {
 }
 impl SpacePage {
     pub(in crate::features::settings) fn new(window: &mut Window, cx: &mut App) -> Self {
+        let name = cx.new(|cx| {
+            let mut input = TextInput::new("", false, SPACE_NAME_MAX, window, cx);
+            input.submit_on_enter = true;
+            input
+        });
+        let email = cx.new(|cx| {
+            let mut input =
+                TextInput::new(tr("settings.space.inviteEmail"), false, 320, window, cx);
+            input.submit_on_enter = true;
+            input
+        });
         Self {
             context: None,
             members: vec![],
@@ -46,16 +57,55 @@ impl SpacePage {
             role: MemberRole::Viewer,
             invite_url: None,
             transfer_to: None,
-            name: cx.new(|cx| TextInput::new("", false, SPACE_NAME_MAX, window, cx)),
-            email: cx
-                .new(|cx| TextInput::new(tr("settings.space.inviteEmail"), false, 320, window, cx)),
+            name,
+            email,
             epoch: 0,
             focus_invite: None,
         }
     }
+    /// The session namespace and space read.
+    pub(in crate::features::settings) fn context(&self) -> Option<&(String, String)> {
+        self.context.as_ref()
+    }
     /// The space the page read.
     pub(in crate::features::settings) fn org(&self) -> Option<&str> {
         self.context.as_ref().map(|(_, org)| org.as_str())
+    }
+    fn sync_disabled(&self, cx: &mut App) {
+        let disabled = self.busy || self.loading;
+        self.name.update(cx, |input, cx| {
+            if input.disabled != disabled {
+                input.disabled = disabled;
+                cx.notify();
+            }
+        });
+        self.email.update(cx, |input, cx| {
+            if input.disabled != disabled {
+                input.disabled = disabled;
+                cx.notify();
+            }
+        });
+    }
+    pub(in crate::features::settings) fn reset(&mut self, cx: &mut App) {
+        self.epoch += 1;
+        self.context = None;
+        self.members.clear();
+        self.owner = false;
+        self.loading = false;
+        self.busy = false;
+        self.failed = false;
+        self.role = MemberRole::Viewer;
+        self.invite_url = None;
+        self.transfer_to = None;
+        self.focus_invite = None;
+        self.name.update(cx, |input, cx| {
+            input.disabled = false;
+            input.set_text("", cx);
+        });
+        self.email.update(cx, |input, cx| {
+            input.disabled = false;
+            input.set_text("", cx);
+        });
     }
 }
 
@@ -64,7 +114,7 @@ impl SettingsWorkspaceSurface {
     /// after every change; a new space or session starts the page over.
     pub(in crate::features::settings) fn load_space(&mut self, cx: &mut Context<Self>) {
         let Some(space) = self.settings_space(cx) else {
-            self.space_page.context = None;
+            self.space_page.reset(cx);
             return;
         };
         let (Some((_, binding)), Some(services), Some(billing)) = (
@@ -72,6 +122,7 @@ impl SettingsWorkspaceSurface {
             crate::features::cloud::services_client(cx),
             crate::features::cloud::billing_client(cx),
         ) else {
+            self.space_page.reset(cx);
             return;
         };
         let context = (
@@ -83,13 +134,16 @@ impl SettingsWorkspaceSurface {
             page.context = Some(context);
             page.members.clear();
             page.owner = false;
+            page.failed = false;
             page.invite_url = None;
             page.transfer_to = None;
             let name = crate::features::cloud::space_name(&space);
             page.name.update(cx, |input, cx| input.set_text(name, cx));
+            page.email.update(cx, |input, cx| input.set_text("", cx));
         }
         page.epoch += 1;
         page.loading = true;
+        page.sync_disabled(cx);
         let epoch = page.epoch;
         let org = space.id;
         let task = cx.background_spawn(async move {
@@ -103,6 +157,7 @@ impl SettingsWorkspaceSurface {
                     return;
                 }
                 page.loading = false;
+                page.sync_disabled(cx);
                 match result {
                     Ok((members, access)) => {
                         page.members = members;
@@ -152,11 +207,17 @@ impl SettingsWorkspaceSurface {
         }
         page.busy = true;
         page.failed = false;
+        page.sync_disabled(cx);
+        let epoch = page.epoch;
         let task = cx.background_spawn(async move { change(&client, &org) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
+                if s.space_page.epoch != epoch {
+                    return;
+                }
                 s.space_page.busy = false;
+                s.space_page.sync_disabled(cx);
                 match result {
                     Ok(invite) => {
                         if let Some(url) = invite {
@@ -176,12 +237,69 @@ impl SettingsWorkspaceSurface {
         .detach();
         cx.notify();
     }
+    /// Submits a space rename when the reader owns a non-personal space and
+    /// typed a distinct non-empty name.
+    pub(in crate::features::settings) fn submit_space_rename(&mut self, cx: &mut Context<Self>) {
+        let Some(space) = self.settings_space(cx) else {
+            return;
+        };
+        let page = &self.space_page;
+        if !page.owner || space.is_default || page.busy || page.loading {
+            return;
+        }
+        let current = crate::features::cloud::space_name(&space);
+        let typed = page.name.read(cx).text().trim().to_owned();
+        if typed.is_empty() || typed == current {
+            return;
+        }
+        self.change_space(
+            move |client, org| client.rename_space(org, &typed).map(|_| None),
+            cx,
+        );
+    }
+    /// Submits an email invitation when the reader owns the space and typed
+    /// an email address.
+    pub(in crate::features::settings) fn submit_space_invite(&mut self, cx: &mut Context<Self>) {
+        let page = &self.space_page;
+        if !page.owner || page.busy || page.loading {
+            return;
+        }
+        let email = page.email.read(cx).text().trim().to_owned();
+        if email.is_empty() {
+            return;
+        }
+        let role = page.role;
+        self.change_space(
+            move |client, org| {
+                client
+                    .invite(org, &email, role)
+                    .map(|url| Some(url.unwrap_or_default()))
+            },
+            cx,
+        );
+    }
 
     /// How many members the page lists, and whether the reader owns it.
     #[cfg(test)]
     pub fn space_members(&self) -> Option<(usize, bool)> {
         let page = &self.space_page;
         (!page.loading && page.context.is_some()).then_some((page.members.len(), page.owner))
+    }
+    /// The invitation link returned by the last invite, if any.
+    #[cfg(test)]
+    pub fn space_invite_url(&self) -> Option<&str> {
+        self.space_page
+            .invite_url
+            .as_deref()
+            .filter(|url| !url.is_empty())
+    }
+    /// Type into Members' email field and submit an invitation in tests.
+    #[cfg(test)]
+    pub fn invite_member_for_test(&mut self, email: &str, cx: &mut Context<Self>) {
+        self.space_page
+            .email
+            .update(cx, |input, cx| input.set_text(email, cx));
+        self.submit_space_invite(cx);
     }
     /// The keyboard is in the invitation field.
     #[cfg(test)]
@@ -237,7 +355,6 @@ impl SettingsWorkspaceSurface {
         let typed = page.name.read(cx).text().trim().to_owned();
         let me = binding.user.clone();
         let mut rows = SettingsSubsection::new().child(if renamable {
-            let rename = typed.clone();
             ValueRow::new(tr("settings.space.name"), "")
                 .action(
                     h_flex()
@@ -247,15 +364,7 @@ impl SettingsWorkspaceSurface {
                             Button::new("space-rename")
                                 .label(tr("settings.space.save"))
                                 .disabled(disabled || typed.is_empty() || typed == name)
-                                .on_click(cx.listener(move |s, _, _, cx| {
-                                    let name = rename.clone();
-                                    s.change_space(
-                                        move |client, org| {
-                                            client.rename_space(org, &name).map(|_| None)
-                                        },
-                                        cx,
-                                    )
-                                })),
+                                .on_click(cx.listener(|s, _, _, cx| s.submit_space_rename(cx))),
                         ),
                 )
                 .into_any_element()
@@ -332,53 +441,62 @@ impl SettingsWorkspaceSurface {
                         .px(px(10.))
                         .gap(px(8.))
                         .child(div().flex_1().min_w_0().child(page.email.clone()))
-                        .child(Select::new(
-                            "space-invite-role",
-                            tr(&format!("settings.space.role.{}", role.key())),
-                            move |_| {
-                                [MemberRole::Viewer, MemberRole::Member]
-                                    .into_iter()
-                                    .map(|choice| {
-                                        let entity = entity.clone();
-                                        SelectOption::new(tr(&format!(
-                                            "settings.space.role.{}",
-                                            choice.key()
-                                        )))
-                                        .selected(choice == role)
-                                        .on_select(
-                                            move |_, cx| {
+                        .child(
+                            Select::new(
+                                "space-invite-role",
+                                tr(&format!("settings.space.role.{}", role.key())),
+                                move |_| {
+                                    [MemberRole::Viewer, MemberRole::Member]
+                                        .into_iter()
+                                        .map(|choice| {
+                                            let entity = entity.clone();
+                                            SelectOption::new(tr(&format!(
+                                                "settings.space.role.{}",
+                                                choice.key()
+                                            )))
+                                            .selected(choice == role)
+                                            .on_select(move |_, cx| {
                                                 entity.update(cx, |s, cx| {
                                                     s.space_page.role = choice;
                                                     cx.notify();
                                                 })
-                                            },
-                                        )
-                                    })
-                                    .collect()
-                            },
-                        ))
+                                            })
+                                        })
+                                        .collect()
+                                },
+                            )
+                            .disabled(disabled),
+                        )
                         .child(
                             Button::new("space-invite")
                                 .label(tr("settings.space.invite"))
                                 .disabled(disabled || email.is_empty())
-                                .on_click(cx.listener(move |s, _, _, cx| {
-                                    let email = email.clone();
-                                    s.change_space(
-                                        move |client, org| {
-                                            client
-                                                .invite(org, &email, role)
-                                                .map(|url| Some(url.unwrap_or_default()))
-                                        },
-                                        cx,
-                                    )
-                                })),
+                                .on_click(cx.listener(|s, _, _, cx| s.submit_space_invite(cx))),
                         ),
                 )
                 .child(note(tr("settings.space.seatNotice")));
         }
         if let Some(url) = page.invite_url.clone().filter(|u| !u.is_empty()) {
-            rows =
-                rows.child(ValueRow::new(tr("settings.space.invitationLink"), url).monospace(true));
+            let copy_key: SharedString = "space-invite-url".into();
+            let copied = self.is_copied(&copy_key);
+            let url_to_copy = url.clone();
+            rows = rows.child(
+                ValueRow::new(tr("settings.space.invitationLink"), url)
+                    .monospace(true)
+                    .action(
+                        Button::new("space-copy-invite")
+                            .debug_selector(|| "space-copy-invite".into())
+                            .icon("copy")
+                            .label(tr(if copied {
+                                "common.action.copied"
+                            } else {
+                                "common.action.copy"
+                            }))
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                s.copy(copy_key.clone(), url_to_copy.clone(), cx)
+                            })),
+                    ),
+            );
         }
         let others: Vec<Member> = page
             .members
@@ -387,7 +505,10 @@ impl SettingsWorkspaceSurface {
             .cloned()
             .collect();
         if page.owner && !others.is_empty() {
-            let chosen = page.transfer_to.clone();
+            let chosen = page
+                .transfer_to
+                .clone()
+                .filter(|id| others.iter().any(|m| &m.user_id == id));
             let label = chosen
                 .as_ref()
                 .and_then(|id| others.iter().find(|m| &m.user_id == id))
@@ -402,24 +523,27 @@ impl SettingsWorkspaceSurface {
                 ValueRow::new(tr("settings.space.transfer"), "").action(
                     h_flex()
                         .gap(px(8.))
-                        .child(Select::new("space-transfer", label, move |_| {
-                            choices
-                                .iter()
-                                .map(|member| {
-                                    let entity = entity.clone();
-                                    let id = member.user_id.clone();
-                                    SelectOption::new(member.label().to_owned())
-                                        .selected(target.as_ref() == Some(&id))
-                                        .on_select(move |_, cx| {
-                                            let id = id.clone();
-                                            entity.update(cx, |s, cx| {
-                                                s.space_page.transfer_to = Some(id);
-                                                cx.notify();
+                        .child(
+                            Select::new("space-transfer", label, move |_| {
+                                choices
+                                    .iter()
+                                    .map(|member| {
+                                        let entity = entity.clone();
+                                        let id = member.user_id.clone();
+                                        SelectOption::new(member.label().to_owned())
+                                            .selected(target.as_ref() == Some(&id))
+                                            .on_select(move |_, cx| {
+                                                let id = id.clone();
+                                                entity.update(cx, |s, cx| {
+                                                    s.space_page.transfer_to = Some(id);
+                                                    cx.notify();
+                                                })
                                             })
-                                        })
-                                })
-                                .collect()
-                        }))
+                                    })
+                                    .collect()
+                            })
+                            .disabled(disabled),
+                        )
                         .child(
                             Button::new("space-transfer-confirm")
                                 .variant(ButtonVariant::OutlineDanger)

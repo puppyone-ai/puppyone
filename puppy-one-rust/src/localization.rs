@@ -12,15 +12,6 @@ fn data() -> &'static Value {
     DATA.get_or_init(|| {
         let mut data: Value = serde_json::from_str(include_str!("../assets/locales.json"))
             .expect("generated catalogs");
-        // Narrow, provenance-checked projection of the new loading-style keys.
-        // The full reviewed catalog is projected by import-localization.py;
-        // the asset receipt also protects the loading-style subset.
-        for (locale, messages) in crate::asset_catalog::data()["locales"].as_object().unwrap() {
-            data["catalogs"][locale]
-                .as_object_mut()
-                .unwrap()
-                .extend(messages.as_object().unwrap().clone());
-        }
         // Copy ahead of the v0.4.4 pin, each projected from one qubits commit
         // with per-file SHA-256 hashes: CloudSignInDialog
         // (`tools/import-sign-in-explainer.py`), first run's moments

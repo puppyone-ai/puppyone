@@ -252,6 +252,19 @@ fn members_and_plan_open_settings_on_that_space(cx: &mut TestAppContext) {
         );
         assert!(settings.page_shown(crate::features::settings::Page::Space));
     });
+    // Closing Settings and reopening with ⌘, clears the earlier space lock
+    // (`openSettingsDialog` resets `settingsSpaceRequest` to null).
+    command(&view, cx, Command::Settings);
+    view.read_with(cx, |s, cx| assert!(!s.has_dialog("Task(Settings)", cx)));
+    command(&view, cx, Command::Settings);
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("Task(Settings)", cx));
+        let settings = s.dialogs.read(cx).settings.read(cx);
+        assert_eq!(
+            settings.settings_space(cx).map(|s| s.id),
+            Some("me".to_owned())
+        );
+    });
 }
 
 /// The personal space's Cloud Agents stand at the end of that space's

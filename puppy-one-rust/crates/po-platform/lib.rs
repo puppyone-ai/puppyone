@@ -6,4 +6,4 @@ pub mod localization;
 pub mod platform;
 
 // The modules below this crate, under the names the sources use.
-pub(crate) use po_contracts::{asset_catalog, wake};
+pub(crate) use po_contracts::wake;

@@ -1,6 +1,6 @@
 {
  "width": 1000,
- "height": 800,
+ "height": 690,
  "items": [
   {
    "kind": "icon",
@@ -2030,7 +2030,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-xs-neutral",
-   "style": "rounded",
    "layout": "inline",
    "size": "xs",
    "tone": "neutral",
@@ -2042,7 +2041,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-xs-info",
-   "style": "rounded",
    "layout": "inline",
    "size": "xs",
    "tone": "info",
@@ -2054,7 +2052,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-xs-success",
-   "style": "rounded",
    "layout": "inline",
    "size": "xs",
    "tone": "success",
@@ -2066,7 +2063,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-xs-warning",
-   "style": "rounded",
    "layout": "inline",
    "size": "xs",
    "tone": "warning",
@@ -2078,7 +2074,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-xs-danger",
-   "style": "rounded",
    "layout": "inline",
    "size": "xs",
    "tone": "danger",
@@ -2090,7 +2085,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-sm-neutral",
-   "style": "rounded",
    "layout": "inline",
    "size": "sm",
    "tone": "neutral",
@@ -2102,7 +2096,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-sm-info",
-   "style": "rounded",
    "layout": "inline",
    "size": "sm",
    "tone": "info",
@@ -2114,7 +2107,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-sm-success",
-   "style": "rounded",
    "layout": "inline",
    "size": "sm",
    "tone": "success",
@@ -2126,7 +2118,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-sm-warning",
-   "style": "rounded",
    "layout": "inline",
    "size": "sm",
    "tone": "warning",
@@ -2138,7 +2129,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-sm-danger",
-   "style": "rounded",
    "layout": "inline",
    "size": "sm",
    "tone": "danger",
@@ -2150,7 +2140,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-md-neutral",
-   "style": "rounded",
    "layout": "inline",
    "size": "md",
    "tone": "neutral",
@@ -2162,7 +2151,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-md-info",
-   "style": "rounded",
    "layout": "inline",
    "size": "md",
    "tone": "info",
@@ -2174,7 +2162,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-md-success",
-   "style": "rounded",
    "layout": "inline",
    "size": "md",
    "tone": "success",
@@ -2186,7 +2173,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-md-warning",
-   "style": "rounded",
    "layout": "inline",
    "size": "md",
    "tone": "warning",
@@ -2198,7 +2184,6 @@
   {
    "kind": "mark",
    "id": "rounded-inline-md-danger",
-   "style": "rounded",
    "layout": "inline",
    "size": "md",
    "tone": "danger",
@@ -2210,7 +2195,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-xs-neutral",
-   "style": "rounded",
    "layout": "area",
    "size": "xs",
    "tone": "neutral",
@@ -2222,7 +2206,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-xs-info",
-   "style": "rounded",
    "layout": "area",
    "size": "xs",
    "tone": "info",
@@ -2234,7 +2217,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-xs-success",
-   "style": "rounded",
    "layout": "area",
    "size": "xs",
    "tone": "success",
@@ -2246,7 +2228,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-xs-warning",
-   "style": "rounded",
    "layout": "area",
    "size": "xs",
    "tone": "warning",
@@ -2258,7 +2239,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-xs-danger",
-   "style": "rounded",
    "layout": "area",
    "size": "xs",
    "tone": "danger",
@@ -2270,7 +2250,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-sm-neutral",
-   "style": "rounded",
    "layout": "area",
    "size": "sm",
    "tone": "neutral",
@@ -2282,7 +2261,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-sm-info",
-   "style": "rounded",
    "layout": "area",
    "size": "sm",
    "tone": "info",
@@ -2294,7 +2272,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-sm-success",
-   "style": "rounded",
    "layout": "area",
    "size": "sm",
    "tone": "success",
@@ -2306,7 +2283,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-sm-warning",
-   "style": "rounded",
    "layout": "area",
    "size": "sm",
    "tone": "warning",
@@ -2318,7 +2294,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-sm-danger",
-   "style": "rounded",
    "layout": "area",
    "size": "sm",
    "tone": "danger",
@@ -2330,7 +2305,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-md-neutral",
-   "style": "rounded",
    "layout": "area",
    "size": "md",
    "tone": "neutral",
@@ -2342,7 +2316,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-md-info",
-   "style": "rounded",
    "layout": "area",
    "size": "md",
    "tone": "info",
@@ -2354,7 +2327,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-md-success",
-   "style": "rounded",
    "layout": "area",
    "size": "md",
    "tone": "success",
@@ -2366,7 +2338,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-md-warning",
-   "style": "rounded",
    "layout": "area",
    "size": "md",
    "tone": "warning",
@@ -2378,7 +2349,6 @@
   {
    "kind": "mark",
    "id": "rounded-area-md-danger",
-   "style": "rounded",
    "layout": "area",
    "size": "md",
    "tone": "danger",
@@ -2388,410 +2358,10 @@
    "h": 32
   },
   {
-   "kind": "mark",
-   "id": "dither-inline-xs-neutral",
-   "style": "dither",
-   "layout": "inline",
-   "size": "xs",
-   "tone": "neutral",
-   "x": 24,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-xs-info",
-   "style": "dither",
-   "layout": "inline",
-   "size": "xs",
-   "tone": "info",
-   "x": 112,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-xs-success",
-   "style": "dither",
-   "layout": "inline",
-   "size": "xs",
-   "tone": "success",
-   "x": 200,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-xs-warning",
-   "style": "dither",
-   "layout": "inline",
-   "size": "xs",
-   "tone": "warning",
-   "x": 288,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-xs-danger",
-   "style": "dither",
-   "layout": "inline",
-   "size": "xs",
-   "tone": "danger",
-   "x": 376,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-sm-neutral",
-   "style": "dither",
-   "layout": "inline",
-   "size": "sm",
-   "tone": "neutral",
-   "x": 464,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-sm-info",
-   "style": "dither",
-   "layout": "inline",
-   "size": "sm",
-   "tone": "info",
-   "x": 552,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-sm-success",
-   "style": "dither",
-   "layout": "inline",
-   "size": "sm",
-   "tone": "success",
-   "x": 640,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-sm-warning",
-   "style": "dither",
-   "layout": "inline",
-   "size": "sm",
-   "tone": "warning",
-   "x": 728,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-sm-danger",
-   "style": "dither",
-   "layout": "inline",
-   "size": "sm",
-   "tone": "danger",
-   "x": 816,
-   "y": 518,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-md-neutral",
-   "style": "dither",
-   "layout": "inline",
-   "size": "md",
-   "tone": "neutral",
-   "x": 24,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-md-info",
-   "style": "dither",
-   "layout": "inline",
-   "size": "md",
-   "tone": "info",
-   "x": 112,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-md-success",
-   "style": "dither",
-   "layout": "inline",
-   "size": "md",
-   "tone": "success",
-   "x": 200,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-md-warning",
-   "style": "dither",
-   "layout": "inline",
-   "size": "md",
-   "tone": "warning",
-   "x": 288,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-inline-md-danger",
-   "style": "dither",
-   "layout": "inline",
-   "size": "md",
-   "tone": "danger",
-   "x": 376,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-xs-neutral",
-   "style": "dither",
-   "layout": "area",
-   "size": "xs",
-   "tone": "neutral",
-   "x": 464,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-xs-info",
-   "style": "dither",
-   "layout": "area",
-   "size": "xs",
-   "tone": "info",
-   "x": 552,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-xs-success",
-   "style": "dither",
-   "layout": "area",
-   "size": "xs",
-   "tone": "success",
-   "x": 640,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-xs-warning",
-   "style": "dither",
-   "layout": "area",
-   "size": "xs",
-   "tone": "warning",
-   "x": 728,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-xs-danger",
-   "style": "dither",
-   "layout": "area",
-   "size": "xs",
-   "tone": "danger",
-   "x": 816,
-   "y": 554,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-sm-neutral",
-   "style": "dither",
-   "layout": "area",
-   "size": "sm",
-   "tone": "neutral",
-   "x": 24,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-sm-info",
-   "style": "dither",
-   "layout": "area",
-   "size": "sm",
-   "tone": "info",
-   "x": 112,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-sm-success",
-   "style": "dither",
-   "layout": "area",
-   "size": "sm",
-   "tone": "success",
-   "x": 200,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-sm-warning",
-   "style": "dither",
-   "layout": "area",
-   "size": "sm",
-   "tone": "warning",
-   "x": 288,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-sm-danger",
-   "style": "dither",
-   "layout": "area",
-   "size": "sm",
-   "tone": "danger",
-   "x": 376,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-md-neutral",
-   "style": "dither",
-   "layout": "area",
-   "size": "md",
-   "tone": "neutral",
-   "x": 464,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-md-info",
-   "style": "dither",
-   "layout": "area",
-   "size": "md",
-   "tone": "info",
-   "x": 552,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-md-success",
-   "style": "dither",
-   "layout": "area",
-   "size": "md",
-   "tone": "success",
-   "x": 640,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-md-warning",
-   "style": "dither",
-   "layout": "area",
-   "size": "md",
-   "tone": "warning",
-   "x": 728,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
-   "kind": "mark",
-   "id": "dither-area-md-danger",
-   "style": "dither",
-   "layout": "area",
-   "size": "md",
-   "tone": "danger",
-   "x": 816,
-   "y": 590,
-   "w": 80,
-   "h": 32
-  },
-  {
    "kind": "placeholder",
    "id": "placeholder-rounded",
-   "style": "rounded",
    "x": 24,
-   "y": 670,
-   "w": 300,
-   "h": 80,
-   "shapes": [
-    {
-     "x": 8,
-     "y": 8,
-     "width": 32,
-     "height": 32,
-     "radius": 8
-    },
-    {
-     "x": 52,
-     "y": 12,
-     "width": 200,
-     "height": 10,
-     "radius": 5
-    },
-    {
-     "x": 52,
-     "y": 30,
-     "width": 140,
-     "height": 8,
-     "radius": 4
-    },
-    {
-     "x": 8,
-     "y": 56,
-     "width": 270,
-     "height": 10,
-     "radius": 5
-    }
-   ]
-  },
-  {
-   "kind": "placeholder",
-   "id": "placeholder-dither",
-   "style": "dither",
-   "x": 364,
-   "y": 670,
+   "y": 560,
    "w": 300,
    "h": 80,
    "shapes": [
