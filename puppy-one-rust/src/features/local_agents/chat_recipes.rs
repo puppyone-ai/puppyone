@@ -7,6 +7,58 @@ use crate::agent::connections::legacy_local_agent_inventory::Installation;
 /// `BUILT_IN_AGENT_RUNTIME_ID`.
 const BUILT_IN_AGENT_RUNTIME_ID: &str = "puppyone-agent";
 
+/// One entry of `LOCAL_AGENT_CHAT_RECIPES` (`localAgentCatalog.ts`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LocalAgentChatRecipe {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub icon_key: &'static str,
+}
+
+/// `LOCAL_AGENT_CHAT_RECIPES` in canonical label order.
+pub const LOCAL_AGENT_CHAT_RECIPES: [LocalAgentChatRecipe; 8] = [
+    LocalAgentChatRecipe {
+        id: "claude",
+        label: "Claude Code",
+        icon_key: "claude",
+    },
+    LocalAgentChatRecipe {
+        id: "codex",
+        label: "Codex",
+        icon_key: "codex",
+    },
+    LocalAgentChatRecipe {
+        id: "cursor",
+        label: "Cursor",
+        icon_key: "cursor",
+    },
+    LocalAgentChatRecipe {
+        id: "hermes",
+        label: "Hermes Agent",
+        icon_key: "hermes",
+    },
+    LocalAgentChatRecipe {
+        id: "opencode-native",
+        label: "OpenCode",
+        icon_key: "opencode",
+    },
+    LocalAgentChatRecipe {
+        id: "pi",
+        label: "Pi",
+        icon_key: "pi",
+    },
+    LocalAgentChatRecipe {
+        id: "workbuddy-china",
+        label: "WorkBuddy (China)",
+        icon_key: "workbuddy",
+    },
+    LocalAgentChatRecipe {
+        id: "workbuddy-international",
+        label: "WorkBuddy (International)",
+        icon_key: "workbuddy",
+    },
+];
+
 /// `LOCAL_AGENT_CHAT_RECIPES`' runtime ids.
 const LOCAL_AGENT_CHAT_RUNTIME_IDS: [&str; 8] = [
     "claude",
@@ -20,7 +72,7 @@ const LOCAL_AGENT_CHAT_RUNTIME_IDS: [&str; 8] = [
 ];
 
 /// `localAgentIdForAgentChatRuntime(runtimeId)`.
-fn local_agent_id_for_agent_chat_runtime(runtime_id: &str) -> &str {
+pub fn local_agent_id_for_agent_chat_runtime(runtime_id: &str) -> &str {
     match runtime_id {
         "opencode-native" => "opencode",
         id => id,

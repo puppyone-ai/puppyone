@@ -300,9 +300,26 @@ impl AgentChatTabPanel {
             drop(self.controller.initialize(false));
         }
         self.apply_routing_preferences(cx);
+        let state = self.state();
+        let view = self.view_model(&state);
+        if self.controller.has_pending_initial_auto_submit()
+            && state.initialized
+            && !view.loading
+            && routing::pending_preferences(&state, &view.runtime.runtime_models, &self.routing)
+                .ready()
+            && view.routing_ready
+            && state.phase == AgentControllerPhase::Ready
+            && !view.unavailable
+            && let Some(prompt) = self.controller.consume_initial_auto_submit()
+        {
+            self.compute_access_prompt = false;
+            self.transcript.update(cx, |t, _| t.follow_latest());
+            drop(self.controller.submit(&prompt));
+        }
         // `useAgentSessionPreparation`: prepare an empty native session only
         // while the active panel is routable.
         if self.command_target
+            && !self.controller.has_pending_initial_auto_submit()
             && view.routing_ready
             && state.initialized
             && state.phase == AgentControllerPhase::Ready

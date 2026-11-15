@@ -188,6 +188,7 @@ impl Homepage {
     pub(in crate::app) fn destination(&mut self, cx: &App) -> Option<&mut Destination> {
         match self.top_dialog(cx)? {
             DialogKey::CreateProject => self.create.as_mut().map(|c| &mut c.destination),
+            DialogKey::AgentStart => self.agent_start.as_mut().map(|s| &mut s.destination),
             DialogKey::TemplateImport => self.template.as_mut().map(|t| &mut t.destination),
             _ => None,
         }
@@ -197,6 +198,11 @@ impl Homepage {
             Some(DialogKey::CreateProject) => {
                 if let Some(create) = self.create.as_mut() {
                     create.error = error
+                }
+            }
+            Some(DialogKey::AgentStart) => {
+                if let Some(start) = self.agent_start.as_mut() {
+                    start.error = error
                 }
             }
             Some(DialogKey::TemplateImport) => {
@@ -444,7 +450,12 @@ impl Homepage {
             .text_size(px(theme::ty().ui.body))
             .when(locked, |d| d.opacity(0.58))
     }
-    fn name_field(&self, destination: &Destination, locked: bool, cx: &mut Context<Self>) -> Div {
+    pub(in crate::app::home) fn name_field(
+        &self,
+        destination: &Destination,
+        locked: bool,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let t = cx.palette();
         v_flex()
             .gap(px(8.))
@@ -458,7 +469,7 @@ impl Homepage {
                 ),
             )
     }
-    fn location_field(
+    pub(in crate::app::home) fn location_field(
         &self,
         destination: &Destination,
         locked: bool,
@@ -732,7 +743,7 @@ impl Homepage {
 }
 
 /// Four hex digits to tell default names apart (`crypto.randomUUID().slice(0, 4)`).
-fn rand_suffix() -> u16 {
+pub(in crate::app::home) fn rand_suffix() -> u16 {
     use std::hash::{BuildHasher, Hasher};
     let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
     hasher.write_u128(

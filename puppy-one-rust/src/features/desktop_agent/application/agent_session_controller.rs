@@ -273,6 +273,7 @@ struct Inner {
     stop_intent: RefCell<Option<InterruptTurn>>,
     stop_scope: ManagedOperationScope,
     next_task: Cell<u64>,
+    initial_auto_submit_armed: Cell<bool>,
 }
 
 fn upgrade(weak: &Weak<Inner>) -> AgentResult<Rc<Inner>> {
@@ -397,6 +398,7 @@ impl AgentSessionController {
                 stop_intent: RefCell::default(),
                 stop_scope: ManagedOperationScope::new(),
                 next_task: Cell::new(0),
+                initial_auto_submit_armed: Cell::new(false),
             }
         });
         inner.session_replica.connect();
@@ -538,6 +540,36 @@ impl AgentSessionController {
 
     pub fn set_draft_document(&self, draft: &str, draft_mentions: &[PromptMention]) {
         self.0.set_draft_document(draft, draft_mentions);
+    }
+
+    /// Seeds a newly created session's draft and arms one-shot auto-submission
+    /// once initialization and routing preferences settle (`seedInitialPrompt`).
+    pub fn seed_initial_prompt(&self, prompt: &str) {
+        let trimmed = crate::text::trim(prompt);
+        if trimmed.is_empty() {
+            return;
+        }
+        self.0.set_draft_document(trimmed, &[]);
+        self.0.initial_auto_submit_armed.set(true);
+    }
+
+    /// `hasPendingInitialAutoSubmit()`.
+    pub fn has_pending_initial_auto_submit(&self) -> bool {
+        self.0.initial_auto_submit_armed.get()
+            && self
+                .0
+                .read(|state| !crate::text::trim(&state.draft).is_empty())
+    }
+
+    /// `consumeInitialAutoSubmit()`.
+    pub fn consume_initial_auto_submit(&self) -> Option<String> {
+        if !self.0.initial_auto_submit_armed.replace(false) {
+            return None;
+        }
+        self.0.read(|state| {
+            let trimmed = crate::text::trim(&state.draft);
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        })
     }
 
     pub fn add_workspace_paths(
@@ -682,6 +714,7 @@ impl Inner {
             return;
         }
         self.disposed.set(true);
+        self.initial_auto_submit_armed.set(false);
         self.stop_scope.cancel();
         self.submission.dispose();
         self.session_preparer.dispose();
@@ -1328,6 +1361,11 @@ impl Inner {
     }
 
     fn set_draft_document(&self, draft: &str, draft_mentions: &[PromptMention]) {
+        if self
+            .read(|state| state.draft != draft || state.draft_mentions.as_slice() != draft_mentions)
+        {
+            self.initial_auto_submit_armed.set(false);
+        }
         let mentions = draft_mentions.to_vec();
         self.patch(
             StatePatch::new()

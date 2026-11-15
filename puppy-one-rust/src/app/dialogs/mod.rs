@@ -51,6 +51,8 @@ pub(super) enum DialogKey {
     Rename,
     /// The homepage's "Create a project".
     CreateProject,
+    /// `AgentProjectStartDialog`: have one of this computer's Agents start a project.
+    AgentStart,
     /// `TemplateImportCard`: a template store link and "Get a copy".
     TemplateImport,
     /// `OnboardingImportDialog`: clone a repository into a new project.

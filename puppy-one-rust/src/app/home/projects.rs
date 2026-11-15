@@ -49,27 +49,23 @@ impl Render for ProjectDrag {
 pub(in crate::app) enum HomeMenu {
     Sort,
     Layout,
-    Entry,
     /// The create dialog's team selector.
     CreateTeam,
 }
 
-/// `--onboarding-tile-width` and `--onboarding-tile-gap`: a group is a grid
-/// of these cells with this gutter between them (five and their gutters
-/// fill the column), the folder centred in each. A name may use its whole
-/// cell, so the gutter is what keeps two long names apart.
-pub(super) const TILE_WIDTH: f32 = 120.;
-pub(super) const TILE_GAP: f32 = 10.;
-/// Grid rows are 2px apart.
-const CELL_GAP: f32 = 2.;
+/// Five Finder-proportioned folders across the page, sharing equal cells down
+/// to the smallest window (`grid-template-columns: repeat(5, minmax(0, 1fr))`).
+pub(super) const GRID_COLUMNS: usize = 5;
+/// `--onboarding-tile-gap`: `14px` above `820px` viewport width, `10px` at or below.
+pub(super) fn grid_column_gap(viewport_w: f32) -> f32 {
+    if viewport_w <= 820. { 10. } else { 14. }
+}
+/// Grid rows are `12px` apart (`row-gap: 12px`).
+const CELL_ROW_GAP: f32 = 12.;
 /// `--po-scrollbar-size`: the list's lane hangs outside the column.
 const SCROLLBAR_SIZE: f32 = 12.;
-/// The sheet's `transition: transform 220ms ease-out`.
-const SHEET_MS: f32 = 220.;
 /// `.onboarding-view-menu`'s smallest width.
 const VIEW_MENU_MIN_WIDTH: f32 = 104.;
-/// `.onboarding-entry-menu`.
-const ENTRY_MENU_WIDTH: f32 = 232.;
 
 /// A choice with its tick (`menuitemradio` / `menuitemcheckbox`).
 pub(super) fn checked_item(item: MenuItem, checked: bool) -> MenuItem {
@@ -178,10 +174,9 @@ pub(super) fn key_target(
         _ => None,
     }
 }
-/// `repeat(auto-fill, var(--onboarding-tile-width))`: how many cells fit
-/// across a group.
-pub(super) fn grid_columns(width: f32) -> usize {
-    (((width + TILE_GAP) / (TILE_WIDTH + TILE_GAP)).floor() as usize).max(1)
+/// Equal cell width for `GRID_COLUMNS` across `width` with `col_gap` gutters.
+pub(super) fn grid_cell_width(width: f32, col_gap: f32) -> f32 {
+    ((width - col_gap * (GRID_COLUMNS.saturating_sub(1) as f32)) / GRID_COLUMNS as f32).max(0.)
 }
 
 impl Homepage {
@@ -231,39 +226,6 @@ impl Homepage {
                     .focus
                     .get(&item.id)
                     .is_some_and(|f| f.is_focused(window)))
-    }
-    /// How far a project's sheet has risen (0 at rest, 1 reached for),
-    /// eased over 220ms and reversed from wherever it is.
-    fn sheet_rise(&mut self, id: &str, lit: bool, window: &mut Window, cx: &App) -> f32 {
-        let now = std::time::Instant::now();
-        let reduce = cx.reduce_motion();
-        let at = |(target, since, from): (bool, std::time::Instant, f32)| {
-            let elapsed = now.duration_since(since).as_secs_f32() * 1000.;
-            let progress = if reduce {
-                1.
-            } else {
-                (elapsed / SHEET_MS).clamp(0., 1.)
-            };
-            // `ease-out`: cubic-bezier(0, 0, 0.58, 1).
-            let eased = crate::ui::motion::cubic_bezier(0., 0., 0.58, 1., progress);
-            let to = if target { 1. } else { 0. };
-            (from + (to - from) * eased, progress)
-        };
-        let state =
-            *self
-                .sheets
-                .entry(id.to_owned())
-                .or_insert((lit, now, if lit { 1. } else { 0. }));
-        let (current, progress) = at(state);
-        if state.0 != lit {
-            self.sheets.insert(id.to_owned(), (lit, now, current));
-            window.request_animation_frame();
-            return current;
-        }
-        if progress < 1. {
-            window.request_animation_frame();
-        }
-        current
     }
 
     /// `.onboarding-project-row-wrap.is-dragging`.
@@ -338,8 +300,8 @@ mod tests {
         assert_eq!(key_target("right", 2, 7, 3, false), Some(3));
         assert_eq!(key_target("right", 2, 7, 3, true), Some(1), "RTL");
         assert_eq!(key_target("end", 0, 7, 3, false), Some(7));
-        assert_eq!(grid_columns(640.), 5);
-        assert_eq!(grid_columns(639.), 4);
-        assert_eq!(grid_columns(100.), 1);
+        assert_eq!(grid_column_gap(900.), 14.);
+        assert_eq!(grid_column_gap(820.), 10.);
+        assert!((grid_cell_width(760., 14.) - 140.8).abs() < 0.01);
     }
 }

@@ -141,6 +141,25 @@ impl Shell {
                     .project
                     .update(cx, |p, cx| p.open_created(path, open, cx));
             }
+            home::HomeEvent::OpenAgentCreated {
+                path,
+                runtime_id,
+                prompt,
+            } => {
+                let (path, runtime_id, prompt) = (path.clone(), runtime_id.clone(), prompt.clone());
+                self.set_popover(None, cx);
+                self.session.project.update(cx, |p, cx| {
+                    p.record.pending_agent_start = Some(project::PendingAgentStart {
+                        root: path.clone(),
+                        runtime_id,
+                        prompt,
+                    });
+                    p.open_created(path, None, cx);
+                });
+            }
+            home::HomeEvent::OpenSettings(page) => {
+                return self.open_settings(*page, window, cx);
+            }
             home::HomeEvent::PublishToSpace { path, space } => {
                 let (path, space) = (path.clone(), space.clone());
                 self.cloud

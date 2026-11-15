@@ -23,6 +23,15 @@ use crate::workspace::cloud::opening::Failure;
 use gpui::{prelude::*, *};
 use std::{path::PathBuf, sync::Arc};
 
+/// Seeded local Agent chat handoff queued by `AgentProjectStartDialog` until
+/// its newly created project folder finishes entering this window.
+#[derive(Clone, Debug)]
+pub(super) struct PendingAgentStart {
+    pub root: PathBuf,
+    pub runtime_id: String,
+    pub prompt: String,
+}
+
 /// The project this window shows and how it came to show it: its name, the
 /// hosted Project and the account it opened under, the launch's restore of
 /// the last project, the document to open first, and the notices about the
@@ -46,6 +55,8 @@ pub(super) struct WindowProject {
     /// The project's document to open first (`initialOpenPath`), relative
     /// to the project.
     pub open_first: Option<PathBuf>,
+    /// Seeded local Agent session to open once `root` enters.
+    pub pending_agent_start: Option<PendingAgentStart>,
     /// How many projects this window has entered (`workspaceEntryIntent`).
     pub entries: u64,
     /// `workspaceSurfaceError`: the workspace's change subscription failed.

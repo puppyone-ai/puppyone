@@ -1,11 +1,12 @@
-//! `OnboardingProjectToolbar`, `OnboardingProjectLayoutSwitch` and
-//! `OnboardingEntryMenu`: sort, layout and New project.
+//! `OnboardingProjectToolbar` and `OnboardingProjectLayoutSwitch`: sort and
+//! layout controls at the trailing end of `.onboarding-projects-head`.
 use super::*;
 
 impl Homepage {
     // ------------------------------------------------------------- toolbar
     /// `OnboardingToolbarMenu`: a quiet control that opens its own menu,
-    /// centred under it; its tooltip says what it is set to.
+    /// aligned to its trailing edge so it stays inside narrow windows; its
+    /// tooltip says what it is set to.
     #[allow(clippy::too_many_arguments)]
     pub(in crate::app::home) fn view_menu(
         &self,
@@ -26,7 +27,7 @@ impl Homepage {
             .when(active, |b| b.color(t.text))
             .disabled(disabled);
         PopoverMenu::new(("home-view-menu-popover", menu as usize))
-            .anchor(Anchor::TopCenter)
+            .anchor(Anchor::TopRight)
             .offset(px(metric::MENU_PADDING))
             .open(open)
             .on_open_change(move |opened, _, cx| {
@@ -42,8 +43,7 @@ impl Homepage {
             .menu(move |surface, _, _| build(surface.min_w(px(VIEW_MENU_MIN_WIDTH))))
     }
     /// `OnboardingProjectToolbar` + the layout switch: Sort and Layout,
-    /// aligned to the end. Nothing narrows the projects: the groups already
-    /// say who can open each one and the marks where it lives.
+    /// aligned to the end of `.onboarding-projects-head`.
     pub(in crate::app::home) fn project_toolbar(
         &self,
         disabled: bool,
@@ -123,7 +123,7 @@ impl Homepage {
         // `.onboarding-project-toolbar` > `.onboarding-project-view`.
         div()
             .flex()
-            .flex_1()
+            .flex_none()
             .min_w_0()
             .items_center()
             .justify_end()
@@ -136,71 +136,5 @@ impl Homepage {
                     .child(sort_menu)
                     .child(layout_menu),
             )
-    }
-    /// `OnboardingEntryMenu`: New project, one click away, and the arrow
-    /// holding Open a folder and Import, both neutral.
-    pub(in crate::app::home) fn entry_menu(&self, busy: bool, cx: &mut Context<Self>) -> Div {
-        let t = cx.palette();
-        let open = self.menu == Some(HomeMenu::Entry) && !busy;
-        let host = self.weak.clone();
-        let more = tr("onboarding.action.moreEntries");
-        let trigger = Button::new("home-entry-more")
-            .variant(ButtonVariant::PatternDeep)
-            .icon(Icon::new("chevron-down").small().stroke(1.85))
-            .accessibility_label(more)
-            .tooltip(more)
-            .disabled(busy)
-            .w(px(theme::control()))
-            .px_0()
-            .rounded_l(px(0.))
-            .rounded_r(px(metric::CONTROL_RADIUS));
-        let menu = PopoverMenu::new("home-entry-menu")
-            .anchor(Anchor::TopRight)
-            .offset(px(metric::MENU_PADDING))
-            .open(open)
-            .on_open_change(move |opened, _, cx| {
-                let _ = host.update(cx, |s, cx| {
-                    let is = s.menu == Some(HomeMenu::Entry);
-                    if *opened != is {
-                        s.menu = opened.then_some(HomeMenu::Entry);
-                        cx.notify();
-                    }
-                });
-            })
-            .trigger(trigger)
-            .menu({
-                let host = self.weak.clone();
-                move |surface, _, _| {
-                    let open_folder = {
-                        let host = host.clone();
-                        MenuItem::new(tr("onboarding.action.openFolder"))
-                            .icon_sized(Icon::product(ProductIcon::Folder).small().stroke(1.85))
-                            .on_click(move |_, cx| {
-                                let _ = host.update(cx, |s, cx| s.command(Command::OpenFolder, cx));
-                            })
-                    };
-                    let import = {
-                        let host = host.clone();
-                        MenuItem::new(tr("onboarding.action.importFromApps"))
-                            .icon_sized(Icon::new("download").small().stroke(1.85))
-                            .trailing(super::project_entry::import_badges(t, t.menu_bg, false))
-                            .on_click(move |w, cx| {
-                                let _ = host.update(cx, |s, cx| s.begin_import(w, cx));
-                            })
-                    };
-                    surface
-                        .w(px(ENTRY_MENU_WIDTH))
-                        .item(open_folder)
-                        .item(import)
-                }
-            });
-        // `.onboarding-entry-menu-root`: New and the arrow, 1px apart.
-        div()
-            .flex()
-            .flex_none()
-            .gap(px(1.))
-            .ml_auto()
-            .child(self.create_action_compact(busy, cx).rounded_r(px(0.)))
-            .child(menu)
     }
 }

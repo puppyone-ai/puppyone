@@ -7,6 +7,9 @@ mod chat_recipes;
 mod settings;
 mod setup;
 
-pub use chat_recipes::{agent_chat_runtime_id, hidden_agent_chat_runtime_ids};
+pub use chat_recipes::{
+    LOCAL_AGENT_CHAT_RECIPES, agent_chat_runtime_id, hidden_agent_chat_runtime_ids,
+    local_agent_id_for_agent_chat_runtime,
+};
 pub use settings::AgentSettings;
 pub use setup::{InstallationsChanged, Presentation, SetupSection, store as activation_store};

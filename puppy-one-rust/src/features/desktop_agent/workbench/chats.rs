@@ -315,12 +315,42 @@ impl AgentChats {
         window: &mut Window,
         cx: &mut App,
     ) -> Result<AgentChatItem, String> {
+        self.prepare_with_prompt(root, runtime_id, session_id, None, window, cx)
+    }
+
+    /// Prepares a new runtime chat pre-seeded with `initial_prompt` for one-shot
+    /// auto-submission once discovery and routing preferences settle.
+    pub fn prepare_seeded(
+        &mut self,
+        root: &Path,
+        runtime_id: &str,
+        initial_prompt: &str,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Result<AgentChatItem, String> {
+        self.prepare_with_prompt(root, runtime_id, None, Some(initial_prompt), window, cx)
+    }
+
+    fn prepare_with_prompt(
+        &mut self,
+        root: &Path,
+        runtime_id: &str,
+        session_id: Option<String>,
+        initial_prompt: Option<&str>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Result<AgentChatItem, String> {
         let registry = self.project_agents(root, cx)?.registry.clone();
         let item = uuid::Uuid::new_v4().to_string();
         let controller = registry.get(&item).map_err(|error| error.message)?;
         match session_id {
             Some(session_id) => drop(controller.open_saved_session(&session_id, runtime_id)),
-            None => controller.begin_initialize_for_runtime(runtime_id),
+            None => {
+                controller.begin_initialize_for_runtime(runtime_id);
+                if let Some(prompt) = initial_prompt {
+                    controller.seed_initial_prompt(prompt);
+                }
+            }
         }
         let panel = self.panel_for(root, controller, window, cx);
         Ok(AgentChatItem::new(

@@ -25,7 +25,7 @@ pub use billing::{
     settle as settle_billing,
 };
 pub use catalog::{CloudCatalog, State as CatalogState, global as global_catalog, owner_of};
-pub use clients::{billing_client, services_client};
+pub use clients::{agents_client, billing_client, services_client};
 pub use managed_compute::{Reason as ComputeReason, global as global_compute, money};
 #[cfg(test)]
 pub use publish::install_factory;

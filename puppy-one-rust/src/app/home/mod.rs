@@ -53,6 +53,8 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+pub(in crate::app) mod agent_start;
+pub(in crate::app) mod agent_strip;
 pub(in crate::app) mod create_project;
 mod first_run;
 pub(in crate::app) mod folder;
@@ -61,6 +63,7 @@ pub(in crate::app) mod groups;
 mod import_repository;
 pub(in crate::app) mod import_sources;
 mod intro;
+pub(in crate::app) mod previews;
 pub(in crate::app) mod project_entry;
 mod projects;
 mod template_import;
@@ -70,12 +73,10 @@ pub(super) use import_repository::ImportRepository;
 pub(in crate::app) use projects::HomeMenu;
 pub(super) use template_import::TemplateImport;
 
-/// `--onboarding-column-width`: room for five folders across with
-/// projects (first run's steps with the window, [`value::layout`]).
-const COLUMN_PROJECTS: f32 = 640.;
-/// `.onboarding-homepage { width: min(680px, 100%) }`; first run's picture
-/// and column share `min(900px, 100%)`.
-const PAGE_WIDTH: f32 = 680.;
+/// `.onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage`:
+/// `width: min(760px, 100%)` for five Finder-proportioned folders across;
+/// first run's picture and column share `min(900px, 100%)`.
+const PAGE_WIDTH_PROJECTS: f32 = 760.;
 const PAGE_WIDTH_EMPTY: f32 = 900.;
 /// `HOMEPAGE_FIRST_PAINT_BUDGET_MS`: the longest a list waits.
 const FIRST_PAINT_BUDGET: Duration = Duration::from_millis(4000);
@@ -98,6 +99,13 @@ pub(in crate::app) enum HomeEvent {
         open: Option<PathBuf>,
         new_window: bool,
     },
+    /// A project just made for a Local Agent: open it here and start a fresh
+    /// chat tab on `runtime_id` seeded with `prompt`.
+    OpenAgentCreated {
+        path: PathBuf,
+        runtime_id: String,
+        prompt: String,
+    },
     /// A folder dropped on a team's group: its confirmed first publication
     /// to that space.
     PublishToSpace {
@@ -111,6 +119,8 @@ pub(in crate::app) enum HomeEvent {
     },
     /// A space's "Members & plan": Settings on that one space.
     ManageSpace(String),
+    /// Open Settings on a chosen page (`HomepageAgentStrip`'s `+`).
+    OpenSettings(crate::features::settings::Page),
     /// Whether the open project's folder can be opened changed.
     WindowFolder,
     Command(Command),
@@ -183,8 +193,27 @@ pub(in crate::app) struct Homepage {
     pub action_bounds: HashMap<String, std::rc::Rc<std::cell::Cell<Bounds<Pixels>>>>,
     /// The project under the pointer.
     pub hovered: Option<String>,
-    /// Each tile's sheet motion: target, since, from.
-    sheets: HashMap<String, (bool, Instant, f32)>,
+    /// Top-level HTML/MD/CSV asset previews read from each local folder.
+    pub(in crate::app) local_previews: HashMap<PathBuf, Vec<previews::ProjectAssetPreview>>,
+    /// Top-level HTML/MD/CSV asset previews read from each Cloud project.
+    pub(in crate::app) cloud_previews: HashMap<String, Vec<previews::ProjectAssetPreview>>,
+    /// Detected local Agent CLIs and their Hook enrollment.
+    pub(in crate::app) discovered_local_agents: Option<(
+        Vec<crate::agent::connections::legacy_local_agent_inventory::Installation>,
+        std::collections::HashSet<String>,
+    )>,
+    /// Test override for `visible_local_agents`.
+    pub(in crate::app) local_agents_override: Option<Vec<agent_strip::HomepageLocalAgent>>,
+    pub(in crate::app) scanning_local_agents: bool,
+    pub(in crate::app) local_agents_generation: u64,
+    /// Connected Cloud Agents across the personal Space's projects.
+    pub(in crate::app) cloud_agents: Vec<agent_strip::HomepageCloudAgent>,
+    /// Connected Cloud Agents per personal-space Cloud project id.
+    pub(in crate::app) cloud_project_agents: HashMap<String, Vec<folder::FolderAgentBadge>>,
+    pub(in crate::app) cloud_details_key: String,
+    pub(in crate::app) cloud_details_generation: u64,
+    /// Keeps test-injected Cloud previews and Agent badges from being cleared.
+    pub(in crate::app) cloud_details_override: bool,
     /// A folder is being dragged over the window.
     pub dragging: bool,
     /// The project being dragged out, by its absolute path (`draggingPath`).
@@ -205,6 +234,8 @@ pub(in crate::app) struct Homepage {
     pub(in crate::app) disclosure_shown: bool,
     /// "Create a project", while its dialog is open.
     pub(in crate::app) create: Option<CreateProject>,
+    /// "Start with {agent}", while its dialog is open.
+    pub(in crate::app) agent_start: Option<agent_start::AgentStart>,
     /// The template card, while it is open.
     pub(in crate::app) template: Option<Box<TemplateImport>>,
     /// Cloning a repository into a new project, while its dialog is open.
@@ -246,6 +277,14 @@ impl Homepage {
         cx.observe(&hosts, |h, _, cx| h.refresh(cx)).detach();
         let link = crate::features::hosts::host_link(cx);
         cx.observe(&link, |h, _, cx| h.refresh(cx)).detach();
+        let activation = crate::features::local_agents::activation_store(cx);
+        cx.subscribe(
+            &activation,
+            |h, _, _: &crate::features::local_agents::InstallationsChanged, cx| {
+                h.refresh_local_agents(true, cx);
+            },
+        )
+        .detach();
         // Coming back to the window reads the spaces and the computers
         // again while the page shows.
         cx.observe_window_activation(window, |h, window, cx| {
@@ -257,6 +296,8 @@ impl Homepage {
             }
             if h.session.home {
                 h.read_hosts(true, cx);
+                h.refresh_local_agents(true, cx);
+                h.refresh_cloud_home_details(true, cx);
             }
             // A disk plugged in again, a folder put back.
             h.read_for = None;
@@ -339,7 +380,17 @@ impl Homepage {
             focus: HashMap::new(),
             action_bounds: HashMap::new(),
             hovered: None,
-            sheets: HashMap::new(),
+            local_previews: HashMap::new(),
+            cloud_previews: HashMap::new(),
+            discovered_local_agents: None,
+            local_agents_override: None,
+            scanning_local_agents: false,
+            local_agents_generation: 0,
+            cloud_agents: Vec::new(),
+            cloud_project_agents: HashMap::new(),
+            cloud_details_key: String::new(),
+            cloud_details_generation: 0,
+            cloud_details_override: false,
             dragging: false,
             dragging_path: None,
             error: None,
@@ -349,6 +400,7 @@ impl Homepage {
             intro_empty: None,
             disclosure_shown: false,
             create: None,
+            agent_start: None,
             template: None,
             import: None,
             import_picker: None,
@@ -380,6 +432,8 @@ impl Homepage {
         self.read_hosts(false, cx);
         self.sync_sharing(cx);
         self.refresh_activity(cx);
+        self.refresh_local_agents(false, cx);
+        self.refresh_cloud_home_details(false, cx);
         self.sync_project_view(cx);
         self.sync_first_run(cx);
         self.sync_intro(cx);
@@ -522,7 +576,7 @@ impl Homepage {
     fn render_dialog(
         &mut self,
         key: DialogKey,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         match key {
@@ -530,6 +584,10 @@ impl Homepage {
                 .create
                 .as_ref()
                 .map(|c| self.create_project_dialog(c, cx).into_any_element()),
+            DialogKey::AgentStart => self.agent_start.as_ref().map(|start| {
+                self.agent_start_dialog(start, window, cx)
+                    .into_any_element()
+            }),
             DialogKey::TemplateImport => self
                 .template
                 .as_ref()
@@ -555,6 +613,7 @@ impl Homepage {
     fn dismiss_dialog(&mut self, key: DialogKey, window: &mut Window, cx: &mut Context<Self>) {
         match key {
             DialogKey::CreateProject => self.close_create_project(window, cx),
+            DialogKey::AgentStart => self.close_agent_start(window, cx),
             DialogKey::TemplateImport => self.close_template(window, cx),
             DialogKey::ImportRepository => self.close_import(window, cx),
             DialogKey::ProjectFolder => self.close_folder_question(cx),
@@ -642,8 +701,26 @@ fn parent_for_display(path: &Path) -> String {
         None => String::new(),
     }
 }
+/// `compactDisplayPath`: a display path short enough for one line — its root
+/// and its last `tail` folders, with the folders between them elided.
+pub(in crate::app) fn compact_display_path(display_path: &str, tail: usize) -> String {
+    let sep = if display_path.contains('\\') && !display_path.contains('/') {
+        '\\'
+    } else {
+        '/'
+    };
+    let parts: Vec<&str> = display_path.split(sep).collect();
+    if parts.len() <= tail + 2 {
+        return display_path.to_owned();
+    }
+    let mut out = Vec::with_capacity(tail + 2);
+    out.push(parts[0]);
+    out.push("…");
+    out.extend_from_slice(&parts[parts.len().saturating_sub(tail)..]);
+    out.join(&sep.to_string())
+}
 /// `formatModificationTime`: "Just now", then whole minutes, hours or days.
-fn modification_time(changed: SystemTime, now: SystemTime) -> String {
+pub(in crate::app::home) fn modification_time(changed: SystemTime, now: SystemTime) -> String {
     const MINUTE: u64 = 60;
     const HOUR: u64 = 60 * MINUTE;
     const DAY: u64 = 24 * HOUR;
@@ -703,7 +780,12 @@ impl Homepage {
                         .then(|| crate::platform::folder_availability::identity(&path))
                         .flatten()
                         .filter(|now| Some(now) != was.as_ref());
-                    (path, changed, remote, status, identity)
+                    let previews = if status.is_none() {
+                        previews::select_local_previews(&path)
+                    } else {
+                        Vec::new()
+                    };
+                    (path, changed, remote, status, identity, previews)
                 })
                 .collect::<Vec<_>>()
         });
@@ -712,15 +794,22 @@ impl Homepage {
             let _ = this.update(cx, |s, cx| {
                 s.locators = read
                     .iter()
-                    .filter_map(|(path, _, remote, _, _)| Some((path.clone(), remote.clone()?)))
+                    .filter_map(|(path, _, remote, _, _, _)| Some((path.clone(), remote.clone()?)))
                     .collect();
                 s.unavailable = read
                     .iter()
-                    .filter_map(|(path, _, _, status, _)| Some((path.clone(), status.clone()?)))
+                    .filter_map(|(path, _, _, status, _, _)| Some((path.clone(), status.clone()?)))
+                    .collect();
+                s.local_previews = read
+                    .iter()
+                    .filter(|(_, _, _, _, _, previews)| !previews.is_empty())
+                    .map(|(path, _, _, _, _, previews)| (path.clone(), previews.clone()))
                     .collect();
                 let learned: Vec<(PathBuf, String)> = read
                     .iter()
-                    .filter_map(|(path, _, _, _, identity)| Some((path.clone(), identity.clone()?)))
+                    .filter_map(|(path, _, _, _, identity, _)| {
+                        Some((path.clone(), identity.clone()?))
+                    })
                     .collect();
                 if !learned.is_empty() {
                     s.preferences.update(cx, |p, cx| {
@@ -740,7 +829,7 @@ impl Homepage {
                 }
                 s.activity = read
                     .into_iter()
-                    .map(|(path, changed, _, _, _)| (path, changed))
+                    .map(|(path, changed, _, _, _, _)| (path, changed))
                     .collect();
                 s.reading = false;
                 // The list is whole: it may be seen now.
@@ -1135,25 +1224,35 @@ impl Homepage {
         let t = cx.palette();
         let has_projects = self.has_projects(cx);
         let busy = self.session.busy;
-        let pad = metric::UTILITY_PADDING_INLINE;
+        // `.onboarding-homepage-shell[data-onboarding-state="projects"]`:
+        // `padding-inline: 40px` above `820px`, `24px` (`UTILITY_PADDING_INLINE`) otherwise.
+        let pad = if has_projects && w > 820. {
+            40.
+        } else {
+            metric::UTILITY_PADDING_INLINE
+        };
         let page_w = if has_projects {
-            PAGE_WIDTH
+            PAGE_WIDTH_PROJECTS
         } else {
             PAGE_WIDTH_EMPTY
         }
         .min(w - pad * 2.)
         .max(0.);
         let column = if has_projects {
-            COLUMN_PROJECTS
+            page_w
         } else {
-            value::layout(w).column
-        }
-        .min(page_w);
+            value::layout(w).column.min(page_w)
+        };
         let error = self.error.clone().map(|error| {
             // `.onboarding-error.onboarding-homepage-error`.
             h_flex()
                 .flex_none()
-                .w(px(COLUMN_PROJECTS.min(page_w)))
+                .w(px((if has_projects {
+                    PAGE_WIDTH_PROJECTS
+                } else {
+                    value::layout(w).column
+                })
+                .min(page_w)))
                 .items_start()
                 .gap(px(8.))
                 .py(px(9.))
@@ -1180,17 +1279,41 @@ impl Homepage {
             } else {
                 self.project_groups_now(items, cx)
             };
-            let held = held || self.list_held();
-            // `.onboarding-brand-lockup` with its toolbar and the entry menu.
+            let list_held = self.list_held();
+            let held = held || list_held;
+            // `.onboarding-brand-lockup`: `OnboardingStartActions` on the left,
+            // `HomepageAgentStrip` on the right (`margin-block-end: 20px`).
             let head = h_flex()
+                .debug_selector(|| "home-header-row".into())
                 .flex_none()
                 .w_full()
                 .min_w_0()
-                .gap(px(8.))
-                .mb(px(8.))
-                .text_color(t.muted)
-                .child(self.project_toolbar(busy, cx))
-                .child(self.entry_menu(busy, cx));
+                .items_center()
+                .justify_between()
+                .gap(px(12.))
+                .mb(px(20.))
+                .child(self.start_actions(busy, cx))
+                .child(self.agent_strip(busy, cx));
+            let projects_head = (!list_held).then(|| {
+                // `.onboarding-projects-head`: `Projects` heading + sort/layout switch.
+                h_flex()
+                    .debug_selector(|| "home-projects-head".into())
+                    .flex_none()
+                    .w_full()
+                    .min_w_0()
+                    .items_center()
+                    .justify_between()
+                    .gap(px(8.))
+                    .child(
+                        div()
+                            .text_size(px(theme::ty().ui.meta))
+                            .font_weight(FontWeight::MEDIUM)
+                            .line_height(px(20.))
+                            .text_color(t.text)
+                            .child(tr("onboarding.projects.title")),
+                    )
+                    .child(self.project_toolbar(busy, cx))
+            });
             let note = (crate::features::flags::cloud_enabled(&self.preferences, cx)
                 && self.spaces.read(cx).status() == SpacesStatus::Error)
                 .then(|| {
@@ -1216,17 +1339,20 @@ impl Homepage {
                         )
                         .into_any_element()
                 });
-            let list = self.project_groups(groups, note, held, column, w <= 520., busy, window, cx);
+            let list =
+                self.project_groups(groups, note, held, column, w, w <= 520., busy, window, cx);
             // `.onboarding-home-primary[data-onboarding-primary="projects"]`:
-            // the projects sit on the page; a fill appears only for a drop.
+            // `row-gap: 8px`; the projects sit on the page; a fill appears only for a drop.
             let primary = div()
                 .flex_1()
                 .min_h_0()
                 .w_full()
                 .flex()
                 .flex_col()
+                .gap(px(8.))
                 .rounded(px(metric::CARD_RADIUS))
                 .when(self.dragging, |d| d.bg(t.hover))
+                .children(projects_head)
                 .child(list);
             v_flex()
                 .w(px(page_w))
@@ -1300,7 +1426,7 @@ impl Homepage {
             .items_center()
             // The list runs to the window's edge (`padding-block-end: 0`).
             .when(has_projects, |d| {
-                d.justify_start().pt(px(metric::CHROME_HEIGHT + 32.))
+                d.justify_start().pt(px(metric::CHROME_HEIGHT + 24.))
             })
             .when(!has_projects, |d| d.justify_center().py(px(48.)))
             .px(px(pad))
@@ -1389,17 +1515,6 @@ impl Homepage {
             .disabled(busy)
             .text_size(px(theme::ty().ui.body))
             .font_weight(FontWeight::NORMAL)
-            .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)))
-    }
-    /// New project at the head of a page with projects: in words alone, a
-    /// quiet control of the toolbar's own weight; the folders are the page.
-    /// (v0.4.4 also hides the words below the column's width, which leaves
-    /// the button blank now that it has no icon; the words stay here.)
-    fn create_action_compact(&self, busy: bool, cx: &mut Context<Self>) -> Button {
-        Button::new("home-create-project")
-            .variant(ButtonVariant::PatternDeep)
-            .label(tr("onboarding.action.createLocalProject"))
-            .disabled(busy)
             .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)))
     }
     /// `ImportAction` with its GitHub and GitLab preview: clone a repository
@@ -1535,6 +1650,23 @@ mod tests {
         assert_eq!(
             parent_for_display(Path::new("/private/tmp/x")),
             "/private/tmp"
+        );
+        assert_eq!(compact_display_path("~/project", 1), "~/project");
+        assert_eq!(
+            compact_display_path("~/Documents/Work", 1),
+            "~/Documents/Work"
+        );
+        assert_eq!(
+            compact_display_path("~/Documents/Clients/2026", 1),
+            "~/…/2026"
+        );
+        assert_eq!(
+            compact_display_path("/Volumes/Disk/Clients/2026", 1),
+            "/…/2026"
+        );
+        assert_eq!(
+            compact_display_path("C:\\Users\\ada\\Clients\\2026", 1),
+            "C:\\…\\2026"
         );
     }
 

@@ -15,6 +15,31 @@ impl Workbench {
         self.root.as_ref()
     }
 
+    /// Sorted list of all project roots attached to this workbench.
+    pub fn open_roots(&self) -> Vec<PathBuf> {
+        let mut roots: Vec<PathBuf> = self.projects.keys().cloned().collect();
+        roots.sort();
+        roots
+    }
+
+    /// Prepares a `(group, launcher_tab)` slot in the shown project's active
+    /// group for a new item, cancelling any initial restore if just attached.
+    pub fn prepare_launch_slot(&mut self, cx: &mut Context<Self>) -> Option<(Id, Option<Id>)> {
+        let p = self.project_mut()?;
+        if p.loading {
+            p.loading = false;
+        }
+        let gid = p.layout.active_group;
+        let launcher = p.layout.groups.get(&gid).and_then(|g| {
+            g.tabs
+                .iter()
+                .copied()
+                .find(|t| matches!(p.content.get(t), Some(Content::Launcher)))
+        });
+        cx.notify();
+        Some((gid, launcher))
+    }
+
     /// Whether the shown project is still restoring its saved tabs.
     #[cfg(feature = "dev-capture")]
     pub fn loading(&self) -> bool {

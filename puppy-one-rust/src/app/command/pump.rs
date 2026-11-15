@@ -12,6 +12,15 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         if let Some((path, message)) = pumped.failure {
+            self.session.project.update(cx, |p, _| {
+                if p.record
+                    .pending_agent_start
+                    .as_ref()
+                    .is_some_and(|s| s.root == path)
+                {
+                    p.record.pending_agent_start = None;
+                }
+            });
             self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
             self.open_modal(Modal::ProjectFailure { path, message }, cx);
         }
@@ -45,6 +54,37 @@ impl Shell {
             // parent folder only for the on-demand Local Agent Chat drawer.
             if !self.file_mode() {
                 self.sidebar.update(cx, |s, cx| s.enter(&ws, cx));
+                if let Some(entered_root) = ws.local_root() {
+                    let entered_canon = entered_root
+                        .canonicalize()
+                        .unwrap_or_else(|_| entered_root.to_path_buf());
+                    let matched = self.session.project.update(cx, |p, _| {
+                        let same = p.record.pending_agent_start.as_ref().is_some_and(|s| {
+                            let target = s.root.canonicalize().unwrap_or_else(|_| s.root.clone());
+                            target == entered_canon
+                        });
+                        if same {
+                            p.record.pending_agent_start.take()
+                        } else {
+                            None
+                        }
+                    });
+                    if let Some(start) = matched {
+                        let runtime_id = start.runtime_id.clone();
+                        self.prefs.store.update(cx, |store, cx| {
+                            store.change(
+                                |prefs| {
+                                    prefs.agent_routing =
+                                        prefs.agent_routing.select_runtime(Some(&runtime_id));
+                                },
+                                cx,
+                            )
+                        });
+                        self.sidebar.update(cx, |s, cx| {
+                            s.launch_agent_start(&start.runtime_id, &start.prompt, window, cx)
+                        });
+                    }
+                }
             } else if self.file.as_ref().is_some_and(|f| f.read(cx).is_html())
                 && let Some(root) = ws.local_root()
             {

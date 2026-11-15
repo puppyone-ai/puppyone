@@ -901,3 +901,127 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
         !dir.path().join("cloud-project-catalog.v1.json").exists()
     });
 }
+
+#[gpui::test]
+fn projects_home_agent_strip_and_agent_start_create_blank_project_with_seeded_chat(
+    cx: &mut TestAppContext,
+) {
+    use super::home::agent_strip::{HomepageCloudAgent, HomepageLocalAgent};
+    let temp = tempfile::tempdir().unwrap();
+    let parent = temp.path().canonicalize().unwrap();
+    let existing = parent.join("existing");
+    std::fs::create_dir(&existing).unwrap();
+    std::fs::write(existing.join("Overview.md"), "# Overview\n").unwrap();
+    // Pre-occupy the first suggested folder name so numbering (` 2`) is verified.
+    std::fs::create_dir(parent.join("Draft Q4 launch plan")).unwrap();
+
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        crate::ui::form_input::bind_keys(cx);
+    });
+    let (view, cx) = setup(cx);
+    let claude = HomepageLocalAgent {
+        runtime_id: "claude".into(),
+        label: "Claude Code".into(),
+        icon_key: "claude".into(),
+        connected: true,
+    };
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.remember_project(&existing, 1));
+        s.home.update(cx, |h, _| {
+            h.local_agents_override = Some(vec![claude.clone()]);
+            h.cloud_details_override = true;
+            h.cloud_agents = vec![HomepageCloudAgent {
+                id: "agent-cloud-1".into(),
+                name: "Review Bot".into(),
+                avatar: None,
+                last_active_at: Some("2026-11-15T08:00:00Z".into()),
+            }];
+        });
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the Homepage list", &|s, cx| {
+        !s.home.read(cx).list_held()
+            && s.home
+                .read(cx)
+                .local_previews
+                .contains_key(existing.as_path())
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("home-start-actions").is_some());
+    assert!(cx.debug_bounds("home-agent-strip").is_some());
+    assert!(cx.debug_bounds("home-agent:claude").is_some());
+    assert!(cx.debug_bounds("home-cloud-agent:agent-cloud-1").is_some());
+    assert!(cx.debug_bounds("home-projects-head").is_some());
+
+    // `+` opens Settings on the Local Agents page.
+    let plus = cx.debug_bounds("home-agent-connect").unwrap().center();
+    cx.simulate_click(plus, Modifiers::default());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings));
+    });
+    command(&view, cx, Command::Escape);
+    draw(cx);
+
+    // Clicking the Local Agent tile opens `AgentProjectStartDialog`, syncs the
+    // folder name from the prompt until edited, and submits a blank folder.
+    let agent_tile = cx.debug_bounds("home-agent:claude").unwrap().center();
+    cx.simulate_click(agent_tile, Modifiers::default());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.top_dialog(cx).as_deref(), Some("AgentStart"));
+    });
+    let prompt = view.update_in(cx, |s, _, cx| {
+        s.home.update(cx, |h, _| {
+            let start = h.agent_start.as_mut().unwrap();
+            start.destination.location = Some(parent.clone());
+            start.prompt.clone()
+        })
+    });
+    prompt.update_in(cx, |i, w, cx| {
+        i.replace_text_in_range(None, "Draft Q4 launch plan, then outline milestones", w, cx);
+    });
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        let start = s.home.read(cx).agent_start.as_ref().unwrap();
+        assert!(!start.name_edited);
+        assert_eq!(
+            start.destination.name.read(cx).text(),
+            "Draft Q4 launch plan"
+        );
+    });
+
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.submit_agent_start(w, cx));
+    });
+    let expected_root = parent.join("Draft Q4 launch plan 2");
+    settle_cloud(&view, cx, "the Agent-started project", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(expected_root.as_path())
+            && s.right_shows(Surface::Agent, cx)
+    });
+    draw(cx);
+    assert!(expected_root.is_dir());
+    assert!(
+        !expected_root.join("Getting Started.md").exists(),
+        "Agent-started folder stays blank until the Agent writes to it"
+    );
+    view.read_with(cx, |s, cx| {
+        assert!(s.dialogs.read(cx).is_empty());
+        assert_eq!(
+            s.prefs
+                .store
+                .read(cx)
+                .state
+                .agent_routing
+                .selected_runtime_id
+                .as_deref(),
+            Some("claude")
+        );
+    });
+}
