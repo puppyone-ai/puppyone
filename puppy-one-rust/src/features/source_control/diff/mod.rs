@@ -8,6 +8,7 @@
 //! lay out what is visible; the first and last rows of a card draw its
 //! border and corners.
 mod binary_summary;
+mod docx_redline;
 mod text_unified;
 
 use crate::{
@@ -20,41 +21,34 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::h_flex;
 use std::rc::Rc;
 
-/// `DiffViewerContribution`. Every native renderer reads the Git patch;
-/// the Word redline would need the revision pair (`resource-pair`).
+/// `DiffViewerContribution`. The Word redline reads the revision pair the
+/// diff loaded with it (`resource-pair`); the others read the Git patch.
 pub struct DiffViewer {
     /// `DiffViewerContribution.id`, which tests name.
     #[cfg(test)]
     pub id: &'static str,
     matches: fn(&FileDiff, &FileFormat) -> bool,
-    /// The product's renderer exists natively; others are passed over.
-    native: bool,
     rows: fn(usize, &FileDiff, &FileFormat, &mut Vec<Row>),
 }
 
 /// `DIFF_VIEWERS`, in match order; the binary summary matches everything.
 static VIEWERS: [DiffViewer; 3] = [
-    // The Word redline needs the OpenXML revision pair and its worker; the
-    // native build summarises Word files like any other binary for now.
     DiffViewer {
         #[cfg(test)]
         id: "docx-redline",
-        matches: |_, format| format.id == "docx",
-        native: false,
-        rows: binary_summary::rows,
+        matches: |file, format| format.id == "docx" && file.redline.is_some(),
+        rows: docx_redline::rows,
     },
     DiffViewer {
         #[cfg(test)]
         id: "text-unified",
         matches: |file, format| !file.binary && (format.is_text_like() || !file.lines.is_empty()),
-        native: true,
         rows: text_unified::rows,
     },
     DiffViewer {
         #[cfg(test)]
         id: "binary-summary",
         matches: |_, _| true,
-        native: true,
         rows: binary_summary::rows,
     },
 ];
@@ -70,7 +64,6 @@ pub fn resolve(file: &FileDiff) -> (&'static DiffViewer, &'static FileFormat) {
     let format = formats::of(name);
     let viewer = VIEWERS
         .iter()
-        .filter(|v| v.native)
         .find(|v| (v.matches)(file, format))
         .unwrap_or(&VIEWERS[2]);
     (viewer, format)
@@ -98,6 +91,13 @@ pub enum Row {
     },
     /// `.desktop-binary-diff-summary`.
     Binary { file: usize, last: bool },
+    /// One part of a Word redline, `top` below the one before.
+    Redline {
+        file: usize,
+        part: docx_redline::Part,
+        top: f32,
+        last: bool,
+    },
 }
 
 /// Where a diff list sits: Changes is a compact sidebar list
@@ -268,6 +268,14 @@ fn card_row(row: &Row, cx: &RowContext) -> AnyElement {
                 cx.open_file.clone(),
             ))
             .into_any_element(),
+        Row::Redline {
+            file,
+            part,
+            top,
+            last,
+        } => frame(p, false, *last)
+            .child(docx_redline::part(&cx.files[*file], part, *top, *last, p))
+            .into_any_element(),
     }
 }
 
@@ -407,6 +415,7 @@ mod tests {
             truncated: false,
             omitted_lines: 0,
             revision: binary.then_some((Side::Present(Some(1)), Side::Present(Some(2)))),
+            redline: None,
         }
     }
 
@@ -418,11 +427,17 @@ mod tests {
             "text-unified"
         );
         assert_eq!(resolve(&file("logo.png", true, &[])).0.id, "binary-summary");
-        // Word files fall to the summary until the redline is native.
+        // A Word file shows its redline once the diff loaded one; without
+        // a revision pair (a Cloud commit) it is summarised.
         assert_eq!(
             resolve(&file("Report.docx", true, &[])).0.id,
             "binary-summary"
         );
+        let word = FileDiff {
+            redline: Some(Err("unreadable".into())),
+            ..file("Report.docx", true, &[])
+        };
+        assert_eq!(resolve(&word).0.id, "docx-redline");
         // A text-like format with no textual lines still uses the unified view.
         assert_eq!(resolve(&file("notes.md", false, &[])).0.id, "text-unified");
     }
@@ -480,5 +495,34 @@ mod tests {
             ..file("docs/new.txt", false, &[])
         };
         assert_eq!(file_name(&renamed), "old.txt → new.txt");
+    }
+    #[test]
+    fn a_redline_lays_out_its_parts_inside_the_card() {
+        use crate::platform::docx_redline;
+        let p = |text: &str| format!("<w:p><w:r><w:t>{text}</w:t></w:r></w:p>");
+        let before = docx_redline::test_docx(&[p("One"), p("Two")].concat());
+        let after = docx_redline::test_docx(&[p("One"), p("Two more")].concat());
+        let word = FileDiff {
+            redline: Some(docx_redline::build(Some(&before), Some(&after))),
+            ..file("Report.docx", true, &[])
+        };
+        let parts: Vec<_> = rows(std::slice::from_ref(&word), Density::Page)
+            .into_iter()
+            .filter_map(|row| match row {
+                Row::Redline {
+                    part, top, last, ..
+                } => Some((part, top, last)),
+                _ => None,
+            })
+            .collect();
+        use super::docx_redline::Part;
+        assert_eq!(
+            parts,
+            [
+                (Part::Summary, 0., false),
+                (Part::Change(0), 12., false),
+                (Part::Fidelity, 12., true),
+            ]
+        );
     }
 }

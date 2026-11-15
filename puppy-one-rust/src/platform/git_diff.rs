@@ -62,6 +62,9 @@ pub struct FileDiff {
     pub omitted_lines: u32,
     /// Before / after sizes, for binary files of a working-tree diff.
     pub revision: Option<(Side, Side)>,
+    /// A Word document's redline of its revision pair (`docx-redline`), or
+    /// why it could not be made.
+    pub redline: Option<Result<super::docx_redline::Presentation, String>>,
 }
 
 /// `GitWorkingDiffScope` for local work.
@@ -196,6 +199,7 @@ fn header(body: &str) -> FileDiff {
         truncated: false,
         omitted_lines: 0,
         revision: None,
+        redline: None,
     }
 }
 
@@ -258,7 +262,90 @@ pub fn file_diff(
     for file in files.iter_mut().filter(|f| f.binary) {
         file.revision = Some(binary_sides(root, prefix, file, scope, cancel));
     }
+    for file in files.iter_mut().filter(|f| is_docx(&f.path)) {
+        let before_path = file.old_path.as_deref().unwrap_or(&file.path);
+        let before = (file.status != Status::Added).then(|| {
+            Revision::Blob(if scope == Scope::Staged {
+                format!("HEAD:{before_path}")
+            } else {
+                format!(":{before_path}")
+            })
+        });
+        let after = (file.status != Status::Deleted).then(|| {
+            if scope == Scope::Staged {
+                Revision::Blob(format!(":{}", file.path))
+            } else {
+                Revision::Working(git::local(prefix, &file.path).map(str::to_owned))
+            }
+        });
+        file.redline = Some(redline(root, before, after, cancel));
+    }
     Ok(files)
+}
+
+/// The most bytes one Word revision may have.
+const MAX_DOCX_BYTES: u64 = 64 * 1024 * 1024;
+
+/// `docxRedlineContribution.match`: a Word (OpenXML) document.
+fn is_docx(path: &str) -> bool {
+    path.rsplit('.')
+        .next()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("docx"))
+        && path.contains('.')
+}
+
+/// One side of a Word revision pair: a Git object, or the working file
+/// (its path under the opened folder, if it is there).
+enum Revision {
+    Blob(String),
+    Working(Option<String>),
+}
+
+/// `loadDocxRedline`: both revisions read (`None`: the side is missing),
+/// then the redline built.
+fn redline(
+    root: &Path,
+    before: Option<Revision>,
+    after: Option<Revision>,
+    cancel: &AtomicBool,
+) -> Result<super::docx_redline::Presentation, String> {
+    let read = |side: Option<Revision>| -> Result<Option<Vec<u8>>, String> {
+        match side {
+            None => Ok(None),
+            Some(Revision::Blob(spec)) => {
+                let size: u64 = git(root, &["cat-file", "-s", &spec], None, cancel)
+                    .ok()
+                    .and_then(|out| String::from_utf8_lossy(&out).trim().parse().ok())
+                    .ok_or("The Word revision could not be read from Git.")?;
+                if size > MAX_DOCX_BYTES {
+                    return Err("The Word revision exceeds the semantic diff budget.".into());
+                }
+                git(root, &["cat-file", "blob", &spec], None, cancel).map(Some)
+            }
+            Some(Revision::Working(local)) => {
+                let local = local
+                    .ok_or_else(|| crate::localization::t("native.git.pathOutside").to_owned())?;
+                let base = root.canonicalize().map_err(|e| e.to_string())?;
+                let file = root.join(local).canonicalize().map_err(|e| e.to_string())?;
+                read_working(&base, &file)
+            }
+        }
+    };
+    let before = read(before)?;
+    let after = read(after)?;
+    super::docx_redline::build(before.as_deref(), after.as_deref())
+}
+
+/// A working Word file inside `base`, within the size budget.
+fn read_working(base: &Path, file: &Path) -> Result<Option<Vec<u8>>, String> {
+    if !file.starts_with(base) {
+        return Err(crate::localization::t("native.git.symlinkPreview").into());
+    }
+    let meta = std::fs::metadata(file).map_err(|e| e.to_string())?;
+    if meta.len() > MAX_DOCX_BYTES {
+        return Err("The Word revision exceeds the semantic diff budget.".into());
+    }
+    std::fs::read(file).map(Some).map_err(|e| e.to_string())
 }
 
 /// `getWorkspaceGitCommitDetail`: every file a commit changed.
@@ -281,7 +368,24 @@ pub fn commit_detail(root: &Path, id: &str, cancel: &AtomicBool) -> Result<Vec<F
         None,
         cancel,
     )?;
-    Ok(parse_patch(&String::from_utf8_lossy(&patch)))
+    let mut files = parse_patch(&String::from_utf8_lossy(&patch));
+    // A root commit has no parent: its files are all added.
+    let parent = git(
+        root,
+        &["rev-parse", "--verify", "--quiet", &format!("{id}^")],
+        None,
+        cancel,
+    )
+    .is_ok();
+    for file in files.iter_mut().filter(|f| is_docx(&f.path)) {
+        let before_path = file.old_path.as_deref().unwrap_or(&file.path);
+        let before = (parent && file.status != Status::Added)
+            .then(|| Revision::Blob(format!("{id}^:{before_path}")));
+        let after =
+            (file.status != Status::Deleted).then(|| Revision::Blob(format!("{id}:{}", file.path)));
+        file.redline = Some(redline(root, before, after, cancel));
+    }
+    Ok(files)
 }
 
 /// `buildUntrackedFileDiff`: every line added — the product splits on line
@@ -306,6 +410,10 @@ fn untracked(root: &Path, path: &str, local: &str) -> Result<FileDiff, String> {
             Side::Missing,
             Side::Present(std::fs::metadata(&file).ok().map(|m| m.len())),
         )),
+        redline: is_docx(path).then(|| {
+            read_working(&base, &file)
+                .and_then(|after| super::docx_redline::build(None, after.as_deref()))
+        }),
     };
     let meta = std::fs::metadata(&file).map_err(|e| e.to_string())?;
     if meta.is_dir() || meta.len() > MAX_UNTRACKED_BYTES {

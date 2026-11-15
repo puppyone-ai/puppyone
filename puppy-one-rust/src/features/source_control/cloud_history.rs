@@ -964,6 +964,7 @@ impl CloudHistory {
                                 truncated: false,
                                 omitted_lines: 0,
                                 revision: None,
+                                redline: None,
                             },
                             &palette,
                         )
