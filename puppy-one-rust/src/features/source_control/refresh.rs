@@ -24,13 +24,6 @@ pub fn should_fetch_remote(
     focused && since_last.is_none_or(|since| since >= minimum_gap)
 }
 
-/// `getRemoteFetchTarget`: the upstream's remote; a local-only branch never
-/// touches the network.
-pub fn remote_target(upstream: Option<&str>) -> Option<&str> {
-    let (remote, branch) = upstream?.split_once('/')?;
-    (!remote.is_empty() && !branch.is_empty()).then_some(remote)
-}
-
 /// `shouldIgnoreMetadataChange`: lock files, objects and watcher cookies are
 /// noise; `relative` is the path inside the Git directory.
 pub fn metadata_noise(relative: &str) -> bool {
@@ -47,17 +40,13 @@ mod tests {
     use core::prelude::v1::test;
 
     #[test]
-    fn remote_fetches_need_focus_a_gap_and_an_upstream() {
+    fn remote_fetches_need_focus_and_a_gap() {
         let s = Duration::from_secs;
         assert!(should_fetch_remote(true, None, REMOTE_MIN_GAP));
         assert!(!should_fetch_remote(false, None, REMOTE_MIN_GAP));
         assert!(!should_fetch_remote(true, Some(s(10)), REMOTE_MIN_GAP));
         assert!(should_fetch_remote(true, Some(s(15)), REMOTE_MIN_GAP));
         assert!(!should_fetch_remote(true, Some(s(59)), REMOTE_FOCUS_STALE));
-        assert_eq!(remote_target(Some("origin/main")), Some("origin"));
-        assert_eq!(remote_target(Some("upstream/feature/x")), Some("upstream"));
-        assert_eq!(remote_target(Some("main")), None);
-        assert_eq!(remote_target(None), None);
     }
 
     #[test]

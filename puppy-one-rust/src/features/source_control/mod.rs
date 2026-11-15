@@ -200,18 +200,54 @@ enum PrimarySlot {
     Committed,
     StageAndCommit,
 }
-fn primary_slot(snapshot: &Snapshot, sections: &[Section]) -> Option<PrimarySlot> {
-    let has = |panel| sections.iter().any(|s| s.panel == panel);
-    if has(Panel::Merge) {
+/// The actions that could wear it, each only while it can run.
+#[derive(Clone, Copy, Debug, Default)]
+struct SlotCandidates {
+    conflicts: bool,
+    sync: bool,
+    staged: bool,
+    committed: bool,
+    stage_and_commit: bool,
+}
+fn primary_slot(c: SlotCandidates) -> Option<PrimarySlot> {
+    if c.conflicts {
         None
-    } else if snapshot.behind > 0 && snapshot.upstream.is_some() {
+    } else if c.sync {
         Some(PrimarySlot::Sync)
-    } else if has(Panel::Staged) {
+    } else if c.staged {
         Some(PrimarySlot::Staged)
-    } else if snapshot.ahead > 0 && snapshot.upstream.is_some() {
+    } else if c.committed {
         Some(PrimarySlot::Committed)
-    } else if has(Panel::Unstaged) {
+    } else if c.stage_and_commit {
         Some(PrimarySlot::StageAndCommit)
+    } else {
+        None
+    }
+}
+/// `getCommittedPrimaryAction`'s kind: a branch with nowhere to push to yet
+/// is published, else its commits are pushed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CommittedAction {
+    Publish,
+    Push,
+}
+impl CommittedAction {
+    fn operation(self) -> Operation {
+        match self {
+            Self::Publish => Operation::Publish,
+            Self::Push => Operation::Push,
+        }
+    }
+}
+/// `getCommittedPrimaryAction`: the action and whether it is disabled; a
+/// blocked repository (unresolved conflicts) sends nothing.
+fn committed_action(snapshot: &Snapshot, blocked: bool) -> Option<(CommittedAction, bool)> {
+    if snapshot.can_publish() {
+        Some((CommittedAction::Publish, blocked))
+    } else if snapshot.remote_exists() && snapshot.ahead > 0 && snapshot.behind > 0 {
+        Some((CommittedAction::Push, true))
+    } else if snapshot.can_push() {
+        Some((CommittedAction::Push, blocked))
     } else {
         None
     }
@@ -232,7 +268,8 @@ pub struct SourceControl {
     pub error: Option<String>,
     operation_error: bool,
     busy: bool,
-    mutating: bool,
+    /// The running mutation's label (`gitOperationLoading`).
+    running: Option<&'static str>,
     queued_operation: Option<Operation>,
     dirty: bool,
     last_refresh: Instant,
@@ -313,7 +350,7 @@ impl SourceControl {
             error: None,
             operation_error: false,
             busy: false,
-            mutating: false,
+            running: None,
             queued_operation: None,
             dirty: false,
             last_refresh: Instant::now(),
@@ -359,7 +396,7 @@ impl SourceControl {
         self.error = None;
         self.operation_error = false;
         self.busy = false;
-        self.mutating = false;
+        self.running = None;
         self.queued_operation = None;
         // History stays the surface across projects (`rightSidebarSurface`);
         // it reloads with the new repository's first snapshot.
@@ -431,11 +468,13 @@ impl SourceControl {
     /// A silent fetch of the upstream's remote, past `gap` since the last
     /// attempt; never for a local-only branch, never while unfocused.
     fn request_fetch(&mut self, gap: Duration, cx: &mut Context<Self>) {
+        // `getRemoteFetchTarget`: the sync target's remote; a local-only
+        // branch never touches the network.
         let Some(remote) = self
             .snapshot
             .as_ref()
-            .and_then(|s| refresh::remote_target(s.upstream.as_deref()))
-            .map(str::to_owned)
+            .and_then(|s| s.target.as_ref())
+            .map(|t| t.remote.clone())
         else {
             return;
         };
@@ -489,13 +528,13 @@ impl SourceControl {
     }
     fn operation(&mut self, op: Operation, cx: &mut Context<Self>) {
         if self.busy {
-            if !self.mutating {
+            if self.running.is_none() {
                 self.queued_operation = Some(op);
             }
             return;
         }
         self.busy = true;
-        self.mutating = true;
+        self.running = Some(op.label());
         self.error = None;
         self.operation_error = false;
         self.detail = None;
@@ -514,8 +553,7 @@ impl SourceControl {
             match result {
                 ResultValue::Status(result) => {
                     self.busy = false;
-                    let was_mutation = self.mutating;
-                    self.mutating = false;
+                    let was_mutation = self.running.take().is_some();
                     match result {
                         Ok(snapshot) => {
                             let changed = self.snapshot.as_ref() != Some(&snapshot);
@@ -1074,7 +1112,22 @@ impl SourceControl {
     /// the fixed region with errors.
     fn changes_list(&self, snapshot: &Snapshot, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
-        let primary = primary_slot(snapshot, &self.sections);
+        let has = |panel| self.sections.iter().any(|s: &Section| s.panel == panel);
+        let conflicts = has(Panel::Merge);
+        let committed = committed_action(snapshot, conflicts);
+        // `remote.ahead` / `behind`: counted against an existing target only.
+        let (ahead, behind) = if snapshot.remote_exists() {
+            (snapshot.ahead, snapshot.behind)
+        } else {
+            (0, 0)
+        };
+        let primary = primary_slot(SlotCandidates {
+            conflicts,
+            sync: behind > 0,
+            staged: has(Panel::Staged),
+            committed: committed.is_some_and(|(_, disabled)| !disabled),
+            stage_and_commit: has(Panel::Unstaged),
+        });
         let mut stack = v_flex().flex_1().min_h_0().overflow_hidden();
         let mut panels: Vec<Div> = vec![];
         if let Some(section) = self.sections.iter().find(|s| s.panel == Panel::Merge) {
@@ -1087,32 +1140,60 @@ impl SourceControl {
                 self.file_list(Panel::Merge, count, cx),
             ));
         }
-        if snapshot.ahead > 0 && snapshot.upstream.is_some() {
+        if ahead > 0 || committed.is_some() {
             let push = tr("source-control.sync.push");
-            let action = operation_button(
-                "git-push",
-                "arrow-up",
-                push,
-                primary == Some(PrimarySlot::Committed),
-                self.busy,
-            )
-            // `handlePushGit` runs without a confirmation.
-            .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Push, cx)));
-            let header = self.section_header(
-                Panel::Committed,
-                snapshot.ahead as usize,
-                true,
-                Some(action.into_any_element()),
-                cx,
-            );
+            let action = committed.map(|(kind, disabled)| {
+                let (id, label, loading) = match kind {
+                    CommittedAction::Publish => (
+                        "git-publish",
+                        "source-control.sync.publish",
+                        "source-control.sync.publishing",
+                    ),
+                    CommittedAction::Push => (
+                        "git-push",
+                        "source-control.sync.push",
+                        "source-control.sync.pushing",
+                    ),
+                };
+                let op = kind.operation();
+                operation_button(
+                    id,
+                    "arrow-up",
+                    tr(if self.running == Some(op.label()) {
+                        loading
+                    } else {
+                        label
+                    }),
+                    primary == Some(PrimarySlot::Committed),
+                    self.busy || disabled,
+                )
+                // `handlePushGit` / `handlePublishGitBranch` run without a
+                // confirmation.
+                .on_click(cx.listener(move |s, _, _, cx| s.operation(kind.operation(), cx)))
+                .into_any_element()
+            });
+            let header = self.section_header(Panel::Committed, ahead as usize, true, action, cx);
             let note = Self::section_note(
-                tf(
-                    "source-control.committed.ready",
-                    &[
-                        ("count", (snapshot.ahead as usize).into()),
-                        ("action", push.into()),
-                    ],
-                ),
+                if ahead == 0 {
+                    tr("source-control.status.empty").to_owned()
+                } else {
+                    tf(
+                        "source-control.committed.ready",
+                        &[
+                            ("count", (ahead as usize).into()),
+                            (
+                                "action",
+                                match committed {
+                                    Some((CommittedAction::Publish, _)) => {
+                                        tr("source-control.sync.publish")
+                                    }
+                                    _ => push,
+                                }
+                                .into(),
+                            ),
+                        ],
+                    )
+                },
                 t,
             );
             panels.push(self.panel(Panel::Committed, 1.5, header, note));
@@ -1122,13 +1203,14 @@ impl SourceControl {
             let action = operation_button(
                 "git-commit",
                 "plus",
-                tr(if self.mutating {
+                tr(if self.running == Some("commit") {
                     "source-control.action.committing"
                 } else {
                     "source-control.sync.commit"
                 }),
                 primary == Some(PrimarySlot::Staged),
-                self.busy,
+                // `canCommit`: never over unresolved conflicts.
+                self.busy || conflicts,
             )
             .tooltip(tr("source-control.sync.commitStaged"))
             .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Commit(String::new()), cx)));
@@ -1148,11 +1230,14 @@ impl SourceControl {
         }
         if let Some(section) = self.sections.iter().find(|s| s.panel == Panel::Unstaged) {
             let count = section.changes.len();
-            let conflicts = self.sections.iter().any(|s| s.panel == Panel::Merge);
             let action = operation_button(
                 "git-stage-commit",
                 "plus",
-                tr("source-control.action.stageCommit"),
+                tr(if self.running == Some("stage-commit") {
+                    "source-control.action.committing"
+                } else {
+                    "source-control.action.stageCommit"
+                }),
                 primary == Some(PrimarySlot::StageAndCommit),
                 self.busy || conflicts,
             )
@@ -1188,12 +1273,8 @@ impl SourceControl {
             .flex_1()
             .min_h_0()
             .pt(px(metric::SIDEBAR_LIST_PADDING_BLOCK));
-        if snapshot.behind > 0 && snapshot.upstream.is_some() {
-            list = list.child(self.incoming_notice(
-                snapshot.behind,
-                primary == Some(PrimarySlot::Sync),
-                cx,
-            ));
+        if behind > 0 {
+            list = list.child(self.incoming_notice(behind, primary == Some(PrimarySlot::Sync), cx));
         }
         list = list.child(stack);
         if let Some(error) = &self.error {
@@ -1592,6 +1673,139 @@ impl Render for SourceControl {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+    /// `sourceControlWorkflow.test.ts`: the single-branch collaboration policy.
+    #[test]
+    fn one_primary_action_follows_the_collaboration_policy() {
+        let c = SlotCandidates::default;
+        let cases = [
+            (c(), None),
+            (
+                SlotCandidates {
+                    stage_and_commit: true,
+                    ..c()
+                },
+                Some(PrimarySlot::StageAndCommit),
+            ),
+            (
+                SlotCandidates {
+                    staged: true,
+                    ..c()
+                },
+                Some(PrimarySlot::Staged),
+            ),
+            (
+                SlotCandidates {
+                    committed: true,
+                    ..c()
+                },
+                Some(PrimarySlot::Committed),
+            ),
+            (
+                SlotCandidates {
+                    committed: true,
+                    staged: true,
+                    ..c()
+                },
+                Some(PrimarySlot::Staged),
+            ),
+            (
+                SlotCandidates {
+                    sync: true,
+                    stage_and_commit: true,
+                    ..c()
+                },
+                Some(PrimarySlot::Sync),
+            ),
+            (
+                SlotCandidates {
+                    sync: true,
+                    staged: true,
+                    ..c()
+                },
+                Some(PrimarySlot::Sync),
+            ),
+            (
+                SlotCandidates {
+                    sync: true,
+                    committed: true,
+                    ..c()
+                },
+                Some(PrimarySlot::Sync),
+            ),
+            (
+                SlotCandidates {
+                    conflicts: true,
+                    sync: true,
+                    staged: true,
+                    committed: true,
+                    ..c()
+                },
+                None,
+            ),
+        ];
+        for (candidates, expected) in cases {
+            assert_eq!(primary_slot(candidates), expected, "{candidates:?}");
+        }
+    }
+    /// `getCommittedPrimaryAction`: Publish, a blocked or diverged Push, or none.
+    #[test]
+    fn committed_commits_are_published_or_pushed() {
+        let target = |exists| {
+            Some(git::SyncTarget {
+                remote: "origin".into(),
+                branch: "main".into(),
+                exists,
+            })
+        };
+        let snapshot = |target, ahead, behind, head: &str| Snapshot {
+            branch: "main".into(),
+            head: head.into(),
+            target,
+            ahead,
+            behind,
+            ..Snapshot::default()
+        };
+        use CommittedAction::{Publish, Push};
+        let cases = [
+            (
+                snapshot(target(false), 0, 0, "abc"),
+                false,
+                Some((Publish, false)),
+            ),
+            (
+                snapshot(target(false), 0, 0, "abc"),
+                true,
+                Some((Publish, true)),
+            ),
+            // Nothing to publish before the first commit, or with no remote.
+            (snapshot(target(false), 0, 0, ""), false, None),
+            (snapshot(None, 0, 0, "abc"), false, None),
+            (
+                snapshot(target(true), 2, 0, "abc"),
+                false,
+                Some((Push, false)),
+            ),
+            (
+                snapshot(target(true), 2, 0, "abc"),
+                true,
+                Some((Push, true)),
+            ),
+            (
+                snapshot(target(true), 2, 3, "abc"),
+                false,
+                Some((Push, true)),
+            ),
+            (snapshot(target(true), 0, 3, "abc"), false, None),
+            (snapshot(target(true), 0, 0, "abc"), false, None),
+        ];
+        for (snapshot, blocked, expected) in cases {
+            assert_eq!(
+                committed_action(&snapshot, blocked),
+                expected,
+                "{snapshot:?}"
+            );
+        }
+    }
     #[gpui::test]
     fn stale_workspace_history_and_diff_results_cannot_publish(cx: &mut TestAppContext) {
         let (view, cx) = cx.add_window_view(SourceControl::new);

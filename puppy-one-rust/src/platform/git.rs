@@ -47,6 +47,17 @@ pub struct Snapshot {
     pub behind: u32,
     pub changes: Vec<Change>,
     pub truncated: bool,
+    /// Where the current branch synchronizes (`syncTarget`); `None` on a
+    /// detached HEAD or with no remote to go to.
+    pub target: Option<SyncTarget>,
+}
+/// `readGitSyncTarget`: a remote branch and whether its remote-tracking ref
+/// exists. Without `exists` the branch has not been published there yet.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SyncTarget {
+    pub remote: String,
+    pub branch: String,
+    pub exists: bool,
 }
 pub fn parse_status(bytes: &[u8]) -> Result<Snapshot, String> {
     let mut result = Snapshot::default();
@@ -151,7 +162,158 @@ pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
         .map(|b| String::from_utf8_lossy(&b).trim().to_owned())
         .unwrap_or_default();
     snapshot.prefix = prefix;
+    snapshot.target = sync_target(root, &snapshot, cancel);
+    // A branch that tracks nothing compares with the branch a first push
+    // would create, once that exists (`readGitAheadBehindCounts`).
+    if snapshot.upstream.is_none()
+        && !snapshot.head.is_empty()
+        && let Some(target) = snapshot.target.as_ref().filter(|t| t.exists)
+    {
+        let range = format!("HEAD...refs/remotes/{}/{}", target.remote, target.branch);
+        if let Some(counts) = text(
+            root,
+            &["rev-list", "--left-right", "--count", &range],
+            cancel,
+        ) {
+            let mut parts = counts.split_whitespace().map(|n| n.parse().unwrap_or(0));
+            snapshot.ahead = parts.next().unwrap_or(0);
+            snapshot.behind = parts.next().unwrap_or(0);
+        }
+    }
     Ok(snapshot)
+}
+fn sync_target(root: &Path, snapshot: &Snapshot, cancel: &AtomicBool) -> Option<SyncTarget> {
+    let remotes = remotes(root, cancel);
+    let (remote, branch) = choose_target(
+        &remotes,
+        snapshot.current_branch(),
+        snapshot.upstream.as_deref(),
+        configured_remote(root).as_deref(),
+    )?;
+    let exists = text(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/remotes/{remote}/{branch}"),
+        ],
+        cancel,
+    )
+    .is_some();
+    Some(SyncTarget {
+        remote,
+        branch,
+        exists,
+    })
+}
+/// `chooseGitSyncTarget`: the upstream (remote names may hold slashes, so
+/// the longest matching name wins, and a removed one is not replaced), else
+/// the configured remote, else the Cloud remote, `origin` or the first one,
+/// under the branch's own name. A detached HEAD has none.
+fn choose_target(
+    remotes: &[Remote],
+    branch: Option<&str>,
+    upstream: Option<&str>,
+    configured: Option<&str>,
+) -> Option<(String, String)> {
+    let branch = branch?;
+    if let Some(upstream) = upstream {
+        return remotes
+            .iter()
+            .filter(|r| {
+                upstream
+                    .strip_prefix(r.name.as_str())
+                    .is_some_and(|rest| rest.starts_with('/'))
+            })
+            .max_by_key(|r| r.name.len())
+            .map(|r| (r.name.clone(), upstream[r.name.len() + 1..].to_owned()));
+    }
+    if let Some(configured) = configured {
+        return remotes
+            .iter()
+            .any(|r| r.name == configured)
+            .then(|| (configured.to_owned(), branch.to_owned()));
+    }
+    default_remote(remotes).map(|r| (r.name.clone(), branch.to_owned()))
+}
+/// `choosePuppyoneRemoteName ?? origin ?? remotes[0]`: a remote whose URL
+/// is a Puppyone Cloud locator, else one named `puppyone`.
+fn default_remote(remotes: &[Remote]) -> Option<&Remote> {
+    let cloud = |r: &&Remote| {
+        [&r.fetch_url, &r.push_url]
+            .into_iter()
+            .any(|url| url.as_deref().is_some_and(cloud_locator))
+    };
+    remotes
+        .iter()
+        .find(cloud)
+        .or_else(|| {
+            remotes
+                .iter()
+                .find(|r| r.name.eq_ignore_ascii_case("puppyone"))
+        })
+        .or_else(|| remotes.iter().find(|r| r.name == "origin"))
+        .or(remotes.first())
+}
+/// `parsePuppyoneRemoteInfo(url) !== null` (`workspace::cloud::locator`,
+/// which this crate cannot reach): a credential-free http(s) URL whose path
+/// is `/git/ap/<key>.git`, `/git/<project>.git` or
+/// `/git/<project>/scopes/<scope>.git`.
+fn cloud_locator(raw: &str) -> bool {
+    let Ok(url) = url::Url::parse(raw.trim()) else {
+        return false;
+    };
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none_or(str::is_empty)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return false;
+    }
+    let id = |s: &str| {
+        let b = s.as_bytes();
+        !b.is_empty()
+            && b.len() <= 200
+            && b[0].is_ascii_alphanumeric()
+            && b.iter()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-'))
+    };
+    let Some(body) = url
+        .path()
+        .strip_prefix("/git/")
+        .and_then(|p| p.strip_suffix(".git"))
+    else {
+        return false;
+    };
+    match body.split('/').collect::<Vec<_>>().as_slice() {
+        ["ap", _] => true,
+        [project] => id(project),
+        [project, "scopes", scope] => id(project) && id(scope),
+        _ => false,
+    }
+}
+/// The workspace's chosen remote in `.puppyone/config.json`
+/// (`sync.sourceOfTruth.remote ?? git.primaryRemote ?? backup.remote`).
+fn configured_remote(root: &Path) -> Option<String> {
+    let config: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(root.join(".puppyone/config.json")).ok()?).ok()?;
+    [
+        "/sync/sourceOfTruth/remote",
+        "/git/primaryRemote",
+        "/backup/remote",
+    ]
+    .into_iter()
+    .find_map(|pointer| {
+        config
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+    })
 }
 /// The opened folder's place in its repository; an error outside a work tree.
 pub fn prefix(root: &Path, cancel: &AtomicBool) -> Result<String, String> {
@@ -168,6 +330,25 @@ pub fn local<'a>(prefix: &str, path: &'a str) -> Option<&'a str> {
     path.strip_prefix(prefix).filter(|p| !p.is_empty())
 }
 impl Snapshot {
+    /// The checked-out branch; `None` on a detached HEAD.
+    pub fn current_branch(&self) -> Option<&str> {
+        Some(self.branch.as_str()).filter(|b| !b.is_empty() && *b != "HEAD (no branch)")
+    }
+    /// `remote.canPublish`: a branch with a commit whose sync target does not
+    /// exist yet (`publishWorkspaceGitBranch` creates and tracks it).
+    pub fn can_publish(&self) -> bool {
+        self.current_branch().is_some()
+            && !self.head.is_empty()
+            && self.target.as_ref().is_some_and(|t| !t.exists)
+    }
+    /// `remote.canPush`: commits to send and none to receive first.
+    pub fn can_push(&self) -> bool {
+        self.remote_exists() && self.ahead > 0 && self.behind == 0
+    }
+    /// The sync target exists: incoming and outgoing commits are counted.
+    pub fn remote_exists(&self) -> bool {
+        self.target.as_ref().is_some_and(|t| t.exists)
+    }
     /// Whether the change lies inside the opened folder (it, and a rename's
     /// source, can be acted on here).
     pub fn owns(&self, change: &Change) -> bool {
@@ -202,7 +383,26 @@ pub enum Operation {
     StageAndCommit,
     Pull,
     Push,
+    /// `publishWorkspaceGitBranch`: push the branch to its sync target and
+    /// track it.
+    Publish,
     Init,
+}
+impl Operation {
+    /// The product's operation label (`runGitOperation(label, …)`).
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Stage(_) => "stage",
+            Self::Unstage(_) => "unstage",
+            Self::Discard(_) => "discard",
+            Self::Commit(_) => "commit",
+            Self::StageAndCommit => "stage-commit",
+            Self::Pull => "pull",
+            Self::Push => "push",
+            Self::Publish => "publish",
+            Self::Init => "init",
+        }
+    }
 }
 pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
     let prefix = if matches!(op, Operation::Init) {
@@ -221,6 +421,9 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
             validate_path(old)?;
             paths.push(local(&prefix, old).ok_or_else(outside)?);
         }
+    }
+    if matches!(op, Operation::Pull | Operation::Push | Operation::Publish) {
+        return synchronize(root, op, cancel);
     }
     let mut args = match op {
         Operation::Stage(_) => vec!["add", "--"],
@@ -250,8 +453,7 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
             git(root, &["add", "--all", "--", "."], None, cancel)?;
             vec!["commit", "-F", "-"]
         }
-        Operation::Pull => vec!["pull", "--ff-only"],
-        Operation::Push => vec!["push"],
+        Operation::Pull | Operation::Push | Operation::Publish => unreachable!(),
         Operation::Init => vec!["init"],
     };
     args.extend(paths.iter().copied());
@@ -272,6 +474,174 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
     }
     git(root, &args, input, cancel)?;
     status(root, cancel)
+}
+/// Pull, Push and Publish (`pullWorkspaceGit`, `pushWorkspaceGit`,
+/// `publishWorkspaceGitBranch`): refused while conflicts remain.
+fn synchronize(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
+    let current = status(root, cancel)?;
+    if current.changes.iter().any(Change::conflict) {
+        return Err(format!(
+            "Unable to {} changes while unresolved file conflicts remain. Resolve and stage them first.",
+            op.label()
+        ));
+    }
+    match op {
+        // A branch that tracks nothing pulls its sync target by name.
+        Operation::Pull => {
+            let mut args = vec!["pull", "--ff-only"];
+            if let Some(t) = current
+                .target
+                .as_ref()
+                .filter(|_| current.upstream.is_none())
+            {
+                args.extend([t.remote.as_str(), t.branch.as_str()]);
+            }
+            git(root, &args, None, cancel).map_err(|e| format!("Unable to pull changes: {e}"))?;
+        }
+        // `isMissingUpstreamError`: a first push publishes the branch.
+        Operation::Push => match git(root, &["push"], None, cancel) {
+            Err(e) if missing_upstream(&e) => publish(root, cancel)?,
+            other => drop(other.map_err(|e| format!("Unable to push changes: {e}"))?),
+        },
+        _ => publish(root, cancel)?,
+    }
+    status(root, cancel)
+}
+fn missing_upstream(message: &str) -> bool {
+    let message = message.to_lowercase();
+    [
+        "no upstream branch",
+        "has no upstream branch",
+        "--set-upstream",
+    ]
+    .iter()
+    .any(|needle| message.contains(needle))
+}
+/// `readGitBranchBinding`: the branch and its configured remote, merge
+/// destination and push remote.
+struct Binding {
+    branch: String,
+    remote: Option<String>,
+    destination: Option<String>,
+    push_remote: Option<String>,
+}
+fn binding(root: &Path, cancel: &AtomicBool) -> Result<Binding, String> {
+    let branch = text(root, &["branch", "--show-current"], cancel)
+        .ok_or("Unable to synchronize changes: current workspace is not on a branch.")?;
+    let config = |key: String| text(root, &["config", "--get", &key], cancel);
+    let remote = config(format!("branch.{branch}.remote"));
+    let merge = text(
+        root,
+        &["config", "--get-all", &format!("branch.{branch}.merge")],
+        cancel,
+    );
+    if (remote.is_some() || merge.is_some())
+        && (remote.is_none()
+            || !merge
+                .as_deref()
+                .is_some_and(|m| m.starts_with("refs/heads/") && !m.contains('\n')))
+    {
+        return Err(
+            "Unable to synchronize changes: current branch upstream is incomplete or is not a remote branch."
+                .into(),
+        );
+    }
+    let push_remote = config(format!("branch.{branch}.pushRemote"))
+        .or_else(|| config("remote.pushDefault".into()));
+    Ok(Binding {
+        destination: merge.map(|m| m["refs/heads/".len()..].to_owned()),
+        branch,
+        remote,
+        push_remote,
+    })
+}
+/// `pushWorkspaceGitWithDefaultUpstream`: push the branch's commit (the
+/// object, not a moving HEAD; never forced) to the default remote, then make
+/// it the upstream if the branch had none and is still where it was.
+fn publish(root: &Path, cancel: &AtomicBool) -> Result<(), String> {
+    let before = binding(root, cancel)?;
+    let remote = push_remote(
+        root,
+        before.push_remote.as_deref().or(before.remote.as_deref()),
+        cancel,
+    )?;
+    let target = match &before.destination {
+        Some(destination) if before.remote.as_deref() == Some(remote.as_str()) => destination,
+        _ => &before.branch,
+    }
+    .clone();
+    let head = text(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            &format!("refs/heads/{}^{{commit}}", before.branch),
+        ],
+        cancel,
+    )
+    .ok_or("Unable to synchronize changes: the branch has no commit.")?;
+    git(
+        root,
+        &["push", &remote, &format!("{head}:refs/heads/{target}")],
+        None,
+        cancel,
+    )
+    .map_err(|e| format!("Unable to push changes: {e}"))?;
+    if before.remote.is_none() {
+        let after = binding(root, cancel)?;
+        let after_head = text(root, &["rev-parse", "--verify", "HEAD"], cancel);
+        if after.branch != before.branch
+            || after_head.as_deref() != Some(&head)
+            || after.remote.is_some()
+        {
+            return Err("Push completed for the captured commit, but local branch state changed; upstream was not replaced.".into());
+        }
+        git(
+            root,
+            &[
+                "branch",
+                &format!("--set-upstream-to={remote}/{target}"),
+                &before.branch,
+            ],
+            None,
+            cancel,
+        )?;
+    }
+    Ok(())
+}
+/// `chooseDefaultPushRemote`: the requested remote if it exists, else the
+/// configured one, else the Cloud remote, `origin` or the first.
+fn push_remote(
+    root: &Path,
+    requested: Option<&str>,
+    cancel: &AtomicBool,
+) -> Result<String, String> {
+    let remotes = remotes(root, cancel);
+    let has = |name: &str| remotes.iter().any(|r| r.name == name);
+    if let Some(requested) = requested {
+        if requested.starts_with('-') {
+            return Err("Remote name is invalid.".into());
+        }
+        return if has(requested) {
+            Ok(requested.to_owned())
+        } else {
+            Err(format!(
+                "Unable to synchronize changes: remote '{requested}' is not configured."
+            ))
+        };
+    }
+    if let Some(preferred) = configured_remote(root) {
+        return if has(&preferred) {
+            Ok(preferred)
+        } else {
+            Err(format!(
+                "Unable to push changes: remote '{preferred}' is not configured."
+            ))
+        };
+    }
+    default_remote(&remotes)
+        .map(|r| r.name.clone())
+        .ok_or_else(|| "Unable to push changes: no Git remote is configured.".into())
 }
 /// `fetchWorkspaceGit`: refresh `remote`'s tracking refs (`--prune`); the
 /// working tree and the index are untouched.
@@ -335,6 +705,36 @@ fn text(root: &Path, args: &[&str], cancel: &AtomicBool) -> Option<String> {
         .map(|b| String::from_utf8_lossy(&b).trim().to_owned())
         .filter(|s| !s.is_empty())
 }
+/// `readGitRemotes`: each remote with its fetch and push URLs (`remote -v`).
+fn remotes(root: &Path, cancel: &AtomicBool) -> Vec<Remote> {
+    let mut remotes: Vec<Remote> = vec![];
+    for line in text(root, &["remote", "-v"], cancel)
+        .unwrap_or_default()
+        .lines()
+    {
+        let mut parts = line.split_whitespace();
+        let (Some(name), Some(url), kind) = (parts.next(), parts.next(), parts.next()) else {
+            continue;
+        };
+        let index = match remotes.iter().position(|r| r.name == name) {
+            Some(i) => i,
+            None => {
+                remotes.push(Remote {
+                    name: name.into(),
+                    ..Default::default()
+                });
+                remotes.len() - 1
+            }
+        };
+        let remote = &mut remotes[index];
+        if kind == Some("(push)") {
+            remote.push_url = Some(url.into());
+        } else {
+            remote.fetch_url = Some(url.into());
+        }
+    }
+    remotes
+}
 pub fn repository_info(root: &Path, cancel: &AtomicBool) -> Result<RepositoryInfo, String> {
     if text(root, &["rev-parse", "--is-inside-work-tree"], cancel).as_deref() != Some("true") {
         return Ok(RepositoryInfo::default());
@@ -394,34 +794,13 @@ pub fn repository_info(root: &Path, cancel: &AtomicBool) -> Result<RepositoryInf
             remote_refs.push(rest.to_owned());
         }
     }
-    for line in text(root, &["remote", "-v"], cancel)
-        .unwrap_or_default()
-        .lines()
-    {
-        let mut parts = line.split_whitespace();
-        let (Some(name), Some(url), kind) = (parts.next(), parts.next(), parts.next()) else {
-            continue;
-        };
-        let index = match info.remotes.iter().position(|r| r.name == name) {
-            Some(i) => i,
-            None => {
-                info.remotes.push(Remote {
-                    name: name.into(),
-                    branches: remote_refs
-                        .iter()
-                        .filter(|r| r.starts_with(&format!("{name}/")))
-                        .count(),
-                    ..Default::default()
-                });
-                info.remotes.len() - 1
-            }
-        };
-        let remote = &mut info.remotes[index];
-        if kind == Some("(push)") {
-            remote.push_url = Some(url.into());
-        } else {
-            remote.fetch_url = Some(url.into());
-        }
+    info.remotes = remotes(root, cancel);
+    for remote in &mut info.remotes {
+        let prefix = format!("{}/", remote.name);
+        remote.branches = remote_refs
+            .iter()
+            .filter(|r| r.starts_with(&prefix))
+            .count();
     }
     Ok(info)
 }
@@ -438,6 +817,181 @@ mod tests {
         assert!(validate_path("../outside").is_err());
         assert!(validate_path("/tmp/file").is_err());
         assert!(validate_path("-flag").is_ok());
+    }
+    /// `gitSyncTarget.test.mjs`.
+    #[test]
+    fn the_sync_target_is_the_upstream_else_a_first_push_under_the_branch_name() {
+        let remote = |name: &str| Remote {
+            name: name.into(),
+            ..Default::default()
+        };
+        let remotes = [remote("origin"), remote("puppyone")];
+        let pick = |remotes: &[Remote], branch, upstream, configured| {
+            choose_target(remotes, branch, upstream, configured)
+        };
+        let pair = |r: &str, b: &str| Some((r.to_owned(), b.to_owned()));
+        for upstream in ["puppyone/topic", "origin/release", "puppyone/main"] {
+            let (r, b) = upstream.split_once('/').unwrap();
+            assert_eq!(
+                pick(
+                    &remotes,
+                    Some("feature/private"),
+                    Some(upstream),
+                    Some("puppyone")
+                ),
+                pair(r, b)
+            );
+        }
+        // A new branch is published under its own name, configured or not.
+        for configured in [Some("puppyone"), None] {
+            assert_eq!(
+                pick(&remotes, Some("feature/private"), None, configured),
+                pair("puppyone", "feature/private")
+            );
+        }
+        // Detached: no guessed destination; a removed upstream is not
+        // redirected; a configured remote that is gone is not replaced.
+        assert_eq!(pick(&remotes, None, None, Some("puppyone")), None);
+        assert_eq!(pick(&remotes, Some("f"), Some("removed/topic"), None), None);
+        assert_eq!(pick(&remotes, Some("f"), None, Some("missing")), None);
+        let mut slashed = remotes.to_vec();
+        slashed.push(remote("team/cloud"));
+        assert_eq!(
+            pick(&slashed, Some("f"), Some("team/cloud/release/one"), None),
+            pair("team/cloud", "release/one")
+        );
+        // Without a Cloud remote, `origin`, else the first; none without remotes.
+        assert_eq!(
+            pick(&[remote("other"), remote("origin")], Some("f"), None, None),
+            pair("origin", "f")
+        );
+        assert_eq!(
+            pick(&[remote("other"), remote("second")], Some("f"), None, None),
+            pair("other", "f")
+        );
+        assert_eq!(pick(&[], Some("f"), None, None), None);
+        let cloud = Remote {
+            fetch_url: Some("https://example.com/git/project.git".into()),
+            ..remote("backup")
+        };
+        assert_eq!(
+            pick(&[remote("origin"), cloud], Some("f"), None, None),
+            pair("backup", "f")
+        );
+        for url in [
+            "https://example.com/git/project.git",
+            "https://example.com/git/project/scopes/docs.git",
+            "https://example.com/git/ap/key.git",
+        ] {
+            assert!(cloud_locator(url), "{url}");
+        }
+        for url in [
+            "https://user@example.com/git/project.git",
+            "https://example.com/git/project.git?token=x",
+            "ssh://example.com/git/project.git",
+            "https://example.com/repo.git",
+            "/tmp/cloud.git",
+        ] {
+            assert!(!cloud_locator(url), "{url}");
+        }
+    }
+    /// `workspace.branch-target.integration.test.mjs`, against local bare
+    /// repositories.
+    #[test]
+    fn publishing_a_new_branch_pushes_its_commit_and_tracks_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("work");
+        let cancel = AtomicBool::new(false);
+        let run = |cwd: &Path, args: &[&str]| {
+            String::from_utf8(git(cwd, args, None, &cancel).unwrap())
+                .unwrap()
+                .trim()
+                .to_owned()
+        };
+        run(dir.path(), &["init", "-q", "-b", "main", "work"]);
+        for bare in ["origin.git", "cloud.git"] {
+            run(dir.path(), &["init", "-q", "--bare", "-b", "main", bare]);
+        }
+        for (k, v) in [
+            ("user.name", "Branch fixture"),
+            ("user.email", "fixture@example.invalid"),
+            ("commit.gpgsign", "false"),
+        ] {
+            run(&root, &["config", k, v]);
+        }
+        let origin = dir.path().join("origin.git");
+        let cloud = dir.path().join("cloud.git");
+        run(
+            &root,
+            &["remote", "add", "origin", origin.to_str().unwrap()],
+        );
+        run(
+            &root,
+            &["remote", "add", "puppyone", cloud.to_str().unwrap()],
+        );
+        std::fs::write(root.join("base.txt"), "base\n").unwrap();
+        run(&root, &["add", "--", "base.txt"]);
+        run(&root, &["commit", "-q", "-m", "base"]);
+        let initial = run(&root, &["rev-parse", "HEAD"]);
+        for remote in ["origin", "puppyone"] {
+            run(&root, &["push", "-q", remote, "main"]);
+        }
+        // A new branch with a commit and an untracked private file.
+        run(&root, &["switch", "-q", "-c", "feature/new"]);
+        std::fs::write(root.join("feature.txt"), "feature\n").unwrap();
+        run(&root, &["add", "--", "feature.txt"]);
+        run(&root, &["commit", "-q", "-m", "feature"]);
+        let head = run(&root, &["rev-parse", "HEAD"]);
+        std::fs::write(root.join("private.txt"), "not uploaded\n").unwrap();
+        let s = status(&root, &cancel).unwrap();
+        assert_eq!(
+            s.target,
+            Some(SyncTarget {
+                remote: "puppyone".into(),
+                branch: "feature/new".into(),
+                exists: false,
+            })
+        );
+        assert!(s.can_publish() && !s.can_push());
+        let s = operate(&root, &Operation::Publish, &cancel).unwrap();
+        assert_eq!(run(&cloud, &["rev-parse", "refs/heads/feature/new"]), head);
+        assert_eq!(run(&cloud, &["rev-parse", "refs/heads/main"]), initial);
+        assert_eq!(run(&origin, &["rev-parse", "refs/heads/main"]), initial);
+        assert_eq!(
+            run(&root, &["rev-parse", "--abbrev-ref", "@{u}"]),
+            "puppyone/feature/new"
+        );
+        assert!(!run(&cloud, &["ls-tree", "-r", "--name-only", "feature/new"]).contains("private"));
+        assert!(s.remote_exists() && !s.can_publish());
+        assert!(
+            s.changes
+                .iter()
+                .any(|c| c.path == "private.txt" && c.untracked())
+        );
+        // Push on a branch that tracks nothing publishes it too.
+        run(&root, &["switch", "-q", "-c", "second"]);
+        std::fs::write(root.join("second.txt"), "second\n").unwrap();
+        run(&root, &["add", "--", "second.txt"]);
+        run(&root, &["commit", "-q", "-m", "second"]);
+        let s = operate(&root, &Operation::Push, &cancel).unwrap();
+        assert_eq!(
+            run(&root, &["rev-parse", "--abbrev-ref", "@{u}"]),
+            "puppyone/second"
+        );
+        assert!(s.remote_exists() && s.ahead == 0);
+        // A branch whose same-named remote branch exists counts against it.
+        run(&root, &["branch", "--unset-upstream"]);
+        std::fs::write(root.join("third.txt"), "third\n").unwrap();
+        run(&root, &["add", "--", "third.txt"]);
+        run(&root, &["commit", "-q", "-m", "third"]);
+        let s = status(&root, &cancel).unwrap();
+        assert!(s.upstream.is_none() && s.remote_exists() && s.can_push());
+        assert_eq!((s.ahead, s.behind), (1, 0));
+        // Detached: nowhere to go.
+        run(&root, &["switch", "-q", "--detach"]);
+        let s = status(&root, &cancel).unwrap();
+        assert!(s.current_branch().is_none() && s.target.is_none() && !s.can_publish());
+        assert!(operate(&root, &Operation::Publish, &cancel).is_err());
     }
     #[test]
     fn empty_commits_take_the_product_default_message() {
