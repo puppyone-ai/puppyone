@@ -92,7 +92,11 @@ impl Shell {
             Command::CheckForUpdates => {
                 let handle = window.window_handle();
                 cx.defer(move |cx| {
-                    crate::features::updates::check_from_menu(handle, windows::APP_NAME, cx)
+                    crate::features::updates::check_from_menu(
+                        handle,
+                        windows::application_name(),
+                        cx,
+                    )
                 });
                 return;
             }

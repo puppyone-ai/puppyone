@@ -182,7 +182,7 @@ pub fn bind_keys(cx: &mut App) {
 /// the page-only View items (reload, developer tools, page zoom) have no
 /// native window to act on.
 pub fn app_menus() -> Vec<Menu> {
-    let app = super::windows::APP_NAME;
+    let app = super::windows::application_name();
     vec![
         Menu {
             disabled: false,

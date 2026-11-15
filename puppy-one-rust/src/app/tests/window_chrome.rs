@@ -152,7 +152,10 @@ fn macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu(cx: &mut TestA
         );
     });
     let menus = app_menus();
-    assert_eq!(menus[0].name.as_ref(), "PuppyOne");
+    assert_eq!(
+        menus[0].name.as_ref(),
+        crate::app::windows::application_name()
+    );
     cx.simulate_keystrokes("cmd-,");
     draw(cx);
     view.read_with(cx, |s, cx| {
@@ -170,7 +173,7 @@ fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestApp
     let menus = app_menus();
     let names: Vec<String> = menus.iter().map(|m| m.name.to_string()).collect();
     assert_eq!(names.len(), 7, "{names:?}");
-    assert_eq!(names[0], "PuppyOne");
+    assert_eq!(names[0], crate::app::windows::application_name());
     assert_eq!(
         [&names[2], &names[3], &names[5], &names[6]],
         ["Edit", "View", "Window", "Help"]
