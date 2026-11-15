@@ -1,8 +1,11 @@
-//! Cloud Computer Screen (`CloudComputerScreen.tsx`): top fixed-height sidebar
-//! entry (`CloudScreenSidebarEntry`), persistent VNC/RFB streaming with Full-Pane
-//! ↔ bottom-right PiP (`288×180`), and explicit `Take control` input gating.
+//! Cloud Computer Screen (`computer-mode-experiment/workbench-redesign-v4.html`):
+//! one live screen that lives in the sidebar card — folded to a row, or
+//! unfolded to a preview while an Agent works there — and moves onto the
+//! main area when opened, over a persistent VNC/RFB stream with explicit
+//! `Take control` input gating.
 mod glyph;
 mod keys;
+mod motion;
 mod rfb;
 mod session;
 mod stage;
@@ -13,6 +16,7 @@ use crate::{
         flags,
         settings::{PreferencesChanged, PreferencesStore},
     },
+    geometry::Rect,
     localization::t as tr,
     theme::{self, metric},
     ui::appearance::ActiveAppearance,
@@ -20,10 +24,10 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
-use keys::{InputState, fit_bounds, map_pointer};
+use keys::{InputState, map_pointer};
+use motion::{Card, Place, Pose, ScreenMotion, Shown};
 use rfb::RfbCommand;
-use stage::{PIP_HEIGHT, PIP_INSET, PIP_RADIUS, PIP_WIDTH};
-use std::{sync::Arc, time::Duration};
+use std::{cell::RefCell, sync::Arc, time::Duration};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CloudScreenEvent {
@@ -42,6 +46,30 @@ pub(super) enum StreamPhase {
     Failed,
 }
 
+/// The screen's places in one frame of the window.
+pub struct ScreenLayout {
+    /// The sidebar card, while the Explorer shows.
+    card: Option<Card>,
+    /// The main area.
+    stage: Rect,
+    /// The Explorer's start edge (the main area's while it is closed): the
+    /// moving screen is never drawn past it.
+    clip_x: f32,
+    /// The live screen, while there is a picture.
+    shown: Option<Shown>,
+}
+impl ScreenLayout {
+    /// The screen is moving: the window draws the next frame.
+    pub fn moving(&self) -> bool {
+        self.shown.is_some_and(|s| s.moving)
+    }
+    /// The screen moves to or from the main area: native web content there
+    /// hides until it lands.
+    pub fn crossing(&self) -> bool {
+        self.shown.is_some_and(|s| s.moving && s.crosses)
+    }
+}
+
 pub struct CloudScreen {
     preferences: Entity<PreferencesStore>,
     focus: FocusHandle,
@@ -49,9 +77,13 @@ pub struct CloudScreen {
     sandbox: CloudSandbox,
     shown: bool,
     interactive: bool,
-    pip_hidden: bool,
-    transition_seq: usize,
-    transition_from_pip: bool,
+    /// The Agent at work in this computer now, by name.
+    operator: Option<SharedString>,
+    /// The card folded or unfolded by hand; the next Agent to start or stop
+    /// working hands it back.
+    fold: Option<bool>,
+    /// Sampled once per painted frame by the window (`ScreenMotion`).
+    motion: RefCell<ScreenMotion>,
     saving: bool,
     phase: StreamPhase,
     generation: u64,
@@ -98,9 +130,9 @@ impl CloudScreen {
             sandbox: CloudSandbox::default(),
             shown: false,
             interactive: false,
-            pip_hidden: false,
-            transition_seq: 0,
-            transition_from_pip: false,
+            operator: None,
+            fold: None,
+            motion: RefCell::default(),
             saving: false,
             phase: StreamPhase::Idle,
             generation: 0,
@@ -164,9 +196,7 @@ impl CloudScreen {
         let was_shown = self.is_shown(cx);
         self.teardown_session(cx);
         self.saving = false;
-        self.pip_hidden = false;
-        self.transition_seq = 0;
-        self.transition_from_pip = false;
+        self.fold = None;
         self.sandbox = target
             .as_ref()
             .map(SandboxTarget::sandbox)
@@ -200,17 +230,17 @@ impl CloudScreen {
     }
 
     pub fn open(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.show(cx);
+    }
+
+    fn show(&mut self, cx: &mut Context<Self>) {
         if !self.entry_available(cx) {
             return;
         }
-        let was_pip = self.pip_visible(cx);
         let changed = !self.shown;
         self.shown = true;
-        self.pip_hidden = false;
         if changed {
             self.interactive = false;
-            self.transition_seq = self.transition_seq.wrapping_add(1);
-            self.transition_from_pip = was_pip;
         }
         if matches!(self.phase, StreamPhase::Failed) {
             self.retry(cx);
@@ -229,8 +259,6 @@ impl CloudScreen {
         }
         self.shown = false;
         self.release_control(cx);
-        self.transition_seq = self.transition_seq.wrapping_add(1);
-        self.transition_from_pip = false;
         self.reconcile_stream(cx);
         cx.emit(CloudScreenEvent::VisibilityChanged);
         cx.notify();
@@ -253,10 +281,85 @@ impl CloudScreen {
         }
     }
 
-    pub(super) fn hide_pip(&mut self, cx: &mut Context<Self>) {
-        if !self.pip_hidden {
-            self.pip_hidden = true;
-            cx.notify();
+    /// The Agent at work in this computer (`WorkspaceAgent::active`): the
+    /// card unfolds to watch it, and folds again when it stops.
+    pub fn set_operator(&mut self, operator: Option<SharedString>, cx: &mut Context<Self>) {
+        if self.operator == operator {
+            return;
+        }
+        if self.operator.is_some() != operator.is_some() {
+            self.fold = None;
+        }
+        self.operator = operator;
+        cx.notify();
+    }
+
+    /// The card's fold toggle.
+    pub(super) fn toggle_fold(&mut self, cx: &mut Context<Self>) {
+        self.fold = Some(!self.unfolded());
+        cx.notify();
+    }
+
+    /// A picture of the screen to show: streaming, with a frame.
+    pub(super) fn live(&self, cx: &App) -> bool {
+        self.entry_available(cx)
+            && matches!(
+                self.sandbox.availability(),
+                ScreenAvailability::Stream { .. }
+            )
+            && matches!(self.phase, StreamPhase::Connecting | StreamPhase::Connected)
+            && self.frame_image.is_some()
+    }
+
+    /// The card shows the live preview: off the main area, and unfolded by
+    /// hand or while an Agent works.
+    fn unfolded(&self) -> bool {
+        !self.shown && self.frame_image.is_some() && self.fold.unwrap_or(self.operator.is_some())
+    }
+
+    /// Where the screen is this frame: its card at the top of the Explorer's
+    /// `plane` (when the Explorer shows) and the main area at `stage`.
+    /// Samples the motion, so the window calls it once per frame.
+    pub fn layout(
+        &self,
+        plane: Option<Rect>,
+        stage: Rect,
+        animate: bool,
+        cx: &App,
+    ) -> ScreenLayout {
+        let aspect = match self.frame_dims {
+            Some((w, h)) if w > 0 => h as f32 / w as f32,
+            _ if stage.w > 0. => stage.h / stage.w,
+            _ => 0.625,
+        };
+        let card = plane
+            .filter(|_| self.entry_available(cx))
+            .map(|plane| Card::new(plane, aspect));
+        let shown = if self.live(cx) {
+            let place = if self.shown {
+                Place::Stage
+            } else if card.is_some() {
+                Place::Card {
+                    unfolded: self.unfolded(),
+                }
+            } else {
+                Place::Away
+            };
+            let target = Pose::at(place, card, stage);
+            Some(
+                self.motion
+                    .borrow_mut()
+                    .frame(place, target, animate, std::time::Instant::now()),
+            )
+        } else {
+            self.motion.borrow_mut().forget();
+            None
+        };
+        ScreenLayout {
+            card,
+            clip_x: plane.map_or(stage.x, |plane| plane.x),
+            stage,
+            shown,
         }
     }
 
@@ -381,9 +484,30 @@ impl CloudScreen {
         self.reconnect_delay = delay;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "dev-capture"))]
     pub fn has_live_frame(&self) -> bool {
         self.frame_image.is_some()
+    }
+
+    #[cfg(feature = "dev-capture")]
+    pub fn open_for_lab(&mut self, cx: &mut Context<Self>) {
+        self.show(cx);
+    }
+
+    #[cfg(feature = "dev-capture")]
+    pub fn is_asleep_for_lab(&self) -> bool {
+        self.phase == StreamPhase::Asleep
+    }
+
+    #[cfg(any(test, feature = "dev-capture"))]
+    pub fn operator_for_lab(&self) -> Option<&SharedString> {
+        self.operator.as_ref()
+    }
+
+    /// The screen is still on its way somewhere.
+    #[cfg(feature = "dev-capture")]
+    pub fn moving_for_lab(&self) -> bool {
+        self.motion.borrow().moving()
     }
 
     #[cfg(test)]
@@ -408,7 +532,10 @@ impl CloudScreen {
 }
 
 impl Render for CloudScreen {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The main area while the screen is open: what keeps it from showing
+    /// (desktop off, asleep, disconnected), or the surface that takes the
+    /// pointer and keys. The picture itself is the moving screen above it.
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
         match self.sandbox.availability() {
             ScreenAvailability::Preview => {
@@ -484,26 +611,11 @@ impl Render for CloudScreen {
             return self.render_notice(t, tr("cloud.sandbox.screen.disconnected"), Some(btn));
         }
 
-        let connecting = self.phase != StreamPhase::Connected || self.frame_image.is_none();
         let meta = theme::ty().ui.meta;
         let entity = cx.entity();
-        let fullscreen = window.is_fullscreen();
-        let controls = (!connecting).then(|| self.render_stage_controls(fullscreen, cx));
-        let fitted = match (
-            self.viewport_bounds,
-            self.frame_dims,
-            self.frame_image.clone(),
-        ) {
-            (Some(vp), Some((fw, fh)), Some(image)) => {
-                fit_bounds(vp, fw, fh).map(|rect| (rect, vp.origin, image))
-            }
-            _ => None,
-        };
-
-        let stage = div()
-            .id("cloud-screen-live")
-            .debug_selector(|| "cloud-screen-live".into())
-            .group("cloud-screen-stage")
+        div()
+            .id("cloud-screen-stage")
+            .debug_selector(|| "cloud-screen-stage".into())
             .track_focus(&self.focus)
             .relative()
             .size_full()
@@ -530,18 +642,7 @@ impl Render for CloudScreen {
                 .absolute()
                 .inset_0(),
             )
-            .when_some(fitted, |d, (rect, origin, image)| {
-                d.child(
-                    img(image)
-                        .absolute()
-                        .left(rect.origin.x - origin.x)
-                        .top(rect.origin.y - origin.y)
-                        .w(rect.size.width)
-                        .h(rect.size.height),
-                )
-            })
-            .when_some(controls, |d, controls| d.child(controls))
-            .when(connecting, |d| {
+            .when(self.frame_image.is_none(), |d| {
                 d.child(
                     div()
                         .id("cloud-screen-connecting")
@@ -555,43 +656,7 @@ impl Render for CloudScreen {
                         .text_color(t.subtle)
                         .child(tr("cloud.sandbox.screen.connecting")),
                 )
-            });
-
-        if self.transition_from_pip
-            && self.transition_seq > 0
-            && !cfg!(test)
-            && !cx.reduce_motion()
-            && let Some(vp) = self.viewport_bounds
-        {
-            let ew = f32::from(vp.size.width).max(PIP_WIDTH);
-            let eh = f32::from(vp.size.height).max(PIP_HEIGHT);
-            let start_x = (ew - PIP_WIDTH - PIP_INSET).max(PIP_INSET);
-            let start_y = (eh - PIP_HEIGHT - PIP_INSET).max(PIP_INSET);
-            div()
-                .relative()
-                .size_full()
-                .overflow_hidden()
-                .child(stage.with_animation(
-                    ("cloud-screen-expand-morph", self.transition_seq),
-                    Animation::new(Duration::from_millis(320)),
-                    move |d, delta| {
-                        let k = 1. - (1. - delta).powi(3);
-                        let x = start_x * (1. - k);
-                        let y = start_y * (1. - k);
-                        let w = PIP_WIDTH + (ew - PIP_WIDTH) * k;
-                        let h = PIP_HEIGHT + (eh - PIP_HEIGHT) * k;
-                        let r = PIP_RADIUS * (1. - k);
-                        d.absolute()
-                            .left(px(x))
-                            .top(px(y))
-                            .w(px(w))
-                            .h(px(h))
-                            .rounded(px(r))
-                    },
-                ))
-                .into_any_element()
-        } else {
-            stage.into_any_element()
-        }
+            })
+            .into_any_element()
     }
 }

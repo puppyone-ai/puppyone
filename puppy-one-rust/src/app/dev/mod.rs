@@ -6,3 +6,5 @@ mod bench;
 pub(super) mod capture_scenario;
 #[cfg(feature = "dev-capture")]
 mod home_lab;
+#[cfg(feature = "dev-capture")]
+mod screen_lab;

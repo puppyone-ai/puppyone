@@ -119,6 +119,16 @@ impl Layout {
             auxiliary: Rect::new(rail + left + main, HEADER, right, h - HEADER),
         }
     }
+    /// The Explorer column's plane: the Explorer over its footer.
+    pub(in crate::app) fn explorer_plane(&self) -> Rect {
+        let (explorer, footer) = (self.explorer, self.footer);
+        Rect::new(
+            explorer.x,
+            explorer.y,
+            explorer.w,
+            footer.bottom() - explorer.y,
+        )
+    }
 }
 #[cfg(test)]
 mod tests {

@@ -886,6 +886,15 @@ impl WindowCloud {
         self.agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });
+        // The Agent at work here: the screen's card unfolds to watch it.
+        let operator = self
+            .agents
+            .read(cx)
+            .agents
+            .iter()
+            .find(|a| a.active)
+            .map(|a| SharedString::from(a.agent.name.clone()));
+        self.screen.update(cx, |s, cx| s.set_operator(operator, cx));
         let agents = self.agents.read(cx);
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
         let pending = agents.manageable && !agents.requests.is_empty();

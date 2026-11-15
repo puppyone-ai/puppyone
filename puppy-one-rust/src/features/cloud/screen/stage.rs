@@ -1,10 +1,15 @@
-//! Sidebar top entry (`CloudScreenSidebarEntry`), Full-Pane explicit takeover
-//! controls (`Take control` / `Release control` / `Full screen`), and the
-//! persistent bottom-right PiP window (`288×180`) for [`super::CloudScreen`].
-use super::{CloudScreen, StreamPhase, glyph, keys::fit_bounds};
+//! The sidebar card (`.sc`: the screen folded to a row or unfolded to a
+//! preview, its title and status, Wake and the fold toggle) and the live
+//! screen that moves between the card and the main area (`.shell`), with
+//! the main area's `Take control` / `Release control`, for
+//! [`super::CloudScreen`].
+use super::{
+    CloudScreen, ScreenLayout, StreamPhase,
+    motion::{Card, Place, Pose},
+};
 use crate::{
     geometry::Rect,
-    localization::t as tr,
+    localization::{t as tr, tf},
     theme,
     ui::{
         appearance::ActiveAppearance,
@@ -17,419 +22,388 @@ use gpui_kit::{
     base::{h_flex, v_flex},
     component::Sizable as _,
 };
-use std::time::Duration;
+use std::sync::Arc;
 
-pub(super) const PIP_WIDTH: f32 = 288.;
-pub(super) const PIP_HEIGHT: f32 = 180.;
-pub(super) const PIP_INSET: f32 = 16.;
-pub(super) const PIP_RADIUS: f32 = 10.;
-const MORPH_DURATION_MS: u64 = 320;
-
+/// What the card's status line says.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum SidebarScreenState {
+enum Status {
     Running,
     Provisioning,
     Asleep,
-    Inactive,
-}
-
-fn ease_out_cubic(t: f32) -> f32 {
-    1. - (1. - t).powi(3)
+    Disconnected,
+    Off,
 }
 
 impl CloudScreen {
-    fn sidebar_state(&self) -> SidebarScreenState {
+    fn status(&self) -> Status {
         match self.sandbox.availability() {
             ScreenAvailability::Stream { .. } => match self.phase {
-                StreamPhase::Asleep => SidebarScreenState::Asleep,
-                StreamPhase::Failed => SidebarScreenState::Inactive,
+                StreamPhase::Asleep => Status::Asleep,
+                StreamPhase::Failed => Status::Disconnected,
                 StreamPhase::Idle | StreamPhase::Connecting | StreamPhase::Connected => {
-                    SidebarScreenState::Running
+                    Status::Running
                 }
             },
             ScreenAvailability::Preview | ScreenAvailability::Install { pending: true } => {
-                SidebarScreenState::Provisioning
+                Status::Provisioning
             }
             ScreenAvailability::Install { pending: false }
             | ScreenAvailability::StreamOff
-            | ScreenAvailability::Unavailable => SidebarScreenState::Inactive,
+            | ScreenAvailability::Unavailable => Status::Off,
         }
     }
 
-    pub fn render_thumbnail(&self, entity: &Entity<Self>, cx: &App) -> Option<AnyElement> {
-        if !self.entry_available(cx) {
-            return None;
-        }
+    /// The sidebar card at the top of the Explorer, while the Explorer shows.
+    pub fn render_card(
+        &self,
+        entity: &Entity<Self>,
+        layout: &ScreenLayout,
+        cx: &App,
+    ) -> Option<AnyElement> {
+        let card = layout.card?;
         let t = cx.palette();
-        let ty = theme::ty().ui;
-        let active = self.shown;
-        let state = self.sidebar_state();
-        let live_art = matches!(
-            state,
-            SidebarScreenState::Running | SidebarScreenState::Provisioning
-        );
-        let (dot_color, status_key) = match state {
-            SidebarScreenState::Running => (t.success, "cloud.sandbox.screen.status.running-cloud"),
-            SidebarScreenState::Provisioning => {
-                (t.warning, "cloud.sandbox.screen.status.provisioning")
-            }
-            SidebarScreenState::Asleep => (
-                theme::alpha(t.sidebar_text, 0.35),
-                "cloud.sandbox.screen.status.asleep",
+        let ty = theme::ty();
+        let status = self.status();
+        let on = self.shown;
+        let live = layout.shown.is_some();
+        let unfold = layout.shown.map_or(0., |s| s.pose.unfold);
+        let tint = theme::alpha(t.hover, 0.86);
+        let quiet = theme::alpha(t.sidebar_text, 0.35);
+        let (dot, line) = match status {
+            Status::Running => (
+                t.success,
+                match &self.operator {
+                    Some(name) => tf(
+                        "native.screen.operating",
+                        &[("name", name.to_string().into())],
+                    )
+                    .into(),
+                    None => SharedString::from(tr("cloud.sandbox.screen.status.running-cloud")),
+                },
             ),
-            SidebarScreenState::Inactive => (
-                theme::alpha(t.sidebar_text, 0.35),
-                "cloud.sandbox.screen.status.desktop-off",
+            Status::Provisioning => (
+                t.warning,
+                tr("cloud.sandbox.screen.status.provisioning").into(),
             ),
+            Status::Asleep => (quiet, tr("cloud.sandbox.screen.status.asleep").into()),
+            Status::Disconnected => (quiet, tr("native.screen.disconnected").into()),
+            Status::Off => (quiet, tr("cloud.sandbox.screen.status.desktop-off").into()),
         };
-        let (wp_start, wp_end) = theme::screen_thumb_wallpaper();
-        let thumb = div()
-            .relative()
-            .w(px(52.))
-            .h(px(34.))
-            .flex_shrink_0()
-            .rounded(px(7.))
-            .overflow_hidden()
-            .border_1()
-            .border_color(theme::alpha(t.text, 0.12))
-            .when(live_art, |d| {
-                d.bg(linear_gradient(
-                    135.,
-                    linear_color_stop(wp_start, 0.),
-                    linear_color_stop(wp_end, 1.),
-                ))
-            })
-            .when(!live_art, |d| d.bg(theme::alpha(t.text, 0.08)))
-            .child(
-                div()
-                    .absolute()
-                    .left(px(8.))
-                    .top(px(7.))
-                    .w(px(30.))
-                    .h(px(19.))
-                    .rounded(px(3.))
-                    .bg(theme::screen_thumb_window(live_art)),
-            )
-            .when(live_art, |d| {
-                d.child(
+
+        // While the screen is over the main area, the row mirrors its live
+        // picture; without a picture the slot holds a still: a desktop while
+        // the screen comes up, an unlit one otherwise.
+        let mirror = layout
+            .shown
+            .filter(|_| on)
+            .and_then(|_| Some((self.frame_image.clone()?, self.frame_dims?)))
+            .and_then(|(image, (fw, fh))| {
+                let slot = card.slot(unfold);
+                let radius = Card::radius(unfold);
+                let pose = Pose {
+                    rect: slot,
+                    radius,
+                    unfold,
+                    opacity: 1.,
+                    fit: 0.,
+                };
+                let shot = pose.picture(fw, fh)?;
+                Some(
                     div()
                         .absolute()
-                        .right(px(4.))
-                        .bottom(px(4.))
-                        .size(px(4.))
-                        .rounded_full()
-                        .bg(dot_color),
+                        .left(px(slot.x))
+                        .top(px(slot.y))
+                        .w(px(slot.w))
+                        .h(px(slot.h))
+                        .rounded(px(radius))
+                        .child(picture(image, slot, shot, radius).absolute().inset_0())
+                        .child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .rounded(px(radius))
+                                .border_1()
+                                .border_color(theme::alpha(t.text, 0.08)),
+                        ),
                 )
             });
+        let still = (!live).then(|| {
+            let slot = card.slot(0.);
+            let lit = status == Status::Running || status == Status::Provisioning;
+            let (from, to) = theme::screen_thumb_wallpaper();
+            div()
+                .absolute()
+                .left(px(slot.x))
+                .top(px(slot.y))
+                .w(px(slot.w))
+                .h(px(slot.h))
+                .rounded(px(Card::radius(0.)))
+                .overflow_hidden()
+                .when(lit, |d| {
+                    d.bg(linear_gradient(
+                        135.,
+                        linear_color_stop(from, 0.),
+                        linear_color_stop(to, 1.),
+                    ))
+                    .child(
+                        div()
+                            .absolute()
+                            .left(px(slot.w * 0.18))
+                            .top(px(slot.h * 0.22))
+                            .w(px(slot.w * 0.64))
+                            .h(px(slot.h * 0.52))
+                            .rounded(px(2.))
+                            .bg(theme::screen_thumb_window(true)),
+                    )
+                })
+                .when(!lit, |d| d.bg(theme::alpha(t.text, 0.06)))
+                .child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .rounded(px(Card::radius(0.)))
+                        .border_1()
+                        .border_color(theme::alpha(t.text, 0.08)),
+                )
+        });
 
-        let open_screen = entity.clone();
-        let wake_screen = entity.clone();
-        let entry = h_flex()
-            .id("cloud-screen-thumbnail")
-            .debug_selector(|| "cloud-screen-thumbnail".into())
-            .flex_1()
-            .min_w_0()
-            .h_full()
-            .gap(px(10.))
-            .items_center()
-            .cursor(theme::clickable_cursor())
-            .tooltip(tooltip(tr("cloud.sandbox.screen.open")))
-            .on_click(move |_, window, cx| {
-                open_screen.update(cx, |s, cx| s.open(window, cx));
-            })
-            .child(thumb)
+        let asleep = status == Status::Asleep;
+        // Folding is for a live picture beside the main area.
+        let foldable = live && !on;
+        let (meta_x, meta_y) = card.meta(unfold);
+        let end = if asleep {
+            76.
+        } else if foldable {
+            36.
+        } else {
+            12.
+        };
+        let meta = v_flex()
+            .absolute()
+            .left(px(meta_x))
+            .top(px(meta_y))
+            .w(px((card.w - meta_x - end).max(0.)))
+            .gap(px(3.))
             .child(
-                v_flex()
-                    .flex_1()
+                div()
+                    .truncate()
+                    .text_size(px(ty.left.content))
+                    .line_height(px(18.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(if on { t.text } else { t.sidebar_text })
+                    .child(tr("cloud.sandbox.screen.title")),
+            )
+            .child(
+                h_flex()
+                    .gap(px(6.))
+                    .items_center()
                     .min_w_0()
-                    .gap(px(2.))
+                    .child(div().size(px(6.)).flex_shrink_0().rounded_full().bg(dot))
                     .child(
                         div()
                             .truncate()
-                            .text_size(px(ty.caption))
+                            .text_size(px(ty.ui.meta))
                             .line_height(px(16.))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(if active { t.text } else { t.sidebar_text })
-                            .child(tr("cloud.sandbox.screen.title")),
-                    )
-                    .child(
-                        h_flex()
-                            .gap(px(5.))
-                            .items_center()
-                            .min_w_0()
-                            .child(
-                                div()
-                                    .size(px(6.))
-                                    .flex_shrink_0()
-                                    .rounded_full()
-                                    .bg(dot_color),
-                            )
-                            .child(
-                                div()
-                                    .truncate()
-                                    .text_size(px(ty.micro))
-                                    .line_height(px(14.))
-                                    .text_color(t.muted)
-                                    .child(tr(status_key)),
-                            ),
+                            .text_color(t.subtle)
+                            .child(line),
                     ),
             );
 
-        let mut row = h_flex()
-            .w_full()
-            .h(px(50.))
-            .px(px(6.))
-            .gap(px(6.))
-            .items_center()
-            .rounded(px(8.))
-            .when(active, |d| d.bg(t.selected))
-            .when(!active, |d| d.hover(|s| s.bg(t.hover)))
-            .child(entry);
+        let toggle = foldable.then(|| {
+            let folded = unfold < 0.5;
+            let fold_screen = entity.clone();
+            div()
+                .id("cloud-screen-card-toggle")
+                .debug_selector(|| "cloud-screen-card-toggle".into())
+                .absolute()
+                .right(px(6.))
+                .top(px(card.toggle_top(unfold)))
+                .size(px(24.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(6.))
+                .text_color(t.muted)
+                .opacity(0.)
+                .group_hover("cloud-screen-card", |s| s.opacity(1.))
+                .hover(|s| s.bg(t.hover).text_color(t.text))
+                .cursor(theme::clickable_cursor())
+                .tooltip(tooltip(tr(if folded {
+                    "native.screen.unfold"
+                } else {
+                    "native.screen.fold"
+                })))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    fold_screen.update(cx, |s, cx| s.toggle_fold(cx));
+                })
+                .child(
+                    Icon::new(if folded { "chevron-down" } else { "chevron-up" })
+                        .with_size(px(14.)),
+                )
+        });
 
-        if state == SidebarScreenState::Asleep {
-            row = row.child(
-                div()
-                    .id("cloud-screen-sidebar-wake")
-                    .debug_selector(|| "cloud-screen-sidebar-wake".into())
-                    .h(px(24.))
-                    .px(px(8.))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded(px(6.))
-                    .bg(theme::alpha(t.text, 0.08))
-                    .text_size(px(ty.micro))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(t.sidebar_text)
-                    .cursor(theme::clickable_cursor())
-                    .hover(|s| s.bg(t.active).text_color(t.text))
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(move |_, _, cx| {
-                        wake_screen.update(cx, |s, cx| s.wake(cx));
-                    })
-                    .child(tr("cloud.sandbox.screen.wake")),
-            );
-        }
+        let wake = asleep.then(|| {
+            let wake_screen = entity.clone();
+            div()
+                .id("cloud-screen-card-wake")
+                .debug_selector(|| "cloud-screen-card-wake".into())
+                .absolute()
+                .right(px(Card::PAD))
+                .top(px((Card::ROW - 24.) / 2.))
+                .h(px(24.))
+                .px(px(10.))
+                .flex()
+                .items_center()
+                .rounded(px(6.))
+                .bg(theme::alpha(t.text, 0.06))
+                .text_size(px(ty.ui.meta))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(t.text)
+                .cursor(theme::clickable_cursor())
+                .hover(|s| s.bg(theme::alpha(t.text, 0.1)))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    wake_screen.update(cx, |s, cx| s.wake(cx));
+                })
+                .child(tr("cloud.sandbox.screen.wake"))
+        });
 
+        let open_screen = entity.clone();
         Some(
             div()
                 .w_full()
-                .pt(px(8.))
-                .pb(px(6.))
-                .px(px(8.))
-                .border_b_1()
-                .border_color(t.sidebar_divider)
-                .child(row)
+                .px(px(Card::INSET_X))
+                .pt(px(Card::INSET_TOP))
+                .bg(t.sidebar)
+                .child(
+                    div()
+                        .id("cloud-screen-card")
+                        .debug_selector(|| "cloud-screen-card".into())
+                        .group("cloud-screen-card")
+                        .relative()
+                        .w_full()
+                        .h(px(card.height(unfold)))
+                        .rounded(px(Card::RADIUS))
+                        .when(on, |d| d.bg(tint))
+                        .when(!on, |d| d.hover(|s| s.bg(tint)))
+                        .cursor(theme::clickable_cursor())
+                        .on_click(move |_, window, cx| {
+                            open_screen.update(cx, |s, cx| s.open(window, cx));
+                        })
+                        // The title slides under the picture as the card unfolds.
+                        .child(meta)
+                        .children(mirror)
+                        .children(still)
+                        .children(toggle)
+                        .children(wake),
+                )
                 .into_any_element(),
         )
     }
 
-    pub(super) fn pip_visible(&self, cx: &App) -> bool {
-        !self.shown
-            && !self.pip_hidden
-            && self.entry_available(cx)
-            && matches!(
-                self.sandbox.availability(),
-                ScreenAvailability::Stream { .. }
-            )
-            && self.phase == StreamPhase::Connected
-            && self.frame_image.is_some()
-    }
-
-    pub fn render_pip(&self, entity: &Entity<Self>, editor: Rect, cx: &App) -> Option<AnyElement> {
-        if !self.pip_visible(cx) {
-            return None;
-        }
+    /// The live screen where it is this frame: in the card's slot, over the
+    /// main area, or between them. It never shows past the Explorer's edge
+    /// unless it is moving to or from the main area.
+    pub fn render_live(
+        &self,
+        entity: &Entity<Self>,
+        layout: &ScreenLayout,
+        cx: &App,
+    ) -> Option<AnyElement> {
+        let shown = layout.shown?;
         let image = self.frame_image.clone()?;
         let (fw, fh) = self.frame_dims?;
-        let t = cx.palette();
-        let ty = theme::ty().ui;
-
-        let target_x = (editor.w - PIP_WIDTH - PIP_INSET).max(PIP_INSET);
-        let target_y = (editor.h - PIP_HEIGHT - PIP_INSET).max(PIP_INSET);
-        let pip_bounds = Bounds {
-            origin: point(px(0.), px(0.)),
-            size: size(px(PIP_WIDTH), px(PIP_HEIGHT)),
+        if shown.place == Place::Away && !shown.moving {
+            return None;
+        }
+        let pose = shown.pose;
+        let shot = pose.picture(fw, fh)?;
+        let stage = layout.stage;
+        let right = if shown.crosses || shown.place == Place::Stage {
+            stage.right()
+        } else {
+            stage.x
         };
-        let fitted = fit_bounds(pip_bounds, fw, fh);
-
-        let expand_entity = entity.clone();
-        let hide_entity = entity.clone();
-        let surface = theme::screen_overlay_surface();
-        let hover_bg = theme::screen_overlay_hover();
-        let ink = theme::screen_overlay_ink();
-        let border = theme::screen_overlay_border();
-
-        let card = div()
-            .id("cloud-screen-pip")
-            .debug_selector(|| "cloud-screen-pip".into())
-            .group("cloud-screen-pip")
-            .occlude()
-            .overflow_hidden()
-            .bg(theme::screen_pip_surface())
-            .border_1()
-            .border_color(border)
-            .shadow(vec![BoxShadow {
-                color: theme::screen_pip_shadow().into(),
-                offset: point(px(0.), px(14.)),
-                blur_radius: px(34.),
-                spread_radius: px(0.),
-                inset: false,
-            }])
-            .when_some(fitted, |d, rect| {
+        let clip = Rect::new(layout.clip_x, stage.y, right - layout.clip_x, stage.h);
+        if clip.w <= 0. {
+            return None;
+        }
+        let on_stage = shown.place == Place::Stage && !shown.moving;
+        let preview = shown.place == Place::Card { unfolded: true } && !shown.moving;
+        let (rect, radius) = (pose.rect, pose.radius);
+        let screen = div()
+            .id("cloud-screen-live")
+            .debug_selector(|| "cloud-screen-live".into())
+            .group("cloud-screen-live")
+            .absolute()
+            .left(px(rect.x - clip.x))
+            .top(px(rect.y - clip.y))
+            .w(px(rect.w))
+            .h(px(rect.h))
+            .rounded(px(radius))
+            .opacity(pose.opacity)
+            .child(picture(image, rect, shot, radius).absolute().inset_0())
+            // The ring hugs the picture where it shows, and fades as the
+            // screen grows into the main area.
+            .when(pose.fit < 1., |d| {
+                let (x, y) = (shot.x.max(rect.x), shot.y.max(rect.y));
+                let (right, bottom) = (
+                    shot.right().min(rect.right()),
+                    shot.bottom().min(rect.bottom()),
+                );
                 d.child(
-                    img(image)
+                    div()
                         .absolute()
-                        .left(rect.origin.x)
-                        .top(rect.origin.y)
-                        .w(rect.size.width)
-                        .h(rect.size.height),
+                        .left(px(x - rect.x))
+                        .top(px(y - rect.y))
+                        .w(px((right - x).max(0.)))
+                        .h(px((bottom - y).max(0.)))
+                        .rounded(px(radius))
+                        .border_1()
+                        .border_color(theme::alpha(cx.palette().text, 0.08 * (1. - pose.fit))),
                 )
             })
-            .child(
-                div()
-                    .id("cloud-screen-pip-expand")
-                    .debug_selector(|| "cloud-screen-pip-expand".into())
-                    .absolute()
-                    .inset_0()
-                    .cursor(theme::clickable_cursor())
-                    .tooltip(tooltip(tr("cloud.sandbox.screen.expand")))
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(move |_, window, cx| {
-                        expand_entity.update(cx, |s, cx| s.open(window, cx));
-                    }),
-            )
-            .child(
-                h_flex()
-                    .absolute()
-                    .left(px(8.))
-                    .top(px(8.))
-                    .h(px(22.))
-                    .px(px(8.))
-                    .gap(px(5.))
-                    .items_center()
-                    .rounded_full()
-                    .bg(surface)
-                    .border_1()
-                    .border_color(border)
-                    .text_size(px(ty.micro))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(ink)
-                    .child(div().size(px(6.)).rounded_full().bg(t.success))
-                    .child(tr("cloud.sandbox.screen.title")),
-            )
-            .child(
-                div()
-                    .id("cloud-screen-pip-close")
-                    .debug_selector(|| "cloud-screen-pip-close".into())
-                    .absolute()
-                    .right(px(8.))
-                    .top(px(8.))
-                    .size(px(22.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded_full()
-                    .bg(surface)
-                    .border_1()
-                    .border_color(border)
-                    .text_color(ink)
-                    .opacity(0.)
-                    .group_hover("cloud-screen-pip", |s| s.opacity(1.))
-                    .hover(move |s| s.bg(hover_bg))
-                    .cursor(theme::clickable_cursor())
-                    .tooltip(tooltip(tr("cloud.sandbox.screen.hide-pip")))
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(move |_, _, cx| {
-                        hide_entity.update(cx, |s, cx| s.hide_pip(cx));
-                        cx.stop_propagation();
-                    })
-                    .child(Icon::new("x").with_size(px(12.)).stroke(2.)),
-            );
-
-        let animate = self.transition_seq > 0 && !cfg!(test) && !cx.reduce_motion();
-        if animate {
-            let ew = editor.w;
-            let eh = editor.h;
-            Some(
-                card.absolute()
-                    .with_animation(
-                        ("cloud-screen-pip-morph", self.transition_seq),
-                        Animation::new(Duration::from_millis(MORPH_DURATION_MS)),
-                        move |d, delta| {
-                            let k = ease_out_cubic(delta);
-                            let x = target_x * k;
-                            let y = target_y * k;
-                            let w = ew + (PIP_WIDTH - ew) * k;
-                            let h = eh + (PIP_HEIGHT - eh) * k;
-                            let r = PIP_RADIUS * k;
-                            d.left(px(x)).top(px(y)).w(px(w)).h(px(h)).rounded(px(r))
-                        },
-                    )
-                    .into_any_element(),
-            )
-        } else {
-            Some(
-                card.absolute()
-                    .left(px(target_x))
-                    .top(px(target_y))
-                    .w(px(PIP_WIDTH))
-                    .h(px(PIP_HEIGHT))
-                    .rounded(px(PIP_RADIUS))
-                    .into_any_element(),
-            )
-        }
+            .when(preview, |d| d.child(grow_hint()))
+            .when(on_stage, |d| d.child(self.stage_controls(entity)));
+        Some(
+            div()
+                .absolute()
+                .left(px(clip.x))
+                .top(px(clip.y))
+                .w(px(clip.w))
+                .h(px(clip.h))
+                .overflow_hidden()
+                .child(screen)
+                .into_any_element(),
+        )
     }
 
-    pub(super) fn render_stage_controls(
-        &self,
-        fullscreen: bool,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let t = cx.palette();
+    /// Over the open screen: `Take control` on hover, `Release control`
+    /// while taken, or Connecting while the stream comes back.
+    fn stage_controls(&self, entity: &Entity<Self>) -> AnyElement {
         let ty = theme::ty().ui;
-        let surface = theme::screen_overlay_surface();
-        let hover_bg = theme::screen_overlay_hover();
-        let ink = theme::screen_overlay_ink();
-        let muted = theme::screen_overlay_muted();
-        let border = theme::screen_overlay_border();
+        if self.phase != StreamPhase::Connected {
+            return div()
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    pill()
+                        .h(px(30.))
+                        .px(px(12.))
+                        .text_size(px(ty.meta))
+                        .child(tr("cloud.sandbox.screen.connecting")),
+                )
+                .into_any_element();
+        }
 
         if self.interactive {
-            let pill = h_flex()
-                .id("cloud-screen-release-control")
-                .debug_selector(|| "cloud-screen-release-control".into())
-                .h(px(30.))
-                .px(px(12.))
-                .gap(px(7.))
-                .items_center()
-                .rounded_full()
-                .bg(surface)
-                .border_1()
-                .border_color(border)
-                .text_size(px(ty.caption))
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(ink)
-                .cursor(theme::clickable_cursor())
-                .hover(move |s| s.bg(hover_bg))
-                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_click(cx.listener(|s, _, _, cx| {
-                    s.release_control(cx);
-                    cx.stop_propagation();
-                }))
-                .child(div().size(px(6.)).rounded_full().bg(t.success))
-                .child(tr("cloud.sandbox.screen.release-control"))
-                .child(
-                    div()
-                        .px(px(5.))
-                        .py(px(1.))
-                        .rounded(px(4.))
-                        .bg(border)
-                        .font_family(theme::MONO)
-                        .text_size(px(ty.micro))
-                        .text_color(muted)
-                        .child(tr("cloud.sandbox.screen.release-shortcut")),
-                );
+            let release = entity.clone();
             return div()
                 .absolute()
                 .top(px(12.))
@@ -437,83 +411,115 @@ impl CloudScreen {
                 .right_0()
                 .flex()
                 .justify_center()
-                .child(pill)
+                .child(
+                    pill()
+                        .id("cloud-screen-release-control")
+                        .debug_selector(|| "cloud-screen-release-control".into())
+                        .h(px(30.))
+                        .pl(px(12.))
+                        .pr(px(7.))
+                        .gap(px(8.))
+                        .text_size(px(ty.meta))
+                        .cursor(theme::clickable_cursor())
+                        .hover(|s| s.bg(theme::screen_overlay_hover()))
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(move |_, _, cx| {
+                            cx.stop_propagation();
+                            release.update(cx, |s, cx| s.release_control(cx));
+                        })
+                        .child(tr("cloud.sandbox.screen.release-control"))
+                        .child(
+                            div()
+                                .px(px(5.))
+                                .py(px(2.))
+                                .rounded(px(4.))
+                                .bg(theme::screen_overlay_border())
+                                .font_family(theme::MONO)
+                                .text_size(px(ty.caption))
+                                .text_color(theme::screen_overlay_muted())
+                                .child(tr("cloud.sandbox.screen.release-shortcut")),
+                        ),
+                )
                 .into_any_element();
         }
 
-        let take_btn = h_flex()
-            .id("cloud-screen-take-control")
-            .debug_selector(|| "cloud-screen-take-control".into())
-            .h(px(36.))
-            .px(px(16.))
-            .gap(px(7.))
-            .items_center()
-            .rounded_full()
-            .bg(surface)
-            .border_1()
-            .border_color(border)
-            .text_size(px(ty.control))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(ink)
-            .opacity(0.)
-            .group_hover("cloud-screen-stage", |s| s.opacity(1.))
-            .hover(move |s| s.bg(hover_bg))
-            .cursor(theme::clickable_cursor())
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_click(cx.listener(|s, _, window, cx| {
-                s.take_control(window, cx);
-                cx.stop_propagation();
-            }))
-            .child(Icon::new("mouse-pointer-2").with_size(px(14.)).stroke(2.))
-            .child(tr("cloud.sandbox.screen.take-control"));
-
-        let fs_label = if fullscreen {
-            tr("cloud.sandbox.screen.exit-fullscreen")
-        } else {
-            tr("cloud.sandbox.screen.fullscreen")
-        };
-        let fs_btn = h_flex()
-            .id("cloud-screen-fullscreen")
-            .debug_selector(|| "cloud-screen-fullscreen".into())
-            .absolute()
-            .right(px(14.))
-            .bottom(px(14.))
-            .h(px(30.))
-            .px(px(11.))
-            .gap(px(6.))
-            .items_center()
-            .rounded_full()
-            .bg(surface)
-            .border_1()
-            .border_color(border)
-            .text_size(px(ty.caption))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(ink)
-            .opacity(0.)
-            .group_hover("cloud-screen-stage", |s| s.opacity(1.))
-            .hover(move |s| s.bg(hover_bg))
-            .cursor(theme::clickable_cursor())
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_click(|_, window, cx| {
-                window.toggle_fullscreen();
-                cx.stop_propagation();
-            })
-            .child(glyph::fullscreen_glyph(12., ink))
-            .child(fs_label);
-
+        let take = entity.clone();
         div()
             .absolute()
             .inset_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .group_hover("cloud-screen-live", |s| s.bg(theme::screen_veil()))
             .child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(take_btn),
+                pill()
+                    .id("cloud-screen-take-control")
+                    .debug_selector(|| "cloud-screen-take-control".into())
+                    .h(px(36.))
+                    .px(px(16.))
+                    .gap(px(7.))
+                    .text_size(px(ty.control))
+                    .opacity(0.)
+                    .group_hover("cloud-screen-live", |s| s.opacity(1.))
+                    .hover(|s| s.bg(theme::screen_overlay_hover()))
+                    .cursor(theme::clickable_cursor())
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(move |_, window, cx| {
+                        cx.stop_propagation();
+                        take.update(cx, |s, cx| s.take_control(window, cx));
+                    })
+                    .child(Icon::new("mouse-pointer-2").with_size(px(14.)).stroke(2.))
+                    .child(tr("cloud.sandbox.screen.take-control")),
             )
-            .child(fs_btn)
             .into_any_element()
     }
+}
+
+/// The frame painted as `picture` (window coordinates) inside the element
+/// at `rect`, its corners rounded where it shows.
+fn picture(image: Arc<RenderImage>, rect: Rect, picture: Rect, radius: f32) -> Canvas<()> {
+    let offset = point(px(picture.x - rect.x), px(picture.y - rect.y));
+    let extent = size(px(picture.w), px(picture.h));
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let picture = Bounds {
+                origin: bounds.origin + offset,
+                size: extent,
+            };
+            let _ = window.paint_image(bounds, picture, Corners::all(px(radius)), image, 0, false);
+        },
+    )
+}
+
+/// `.pill`: a dark glass capsule over the live picture in either theme.
+fn pill() -> Div {
+    h_flex()
+        .items_center()
+        .rounded_full()
+        .bg(theme::screen_overlay_surface())
+        .border_1()
+        .border_color(theme::screen_overlay_border())
+        .shadow(vec![BoxShadow {
+            color: theme::screen_pill_shadow().into(),
+            offset: point(px(0.), px(10.)),
+            blur_radius: px(30.),
+            spread_radius: px(0.),
+            inset: false,
+        }])
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(theme::screen_overlay_ink())
+}
+
+/// `.grow-hint`: the preview's corner says it opens larger.
+fn grow_hint() -> impl IntoElement {
+    pill()
+        .absolute()
+        .top(px(8.))
+        .right(px(8.))
+        .h(px(24.))
+        .px(px(6.))
+        .opacity(0.)
+        .group_hover("cloud-screen-live", |s| s.opacity(1.))
+        .child(Icon::new("maximize-2").with_size(px(12.)).stroke(2.))
 }

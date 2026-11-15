@@ -213,7 +213,7 @@ fn sync_sandbox(view: &Entity<Shell>, cx: &mut VisualTestContext, sandbox: &Valu
 }
 
 #[gpui::test]
-fn experiment_flag_and_a_present_screen_gate_sidebar_thumbnail_settings_tab_and_live_screen(
+fn experiment_flag_and_a_present_screen_gate_sidebar_card_settings_tab_and_live_screen(
     cx: &mut TestAppContext,
 ) {
     let sandbox = Arc::new(Mutex::new(sandbox_json(false, false, true)));
@@ -244,7 +244,7 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_thumbnail_settings_tab_and_
     let (view, cx) = open_cloud_project_window(cx, false, api, screen_ws);
 
     // Off by default: neither thumbnail nor Computer settings page is available.
-    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_none());
+    assert!(cx.debug_bounds("cloud-screen-card").is_none());
     view.read_with(cx, |s, cx| {
         assert!(!s.cloud.read(cx).screen_shown(cx));
         let settings = s.dialogs.read(cx).settings.read(cx);
@@ -259,21 +259,21 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_thumbnail_settings_tab_and_
         });
     });
     draw(cx);
-    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_none());
+    assert!(cx.debug_bounds("cloud-screen-card").is_none());
     view.read_with(cx, |s, cx| {
         let settings = s.dialogs.read(cx).settings.read(cx);
         assert!(settings.page_available(Page::CloudComputer, cx));
     });
 
-    // A computer with a desktop offers the companion entry pinned at the top of
+    // A computer with a desktop offers the screen's card pinned at the top of
     // the left sidebar, even with its stream turned off (the screen then offers to turn it on).
     sync_sandbox(&view, cx, &sandbox_json(true, true, false));
-    let thumb = cx.debug_bounds("cloud-screen-thumbnail").unwrap();
+    let thumb = cx.debug_bounds("cloud-screen-card").unwrap();
     assert!(f32::from(thumb.origin.y) < 110.);
 
-    // Clicking the sidebar monitor icon opens the Cloud Computer screen in the main area
+    // Clicking the sidebar card opens the Cloud Computer screen in the main area
     // and gates the underlying editor area.
-    click_selector(cx, "cloud-screen-thumbnail");
+    click_selector(cx, "cloud-screen-card");
     view.read_with(cx, |s, cx| {
         assert!(s.cloud.read(cx).screen_shown(cx));
         assert!(s.editor_gate(cx).modal);
@@ -293,7 +293,7 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_thumbnail_settings_tab_and_
     });
     sync_sandbox(&view, cx, &sandbox_json(true, false, true));
     assert_eq!(changes.load(Ordering::Acquire), 1);
-    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_none());
+    assert!(cx.debug_bounds("cloud-screen-card").is_none());
     view.read_with(cx, |s, cx| {
         assert!(!s.cloud.read(cx).screen_shown(cx));
         assert!(!s.editor_gate(cx).modal);
@@ -312,8 +312,8 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_thumbnail_settings_tab_and_
             }]
         }),
     );
-    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_some());
-    click_selector(cx, "cloud-screen-thumbnail");
+    assert!(cx.debug_bounds("cloud-screen-card").is_some());
+    click_selector(cx, "cloud-screen-card");
     assert!(cx.debug_bounds("cloud-screen-notice").is_some());
 
     // Turning the experiment off immediately closes the screen and hides the thumbnail.
@@ -323,7 +323,7 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_thumbnail_settings_tab_and_
         });
     });
     draw(cx);
-    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_none());
+    assert!(cx.debug_bounds("cloud-screen-card").is_none());
     view.read_with(cx, |s, cx| {
         assert!(!s.cloud.read(cx).screen_shown(cx));
         assert!(!s.editor_gate(cx).modal);
@@ -399,7 +399,7 @@ fn screen_notices_drive_stream_toggle_and_asleep_wake(cx: &mut TestAppContext) {
     });
 
     let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
-    click_selector(cx, "cloud-screen-thumbnail");
+    click_selector(cx, "cloud-screen-card");
 
     // 1. A desktop with its stream off -> clicking "Show screen" sends {"screen_stream": true}
     //    and hits 409 Asleep -> shows "Wake it".
@@ -414,18 +414,18 @@ fn screen_notices_drive_stream_toggle_and_asleep_wake(cx: &mut TestAppContext) {
         Some(&json!({"screen_stream": true}))
     );
     assert!(cx.debug_bounds("cloud-screen-wake").is_some());
-    assert!(cx.debug_bounds("cloud-screen-sidebar-wake").is_some());
+    assert!(cx.debug_bounds("cloud-screen-card-wake").is_some());
 
     // 2. Clicking the inline sidebar "Wake it" wakes/reopens the workspace and streams live RFB frames!
     let opens_before = workbench_opens.load(Ordering::Acquire);
     asleep.store(false, Ordering::Release);
-    click_selector(cx, "cloud-screen-sidebar-wake");
+    click_selector(cx, "cloud-screen-card-wake");
     settle_screen(&view, cx, "woken live RFB frame", &|s, cx| {
         workbench_opens.load(Ordering::Acquire) > opens_before
             && s.cloud.read(cx).screen_shown(cx)
             && s.cloud.read(cx).screen.read(cx).has_live_frame()
     });
-    assert!(cx.debug_bounds("cloud-screen-sidebar-wake").is_none());
+    assert!(cx.debug_bounds("cloud-screen-card-wake").is_none());
     hold_open.store(false, Ordering::Release);
 }
 
@@ -504,7 +504,7 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     });
 
     let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
-    click_selector(cx, "cloud-screen-thumbnail");
+    click_selector(cx, "cloud-screen-card");
 
     // Initial connection succeeds and renders a 4x2 frame.
     settle_screen(&view, cx, "initial RFB frame", &|s, cx| {
@@ -550,8 +550,8 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     });
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
 
-    // Opening a file from Explorer shrinks Full-Pane CloudScreen into bottom-right
-    // PiP (`288x180`) while keeping the editor ungated and the RFB stream persistent!
+    // Opening a file from the Explorer sends the screen back into its card
+    // as a live thumbnail, with the editor ungated and the stream kept.
     view.update_in(cx, |s, w, cx| {
         s.explorer_event(&ExplorerEvent::Open(PathBuf::from("cloud.md")), w, cx);
     });
@@ -560,26 +560,23 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
         assert!(!s.cloud.read(cx).screen_shown(cx));
         assert!(!s.editor_gate(cx).modal);
     });
-    let pip = cx.debug_bounds("cloud-screen-pip").unwrap();
-    assert!((f32::from(pip.size.width) - 288.).abs() < 0.5);
-    assert!((f32::from(pip.size.height) - 180.).abs() < 0.5);
+    let card = cx.debug_bounds("cloud-screen-card").unwrap();
+    let live = cx.debug_bounds("cloud-screen-live").unwrap();
+    assert!(live.origin.x > card.origin.x && live.origin.y > card.origin.y);
+    assert!(live.bottom_right().x < card.bottom_right().x);
+    assert!(live.bottom_right().y < card.bottom_right().y);
+    assert_eq!(live.size, size(px(48.), px(32.)));
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
 
-    // Clicking PiP's hide (`x`) button dismisses PiP until reopened from the sidebar,
-    // and clicking PiP expands back to Full-Pane without minting another ticket.
-    click_selector(cx, "cloud-screen-pip-close");
-    assert!(cx.debug_bounds("cloud-screen-pip").is_none());
+    // The card opens it over the main area again, on the same stream.
     view.update(cx, |s, cx| {
         s.session.docs.update(cx, |d, _| d.error = None);
     });
     draw(cx);
-    click_selector(cx, "cloud-screen-thumbnail");
+    click_selector(cx, "cloud-screen-card");
     view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
-    view.update(cx, |s, cx| s.cloud.update(cx, |c, cx| c.close_screen(cx)));
-    draw(cx);
-    assert!(cx.debug_bounds("cloud-screen-pip").is_some());
-    click_selector(cx, "cloud-screen-pip-expand");
-    view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
+    let stage = cx.debug_bounds("cloud-screen-stage").unwrap();
+    assert_eq!(cx.debug_bounds("cloud-screen-live").unwrap(), stage);
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
 
     hold_recovered.store(false, Ordering::Release);
@@ -686,20 +683,19 @@ fn explicit_take_control_gates_rfb_input_and_releases_on_escape_or_button(cx: &m
     });
 
     let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
-    click_selector(cx, "cloud-screen-thumbnail");
+    click_selector(cx, "cloud-screen-card");
     settle_screen(&view, cx, "live RFB frame", &|s, cx| {
         s.cloud.read(cx).screen.read(cx).has_live_frame()
     });
     draw(cx);
 
-    // 1. Default view-only mode: `Take control` and `Full screen` pills exist,
-    //    `interactive` is false, and clicking on the live stage sends NO RFB pointer packet.
+    // 1. Default view-only mode: `Take control` shows, `interactive` is false,
+    //    and clicking on the live stage sends NO RFB pointer packet.
     view.read_with(cx, |s, cx| {
         assert!(!s.cloud.read(cx).screen_interactive(cx));
     });
     assert!(cx.debug_bounds("cloud-screen-take-control").is_some());
-    assert!(cx.debug_bounds("cloud-screen-fullscreen").is_some());
-    let live = cx.debug_bounds("cloud-screen-live").unwrap();
+    let live = cx.debug_bounds("cloud-screen-stage").unwrap();
     let probe_pt = point(live.origin.x + px(40.), live.center().y);
     cx.simulate_click(probe_pt, Modifiers::none());
     draw(cx);
@@ -735,6 +731,110 @@ fn explicit_take_control_gates_rfb_input_and_releases_on_escape_or_button(cx: &m
     view.read_with(cx, |s, cx| {
         assert!(!s.cloud.read(cx).screen_interactive(cx))
     });
+
+    hold_open.store(false, Ordering::Release);
+}
+
+#[gpui::test]
+fn an_agent_at_work_unfolds_the_card_into_a_live_preview_until_folded_by_hand(
+    cx: &mut TestAppContext,
+) {
+    let at = |secs: i64| {
+        chrono::DateTime::from_timestamp_millis(crate::clock::now_ms() + secs * 1000)
+            .unwrap_or_default()
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    };
+    let api: Responder = Arc::new(move |req| {
+        let path = req.path.as_str();
+        Ok(if path.ends_with("/workbench/screen/session") {
+            json!({
+                "ticket": "tok-agent",
+                "protocol": "puppyone.screen.v1",
+                "ticket_protocol_prefix": "puppyone.screen.ticket.",
+                "transport": "vnc",
+            })
+        } else if path.ends_with("/agent-links") {
+            json!({"links": [], "pending": [], "connections": [{
+                "id": "claude", "name": "Claude Code", "admission": "sign_in",
+                "grant_id": "g-claude", "connected_at": at(-3600),
+            }]})
+        } else if path.ends_with("/access/sessions") {
+            json!([{"grant_id": "g-claude", "state": "active", "created_at": at(-60),
+                "closed_at": null, "lease_until": at(60), "commands_running": 1,
+                "last_command_at": at(-1)}])
+        } else if path.ends_with("/repository-context") {
+            repository_context_json()
+        } else if path.ends_with("/workbench/files") {
+            json!({"entries": [{"name": "cloud.md", "kind": "file", "size": 5}]})
+        } else if path.ends_with("/workbench") {
+            json!({
+                "workspace": {
+                    "id": "ws-a",
+                    "project_id": "project-a",
+                    "generation": "9bb16f54-dfe9-4d26-8c68-c7b1ae97d859",
+                    "state": "running",
+                    "target_ref": "refs/heads/main",
+                    "sandbox": sandbox_json(true, true, true),
+                }
+            })
+        } else {
+            json!({})
+        })
+    });
+    let hold_open = Arc::new(AtomicBool::new(true));
+    let hold_ws = hold_open.clone();
+    let screen_ws: ScreenResponder = Arc::new(move |_, _| {
+        let (client_sock, server_sock) = ScreenSocket::pair();
+        spawn_rfb_frame_server(server_sock, hold_ws.clone());
+        Ok(client_sock)
+    });
+
+    let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
+    settle_screen(
+        &view,
+        cx,
+        "a live frame while Claude Code works",
+        &|s, cx| {
+            let screen = s.cloud.read(cx).screen.read(cx);
+            screen.has_live_frame() && screen.operator_for_lab().is_some()
+        },
+    );
+    draw(cx);
+    let live = |cx: &mut VisualTestContext| cx.debug_bounds("cloud-screen-live").unwrap();
+
+    // The card unfolds into a live preview the card's width, and says who
+    // is at work.
+    let card = cx.debug_bounds("cloud-screen-card").unwrap();
+    let preview = live(cx);
+    assert_eq!(preview.size.width, card.size.width - px(16.));
+    assert!(preview.size.height > px(100.));
+    assert!(card.size.height > preview.size.height + px(40.));
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.cloud
+                .read(cx)
+                .screen
+                .read(cx)
+                .operator_for_lab()
+                .map(|n| n.as_ref()),
+            Some("Claude Code")
+        );
+        assert!(!s.cloud.read(cx).screen_shown(cx));
+    });
+
+    // Its toggle folds it to the row without opening the screen, and
+    // unfolds it again.
+    click_selector(cx, "cloud-screen-card-toggle");
+    assert_eq!(live(cx).size, size(px(48.), px(32.)));
+    view.read_with(cx, |s, cx| assert!(!s.cloud.read(cx).screen_shown(cx)));
+    click_selector(cx, "cloud-screen-card-toggle");
+    assert_eq!(live(cx).size, preview.size);
+
+    // Opened, the card is a row again and the screen fills the main area.
+    click_selector(cx, "cloud-screen-card");
+    view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
+    assert_eq!(live(cx), cx.debug_bounds("cloud-screen-stage").unwrap());
+    assert!(cx.debug_bounds("cloud-screen-card-toggle").is_none());
 
     hold_open.store(false, Ordering::Release);
 }
