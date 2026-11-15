@@ -339,8 +339,7 @@ fn appearance<'a>(
 }
 
 /// `parseExperimentalSettings` (and the Project Switcher Rail, which the
-/// native preferences keep beside them). Git Auto Commit consent is main
-/// owned and never restored from renderer storage.
+/// native preferences keep beside them) for the experiments supported natively.
 fn experimental_settings(v: &Value) -> (Experimental, bool) {
     let on = |key: &str| v.get(key) == Some(&Value::Bool(true));
     let not_off = |key: &str| v.get(key) != Some(&Value::Bool(false));
@@ -349,13 +348,8 @@ fn experimental_settings(v: &Value) -> (Experimental, bool) {
         cloud_workspace: on("enableCloudWorkspace"),
         cloud_computer_screen: on("enableCloudComputerScreen"),
         editor_tabs_in_header: on("enableEditorTabsInHeader"),
-        project_reach: on("enableProjectReach"),
         host_devices: on("enableHostDevices"),
-        workbench_tabs_in_header: on("enableWorkbenchTabsInHeader"),
-        git_auto_commit: false,
         markdown_block_drag: on("enableMarkdownBlockDrag"),
-        markdown_heading_outline: on("enableMarkdownHeadingOutline"),
-        multi_root_workspaces: on("enableMultiRootWorkspaces"),
         other_app_imports: on("enableOtherAppImports")
             || on("enableNotionImport")
             || on("enableGoogleDriveImport")
@@ -363,7 +357,6 @@ fn experimental_settings(v: &Value) -> (Experimental, bool) {
             || on("enableObsidianImport"),
         payments: not_off("enablePayments"),
         puppy_flow_files: on("enablePuppyFlowFiles"),
-        viewer_plugins: on("enableViewerPlugins"),
     };
     (experimental, on("enableProjectSwitcherRail"))
 }
@@ -476,7 +469,7 @@ mod tests {
             (
                 keys::EXPERIMENTAL,
                 r#"{"enableCloudWorkspace":true,"enableCloudComputerScreen":true,"enablePayments":false,"enableGitAutoCommit":true,
-                    "enableNotionImport":true,"enableProjectSwitcherRail":true}"#,
+                    "enableViewerPlugins":true,"enableNotionImport":true,"enableProjectSwitcherRail":true}"#,
             ),
             (
                 keys::FILES,
@@ -501,7 +494,6 @@ mod tests {
                 && p.experimental.other_app_imports
         );
         assert!(!p.experimental.payments);
-        assert!(!p.experimental.git_auto_commit, "main-owned consent");
         assert!(p.project_switcher_rail);
         assert!(p.files.show_hidden_files);
         assert_eq!(p.files.exclude_patterns, ["**/.git"]);
