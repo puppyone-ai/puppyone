@@ -113,7 +113,7 @@ impl Workbench {
         let mut saved = match self.chats.open_saved(&root, &target, cx) {
             Ok(saved) => saved,
             Err(_) => {
-                self.history_restore_failed(tab, target, cx);
+                self.history_restore_failed(tab, target, OpenFailure::default(), cx);
                 return;
             }
         };
@@ -126,7 +126,7 @@ impl Workbench {
                         s.project().and_then(|p| p.content.get(&tab)),
                         Some(Content::Launcher)
                     );
-                if opened && launcher {
+                if opened.is_ok() && launcher {
                     let item = s.chats.saved_chat(saved, window, cx);
                     let content = s.content(item, cx);
                     s.history.remove(&tab);
@@ -138,22 +138,32 @@ impl Workbench {
                     return;
                 }
                 cx.foreground_executor().spawn(saved.discard()).detach();
-                if launcher {
-                    s.history_restore_failed(tab, target, cx);
+                if launcher && let Err(failure) = opened {
+                    s.history_restore_failed(tab, target, failure, cx);
                 }
             })
             .ok();
         })
         .detach();
     }
-    fn history_restore_failed(&mut self, tab: Id, target: HistoryTarget, cx: &mut Context<Self>) {
+    fn history_restore_failed(
+        &mut self,
+        tab: Id,
+        target: HistoryTarget,
+        failure: OpenFailure,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(browser) = self.history.get(&tab) {
             browser.update(cx, |browser, cx| {
                 browser.opening = None;
                 cx.notify();
             });
         }
-        self.creation_failure = Some(CreationFailure { tab, target });
+        self.creation_failure = Some(CreationFailure {
+            tab,
+            target,
+            failure,
+        });
         cx.notify();
     }
     /// `localAgentsSettings.chatHistoryDiscoveryEnabled`.

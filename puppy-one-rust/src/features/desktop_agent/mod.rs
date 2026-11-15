@@ -26,4 +26,4 @@ pub use domain::agent_chat_history_target::AgentChatHistoryPayload;
 pub use infrastructure::cloud::{CloudAgentController, Hub, LABEL as HOSTED_AGENT_LABEL};
 #[cfg(test)]
 pub use ui::panel::AgentChatTabPanel;
-pub use workbench::{AgentChats, hosted_installation};
+pub use workbench::{AgentChats, OpenFailure, hosted_installation};

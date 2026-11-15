@@ -85,15 +85,23 @@ pub struct SavedChat {
     registry: Rc<AgentControllerRegistry>,
     item: String,
     controller: AgentSessionController,
-    opening: Option<LocalBoxFuture<'static, bool>>,
+    opening: Option<LocalBoxFuture<'static, Result<(), OpenFailure>>>,
+}
+
+/// Why a saved chat did not open: the failure's `code` and `retryable`
+/// (`recordCreationFailure`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct OpenFailure {
+    pub code: Option<String>,
+    pub retryable: bool,
 }
 
 impl SavedChat {
     /// Whether the saved session opened.
-    pub fn opening(&mut self) -> LocalBoxFuture<'static, bool> {
+    pub fn opening(&mut self) -> LocalBoxFuture<'static, Result<(), OpenFailure>> {
         self.opening
             .take()
-            .unwrap_or_else(|| Box::pin(async { false }))
+            .unwrap_or_else(|| Box::pin(async { Err(OpenFailure::default()) }))
     }
 
     /// The abandoned reservation releases its native session.
@@ -347,7 +355,16 @@ impl AgentChats {
             registry,
             item,
             controller,
-            opening: Some(Box::pin(async move { matches!(opening.await, Ok(true)) })),
+            opening: Some(Box::pin(async move {
+                match opening.await {
+                    Ok(true) => Ok(()),
+                    Ok(false) => Err(OpenFailure::default()),
+                    Err(error) => Err(OpenFailure {
+                        code: error.code.clone(),
+                        retryable: error.retryable == Some(true),
+                    }),
+                }
+            })),
         })
     }
 

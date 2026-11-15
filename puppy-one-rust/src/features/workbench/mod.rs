@@ -17,7 +17,9 @@ mod persistence;
 pub use item::{CloseCopy, CloseDecision, ItemKind, ItemSnapshot, ItemStatus, WorkbenchItem};
 pub use persistence::RetainedItem;
 
-use super::desktop_agent::{AgentChats, HistoryBrowser, HistoryTarget, hosted_installation};
+use super::desktop_agent::{
+    AgentChats, HistoryBrowser, HistoryTarget, OpenFailure, hosted_installation,
+};
 use super::local_agents::agent_chat_runtime_id;
 use super::terminal::TerminalItem;
 use crate::platform::ui_state_store::{self, ResultEvent};
@@ -209,6 +211,23 @@ struct CreationFailure {
     tab: Id,
     /// The History target `retryCreation` opens again.
     target: HistoryTarget,
+    failure: OpenFailure,
+}
+/// `OPEN_FAILURE_MESSAGE_KEYS`: a saved chat's open failure, by code.
+fn open_failure_message(code: &str) -> Option<&'static str> {
+    Some(match code {
+        "SESSION_NOT_FOUND" => "agent.history.openError.sessionNotFound",
+        "SOURCE_CHANGED" => "agent.history.openError.sourceChanged",
+        "HISTORY_READ_FAILED" => "agent.history.openError.readFailed",
+        "AUTH_REQUIRED" => "agent.history.openError.authRequired",
+        "AUTH_EXPIRED" => "agent.history.openError.authExpired",
+        "RUNTIME_UNAVAILABLE" => "agent.history.openError.runtimeUnavailable",
+        "RESUME_UNSUPPORTED" => "agent.history.openError.unsupported",
+        "RESUME_TIMED_OUT" => "agent.history.openError.timedOut",
+        "WORKSPACE_MISMATCH" => "agent.history.openError.workspaceMismatch",
+        "PROTOCOL_ERROR" => "agent.history.openError.protocol",
+        _ => return None,
+    })
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -1170,33 +1189,41 @@ impl Workbench {
         use crate::ui::components::{
             FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
         };
-        self.creation_failure.as_ref()?;
+        let failure = &self.creation_failure.as_ref()?.failure;
         let ty = theme::ty();
-        let item = crate::localization::tf(
-            "agent.panel.chat",
-            &[("agent", crate::localization::t("agent.name").into())],
-        );
-        let message = crate::localization::tf(
-            "terminal.workbench.itemLoadFailed",
-            &[("item", item.into())],
-        );
+        let message = match failure.code.as_deref().and_then(open_failure_message) {
+            Some(key) => crate::localization::t(key).to_string(),
+            None => {
+                let item = crate::localization::tf(
+                    "agent.panel.chat",
+                    &[("agent", crate::localization::t("agent.name").into())],
+                );
+                crate::localization::tf(
+                    "terminal.workbench.itemLoadFailed",
+                    &[("item", item.into())],
+                )
+            }
+        };
+        let retryable = failure.retryable;
         let entity = cx.entity();
         let retry = entity.clone();
+        let mut notice = FloatingNotice::new("workbench-creation-failure", message)
+            .tone(NoticeTone::Danger)
+            .text(ty.right.meta, ty.right.meta_line_height);
+        // Only a failure that says so is worth another try.
+        if retryable {
+            notice = notice.action(NoticeAction::new(
+                "workbench-creation-retry",
+                crate::localization::t("common.action.retry"),
+                move |window, cx| retry.update(cx, |s, cx| s.retry_creation(window, cx)),
+            ));
+        }
         Some(
             // `.desktop-auxiliary-workbench-notice-stack`: under the tab strip,
             // 8px from both edges.
             NoticeStack::new(NoticePlacement::Top, 46., 8., 0.)
                 .child(
-                    FloatingNotice::new("workbench-creation-failure", message)
-                        .tone(NoticeTone::Danger)
-                        .text(ty.right.meta, ty.right.meta_line_height)
-                        .action(NoticeAction::new(
-                            "workbench-creation-retry",
-                            crate::localization::t("common.action.retry"),
-                            move |window, cx| {
-                                retry.update(cx, |s, cx| s.retry_creation(window, cx))
-                            },
-                        ))
+                    notice
                         .dismiss_label(crate::localization::t("terminal.workbench.dismissError"))
                         .on_dismiss(move |_, cx| {
                             entity.update(cx, |s, cx| {
@@ -1614,10 +1641,37 @@ mod tests {
             let failure = s.creation_failure.as_ref().unwrap();
             assert_eq!(failure.tab, tab);
             assert_eq!(failure.target.id, "agent:thread-1");
+            // An invalid target says nothing more than that it failed.
+            assert_eq!(failure.failure, OpenFailure::default());
             assert!(s.creation_notice(cx).is_some());
             s.creation_failure = None;
             assert!(s.creation_notice(cx).is_none());
         });
+    }
+    #[test]
+    fn open_failures_name_their_cause() {
+        assert_eq!(
+            open_failure_message("RESUME_TIMED_OUT"),
+            Some("agent.history.openError.timedOut")
+        );
+        assert_eq!(
+            open_failure_message("WORKSPACE_MISMATCH"),
+            Some("agent.history.openError.workspaceMismatch")
+        );
+        assert_eq!(open_failure_message("SOMETHING_ELSE"), None);
+        for key in [
+            "SESSION_NOT_FOUND",
+            "SOURCE_CHANGED",
+            "HISTORY_READ_FAILED",
+            "AUTH_REQUIRED",
+            "AUTH_EXPIRED",
+            "RUNTIME_UNAVAILABLE",
+            "RESUME_UNSUPPORTED",
+            "PROTOCOL_ERROR",
+        ] {
+            let message = open_failure_message(key).unwrap();
+            assert_ne!(crate::localization::t(message), message, "{key}");
+        }
     }
     #[gpui::test]
     fn contributions_stop_at_their_maximum_items(cx: &mut TestAppContext) {
