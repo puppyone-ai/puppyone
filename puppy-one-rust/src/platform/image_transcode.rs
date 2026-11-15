@@ -11,6 +11,19 @@ pub fn needs_transcode(name: &str) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("avif"))
 }
 
+/// Decode an immutable hosted snapshot with the same codec and input budget.
+/// The temporary file belongs to this call; neither its name nor its location
+/// comes from the remote provider.
+pub fn bytes_to_png(bytes: &[u8], max_bytes: u64) -> Result<Vec<u8>, String> {
+    if bytes.len() as u64 > max_bytes {
+        return Err("image exceeds its preview budget".into());
+    }
+    let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let input = dir.path().join("source.avif");
+    crate::platform::webview::write_private(&input, bytes).map_err(|e| e.to_string())?;
+    to_png(&input, max_bytes)
+}
+
 /// PNG bytes of `path` (an AVIF), or why it could not be decoded.
 pub fn to_png(path: &Path, max_bytes: u64) -> Result<Vec<u8>, String> {
     let size = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
@@ -54,6 +67,15 @@ pub fn to_png(path: &Path, max_bytes: u64) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hosted_avif_uses_the_same_codec_and_rejects_oversized_or_invalid_bytes() {
+        let avif = include_bytes!("../../fixtures/media/red.avif");
+        let png = bytes_to_png(avif, avif.len() as u64).unwrap();
+        assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        assert!(bytes_to_png(avif, avif.len() as u64 - 1).is_err());
+        assert!(bytes_to_png(b"not an image", 1024).is_err());
+    }
 
     #[test]
     fn avif_is_transcoded_to_png_through_imageio() {

@@ -33,8 +33,8 @@ fn transcode_if_needed(view: &Entity<ImagePreview>, name: &str, cx: &mut App) {
     if !crate::platform::image_transcode::needs_transcode(name) {
         return;
     }
-    let path = match view.read(cx).resource.as_ref().map(|r| r.data()) {
-        Some(Ok(PreviewData::LocalFile(path))) => path.clone(),
+    let data = match view.read(cx).resource.as_ref().map(|r| r.data()) {
+        Some(Ok(data)) => data.clone(),
         _ => return,
     };
     let generation = view.update(cx, |v, _| {
@@ -43,9 +43,14 @@ fn transcode_if_needed(view: &Entity<ImagePreview>, name: &str, cx: &mut App) {
         v.generation
     });
     let budget = crate::editor::registry::source_budget(name);
-    let task = cx
-        .background_executor()
-        .spawn(async move { crate::platform::image_transcode::to_png(&path, budget) });
+    let task = cx.background_executor().spawn(async move {
+        match data {
+            PreviewData::LocalFile(path) => crate::platform::image_transcode::to_png(&path, budget),
+            PreviewData::Bytes { bytes, .. } => {
+                crate::platform::image_transcode::bytes_to_png(&bytes, budget)
+            }
+        }
+    });
     let view = view.downgrade();
     cx.spawn(async move |cx| {
         let result = task.await;
@@ -93,10 +98,8 @@ impl ViewerSurface for ImageSurface {
             view.image = source(resource);
             cx.notify();
         });
-        if let Ok(PreviewData::LocalFile(path)) = resource.data() {
-            let name = path.to_string_lossy().into_owned();
-            transcode_if_needed(&self.view, &name, cx);
-        }
+        let name = resource.identity.path.as_path().to_string_lossy();
+        transcode_if_needed(&self.view, &name, cx);
     }
 }
 
@@ -215,6 +218,38 @@ impl Render for ImagePreview {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    #[gpui::test]
+    fn hosted_avif_decodes_again_when_the_provider_delivers_a_replacement(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let provider = Arc::new(crate::workspace::testing::Resources::default());
+        provider.bytes.lock().unwrap().insert(
+            "picture.avif".into(),
+            include_bytes!("../../../fixtures/media/red.avif").to_vec(),
+        );
+        let ws = crate::workspace::Workspace::from_provider(provider).unwrap();
+        let resource = ws.resource(std::path::Path::new("picture.avif")).unwrap();
+        let (view, cx) = cx.add_window_view(|_, _| ImagePreview {
+            image: None,
+            resource: Some(resource.clone()),
+            transcoding: false,
+            generation: 0,
+        });
+        for _ in 0..2 {
+            cx.update(|_, cx| {
+                ImageSurface { view: view.clone() }.rebind_resource(&resource, cx);
+                assert!(view.read(cx).transcoding);
+            });
+            cx.run_until_parked();
+            view.read_with(cx, |view, _| {
+                assert!(!view.transcoding);
+                assert!(
+                    matches!(&view.image, Some(ImageSource::Image(_))),
+                    "hosted AVIF must decode to an in-memory PNG"
+                );
+            });
+        }
+    }
 
     #[gpui::test]
     fn an_external_replacement_at_the_same_path_evicts_the_decoded_image(cx: &mut TestAppContext) {

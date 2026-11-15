@@ -61,6 +61,13 @@ fn every_binary_preview_watches_its_own_path_and_unknown_changes_without_text_or
         assert!(provider.reads.lock().unwrap().is_empty());
         assert!(d.outgoing.is_empty());
         let id = d.resource.as_ref().unwrap().id.clone();
+        let workspace::PreviewData::Bytes {
+            bytes: old_bytes, ..
+        } = d.resource.as_ref().unwrap().preview.data().unwrap()
+        else {
+            panic!("hosted snapshot")
+        };
+        let retired = Arc::downgrade(old_bytes);
         provider.bytes.lock().unwrap().insert(name.into(), vec![2]);
         change(&provider, name);
         settle(&mut d, &wake, |d| bytes(d) == [2]);
@@ -74,6 +81,10 @@ fn every_binary_preview_watches_its_own_path_and_unknown_changes_without_text_or
             1
         );
         assert!(!d.dirty && !d.busy());
+        assert!(
+            retired.upgrade().is_none(),
+            "the replaced native snapshot must be released"
+        );
         provider.bytes.lock().unwrap().insert(name.into(), vec![3]);
         provider.publish(WatchEvent::Invalidated);
         settle(&mut d, &wake, |d| bytes(d) == [3]);

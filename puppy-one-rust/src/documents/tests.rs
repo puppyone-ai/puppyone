@@ -41,6 +41,7 @@ fn cloud_convergence_compares_current_input_retires_old_snapshot_and_never_write
     let old_request = d.autosave_request.unwrap().0;
     *provider.text.lock().unwrap() = "converged".into();
     let remote = ws.observe(d.document.as_ref().unwrap()).unwrap();
+    d.observing = Some((remote.id.clone(), d.read_generation));
     d.tx.send(Completed::Observed {
         id: remote.id.clone(),
         generation: d.read_generation,
@@ -256,6 +257,7 @@ fn observed_disk_change_replaces_model_without_a_write_or_conflict_error() {
         .unwrap()
         .observe(d.document.as_ref().unwrap())
         .unwrap();
+    d.observing = Some((doc.id.clone(), d.read_generation));
     d.tx.send(Completed::Observed {
         id: doc.id.clone(),
         generation: d.read_generation,
@@ -278,6 +280,7 @@ fn read_started_before_save_receipt_cannot_restore_old_content() {
     d.ensure_session(&ctx);
     let old = d.document.as_ref().unwrap().clone();
     let generation = d.read_generation;
+    d.observing = Some((old.id.clone(), generation));
     d.begin(Intent::Save, &ctx);
     snapshot(&mut d, &ctx, "latest");
     wait(&mut d, &ctx);
@@ -300,7 +303,7 @@ fn revalidation_keeps_shown_content_and_only_changed_bytes_notify_the_editor() {
     d.outgoing.clear();
     let shown = d.presentation_key();
     for text in ["original", "agent edit"] {
-        d.observing = true;
+        d.observing = Some((d.document.as_ref().unwrap().id.clone(), d.read_generation));
         assert!(!d.busy());
         assert_eq!(d.presentation_key(), shown);
         std::fs::write(temp.path().join("a.md"), text).unwrap();
@@ -493,6 +496,7 @@ fn superseded_observation_revalidates_without_needing_another_notification() {
     d.watch = None; // No timer or second event can rescue a lost invalidation.
     let old = d.document.as_ref().unwrap().clone();
     let generation = d.read_generation;
+    d.observing = Some((old.id.clone(), generation));
     d.read_generation += 1; // A save receipt superseded the in-flight read.
     std::fs::write(temp.path().join("a.md"), "new baseline").unwrap();
     d.tx.send(Completed::Observed {
@@ -858,4 +862,40 @@ fn quick_background_saves_stay_quiet_slow_and_explicit_saves_are_announced() {
             }
         );
     }
+}
+
+#[test]
+fn retired_text_reads_cannot_clear_the_current_observation_or_schedule_an_extra_read() {
+    let (_temp, mut d, wake) = setup();
+    d.ensure_session(&wake);
+    d.watch = None;
+    d.observation_pending = false;
+    d.outgoing.clear();
+    let old = d.document.as_ref().unwrap().clone();
+    let old_generation = d.read_generation;
+    d.read_generation += 1;
+    let owner = (old.id.clone(), d.read_generation);
+    d.observing = Some(owner.clone());
+    d.tx.send(Completed::Observed {
+        id: old.id.clone(),
+        generation: old_generation,
+        result: Ok(old.clone()),
+    })
+    .unwrap();
+    d.poll(&wake);
+    assert_eq!(d.observing, Some(owner.clone()));
+    assert!(!d.observation_pending);
+    assert!(d.outgoing.is_empty());
+    let mut current = old;
+    current.text = "current connection".into();
+    d.tx.send(Completed::Observed {
+        id: owner.0,
+        generation: owner.1,
+        result: Ok(current),
+    })
+    .unwrap();
+    d.poll(&wake);
+    assert_eq!(d.document.as_ref().unwrap().text, "current connection");
+    assert!(d.observing.is_none());
+    assert!(!d.observation_pending);
 }

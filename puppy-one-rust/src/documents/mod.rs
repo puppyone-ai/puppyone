@@ -253,7 +253,7 @@ pub struct Documents {
     serial: u64,
     session: Option<DocumentEditingSession>,
     autosave_request: Option<(u64, u64, Instant)>,
-    observing: bool,
+    observing: Option<(String, u64)>,
     resource_observing: Option<(String, u64)>,
     read_generation: u64,
     watch: Option<workspace::Subscription>,
@@ -287,7 +287,7 @@ impl Default for Documents {
             serial: 0,
             session: None,
             autosave_request: None,
-            observing: false,
+            observing: None,
             resource_observing: None,
             read_generation: 0,
             task_scope: "documents".into(),
@@ -374,7 +374,7 @@ impl Documents {
                 self.saved_at = None;
                 self.autosave_request = None;
                 self.read_generation += 1;
-                self.observing = false;
+                self.observing = None;
                 self.observation_pending = false;
                 self.watch = None;
                 self.start_watch(ctx);
@@ -426,7 +426,7 @@ impl Documents {
     /// (`DesktopCloudFileWorkspace` unmounts its watch); the draft stays.
     pub fn pause_watch(&mut self) {
         self.watch = None;
-        self.observing = false;
+        self.observing = None;
         self.resource_observing = None;
         self.observation_pending = false;
         self.read_generation += 1;
@@ -476,7 +476,7 @@ impl Documents {
         }
         self.workspace = Some(ws.clone());
         self.watch = None;
-        self.observing = false;
+        self.observing = None;
         self.resource_observing = None;
         self.observation_pending = false;
         self.read_generation += 1;
@@ -1308,11 +1308,13 @@ impl Documents {
                     generation,
                     result,
                 } => {
-                    let current = self.session.as_ref().is_some_and(|s| s.id == id);
-                    if !current {
+                    // A retired provider/read cannot clear the newer read's
+                    // ownership, even when the retained document id is equal.
+                    if self.observing.as_ref() != Some(&(id.clone(), generation)) {
                         continue;
                     }
-                    self.observing = false;
+                    self.observing = None;
+                    let current = self.session.as_ref().is_some_and(|s| s.id == id);
                     if generation != self.read_generation
                         || !matches!(self.phase, Phase::Idle)
                         || !current
@@ -1479,7 +1481,7 @@ impl Documents {
                     freeze: false,
                 });
             }
-            if !self.observing
+            if self.observing.is_none()
                 && self.observation_pending
                 && let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
             {
@@ -1490,7 +1492,7 @@ impl Documents {
                     ctx.clone(),
                     self.read_generation,
                 );
-                self.observing = true;
+                self.observing = Some((doc.id.clone(), generation));
                 self.observation_pending = false;
                 crate::localization::spawn(move || {
                     let result = ws.observe(&doc);
