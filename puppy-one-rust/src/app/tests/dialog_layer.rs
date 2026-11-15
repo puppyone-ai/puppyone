@@ -131,7 +131,8 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         let path = s.explorer.session.read(cx).tree().rows[0].path.clone();
-        s.dialogs.update(cx, |d, cx| d.rename(path, false, w, cx));
+        s.dialogs
+            .update(cx, |d, cx| d.rename(path, false, false, w, cx));
     });
     draw(cx);
     view.update(cx, |s, cx| {
@@ -148,7 +149,8 @@ fn a_dialog_keeps_focus_when_its_focused_control_goes(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         let path = s.explorer.session.read(cx).tree().rows[0].path.clone();
-        s.dialogs.update(cx, |d, cx| d.rename(path, false, w, cx));
+        s.dialogs
+            .update(cx, |d, cx| d.rename(path, false, false, w, cx));
     });
     draw(cx);
     // Focus moves to a control that is no longer there (removed or disabled).
@@ -188,6 +190,7 @@ fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
         cx.emit(ExplorerEvent::Rename {
             path: "a.md".into(),
             change_type: true,
+            folder: false,
         })
     });
     draw(cx);

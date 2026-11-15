@@ -655,9 +655,13 @@ impl Shell {
             ExplorerEvent::Create { entry, parent } => {
                 self.start_create(*entry, parent.clone(), window, cx)
             }
-            ExplorerEvent::Rename { path, change_type } => self
-                .dialogs
-                .update(cx, |d, cx| d.rename(path.clone(), *change_type, window, cx)),
+            ExplorerEvent::Rename {
+                path,
+                change_type,
+                folder,
+            } => self.dialogs.update(cx, |d, cx| {
+                d.rename(path.clone(), *change_type, *folder, window, cx)
+            }),
             ExplorerEvent::Error(error) => self.show_error(error.clone(), cx),
             ExplorerEvent::CopyLink { path, folder } => self
                 .cloud
