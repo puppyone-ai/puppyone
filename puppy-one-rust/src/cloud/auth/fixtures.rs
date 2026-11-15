@@ -63,6 +63,7 @@ pub(super) struct FakeRemote {
     pub fail_logout: AtomicBool,
     pub responder: Mutex<Option<Responder>>,
     pub screen_responder: Mutex<Option<ScreenResponder>>,
+    pub keep_workspace_events: bool,
 }
 impl Default for FakeRemote {
     fn default() -> Self {
@@ -87,6 +88,7 @@ impl Default for FakeRemote {
             logout_hook: Mutex::default(),
             responder: Mutex::default(),
             screen_responder: Mutex::default(),
+            keep_workspace_events: false,
         }
     }
 }
@@ -204,6 +206,25 @@ impl Remote for FakeRemote {
             return Err(error);
         }
         Ok(serde_json::json!({"ok":true}))
+    }
+    fn stream(
+        &self,
+        _: &Session,
+        request: &ApiRequest,
+        fence: &Fence,
+        sink: &mut super::transport::StreamSink<'_>,
+    ) -> Result<()> {
+        if !self.keep_workspace_events || !request.path.ends_with("/workbench/events") {
+            return Err(Error::Unsupported);
+        }
+        fence.check()?;
+        sink(super::transport::StreamEvent::Connected)?;
+        // A screen fixture also owns a live file subscription. An unsupported
+        // stream would retire the real Cloud provider before a file can open.
+        loop {
+            fence.check()?;
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
     }
     fn screen_stream(
         &self,
@@ -324,7 +345,10 @@ pub fn responding_screen_account_fixture(
     Arc<Broker>,
     async_channel::Receiver<super::service::BrowserEvent>,
 ) {
-    let remote = FakeRemote::default();
+    let remote = FakeRemote {
+        keep_workspace_events: true,
+        ..Default::default()
+    };
     *remote.responder.lock().unwrap() = Some(responder);
     *remote.screen_responder.lock().unwrap() = Some(screen);
     let pair = Broker::new(env(), Arc::new(remote), Arc::new(MemoryStore::default()));

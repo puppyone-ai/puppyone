@@ -453,7 +453,11 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
             return Ok(json!({"entries": [{"name": "cloud.md", "kind": "file", "size": 5}]}));
         }
         if path.ends_with("/workbench/file") {
-            return Ok(json!({"content": "# Cloud\n", "version": "v1"}));
+            return Ok(json!({
+                "name": "cloud.md", "kind": "file", "size": 8,
+                "content_base64": "IyBDbG91ZAo=",
+                "revision": "dbfd7f950eb43c7ee2e1118e160ea8c5f16a424c4a826563564a3af0dab88cd5",
+            }));
         }
         if path.ends_with("/workbench") {
             return Ok(json!({
@@ -560,6 +564,19 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
         assert!(!s.cloud.read(cx).screen_shown(cx));
         assert!(!s.editor_gate(cx).modal);
     });
+    settle_screen(&view, cx, "opened cloud document", &|s, cx| {
+        assert!(
+            s.files(cx).error.is_none(),
+            "file opening error: {:?}",
+            s.files(cx).error
+        );
+        s.files(cx).document.is_some()
+    });
+    view.read_with(cx, |s, cx| {
+        let files = s.files(cx);
+        assert!(files.error.is_none(), "cloud file response must be valid");
+        assert_eq!(files.document.as_ref().unwrap().text, "# Cloud\n");
+    });
     let pip = cx.debug_bounds("cloud-screen-pip").unwrap();
     assert!((f32::from(pip.size.width) - 288.).abs() < 0.5);
     assert!((f32::from(pip.size.height) - 180.).abs() < 0.5);
@@ -569,13 +586,11 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     // and clicking PiP expands back to Full-Pane without minting another ticket.
     click_selector(cx, "cloud-screen-pip-close");
     assert!(cx.debug_bounds("cloud-screen-pip").is_none());
-    view.update(cx, |s, cx| {
-        s.session.docs.update(cx, |d, _| d.error = None);
-    });
-    draw(cx);
     click_selector(cx, "cloud-screen-thumbnail");
     view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
-    view.update(cx, |s, cx| s.cloud.update(cx, |c, cx| c.close_screen(cx)));
+    view.update_in(cx, |s, w, cx| {
+        s.explorer_event(&ExplorerEvent::Open(PathBuf::from("cloud.md")), w, cx);
+    });
     draw(cx);
     assert!(cx.debug_bounds("cloud-screen-pip").is_some());
     click_selector(cx, "cloud-screen-pip-expand");
