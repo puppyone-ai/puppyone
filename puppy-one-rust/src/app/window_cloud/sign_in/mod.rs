@@ -1,12 +1,12 @@
 //! `CloudSignInDialog` (`cloud-sign-in-dialog.css` / `v3.html`): explains what
-//! signing in unlocks before opening the browser OAuth flow, reusing the
-//! stacked-files hub (`hub`) and link-handoff (`forward`, with Grok Bot)
-//! scenes at `228px` (`0.6` scale).
+//! signing in unlocks before opening the browser OAuth flow, with first run's
+//! stacked-files and link-handoff moments ([`crate::ui::moments`]) at `228px`
+//! (`0.6` scale), labelled for Cloud and handing the link to Grok Bot.
 use super::WindowCloud;
 use crate::app::dialogs::DialogKey;
 use crate::features::cloud::account::{self, Status};
 use crate::localization::t as tr;
-use crate::theme::{self, Theme};
+use crate::theme;
 use crate::ui::{
     appearance::ActiveAppearance as _,
     components::{Button, ButtonVariant, Icon, IconButton, ProductIcon},
@@ -14,33 +14,34 @@ use crate::ui::{
 };
 use gpui::{prelude::*, *};
 use gpui_kit::{
-    base::{Button as BaseButton, Dialog as BaseDialog, h_flex, v_flex},
+    base::{Dialog as BaseDialog, h_flex, v_flex},
     component::Sizable as _,
 };
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-mod forward;
-mod hub;
-mod paint;
+use crate::ui::moments::{self, Carousel, Cast, Picture, Scene, forward, hub, paint};
 
-pub(super) const HUB_SIZE: f32 = 228.;
-pub(super) const HUB_SCALE: f32 = 0.6;
-const FADE: f32 = 0.42;
-const FADE_LAG: f32 = 0.12;
+const PICTURE: Picture = Picture {
+    side: 228.,
+    scale: 0.6,
+};
+/// The pile is Cloud, and Grok Bot is handed the link.
+const CAST: Cast = Cast {
+    center: "cloud.productName",
+    agent: "grok-bot",
+};
 
 struct Moment {
     id: &'static str,
-    seconds: f32,
     label: &'static str,
     title: &'static str,
     body: &'static str,
-    scene: fn(&Theme, Clock) -> AnyElement,
+    scene: Scene,
 }
 
 const MOMENTS: [Moment; 2] = [
     Moment {
         id: "cloud",
-        seconds: 4.,
         label: "cloud.auth.explainer.cloud.label",
         title: "cloud.auth.explainer.cloud.title",
         body: "cloud.auth.explainer.cloud.body",
@@ -48,19 +49,14 @@ const MOMENTS: [Moment; 2] = [
     },
     Moment {
         id: "share",
-        seconds: 5.,
         label: "cloud.auth.explainer.share.label",
         title: "cloud.auth.explainer.share.title",
         body: "cloud.auth.explainer.share.body",
         scene: forward::scene,
     },
 ];
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct Clock {
-    pub moment: Option<f32>,
-    pub motion: Option<f32>,
-}
+/// How long each moment holds before the next opens.
+const HOLDS: &[f32] = &[4., 5.];
 
 fn at_rest(cx: &App) -> bool {
     #[cfg(feature = "dev-capture")]
@@ -71,13 +67,9 @@ fn at_rest(cx: &App) -> bool {
 }
 
 pub(in crate::app) struct SignInDialog {
-    index: usize,
-    opened: Instant,
-    previous: Option<(usize, Instant)>,
-    progress: f32,
-    ticked: Option<Instant>,
+    carousel: Carousel,
+    /// The pointer is over the carousel, which holds the open moment.
     hovered: bool,
-    since: Instant,
     primary_focus: FocusHandle,
     focused_initial: bool,
     submitted: bool,
@@ -86,15 +78,9 @@ pub(in crate::app) struct SignInDialog {
 
 impl SignInDialog {
     fn new(cx: &mut Context<WindowCloud>) -> Self {
-        let now = Instant::now();
         Self {
-            index: 0,
-            opened: now,
-            previous: None,
-            progress: 0.,
-            ticked: None,
+            carousel: Carousel::new(HOLDS),
             hovered: false,
-            since: now,
             primary_focus: cx.focus_handle(),
             focused_initial: false,
             submitted: false,
@@ -102,64 +88,21 @@ impl SignInDialog {
         }
     }
 
-    fn select(&mut self, index: usize, now: Instant) {
-        if index >= MOMENTS.len() || index == self.index {
-            return;
-        }
-        self.previous = Some((self.index, now));
-        self.index = index;
-        self.opened = now;
-        self.progress = 0.;
-    }
-
-    fn tick(&mut self, now: Instant) {
-        let elapsed = self.ticked.map_or(Duration::ZERO, |at| now - at);
-        self.ticked = Some(now);
-        if self.hovered {
-            return;
-        }
-        self.progress += elapsed.as_secs_f32() / MOMENTS[self.index].seconds;
-        if self.progress >= 1. {
-            let next = (self.index + 1) % MOMENTS.len();
-            self.select(next, now);
-        }
-    }
-
-    fn shown(&self, now: Instant, rest: bool) -> Vec<(usize, f32, Option<f32>)> {
-        if rest {
-            return vec![(self.index, 1., None)];
-        }
-        let since = |at: Instant| (now - at).as_secs_f32();
-        let opening = since(self.opened);
-        let mut shown = vec![(
-            self.index,
-            paint::ease(((opening - FADE_LAG) / FADE).clamp(0., 1.)),
-            Some(opening),
-        )];
-        if let Some((index, at)) = self.previous {
-            let out = 1. - paint::ease((since(at) / FADE).clamp(0., 1.));
-            if out > 0. && index != self.index {
-                shown.insert(0, (index, out, None));
-            }
-        }
-        shown
-    }
-
     #[cfg(test)]
     pub(in crate::app) fn active_moment(&self) -> &'static str {
-        MOMENTS[self.index].id
+        MOMENTS[self.carousel.index()].id
     }
 
     #[cfg(test)]
     pub(in crate::app) fn active_title(&self) -> &'static str {
-        tr(MOMENTS[self.index].title)
+        tr(MOMENTS[self.carousel.index()].title)
     }
 
     #[cfg(test)]
-    pub(in crate::app) fn advance_for_test(&mut self, by: Duration) {
-        let base = self.ticked.unwrap_or(self.opened);
-        self.ticked = Some(base);
-        self.tick(base + by);
+    pub(in crate::app) fn advance_for_test(&mut self, by: std::time::Duration) {
+        let now = Instant::now();
+        self.carousel.tick(now, self.hovered);
+        self.carousel.tick(now + by, self.hovered);
     }
 
     #[cfg(test)]
@@ -225,10 +168,10 @@ impl WindowCloud {
         let rest = at_rest(cx);
         let now = Instant::now();
         let (
+            stage,
             active_index,
             fill,
-            shown,
-            motion,
+            opacities,
             primary_focus,
             needs_focus,
             submitted,
@@ -238,20 +181,20 @@ impl WindowCloud {
                 return Empty.into_any_element();
             };
             if !rest {
-                state.tick(now);
+                state.carousel.tick(now, state.hovered);
                 window.request_animation_frame();
             }
             let needs_focus = !state.focused_initial;
             state.focused_initial = true;
+            let scenes = MOMENTS.map(|moment| moment.scene);
+            let carousel = &state.carousel;
             (
-                state.index,
-                if rest {
-                    1.
-                } else {
-                    state.progress.clamp(0., 1.)
-                },
-                state.shown(now, rest),
-                (!rest).then(|| (now - state.since).as_secs_f32()),
+                moments::stage(&t, PICTURE, CAST, &scenes, carousel, now, rest),
+                carousel.index(),
+                carousel.fill(rest),
+                (0..MOMENTS.len())
+                    .map(|index| carousel.opacity(index, now, rest))
+                    .collect::<Vec<_>>(),
                 state.primary_focus.clone(),
                 needs_focus,
                 state.submitted,
@@ -263,57 +206,22 @@ impl WindowCloud {
             window.defer(cx, move |window, cx| focus.focus(window, cx));
         }
 
-        let stage = shown.iter().copied().fold(
-            div().relative().size(px(HUB_SIZE)).flex_none(),
-            |stage, (index, opacity, moment)| {
-                let scene = (MOMENTS[index].scene)(&t, Clock { moment, motion });
-                stage.child(div().absolute().inset_0().opacity(opacity).child(scene))
-            },
-        );
-        let dots = h_flex().flex_none().items_center().gap(px(2.)).children(
-            MOMENTS.iter().enumerate().map(|(index, moment)| {
-                let id = moment.id;
-                let open = index == active_index;
-                let group = SharedString::from(format!("cloud-sign-in-dot-group-{id}"));
-                BaseButton::new(SharedString::from(format!("cloud-sign-in-dot-{id}")))
-                    .debug_selector(move || format!("cloud-sign-in-dot-{id}"))
-                    .accessibility_label(tr(moment.label))
-                    .group(group.clone())
-                    .h(px(22.))
-                    .w(px(if open { 34. } else { 22. }))
-                    .rounded(px(11.))
-                    .cursor(theme::clickable_cursor())
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        div()
-                            .relative()
-                            .h(px(6.))
-                            .w(px(if open { 22. } else { 6. }))
-                            .rounded(px(3.))
-                            .bg(theme::alpha(t.text, 0.22))
-                            .group_hover(group, |s| s.bg(theme::alpha(t.text, 0.4)))
-                            .when(open, |d| {
-                                d.child(
-                                    div()
-                                        .absolute()
-                                        .left_0()
-                                        .top_0()
-                                        .h(px(6.))
-                                        .w(px(22. * fill))
-                                        .rounded(px(3.))
-                                        .bg(theme::alpha(t.text, 0.62)),
-                                )
-                            }),
-                    )
-                    .on_click(cx.listener(move |s, _, _, cx| {
-                        if let Some(state) = s.sign_in.as_mut() {
-                            state.select(index, Instant::now());
-                            cx.notify();
-                        }
-                    }))
-            }),
+        let entity = cx.entity().downgrade();
+        let on_select: moments::OnSelect = std::rc::Rc::new(move |index, _, cx| {
+            let _ = entity.update(cx, |s, cx| {
+                if let Some(state) = s.sign_in.as_mut() {
+                    state.carousel.open(index, Instant::now());
+                    cx.notify();
+                }
+            });
+        });
+        let dots = moments::dots(
+            &t,
+            "cloud-sign-in-dot",
+            MOMENTS.iter().map(|moment| (moment.id, tr(moment.label))),
+            active_index,
+            fill,
+            on_select,
         );
         let carousel = v_flex()
             .id("cloud-sign-in-carousel")
@@ -350,10 +258,7 @@ impl WindowCloud {
 
         let moments_copy = div().w_full().grid().grid_cols(1).grid_rows(1).children(
             MOMENTS.iter().enumerate().map(|(index, moment)| {
-                let opacity = shown
-                    .iter()
-                    .find(|(shown_index, _, _)| *shown_index == index)
-                    .map_or(0., |(_, opacity, _)| *opacity);
+                let opacity = opacities[index];
                 v_flex()
                     .row_start(1)
                     .col_start(1)

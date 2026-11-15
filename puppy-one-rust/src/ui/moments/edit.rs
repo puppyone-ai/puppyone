@@ -3,7 +3,7 @@
 //! leads; a Markdown note and a table, turned behind it, only show that they
 //! work the same way.
 use super::paint::{self, u};
-use super::{Clock, Layout};
+use super::{Cast, Clock, Picture};
 use crate::localization::t as tr;
 use crate::theme::{self, Theme};
 use crate::ui::agent_brands;
@@ -139,8 +139,8 @@ impl Mark {
     }
 }
 
-pub(super) fn scene(t: &Theme, layout: Layout, clock: Clock) -> AnyElement {
-    let (k, time) = (layout.scale, clock.moment);
+pub fn scene(t: &Theme, picture: Picture, clock: Clock, _cast: Cast) -> AnyElement {
+    let (k, time) = (picture.scale, clock.moment);
     let chart_ink = t.accent;
     let done = t.success;
 

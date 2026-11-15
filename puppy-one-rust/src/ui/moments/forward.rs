@@ -1,13 +1,14 @@
 //! `OnboardingValueForwardScene` and its rules in
-//! `onboarding-value-carousel.css`: the dashboard's own link goes to ChatGPT
+//! `onboarding-value-carousel.css`: the dashboard's own link goes to an Agent
+//! (ChatGPT on first run, `Cast::agent`)
 //! on a phone, which takes it over and edits it where it lives; the code beside
 //! the link is only another way to send it. Drawn on the 380px square at the
 //! picture's scale (`zoom`).
 use super::paint::{self, u};
-use super::{Clock, Layout};
+use super::{Cast, Clock, Picture};
 use crate::localization::{Arg, t as tr, tf};
 use crate::theme::{self, Theme};
-use crate::ui::components::Icon;
+use crate::ui::{agent_brands, components::Icon};
 use gpui::{prelude::*, *};
 use gpui_kit::{
     base::{h_flex, v_flex},
@@ -69,15 +70,15 @@ fn placed(s: f32, [left, top, width, height]: [f32; 4]) -> Div {
         .h(u(s, height))
 }
 
-pub(super) fn scene(t: &Theme, layout: Layout, clock: Clock) -> AnyElement {
-    let (scale, time) = (layout.scale, clock.moment);
+pub fn scene(t: &Theme, picture: Picture, clock: Clock, cast: Cast) -> AnyElement {
+    let (scale, time) = (picture.scale, clock.moment);
     div()
         .relative()
         .size(px(380. * scale))
         .text_color(t.text)
         .child(div().absolute().inset_0().child(wire(t, scale, time)))
-        .child(dashboard(t, scale, time))
-        .child(phone(t, scale, time))
+        .child(dashboard(t, scale, time, cast))
+        .child(phone(t, scale, time, cast))
         .into_any_element()
 }
 
@@ -154,7 +155,7 @@ fn dashed_bezier(
 
 /// `.onboarding-scene-card.is-dashboard` (forward): title, KPIs, the line
 /// chart ChatGPT changed, and the share row.
-fn dashboard(t: &Theme, s: f32, time: Option<f32>) -> impl IntoElement {
+fn dashboard(t: &Theme, s: f32, time: Option<f32>, cast: Cast) -> impl IntoElement {
     let u = |v: f32| u(s, v);
     let kpis = h_flex().w_full().gap(u(4.)).children(
         [
@@ -207,13 +208,13 @@ fn dashboard(t: &Theme, s: f32, time: Option<f32>) -> impl IntoElement {
                 .child(tr("onboarding.value.scene.dashboard")),
         )
         .child(kpis)
-        .child(chart(t, s, time))
+        .child(chart(t, s, time, cast))
         .child(share(t, s))
 }
 
 /// `.onboarding-scene-chart` with the settled line, and the change ChatGPT
 /// made: the peak's tag and the outline that names it.
-fn chart(t: &Theme, s: f32, time: Option<f32>) -> impl IntoElement {
+fn chart(t: &Theme, s: f32, time: Option<f32>, cast: Cast) -> impl IntoElement {
     let u = |v: f32| u(s, v);
     let (shown, low) = rise(time, at::CHANGED);
     let tag = |text: SharedString, ground: Rgba| {
@@ -230,7 +231,7 @@ fn chart(t: &Theme, s: f32, time: Option<f32>) -> impl IntoElement {
     };
     let changed_by = tf(
         "onboarding.value.scene.changedBy",
-        &[("agent", Arg::from("ChatGPT"))],
+        &[("agent", Arg::from(receiver(t, s, cast).0))],
     );
     div()
         .relative()
@@ -349,9 +350,31 @@ fn qr(t: &Theme, s: f32) -> impl IntoElement {
         }))
 }
 
+/// Who is handed the link (`Cast::agent`): its name, and its mark for the
+/// phone's header. ChatGPT's artwork is white, so it takes the surface's ink;
+/// other Agents keep their own round mark.
+fn receiver(t: &Theme, s: f32, cast: Cast) -> (&'static str, AnyElement) {
+    let Some(brand) = agent_brands::get(cast.agent) else {
+        return (cast.agent, div().size(u(s, 13.)).into_any_element());
+    };
+    let mark = match agent_brands::monochrome(brand) {
+        Some(path) if brand.id == "chatgpt" => svg()
+            .path(path)
+            .size(u(s, 13.))
+            .flex_none()
+            .text_color(t.text)
+            .into_any_element(),
+        _ => agent_brands::artwork(brand, t.dark, 13. * s)
+            .rounded_full()
+            .into_any_element(),
+    };
+    (brand.name, mark)
+}
+
 /// `.onboarding-scene-phone`: ChatGPT receives the link as a preview of the
 /// file, takes it over, is asked for one change and saves it back.
-fn phone(t: &Theme, s: f32, time: Option<f32>) -> impl IntoElement {
+fn phone(t: &Theme, s: f32, time: Option<f32>, cast: Cast) -> impl IntoElement {
+    let (receiver, mark) = receiver(t, s, cast);
     let u = |v: f32| u(s, v);
     let name = tr("onboarding.value.scene.dashboard");
     let mine = theme::mix(t.text, t.canvas, 0.86);
@@ -404,14 +427,8 @@ fn phone(t: &Theme, s: f32, time: Option<f32>) -> impl IntoElement {
                 .text_size(u(10.))
                 .line_height(u(13.))
                 .font_weight(FontWeight::SEMIBOLD)
-                .child(
-                    svg()
-                        .path("agents/chatgpt-mark.svg")
-                        .size(u(13.))
-                        .flex_none()
-                        .text_color(t.text),
-                )
-                .child("ChatGPT"),
+                .child(mark)
+                .child(receiver),
         )
         .child(
             message(at::LINK)
@@ -479,7 +496,7 @@ fn link_preview(t: &Theme, s: f32, name: &'static str) -> impl IntoElement + use
         // `<code>` in the browser's monospace face.
         .child(
             div()
-                .font_family("Menlo")
+                .font_family(theme::MONO)
                 .text_size(u(7.5))
                 .line_height(u(10.))
                 .text_color(t.accent_text)

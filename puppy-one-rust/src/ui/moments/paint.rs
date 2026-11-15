@@ -1,22 +1,23 @@
-//! Drawing helpers for `CloudSignInDialog`'s two value scenes: scaled units,
-//! CSS easing and step timing, and the paths GPUI has no element for (dashed
-//! rings, polylines, filled polygons and the deterministic QR mark).
+//! Drawing helpers the first-run pictures share: a scaled unit, CSS easing and
+//! step timing, and the strokes and marks GPUI has no element for (dashed
+//! rings, partly drawn lines, rotated cards, a QR code's look).
 use crate::ui::motion::cubic_bezier;
 use gpui::{prelude::*, *};
 
-/// A length of the 380px (or pile) drawing at the scene's scale.
-pub(super) fn u(scale: f32, value: f32) -> Pixels {
+/// `zoom`: a length of the 380px (or pile) drawing at the picture's scale.
+pub fn u(scale: f32, value: f32) -> Pixels {
     px(value * scale)
 }
 
 /// CSS `ease`.
-pub(super) fn ease(t: f32) -> f32 {
+pub fn ease(t: f32) -> f32 {
     cubic_bezier(0.25, 0.1, 0.25, 1., t)
 }
 
-/// Progress (`0..=1`) of a step `duration` long that starts `delay` into its
-/// moment (`animation-fill-mode: backwards` / `both`). `None` renders at rest.
-pub(super) fn step(time: Option<f32>, delay: f32, duration: f32) -> f32 {
+/// How far a step `duration` long that starts `delay` into its moment has
+/// run (`animation-fill-mode: backwards`/`both`). `None` is a moment at rest:
+/// every step has ended, as the reference finishes them before capturing.
+pub fn step(time: Option<f32>, delay: f32, duration: f32) -> f32 {
     match time {
         None => 1.,
         Some(t) if t <= delay => 0.,
@@ -25,7 +26,7 @@ pub(super) fn step(time: Option<f32>, delay: f32, duration: f32) -> f32 {
 }
 
 /// CSS `box-shadow: 0 <y> <blur> <spread> <color>`.
-pub(super) fn shadow(color: Rgba, y: Pixels, blur: Pixels, spread: Pixels) -> BoxShadow {
+pub fn shadow(color: Rgba, y: Pixels, blur: Pixels, spread: Pixels) -> BoxShadow {
     BoxShadow {
         color: color.into(),
         offset: point(px(0.), y),
@@ -34,14 +35,13 @@ pub(super) fn shadow(color: Rgba, y: Pixels, blur: Pixels, spread: Pixels) -> Bo
         inset: false,
     }
 }
-
 /// A solid ring outside the box (`box-shadow: 0 0 0 <width> <color>`).
-pub(super) fn ring(color: Rgba, width: Pixels) -> BoxShadow {
+pub fn ring(color: Rgba, width: Pixels) -> BoxShadow {
     shadow(color, px(0.), px(0.), width)
 }
 
 /// Paints into the element's own bounds.
-pub(super) fn paint(draw: impl Fn(Bounds<Pixels>, &mut Window) + 'static) -> impl IntoElement {
+pub fn paint(draw: impl Fn(Bounds<Pixels>, &mut Window) + 'static) -> impl IntoElement {
     canvas(
         |_, _, _| (),
         move |bounds, _, window, _| draw(bounds, window),
@@ -50,7 +50,7 @@ pub(super) fn paint(draw: impl Fn(Bounds<Pixels>, &mut Window) + 'static) -> imp
 }
 
 /// A dashed ring (`stroke-dasharray`), turned `turn` radians.
-pub(super) fn dashed_ring(
+pub fn dashed_ring(
     window: &mut Window,
     center: Point<Pixels>,
     radius: f32,
@@ -76,8 +76,9 @@ pub(super) fn dashed_ring(
     }
 }
 
-/// A polyline drawn `progress` of the way along its length (`pathLength="1"`).
-pub(super) fn polyline(
+/// A polyline drawn `progress` of the way along its length (`pathLength="1"`
+/// with `stroke-dashoffset`).
+pub fn polyline(
     window: &mut Window,
     points: &[Point<Pixels>],
     width: f32,
@@ -116,7 +117,7 @@ pub(super) fn polyline(
 }
 
 /// A filled polygon.
-pub(super) fn polygon(window: &mut Window, points: &[Point<Pixels>], color: Rgba) {
+pub fn polygon(window: &mut Window, points: &[Point<Pixels>], color: Rgba) {
     let mut builder = PathBuilder::fill();
     builder.add_polygon(points, true);
     if let Ok(path) = builder.build() {
@@ -124,16 +125,62 @@ pub(super) fn polygon(window: &mut Window, points: &[Point<Pixels>], color: Rgba
     }
 }
 
-/// Deterministic `QrMark`: three finder squares and the product's fixed
-/// scatter (`seed = 7`) inside a `-1 -1 23 23` quiet-zone square.
-pub(super) fn qr_mark(
+/// A rounded rectangle at `origin` (its own top-left before turning), turned
+/// `degrees` about `pivot`: the drawn form of a CSS `rotate()`d box.
+#[allow(clippy::too_many_arguments)]
+pub fn turned_rect(
     window: &mut Window,
     origin: Point<Pixels>,
-    side: f32,
-    ground: Rgba,
-    color: Rgba,
+    size: Size<Pixels>,
+    radius: f32,
+    pivot: Point<Pixels>,
+    degrees: f32,
+    fill: Option<Rgba>,
+    stroke: Option<(f32, Rgba)>,
 ) {
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    let turn = |p: Point<Pixels>| {
+        let (x, y) = (f32::from(p.x - pivot.x), f32::from(p.y - pivot.y));
+        point(
+            pivot.x + px(x * cos - y * sin),
+            pivot.y + px(x * sin + y * cos),
+        )
+    };
+    let (w, h) = (f32::from(size.width), f32::from(size.height));
+    let r = radius.min(w / 2.).min(h / 2.);
+    // The outline, corners as short polylines so the turn stays exact.
+    let mut outline = Vec::new();
+    for (cx, cy, from) in [
+        (w - r, r, -90f32),
+        (w - r, h - r, 0.),
+        (r, h - r, 90.),
+        (r, r, 180.),
+    ] {
+        for k in 0..=6 {
+            let a = (from + 15. * k as f32).to_radians();
+            outline.push(turn(point(
+                origin.x + px(cx + r * a.cos()),
+                origin.y + px(cy + r * a.sin()),
+            )));
+        }
+    }
+    if let Some(color) = fill {
+        polygon(window, &outline, color);
+    }
+    if let Some((width, color)) = stroke {
+        let mut builder = PathBuilder::stroke(px(width));
+        builder.add_polygon(&outline, true);
+        if let Ok(path) = builder.build() {
+            window.paint_path(path, color);
+        }
+    }
+}
+
+/// A QR code's look, not a code: three finder squares and a fixed scatter
+/// (`QrMark`, the same seed), `side` square at `origin`.
+pub fn qr_mark(window: &mut Window, origin: Point<Pixels>, side: f32, color: Rgba, ground: Rgba) {
     const SIZE: usize = 21;
+    // The product draws it in a `-1 -1 23 23` viewBox: a module of quiet edge.
     let cell = side / (SIZE as f32 + 2.);
     let at = |x: f32, y: f32, w: f32, h: f32| {
         Bounds::new(
@@ -145,12 +192,15 @@ pub(super) fn qr_mark(
         )
     };
     for (fx, fy) in [(0., 0.), (14., 0.), (0., 14.)] {
+        // Outer 7, white 5, inner 3 (`fillRule="evenodd"`).
         for (inset, filled) in [(0., true), (1., false), (2., true)] {
             let edge = 7. - inset * 2.;
             let bounds = at(fx + inset, fy + inset, edge, edge);
             window.paint_quad(fill(bounds, if filled { color } else { ground }));
         }
     }
+    // In JavaScript numbers, as the product computes it: the product exceeds
+    // 2^53 and rounds, and the pattern follows that rounding.
     let mut seed: f64 = 7.;
     for y in 0..SIZE {
         for x in 0..SIZE {

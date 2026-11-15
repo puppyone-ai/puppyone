@@ -14,6 +14,7 @@ pub mod gallery;
 pub mod ime;
 pub mod input;
 pub mod loading;
+pub mod moments;
 pub mod motion;
 pub mod resource_drag;
 pub mod scrollbar;

@@ -1,21 +1,23 @@
-//! `OnboardingValueHub` (`onboarding-value-hub.css`) at dialog scale, with
-//! `"Puppyone Cloud"` (`cloud.productName`) as its center label: the user's
-//! files in one stacked pile in the middle and seven Agent marks drifting on
-//! two loose orbits around them.
-use super::{Clock, HUB_SCALE, HUB_SIZE, paint};
+//! `OnboardingValueHub` and `onboarding-value-hub.css`: the person's files in
+//! one pile in the middle under the cast's label, the Agents they use
+//! drifting around them on two loose orbits.
+use super::{Cast, Clock, Picture, paint};
 use crate::localization::t as tr;
 use crate::theme::{self, Theme};
 use crate::ui::agent_brands;
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
 
+/// One Agent on the orbits: angle in degrees from the right, distance from
+/// the centre and diameter as shares of the picture's side.
 struct Orbiting {
     id: &'static str,
     angle: f32,
     radius: f32,
     size: f32,
 }
-
+/// `HUB_AGENTS`: an odd number on two loose orbits, each its own size, so the
+/// ring reads as company gathering rather than a diagram.
 const AGENTS: [Orbiting; 7] = [
     Orbiting {
         id: "chatgpt",
@@ -60,15 +62,19 @@ const AGENTS: [Orbiting; 7] = [
         size: 10.5,
     },
 ];
-
+/// The two dashed orbits, as shares of the side, and their mix of accent.
 const ORBITS: [(f32, f32); 2] = [(0.365, 0.28), (0.445, 0.16)];
+/// `onboarding-value-hub-turn`: once round in this many seconds.
 const TURN_SECONDS: f32 = 120.;
+/// The pile's drawing (`.onboarding-value-files`), zoomed a quarter past the
+/// scenes' scale; one card of it.
 const PILE: (f32, f32) = (142., 126.);
 const PILE_ZOOM: f32 = 1.25;
 const CARD: (f32, f32) = (100., 74.);
 
-pub(super) fn scene(t: &Theme, clock: Clock) -> AnyElement {
-    let side = HUB_SIZE;
+/// One frame of the picture; it has no steps, only the endless turn and drift.
+pub fn scene(t: &Theme, picture: Picture, clock: Clock, cast: Cast) -> AnyElement {
+    let side = picture.side;
     let turn = clock
         .motion
         .map_or(0., |s| (s / TURN_SECONDS).fract() * std::f32::consts::TAU);
@@ -76,6 +82,8 @@ pub(super) fn scene(t: &Theme, clock: Clock) -> AnyElement {
         ORBITS.map(|(radius, accent)| (side * radius, theme::mix(t.accent, t.border, accent)));
     let orbits = paint::paint(move |bounds, window| {
         for (radius, color) in orbits {
+            // `stroke-dasharray: 2 5` with round caps on a 1px stroke: each
+            // dash reaches half a pixel past both ends, from 3 o'clock round.
             paint::dashed_ring(
                 window,
                 bounds.center(),
@@ -96,7 +104,7 @@ pub(super) fn scene(t: &Theme, clock: Clock) -> AnyElement {
             v_flex()
                 .items_center()
                 .gap(px(12.))
-                .child(pile(t, HUB_SCALE * PILE_ZOOM))
+                .child(pile(t, picture.scale * PILE_ZOOM))
                 .child(
                     div()
                         .text_color(t.accent_text)
@@ -104,7 +112,7 @@ pub(super) fn scene(t: &Theme, clock: Clock) -> AnyElement {
                         .line_height(px(16.))
                         .font_weight(FontWeight::MEDIUM)
                         .whitespace_nowrap()
-                        .child(tr("cloud.productName")),
+                        .child(tr(cast.center)),
                 ),
         );
     div()
@@ -121,6 +129,8 @@ pub(super) fn scene(t: &Theme, clock: Clock) -> AnyElement {
         .into_any_element()
 }
 
+/// `onboarding-value-agent-drift`: 6s ease-in-out, alternating between -2px
+/// and 3px, each Agent 0.9s behind the one before; still at rest.
 fn drift(motion: Option<f32>, index: usize) -> f32 {
     motion.map_or(0., |s| {
         let phase = ((s + index as f32 * 0.9) / 6.).rem_euclid(2.);
@@ -129,6 +139,7 @@ fn drift(motion: Option<f32>, index: usize) -> f32 {
     })
 }
 
+/// One Agent's mark in its round tile (`.onboarding-value-agent`).
 fn agent(t: &Theme, side: f32, agent: &Orbiting, drift: f32) -> impl IntoElement {
     let radians = agent.angle.to_radians();
     let center = (
@@ -138,6 +149,7 @@ fn agent(t: &Theme, side: f32, agent: &Orbiting, drift: f32) -> impl IntoElement
     let diameter = side * agent.size / 100.;
     let mark = diameter * 0.52;
     let mark: AnyElement = match agent_brands::get(agent.id) {
+        // ChatGPT's artwork is white; it takes the surface's ink.
         Some(brand) if brand.id == "chatgpt" => svg()
             .path("agents/chatgpt-mark.svg")
             .size(px(mark))
@@ -163,6 +175,7 @@ fn agent(t: &Theme, side: f32, agent: &Orbiting, drift: f32) -> impl IntoElement
         .child(mark)
 }
 
+/// The kinds of file a project holds, as the pile shows them.
 #[derive(Clone, Copy)]
 enum Kind {
     Folder,
@@ -170,7 +183,9 @@ enum Kind {
     Markdown,
     Html,
 }
-
+/// `.onboarding-value-files`: back to front, each a step up and to the right
+/// of the one in front of it, so every kind shows its tag. The page itself
+/// leads; the folder that can hold them all comes last.
 const PILE_CARDS: [(Kind, f32, f32); 4] = [
     (Kind::Folder, 42., 9.),
     (Kind::Sheet, 28., 23.),
@@ -178,6 +193,7 @@ const PILE_CARDS: [(Kind, f32, f32); 4] = [
     (Kind::Html, 0., 51.),
 ];
 
+/// The pile, its 142×126 drawing at `zoom`.
 fn pile(t: &Theme, zoom: f32) -> impl IntoElement {
     let u = |v: f32| paint::u(zoom, v);
     PILE_CARDS.iter().fold(
@@ -186,6 +202,7 @@ fn pile(t: &Theme, zoom: f32) -> impl IntoElement {
     )
 }
 
+/// One file of the pile (`.onboarding-value-card`), placed by the caller.
 fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
     let u = |v: f32| paint::u(zoom, v);
     let (tag, accent): (SharedString, Rgba) = match kind {
@@ -203,6 +220,7 @@ fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
     };
     let lift = paint::shadow(t.shadow, u(8.), u(18.), u(-12.));
     let shadows = match kind {
+        // The page itself leads: a soft accent ring and a deeper lift.
         Kind::Html => vec![
             paint::ring(theme::alpha(t.accent, 0.09), u(6.)),
             paint::shadow(t.shadow, u(12.), u(24.), u(-12.)),
@@ -250,6 +268,7 @@ fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
     };
     let text = theme::alpha(t.text, 0.13);
     match kind {
+        // A folder: its tab over the top-left corner, which it squares off.
         Kind::Folder => card.rounded_tl(px(0.)).child(
             div()
                 .absolute()
@@ -264,6 +283,7 @@ fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
                 .rounded_tr(u(6.))
                 .bg(ground),
         ),
+        // A table: its header row in the sheet's colour.
         Kind::Sheet => card.child(div().grid().grid_cols(3).gap(u(2.)).children((0..9).map(
             |cell| {
                 let weight = if cell < 3 { 0.4 } else { 0.14 };
@@ -273,11 +293,13 @@ fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
                     .bg(theme::alpha(t.file.sheet, weight))
             },
         ))),
+        // A note: a heading and three lines of text.
         Kind::Markdown => card
             .child(line(0.6, 5., theme::alpha(t.text, 0.6)))
             .child(line(1., 4., text))
             .child(line(1., 4., text))
             .child(line(0.55, 4., text)),
+        // A page: a banner over a small bar chart.
         Kind::Html => card
             .child(line(1., 8., theme::mix(t.file.html, t.text, 0.75)))
             .child(

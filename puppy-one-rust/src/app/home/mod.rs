@@ -194,7 +194,9 @@ pub(in crate::app) struct Homepage {
     /// The empty-state intro that is playing.
     pub(in crate::app) intro: Option<crate::ui::motion::Timeline>,
     /// First run's moments: which is open and how far its dot has filled.
-    moments: value::Moments,
+    moments: crate::ui::moments::Carousel,
+    /// The pointer is over first run's row, which holds the open moment.
+    moments_hovered: bool,
     /// Whether the visible Homepage had no projects at the last change
     /// (`None` while it is hidden, so showing it again replays the intro).
     intro_empty: Option<bool>,
@@ -342,7 +344,8 @@ impl Homepage {
             dragging_path: None,
             error: None,
             intro: None,
-            moments: value::Moments::default(),
+            moments: value::carousel(),
+            moments_hovered: false,
             intro_empty: None,
             disclosure_shown: false,
             create: None,
@@ -1051,8 +1054,7 @@ impl Homepage {
             self.intro_empty = Some(true);
         }
         // `home-empty-<moment>` opens that moment.
-        self.moments
-            .lab(&std::env::var("PUPPYONE_LAB").unwrap_or_default());
+        self.lab_moment(&std::env::var("PUPPYONE_LAB").unwrap_or_default());
     }
     /// Dev builds: Alt+Shift+L replays the intro on an empty Homepage.
     pub(in crate::app) fn replay_intro(&mut self, cx: &mut Context<Self>) -> bool {
