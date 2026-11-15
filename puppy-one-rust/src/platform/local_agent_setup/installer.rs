@@ -50,7 +50,7 @@ fn entry_name(id: &str) -> Option<&'static str> {
 /// Fetches `recipe`'s artifact into a new file, verified.
 pub type Download = Arc<dyn Fn(&Recipe, &Path, &AtomicBool) -> Result<(), ErrorCode> + Send + Sync>;
 /// Proves an unpacked entry point runs.
-pub type Verify<'a> = &'a dyn Fn(&Path) -> Result<(), ErrorCode>;
+pub type Verify<'a> = &'a dyn Fn(&Path, &AtomicBool) -> Result<(), ErrorCode>;
 
 pub struct Installer {
     pub home: PathBuf,
@@ -83,114 +83,154 @@ impl Installer {
             return Err(ErrorCode::Installation);
         }
         let lock = Lease::acquire(&root)?;
-        let check = || {
-            if cancel.load(Ordering::Relaxed) {
-                Err(ErrorCode::Interrupted)
-            } else if lock.compromised.load(Ordering::Relaxed) {
-                Err(ErrorCode::InstallationBusy)
-            } else {
-                Ok(())
-            }
-        };
-        check()?;
-        // Only the lease holder may remove a previous process's staging.
-        for entry in std::fs::read_dir(&root)
-            .map_err(|_| ErrorCode::Installation)?
-            .flatten()
-        {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let stale = name.strip_prefix(".staging-").is_some_and(|rest| {
-                !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric())
-            });
-            if stale
-                && let Ok(meta) = std::fs::symlink_metadata(entry.path())
-                && meta.is_dir()
+        with_installation_signal(cancel, &lock.compromised, |cancel| {
+            let check = || {
+                if cancel.load(Ordering::Relaxed) {
+                    Err(ErrorCode::Interrupted)
+                } else if lock.compromised.load(Ordering::Relaxed) {
+                    Err(ErrorCode::InstallationBusy)
+                } else {
+                    Ok(())
+                }
+            };
+            check()?;
+            // Only the lease holder may remove a previous process's staging.
+            for entry in std::fs::read_dir(&root)
+                .map_err(|_| ErrorCode::Installation)?
+                .flatten()
             {
-                let _ = std::fs::remove_dir_all(entry.path());
-            }
-        }
-        check()?;
-        let target = root.join(recipe.version);
-        let current = root.join("current");
-        match std::fs::symlink_metadata(&target) {
-            Ok(meta) => {
-                if !meta.is_dir() {
-                    return Err(ErrorCode::Installation);
-                }
-                let receipt = target.join("installation.json");
-                let meta = std::fs::symlink_metadata(&receipt).map_err(|_| ErrorCode::Integrity)?;
-                if !meta.is_file() || meta.len() > 4096 {
-                    return Err(ErrorCode::Integrity);
-                }
-                let value: serde_json::Value = std::fs::read(&receipt)
-                    .ok()
-                    .and_then(|b| serde_json::from_slice(&b).ok())
-                    .ok_or(ErrorCode::Integrity)?;
-                if value.get("digest").and_then(|v| v.as_str()) != Some(recipe.digest)
-                    || value.get("version").and_then(|v| v.as_str()) != Some(recipe.version)
-                {
-                    return Err(ErrorCode::Integrity);
-                }
-                verify(&target.join(recipe.entry))?;
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                let staging = tempfile::Builder::new()
-                    .prefix(".staging-")
-                    .tempdir_in(&root)
-                    .map_err(|_| ErrorCode::Installation)?;
-                let archive = staging.path().join("artifact.tgz");
-                let payload = staging.path().join("payload");
-                std::fs::create_dir(&payload).map_err(|_| ErrorCode::Installation)?;
-                private(&payload, 0o700);
-                (self.download)(recipe, &archive, cancel)?;
-                check()?;
-                extract(&archive, &payload, cancel)?;
-                let binary = payload.join(&recipe.binary);
-                let meta = std::fs::symlink_metadata(&binary).map_err(|_| ErrorCode::Archive)?;
-                if !meta.is_file() {
-                    return Err(ErrorCode::Archive);
-                }
-                private(&binary, 0o755);
-                if recipe.binary != recipe.entry {
-                    symlink(Path::new(&recipe.binary), &payload.join(recipe.entry))
-                        .map_err(|_| ErrorCode::Installation)?;
-                }
-                verify(&payload.join(recipe.entry))?;
-                let receipt = serde_json::json!({
-                    "version": recipe.version,
-                    "digest": recipe.digest,
-                    "source": recipe.url,
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let stale = name.strip_prefix(".staging-").is_some_and(|rest| {
+                    !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric())
                 });
-                write_new(
-                    &payload.join("installation.json"),
-                    receipt.to_string().as_bytes(),
-                    0o600,
-                )
-                .map_err(|_| ErrorCode::Installation)?;
-                check()?;
-                std::fs::rename(&payload, &target).map_err(|_| ErrorCode::Installation)?;
+                if stale
+                    && let Ok(meta) = std::fs::symlink_metadata(entry.path())
+                    && meta.is_dir()
+                {
+                    let _ = std::fs::remove_dir_all(entry.path());
+                }
             }
-            Err(_) => return Err(ErrorCode::Installation),
-        }
-        check()?;
-        if let Ok(meta) = std::fs::symlink_metadata(&current)
-            && !meta.file_type().is_symlink()
-        {
-            return Err(ErrorCode::Installation);
-        }
-        let pointer = root.join(format!(".current-{}", uuid::Uuid::new_v4()));
-        symlink(Path::new(recipe.version), &pointer).map_err(|_| ErrorCode::Installation)?;
-        if let Err(e) = check() {
-            let _ = std::fs::remove_file(&pointer);
-            return Err(e);
-        }
-        if std::fs::rename(&pointer, &current).is_err() {
-            let _ = std::fs::remove_file(&pointer);
-            return Err(ErrorCode::Installation);
-        }
-        committed();
-        Ok(current.join(recipe.entry))
+            check()?;
+            let target = root.join(recipe.version);
+            let current = root.join("current");
+            match std::fs::symlink_metadata(&target) {
+                Ok(meta) => {
+                    if !meta.is_dir() {
+                        return Err(ErrorCode::Installation);
+                    }
+                    let receipt = target.join("installation.json");
+                    let meta =
+                        std::fs::symlink_metadata(&receipt).map_err(|_| ErrorCode::Integrity)?;
+                    if !meta.is_file() || meta.len() > 4096 {
+                        return Err(ErrorCode::Integrity);
+                    }
+                    let value: serde_json::Value = std::fs::read(&receipt)
+                        .ok()
+                        .and_then(|b| serde_json::from_slice(&b).ok())
+                        .ok_or(ErrorCode::Integrity)?;
+                    if value.get("digest").and_then(|v| v.as_str()) != Some(recipe.digest)
+                        || value.get("version").and_then(|v| v.as_str()) != Some(recipe.version)
+                    {
+                        return Err(ErrorCode::Integrity);
+                    }
+                    verify(&target.join(recipe.entry), cancel)?;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    let staging = tempfile::Builder::new()
+                        .prefix(".staging-")
+                        .tempdir_in(&root)
+                        .map_err(|_| ErrorCode::Installation)?;
+                    let archive = staging.path().join("artifact.tgz");
+                    let payload = staging.path().join("payload");
+                    std::fs::create_dir(&payload).map_err(|_| ErrorCode::Installation)?;
+                    private(&payload, 0o700);
+                    (self.download)(recipe, &archive, cancel)?;
+                    check()?;
+                    extract(&archive, &payload, cancel)?;
+                    let binary = payload.join(&recipe.binary);
+                    let meta =
+                        std::fs::symlink_metadata(&binary).map_err(|_| ErrorCode::Archive)?;
+                    if !meta.is_file() {
+                        return Err(ErrorCode::Archive);
+                    }
+                    private(&binary, 0o755);
+                    if recipe.binary != recipe.entry {
+                        symlink(Path::new(&recipe.binary), &payload.join(recipe.entry))
+                            .map_err(|_| ErrorCode::Installation)?;
+                    }
+                    verify(&payload.join(recipe.entry), cancel)?;
+                    let receipt = serde_json::json!({
+                        "version": recipe.version,
+                        "digest": recipe.digest,
+                        "source": recipe.url,
+                    });
+                    write_new(
+                        &payload.join("installation.json"),
+                        receipt.to_string().as_bytes(),
+                        0o600,
+                    )
+                    .map_err(|_| ErrorCode::Installation)?;
+                    check()?;
+                    std::fs::rename(&payload, &target).map_err(|_| ErrorCode::Installation)?;
+                }
+                Err(_) => return Err(ErrorCode::Installation),
+            }
+            check()?;
+            if let Ok(meta) = std::fs::symlink_metadata(&current)
+                && !meta.file_type().is_symlink()
+            {
+                return Err(ErrorCode::Installation);
+            }
+            let pointer = root.join(format!(".current-{}", uuid::Uuid::new_v4()));
+            symlink(Path::new(recipe.version), &pointer).map_err(|_| ErrorCode::Installation)?;
+            if let Err(e) = check() {
+                let _ = std::fs::remove_file(&pointer);
+                return Err(e);
+            }
+            if std::fs::rename(&pointer, &current).is_err() {
+                let _ = std::fs::remove_file(&pointer);
+                return Err(ErrorCode::Installation);
+            }
+            committed();
+            Ok(current.join(recipe.entry))
+        })
     }
+}
+
+/// A verification process observes cancellation from both its activation and
+/// the cross-process installation lease, including while it owns a pipe.
+fn with_installation_signal<T>(
+    requested: &AtomicBool,
+    compromised: &AtomicBool,
+    work: impl FnOnce(&AtomicBool) -> Result<T, ErrorCode>,
+) -> Result<T, ErrorCode> {
+    let combined =
+        AtomicBool::new(requested.load(Ordering::Relaxed) || compromised.load(Ordering::Relaxed));
+    let finished = AtomicBool::new(false);
+    struct Stop<'a>(&'a AtomicBool);
+    impl Drop for Stop<'_> {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
+    std::thread::scope(|scope| {
+        let _stop = Stop(&finished);
+        scope.spawn(|| {
+            while !finished.load(Ordering::Relaxed) {
+                if requested.load(Ordering::Relaxed) || compromised.load(Ordering::Relaxed) {
+                    combined.store(true, Ordering::Relaxed);
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        });
+        let result = work(&combined);
+        match result {
+            Err(_) if requested.load(Ordering::Relaxed) => Err(ErrorCode::Interrupted),
+            Err(_) if compromised.load(Ordering::Relaxed) => Err(ErrorCode::InstallationBusy),
+            other => other,
+        }
+    })
 }
 
 /// `install.lock`, held as `proper-lockfile` holds it: a directory whose
@@ -199,6 +239,46 @@ struct Lease {
     path: PathBuf,
     stop: Arc<AtomicBool>,
     compromised: Arc<AtomicBool>,
+    stamp: Arc<std::sync::Mutex<LeaseStamp>>,
+}
+#[derive(Clone, PartialEq, Eq)]
+struct LeaseStamp {
+    modified: std::time::SystemTime,
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+}
+impl LeaseStamp {
+    fn read(path: &Path) -> std::io::Result<Self> {
+        let meta = std::fs::symlink_metadata(path)?;
+        if !meta.is_dir() {
+            return Err(std::io::ErrorKind::InvalidInput.into());
+        }
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt as _;
+        Ok(Self {
+            modified: meta.modified()?,
+            #[cfg(unix)]
+            device: meta.dev(),
+            #[cfg(unix)]
+            inode: meta.ino(),
+        })
+    }
+    fn matches(&self, path: &Path) -> bool {
+        Self::read(path).ok().as_ref() == Some(self)
+    }
+    fn same_file(&self, other: &Self) -> bool {
+        #[cfg(unix)]
+        {
+            self.device == other.device && self.inode == other.inode
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = other;
+            true
+        }
+    }
 }
 const LEASE_STALE: Duration = Duration::from_secs(30);
 const LEASE_UPDATE: Duration = Duration::from_secs(5);
@@ -206,8 +286,8 @@ impl Lease {
     fn acquire(root: &Path) -> Result<Self, ErrorCode> {
         let path = root.join("install.lock");
         if std::fs::create_dir(&path).is_err() {
-            let stale = std::fs::metadata(&path)
-                .and_then(|m| m.modified())
+            let stale = LeaseStamp::read(&path)
+                .map(|stamp| stamp.modified)
                 .is_ok_and(|t| t.elapsed().unwrap_or_default() > LEASE_STALE);
             if !stale {
                 return Err(ErrorCode::InstallationBusy);
@@ -215,6 +295,10 @@ impl Lease {
             let _ = std::fs::remove_dir_all(&path);
             std::fs::create_dir(&path).map_err(|_| ErrorCode::InstallationBusy)?;
         }
+        let stamp = Arc::new(std::sync::Mutex::new(
+            LeaseStamp::read(&path).map_err(|_| ErrorCode::InstallationBusy)?,
+        ));
+        let renewed_stamp = stamp.clone();
         let stop = Arc::new(AtomicBool::new(false));
         let compromised = Arc::new(AtomicBool::new(false));
         let (renew, stopping, lost) = (path.clone(), stop.clone(), compromised.clone());
@@ -226,9 +310,17 @@ impl Lease {
                 waited += step;
                 if waited >= LEASE_UPDATE {
                     waited = Duration::ZERO;
-                    if !touch(&renew) {
+                    let mut stamp = renewed_stamp.lock().unwrap();
+                    if !stamp.matches(&renew) || !touch(&renew) {
                         lost.store(true, Ordering::Relaxed);
                         break;
+                    }
+                    match LeaseStamp::read(&renew) {
+                        Ok(next) if stamp.same_file(&next) => *stamp = next,
+                        _ => {
+                            lost.store(true, Ordering::Relaxed);
+                            break;
+                        }
                     }
                 }
             }
@@ -237,13 +329,15 @@ impl Lease {
             path,
             stop,
             compromised,
+            stamp,
         })
     }
 }
 impl Drop for Lease {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
-        if !self.compromised.load(Ordering::Relaxed) {
+        let stamp = self.stamp.lock().unwrap();
+        if !self.compromised.load(Ordering::Relaxed) && stamp.matches(&self.path) {
             let _ = std::fs::remove_dir(&self.path);
         }
     }
@@ -422,6 +516,20 @@ pub fn extract(archive: &Path, directory: &Path, cancel: &AtomicBool) -> Result<
     if count == 0 {
         return Err(ErrorCode::Archive);
     }
+    // tar stops at its zero blocks; the gzip checksum/trailer can still be
+    // unread. Validate compression to EOF before writing even the first file.
+    let mut compression = reader.into_inner();
+    let mut tail = [0u8; 64 * 1024];
+    loop {
+        check()?;
+        if compression
+            .read(&mut tail)
+            .map_err(|_| ErrorCode::Archive)?
+            == 0
+        {
+            break;
+        }
+    }
     check()?;
     // Pass two: write what was validated.
     let mut reader = open()?;
@@ -453,6 +561,7 @@ pub fn extract(archive: &Path, directory: &Path, cancel: &AtomicBool) -> Result<
         let mut file = new_file(&path, mode).map_err(|_| ErrorCode::Archive)?;
         let mut buffer = [0u8; 64 * 1024];
         loop {
+            check()?;
             let n = entry.read(&mut buffer).map_err(|_| ErrorCode::Archive)?;
             if n == 0 {
                 break;
@@ -468,7 +577,28 @@ pub fn extract(archive: &Path, directory: &Path, cancel: &AtomicBool) -> Result<
 /// `runActivationProcess(file, ["--version"])`: no shell, the home as the
 /// working directory, a cleaned environment, 512 KiB of output and 20s.
 pub fn verify_version(file: &Path, home: &Path, cancel: &AtomicBool) -> Result<(), ErrorCode> {
+    run_version(
+        file,
+        home,
+        cancel,
+        Duration::from_secs(20),
+        std::env::vars_os(),
+    )
+}
+fn run_version(
+    file: &Path,
+    home: &Path,
+    cancel: &AtomicBool,
+    timeout: Duration,
+    environment: impl IntoIterator<Item = (std::ffi::OsString, std::ffi::OsString)>,
+) -> Result<(), ErrorCode> {
     use std::process::{Command, Stdio};
+    if cancel.load(Ordering::Relaxed) {
+        return Err(ErrorCode::Interrupted);
+    }
+    if !file.is_absolute() {
+        return Err(ErrorCode::Process);
+    }
     let executable = std::fs::canonicalize(file).map_err(|_| ErrorCode::Installation)?;
     let mut command = Command::new(&executable);
     command
@@ -477,11 +607,11 @@ pub fn verify_version(file: &Path, home: &Path, cancel: &AtomicBool) -> Result<(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    for (key, _) in std::env::vars_os() {
-        if unsafe_variable(&key.to_string_lossy()) {
-            command.env_remove(key);
-        }
-    }
+    command.env_clear().envs(
+        environment
+            .into_iter()
+            .filter(|(key, _)| !unsafe_variable(&key.to_string_lossy())),
+    );
     crate::platform::process::isolate(&mut command);
     let mut child = command.spawn().map_err(|_| ErrorCode::Process)?;
     let total = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -518,6 +648,7 @@ pub fn verify_version(file: &Path, home: &Path, cancel: &AtomicBool) -> Result<(
             .map(|p| Box::new(p) as Box<dyn Read + Send>),
     );
     let started = std::time::Instant::now();
+    let mut exited = None;
     let status = loop {
         if cancel.load(Ordering::Relaxed) {
             crate::platform::process::terminate(&mut child);
@@ -527,18 +658,29 @@ pub fn verify_version(file: &Path, home: &Path, cancel: &AtomicBool) -> Result<(
             crate::platform::process::terminate(&mut child);
             return Err(ErrorCode::Process);
         }
-        if started.elapsed() > Duration::from_secs(20) {
+        if started.elapsed() > timeout {
             crate::platform::process::terminate(&mut child);
             return Err(ErrorCode::Timeout);
         }
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => std::thread::sleep(Duration::from_millis(15)),
-            Err(_) => {
-                crate::platform::process::terminate(&mut child);
-                return Err(ErrorCode::Process);
+        if exited.is_none() {
+            match child.try_wait() {
+                Ok(status) => exited = status,
+                Err(_) => {
+                    crate::platform::process::terminate(&mut child);
+                    return Err(ErrorCode::Process);
+                }
             }
         }
+        // A successful parent can leave descendants holding stdout/stderr.
+        // Keep cancellation, output limits and the deadline alive until both
+        // readers finish; joining a still-running reader would lose control.
+        if stdout.is_finished()
+            && stderr.is_finished()
+            && let Some(status) = exited
+        {
+            break status;
+        }
+        std::thread::sleep(Duration::from_millis(15));
     };
     let (out, over_out) = stdout.join().map_err(|_| ErrorCode::Process)?;
     let (err, over_err) = stderr.join().map_err(|_| ErrorCode::Process)?;
@@ -622,293 +764,4 @@ fn symlink(target: &Path, link: &Path) -> std::io::Result<()> {
 }
 
 #[cfg(all(test, unix))]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-    /// A gzip tarball of `(path, contents, mode)`; `None` contents is a directory.
-    fn archive(path: &Path, entries: &[(&str, Option<&str>, u32)]) {
-        let file = std::fs::File::create(path).unwrap();
-        let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(
-            file,
-            flate2::Compression::fast(),
-        ));
-        for (name, contents, mode) in entries {
-            let mut header = tar::Header::new_gnu();
-            header.set_mode(*mode);
-            // Raw name bytes: `set_path` refuses the hostile names under test.
-            let raw = &mut header.as_gnu_mut().unwrap().name;
-            raw[..name.len()].copy_from_slice(name.as_bytes());
-            let data = contents.unwrap_or("");
-            header.set_entry_type(if contents.is_some() {
-                tar::EntryType::Regular
-            } else {
-                tar::EntryType::Directory
-            });
-            header.set_size(data.len() as u64);
-            header.set_cksum();
-            builder.append(&header, data.as_bytes()).unwrap();
-        }
-        builder.into_inner().unwrap().finish().unwrap();
-    }
-    fn recipe(archive: &Path) -> Recipe {
-        Recipe {
-            setup_id: "codex",
-            version: "1.2.3",
-            entry: "codex",
-            binary: "vendor/bin/codex".into(),
-            url: "https://registry.npmjs.org/codex.tgz".into(),
-            algorithm: Algorithm::Sha512,
-            digest: Box::leak(file_digest(archive, Algorithm::Sha512).into_boxed_str()),
-        }
-    }
-    fn installer(home: &Path, source: PathBuf) -> Installer {
-        Installer {
-            home: home.into(),
-            download: Arc::new(move |_, destination, _| {
-                std::fs::copy(&source, destination)
-                    .map(|_| ())
-                    .map_err(|_| ErrorCode::Download)
-            }),
-        }
-    }
-    #[test]
-    fn a_verified_archive_becomes_the_current_installation() {
-        let dir = tempfile::tempdir().unwrap();
-        let home = std::fs::canonicalize(dir.path()).unwrap();
-        let source = home.join("codex.tgz");
-        archive(
-            &source,
-            &[
-                ("package/", None, 0o755),
-                ("package/vendor/", None, 0o755),
-                ("package/vendor/bin/", None, 0o755),
-                (
-                    "package/vendor/bin/codex",
-                    Some(
-                        "#!/bin/sh\n[ \"$#\" -eq 1 ] && [ \"$1\" = --version ] || exit 7\necho codex 1.2.3\n",
-                    ),
-                    0o644,
-                ),
-                ("package/README.md", Some("readme"), 0o644),
-            ],
-        );
-        let recipe = recipe(&source);
-        let installer = installer(&home, source.clone());
-        let cancel = AtomicBool::new(false);
-        let verified = std::cell::RefCell::new(vec![]);
-        let verify = |p: &Path| {
-            verified.borrow_mut().push(p.to_path_buf());
-            verify_version(p, &home, &AtomicBool::new(false))
-        };
-        let commits = std::cell::Cell::new(0);
-        let entry = installer
-            .install(&recipe, &cancel, &verify, &|| {
-                commits.set(commits.get() + 1)
-            })
-            .unwrap();
-        let root = home.join(".puppyone/agent-runtimes/codex");
-        assert_eq!(entry, root.join("current/codex"));
-        assert_eq!(managed_entry(&home, "codex"), Some(entry.clone()));
-        assert_eq!(
-            std::fs::read_link(root.join("current")).unwrap(),
-            PathBuf::from("1.2.3")
-        );
-        assert_eq!(
-            std::fs::read_link(root.join("1.2.3/codex")).unwrap(),
-            PathBuf::from("vendor/bin/codex")
-        );
-        let receipt: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(root.join("1.2.3/installation.json")).unwrap())
-                .unwrap();
-        assert_eq!(receipt["digest"], recipe.digest);
-        assert_eq!(commits.get(), 1);
-        assert_eq!(verified.borrow().len(), 1);
-        assert!(!root.join("install.lock").exists());
-        // No staging is left behind; a second run reuses the version.
-        let names: Vec<_> = std::fs::read_dir(&root)
-            .unwrap()
-            .flatten()
-            .map(|e| e.file_name())
-            .collect();
-        assert_eq!(names.len(), 2, "{names:?}");
-        installer
-            .install(&recipe, &cancel, &verify, &|| {
-                commits.set(commits.get() + 1)
-            })
-            .unwrap();
-        assert_eq!(verified.borrow().len(), 2);
-        assert_eq!(commits.get(), 2);
-        // A receipt for another artifact is not trusted.
-        let other = Recipe {
-            digest: "AAAA",
-            ..recipe.clone()
-        };
-        assert_eq!(
-            installer.install(&other, &cancel, &verify, &|| {}),
-            Err(ErrorCode::Integrity)
-        );
-        // Another installation holds the lease.
-        std::fs::create_dir(root.join("install.lock")).unwrap();
-        assert_eq!(
-            installer.install(&recipe, &cancel, &verify, &|| {}),
-            Err(ErrorCode::InstallationBusy)
-        );
-    }
-    #[test]
-    fn invalid_staged_executables_never_commit_or_leave_installation_residue() {
-        for script in [
-            "#!/bin/sh\necho token=fixture-secret >&2\nexit 1\n",
-            "#!/bin/sh\nexit 0\n",
-        ] {
-            let home = tempfile::tempdir().unwrap();
-            let fixture = tempfile::tempdir().unwrap();
-            let source = fixture.path().join("fixture.tgz");
-            archive(
-                &source,
-                &[("package/vendor/bin/codex", Some(script), 0o755)],
-            );
-            let recipe = recipe(&source);
-            let installer = installer(home.path(), source);
-            let commits = std::cell::Cell::new(0);
-            let cancelled = AtomicBool::new(false);
-            assert_eq!(
-                installer.install(
-                    &recipe,
-                    &cancelled,
-                    &|file| verify_version(file, home.path(), &cancelled),
-                    &|| commits.set(commits.get() + 1)
-                ),
-                Err(ErrorCode::Installation)
-            );
-            assert_eq!(commits.get(), 0);
-            let root = home.path().join(".puppyone/agent-runtimes/codex");
-            assert_eq!(std::fs::read_dir(root).unwrap().count(), 0);
-            assert!(
-                std::fs::symlink_metadata(managed_entry(home.path(), "codex").unwrap()).is_err()
-            );
-        }
-    }
-    #[test]
-    fn unsafe_archives_are_rejected_before_anything_is_written() {
-        let dir = tempfile::tempdir().unwrap();
-        let cases: [&[(&str, Option<&str>, u32)]; 4] = [
-            &[
-                ("package/", None, 0o755),
-                ("package/../evil", Some("x"), 0o644),
-            ],
-            &[
-                ("package/a", Some("x"), 0o644),
-                ("other/b", Some("x"), 0o644),
-            ],
-            &[("file-at-root", Some("x"), 0o644)],
-            &[
-                ("package/a", Some("x"), 0o644),
-                ("package/a", Some("y"), 0o644),
-            ],
-        ];
-        for (i, entries) in cases.iter().enumerate() {
-            let path = dir.path().join(format!("{i}.tgz"));
-            archive(&path, entries);
-            let out = dir.path().join(format!("out-{i}"));
-            std::fs::create_dir(&out).unwrap();
-            assert_eq!(
-                extract(&path, &out, &AtomicBool::new(false)),
-                Err(ErrorCode::Archive),
-                "case {i}"
-            );
-            assert_eq!(std::fs::read_dir(&out).unwrap().count(), 0, "case {i}");
-        }
-        // A symlink member.
-        let path = dir.path().join("link.tgz");
-        let file = std::fs::File::create(&path).unwrap();
-        let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(
-            file,
-            flate2::Compression::fast(),
-        ));
-        let mut header = tar::Header::new_gnu();
-        header.set_entry_type(tar::EntryType::Symlink);
-        header.set_size(0);
-        builder
-            .append_link(&mut header, "package/link", "/etc/passwd")
-            .unwrap();
-        builder.into_inner().unwrap().finish().unwrap();
-        assert_eq!(
-            extract(&path, dir.path(), &AtomicBool::new(false)),
-            Err(ErrorCode::Archive)
-        );
-        // Cancelled work stops.
-        let ok = dir.path().join("ok.tgz");
-        archive(&ok, &[("package/a", Some("x"), 0o644)]);
-        assert_eq!(
-            extract(&ok, dir.path(), &AtomicBool::new(true)),
-            Err(ErrorCode::Interrupted)
-        );
-    }
-    #[test]
-    fn only_reviewed_https_hosts_and_safe_processes_are_used() {
-        assert!(allowed_url("https://registry.npmjs.org/@openai/codex/-/codex.tgz").is_some());
-        assert!(allowed_url("http://registry.npmjs.org/x").is_none());
-        assert!(allowed_url("https://registry.npmjs.org:8443/x").is_none());
-        assert!(allowed_url("https://user@downloads.cursor.com/x").is_none());
-        assert!(allowed_url("https://example.com/x").is_none());
-        assert!(unsafe_variable("DYLD_INSERT_LIBRARIES") && unsafe_variable("node_options"));
-        assert!(!unsafe_variable("PATH"));
-        let dir = tempfile::tempdir().unwrap();
-        let script = |name: &str, body: &str| {
-            let path = dir.path().join(name);
-            std::fs::write(&path, body).unwrap();
-            private(&path, 0o755);
-            path
-        };
-        let silent = script("silent", "#!/bin/sh\nexit 0\n");
-        assert_eq!(
-            verify_version(&silent, dir.path(), &AtomicBool::new(false)),
-            Err(ErrorCode::Installation)
-        );
-        let fails = script("fails", "#!/bin/sh\necho no >&2\nexit 3\n");
-        assert_eq!(
-            verify_version(&fails, dir.path(), &AtomicBool::new(false)),
-            Err(ErrorCode::Installation)
-        );
-        let ok = script("ok", "#!/bin/sh\necho \"v1 $NODE_OPTIONS\"\n");
-        assert_eq!(
-            verify_version(&ok, dir.path(), &AtomicBool::new(false)),
-            Ok(())
-        );
-        assert!(managed_root(dir.path(), "claude").is_none());
-    }
-    #[test]
-    fn the_product_installer_refuses_unreviewed_sources_without_a_request() {
-        let dir = tempfile::tempdir().unwrap();
-        let home = std::fs::canonicalize(dir.path()).unwrap();
-        let installer = Installer::new(home.clone());
-        let recipe = Recipe {
-            setup_id: "codex",
-            version: "1.0.0",
-            entry: "codex",
-            binary: "codex".into(),
-            url: "https://example.com/codex.tgz".into(),
-            algorithm: Algorithm::Sha256,
-            digest: "AAAA",
-        };
-        let cancel = AtomicBool::new(false);
-        let never = |_: &Path| -> Result<(), ErrorCode> { panic!("nothing to verify") };
-        assert_eq!(
-            installer.install(&recipe, &cancel, &never, &|| {}),
-            Err(ErrorCode::Integrity)
-        );
-        assert_eq!(
-            download(&recipe, &home.join("a.tgz"), &cancel),
-            Err(ErrorCode::Integrity)
-        );
-        assert!(!home.join("a.tgz").exists());
-        let guided = Recipe {
-            setup_id: "claude",
-            ..recipe
-        };
-        assert_eq!(
-            installer.install(&guided, &cancel, &never, &|| {}),
-            Err(ErrorCode::Unsupported)
-        );
-    }
-}
+mod tests;

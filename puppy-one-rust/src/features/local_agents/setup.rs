@@ -71,7 +71,9 @@ impl activation::Ports for ProductPorts {
         committed: &dyn Fn(),
     ) -> Result<(), ErrorCode> {
         let installer = installer::Installer::new(self.home.clone());
-        let verify = |file: &std::path::Path| installer::verify_version(file, &self.home, cancel);
+        let verify = |file: &std::path::Path, signal: &AtomicBool| {
+            installer::verify_version(file, &self.home, signal)
+        };
         installer
             .install(recipe, cancel, &verify, committed)
             .map(|_| ())

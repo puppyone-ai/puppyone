@@ -6939,6 +6939,114 @@
           "test": "platform::local_agent_setup::activation::tests::queued_journal_progress_is_bounded_and_keeps_the_newest_revision"
         }
       ]
+    },
+    {
+      "id": "local-agent-managed-installation-lifetime",
+      "acceptance": "Validate the entire archive including gzip trailer before any write; unsafe paths and vendor links leave zero extracted files. Atomic installation downloads once, commits once per explicit reuse, and does not change PATH or home configuration. Download cancellation cleans staging and excludes concurrent installers. Real version children obey time/output/environment limits; cancellation remains live after parent exit while descendants own pipes. A compromised lease cancels download/extraction/verification and remains a typed installation-busy failure; retired owners cannot remove replacement leases.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-activation/managed-installer.test.mjs",
+          "sha256": "6cebccd716cf8e13001980b245ec55600109bfbcf95fb720598d39d847b280cd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "managed installation safety > rejects unsafe archive path package/../../escape"
+            },
+            {
+              "index": 1,
+              "name": "managed installation safety > rejects unsafe archive path /absolute"
+            },
+            {
+              "index": 2,
+              "name": "managed installation safety > rejects unsafe archive path package\\escape"
+            },
+            {
+              "index": 3,
+              "name": "managed installation safety > rejects unsafe archive path package/../escape"
+            },
+            {
+              "index": 4,
+              "name": "managed installation safety > rejects unsafe archive path package/file:stream"
+            },
+            {
+              "index": 7,
+              "name": "managed installation safety > validates an entire archive before writing and rejects vendor symlinks"
+            },
+            {
+              "index": 8,
+              "name": "managed installation safety > extracts a regular tarball with one root removed"
+            },
+            {
+              "index": 9,
+              "name": "managed installation safety > rejects corrupt archives without extracting any member"
+            },
+            {
+              "index": 11,
+              "name": "managed installation safety > commits a verified version atomically, reuses it and does not touch PATH"
+            },
+            {
+              "index": 12,
+              "name": "managed installation safety > cancels before commit, cleans staging, and excludes concurrent installers"
+            },
+            {
+              "index": 14,
+              "name": "managed installation safety > bounds subprocess output and time, scrubs injection environment, and cancels a real owned child"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/local-agent-activation/activation-catalog-contract.test.mjs",
+          "sha256": "3d0dab75f145e40ece7c5734dffaddb28dfa02cc0ed43cacc7360ce164308d5b",
+          "cases": [
+            {
+              "index": 40,
+              "name": "every registered Agent obeys the same activation contract > passes the installer's lease cancellation signal into staged executable verification"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::every_typescript_unsafe_archive_path_is_rejected_before_extracting_a_valid_member"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::unsafe_archives_are_rejected_before_anything_is_written"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::regular_archives_strip_one_root_and_corrupt_archives_write_nothing"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::a_verified_archive_becomes_the_current_installation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::cancelling_a_download_cleans_staging_and_excludes_a_second_installer"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::real_version_processes_enforce_time_output_environment_and_pre_cancel_limits"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::cancellation_still_reaps_descendants_after_the_version_parent_has_exited"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::losing_the_installation_lease_stops_a_real_staged_version_process"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::a_replaced_installation_lease_is_never_removed_by_its_previous_owner"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::installation_failure_is_a_typed_receipt_and_never_marks_the_cli_installed"
+        }
+      ]
     }
   ],
   "openAcceptance": [

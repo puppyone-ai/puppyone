@@ -184,7 +184,12 @@ fn cancel_failure_and_interruption_are_reported() {
         service.start("w", &plan.plan_id).unwrap().operations.len(),
         1
     );
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
     while service.read().unwrap().operations[0].status != Status::Installing {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "installation never started"
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
     // An interrupted journal entry: a "restart" while it runs.
@@ -809,27 +814,29 @@ fn interrupted_receipts_need_fresh_consent_and_retry_replaces_only_that_agent() 
 
 #[test]
 fn installation_failure_is_a_typed_receipt_and_never_marks_the_cli_installed() {
-    let dir = tempfile::tempdir().unwrap();
-    let ports = Arc::new(Fake {
-        fail_install: Some(ErrorCode::Installation),
-        ..Fake::default()
-    });
-    let (service, _) = new_service(dir.path(), ports.clone());
-    let plan = service.plan("w", "codex", Surface::Chat).unwrap();
-    service.start("w", &plan.plan_id).unwrap();
-    let failed = settle(&service, "codex");
-    assert_eq!(
-        (failed.status, failed.error, failed.installed),
-        (Status::Failed, Some(ErrorCode::Installation), false)
-    );
-    assert_eq!(
-        failed.steps,
-        [StepState::Complete, StepState::Failed, StepState::Pending]
-    );
-    assert_eq!(ports.refreshes.load(Ordering::SeqCst), 0);
-    let serialized = snapshot_json(&service.read().unwrap());
-    assert_eq!(serialized["operations"][0]["errorCode"], "installation");
-    assert_eq!(serialized["operations"][0].as_object().unwrap().len(), 8);
+    for code in [ErrorCode::Installation, ErrorCode::InstallationBusy] {
+        let dir = tempfile::tempdir().unwrap();
+        let ports = Arc::new(Fake {
+            fail_install: Some(code),
+            ..Fake::default()
+        });
+        let (service, _) = new_service(dir.path(), ports.clone());
+        let plan = service.plan("w", "codex", Surface::Chat).unwrap();
+        service.start("w", &plan.plan_id).unwrap();
+        let failed = settle(&service, "codex");
+        assert_eq!(
+            (failed.status, failed.error, failed.installed),
+            (Status::Failed, Some(code), false)
+        );
+        assert_eq!(
+            failed.steps,
+            [StepState::Complete, StepState::Failed, StepState::Pending]
+        );
+        assert_eq!(ports.refreshes.load(Ordering::SeqCst), 0);
+        let serialized = snapshot_json(&service.read().unwrap());
+        assert_eq!(serialized["operations"][0]["errorCode"], code.key());
+        assert_eq!(serialized["operations"][0].as_object().unwrap().len(), 8);
+    }
 }
 
 #[test]
