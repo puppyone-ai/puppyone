@@ -13,7 +13,10 @@ use crate::{
     workspace::cloud::sandbox::ScreenAvailability,
 };
 use gpui::{prelude::*, *};
-use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::{
+    base::{h_flex, v_flex},
+    component::Sizable as _,
+};
 use std::time::Duration;
 
 pub(super) const PIP_WIDTH: f32 = 288.;

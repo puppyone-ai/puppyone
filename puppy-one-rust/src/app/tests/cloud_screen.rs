@@ -668,7 +668,7 @@ fn explicit_take_control_gates_rfb_input_and_releases_on_escape_or_button(cx: &m
                 }
                 let _ = server_sock.send(update).await;
 
-                let (tx, rx) = server_sock.split();
+                let (tx, rx) = server_sock.into_split();
                 let _keep_tx = tx;
                 while hold.load(Ordering::Acquire) {
                     let Some(pkt) = rx.recv().await else {
