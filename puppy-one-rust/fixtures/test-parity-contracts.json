@@ -3730,7 +3730,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -3974,7 +3974,7 @@
     },
     {
       "id": "agent-native-history-indexing",
-      "acceptance": "Discovery and resolution deadlines release process admission without invalidating live readiness; only a complete, identical source snapshot across all pages can tombstone missing history. Failed pages retain exact retry cursors; detached scope, page size, ordering, malformed pages and cursor loops fail before writes. Superseding an active scan is safe and makes late responses inert; duplicate continuations share native work and catalog commit; failed disposal quarantines resources; pending catalog writes report unknown completion and require refresh; page limits and capacity feedback remain explicit.",
+      "acceptance": "Discovery and resolution deadlines release process admission without invalidating live readiness; only a complete, identical source snapshot across all pages can tombstone missing history. Failed pages retain exact retry cursors; detached scope, page size, ordering, malformed pages and cursor loops fail before writes. Superseding an active scan is safe and makes late responses inert; duplicate continuations share native work and catalog commit; failed disposal quarantines resources; pending catalog writes report unknown completion and require refresh; page limits and capacity feedback remain explicit. Additional native tests cover source changes at both port and page boundaries, cumulative entry limits, scan capacity and expiry, and a disposal future that remains pending through subsequent refresh and explicit shutdown.",
       "typescript": [
         {
           "path": "tests/unit/agent/history/electron.agent-native-conversation-indexer.test.mjs",
@@ -4107,6 +4107,1401 @@
         {
           "package": "po-agent",
           "test": "agent::application::history::native_conversation_indexer::tests::page_budget_stops_unbounded_scans_and_reports_catalog_capacity"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::source_scope_drift_in_either_the_port_or_page_rejects_reconciliation"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::cumulative_entry_limit_accepts_the_boundary_and_rejects_the_next_page_before_write"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::scan_capacity_refuses_new_scopes_until_the_old_scan_expires"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::unsettled_disposal_remains_shared_and_blocks_new_native_resources_until_completion"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-history-identity-open",
+      "acceptance": "Real catalog files retain all stable IDs across bounded pages and restart; visible/excluded rows share the page budget without deleting identity; reservation races converge and IDs cannot be rebound. A newly created session adopts concurrent discovery identity before publishing events; only matching native persistence evidence promotes history. Exact-open rejects source/conversation/workspace mismatches, preserves retryable targets after native read failure, replays newer observations after partial history, and reconstructs complete native messages after restart without treating old sequence numbers as lost content. Codex, Claude and Pi storage selectors determine opaque namespaces independently of credential values.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/history/electron.agent-history-identity.test.mjs",
+          "sha256": "1ca8d242a433d6bc3f303fde40783566054ed26a798650e73480ef41317d04ce",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent history identity and opening boundaries > keeps every product id across catalog page limits and process restarts"
+            },
+            {
+              "index": 1,
+              "name": "Agent history identity and opening boundaries > bounds both visible rows and explicit exclusions without deleting identity"
+            },
+            {
+              "index": 2,
+              "name": "Agent history identity and opening boundaries > reserves identity independently of persistence and never rebinds a product id"
+            },
+            {
+              "index": 3,
+              "name": "Agent history identity and opening boundaries > adopts discovery's product id before publishing a newly created session"
+            },
+            {
+              "index": 4,
+              "name": "Agent history identity and opening boundaries > does not promote a start receipt and accepts only matching adapter persistence evidence"
+            },
+            {
+              "index": 5,
+              "name": "Agent history identity and opening boundaries > rejects a changed native profile before resuming anything"
+            },
+            {
+              "index": 6,
+              "name": "Agent history identity and opening boundaries > uses the same display JSON for partial history and flushes newer live observations after replay"
+            },
+            {
+              "index": 7,
+              "name": "Agent history identity and opening boundaries > restores complete native history after a restart without treating old event numbers as lost messages"
+            },
+            {
+              "index": 8,
+              "name": "Agent history identity and opening boundaries > keeps the same saved target retryable after a transient history read failure"
+            },
+            {
+              "index": 9,
+              "name": "Agent history identity and opening boundaries > refuses another conversation's history and a live session from another workspace"
+            },
+            {
+              "index": 10,
+              "name": "Agent history identity and opening boundaries > binds native namespaces to storage selectors without credential values (function codexHistorySource(env = process.env) {\n  const home = env.HOME || __vite_ssr_import_0__.default.homedir();\n  const defaultRoot = __vite_ssr_import_1__.default.join(__vite_ssr_import_0__.default.homedir(), \".codex\");\n  const root = (0,__vite_ssr_import_2__.historyStoragePath)(env.CODEX_HOME, __vite_ssr_import_1__.default.join(home, \".codex\"), home);\n  return { sourceScopeId: (0,__vite_ssr_import_2__.localHistorySourceScope)(\"codex\", { root }, { root: defaultRoot }), root };\n})"
+            },
+            {
+              "index": 11,
+              "name": "Agent history identity and opening boundaries > binds native namespaces to storage selectors without credential values (function claudeHistorySource(env = process.env) {\n  const home = env.HOME || __vite_ssr_import_0__.default.homedir();\n  const defaultRoot = __vite_ssr_import_1__.default.join(__vite_ssr_import_0__.default.homedir(), \".claude\");\n  const root = (0,__vite_ssr_import_2__.historyStoragePath)(env.CLAUDE_CONFIG_DIR, __vite_ssr_import_1__.default.join(home, \".claude\"), home);\n  return { sourceScopeId: (0,__vite_ssr_import_2__.localHistorySourceScope)(\"claude\", { root }, { root: defaultRoot }), root };\n})"
+            },
+            {
+              "index": 12,
+              "name": "Agent history identity and opening boundaries > binds native namespaces to storage selectors without credential values (function piHistorySource(env = process.env) {\n  const home = env.HOME || __vite_ssr_import_0__.default.homedir();\n  const defaultRoot = __vite_ssr_import_1__.default.join(__vite_ssr_import_0__.default.homedir(), \".pi/agent\");\n  const root = (0,__vite_ssr_import_2__.historyStoragePath)(env.PI_CODING_AGENT_DIR, __vite_ssr_import_1__.default.join(home, \".pi/agent\"), home);\n  const defaultSessions = __vite_ssr_import_1__.default.join(defaultRoot, \"sessions\");\n  const sessions = (0,__vite_ssr_import_2__.historyStoragePath)(env.PI_CODING_AGENT_SESSION_DIR, __vite_ssr_import_1__.default.join(root, \"sessions\"), home);\n  return { sourceScopeId: (0,__vite_ssr_import_2__.localHistorySourceScope)(\"pi\", { root, sessions }, { root: defaultRoot, sessions: defaultSessions }), root };\n})"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::catalog_page_limits_preserve_every_identity_across_restart_and_reject_cross_root_cursors"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::archived_exclusions_and_visible_rows_share_one_page_budget_without_deleting_identity"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::concurrent_reservation_and_discovery_share_an_identity_that_cannot_be_rebound"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::history_identity::discovered_identity_is_adopted_before_new_session_events_are_published"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::history_identity::start_receipt_and_mismatched_persistence_evidence_cannot_promote_a_saved_locator"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::history_identity::changed_native_profile_is_rejected_before_resume_without_tombstoning_history"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::history_identity::partial_history_projects_coverage_and_replays_newer_live_observations_after_history"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::history_identity::restart_restores_complete_native_messages_without_misclassifying_old_sequence_numbers_as_loss"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::history_identity::transient_history_read_failure_keeps_the_same_saved_target_available_for_retry"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::history_identity::history_for_another_native_conversation_and_cross_workspace_live_resume_are_refused"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::history_source_scope::tests::codex_claude_and_pi_namespaces_follow_storage_selectors_and_never_credentials"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-history-display-coverage",
+      "acceptance": "Partial and unknown native coverage recover through schema-valid committed patches without changing full message content or sequence; complete native coverage neither erases actual display truncation nor masks unknown live execution; contradictory coverage reasons fail closed.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/history/electron.agent-history-display-status.test.mjs",
+          "sha256": "bd578b2eb240910a3d6d10003e8a5317e70532b3dade6f5eddcd5b5fd87f507d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Native history coverage, event replay and display window > clears partial coverage through a committed display patch after complete recovery"
+            },
+            {
+              "index": 1,
+              "name": "Native history coverage, event replay and display window > clears unknown coverage through a committed display patch after complete recovery"
+            },
+            {
+              "index": 2,
+              "name": "Native history coverage, event replay and display window > does not clear real display truncation when native history is complete"
+            },
+            {
+              "index": 3,
+              "name": "Native history coverage, event replay and display window > keeps native coverage independent of lost live execution observation"
+            },
+            {
+              "index": 4,
+              "name": "Native history coverage, event replay and display window > rejects contradictory or invalid native coverage reasons"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::clears_partial_or_unknown_coverage_through_a_committed_display_patch_after_complete_recovery"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::does_not_clear_real_display_truncation_when_native_history_is_complete"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::keeps_native_coverage_independent_of_lost_live_execution_observation"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_history_read_result::tests::rejects_contradictory_or_invalid_native_coverage_reasons"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-session-control-and-feed",
+      "acceptance": "Live actor and offline reducer produce the same owned state; stale terminal facts, adapter generations and ACKs cannot revive execution or replace newer submissions; restored running metadata remains unknown; real Codex retry diagnostics are bounded before the feed; command identities/epochs are enforced; snapshot ACK starts one contiguous bounded feed, overflow requests resync with exact diagnostics; queue advancement/cancellation and retired-actor replacement retain scope.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/controls/electron.agent-session-control.test.mjs",
+          "sha256": "79b05e9a92ac183a22bac5efbe20a62933475db55231139ad705803263eb9d5d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Main Agent SessionActor and versioned feed > keeps stale terminal facts scoped to their own turn"
+            },
+            {
+              "index": 1,
+              "name": "Main Agent SessionActor and versioned feed > keeps a newer submission when an older turn terminal or request rejection arrives late"
+            },
+            {
+              "index": 2,
+              "name": "Main Agent SessionActor and versioned feed > uses one deterministic pure reducer for live folding and offline reconstruction"
+            },
+            {
+              "index": 3,
+              "name": "Main Agent SessionActor and versioned feed > records a late command ACK without resurrecting completed execution"
+            },
+            {
+              "index": 4,
+              "name": "Main Agent SessionActor and versioned feed > keeps an unconfirmed active outcome unknown when the product session closes"
+            },
+            {
+              "index": 5,
+              "name": "Main Agent SessionActor and versioned feed > rejects receipts from an older adapter generation"
+            },
+            {
+              "index": 6,
+              "name": "Main Agent SessionActor and versioned feed > settles in-flight commands when an adapter generation is replaced"
+            },
+            {
+              "index": 7,
+              "name": "Main Agent SessionActor and versioned feed > does not infer a live turn from persisted or restored history"
+            },
+            {
+              "index": 8,
+              "name": "Main Agent SessionActor and versioned feed > keeps metadata-only native running history explicitly unconfirmed"
+            },
+            {
+              "index": 9,
+              "name": "Main Agent SessionActor and versioned feed > bounds reconnect diagnostics before control state enters the feed"
+            },
+            {
+              "index": 10,
+              "name": "Main Agent SessionActor and versioned feed > carries structured recovery presentation in the authoritative control snapshot"
+            },
+            {
+              "index": 11,
+              "name": "Main Agent SessionActor and versioned feed > materializes the evicted prefix of a long active turn"
+            },
+            {
+              "index": 12,
+              "name": "Main Agent SessionActor and versioned feed > accepts a command idempotently and rejects stale session generations"
+            },
+            {
+              "index": 13,
+              "name": "Main Agent SessionActor and versioned feed > captures a snapshot before releasing a contiguous feed"
+            },
+            {
+              "index": 14,
+              "name": "Main Agent SessionActor and versioned feed > owns follow-up queuing and advancement in Main"
+            },
+            {
+              "index": 15,
+              "name": "Main Agent SessionActor and versioned feed > cancels accepted-but-unsent queued input when its native session exits"
+            },
+            {
+              "index": 16,
+              "name": "Main Agent SessionActor and versioned feed > bounds an acknowledged but stalled Renderer and requires resynchronization"
+            },
+            {
+              "index": 17,
+              "name": "Main Agent SessionActor and versioned feed > rebinds the feed when a retired session id receives a new SessionActor"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::keeps_stale_terminal_facts_scoped_to_their_own_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::uses_one_deterministic_pure_reducer_for_live_folding_and_offline_reconstruction"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::records_a_late_command_ack_without_resurrecting_completed_execution"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::keeps_an_unconfirmed_active_outcome_unknown_when_the_product_session_closes"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::rejects_receipts_from_an_older_adapter_generation"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::settles_in_flight_commands_when_an_adapter_generation_is_replaced"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::does_not_infer_a_live_turn_from_persisted_or_restored_history"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::carries_structured_recovery_presentation_in_the_authoritative_control_snapshot"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::materializes_the_evicted_prefix_of_a_long_active_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::keeps_a_newer_submission_when_an_older_turn_terminal_or_request_rejection_arrives_late"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::keeps_metadata_only_native_running_history_explicitly_unconfirmed"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::bounds_reconnect_diagnostics_before_control_state_enters_the_feed"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::accepts_a_command_idempotently_and_rejects_stale_session_generations"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::captures_a_snapshot_before_releasing_a_contiguous_feed"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::owns_follow_up_queuing_and_advancement_in_main"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::cancels_accepted_but_unsent_queued_input_when_its_native_session_exits"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::bounds_an_acknowledged_but_stalled_renderer_and_requires_resynchronization"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::rebinds_the_feed_when_a_retired_session_id_receives_a_new_session_actor"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-history-controller-lifetime",
+      "acceptance": "Workspace generations make late metadata inert; independent projects never share catalogs; failed discovery/catalog refresh can recover without live sessions or subscriptions; refresh coalesces one scan and loading awaits native completion; catalog/native paging retain exact retry position, apply exclusions and clear only expired cursors; a healthy native source publishes while another is pending.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/history/desktop-agent.history-controller.test.ts",
+          "sha256": "2ce397683d809b0cef40edc27eb9ce3836acf5158ac836befad938a2fceb4312",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ConversationHistoryController > ignores refreshed metadata after the workspace is deactivated"
+            },
+            {
+              "index": 1,
+              "name": "ConversationHistoryController > refreshes runtime discovery and the catalog after initial discovery fails"
+            },
+            {
+              "index": 2,
+              "name": "ConversationHistoryController > refreshes a failed catalog even when no runtime has native history"
+            },
+            {
+              "index": 3,
+              "name": "ConversationHistoryController > loads catalog pages beyond the initial window without invoking a live Session"
+            },
+            {
+              "index": 4,
+              "name": "ConversationHistoryController > makes an earlier workspace generation inert after deactivation"
+            },
+            {
+              "index": 5,
+              "name": "ConversationHistoryController > keeps concurrent workspace catalogs isolated"
+            },
+            {
+              "index": 6,
+              "name": "ConversationHistoryController > coalesces same-tick refreshes into one native scan"
+            },
+            {
+              "index": 7,
+              "name": "ConversationHistoryController > marks an empty history loaded only after the initial native scan completes"
+            },
+            {
+              "index": 8,
+              "name": "ConversationHistoryController > keeps a failed continuation retryable instead of dropping its scan cursor"
+            },
+            {
+              "index": 9,
+              "name": "ConversationHistoryController > publishes a healthy source while another native source is still waiting"
+            },
+            {
+              "index": 10,
+              "name": "ConversationHistoryController > preserves rows and retry position for a resolved failed page, and clears expired positions"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::ignores_refreshed_metadata_after_the_workspace_is_deactivated",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::refreshes_runtime_discovery_and_the_catalog_after_initial_discovery_fails",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::refreshes_a_failed_catalog_even_when_no_runtime_has_native_history",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::loads_catalog_pages_beyond_the_initial_window_without_a_live_session",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::makes_an_earlier_workspace_generation_inert_after_deactivation",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::keeps_concurrent_workspace_catalogs_isolated",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::coalesces_same_tick_refreshes_into_one_native_scan",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::marks_an_empty_history_loaded_only_after_the_initial_native_scan",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::keeps_a_failed_continuation_retryable_instead_of_dropping_its_cursor",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::publishes_a_healthy_source_while_another_native_source_waits",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::history_controller::preserves_rows_and_retry_position_for_a_failed_page_and_clears_expired_ones",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-controller-registry-ownership",
+      "acceptance": "Retain hidden controllers within one project and isolate identical roots/item IDs across owners; detach abandoned reservations before rollback; close requests share one operation, preserve failed controllers for retry and dispose only the successfully closed generation; late closes cannot delete replacements; project disposal releases once and forbids resurrection.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller-registry.test.ts",
+          "sha256": "67e74b5cff364c99f0929375a4c4a47924f58514aa4d072de74beca73453b7cf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Project-owned Agent Controller registry > retains hidden tabs and isolates projects or generations using the same root and Item id"
+            },
+            {
+              "index": 1,
+              "name": "Project-owned Agent Controller registry > detaches an abandoned reservation before awaiting rollback without deleting its replacement"
+            },
+            {
+              "index": 2,
+              "name": "Project-owned Agent Controller registry > coalesces close requests and keeps failed closes available for retry"
+            },
+            {
+              "index": 3,
+              "name": "Project-owned Agent Controller registry > keeps a replacement when an old close completes late"
+            },
+            {
+              "index": 4,
+              "name": "Project-owned Agent Controller registry > releases local replicas once and cannot resurrect a disposed project"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller_registry::retains_hidden_tabs_and_isolates_projects_using_the_same_root_and_item_id",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller_registry::detaches_an_abandoned_reservation_before_awaiting_rollback",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller_registry::coalesces_close_requests_and_keeps_failed_closes_available_for_retry",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller_registry::keeps_a_replacement_when_an_old_close_completes_late",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller_registry::releases_local_replicas_once_and_cannot_resurrect_a_disposed_project",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-controller-reference-privacy",
+      "acceptance": "Staged file grants deduplicate and revoke on removal without exposing external paths; preview bytes stay local and are freed on removal, never serialized into references; partial batches retain successful entries and expose failed entries; IPC wrapper text is removed while exact structured diagnostics survive.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller-references.test.ts",
+          "sha256": "e91328f6636a178f8e9219fba01149bef78753822ed3da7a0998c9830e1424f9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AgentSessionController: references and attachments > revokes staged grants on removal and keeps external paths outside renderer state"
+            },
+            {
+              "index": 1,
+              "name": "AgentSessionController: references and attachments > keeps image previews renderer-local and revokes their object URLs on removal"
+            },
+            {
+              "index": 2,
+              "name": "AgentSessionController: references and attachments > keeps valid entries from a partial external-file batch and exposes retryable errors for the rest"
+            },
+            {
+              "index": 3,
+              "name": "AgentSessionController: references and attachments > removes Electron IPC transport boilerplate from reference diagnostics"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::revokes_staged_grants_on_removal_and_keeps_external_paths_outside_state",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::keeps_image_previews_renderer_local_and_revokes_their_object_urls_on_removal",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::keeps_valid_entries_from_a_partial_external_file_batch",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::removes_electron_ipc_transport_boilerplate_from_reference_diagnostics",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-controller-session-lifecycle",
+      "acceptance": "Retry through the real Rust host/client/controller preserves the native session instance; failed preparation is retryable and missing owned conversations do not silently allocate replacements; disposed controllers ignore receipts/submits; exact saved history errors, transcript/viewport revisions, new-chat persistence and cross-controller close isolation are preserved; prewarm is shared with submission, stale prepared sessions close on disposal or capability supersession, and late discovery never publishes.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller.test.ts",
+          "sha256": "d853bbdb53a093d987d414b985eeecff635b976ecd8453a7e5f5935689d868de",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AgentSessionController: a conversation's lifecycle > retries the owned conversation through Main without allocating another host"
+            },
+            {
+              "index": 1,
+              "name": "AgentSessionController: a conversation's lifecycle > preparation failure releases submission state and allows retry"
+            },
+            {
+              "index": 2,
+              "name": "AgentSessionController: a conversation's lifecycle > reports an unavailable owned conversation without silently creating another"
+            },
+            {
+              "index": 3,
+              "name": "AgentSessionController: a conversation's lifecycle > ignores receipts and new submissions after disposal"
+            },
+            {
+              "index": 4,
+              "name": "AgentSessionController: a conversation's lifecycle > renders Main display revisions and preserves the old locator on New Chat"
+            },
+            {
+              "index": 5,
+              "name": "AgentSessionController: a conversation's lifecycle > closes a tab-owned native session without affecting another controller"
+            },
+            {
+              "index": 6,
+              "name": "AgentSessionController: a conversation's lifecycle > opens an explicitly selected saved conversation instead of implicitly resuming the latest session"
+            },
+            {
+              "index": 7,
+              "name": "AgentSessionController: a conversation's lifecycle > unconditionally closes a restored native session when Workbench preparation rolls back"
+            },
+            {
+              "index": 8,
+              "name": "AgentSessionController: a conversation's lifecycle > preserves an exact History open error instead of collapsing it to false"
+            },
+            {
+              "index": 9,
+              "name": "AgentSessionController: a conversation's lifecycle > allows confirmed tab closure even while the displayed turn is running"
+            },
+            {
+              "index": 10,
+              "name": "AgentSessionController: a conversation's lifecycle > shares one background session preparation with the first submit and exposes truthful transport stages"
+            },
+            {
+              "index": 11,
+              "name": "AgentSessionController: a conversation's lifecycle > closes a prepared native session that resolves after renderer disposal"
+            },
+            {
+              "index": 12,
+              "name": "AgentSessionController: a conversation's lifecycle > lets capability controls supersede an in-flight prewarm and closes the stale native session"
+            },
+            {
+              "index": 13,
+              "name": "AgentSessionController: a conversation's lifecycle > does not publish late asynchronous state after renderer disposal"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::infrastructure::host::tests::retrying_an_owned_conversation_keeps_the_same_native_session_instance",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::preparation_failure_releases_submission_state_and_allows_retry",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::reports_an_unavailable_owned_conversation_without_creating_another",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::ignores_receipts_and_new_submissions_after_disposal",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::renders_main_display_revisions_and_preserves_the_old_locator_on_new_chat",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::closes_a_tab_owned_native_session_without_affecting_another_controller",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::opens_an_explicitly_selected_saved_conversation",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::closes_a_restored_native_session_when_workbench_preparation_rolls_back",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::preserves_an_exact_history_open_error",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::allows_confirmed_tab_closure_while_the_displayed_turn_runs",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::shares_one_background_preparation_with_the_first_submit",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::closes_a_prepared_native_session_that_resolves_after_disposal",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::lets_capability_controls_supersede_an_in_flight_prewarm",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::does_not_publish_late_asynchronous_state_after_disposal",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-controller-runtime-selection",
+      "acceptance": "Model refresh preserves the bound route/session/draft and cannot expand a live session model authorization; switching connections requires a new conversation; missing routes are not silently substituted; discovery/creation recipes do not resume unrequested history; catalog order/effort/providerless selection, readiness gates, fresh attachment epochs, diagnostics and the five-minute refresh cache retain TS acceptance. Local tool discovery UI remains separately unreviewed.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller-runtimes.test.ts",
+          "sha256": "5fa0ed93dd92563859053a3ab046516c1babeb9a5bc46f58779aeb8ca113e847",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AgentSessionController: Agents, models and runtimes > recovers the bound model after a temporary empty catalog without authorizing new models"
+            },
+            {
+              "index": 1,
+              "name": "AgentSessionController: Agents, models and runtimes > updates model inspection without forcing executable discovery or replacing the session"
+            },
+            {
+              "index": 2,
+              "name": "AgentSessionController: Agents, models and runtimes > requires a fresh conversation for a model connection change and clears old drafts"
+            },
+            {
+              "index": 3,
+              "name": "AgentSessionController: Agents, models and runtimes > preserves an unavailable model route instead of choosing a different connection"
+            },
+            {
+              "index": 4,
+              "name": "AgentSessionController: Agents, models and runtimes > discovers installed Agents without selecting or resuming one on first open"
+            },
+            {
+              "index": 5,
+              "name": "AgentSessionController: Agents, models and runtimes > binds a creation recipe before discovery without restoring prior Chat history"
+            },
+            {
+              "index": 6,
+              "name": "AgentSessionController: Agents, models and runtimes > begins direct-recipe discovery without blocking Workbench admission"
+            },
+            {
+              "index": 7,
+              "name": "AgentSessionController: Agents, models and runtimes > selects the backend catalog's first model and derives any internal inference route from the model"
+            },
+            {
+              "index": 8,
+              "name": "AgentSessionController: Agents, models and runtimes > switches a blank composer between ready native Agents and supports providerless model catalogs"
+            },
+            {
+              "index": 9,
+              "name": "AgentSessionController: Agents, models and runtimes > switches Coding Agent providers into a new chat without implicitly resuming native history"
+            },
+            {
+              "index": 10,
+              "name": "AgentSessionController: Agents, models and runtimes > selects a detected runtime while keeping execution gated by its readiness"
+            },
+            {
+              "index": 11,
+              "name": "AgentSessionController: Agents, models and runtimes > displays provider diagnostics without rewriting the discovered provider catalog"
+            },
+            {
+              "index": 12,
+              "name": "AgentSessionController: Agents, models and runtimes > reuses workspace Agent discovery on presentation remounts and lets Refresh bypass the cache"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::recovers_the_bound_model_after_a_temporary_empty_catalog",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::updates_model_inspection_without_executable_discovery_or_a_new_session",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::requires_a_fresh_conversation_for_a_model_connection_change",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::preserves_an_unavailable_model_route_instead_of_choosing_another",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::discovers_installed_agents_without_selecting_or_resuming_one",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::binds_a_creation_recipe_before_discovery_without_restoring_history",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::begins_direct_recipe_discovery_without_blocking_admission",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::selects_the_first_catalog_model_and_derives_its_inference_route",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::switches_a_blank_composer_between_ready_native_agents",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::switches_coding_agent_providers_into_a_new_chat_without_resuming_history",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::selects_a_detected_runtime_while_keeping_execution_gated_by_readiness",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::displays_provider_diagnostics_without_rewriting_the_catalog",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::reuses_discovery_on_remounts_and_lets_refresh_bypass_the_cache",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-controller-submission-ownership",
+      "acceptance": "Submitting and Stop acknowledgement are independent; repeated sends dispatch once; accepted/rejected steering preserves newer drafts, reference identities and shifted mention offsets, including attachment-only input; late failures do not cross conversations; immutable queue/start intents show truthful admission, restore the original draft after failure and merge edits made during preparation without losing references.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller-submission.test.ts",
+          "sha256": "e3c5d4e80e991369db75e4838feb072fa50d43acb4c96f7f6d562e8d90e2ed8a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AgentSessionController: sending, steering and stopping > steer receipt must preserve a newer draft"
+            },
+            {
+              "index": 1,
+              "name": "AgentSessionController: sending, steering and stopping > repeated send while the same steer is pending has one dispatch"
+            },
+            {
+              "index": 2,
+              "name": "AgentSessionController: sending, steering and stopping > keeps Stop feedback independent of the display and retries the same command identity"
+            },
+            {
+              "index": 3,
+              "name": "AgentSessionController: sending, steering and stopping > keeps newer steer drafts, references and mentions on receipt (accepted=true)"
+            },
+            {
+              "index": 4,
+              "name": "AgentSessionController: sending, steering and stopping > keeps newer steer drafts, references and mentions on receipt (accepted=false)"
+            },
+            {
+              "index": 5,
+              "name": "AgentSessionController: sending, steering and stopping > keeps attachment-only steer submissions busy until acknowledgement (accepted=true)"
+            },
+            {
+              "index": 6,
+              "name": "AgentSessionController: sending, steering and stopping > keeps attachment-only steer submissions busy until acknowledgement (accepted=false)"
+            },
+            {
+              "index": 7,
+              "name": "AgentSessionController: sending, steering and stopping > does not restore a late rejected steer into a replacement conversation"
+            },
+            {
+              "index": 8,
+              "name": "AgentSessionController: sending, steering and stopping > delegates queue admission to the Main command transaction"
+            },
+            {
+              "index": 9,
+              "name": "AgentSessionController: sending, steering and stopping > hands the local preview to Main's admitted input before the native start receipt"
+            },
+            {
+              "index": 10,
+              "name": "AgentSessionController: sending, steering and stopping > captures reference mention ranges in the immutable submission intent"
+            },
+            {
+              "index": 11,
+              "name": "AgentSessionController: sending, steering and stopping > captures references inside the immutable command sent to Main"
+            },
+            {
+              "index": 12,
+              "name": "AgentSessionController: sending, steering and stopping > restores a rejected Main queue command without stranding its draft"
+            },
+            {
+              "index": 13,
+              "name": "AgentSessionController: sending, steering and stopping > retains references when steer cannot carry them and restores the same intent after preparation failure"
+            },
+            {
+              "index": 14,
+              "name": "AgentSessionController: sending, steering and stopping > merges a failed immutable intent with edits and references added while session preparation is pending"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::steer_receipt_must_preserve_a_newer_draft",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::repeated_send_while_the_same_steer_is_pending_has_one_dispatch",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::keeps_stop_feedback_independent_and_retries_the_same_command_identity",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::keeps_newer_steer_drafts_references_and_mentions_on_receipt",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::keeps_attachment_only_steer_submissions_busy_until_acknowledgement",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::does_not_restore_a_late_rejected_steer_into_a_replacement_conversation",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::delegates_queue_admission_to_the_main_command_transaction",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::hands_the_local_preview_to_mains_admitted_input_before_the_start_receipt",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::captures_reference_mention_ranges_in_the_immutable_intent",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::captures_references_inside_the_immutable_command_sent_to_main",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::restores_a_rejected_main_queue_command_without_stranding_its_draft",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::retains_references_steer_cannot_carry_and_restores_the_intent_after_preparation_failure",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::merges_a_failed_intent_with_edits_and_references_added_while_preparing",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-session-ui-memory",
+      "acceptance": "Reconstructible layout caches evict without deleting unsent drafts; newest bounded measurements and viewport provenance are returned as defensive owned copies; invalid zero cache sizes fail. NaN is not representable by the Rust usize API, which enforces integer inputs at compile time.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.session-ui-state.test.ts",
+          "sha256": "2fc0348eb42d52c6303448b296137255febe53c3de51c91a797f4fe1452bca74",
+          "cases": [
+            {
+              "index": 0,
+              "name": "SessionUiStateStore > bounds reconstructible caches without evicting unsent drafts"
+            },
+            {
+              "index": 1,
+              "name": "SessionUiStateStore > retains only the newest bounded measurement entries and returns defensive copies"
+            },
+            {
+              "index": 2,
+              "name": "SessionUiStateStore > keeps geometry provenance and reading anchors as defensive Renderer-only memory"
+            },
+            {
+              "index": 3,
+              "name": "SessionUiStateStore > rejects invalid cache limits"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_ui_state::bounds_reconstructible_caches_without_evicting_unsent_drafts",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_ui_state::retains_only_the_newest_bounded_measurements_and_returns_copies",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_ui_state::keeps_geometry_provenance_and_reading_anchors_as_renderer_memory",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_ui_state::rejects_invalid_cache_limits",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-plan-and-checkpoint-content",
+      "acceptance": "The real Codex plan normalizer reaches the production activity presentation with exact text, a visible detail and default expansion even without steps; GPUI OS painting is a separate acceptance. Live, compacted and restored reasoning apply replace/append semantics identically even with interleaved content; checkpoints preserve the complete native user-message envelope and render its text/identity.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.plan-and-checkpoint.test.tsx",
+          "sha256": "e6b7ebc96070957c5d994e35e37e238282283fee07854bb8643d1712d7dd9a6b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent canonical content update semantics > renders normalized plan text even when no structured steps exist"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent canonical content update semantics > uses the same replace semantics in live projection and replay checkpoints"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent canonical content update semantics > retains native user-message identity in an active-turn checkpoint"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::normalized_plan_text_is_visible_without_structured_steps",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::compacted_history_rebuilds_interleaved_replace_and_append_reasoning_exactly"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::active_turn_checkpoint_retains_the_exact_native_user_message"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-public-contract-schema",
+      "acceptance": "Executable TS constants and their declared types stay synchronized with Rust events, readiness/status codes, open errors, capability keys and concrete typed channels; generic command dispatch preserves start/steer/interrupt compatibility. Exact request/response projections remove private fields, constrain attachments and paths, preserve prompt bytes and preconditions, reject malformed blocker/recovery/mention data, preserve safe native content and metadata-only history, and fail unknown transports closed.",
+      "typescript": [
+        {
+          "path": "tests/architecture/agent/sessions/electron.agent-contract-schema.test.mjs",
+          "sha256": "07da7683cb1c90855d6a1e7be8a59f44f88e077eefc374a629e6abd509d7b9cf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "shared Agent contract > bounds inline attachment input and strips renderer MIME claims"
+            },
+            {
+              "index": 1,
+              "name": "shared Agent contract > keeps runtime constants synchronized with the TypeScript contract"
+            },
+            {
+              "index": 2,
+              "name": "shared Agent contract > parses and strips IPC input before workspace authorization"
+            },
+            {
+              "index": 3,
+              "name": "shared Agent contract > rejects malformed main-to-renderer responses and blocking events"
+            },
+            {
+              "index": 4,
+              "name": "shared Agent contract > keeps canonical content fields and strips unknown native provenance"
+            },
+            {
+              "index": 5,
+              "name": "shared Agent contract > bounds native history discovery and strips transcript-shaped list fields"
+            },
+            {
+              "index": 6,
+              "name": "shared Agent contract > preserves structured exact-session open failures"
+            },
+            {
+              "index": 7,
+              "name": "shared Agent contract > requires methods for capabilities a runtime advertises"
+            },
+            {
+              "index": 8,
+              "name": "shared Agent contract > fails unknown legacy reference transports into the semantic attachment contract"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::bounds_inline_attachment_input_and_strips_renderer_mime_claims"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::public_constants_and_typed_operations_match_the_executed_typescript_contract"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::parses_and_strips_ipc_input_before_workspace_authorization"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::rejects_malformed_main_to_renderer_responses_and_blocking_events"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::keeps_canonical_content_fields_and_strips_unknown_native_provenance"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::bounds_native_history_discovery_and_strips_transcript_shaped_list_fields"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::preserves_structured_exact_session_open_failures"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::requires_methods_for_capabilities_a_runtime_advertises"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::fails_unknown_legacy_reference_transports_into_the_semantic_attachment_contract"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-history-rendered-presentation",
+      "acceptance": "Actual GPUI frames distinguish all 13 empty-result evidence combinations; capability limits disclose neutral explanations, search receives keyboard input and Escape stays within the focused browser, refresh preserves actionable rows and disables repeated refresh, and pagination invokes the current source. Native GPUI component/input acceptance; this does not claim operating-system or Chromium DOM execution.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/history/desktop-agent.history-presentation.test.tsx",
+          "sha256": "59a48398baacdb826951ef0991348b9b0c853757631f238ef163dedb014e63d1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "distinguishes empty result evidence {}"
+            },
+            {
+              "index": 1,
+              "name": "distinguishes empty result evidence {\"sources\":{}}"
+            },
+            {
+              "index": 2,
+              "name": "distinguishes empty result evidence {\"sources\":{\"codex\":{\"runtimeId\":\"codex\",\"status\":\"complete\",\"coverage\":\"unknown\",\"indexed\":0,\"nextCursor\":null,\"scanId\":null,\"warnings\":[]}}}"
+            },
+            {
+              "index": 3,
+              "name": "distinguishes empty result evidence {\"sources\":{\"codex\":{\"runtimeId\":\"codex\",\"status\":\"complete\",\"indexed\":0,\"nextCursor\":null,\"scanId\":null,\"warnings\":[]}}}"
+            },
+            {
+              "index": 4,
+              "name": "distinguishes empty result evidence {\"sources\":{\"codex\":{\"runtimeId\":\"codex\",\"status\":\"unsupported\",\"coverage\":\"complete\",\"indexed\":0,\"nextCursor\":null,\"scanId\":null,\"warnings\":[]}}}"
+            },
+            {
+              "index": 5,
+              "name": "distinguishes empty result evidence {\"sources\":{\"codex\":{\"runtimeId\":\"codex\",\"status\":\"partial\",\"coverage\":\"complete\",\"indexed\":0,\"nextCursor\":null,\"scanId\":null,\"warnings\":[]}}}"
+            },
+            {
+              "index": 6,
+              "name": "distinguishes empty result evidence {\"catalogTruncated\":true}"
+            },
+            {
+              "index": 7,
+              "name": "distinguishes empty result evidence {\"hasMore\":true}"
+            },
+            {
+              "index": 8,
+              "name": "distinguishes empty result evidence {\"excludedSessionCount\":2}"
+            },
+            {
+              "index": 9,
+              "name": "distinguishes empty result evidence {\"excludedSessionCount\":2,\"sources\":{\"codex\":{\"runtimeId\":\"codex\",\"status\":\"complete\",\"coverage\":\"unknown\",\"indexed\":0,\"nextCursor\":null,\"scanId\":null,\"warnings\":[]}}}"
+            },
+            {
+              "index": 10,
+              "name": "distinguishes empty result evidence {\"error\":\"timeout\"}"
+            },
+            {
+              "index": 11,
+              "name": "distinguishes empty result evidence {\"sources\":{\"codex\":{\"runtimeId\":\"codex\",\"status\":\"failed\",\"coverage\":\"complete\",\"indexed\":0,\"nextCursor\":null,\"scanId\":null,\"warnings\":[]}}}"
+            },
+            {
+              "index": 12,
+              "name": "distinguishes empty result evidence {\"loading\":true}"
+            },
+            {
+              "index": 13,
+              "name": "discloses capability limits without presenting them as a query failure"
+            },
+            {
+              "index": 14,
+              "name": "puts search in the toolbar, preserves rows on refresh and scopes Escape to the focused history"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::empty_history_messages_follow_source_evidence_in_rendered_frames",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::capability_limits_expand_as_neutral_details_and_clear_after_recovery",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::search_escape_refresh_and_pagination_use_the_visible_history_owner",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::escape_only_reaches_the_history_browser_containing_keyboard_focus",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-transcript-history-notices",
+      "acceptance": "Actual transcript frames omit native-loss warnings for local replay gaps, disclose unknown native coverage even without message rows, remove the notice after actor recovery, and distinguish partial coverage from display truncation. The workbench renders and executes retry for HISTORY_READ_FAILED while SESSION_NOT_FOUND has no retry action. Native disclosures use click expansion instead of HTML details.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/history/desktop-agent.history-status.test.tsx",
+          "sha256": "cf16d1fdbc6aca150423c2bb962bf41bb639df2b1ac1980abc48effb577728c6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Chat history notices > does not show a history warning for a local event replay gap alone"
+            },
+            {
+              "index": 1,
+              "name": "Chat history notices > shows an expandable neutral explanation for unknown coverage and clears it after recovery"
+            },
+            {
+              "index": 2,
+              "name": "Chat history notices > distinguishes partial native coverage from display truncation false"
+            },
+            {
+              "index": 3,
+              "name": "Chat history notices > distinguishes complete native coverage from display truncation true"
+            },
+            {
+              "index": 4,
+              "name": "Chat history notices > offers retry for a history read error and no retry for confirmed missing history"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::transcript::history_tests::local_replay_gaps_do_not_render_a_native_history_warning",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::transcript::history_tests::unknown_native_history_is_disclosed_even_without_message_rows_and_clears_on_recovery",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::transcript::history_tests::partial_native_history_and_display_truncation_have_distinct_visible_explanations",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::workbench::tests::native_history_read_failure_renders_retry_but_confirmed_missing_history_does_not",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::history_tests::changing_native_coverage_remeasures_the_existing_first_message_row"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-history-browser-composition",
+      "acceptance": "Real history controller plus GPUI frames/input: excluded locators, separate native capability/catalog capacity disclosures, shared permission recorded before subsequent activation, exact 8-second runtime and catalog deadlines with recovery, pending native discovery stays loading, healthy source remains actionable beside a failed source, opaque restoration payloads and Back navigation, and cursor/scan epoch retained on actual Load more clicks. Bridge I/O is scripted; the original CSS/brand presentation case remains separately unreviewed.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/history/desktop-agent.history-browser.test.tsx",
+          "sha256": "5c1d4a48d17a02fbd45ff99437182a62716f2d27ccfd505c031a5e4d99d542bc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent Chat global history browser > reports discovered conversations already open instead of claiming no history"
+            },
+            {
+              "index": 1,
+              "name": "Agent Chat global history browser > shows partial source coverage and unsupported lookup separately from an empty history"
+            },
+            {
+              "index": 2,
+              "name": "Agent Chat global history browser > does not discover history before the user acknowledges local history access"
+            },
+            {
+              "index": 3,
+              "name": "Agent Chat global history browser > keeps the empty catalog loading until runtime inspection has settled"
+            },
+            {
+              "index": 4,
+              "name": "Agent Chat global history browser > does not show an empty state while the initial native history scan is running"
+            },
+            {
+              "index": 5,
+              "name": "Agent Chat global history browser > ends loading with a recoverable error when the local catalog IPC stalls"
+            },
+            {
+              "index": 7,
+              "name": "Agent Chat global history browser > loads local locators, scans ready Harnesses independently, and returns an opaque restore target"
+            },
+            {
+              "index": 8,
+              "name": "Agent Chat global history browser > keeps an opaque native scan epoch attached to every pagination request"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::empty_history_messages_follow_source_evidence_in_rendered_frames",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::permission_precedes_discovery_and_native_clicks_return_only_an_opaque_target",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::right_sidebar::launcher::tests::allowing_history_records_permission_and_enables_its_browser_once",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::integration::stalled_runtime_inspection_and_catalog_requests_end_loading_at_their_deadlines",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::integration::initial_native_scan_keeps_the_browser_loading_until_the_recovered_row_is_published",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::integration::native_source_limits_and_catalog_capacity_are_visible_without_hiding_saved_chats",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::integration::one_failed_native_source_does_not_block_a_healthy_opaque_target_or_back_navigation",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::integration::clicking_load_more_keeps_the_native_cursor_and_scan_epoch_together",
+          "target": "puppy-one-rust"
         }
       ],
       "environment": "local"
