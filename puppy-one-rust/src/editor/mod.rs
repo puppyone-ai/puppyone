@@ -7,6 +7,7 @@ pub mod frame;
 pub mod host;
 pub mod markdown;
 pub mod navigation;
+pub mod question;
 pub mod registry;
 pub mod table;
 pub mod text;

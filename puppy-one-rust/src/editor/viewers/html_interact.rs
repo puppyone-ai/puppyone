@@ -283,30 +283,21 @@ impl Interact {
             "editor.html.folderAccessDescription",
             &[("page", name.into()), ("folder", folder.into())],
         );
-        let asked = cx.update_window(self.window, |_, window, cx| {
-            window.prompt(
-                PromptLevel::Info,
-                title,
-                Some(&detail),
-                &[
-                    PromptButton::new(t("editor.html.folderAccessDecline")),
-                    PromptButton::new(t("editor.html.folderAccessAllow")),
-                ],
-                cx,
-            )
-        });
         let this = self.clone();
-        cx.spawn(async move |cx| {
-            let allowed = match asked {
-                Ok(answer) => matches!(answer.await, Ok(1)),
-                Err(_) => false,
-            };
-            cx.update(|cx| {
-                this.state.borrow_mut().asking = false;
-                this.set_allowed(allowed, cx);
-            });
-        })
-        .detach();
+        crate::editor::question::ask(
+            crate::editor::question::Question {
+                window: self.window,
+                title: title.to_owned(),
+                detail,
+                decline: t("editor.html.folderAccessDecline").to_owned(),
+                accept: t("editor.html.folderAccessAllow").to_owned(),
+                answer: Box::new(move |allowed, cx| {
+                    this.state.borrow_mut().asking = false;
+                    this.set_allowed(allowed, cx);
+                }),
+            },
+            cx,
+        );
     }
     /// The answer, from the question or the pane menu's toggle.
     pub fn set_allowed(&self, allowed: bool, cx: &mut App) {

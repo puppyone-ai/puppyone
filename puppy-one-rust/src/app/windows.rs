@@ -141,6 +141,7 @@ pub(super) fn shared_preferences(fixture: bool, cx: &mut App) -> Entity<Preferen
 pub(super) fn register(handle: AnyWindowHandle, shell: WeakEntity<Shell>, cx: &mut App) {
     if !cx.has_global::<Registry>() {
         cx.set_global(Registry::default());
+        super::dialogs::question::install();
     }
     let registry = cx.global_mut::<Registry>();
     registry
@@ -164,6 +165,12 @@ fn live(cx: &App) -> Vec<(AnyWindowHandle, Entity<Shell>)> {
                 .collect()
         })
         .unwrap_or_default()
+}
+/// The shell of `handle`'s window.
+pub(super) fn shell_of(handle: AnyWindowHandle, cx: &App) -> Option<Entity<Shell>> {
+    live(cx)
+        .into_iter()
+        .find_map(|(h, shell)| (h == handle).then_some(shell))
 }
 /// The shell of the key window, else the most recently registered one.
 pub fn active(cx: &App) -> Option<(AnyWindowHandle, Entity<Shell>)> {
