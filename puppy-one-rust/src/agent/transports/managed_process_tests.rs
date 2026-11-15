@@ -42,10 +42,10 @@ fn a_managed_posix_group_terminates_its_real_descendants_without_signalling_the_
         let _cleanup = Cleanup(pid);
         let descendant = tokio::time::timeout(Duration::from_secs(3), async {
             loop {
-                if let Ok(text) = std::fs::read_to_string(&ready) {
-                    if let Ok(pid) = text.trim().parse::<i32>() {
-                        break pid;
-                    }
+                if let Ok(text) = std::fs::read_to_string(&ready)
+                    && let Ok(pid) = text.trim().parse::<i32>()
+                {
+                    break pid;
                 }
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }

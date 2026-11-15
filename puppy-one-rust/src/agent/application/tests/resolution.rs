@@ -389,11 +389,12 @@ fn native_history_uses_shared_resolution_and_records_its_runtime_identity() {
             assert_eq!(adapters.len(), 1);
             assert_eq!(adapters[0].discovered.get(), 1);
         }
-        let rows = harness.persistence.upserts.borrow();
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0]["runtimeId"], "cursor");
-        assert_eq!(rows[0]["providerSessionId"], "cursor-history");
-        drop(rows);
+        {
+            let rows = harness.persistence.upserts.borrow();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0]["runtimeId"], "cursor");
+            assert_eq!(rows[0]["providerSessionId"], "cursor-history");
+        }
         harness.close().await;
     });
 }
