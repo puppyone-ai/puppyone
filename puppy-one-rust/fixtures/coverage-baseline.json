@@ -33,6 +33,6 @@
   },
   "establishment": {
     "sourceCommit": "db127fe05b210863efe0e4cae784e684e0182b8a",
-    "method": "First clean-profile production measurement. Development/test AST spans excluded. Full workspace plus seven explicit native acceptance cases. Earlier exploratory accumulated profiles are not a baseline."
+    "method": "First clean-workspace production measurement. Development/test AST spans excluded. Full workspace plus seven explicit native acceptance cases. Earlier exploratory accumulated profiles are not a baseline."
   }
 }

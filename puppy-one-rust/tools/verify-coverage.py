@@ -26,7 +26,10 @@ def main():
     env = dict(os.environ, RUSTC_BOOTSTRAP='1')
     compiler = subprocess.check_output([CARGO, '--version'], text=True).strip()
     commands = [
-        ('clean-profiles', [CARGO, 'llvm-cov', 'clean', '--workspace', '--profraw-only']),
+        # LLVM scans matching binaries in the target directory, including old
+        # feature/source variants. Remove workspace artifacts as well as profiles
+        # before compiling one measured snapshot; keep dependency caches.
+        ('clean-workspace', [CARGO, 'llvm-cov', 'clean', '--workspace']),
         ('source-index-tests', [CARGO, 'test', '--locked', '--offline', '--manifest-path', 'tools/source-index/Cargo.toml']),
         ('workspace', [CARGO, 'llvm-cov', '--branch', '--locked', '--offline', '--workspace', '--features', 'dev-capture', '--no-fail-fast', '--no-report', '--', '--test-threads=4']),
     ]
