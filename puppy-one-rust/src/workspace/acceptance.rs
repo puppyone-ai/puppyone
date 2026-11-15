@@ -53,98 +53,93 @@ fn the_cloud_flows_work_against_the_real_deployment() {
     let name = format!("Rust acceptance {}", &uuid::Uuid::new_v4().to_string()[..8]);
     // The operation key is a canonical UUIDv4, as the create dialog makes it.
     let operation = uuid::Uuid::new_v4().to_string();
-    let first = client
-        .create_project(&name, &personal.id, &operation)
-        .unwrap();
-    let again = client
-        .create_project(&name, &personal.id, &operation)
-        .unwrap();
-    assert_eq!(first.id, again.id, "one project per operation");
-    step(&format!(
-        "4 created {} once in the personal space",
-        first.id
-    ));
-    let mut made = vec![first.id.clone()];
-    if let Some(team) = teams.iter().find(|t| t.can_create_projects) {
-        let team_project = client
-            .create_project(&name, &team.id, &uuid::Uuid::new_v4().to_string())
-            .unwrap();
-        made.push(team_project.id);
-        step("4 created in a team space too");
-    }
+    let mut made = Vec::new();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        // 6. The Cloud Computer, edited and saved.
-        let cancel = Cancellation::default();
-        let opened = opening::prepare(
+        let first = client
+            .create_project(&name, &personal.id, &operation)
+            .unwrap();
+        made.push(first.id.clone());
+        let again = client
+            .create_project(&name, &personal.id, &operation)
+            .unwrap();
+        assert_eq!(first.id, again.id, "one project per operation");
+        step("4 created once in the personal space");
+        if let Some(team) = teams.iter().find(|t| t.can_create_projects) {
+            let project = client
+                .create_project(&name, &team.id, &uuid::Uuid::new_v4().to_string())
+                .unwrap();
+            made.push(project.id);
+            step("4 created in a team space too");
+        }
+        let prepared = opening::prepare(
             broker.clone(),
             binding.clone(),
             Target::ProjectRoot {
                 project_id: first.id.clone(),
             },
-            &cancel,
+            &Cancellation::default(),
             false,
             |phase: Phase| eprintln!("[cloud]   phase {phase:?}"),
+        )
+        .unwrap_or_else(|failure| {
+            panic!(
+                "Cloud opening failed: {} ({:?}, status {:?}, reason {:?})",
+                failure.code, failure.recovery, failure.status, failure.reason
+            )
+        });
+        let (workspace, _) = prepared.into_parts().unwrap();
+        let created = workspace
+            .create_entry(Path::new(""), "from-rust.md", false, "")
+            .unwrap();
+        let document = workspace.read(&created).unwrap();
+        let saved = workspace.save(&document, "# Saved from Rust\n").unwrap();
+        assert!(!saved.updated);
+        assert_eq!(
+            workspace.read(&created).unwrap().text,
+            "# Saved from Rust\n"
         );
-        match opened {
-            Ok(prepared) => {
-                let (workspace, root) = prepared.into_parts().unwrap();
-                step(&format!("6 opened, {} entries at its root", root.len()));
-                let created = workspace
-                    .create_entry(Path::new(""), "from-rust.md", false, "")
-                    .unwrap();
-                let document = workspace.read(&created).unwrap();
-                let saved = workspace.save(&document, "# Saved from Rust\n").unwrap();
-                assert!(!saved.updated);
-                assert_eq!(
-                    workspace.read(&created).unwrap().text,
-                    "# Saved from Rust\n"
-                );
-                step("6 edited and saved there");
-            }
-            Err(failure) => {
-                // 9. A failure is classified by what to do next.
-                step(&format!(
-                    "6/9 opening refused: {} ({:?}, status {:?}, reason {:?}, request {:?})",
-                    failure.code,
-                    failure.recovery,
-                    failure.status,
-                    failure.reason,
-                    failure.request_id
-                ));
-            }
-        }
-        // 7. History.
-        if let Some(request) = super::cloud::history::page_request(&first.id, None) {
-            match broker.request(&binding, &request) {
-                Ok(page) => {
-                    let history = super::cloud::history::parse_page(&page, &first.id, false);
-                    step(&format!("7 History read: {}", history.is_ok()));
-                }
-                Err(error) => step(&format!("7 History refused: {error:?}")),
-            }
-        }
-        // 8. An Agent invitation, then the inventory that lists it.
+        step("6 edited and saved there");
+        let request =
+            super::cloud::history::page_request(&first.id, None).expect("history request");
+        let page = broker
+            .request(&binding, &request)
+            .expect("History must be readable");
+        let history = super::cloud::history::parse_page(&page, &first.id, false)
+            .expect("History must satisfy its contract");
+        assert_eq!(history.project, first.id);
+        step("7 History read and validated");
         let agents = agents::Client::new(Arc::new(BrokerTransport {
             broker: broker.clone(),
             binding: binding.clone(),
             cancel: Cancellation::default(),
         }));
-        match agents.create_link(&first.id, agents::Admission::SignIn) {
-            Ok(url) => {
-                let inventory = agents.links(&first.id).unwrap();
-                step(&format!(
-                    "8 invitation {} made; {} link(s) listed",
-                    agents::mask_secret(&url),
-                    inventory.links.len()
-                ));
-            }
-            Err(error) => step(&format!("8 invitation refused: {error:?}")),
-        }
+        let url = agents
+            .create_link(&first.id, agents::Admission::SignIn)
+            .expect("Agent link creation");
+        assert!(
+            url::Url::parse(&url).is_ok(),
+            "Agent link must be an absolute URL"
+        );
+        let inventory = agents.links(&first.id).expect("Agent inventory");
+        assert!(
+            inventory
+                .links
+                .iter()
+                .any(|link| link.admission == agents::Admission::SignIn),
+            "the created Agent link must be listed"
+        );
+        step("8 Agent link created and listed (not sent)");
     }));
+    let mut cleanup_errors = Vec::new();
     for id in made {
-        let removed = client.delete_project(&id);
-        eprintln!("[cloud] removed {id}: {}", removed.is_ok());
+        if let Err(error) = client.delete_project(&id) {
+            cleanup_errors.push(format!("project {id}: {error:?}"));
+        }
     }
+    assert!(
+        cleanup_errors.is_empty(),
+        "test resource cleanup failed: {cleanup_errors:?}"
+    );
     if let Err(panic) = outcome {
         std::panic::resume_unwind(panic);
     }
@@ -167,44 +162,45 @@ fn signed_in() -> (Arc<Broker>, Binding, String) {
     (broker, binding, email)
 }
 /// A request the App never makes: the test's own cleanup.
-fn raw(broker: &Broker, binding: &Binding, method: reqwest::Method, path: String) -> String {
-    let request = ApiRequest {
-        idempotency_key: None,
-        method,
-        path,
-        query: vec![],
-        body: None,
-    };
-    match broker.request(binding, &request) {
-        Ok(value) => format!(
-            "ok {}",
-            value.to_string().chars().take(160).collect::<String>()
-        ),
-        Err(error) => format!("refused {error:?}"),
-    }
+fn raw(
+    broker: &Broker,
+    binding: &Binding,
+    method: reqwest::Method,
+    path: String,
+) -> crate::cloud::auth::model::Result<serde_json::Value> {
+    broker.request(
+        binding,
+        &ApiRequest {
+            idempotency_key: None,
+            method,
+            path,
+            query: vec![],
+            body: None,
+        },
+    )
 }
 
-/// Deletes a space the run made. A project removed from it holds the
-/// deletion back (409) until its Cloud cleanup is verified, which the
-/// server does no sooner than an hour later (the deletion job's
-/// `quiescence_seconds`, `PROJECT_DELETION_QUIESCENCE_SECONDS`), so it is
-/// retried for 80 minutes.
+/// Project deletion holds space deletion until the server's quiescence period.
+/// A bounded retry may wait for that contract, but never report a refusal as success.
 fn remove_space(broker: &Broker, binding: &Binding, id: &str) {
+    use crate::cloud::auth::model::Error;
     let deadline = Instant::now() + std::time::Duration::from_secs(80 * 60);
     loop {
-        let removed = raw(
+        match raw(
             broker,
             binding,
             reqwest::Method::DELETE,
             format!("/organizations/{id}"),
-        );
-        eprintln!("[spaces] removing space {id}: {removed}");
-        // An unknown outcome (the connection dropped) is asked again too.
-        let pending = removed.contains("Http(409)") || removed.contains("OutcomeUnknown");
-        if !pending || Instant::now() > deadline {
-            return;
+        ) {
+            Ok(_) | Err(Error::Http(404)) => return,
+            Err(error @ (Error::Http(409) | Error::Service(409, _) | Error::OutcomeUnknown))
+                if Instant::now() < deadline =>
+            {
+                eprintln!("[spaces] waiting for cleanup of {id}: {error:?}");
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
+            Err(error) => panic!("space cleanup failed for {id}: {error:?}"),
         }
-        std::thread::sleep(std::time::Duration::from_secs(60));
     }
 }
 
@@ -213,7 +209,7 @@ fn remove_space(broker: &Broker, binding: &Binding, id: &str) {
 fn the_v044_space_flows_work_against_the_real_deployment() {
     let started = Instant::now();
     let step = |what: &str| eprintln!("[spaces] {what} ({} ms)", started.elapsed().as_millis());
-    let (broker, binding, email) = signed_in();
+    let (broker, binding, _email) = signed_in();
     let transport = || {
         Arc::new(BrokerTransport {
             broker: broker.clone(),
@@ -265,17 +261,10 @@ fn the_v044_space_flows_work_against_the_real_deployment() {
         "4 add-ons: {}",
         catalog.add_ons.as_ref().map_or(0, Vec::len)
     ));
-    match plans.summary(&default.id) {
-        Ok(summary) => step(&format!(
-            "4 summary: plan {} status {} seats {}",
-            summary.plan_id, summary.status, summary.seat_quantity
-        )),
-        Err(error) => step(&format!("4 summary refused: {error:?}")),
-    }
-    match plans.usage(&default.id) {
-        Ok(_) => step("4 usage read"),
-        Err(error) => step(&format!("4 usage refused: {error:?}")),
-    }
+    let summary = plans.summary(&default.id).expect("Plan summary");
+    assert!(!summary.plan_id.is_empty());
+    plans.usage(&default.id).expect("Plan usage");
+    step("4 plan summary and usage read");
 
     // CS: a space made under a unique name; Members ready to invite.
     let name = format!("Rust acceptance {}", &uuid::Uuid::new_v4().to_string()[..8]);
@@ -293,16 +282,6 @@ fn the_v044_space_flows_work_against_the_real_deployment() {
         let owners = client.members(&made.id).unwrap();
         assert_eq!(owners.len(), 1, "only its maker");
         step("5 listed, owned, ready to invite");
-        // An invitation to this account's own alias.
-        let (local, domain) = email.split_once('@').unwrap();
-        let alias = format!("{local}+rust-accept@{domain}");
-        let link = client
-            .invite(&made.id, &alias, super::cloud::services::MemberRole::Member)
-            .unwrap();
-        step(&format!(
-            "6 invited {alias}; link returned: {}",
-            link.is_some()
-        ));
         // A project in the new space: made once, opened, a file saved, and
         // removed before the space is.
         let project = client
@@ -349,73 +328,23 @@ fn the_v044_space_flows_work_against_the_real_deployment() {
             .iter()
             .find(|p| p.purchasable && p.id != "free")
         {
-            let quote = plans.quote_plan(&made.id, &team.id, 1, uuid::Uuid::new_v4().to_string());
-            match quote {
-                Ok(quote) => {
-                    step(&format!(
-                        "7 quote {}: {} {} cents, mode {}, effective {:?}",
-                        quote.target_plan_id,
-                        quote.currency,
-                        quote.target_amount_cents,
-                        quote.application_mode,
-                        quote.effective
-                    ));
-                    if quote.application_mode == "checkout" {
-                        match plans.checkout(
-                            &made.id,
-                            &quote,
-                            None,
-                            uuid::Uuid::new_v4().to_string(),
-                        ) {
-                            Ok((url, _, _)) => step(&format!(
-                                "7 checkout URL on {} (not opened, nothing paid)",
-                                url::Url::parse(&url)
-                                    .map(|u| u.host_str().unwrap_or("").to_owned())
-                                    .unwrap_or_default()
-                            )),
-                            Err(error) => step(&format!("7 checkout refused: {error:?}")),
-                        }
-                    }
-                }
-                Err(error) => step(&format!("7 quote refused: {error:?}")),
+            let quote = plans
+                .quote_plan(&made.id, &team.id, 1, uuid::Uuid::new_v4().to_string())
+                .expect("Plan quote");
+            assert_eq!(quote.target_plan_id, team.id);
+            if quote.application_mode == "checkout" {
+                let (url, _, _) = plans
+                    .checkout(&made.id, &quote, None, uuid::Uuid::new_v4().to_string())
+                    .expect("Checkout URL");
+                assert_eq!(url::Url::parse(&url).unwrap().scheme(), "https");
+                step("7 checkout URL validated (not opened, nothing paid)");
             }
         } else {
             // The Plan page then offers nothing to buy ("Coming soon").
             step("7 no purchasable plan in this deployment's catalog: no quote");
         }
     }));
-    // Taken back: the pending invitations, then the space.
-    let listed = broker.request(
-        &binding,
-        &ApiRequest {
-            idempotency_key: None,
-            method: reqwest::Method::GET,
-            path: format!("/organizations/{}/invitations", made.id),
-            query: vec![],
-            body: None,
-        },
-    );
-    let invitations: Vec<String> = listed
-        .ok()
-        .and_then(|v| {
-            let list = v.get("data").cloned().unwrap_or(v);
-            list.as_array().map(|items| {
-                items
-                    .iter()
-                    .filter_map(|i| i["id"].as_str().map(str::to_owned))
-                    .collect()
-            })
-        })
-        .unwrap_or_default();
-    for invitation in invitations {
-        let revoked = raw(
-            &broker,
-            &binding,
-            reqwest::Method::DELETE,
-            format!("/organizations/{}/invitations/{invitation}", made.id),
-        );
-        eprintln!("[spaces] revoked invitation {invitation}: {revoked}");
-    }
+    // This case never sends invitations.
     remove_space(&broker, &binding, &made.id);
     let gone = spaces::discover(&client)
         .unwrap()
@@ -426,6 +355,63 @@ fn the_v044_space_flows_work_against_the_real_deployment() {
         std::panic::resume_unwind(panic);
     }
     assert!(gone, "the space made is removed");
+}
+
+/// This case sends an actual invitation email. Run only with explicit approval.
+#[test]
+#[ignore = "sends invitation email; requires explicit PUPPYONE_LIVE_EMAIL=1"]
+fn the_space_invitation_flow_sends_and_revokes_a_test_invitation() {
+    assert_eq!(
+        std::env::var("PUPPYONE_LIVE_EMAIL").as_deref(),
+        Ok("1"),
+        "invitation email acceptance requires explicit opt-in"
+    );
+    let (broker, binding, email) = signed_in();
+    let client = Client::new(Arc::new(BrokerTransport {
+        broker: broker.clone(),
+        binding: binding.clone(),
+        cancel: Cancellation::default(),
+    }));
+    let made = client
+        .create_space(&format!("Rust invitation {}", uuid::Uuid::new_v4()))
+        .unwrap();
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let (local, domain) = email.split_once('@').unwrap();
+        let alias = format!("{local}+rust-accept@{domain}");
+        client
+            .invite(&made.id, &alias, super::cloud::services::MemberRole::Member)
+            .unwrap();
+        let value = raw(
+            &broker,
+            &binding,
+            reqwest::Method::GET,
+            format!("/organizations/{}/invitations", made.id),
+        )
+        .unwrap();
+        let list = value
+            .get("data")
+            .unwrap_or(&value)
+            .as_array()
+            .expect("invitation list");
+        assert!(
+            list.iter().any(|item| item["email"] == alias),
+            "the sent invitation must be listed"
+        );
+        for invitation in list {
+            let id = invitation["id"].as_str().expect("invitation id");
+            raw(
+                &broker,
+                &binding,
+                reqwest::Method::DELETE,
+                format!("/organizations/{}/invitations/{id}", made.id),
+            )
+            .unwrap();
+        }
+    }));
+    remove_space(&broker, &binding, &made.id);
+    if let Err(panic) = outcome {
+        std::panic::resume_unwind(panic);
+    }
 }
 
 /// Spaces an interrupted run left behind (`ACCEPT_SPACE`, comma

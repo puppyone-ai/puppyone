@@ -52,7 +52,10 @@ impl Account {
         let supabase = read("ACCEPT_SUPABASE_FILE", "qubits-supabase-public.json");
         let api = std::env::var("ACCEPT_API")
             .unwrap_or_else(|_| "https://qubits-api.puppyone.ai/api/v1".into());
-        let http = reqwest::Client::new();
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(60))
+            .build()
+            .unwrap();
         let grant: Value = runtime().block_on(async {
             http.post(format!(
                 "{}/auth/v1/token?grant_type=password",
@@ -200,6 +203,10 @@ fn wait(what: &str, limit: Duration, mut ready: impl FnMut() -> bool) {
 #[test]
 #[ignore = "real Cloud acceptance; run explicitly"]
 fn two_computers_share_a_folder_through_the_real_cloud() {
+    assert!(
+        Mechanism::detect().is_some(),
+        "this acceptance requires the actual execution sandbox"
+    );
     let started = Instant::now();
     let account = Arc::new(Account::sign_in());
     step("signed in", started);
@@ -241,7 +248,10 @@ fn two_computers_share_a_folder_through_the_real_cloud() {
         let (account, device) = (account.clone(), owner.device_id.clone());
         move || {
             let removed = account.blocking("DELETE", &format!("/hosts/devices/{device}"), None);
-            eprintln!("[acceptance] device removed: {}", removed.is_ok());
+            assert!(
+                removed.is_ok(),
+                "test device {device} cleanup failed: {removed:?}"
+            );
         }
     };
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -449,7 +459,7 @@ fn a_folder_a_typescript_host_shares_opens_here() {
             .unwrap(),
     )
     .unwrap();
-    eprintln!("[interop] read from the TypeScript host: {text:?}");
+    assert_eq!(text, "shared by the TypeScript host\n");
     request(Request::Write {
         path: "note.md".into(),
         content_base64: STANDARD.encode("written by the Rust access side\n"),
@@ -460,15 +470,32 @@ fn a_folder_a_typescript_host_shares_opens_here() {
         path: String::new(),
     })
     .unwrap();
-    eprintln!("[interop] listed: {}", list["entries"]);
+    assert!(
+        list["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["name"] == "note.md")
+    );
+    let saved = request(Request::Read {
+        path: "note.md".into(),
+    })
+    .unwrap();
+    assert_eq!(
+        STANDARD
+            .decode(saved["content_base64"].as_str().unwrap())
+            .unwrap(),
+        b"written by the Rust access side\n"
+    );
     let git = request(Request::Git(GitRequest {
         op: "status".into(),
         ..Default::default()
     }));
-    eprintln!(
-        "[interop] git without consent: {:?}",
-        git.map(|_| ()).map_err(|e| e.code)
+    assert!(
+        git.is_err(),
+        "Git must be refused without execution consent"
     );
+    hosts.close(&folder);
 }
 
 /// Interop, the other way: a folder this host shares, read and edited by
@@ -512,6 +539,7 @@ fn a_folder_this_host_shares_opens_from_typescript() {
         let text = String::from_utf8_lossy(&output.stdout);
         eprintln!("[interop] TypeScript access side: {text}");
         eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+        assert!(output.status.success(), "TypeScript access process failed");
         let reply: Value = serde_json::from_str(text.trim().lines().last().unwrap()).unwrap();
         assert_eq!(reply["ok"], true);
         assert_eq!(reply["text"], "shared by the Rust host\n");
@@ -521,10 +549,14 @@ fn a_folder_this_host_shares_opens_from_typescript() {
         );
     }));
     host.dispose();
-    let _ = account.blocking(
+    let removed = account.blocking(
         "DELETE",
         &format!("/hosts/devices/{}", owner.device_id),
         None,
+    );
+    assert!(
+        removed.is_ok(),
+        "interop device cleanup failed: {removed:?}"
     );
     if let Err(panic) = result {
         std::panic::resume_unwind(panic);

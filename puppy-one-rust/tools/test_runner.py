@@ -91,7 +91,8 @@ def run_gate(name, required, *, env=None, metadata=None):
             result_code, content = 1, error + '\n'
         else:
             result_code, content = execute([binaries[target], test, '--exact', '--include-ignored',
-                                            '--test-threads=1', '--color=never'], env=env)
+                                            '--test-threads=1', '--color=never'], env=env,
+                                           timeout=item.get('timeout', 240))
             error = validate_result(test, result_code, content)
         log = f'{index:02d}-{test.split("::")[-1]}.log'
         (out / log).write_text(content)

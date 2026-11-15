@@ -45,6 +45,9 @@ jobs:
           cargo fetch --locked
           cargo fetch --locked --manifest-path tools/source-index/Cargo.toml
           cargo install cargo-llvm-cov --version 0.9.1 --locked
+          python3 -m venv "$RUNNER_TEMP/rust-verification-python"
+          "$RUNNER_TEMP/rust-verification-python/bin/python" -m pip install -r tools/requirements-verification.txt
+          echo "$RUNNER_TEMP/rust-verification-python/bin" >> "$GITHUB_PATH"
       - name: Install the pinned native engines
         run: |
           python3 tools/fetch-pdfium.py
