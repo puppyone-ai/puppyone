@@ -903,7 +903,7 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
 }
 
 #[gpui::test]
-fn projects_home_agent_strip_and_agent_start_create_blank_project_with_seeded_chat(
+fn projects_home_toolbar_and_agent_start_create_blank_project_with_seeded_chat(
     cx: &mut TestAppContext,
 ) {
     use super::home::discovery::{HomepageCloudAgent, HomepageLocalAgent};
@@ -988,62 +988,64 @@ fn projects_home_agent_strip_and_agent_start_create_blank_project_with_seeded_ch
     });
     draw(cx);
 
-    let assert_header_bounds = |cx: &mut VisualTestContext, expected_col_w: f32| {
+    // One toolbar: the ways to start at its start, sort and layout at its
+    // end, never overlapping, at every width.
+    let assert_toolbar_bounds = |cx: &mut VisualTestContext, expected_col_w: f32| {
         let header = cx.debug_bounds("home-header-row").unwrap();
         let start_actions = cx.debug_bounds("home-start-actions").unwrap();
-        let strip = cx.debug_bounds("home-agent-strip").unwrap();
-        let connect = cx.debug_bounds("home-agent-connect").unwrap();
-        let projects_head = cx.debug_bounds("home-projects-head").unwrap();
+        let agents = cx.debug_bounds("home-new-project-agents").unwrap();
+        let layout = cx.debug_bounds("home-view-controls").unwrap();
         assert!(
             (f32::from(header.size.width) - expected_col_w).abs() < 1.0,
             "header width {:?} != expected {expected_col_w}",
             header.size.width
         );
         assert!(
-            (f32::from(header.right()) - f32::from(projects_head.right())).abs() < 1.0,
-            "header right {:?} != projects_head right {:?}",
-            header.right(),
-            projects_head.right()
-        );
-        assert!(
-            (f32::from(strip.right()) - f32::from(header.right())).abs() < 1.0,
-            "agent strip right {:?} overflowed header right {:?}",
-            strip.right(),
+            (f32::from(layout.right()) - f32::from(header.right())).abs() < 1.0,
+            "layout switch right {:?} != header right {:?}",
+            layout.right(),
             header.right()
         );
         assert!(
-            (f32::from(connect.right()) - f32::from(header.right())).abs() < 1.0,
-            "connect button right {:?} != header right {:?}",
-            connect.right(),
-            header.right()
+            agents.right() <= start_actions.right() && agents.left() > start_actions.left(),
+            "New project's Agents stay inside the start actions"
         );
         assert!(
-            f32::from(strip.left()) >= f32::from(start_actions.right()) + 11.0,
-            "agent strip left {:?} collided with start_actions right {:?}",
-            strip.left(),
+            f32::from(layout.left()) >= f32::from(start_actions.right()) + 11.0,
+            "view controls {:?} collided with start actions {:?}",
+            layout.left(),
             start_actions.right()
         );
     };
 
     // Standard wide viewport (`760px` column), compact macOS window (`958×625`,
-    // `760px` column), and narrow viewport (`620×625`, `564px` column where
-    // 6 local + 1 cloud + `+` shrinks into horizontal scroll).
-    assert_header_bounds(cx, 760.);
+    // `760px` column), and narrow viewport (`620×625`, `564px` column).
+    assert_toolbar_bounds(cx, 760.);
     cx.simulate_resize(size(px(958.), px(625.)));
     draw(cx);
-    assert_header_bounds(cx, 760.);
-    assert!(cx.debug_bounds("home-agent:claude").is_some());
-    assert!(cx.debug_bounds("home-cloud-agent:agent-cloud-1").is_some());
+    assert_toolbar_bounds(cx, 760.);
     cx.simulate_resize(size(px(620.), px(625.)));
     draw(cx);
-    assert_header_bounds(cx, 564.);
+    assert_toolbar_bounds(cx, 564.);
     cx.simulate_resize(size(px(1280.), px(800.)));
     draw(cx);
-    assert_header_bounds(cx, 760.);
+    assert_toolbar_bounds(cx, 760.);
+    // No Agent marks stand in the toolbar on their own.
+    assert!(cx.debug_bounds("home-agent-strip").is_none());
 
-    // `+` opens Settings on the Local Agents page.
-    let plus = cx.debug_bounds("home-agent-connect").unwrap().center();
-    cx.simulate_click(plus, Modifiers::default());
+    // New project's menu: its last row opens Settings on Local Agents.
+    let open_agents = |cx: &mut VisualTestContext| {
+        let chevron = cx.debug_bounds("home-new-project-agents").unwrap().center();
+        cx.simulate_click(chevron, Modifiers::default());
+        draw(cx);
+        draw(cx);
+    };
+    open_agents(cx);
+    let settings_label = crate::localization::t("settings.localAgents.title");
+    let settings_item: &'static str =
+        Box::leak(format!("menu-item:{settings_label}").into_boxed_str());
+    let item = cx.debug_bounds(settings_item).unwrap().center();
+    cx.simulate_click(item, Modifiers::default());
     draw(cx);
     view.read_with(cx, |s, cx| {
         assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings));
@@ -1051,10 +1053,20 @@ fn projects_home_agent_strip_and_agent_start_create_blank_project_with_seeded_ch
     command(&view, cx, Command::Escape);
     draw(cx);
 
-    // Clicking the Local Agent tile opens `AgentProjectStartDialog`, syncs the
-    // folder name from the prompt until edited, and submits a blank folder.
-    let agent_tile = cx.debug_bounds("home-agent:claude").unwrap().center();
-    cx.simulate_click(agent_tile, Modifiers::default());
+    // Each Local Agent is offered by what choosing it does; Claude Code
+    // opens `AgentProjectStartDialog`, syncs the folder name from the prompt
+    // until edited, and submits a blank folder.
+    open_agents(cx);
+    let start_label = crate::localization::tf(
+        "onboarding.agents.start",
+        &[(
+            "agent",
+            crate::localization::bidi_isolate("Claude Code").into(),
+        )],
+    );
+    let start_item: &'static str = Box::leak(format!("menu-item:{start_label}").into_boxed_str());
+    let item = cx.debug_bounds(start_item).unwrap().center();
+    cx.simulate_click(item, Modifiers::default());
     draw(cx);
     view.read_with(cx, |s, cx| {
         assert_eq!(s.top_dialog(cx).as_deref(), Some("AgentStart"));

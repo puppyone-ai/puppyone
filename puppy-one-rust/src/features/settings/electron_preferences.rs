@@ -20,7 +20,6 @@ mod keys {
     pub const TYPOGRAPHY: &str = "puppyone.desktop.typography";
     pub const POINTER_CURSORS: &str = "puppyone.desktop.pointerCursors";
     pub const FILE_ICON_THEME: &str = "puppyone.desktop.fileIconTheme";
-    pub const LOADING: &str = "puppyone.desktop.loadingAnimation";
     pub const EXPLORER_WIDTH: &str = "puppyone.desktop.explorerWidth";
     pub const SIDEBAR_COLLAPSED: &str = "puppyone.desktop.sidebarCollapsed";
     pub const RIGHT_SIDEBAR_WIDTH: &str = "puppyone.desktop.rightSidebarWidth";
@@ -331,11 +330,6 @@ fn appearance<'a>(
     {
         p.file_icon_theme = theme;
     }
-    if let Some(style) =
-        shared_str("loadingPlaceholderStyle").or(get(keys::LOADING).map(str::to_owned))
-    {
-        p.loading_style = serde_json::from_value(Value::String(style)).unwrap_or_default();
-    }
 }
 
 /// `parseExperimentalSettings` (and the Project Switcher Rail, which the
@@ -429,7 +423,6 @@ mod tests {
         assert_eq!(p.text_scale, crate::typography::Scale::Large);
         assert!(p.pointer_cursors);
         assert!(!p.show_file_icons);
-        assert_eq!(p.loading_style, crate::ui::loading::LoadingStyle::Dither);
         assert_eq!((p.explorer_width, p.right_sidebar_width), (312., 480.));
         assert!(p.sidebar_collapsed);
         assert_eq!(p.git_sidebar_layout, GitSidebarLayout::Dividers);

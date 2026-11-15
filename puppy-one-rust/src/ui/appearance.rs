@@ -19,7 +19,6 @@ pub struct Appearance {
     pub pack: SharedString,
     pub scale: Scale,
     pub pointer_cursors: bool,
-    pub loading_style: crate::ui::loading::LoadingStyle,
     /// Code, terminal and editor-content fonts (`ui::fonts` resolves them).
     pub fonts: crate::typography::fonts::Selection,
     /// The pack's palette in this colour mode.
@@ -38,14 +37,9 @@ impl Appearance {
             pack: SharedString::from(pack.to_owned()),
             scale,
             pointer_cursors,
-            loading_style: Default::default(),
             fonts: Default::default(),
             palette: theme::pack_theme(pack, dark),
         }
-    }
-    pub fn with_loading(mut self, style: crate::ui::loading::LoadingStyle) -> Self {
-        self.loading_style = style;
-        self
     }
     pub fn with_fonts(mut self, fonts: crate::typography::fonts::Selection) -> Self {
         self.fonts = fonts;
@@ -53,9 +47,7 @@ impl Appearance {
     }
     /// The same appearance in another colour mode.
     pub fn with_dark(&self, dark: bool) -> Self {
-        Self::new(dark, &self.pack, self.scale, self.pointer_cursors)
-            .with_loading(self.loading_style)
-            .with_fonts(self.fonts.clone())
+        Self::new(dark, &self.pack, self.scale, self.pointer_cursors).with_fonts(self.fonts.clone())
     }
     /// Install as the active appearance. Returns whether anything changed;
     /// windows refresh on their next frame.
@@ -66,14 +58,12 @@ impl Appearance {
                 &current.pack,
                 current.scale,
                 current.pointer_cursors,
-                current.loading_style,
                 &current.fonts,
             ) != (
                 self.dark,
                 &self.pack,
                 self.scale,
                 self.pointer_cursors,
-                self.loading_style,
                 &self.fonts,
             )
         });

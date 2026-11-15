@@ -663,3 +663,46 @@ fn managed_inference_reads_the_wallet_first() {
     assert_eq!(result.err(), Some(Error::Http(402)));
     assert_eq!(*seen.lock().unwrap(), vec!["/ai/balance".to_owned()]);
 }
+
+#[test]
+fn workbench_open_posts_preserve_structured_failures_while_file_writes_stay_unknown() {
+    let (broker, remote, _) = setup();
+    login(&broker, "alice").unwrap();
+    let diagnostic = Diagnostic::read(
+        &serde_json::json!({"data": {"code": "workbench_preparing", "retryable": true}}),
+        Some("req-open-1"),
+    );
+    let open_request = ApiRequest {
+        idempotency_key: None,
+        method: reqwest::Method::POST,
+        path: "/projects/project-a/workbench".into(),
+        query: Vec::new(),
+        body: None,
+    };
+    let write_request = ApiRequest {
+        idempotency_key: None,
+        method: reqwest::Method::PUT,
+        path: "/projects/project-a/workbench/file".into(),
+        query: Vec::new(),
+        body: Some(serde_json::json!({"path": "a.md"})),
+    };
+    for (injected, expected_status) in [
+        (
+            Error::Response(503, Some("workbench_preparing"), diagnostic),
+            Status::Authenticated,
+        ),
+        (Error::Timeout, Status::Offline),
+    ] {
+        *remote.responder.lock().unwrap() = Some(Arc::new(move |_| Err(injected)));
+        assert_eq!(
+            broker.request(&binding(&broker), &open_request).err(),
+            Some(injected)
+        );
+        assert_eq!(snapshot(&broker).status, expected_status);
+        assert_eq!(
+            broker.request(&binding(&broker), &write_request).err(),
+            Some(Error::OutcomeUnknown)
+        );
+    }
+    broker.shutdown();
+}

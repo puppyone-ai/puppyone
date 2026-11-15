@@ -9,6 +9,7 @@
 //! owners while it draws, takes what the window shows as a
 //! [`SessionView`], and asks the window for everything else
 //! ([`ChromeEvent`]).
+mod account;
 pub(super) mod navigation;
 mod project_menu;
 mod rail;
@@ -42,6 +43,8 @@ pub enum Popover {
     Place,
     /// The Homepage brand's navigation (`OnboardingBrandLockup`).
     Brand,
+    /// The signed-in account at the Homepage Header's end.
+    Account,
 }
 /// What the chrome asks of the window.
 pub(super) enum ChromeEvent {
@@ -212,8 +215,9 @@ impl WindowChrome {
 
     /// The Header (`DesktopWindowChrome`).
     ///
-    /// - The Homepage names the product (once there are projects) and holds
-    ///   the account (`HomepageCloudStatus`).
+    /// - The Homepage names the product (once there are projects), says
+    ///   what the account's catalog is doing (`HomepageCloudStatus`) and
+    ///   ends with the account: its circle, or Sign in.
     /// - A local folder: the Explorer's expand button while it is closed,
     ///   the project and its place, then the app status, Changes and the
     ///   Agent entry, each group set off by a rule.
@@ -242,6 +246,9 @@ impl WindowChrome {
                     },
                     cx,
                 ));
+            }
+            if let Some(email) = account::email(cx) {
+                return bar.action(self.account(&email, cx));
             }
             return self.sign_in(bar, cx);
         }

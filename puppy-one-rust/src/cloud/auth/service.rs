@@ -640,18 +640,19 @@ impl Broker {
             result = self.remote.request(&session, request, &fence);
         }
         let valid = fence.check();
-        if result.as_ref().err() == Some(&Error::Unavailable) {
+        if matches!(result, Err(Error::Unavailable | Error::Timeout)) {
             let _ = self.update(&fence, |s| s.status = Status::Offline);
         }
-        // A server error or timeout after a mutation was sent is ambiguous.
+        // A server error or timeout after a non-idempotent mutation was sent is ambiguous.
         let ambiguous_response =
             matches!(result, Err(Error::Response(status, _, _)) if status >= 500 || status == 408);
-        if !request.read_only()
+        if !request.preserves_failure()
             && (valid.is_err()
                 || ambiguous_response
                 || matches!(
                     result,
                     Err(Error::Unavailable
+                        | Error::Timeout
                         | Error::SessionChanged
                         | Error::Cancelled
                         | Error::InvalidResponse)

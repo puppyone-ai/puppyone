@@ -147,8 +147,7 @@ impl SettingsWorkspaceSurface {
         if let Some(error) = unavailable.or_else(|| snapshot.as_ref().and_then(|s| s.error)) {
             session_details = session_details.child(error.to_string());
         }
-        let prefs = &self.preferences.read(cx).state.experimental;
-        let payments = prefs.payments;
+        let payments = crate::features::flags::payments_enabled(&self.preferences, cx);
         let cloud_on = crate::features::flags::cloud_enabled(&self.preferences, cx);
         // The balance belongs to the account, so it is topped up here, the
         // page the account entry in every Header opens.

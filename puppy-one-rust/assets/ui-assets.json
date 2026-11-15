@@ -8,19 +8,9 @@
     "src/shared-ui/styles/product-icons.css": "f6fc170fcb0d5ac6d5607fc87006592718c628b63e20dd104b4c4b8eff26dd12",
     "src/shared-ui/primitives/LoadingMark.tsx": "a5233717bcc0404525c057195ba6df65bb1656e84496bb00e02e983be5a3160e",
     "src/shared-ui/primitives/LoadingPlaceholder.tsx": "c8f9dde6889c8b8b3eb425a99ea8aad4046fe54354294333fcb2770cc4e5ee8f",
-    "src/shared-ui/primitives/orderedDitherField.ts": "239290461cda787a12ee74b3087a23263f6d8d796a5cbd747c91f055fa1c56c6",
-    "src/shared-ui/primitives/OrderedDither.tsx": "1075370dd74f0c1f70dacc780f8a2cda35d82e0866a3f16e34f32ea78146232b",
     "src/shared-ui/styles/loading-mark.css": "733f198e5b1bf3cc347fa325d8d0b44a26031b9a6c4ab6525383063c9218fb50",
     "src/shared-ui/styles/loading-placeholder.css": "5bcd91ef6774350439c70d427abc50c37af9f5cd769db124e37a4c00a4005c4f",
-    "src/components/loading/index.tsx": "fc17b1c20c4cb6d7b0b04a78d302c97032739a56e04b19b0201b3bcc81c93fdd",
-    "locales/renderer/en/settings.json": "5f83f81ef7999bd2f1bb700b32d18bed97081e01e67237b88d565ba10477f43e",
-    "locales/renderer/zh-Hans/settings.json": "72367f8e4aabb678d02add8eb3796e91039246f94d8ab998a31b1229140e9db1",
-    "locales/renderer/ja/settings.json": "5385336b6b9ab81c8eb9cf385ef7658fdbaeb37a21b587e0ecc2131d312da878",
-    "locales/renderer/ko/settings.json": "64ca0b16f2383d2e382ad05a05cb68025f1603a873e685b87571f912174f2572",
-    "locales/renderer/de/settings.json": "fe269cdaf2ca6dea8c521a8fd7ca3c989360d4e4848a7369b0e2f68a0b7905f8",
-    "locales/renderer/fr/settings.json": "fd76c4fd5229b7fd90742b85ad2256503a1f67401de71230f44b11680f132559",
-    "locales/renderer/es/settings.json": "c8f4e245f764b8f33ff201aaadeab1c86f0ba0c00265ed48170944ae69e7c847",
-    "locales/renderer/pt-BR/settings.json": "0ee72fc4b86568b435d47d4ed306f3f698d6e92837afb383ff28b09addcdac84"
+    "src/components/loading/index.tsx": "fc17b1c20c4cb6d7b0b04a78d302c97032739a56e04b19b0201b3bcc81c93fdd"
   },
   "icons": {
     "home": {
@@ -59,20 +49,12 @@
           "unit": 3,
           "gap": 2
         },
-        "dither": {
-          "unit": 4,
-          "gap": 2
-        },
         "box": 12
       },
       "sm": {
         "relay": {
           "unit": 4,
           "gap": 3
-        },
-        "dither": {
-          "unit": 5,
-          "gap": 2
         },
         "box": 16
       },
@@ -81,148 +63,8 @@
           "unit": 5,
           "gap": 4
         },
-        "dither": {
-          "unit": 6,
-          "gap": 3
-        },
         "box": 24
       }
-    },
-    "markLight": {
-      "base": 0.2,
-      "peak": 0.85,
-      "halo": 0,
-      "haloInk": 0,
-      "width": 5,
-      "angle": 0,
-      "period": 1.2
-    },
-    "placeholderLight": {
-      "base": 0.3,
-      "peak": 0.46,
-      "halo": 0.34,
-      "haloInk": 0.4,
-      "width": 36,
-      "angle": 62,
-      "period": 2.8
-    },
-    "thresholds": [
-      0.0078125,
-      0.5078125,
-      0.1328125,
-      0.6328125,
-      0.0390625,
-      0.5390625,
-      0.1640625,
-      0.6640625,
-      0.7578125,
-      0.2578125,
-      0.8828125,
-      0.3828125,
-      0.7890625,
-      0.2890625,
-      0.9140625,
-      0.4140625,
-      0.1953125,
-      0.6953125,
-      0.0703125,
-      0.5703125,
-      0.2265625,
-      0.7265625,
-      0.1015625,
-      0.6015625,
-      0.9453125,
-      0.4453125,
-      0.8203125,
-      0.3203125,
-      0.9765625,
-      0.4765625,
-      0.8515625,
-      0.3515625,
-      0.0546875,
-      0.5546875,
-      0.1796875,
-      0.6796875,
-      0.0234375,
-      0.5234375,
-      0.1484375,
-      0.6484375,
-      0.8046875,
-      0.3046875,
-      0.9296875,
-      0.4296875,
-      0.7734375,
-      0.2734375,
-      0.8984375,
-      0.3984375,
-      0.2421875,
-      0.7421875,
-      0.1171875,
-      0.6171875,
-      0.2109375,
-      0.7109375,
-      0.0859375,
-      0.5859375,
-      0.9921875,
-      0.4921875,
-      0.8671875,
-      0.3671875,
-      0.9609375,
-      0.4609375,
-      0.8359375,
-      0.3359375
-    ],
-    "fps": 30,
-    "cell": 2
-  },
-  "locales": {
-    "en": {
-      "settings.appearance.loadingStyle.title": "Loading style",
-      "settings.appearance.loadingStyle.ariaLabel": "Loading style",
-      "settings.appearance.loadingStyle.rounded.label": "Rounded",
-      "settings.appearance.loadingStyle.dither.label": "Dither"
-    },
-    "zh-Hans": {
-      "settings.appearance.loadingStyle.title": "加载样式",
-      "settings.appearance.loadingStyle.ariaLabel": "加载样式",
-      "settings.appearance.loadingStyle.rounded.label": "圆角",
-      "settings.appearance.loadingStyle.dither.label": "点阵"
-    },
-    "ja": {
-      "settings.appearance.loadingStyle.title": "読み込みスタイル",
-      "settings.appearance.loadingStyle.ariaLabel": "読み込みスタイル",
-      "settings.appearance.loadingStyle.rounded.label": "角丸",
-      "settings.appearance.loadingStyle.dither.label": "ディザ"
-    },
-    "ko": {
-      "settings.appearance.loadingStyle.title": "로딩 스타일",
-      "settings.appearance.loadingStyle.ariaLabel": "로딩 스타일",
-      "settings.appearance.loadingStyle.rounded.label": "둥근 모서리",
-      "settings.appearance.loadingStyle.dither.label": "디더"
-    },
-    "de": {
-      "settings.appearance.loadingStyle.title": "Ladestil",
-      "settings.appearance.loadingStyle.ariaLabel": "Ladestil",
-      "settings.appearance.loadingStyle.rounded.label": "Abgerundet",
-      "settings.appearance.loadingStyle.dither.label": "Dither"
-    },
-    "fr": {
-      "settings.appearance.loadingStyle.title": "Style de chargement",
-      "settings.appearance.loadingStyle.ariaLabel": "Style de chargement",
-      "settings.appearance.loadingStyle.rounded.label": "Arrondi",
-      "settings.appearance.loadingStyle.dither.label": "Tramé"
-    },
-    "es": {
-      "settings.appearance.loadingStyle.title": "Estilo de carga",
-      "settings.appearance.loadingStyle.ariaLabel": "Estilo de carga",
-      "settings.appearance.loadingStyle.rounded.label": "Redondeado",
-      "settings.appearance.loadingStyle.dither.label": "Tramado"
-    },
-    "pt-BR": {
-      "settings.appearance.loadingStyle.title": "Estilo de carregamento",
-      "settings.appearance.loadingStyle.ariaLabel": "Estilo de carregamento",
-      "settings.appearance.loadingStyle.rounded.label": "Arredondado",
-      "settings.appearance.loadingStyle.dither.label": "Pontilhado"
     }
   }
 }

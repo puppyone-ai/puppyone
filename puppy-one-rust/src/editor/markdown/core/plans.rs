@@ -5,7 +5,7 @@
 //! re-inferring them from element kinds. Features compile the elements they
 //! claim and their own block plans (`core/feature.rs`).
 use super::{
-    feature::{CompileCx, Features},
+    feature::{self, CompileCx, Features},
     state::CalloutFolds,
     syntax::{Element, Kind, Syntax},
 };
@@ -161,15 +161,37 @@ pub fn compile(
         .iter()
         .enumerate()
         .map(|(i, e)| {
-            features
+            for f in features
                 .iter()
                 .filter(|f| f.semantic_kinds().contains(&e.kind))
-                .find_map(|f| f.compile_element(i, e, &cx))
-                .unwrap_or_else(|| compile_element(i, e))
+            {
+                match feature::catch_feature_panic(f.id(), "compile_element", || {
+                    f.compile_element(i, e, &cx)
+                }) {
+                    Some(Some(plan)) => return plan,
+                    Some(None) => continue,
+                    None => {
+                        return Plan {
+                            element: Some(i),
+                            source: e.range.clone(),
+                            presentation: Presentation::VisibleSource,
+                            delete_units: Vec::new(),
+                        };
+                    }
+                }
+            }
+            compile_element(i, e)
         })
         .collect();
-    for feature in features {
-        feature.compile_blocks(&cx, &mut plans);
+    for f in features {
+        let mut stage = Vec::new();
+        if feature::catch_feature_panic(f.id(), "compile_blocks", || {
+            f.compile_blocks(&cx, &mut stage);
+        })
+        .is_some()
+        {
+            plans.extend(stage);
+        }
     }
     plans.sort_by(|a, b| {
         a.source

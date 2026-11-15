@@ -2,7 +2,7 @@
 use super::{
     appearance::ActiveAppearance,
     components::{FileIcon, Icon, ProductIcon},
-    loading::{self, LoaderSize, LoadingMark, LoadingStyle, Tone},
+    loading::{self, LoaderSize, LoadingMark, Tone},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
@@ -56,8 +56,6 @@ struct Item {
     size: Size,
     #[serde(default)]
     stroke: f32,
-    #[serde(default)]
-    style: LoadingStyle,
     #[serde(default)]
     layout: String,
     #[serde(default)]
@@ -133,7 +131,6 @@ impl Render for AssetGallery {
                         };
                         let mark = LoadingMark::new(SharedString::from(item.id.clone()))
                             .size(size)
-                            .loading_style(item.style)
                             .tone(item.tone);
                         if item.layout == "area" {
                             mark.area().into_any_element()
@@ -146,7 +143,6 @@ impl Render for AssetGallery {
                         item.w,
                         item.h,
                         item.shapes,
-                        item.style,
                     )
                     .into_any_element(),
                     other => panic!("Unknown registry fixture {other}"),

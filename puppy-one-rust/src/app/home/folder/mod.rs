@@ -1,31 +1,29 @@
 //! `ProjectFolderGlyph` and `HomeProjectIcon` (`components/onboarding`):
-//! every project's folder on Home and in the switcher rail. Both empty and
-//! asset-bearing folders share one `104 × 78` SVG silhouette (`34 × 26` in List
-//! rows) so adjacent projects align identically; when top-level `previews`
-//! exist, up to three calm preview sheets sit between the back and front, and
-//! Cloud projects show up to three connected Agents at the bottom-right corner.
+//! every project's folder on Home and in the switcher rail. Empty and
+//! file-bearing folders share one `104 × 78` SVG silhouette (`34 × 26` in List
+//! rows) so adjacent projects align identically; a folder whose root holds
+//! files shows up to three blank sheets between its back and front.
 mod sheet;
 #[cfg(test)]
 mod tests;
 
-use super::previews::ProjectAssetPreview;
 use crate::{
-    app::cloud_agents_ui::compact_agent_face,
-    theme::{self, Theme, metric},
+    theme::{self, Theme},
     ui::{
         appearance::ActiveAppearance as _,
         components::{Icon, ProductIcon},
-        moments::paint,
     },
     workspace::cloud::catalog::Location,
 };
 use gpui::{prelude::*, *};
-use gpui_kit::{base::h_flex, component::Sizable as _};
+use gpui_kit::component::Sizable as _;
 
 pub(super) const GRID_FOLDER_SIZE: (f32, f32) = (104., 78.);
 pub(super) const LIST_FOLDER_SIZE: (f32, f32) = (34., 26.);
+/// A folder shows at most this many sheets, however many files it holds.
+const MAX_SHEETS: usize = 3;
 
-/// Connected Agent badge shown at the bottom-right corner of a Cloud folder.
+/// A Cloud Agent connected to a Cloud project (named in its tile's tooltip).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::app) struct FolderAgentBadge {
     pub id: String,
@@ -94,34 +92,30 @@ fn layer(path: &'static str, w: f32, h: f32, color: Rgba) -> Svg {
 }
 
 /// `ProjectFolderGlyph`: `104 × 78` Grid folder or `34 × 26` compact List
-/// folder with peeking asset preview sheets and Cloud Agent corner badges.
+/// folder, with a blank sheet peeking out for each of up to three files.
 #[derive(IntoElement)]
 pub(in crate::app::home) struct ProjectFolderGlyph {
     compact: bool,
-    previews: Vec<ProjectAssetPreview>,
-    agents: Vec<FolderAgentBadge>,
+    sheets: usize,
     is_lit: bool,
     fade: Option<f32>,
 }
 
 impl ProjectFolderGlyph {
-    pub fn grid(previews: &[ProjectAssetPreview], agents: &[FolderAgentBadge]) -> Self {
+    /// `files`: how many files the folder's root holds (as far as read).
+    pub fn grid(files: usize) -> Self {
         Self {
             compact: false,
-            previews: previews.iter().take(3).cloned().collect(),
-            agents: agents.iter().take(3).cloned().collect(),
+            sheets: files.min(MAX_SHEETS),
             is_lit: false,
             fade: None,
         }
     }
 
-    pub fn compact(previews: &[ProjectAssetPreview]) -> Self {
+    pub fn compact(files: usize) -> Self {
         Self {
             compact: true,
-            previews: previews.iter().take(3).cloned().collect(),
-            agents: Vec::new(),
-            is_lit: false,
-            fade: None,
+            ..Self::grid(files)
         }
     }
 
@@ -145,76 +139,32 @@ impl RenderOnce for ProjectFolderGlyph {
             GRID_FOLDER_SIZE
         };
         let folder = faded(if self.is_lit { lit(t) } else { tones(t) }, self.fade, t);
-        let count = self.previews.len().min(3);
-
-        let mut stage = div().relative().flex_none().w(px(w)).h(px(h)).child(layer(
-            "home/folder-back.svg",
-            w,
-            h,
-            folder.back,
-        ));
-
-        if count > 0 {
-            if self.compact {
+        let paper = sheet::Paper::new(self.fade, t);
+        let sheets: Vec<Div> = match self.sheets {
+            0 => vec![],
+            count if self.compact => {
                 let (placements, order) = sheet::compact_sheet_placements(count);
-                for &idx in order {
-                    if let Some(preview) = self.previews.get(idx) {
-                        stage = stage.child(sheet::render_compact_sheet(
-                            preview,
-                            placements[idx],
-                            self.fade,
-                            t,
-                        ));
-                    }
-                }
-            } else {
-                let (placements, order) = sheet::grid_sheet_placements(count);
-                for &idx in order {
-                    if let Some(preview) = self.previews.get(idx) {
-                        stage = stage.child(sheet::render_grid_sheet(
-                            preview,
-                            placements[idx],
-                            count >= 2 && idx == 0,
-                            self.fade,
-                            t,
-                        ));
-                    }
-                }
+                order
+                    .iter()
+                    .map(|&idx| sheet::render_compact_sheet(placements[idx], &paper))
+                    .collect()
             }
-        }
-
-        stage = stage.child(layer("home/folder-front.svg", w, h, folder.front));
-
-        if !self.compact && !self.agents.is_empty() {
-            stage = stage.child(h_flex().absolute().right_0().bottom(px(-3.)).children(
-                self.agents.iter().enumerate().map(|(idx, agent)| {
-                    div()
-                        .w(px(20.))
-                        .h(px(20.))
-                        .flex_none()
-                        .when(idx > 0, |d| d.ml(px(-5.)))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded(px(metric::CONTROL_RADIUS))
-                        .bg(t.panel_raised)
-                        .shadow(vec![
-                            paint::ring(t.canvas, px(1.5)),
-                            theme::elevation_low(&t),
-                        ])
-                        .child(compact_agent_face(
-                            &agent.name,
-                            agent.avatar.as_deref(),
-                            14.,
-                            3.,
-                            t.panel_raised,
-                            t,
-                        ))
-                }),
-            ));
-        }
-
-        stage
+            count => {
+                let (placements, order) = sheet::grid_sheet_placements(count);
+                order
+                    .iter()
+                    .map(|&idx| sheet::render_grid_sheet(placements[idx], &paper))
+                    .collect()
+            }
+        };
+        div()
+            .relative()
+            .flex_none()
+            .w(px(w))
+            .h(px(h))
+            .child(layer("home/folder-back.svg", w, h, folder.back))
+            .children(sheets)
+            .child(layer("home/folder-front.svg", w, h, folder.front))
     }
 }
 

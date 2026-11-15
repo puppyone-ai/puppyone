@@ -74,19 +74,64 @@ pub const REASONS: &[&str] = &[
     "schema_migration_required",
     "service_upgrade_required",
 ];
+/// Client-side transport/protocol diagnostic codes that never alter copy,
+/// shown so a failed opening is never silent.
+const CLIENT_DIAGNOSTICS: &[&str] = &[
+    "CLOUD_INVALID_RESPONSE",
+    "CLOUD_OUTCOME_UNKNOWN",
+    "CLOUD_CONFIGURATION_INVALID",
+    "CLOUD_SECURE_STORAGE_FAILED",
+];
+
 /// The allowlisted spelling of `code`, if any.
 pub fn allowlisted(code: &str) -> Option<&'static str> {
     REASONS.iter().copied().find(|r| *r == code)
 }
-/// The codes a diagnostic may name: the allowlist and the workspace's own
-/// refusals.
-fn diagnostic_code(code: &str) -> Option<&'static str> {
-    allowlisted(code).or_else(|| {
-        [ServiceCode::GenerationChanged, ServiceCode::NotRunning]
-            .into_iter()
-            .filter_map(service_reason)
-            .find(|r| *r == code)
-    })
+/// `openingDiagnostic` (`cloudOpeningFailure.ts`): the server's own
+/// `^workbench_[a-z_]{1,80}$` namespace, interned like [`RequestId`] so
+/// diagnostic reasons stay `Copy` and bounded while rejecting arbitrary prose.
+pub fn workbench_code(code: &str) -> Option<&'static str> {
+    let tail = code.strip_prefix("workbench_")?;
+    if tail.is_empty()
+        || tail.len() > 80
+        || !tail.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+    {
+        return None;
+    }
+    if let Some(known) = allowlisted(code) {
+        return Some(known);
+    }
+    if let Some(known) = [
+        ServiceCode::GenerationChanged,
+        ServiceCode::NotRunning,
+        ServiceCode::WorkbenchNotFound,
+    ]
+    .into_iter()
+    .filter_map(service_reason)
+    .find(|r| *r == code)
+    {
+        return Some(known);
+    }
+    static KEPT: std::sync::Mutex<Option<std::collections::HashSet<&'static str>>> =
+        std::sync::Mutex::new(None);
+    let mut kept = KEPT.lock().ok()?;
+    let kept = kept.get_or_insert_with(Default::default);
+    if let Some(known) = kept.get(code) {
+        return Some(known);
+    }
+    if kept.len() >= 256 {
+        return None;
+    }
+    let interned: &'static str = Box::leak(code.to_owned().into_boxed_str());
+    kept.insert(interned);
+    Some(interned)
+}
+/// The codes a diagnostic may name: the allowlist, client transport/protocol
+/// codes, and the workspace's own `workbench_*` namespace.
+pub(super) fn diagnostic_code(code: &str) -> Option<&'static str> {
+    allowlisted(code)
+        .or_else(|| CLIENT_DIAGNOSTICS.iter().copied().find(|r| *r == code))
+        .or_else(|| workbench_code(code))
 }
 /// The workspace's own refusals the file provider tells apart
 /// (`ServiceCode`), as the opening reads them.
@@ -94,6 +139,7 @@ fn service_reason(code: ServiceCode) -> Option<&'static str> {
     match code {
         ServiceCode::GenerationChanged => Some("workbench_generation_changed"),
         ServiceCode::NotRunning => Some("workbench_not_running"),
+        ServiceCode::WorkbenchNotFound => Some("workbench_not_found"),
         _ => None,
     }
 }
@@ -256,11 +302,14 @@ pub fn from_auth(error: &AuthError) -> Cause {
             ..cause(Some(*status), *reason, diagnostic.retryable)
         },
         AuthError::Unavailable => cause(None, Some("CLOUD_TRANSPORT_UNAVAILABLE"), None),
+        AuthError::Timeout => cause(None, Some("CLOUD_REQUEST_TIMEOUT"), None),
+        AuthError::InvalidResponse => cause(None, Some("CLOUD_INVALID_RESPONSE"), None),
+        AuthError::OutcomeUnknown => cause(None, Some("CLOUD_OUTCOME_UNKNOWN"), None),
+        AuthError::SecureStorage => cause(None, Some("CLOUD_SECURE_STORAGE_FAILED"), Some(false)),
+        AuthError::Configuration => cause(None, Some("CLOUD_CONFIGURATION_INVALID"), Some(false)),
         AuthError::SessionChanged | AuthError::Cancelled => cause(None, None, Some(false)),
-        AuthError::Configuration | AuthError::Unsupported | AuthError::NoProviders => {
-            cause(None, None, Some(false))
-        }
-        _ => Cause::default(),
+        AuthError::Unsupported | AuthError::NoProviders => cause(None, None, Some(false)),
+        AuthError::RemoteLogoutUnavailable => Cause::default(),
     }
 }
 

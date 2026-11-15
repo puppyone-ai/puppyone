@@ -27,9 +27,9 @@ async function run(){
  function Fixture(){React.useEffect(()=>{window.__ready=true;},[]);return <TestLocalizationProvider>{board.items.map(item=>{
   let child;
   if(item.kind==='icon'){const Icon=registry[item.name];child=<Icon size={item.size} strokeWidth={item.stroke}/>;}
-  if(item.kind==='mark')child=<LoadingMark size={item.size} tone={item.tone} layout={item.layout} loadingStyle={item.style} ariaHidden/>;
+  if(item.kind==='mark')child=<LoadingMark size={item.size} tone={item.tone} layout={item.layout} loadingStyle="rounded" ariaHidden/>;
   if(item.kind==='file')child=<FileGlyphIcon name={item.name} type={item.nodeType} size={item.size} theme={item.theme}/>;
-  if(item.kind==='placeholder')child=<LoadingPlaceholderStyleProvider style={item.style}><div className="po-placeholder-surface" style={{width:item.w,height:item.h}}>{item.shapes.map((s,i)=><span key={i} data-placeholder-shape="" style={{position:'absolute',left:s.x,top:s.y,width:s.width,height:s.height,borderRadius:s.radius}}/>)}<PlaceholderLayer/></div></LoadingPlaceholderStyleProvider>;
+  if(item.kind==='placeholder')child=<LoadingPlaceholderStyleProvider style="rounded"><div className="po-placeholder-surface" style={{width:item.w,height:item.h}}>{item.shapes.map((s,i)=><span key={i} data-placeholder-shape="" style={{position:'absolute',left:s.x,top:s.y,width:s.width,height:s.height,borderRadius:s.radius}}/>)}<PlaceholderLayer/></div></LoadingPlaceholderStyleProvider>;
   return <div key={item.id} data-asset-id={item.id} style={{position:'absolute',left:item.x,top:item.y,width:item.w,height:item.h,color:'var(--po-'+(item.ink??'text')+')',display:'flex',alignItems:'center',justifyContent:'center'}}>{child}</div>;
  })}</TestLocalizationProvider>;}createRoot(document.getElementById('root')).render(<Fixture/>);`);
  await app.whenReady();

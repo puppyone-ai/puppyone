@@ -312,13 +312,20 @@ impl Reader {
                             }
                         }
                         '\\' => {
-                            self.at += 1;
+                            let _ = self.next();
                         }
                         _ => {}
                     }
                 }
-                let end = if depth == 0 { self.at - 1 } else { self.at };
-                let inner: String = self.chars[start..end.max(start)].iter().collect();
+                let len = self.chars.len();
+                let start = start.min(len);
+                let end = if depth == 0 {
+                    self.at.saturating_sub(1)
+                } else {
+                    self.at
+                }
+                .clamp(start, len);
+                let inner: String = self.chars[start..end].iter().collect();
                 convert(&inner)
             }
             Some('\\') => {
@@ -379,8 +386,11 @@ fn command_text(name: &str, reader: &mut Reader) -> String {
                 while reader.peek().is_some_and(|c| c != ']') {
                     reader.at += 1;
                 }
-                let index: String = reader.chars[start..reader.at].iter().collect();
-                reader.at += 1;
+                let end = reader.at.min(reader.chars.len());
+                let index: String = reader.chars[start.min(end)..end].iter().collect();
+                if reader.peek() == Some(']') {
+                    reader.at += 1;
+                }
                 script(&convert(&index), superscript, '^')
             } else {
                 String::new()
@@ -487,5 +497,24 @@ mod tests {
         assert_eq!(convert(r"\sum_{i=1}^{n} i"), "∑ᵢ₌₁ⁿ i");
         assert_eq!(convert(r"\sin \theta \leq 1"), "sin θ ≤ 1");
         assert_eq!(convert(r"\unknown"), r"\unknown");
+    }
+
+    #[test]
+    fn unclosed_groups_ending_with_backslash_never_panic() {
+        for formula in [
+            r"x^{\",
+            r"\frac{\",
+            r"\sqrt{\",
+            r"\sqrt[3\",
+            r"\mathbb{\",
+            r"x_{\",
+            r"\",
+        ] {
+            let text = convert(formula);
+            assert!(
+                !text.is_empty(),
+                "formula {formula:?} should produce displayable fallback text"
+            );
+        }
     }
 }

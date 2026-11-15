@@ -49,9 +49,9 @@ impl OnboardingHomeState {
     }
 }
 
-/// `OnboardingBrandLockup`: on Projects Home, one non-wrapping header row with
-/// `OnboardingStartActions` on the left and `HomepageAgentStrip` on the right;
-/// on first run, the active value moment's title and pitch.
+/// `OnboardingBrandLockup`: on Projects Home, one non-wrapping toolbar with
+/// `OnboardingStartActions` at its start and how the projects are shown at its
+/// end; on first run, the active value moment's title and pitch.
 #[derive(IntoElement)]
 pub(in crate::app::home) struct OnboardingBrandLockup {
     state: OnboardingHomeState,
@@ -60,11 +60,11 @@ pub(in crate::app::home) struct OnboardingBrandLockup {
 }
 
 impl OnboardingBrandLockup {
-    pub fn projects(toolbar: impl IntoElement, trailing: impl IntoElement) -> Self {
+    pub fn projects(toolbar: impl IntoElement, trailing: Option<impl IntoElement>) -> Self {
         Self {
             state: OnboardingHomeState::Projects,
             leading: Some(toolbar.into_any_element()),
-            trailing: Some(trailing.into_any_element()),
+            trailing: trailing.map(IntoElement::into_any_element),
         }
     }
 
@@ -88,7 +88,7 @@ impl RenderOnce for OnboardingBrandLockup {
                 .items_center()
                 .justify_between()
                 .gap(px(12.))
-                .mb(px(20.))
+                .mb(px(18.))
                 .children(self.leading)
                 .children(self.trailing)
                 .into_any_element(),

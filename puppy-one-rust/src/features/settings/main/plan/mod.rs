@@ -69,7 +69,7 @@ impl SettingsWorkspaceSurface {
     /// The billing client and the space Plan reads: payments on, signed in,
     /// a space chosen.
     fn plan_scope(&self, cx: &App) -> Option<(billing::Client, String, String)> {
-        if !self.preferences.read(cx).state.experimental.payments {
+        if !crate::features::flags::payments_enabled(&self.preferences, cx) {
             return None;
         }
         let (_, binding) = crate::features::cloud::account::broker_and_binding(cx)?;
@@ -79,6 +79,30 @@ impl SettingsWorkspaceSurface {
             billing_namespace(&binding),
             org,
         ))
+    }
+    pub(in crate::features::settings) fn plan_scope_context(
+        &self,
+        cx: &App,
+    ) -> Option<(String, String)> {
+        self.plan_scope(cx).map(|(_, ns, org)| (ns, org))
+    }
+    pub(in crate::features::settings) fn plan_context(&self) -> Option<&(String, String)> {
+        #[cfg(feature = "dev-capture")]
+        if self.plan_page.lab.is_some() {
+            return None;
+        }
+        self.plan_page.context.as_ref()
+    }
+    pub(in crate::features::settings) fn reset_plan(&mut self) {
+        #[cfg(feature = "dev-capture")]
+        if self.plan_page.lab.is_some() {
+            return;
+        }
+        let epoch = self.plan_page.epoch + 1;
+        self.plan_page = PlanPage {
+            epoch,
+            ..Default::default()
+        };
     }
     /// Whether someone is signed in, and the space Plan is on.
     pub(super) fn plan_reader(
@@ -607,22 +631,33 @@ impl SettingsWorkspaceSurface {
                 add_on.pending = false;
                 match result {
                     Ok(change) => {
-                        add_on.key = None;
-                        add_on.draft = None;
-                        if change.outcome == "checkout"
-                            && let Some(url) =
+                        if change.outcome == "checkout" {
+                            if let Some(url) =
                                 change.checkout_url.as_deref().and_then(billing::safe_url)
-                        {
-                            cx.open_url(&url);
-                            add_on.message = Some(("settings.plan.addOnCheckoutOpened", false));
-                        } else if change.outcome == "pending_provider_confirmation" {
-                            add_on.message = Some(("settings.plan.addOnPending", false));
+                            {
+                                add_on.key = None;
+                                add_on.draft = None;
+                                cx.open_url(&url);
+                                add_on.message = Some(("settings.plan.addOnCheckoutOpened", false));
+                                s.refresh_plan(cx);
+                            } else {
+                                add_on.message = Some(("settings.plan.addOnFailed", true));
+                            }
+                        } else {
+                            add_on.key = None;
+                            add_on.draft = None;
+                            if change.outcome == "pending_provider_confirmation" {
+                                add_on.message = Some(("settings.plan.addOnPending", false));
+                            }
+                            s.refresh_plan(cx);
                         }
-                        s.refresh_plan(cx);
                     }
                     Err(Error::BillingDisabled) => {
                         add_on.message = Some(("settings.plan.addOnFailed", true));
                         s.plan_page.controller.disabled = true;
+                    }
+                    Err(Error::Invalid(billing::FOREIGN | billing::MISMATCH)) => {
+                        add_on.message = Some((billing::MISMATCH, true));
                     }
                     Err(_) => add_on.message = Some(("settings.plan.addOnFailed", true)),
                 }

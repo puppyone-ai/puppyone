@@ -43,11 +43,7 @@ fn current_badge(t: Theme) -> Div {
         .text_color(t.muted)
         .child(tr("settings.plan.current"))
 }
-fn placeholder(id: &'static str, width: f32, height: f32, cx: &App) -> AnyElement {
-    let style = cx
-        .try_global::<crate::ui::appearance::Appearance>()
-        .map(|a| a.loading_style)
-        .unwrap_or_default();
+fn placeholder(id: &'static str, width: f32, height: f32) -> AnyElement {
     loading::placeholder(
         id,
         width,
@@ -59,7 +55,6 @@ fn placeholder(id: &'static str, width: f32, height: f32, cx: &App) -> AnyElemen
             height: height as f64,
             radius: 4.,
         }],
-        style,
     )
     .into_any_element()
 }
@@ -86,10 +81,16 @@ fn meter(percent: Option<f64>, t: Theme) -> Div {
         }))
 }
 
-/// How many plan cards share a row: `@container (max-width: 600px)` puts
-/// them in one column, the reading width in two.
-fn columns(width: f32) -> usize {
-    if width > 600. { 2 } else { 1 }
+/// How many plan cards share a row: `--desktop-plan-columns: plans.length`,
+/// `@container (max-width: 900px)` -> 2, `@container (max-width: 600px)` -> 1.
+fn columns(width: f32, count: usize) -> usize {
+    if width > 900. {
+        count.max(1)
+    } else if width > 600. {
+        2
+    } else {
+        1
+    }
 }
 
 impl SettingsWorkspaceSurface {
@@ -98,8 +99,12 @@ impl SettingsWorkspaceSurface {
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        #[cfg(feature = "dev-capture")]
+        let lab = self.plan_page.lab.is_some();
+        #[cfg(not(feature = "dev-capture"))]
+        let lab = false;
         // `usePaymentsExperience()`: nothing of Plan without payments.
-        if !self.preferences.read(cx).state.experimental.payments {
+        if !lab && !crate::features::flags::payments_enabled(&self.preferences, cx) {
             return div().into_any_element();
         }
         let (signed_in, space) = self.plan_reader(cx);
@@ -120,7 +125,7 @@ impl SettingsWorkspaceSurface {
         let body = if restoring
             || (waiting && snapshot.summary.is_none() && (snapshot.loading || !snapshot.error))
         {
-            self.plan_loading(t, cx)
+            self.plan_loading(t)
         } else if let (true, Some(_), Some(_)) = (signed_in, org, snapshot.summary.as_ref()) {
             self.connected_plans(t, cx)
         } else {
@@ -175,9 +180,9 @@ impl SettingsWorkspaceSurface {
 
     /// `PlanLoading`: the signed-in page keeps its reading order while its
     /// first snapshot loads.
-    fn plan_loading(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+    fn plan_loading(&self, t: Theme) -> AnyElement {
         let ui = theme::ty().ui;
-        let card = |index: usize, cx: &App| {
+        let card = |index: usize| {
             let ids = [
                 "plan-loading-card-0",
                 "plan-loading-card-1",
@@ -193,13 +198,8 @@ impl SettingsWorkspaceSurface {
                 .border_color(t.divider)
                 .rounded(px(8.))
                 .gap(px(12.))
-                .child(placeholder("plan-loading-name", 108., ui.label * 1.5, cx))
-                .child(placeholder(
-                    "plan-loading-price",
-                    120.,
-                    ui.display * 1.25,
-                    cx,
-                ))
+                .child(placeholder("plan-loading-name", 108., ui.label * 1.5))
+                .child(placeholder("plan-loading-price", 120., ui.display * 1.25))
         };
         v_flex()
             .gap(px(16.))
@@ -221,9 +221,8 @@ impl SettingsWorkspaceSurface {
                                     "plan-loading-plan",
                                     108.,
                                     ui.section_title * 1.4,
-                                    cx,
                                 ))
-                                .child(placeholder("plan-loading-detail", 168., ui.meta * 1.5, cx)),
+                                .child(placeholder("plan-loading-detail", 168., ui.meta * 1.5)),
                         ),
                 ),
             )
@@ -242,24 +241,22 @@ impl SettingsWorkspaceSurface {
                     .child(
                         h_flex()
                             .gap(px(16.))
-                            .child(placeholder("plan-loading-reading", 84., ui.label * 1.5, cx))
+                            .child(placeholder("plan-loading-reading", 84., ui.label * 1.5))
                             .child(meter(None, t))
-                            .child(placeholder("plan-loading-left", 84., ui.label * 1.5, cx)),
+                            .child(placeholder("plan-loading-left", 84., ui.label * 1.5)),
                     ),
             )
             .child(
                 SettingsSubsection::new()
                     .title(tr("settings.plan.chooseTitle"))
-                    .child(
-                        self.plan_grid((0..3).map(|i| card(i, cx).into_any_element()).collect()),
-                    ),
+                    .child(self.plan_grid((0..3).map(|i| card(i).into_any_element()).collect())),
             )
             .into_any_element()
     }
 
     /// Cards in rows of `columns`, 16px apart, 14px below the title.
     fn plan_grid(&self, cards: Vec<AnyElement>) -> Div {
-        let columns = columns(self.content_width());
+        let columns = columns(self.content_width(), cards.len());
         let mut rows = v_flex().gap(px(16.)).mt(px(14.)).mx(px(10.));
         let mut cards = cards.into_iter().peekable();
         while cards.peek().is_some() {
@@ -1152,8 +1149,10 @@ mod tests {
 
     #[test]
     fn plan_cards_share_a_row_above_600px() {
-        assert_eq!(columns(724.), 2);
-        assert_eq!(columns(601.), 2);
-        assert_eq!(columns(600.), 1);
+        assert_eq!(columns(960., 3), 3);
+        assert_eq!(columns(900., 3), 2);
+        assert_eq!(columns(724., 3), 2);
+        assert_eq!(columns(601., 3), 2);
+        assert_eq!(columns(600., 3), 1);
     }
 }

@@ -8,18 +8,14 @@ use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
     ui::appearance::ActiveAppearance as _,
-    ui::{
-        components::{
-            FileIcon, Icon, Segment, SegmentLayout, SegmentedControl, Select, SelectOption,
-            SettingRow, SettingsList, SettingsSection, SurfaceCorners, SurfaceStyledExt, Switch,
-            tooltip,
-        },
-        loading::{self, LoadingMark, LoadingStyle, model::Shape},
+    ui::components::{
+        FileIcon, Icon, Segment, SegmentLayout, SegmentedControl, Select, SelectOption, SettingRow,
+        SettingsList, SettingsSection, SurfaceCorners, SurfaceStyledExt, Switch, tooltip,
     },
 };
 use gpui::{prelude::*, *};
 use gpui_kit::{
-    base::{Disableable as _, h_flex, v_flex},
+    base::{h_flex, v_flex},
     component::Sizable as _,
 };
 
@@ -403,53 +399,6 @@ impl SettingsWorkspaceSurface {
 
         let file_icon_preferences = prefs.clone();
 
-        // One loading material; each option previews the actual mark and
-        // placeholder primitives (`desktop-loading-style-preview`).
-        let loading_options = LoadingStyle::ALL
-            .into_iter()
-            .map(|style| {
-                let prefs = prefs.clone();
-                let id = style.id();
-                Segment::new(tr(&format!("settings.appearance.loadingStyle.{id}.label")))
-                    .leading(
-                        h_flex()
-                            .gap(px(7.))
-                            .child(
-                                LoadingMark::new(SharedString::from(format!(
-                                    "loading-preview-{id}"
-                                )))
-                                .loading_style(style),
-                            )
-                            .child(loading::placeholder(
-                                SharedString::from(format!("placeholder-preview-{id}")),
-                                34.,
-                                14.,
-                                vec![
-                                    Shape {
-                                        x: 0.,
-                                        y: 2.,
-                                        width: 10.,
-                                        height: 10.,
-                                        radius: 3.,
-                                    },
-                                    Shape {
-                                        x: 14.,
-                                        y: 4.,
-                                        width: 20.,
-                                        height: 6.,
-                                        radius: 3.,
-                                    },
-                                ],
-                                style,
-                            )),
-                    )
-                    .selected(state.loading_style == style)
-                    .on_select(move |_, cx| {
-                        prefs.update(cx, |p, cx| p.change(|p| p.loading_style = style, cx))
-                    })
-            })
-            .collect::<Vec<_>>();
-
         // Header elements (`HeaderElementsSetting`, `.desktop-settings-tool-list`):
         // 32px items, 8px start padding, a 14px subtle glyph 7px before the
         // 13px label, the switch 8px after it.
@@ -497,11 +446,8 @@ impl SettingsWorkspaceSurface {
         }
 
         // Interface style: only the Default skin exists natively.
-        let xp_label = tr("settings.appearance.interfaceStyle.windowsXp");
-        let style_options = [
-            Segment::new(tr("settings.appearance.interfaceStyle.default")).selected(true),
-            Segment::new(xp_label).disabled(true),
-        ];
+        let style_options =
+            [Segment::new(tr("settings.appearance.interfaceStyle.default")).selected(true)];
         let pointer_prefs = prefs.clone();
         // `.desktop-theme-mode-row`: the label and cards align to the top,
         // 7px inside the row.
@@ -546,13 +492,6 @@ impl SettingsWorkspaceSurface {
                             }),
                         ),
                     )
-                    .child(
-                        SettingRow::new(tr("settings.appearance.loadingStyle.title")).control(
-                            SegmentedControl::new("loading-style")
-                                .layout(SegmentLayout::Hug)
-                                .segments(loading_options),
-                        ),
-                    )
                     // `.desktop-settings-tools-row`: top-aligned, 5px block padding.
                     .child(
                         SettingRow::new(tr("settings.appearance.headerElements.title"))
@@ -578,11 +517,7 @@ impl SettingsWorkspaceSurface {
                         SettingRow::new(tr("settings.appearance.interfaceStyle.title")).control(
                             SegmentedControl::new("interface-style")
                                 .layout(SegmentLayout::MinWidth(104.))
-                                .segments(style_options)
-                                .tooltip(tf(
-                                    "settings.sidebar.notAvailable",
-                                    &[("section", xp_label.into())],
-                                )),
+                                .segments(style_options),
                         ),
                     ),
             )

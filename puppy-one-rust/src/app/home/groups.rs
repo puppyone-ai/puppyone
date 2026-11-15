@@ -33,10 +33,6 @@ impl GroupId {
             Self::Space(place.to_owned())
         }
     }
-    /// Projects outside this computer's group say where they live.
-    pub fn marks_places(&self) -> bool {
-        *self != Self::LocalOnly
-    }
 }
 
 /// What letting go of a dragged folder over a group does.

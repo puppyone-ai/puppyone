@@ -247,7 +247,7 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.show_settings(page, None, false, window, cx);
+        self.show_settings(Some(page), None, false, window, cx);
     }
     /// `openSpaceSettings`: Settings › Members of one space; `invite` puts
     /// the keyboard in its invitation field.
@@ -259,26 +259,47 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         let page = crate::features::settings::Page::Space;
-        self.show_settings(page, Some(space), invite, window, cx);
+        self.show_settings(Some(page), Some(space), invite, window, cx);
     }
-    fn show_settings(
+    /// Opens Settings with a fresh `resolveSettingsSpace` context: `space`
+    /// locks Settings to one Space (`openSpaceSettings`); `None` (`openSettingsDialog`
+    /// / `Command::Settings`) clears any earlier Space lock so Settings follows
+    /// the open hosted Project or the account's default Space.
+    pub(in crate::app) fn show_settings(
         &mut self,
-        page: crate::features::settings::Page,
+        page: Option<crate::features::settings::Page>,
         space: Option<String>,
         invite: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        // `resolveSettingsSpace`: the space the opener named, else the
-        // hosted Project's on screen.
-        let hosted = self.hosted_project(cx);
+        use super::super::dialogs::{Modal, Task};
+        let from_feedback = self.dialogs.read(cx).task() == Some(Task::Feedback);
+        self.set_popover(None, cx);
+        self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
+        let root = self.workspace_root(cx);
+        let hosted = (!self.home_visible(cx))
+            .then(|| self.hosted_project(cx))
+            .flatten();
         let handle = invite.then(|| window.window_handle());
-        let settings = self.dialogs.read(cx).settings.clone();
-        settings.update(cx, |settings, cx| {
-            settings.set_space_context(hosted, space, handle);
-            settings.select_page(page, cx)
+        self.dialogs.update(cx, |d, cx| {
+            if from_feedback {
+                d.feedback.update(cx, |f, cx| f.reset(cx));
+            }
+            d.set_root(root, cx);
+            d.settings.update(cx, |settings, cx| {
+                settings.set_space_context(hosted, space, handle, cx);
+                if let Some(page) = page {
+                    settings.select_page(page, cx);
+                }
+            });
+            d.open(Modal::Task(Task::Settings), cx);
         });
-        self.command(Command::Settings, window, cx);
+        if from_feedback {
+            self.frame.focus.focus(window, cx);
+        } else {
+            self.focus_dialogs(window, cx);
+        }
     }
     /// `WindowNavigationRows`: what a row of the place menu asks.
     pub(in crate::app) fn navigate(

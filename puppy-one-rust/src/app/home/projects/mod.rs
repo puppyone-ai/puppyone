@@ -1,7 +1,7 @@
 //! The Homepage's projects:
-//! - `toolbar` — `OnboardingProjectsHead`, `OnboardingProjectToolbar` (sort & layout)
+//! - `toolbar` — `OnboardingProjectToolbar` (sort & layout), `New project`'s Agents
 //! - `groups_view` — `OnboardingProjectGroups` (place audiences, scroller, drop zones)
-//! - `tile` — Grid cell (`104 × 78` `ProjectFolderGlyph` + name + caption)
+//! - `tile` — Grid cell (`104 × 78` `ProjectFolderGlyph` + name + one caption)
 //! - `row` — List row (`34 × 26` `ProjectFolderGlyph`, `open_control`, actions)
 mod groups_view;
 mod row;
@@ -9,7 +9,6 @@ mod tile;
 mod toolbar;
 
 pub(in crate::app::home) use groups_view::SpacesUnavailableNote;
-pub(in crate::app::home) use toolbar::OnboardingProjectsHead;
 
 use super::*;
 use crate::features::settings::{HomepageLayout, HomepageSort};
@@ -51,6 +50,8 @@ impl Render for ProjectDrag {
 pub(in crate::app) enum HomeMenu {
     Sort,
     Layout,
+    /// `New project`'s Agents.
+    NewProject,
     /// The create dialog's team selector.
     CreateTeam,
 }

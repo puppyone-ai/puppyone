@@ -20,8 +20,17 @@ fn class(c: char) -> Class {
     }
 }
 
+fn clamp(text: &str, offset: usize) -> usize {
+    let mut at = offset.min(text.len());
+    while !text.is_char_boundary(at) {
+        at -= 1;
+    }
+    at
+}
+
 /// Next grapheme boundary after `offset` (or the end).
 pub fn next_grapheme(text: &str, offset: usize) -> usize {
+    let offset = clamp(text, offset);
     text[offset..]
         .grapheme_indices(true)
         .nth(1)
@@ -30,6 +39,7 @@ pub fn next_grapheme(text: &str, offset: usize) -> usize {
 
 /// Previous grapheme boundary before `offset` (or 0).
 pub fn previous_grapheme(text: &str, offset: usize) -> usize {
+    let offset = clamp(text, offset);
     text[..offset]
         .grapheme_indices(true)
         .next_back()
@@ -38,6 +48,7 @@ pub fn previous_grapheme(text: &str, offset: usize) -> usize {
 
 /// End of the group after `offset`, skipping leading whitespace first.
 pub fn next_group(text: &str, offset: usize) -> usize {
+    let offset = clamp(text, offset);
     let mut chars = text[offset..].char_indices().peekable();
     let mut end = offset;
     while let Some(&(_, c)) = chars.peek() {
@@ -61,6 +72,7 @@ pub fn next_group(text: &str, offset: usize) -> usize {
 
 /// Start of the group before `offset`, skipping trailing whitespace first.
 pub fn previous_group(text: &str, offset: usize) -> usize {
+    let offset = clamp(text, offset);
     let mut chars = text[..offset].char_indices().rev().peekable();
     let mut start = offset;
     while let Some(&(i, c)) = chars.peek() {
@@ -85,6 +97,7 @@ pub fn previous_group(text: &str, offset: usize) -> usize {
 
 /// The word (or group) containing `offset`, for double-click selection.
 pub fn group_at(text: &str, offset: usize) -> std::ops::Range<usize> {
+    let offset = clamp(text, offset);
     let after = text[offset..].chars().next();
     let before = text[..offset].chars().next_back();
     match (before, after) {
@@ -110,5 +123,16 @@ mod tests {
         assert_eq!(group_at(t, 8), 7..11);
         assert_eq!(next_grapheme("e\u{301}x", 0), 3);
         assert_eq!(previous_grapheme("中文", 6), 3);
+    }
+
+    #[test]
+    fn stale_or_mid_codepoint_offsets_clamp_safely() {
+        let t = "中文 word";
+        assert_eq!(group_at(t, 1), 0..6);
+        assert_eq!(group_at(t, 2), 0..6);
+        assert_eq!(group_at(t, 999), 7..11);
+        assert_eq!(group_at("", 42), 0..0);
+        assert_eq!(next_grapheme(t, 999), t.len());
+        assert_eq!(previous_grapheme(t, 2), 0);
     }
 }

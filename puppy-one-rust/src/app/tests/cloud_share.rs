@@ -396,6 +396,13 @@ fn a_space_made_from_the_place_menu_opens_its_members_ready_to_invite(cx: &mut T
                     "user_id": "u1", "role": "owner", "can_manage_billing": true})),
                 (_, "/organizations/org-2/members") => Ok(serde_json::json!([
                     {"user_id": "u1", "email": "owner@example.com", "role": "owner"}])),
+                ("POST", "/organizations/org-2/invite") => {
+                    assert_eq!(
+                        request.body,
+                        Some(serde_json::json!({"email": "sam@example.com", "role": "viewer"}))
+                    );
+                    Ok(serde_json::json!({"invite_url": "https://puppyone.ai/invite/studio-1"}))
+                }
                 _ => base(request),
             }
         }
@@ -436,6 +443,30 @@ fn a_space_made_from_the_place_menu_opens_its_members_ready_to_invite(cx: &mut T
         );
         assert!(settings.invite_focused(w, cx));
     });
+    // Inviting a collaborator surfaces a copyable invitation link.
+    settings.update(cx, |s, cx| {
+        s.invite_member_for_test("sam@example.com", cx);
+    });
+    let invite_deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while settings.read_with(cx, |s, _| s.space_invite_url().map(str::to_owned))
+        != Some("https://puppyone.ai/invite/studio-1".to_owned())
+    {
+        cx.run_until_parked();
+        assert!(
+            std::time::Instant::now() < invite_deadline,
+            "the invitation link did not appear"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    draw(cx);
+    let copy_bounds = cx
+        .debug_bounds("space-copy-invite")
+        .expect("copy button drawn");
+    cx.simulate_click(copy_bounds.center(), Modifiers::none());
+    assert_eq!(
+        cx.read_from_clipboard().and_then(|item| item.text()),
+        Some("https://puppyone.ai/invite/studio-1".to_owned())
+    );
 }
 
 /// qubits `6f896add1`: Share is retired. A folder of a linked checkout

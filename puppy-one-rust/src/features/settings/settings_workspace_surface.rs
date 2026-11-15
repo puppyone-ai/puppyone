@@ -114,7 +114,7 @@ impl SettingsWorkspaceSurface {
             if self.page == Page::CloudComputer {
                 self.load_cloud_computer(cx);
             }
-            cx.notify();
+            self.follow_space(cx);
         }
     }
     /// What the window opening Settings shows and which space, if any, the
@@ -125,20 +125,39 @@ impl SettingsWorkspaceSurface {
         cloud_project: Option<String>,
         requested: Option<String>,
         invite: Option<AnyWindowHandle>,
+        cx: &mut Context<Self>,
     ) {
+        let project_changed = self.cloud_project != cloud_project;
         self.cloud_project = cloud_project;
         self.requested_space = requested;
         self.space_page.focus_invite = invite;
+        if project_changed && self.page == Page::CloudComputer {
+            self.load_cloud_computer(cx);
+        }
+        self.follow_space(cx);
     }
-    /// The spaces were read again: a page on a space that is no longer the
-    /// one Settings manages (a space just made, a project's space now
-    /// known) reads the right one.
+    /// Keeps `Space`, `Plan` and `Account` aligned with the active account,
+    /// flags, and resolved `settings_space`, clearing stale org data when
+    /// signed out or when Cloud / Payments turns off.
     fn follow_space(&mut self, cx: &mut Context<Self>) {
-        let space = self.settings_space(cx).map(|space| space.id);
-        if self.page == Page::Space && self.space_page.org() != space.as_deref() {
+        let expected_space = self.settings_space(cx).and_then(|space| {
+            let (_, binding) = crate::features::cloud::account::broker_and_binding(cx)?;
+            Some((
+                crate::features::cloud::billing_namespace(&binding),
+                space.id,
+            ))
+        });
+        if expected_space.is_none() && self.space_page.org().is_some() {
+            self.space_page.reset(cx);
+        } else if self.page == Page::Space && self.space_page.context() != expected_space.as_ref() {
             self.load_space(cx);
         }
-        if matches!(self.page, Page::Plan | Page::Account) && self.plan_org() != space {
+        let expected_plan = self.plan_scope_context(cx);
+        if expected_plan.is_none() && self.plan_context().is_some() {
+            self.reset_plan();
+        } else if matches!(self.page, Page::Plan | Page::Account)
+            && self.plan_context() != expected_plan.as_ref()
+        {
             self.load_plan(false, cx);
         }
         cx.notify();
@@ -175,7 +194,7 @@ impl SettingsWorkspaceSurface {
     /// `AccountAICredits`: read the wallet when Account shows, then every
     /// 30 s while it stays on screen.
     pub(super) fn refresh_compute(&mut self, cx: &mut Context<Self>) {
-        if !self.preferences.read(cx).state.experimental.payments {
+        if !crate::features::flags::payments_enabled(&self.preferences, cx) {
             return;
         }
         let compute = crate::features::cloud::global_compute(cx);
@@ -212,10 +231,16 @@ impl SettingsWorkspaceSurface {
         }
         cx.subscribe(&preferences, |s, _, _: &PreferencesChanged, cx| {
             s.sync_patterns(cx);
-            cx.notify()
+            if s.page == Page::Account {
+                s.refresh_compute(cx);
+            }
+            s.follow_space(cx);
         })
         .detach();
-        cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
+        cx.observe(&preferences, |s, _, cx| {
+            s.follow_space(cx);
+        })
+        .detach();
         let models =
             cx.new(|cx| crate::features::model_connections::ModelConnections::new(window, cx));
         cx.subscribe(
@@ -243,7 +268,13 @@ impl SettingsWorkspaceSurface {
         .detach();
         let cloud = crate::features::cloud::account::account(cx);
         if let Some(cloud) = &cloud {
-            cx.observe(cloud, |_, _, cx| cx.notify()).detach();
+            cx.observe(cloud, |s, _, cx| {
+                if s.page == Page::Account {
+                    s.refresh_compute(cx);
+                }
+                s.follow_space(cx);
+            })
+            .detach();
         }
         // `useAccountPlan`: coming back to the window reads Plan again.
         cx.observe_window_activation(window, |s, window, cx| {
@@ -259,6 +290,22 @@ impl SettingsWorkspaceSurface {
         let spaces = crate::features::cloud::global_spaces(cx);
         cx.observe(&spaces, |s, _, cx| s.follow_space(cx)).detach();
         let space_page = super::main::SpacePage::new(window, cx);
+        cx.subscribe(
+            &space_page.name,
+            |s, _, event: &crate::ui::form_input::InputEvent, cx| match event {
+                crate::ui::form_input::InputEvent::Changed => cx.notify(),
+                crate::ui::form_input::InputEvent::Submit => s.submit_space_rename(cx),
+            },
+        )
+        .detach();
+        cx.subscribe(
+            &space_page.email,
+            |s, _, event: &crate::ui::form_input::InputEvent, cx| match event {
+                crate::ui::form_input::InputEvent::Changed => cx.notify(),
+                crate::ui::form_input::InputEvent::Submit => s.submit_space_invite(cx),
+            },
+        )
+        .detach();
         let mut s = Self {
             plan_page: Default::default(),
             space_page,

@@ -2,6 +2,7 @@
 //! deleting and creating Cloud projects, and the spaces they live in. Every
 //! response is held to the Project asked for; a creation carries its
 //! operation's idempotency key, so a retried one is made once.
+use super::sandbox::{self, CloudSandbox, SandboxSettings};
 use crate::cloud::auth::{
     self as auth, Broker, Cancellation,
     model::{ApiRequest, Binding},
@@ -277,6 +278,20 @@ impl Client {
             "project",
         )
     }
+    /// `PUT /projects/{id}/workbench/sandbox`: the signed-in person's
+    /// choices for their Cloud Computer in this project. `desktop` picks the
+    /// Profile of the next computer, so a new project sends it before it
+    /// first opens.
+    pub fn update_project_sandbox(
+        &self,
+        id: &str,
+        patch: &SandboxSettings,
+    ) -> Result<CloudSandbox> {
+        let path = format!("/projects/{}/workbench/sandbox", segment(id)?);
+        let body = sandbox::settings_body(patch).ok_or(Error::Invalid("sandbox"))?;
+        let value = self.send(Method::PUT, path, Some(body), None)?;
+        Ok(sandbox::read_sandbox(&unwrap(value)))
+    }
     /// `updateCloudProject`: `PUT /projects/{id}` with the fields given and
     /// nothing else. A name or branch is trimmed and may not be empty.
     pub fn update_project(&self, id: &str, update: ProjectUpdate) -> Result<Project> {
@@ -497,6 +512,39 @@ mod tests {
             Some(json!({"name": "Plan", "org_id": "org-1"}))
         );
         assert_eq!(sent[0].idempotency_key.as_deref(), Some("op-1"));
+    }
+
+    #[test]
+    fn a_cloud_computer_choice_is_put_on_the_projects_workbench() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"code": 0, "data": {
+                "profile": "desktop",
+                "next_profile": "desktop",
+                "settings": {"desktop": true},
+                "features": [{"id": "screen_stream", "installed": true, "enabled": true, "transport": "vnc"}]
+            }}),
+        ));
+        let client = Client::new(transport.clone());
+        let desktop = SandboxSettings {
+            desktop: Some(true),
+            screen_stream: None,
+        };
+        let sandbox = client.update_project_sandbox("p", &desktop).unwrap();
+        assert!(sandbox.screen_present());
+        assert_eq!(sandbox.settings.desktop, Some(true));
+        assert!(client.update_project_sandbox("a/b", &desktop).is_err());
+        assert!(
+            client
+                .update_project_sandbox("p", &SandboxSettings::default())
+                .is_err()
+        );
+        let sent = transport.0.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].method, Method::PUT);
+        assert_eq!(sent[0].path, "/projects/p/workbench/sandbox");
+        assert_eq!(sent[0].body, Some(json!({"desktop": true})));
+        assert_eq!(sent[0].idempotency_key, None);
     }
 
     /// `SpaceSettings`: every change names its space and member in the path

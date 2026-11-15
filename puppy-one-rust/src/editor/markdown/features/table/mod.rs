@@ -31,6 +31,8 @@ use widget::TableWidget;
 pub struct TableFeature;
 pub static FEATURE: TableFeature = TableFeature;
 pub const ID: &str = "table";
+#[cfg(test)]
+pub(crate) use commands::structure as structure_command;
 
 impl MarkdownFeature for TableFeature {
     fn id(&self) -> &'static str {

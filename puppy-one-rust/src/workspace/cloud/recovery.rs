@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 pub fn recoverable(error: &AuthError) -> bool {
     match error {
         AuthError::SessionChanged | AuthError::Cancelled => false,
-        AuthError::Unavailable => true,
+        AuthError::Unavailable | AuthError::Timeout => true,
         AuthError::Response(status, _, _) | AuthError::Http(status) => {
             matches!(status, 408 | 500 | 502 | 503 | 504)
         }

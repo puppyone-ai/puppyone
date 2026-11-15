@@ -20,6 +20,11 @@ use gpui::{App, Entity};
 pub fn account_available(cx: &App) -> bool {
     crate::features::cloud::account::available(cx)
 }
+/// `usePaymentsExperience`: the single decision point for asking anyone for
+/// money — the build offers an account and the user has not opted out.
+pub fn payments_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
+    account_available(cx) && preferences.read(cx).state.experimental.payments
+}
 pub fn cloud_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
     account_available(cx) && preferences.read(cx).state.experimental.cloud_workspace
 }

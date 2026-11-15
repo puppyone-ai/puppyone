@@ -155,14 +155,14 @@ impl Http {
             fence.check()?;
             let remaining = fence.deadline.map(|d| d.saturating_duration_since(Instant::now())).unwrap_or(timeout).min(timeout);
             let operation = async {
-                let response = request.header("Cache-Control", "no-store").send().await.map_err(|_| Error::Unavailable)?;
+                let response = request.header("Cache-Control", "no-store").send().await.map_err(|e| if e.is_timeout() { Error::Timeout } else { Error::Unavailable })?;
                 let status = response.status().as_u16();
                 let request_id = response.headers().get("x-request-id").and_then(|v| v.to_str().ok()).map(str::to_owned);
                 if response.content_length().is_some_and(|n| n > limit as u64) { return Err(Error::InvalidResponse); }
                 let mut body = zeroize::Zeroizing::new(Vec::new());
                 let mut stream = response.bytes_stream();
                 while let Some(chunk) = stream.next().await {
-                    let chunk = chunk.map_err(|_| Error::Unavailable)?;
+                    let chunk = chunk.map_err(|e| if e.is_timeout() { Error::Timeout } else { Error::Unavailable })?;
                     if body.len().saturating_add(chunk.len()) > limit { return Err(Error::InvalidResponse); }
                     body.extend_from_slice(&chunk);
                 }
@@ -180,7 +180,7 @@ impl Http {
             tokio::select! {
                 _ = cancelled.changed() => Err(Error::SessionChanged),
                 _ = async { if let Some(cancel) = &fence.cancel { cancel.cancelled().await; } else { std::future::pending::<()>().await; } } => Err(Error::Cancelled),
-                result = tokio::time::timeout(remaining, operation) => result.unwrap_or_else(|_| Err(fence.check().err().unwrap_or(Error::Unavailable))),
+                result = tokio::time::timeout(remaining, operation) => result.unwrap_or_else(|_| Err(fence.check().err().unwrap_or(Error::Timeout))),
             }
         })
     }
@@ -296,7 +296,8 @@ impl Remote for Http {
             .client(url)
             .post(url.clone())
             .bearer_auth(&session.access.0)
-            .json(body);
+            .json(body)
+            .timeout(Duration::from_secs(20));
         // A refusal is the account's (401) or the store's; never its prose.
         fn refused(status: u16, _: &Value) -> Error {
             if status == 401 {

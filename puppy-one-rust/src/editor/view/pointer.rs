@@ -39,7 +39,10 @@ impl EditorView {
     }
     fn offset_for(&self, position: Point<Pixels>) -> Option<(usize, bool)> {
         let layout = self.layout.as_ref()?;
-        Some(layout.offset_at(layout.to_layout(position, self.scroll_y)))
+        let (offset, upstream) = layout.offset_at(layout.to_layout(position, self.scroll_y));
+        // If `self.state` advanced before the next frame rebuilt `self.layout`,
+        // clamp the stale layout offset onto a valid boundary of `self.state.doc`.
+        Some((self.state.doc.clamp(offset), upstream))
     }
 
     pub(super) fn mouse_down(
@@ -80,7 +83,7 @@ impl EditorView {
                 let line = self.state.doc.line_index(offset);
                 let r = self.state.doc.line_range(line);
                 let end = if line + 1 < self.state.doc.line_count() {
-                    r.end + 1
+                    self.state.doc.line_range(line + 1).start
                 } else {
                     r.end
                 };
@@ -140,15 +143,22 @@ impl EditorView {
         let selection = match drag.granularity {
             Granularity::Char => Selection {
                 upstream,
-                ..Selection::range(drag.anchor, offset)
+                ..Selection::range(self.state.doc.clamp(drag.anchor), offset)
             },
             Granularity::Word(a, b) | Granularity::Line(a, b) => {
+                let (a, b) = (self.state.doc.clamp(a), self.state.doc.clamp(b));
                 let text = self.state.doc.as_str();
                 let unit = match drag.granularity {
                     Granularity::Word(..) => words::group_at(text, offset),
                     _ => {
-                        let r = self.state.doc.line_range(self.state.doc.line_index(offset));
-                        r.start..(r.end + 1).min(text.len())
+                        let line = self.state.doc.line_index(offset);
+                        let r = self.state.doc.line_range(line);
+                        let end = if line + 1 < self.state.doc.line_count() {
+                            self.state.doc.line_range(line + 1).start
+                        } else {
+                            r.end
+                        };
+                        r.start..end
                     }
                 };
                 if offset < a {

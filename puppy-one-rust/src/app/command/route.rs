@@ -156,19 +156,7 @@ impl Shell {
         if let Some(task) = self.dialogs.read(cx).task() {
             match command {
                 Command::Settings if task == Task::Settings => self.close_tasks(cx),
-                Command::Settings => {
-                    let root = self.workspace_root(cx);
-                    let hosted = (!self.home_visible(cx))
-                        .then(|| self.hosted_project(cx))
-                        .flatten();
-                    self.dialogs.update(cx, |d, cx| {
-                        d.feedback.update(cx, |f, cx| f.reset(cx));
-                        d.set_root(root, cx);
-                        d.set_cloud_project(hosted, cx);
-                        d.open(Modal::Task(Task::Settings), cx);
-                    });
-                    self.frame.focus.focus(window, cx);
-                }
+                Command::Settings => self.show_settings(None, None, false, window, cx),
                 Command::Quit => self.session.docs.update(cx, |d, _| d.begin(Intent::Quit)),
                 _ => {}
             }
@@ -236,20 +224,7 @@ impl Shell {
             Command::ToggleRightSidebar => {
                 self.sidebar.update(cx, |s, cx| s.toggle_agent(cx));
             }
-            Command::Settings => {
-                self.set_popover(None, cx);
-                self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
-                let root = self.workspace_root(cx);
-                let hosted = (!self.home_visible(cx))
-                    .then(|| self.hosted_project(cx))
-                    .flatten();
-                self.dialogs.update(cx, |d, cx| {
-                    d.set_root(root, cx);
-                    d.set_cloud_project(hosted, cx);
-                    d.open(Modal::Task(Task::Settings), cx)
-                });
-                self.focus_dialogs(window, cx);
-            }
+            Command::Settings => self.show_settings(None, None, false, window, cx),
             Command::Feedback => {
                 self.set_popover(None, cx);
                 self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));

@@ -128,10 +128,15 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
         }
         // A feature block starting here replaces its lines with its widget:
         // the one covering most (front matter over its first `---` rule), the
-        // earlier feature on a tie (math over a code fence it claims).
+        // earlier feature on a tie (math over a code fence it claims, or MDX
+        // keeping an unsupported component as visible source before HTML).
         let block = b.by_line[line]
             .iter()
-            .filter(|p| p.source.start == range.start && p.embed().is_some())
+            .filter(|p| {
+                p.element.is_none()
+                    && ((p.source.start == range.start && p.embed().is_some())
+                        || p.presentation == super::plans::Presentation::VisibleSource)
+            })
             .fold(None::<&&Plan>, |best, p| match best {
                 Some(best) if best.source.end >= p.source.end => Some(best),
                 _ => Some(p),
@@ -140,8 +145,11 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
         let widget = block
             .as_ref()
             .and_then(|(_, embed)| Some((feature::find(cx.features, embed.feature)?, embed)));
-        if let Some((feature, embed)) = widget
-            && let Some(view) = feature.block_widget(embed, &factory)
+        if let Some((f, embed)) = widget
+            && let Some(view) = feature::catch_feature_panic(f.id(), "block_widget", || {
+                f.block_widget(embed, &factory)
+            })
+            .flatten()
         {
             let source = block.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
             let last = doc.line_index(source.end.saturating_sub(1).max(source.start));
@@ -149,7 +157,7 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
                 lines: line..last + 1,
                 widget: view,
             });
-            feature.decorate_block(
+            f.decorate_block(
                 embed,
                 &mut BlockDecoration {
                     builder: &mut b,

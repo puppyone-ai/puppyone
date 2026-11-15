@@ -153,10 +153,15 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
         }
         cloud_project_responder()(request)
     });
+    let sandbox_puts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let puts = sandbox_puts.clone();
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(Arc::new({
         let spaces = with_spaces(cloud_project_responder());
         move |request| {
+            if request.path.ends_with("/workbench/sandbox") {
+                puts.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+            }
             if request.method == reqwest::Method::POST {
                 creating(request)
             } else {
@@ -202,6 +207,8 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
     });
     draw(cx);
     assert!(cx.debug_bounds("create-project-stored-cloud").is_some());
+    // Without the Cloud Computer screen experiment there is nothing to choose.
+    assert!(cx.debug_bounds("create-project-advanced").is_none());
     view.update_in(cx, |s, w, cx| {
         s.home.update(cx, |h, cx| h.submit_create_project(w, cx))
     });
@@ -228,6 +235,141 @@ fn a_team_project_is_made_once_in_its_space_and_opens(cx: &mut TestAppContext) {
     // The retry is the same operation.
     assert!(posts[0].1.is_some());
     assert_eq!(posts[0].1, posts[1].1);
+    // No Cloud Computer choice was made, so none was sent.
+    assert_eq!(sandbox_puts.load(std::sync::atomic::Ordering::Acquire), 0);
+}
+
+/// The hidden settings under a Cloud project's space: a desktop chosen
+/// there is saved before the project first opens, so its first Cloud
+/// Computer has one. A failed save keeps the dialog; Create again hands back
+/// the same project and saves it then.
+#[gpui::test]
+fn a_cloud_project_saves_its_desktop_before_it_first_opens(cx: &mut TestAppContext) {
+    use super::home::create_project::Audience;
+    use std::sync::{Arc, Mutex};
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    // Every request about the new project, in order: `METHOD path body`.
+    let log: Arc<Mutex<Vec<String>>> = Default::default();
+    let seen = log.clone();
+    let puts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(Arc::new({
+        let spaces = with_spaces(cloud_project_responder());
+        move |request| {
+            let creating = request.method == reqwest::Method::POST && request.path == "/projects/";
+            if creating || request.path.starts_with("/projects/p-new") {
+                seen.lock().unwrap().push(format!(
+                    "{} {} {}",
+                    request.method,
+                    request.path,
+                    request.body.clone().unwrap_or_default()
+                ));
+            }
+            if creating {
+                return Ok(serde_json::json!({"code": 0, "data":
+                    {"id": "p-new", "name": "Plans", "org_id": "team-1"}}));
+            }
+            if request.path == "/projects/p-new/workbench/sandbox" {
+                if puts.fetch_add(1, std::sync::atomic::Ordering::AcqRel) == 0 {
+                    return Err(crate::cloud::auth::Error::Response(
+                        503,
+                        None,
+                        Default::default(),
+                    ));
+                }
+                return Ok(serde_json::json!({"code": 0, "data": {
+                    "profile": "base", "next_profile": "desktop",
+                    "settings": {"desktop": true}, "features": []}}));
+            }
+            spaces(request)
+        }
+    }));
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.prefs.store.update(cx, |p, _| {
+            p.state.experimental.cloud_workspace = true;
+            p.state.experimental.cloud_computer_screen = true;
+            p.state.remember_project(&folder, 1);
+        });
+    });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the spaces", &|s, cx| {
+        s.home.read(cx).spaces.read(cx).status() == crate::features::cloud::SpacesStatus::Ready
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| {
+            h.begin_create_project(w, cx);
+            h.create
+                .as_ref()
+                .unwrap()
+                .destination
+                .name
+                .update(cx, |input, cx| input.set_text("Plans".to_owned(), cx));
+        })
+    });
+    draw(cx);
+    // A project kept on this computer has no Cloud Computer to choose.
+    assert!(cx.debug_bounds("create-project-advanced").is_none());
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            h.choose_create_audience(Audience::Team, Some("team-1".into()), cx)
+        })
+    });
+    draw(cx);
+    // Under the space, hidden until asked for; off until chosen.
+    assert!(cx.debug_bounds("create-project-advanced").is_some());
+    assert!(cx.debug_bounds("create-project-cloud-desktop").is_none());
+    let advanced = cx.debug_bounds("create-project-advanced").unwrap();
+    cx.simulate_click(advanced.center(), Modifiers::none());
+    draw(cx);
+    assert!(cx.debug_bounds("create-project-cloud-desktop").is_some());
+    view.read_with(cx, |s, cx| {
+        assert!(!s.home.read(cx).create.as_ref().unwrap().cloud_desktop);
+    });
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| h.choose_cloud_desktop(true, cx))
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.submit_create_project(w, cx))
+    });
+    settle_cloud(&view, cx, "the failed save", &|s, cx| {
+        s.home
+            .read(cx)
+            .create
+            .as_ref()
+            .is_some_and(|c| !c.submitting && c.error.is_some())
+    });
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.home.read(cx).create.as_ref().unwrap().error.as_deref(),
+            Some(crate::localization::t("cloud.settings.computer.failed"))
+        );
+        assert_ne!(
+            s.session.project.read(cx).record.cloud.as_deref(),
+            Some("p-new")
+        );
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.submit_create_project(w, cx))
+    });
+    settle_cloud(&view, cx, "the Cloud project", &|s, cx| {
+        s.home.read(cx).create.is_none()
+            && s.session.project.read(cx).record.cloud.as_deref() == Some("p-new")
+    });
+    let log = log.lock().unwrap();
+    let create = r#"POST /projects/ {"name":"Plans","org_id":"team-1"}"#;
+    let save = r#"PUT /projects/p-new/workbench/sandbox {"desktop":true}"#;
+    // Made once per Create, saved after each, and nothing about the project
+    // before the choice is saved.
+    assert_eq!(log[..4], [create, save, create, save]);
 }
 
 /// `onManageSpace`: a space's "Members & plan" opens Settings on that one
@@ -252,4 +394,84 @@ fn members_and_plan_open_settings_on_that_space(cx: &mut TestAppContext) {
         );
         assert!(settings.page_shown(crate::features::settings::Page::Space));
     });
+    // Closing Settings and reopening with ⌘, clears the earlier space lock
+    // (`openSettingsDialog` resets `settingsSpaceRequest` to null).
+    command(&view, cx, Command::Settings);
+    view.read_with(cx, |s, cx| assert!(!s.has_dialog("Task(Settings)", cx)));
+    command(&view, cx, Command::Settings);
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("Task(Settings)", cx));
+        let settings = s.dialogs.read(cx).settings.read(cx);
+        assert_eq!(
+            settings.settings_space(cx).map(|s| s.id),
+            Some("me".to_owned())
+        );
+    });
+}
+
+/// The personal space's Cloud Agents stand at the end of that space's
+/// heading, beside its members, and nowhere else.
+#[gpui::test]
+fn the_personal_spaces_agents_stand_with_its_heading(cx: &mut TestAppContext) {
+    use super::home::discovery::HomepageCloudAgent;
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            h.discovery.cloud_details_override = true;
+            h.discovery.cloud_agents = vec![HomepageCloudAgent {
+                id: "agent-cloud-1".into(),
+                name: "Review Bot".into(),
+                avatar: None,
+                last_active_at: Some("2026-11-15T08:00:00Z".into()),
+            }];
+            cx.notify();
+        })
+    });
+    draw(cx);
+    let face = cx
+        .debug_bounds("home-cloud-agent:agent-cloud-1")
+        .expect("the Agent's face");
+    let personal = cx.debug_bounds("home-group:space:me").unwrap();
+    let team = cx.debug_bounds("home-group:space:team-1").unwrap();
+    assert!(personal.contains(&face.center()));
+    assert!(!team.contains(&face.center()));
+}
+
+/// Signed in, the Homepage Header ends with the person's circle: it names
+/// who is signed in and signs them out.
+#[gpui::test]
+fn the_header_account_circle_names_the_account_and_signs_out(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    assert!(cx.debug_bounds("header-sign-in").is_none());
+    let circle = cx
+        .debug_bounds("header-account")
+        .expect("the account circle");
+    cx.simulate_click(circle.center(), Modifiers::default());
+    draw(cx);
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Account))
+    });
+    let email = cx
+        .update(|_, cx| crate::features::cloud::account::snapshot(cx))
+        .and_then(|s| s.account)
+        .map(|a| a.email)
+        .unwrap();
+    let email_row: &'static str = Box::leak(format!("menu-item:{email}").into_boxed_str());
+    assert!(cx.debug_bounds(email_row).is_some());
+    let sign_out = crate::localization::t("settings.account.signOut");
+    let sign_out: &'static str = Box::leak(format!("menu-item:{sign_out}").into_boxed_str());
+    let row = cx.debug_bounds(sign_out).unwrap().center();
+    cx.simulate_click(row, Modifiers::default());
+    settle_cloud(&view, cx, "the signed-out account", &|_, cx| {
+        !crate::features::cloud::account::has_account(cx)
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("header-account").is_none());
 }

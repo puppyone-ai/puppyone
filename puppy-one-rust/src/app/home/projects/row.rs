@@ -2,7 +2,7 @@
 //! and drag-out controls, `LinkedCloudProjectButton`, and `ProjectRowActions`.
 use super::{
     super::{
-        display::{item_caption, item_name, modification_time, parent_for_display},
+        display::{item_caption, item_name, parent_for_display},
         folder::ProjectFolderGlyph,
     },
     *,
@@ -127,7 +127,6 @@ impl Homepage {
         focus: FocusHandle,
         lit: bool,
         is_stop: bool,
-        marks: bool,
         narrow: bool,
         busy: bool,
         keys: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
@@ -141,19 +140,19 @@ impl Homepage {
             .local_path
             .as_deref()
             .and_then(|path| self.folder_status(Path::new(path)));
+        // The group heading says where a project lives: a Cloud project
+        // needs no place of its own here.
         let detail = match (&item.local_path, status) {
             (Some(_), Some(status)) => {
-                tr(super::super::folder_status::status_caption(status)).into()
+                Some(tr(super::super::folder_status::status_caption(status)).into())
             }
-            (Some(path), None) => parent_for_display(Path::new(path)),
-            (None, _) => item_caption(item),
+            (Some(path), None) => Some(super::super::compact_display_path(
+                &parent_for_display(Path::new(path)),
+                2,
+            )),
+            (None, _) => item.remote.is_some().then(|| item_caption(item)),
         };
-        let modified = item.modified.filter(|m| *m > 0).map(|ms| {
-            modification_time(
-                UNIX_EPOCH + Duration::from_millis(ms as u64),
-                SystemTime::now(),
-            )
-        });
+        let modified = super::tile::modified_ago(item);
         let dragging = self.dragging_item(item, cx);
         let inactive = item.remote.as_ref().is_some_and(|r| !r.available());
         let fade = if inactive {
@@ -161,13 +160,7 @@ impl Homepage {
         } else {
             status.map(|_| 0.4)
         };
-        let name_color = if inactive {
-            t.text_disabled
-        } else if linked && !lit {
-            t.subtle
-        } else {
-            t.text
-        };
+        let name_color = if inactive { t.text_disabled } else { t.text };
         let actions = self.project_actions_trigger(index, item, is_stop, busy, cx);
         let cloud_link = item
             .linked
@@ -204,7 +197,7 @@ impl Homepage {
                     .items_center()
                     .justify_center()
                     .child(
-                        ProjectFolderGlyph::compact(self.item_previews(item))
+                        ProjectFolderGlyph::compact(self.item_previews(item).len())
                             .lit(lit)
                             .fade(fade),
                     ),
@@ -230,26 +223,24 @@ impl Homepage {
                                     .text_color(name_color)
                                     .child(name),
                             )
-                            .when(marks, |d| d.child(place_mark(item, t).ml(px(6.)))),
+                            .when(linked, |d| d.child(linked_mark(t).ml(px(6.)))),
                     )
-                    .when(!narrow, |d| {
-                        d.child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .truncate()
-                                .text_size(px(ty.caption))
-                                .text_color(if status.is_some() { t.muted } else { t.subtle })
-                                .child(detail),
-                        )
-                    }),
+                    .children(detail.filter(|_| !narrow).map(|detail| {
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(px(ty.meta))
+                            .text_color(if status.is_some() { t.muted } else { t.subtle })
+                            .child(detail)
+                    })),
             )
             .children(modified.map(|time| {
                 div()
                     .flex_none()
                     .max_w(px(if narrow { 76. } else { 112. }))
                     .truncate()
-                    .text_size(px(ty.caption))
+                    .text_size(px(ty.meta))
                     .text_color(t.subtle)
                     .when(lit, |d| d.invisible())
                     .child(time)
@@ -402,18 +393,17 @@ impl Homepage {
     }
 }
 
-/// `ProjectPlaceMark`: where a shared project lives, as one small mark after
-/// its name: the Cloud, or a computer.
-pub(super) fn place_mark(item: &Item, t: Theme) -> Div {
-    let meaning = if item.local_path.is_some() || item.remote.is_some() {
-        ProductIcon::Local
-    } else {
-        ProductIcon::Cloud
-    };
+/// A folder on this computer that also has its own Cloud project says so
+/// with one small cloud after its name.
+pub(super) fn linked_mark(t: Theme) -> Div {
     div()
         .flex_none()
         .flex()
         .items_center()
         .text_color(t.subtle)
-        .child(Icon::product(meaning).with_size(px(12.)).stroke(1.85))
+        .child(
+            Icon::product(ProductIcon::Cloud)
+                .with_size(px(12.))
+                .stroke(1.85),
+        )
 }
