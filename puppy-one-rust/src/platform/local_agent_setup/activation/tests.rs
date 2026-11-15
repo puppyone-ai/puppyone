@@ -867,3 +867,153 @@ fn a_late_initial_journal_failure_cannot_overwrite_confirmed_cancellation() {
     assert_eq!(ports.install_attempts.load(Ordering::SeqCst), 0);
     assert!(service.journal.path.is_dir());
 }
+
+#[test]
+fn actual_typescript_journal_and_live_schema_oracle() {
+    let oracle: Value = serde_json::from_str(include_str!(
+        "../../../../fixtures/activation-journal-oracle.json"
+    ))
+    .unwrap();
+    let mut mismatches = Vec::new();
+    for case in oracle["cases"].as_array().unwrap() {
+        let input = &case["input"];
+        let parsed = parse_journal(input);
+        if parsed.is_some() != case["accepted"].as_bool().unwrap() {
+            mismatches.push(format!("{}: journal admission", case["name"]));
+        } else if let Some(operations) = parsed {
+            let actual = snapshot_json(&Snapshot {
+                epoch: "fixture".into(),
+                revision: 1,
+                operations,
+            });
+            if actual["operations"] != case["operations"] {
+                mismatches.push(format!("{}: migrated operation", case["name"]));
+            }
+        }
+        let live = parse_journal(&json!({"schemaVersion":2,"snapshot":input}));
+        if live.is_some() != case["liveAccepted"].as_bool().unwrap() {
+            mismatches.push(format!("{}: live admission", case["name"]));
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "TS journal/schema differences: {mismatches:#?}"
+    );
+}
+
+#[test]
+fn journal_migration_is_read_only_and_rewrites_only_explicit_version_two_snapshots() {
+    let oracle: Value = serde_json::from_str(include_str!(
+        "../../../../fixtures/activation-journal-oracle.json"
+    ))
+    .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let (service, _) = service_with_journal(dir.path());
+    for (i, case) in oracle["cases"].as_array().unwrap().iter().enumerate() {
+        let before = serde_json::to_vec(&case["input"]).unwrap();
+        std::fs::write(&service.journal.path, &before).unwrap();
+        let read = service.journal.read();
+        assert_eq!(
+            read.is_ok(),
+            case["accepted"].as_bool().unwrap(),
+            "{}",
+            case["name"]
+        );
+        assert_eq!(
+            std::fs::read(&service.journal.path).unwrap(),
+            before,
+            "reading must not rewrite history"
+        );
+        if let Ok(operations) = read {
+            service
+                .journal
+                .write(&Snapshot {
+                    epoch: "new".into(),
+                    revision: i as u64 + 1,
+                    operations: operations.clone(),
+                })
+                .unwrap();
+            let saved: Value =
+                serde_json::from_slice(&std::fs::read(&service.journal.path).unwrap()).unwrap();
+            assert_eq!(saved["schemaVersion"], 2);
+            assert_eq!(service.journal.read().unwrap(), operations);
+        }
+        assert_eq!(
+            std::fs::read_dir(dir.path()).unwrap().count(),
+            1,
+            "no temporary residue"
+        );
+    }
+}
+
+#[test]
+fn journal_rejects_oversize_and_linked_files_without_touching_their_targets() {
+    let dir = tempfile::tempdir().unwrap();
+    let (service, _) = service_with_journal(dir.path());
+    assert_eq!(service.journal.read().unwrap(), vec![]);
+    let mut oversized =
+        br#"{"schemaVersion":2,"snapshot":{"epoch":"valid","revision":1,"operations":[]}}"#
+            .to_vec();
+    oversized.resize(64 * 1024 + 1, b' ');
+    assert!(serde_json::from_slice::<Value>(&oversized).is_ok());
+    std::fs::write(&service.journal.path, &oversized).unwrap();
+    assert!(service.journal.read().is_err());
+    assert_eq!(std::fs::read(&service.journal.path).unwrap(), oversized);
+    std::fs::remove_file(&service.journal.path).unwrap();
+    #[cfg(unix)]
+    {
+        let target = dir.path().join("target.json");
+        let bytes =
+            br#"{"schemaVersion":2,"snapshot":{"epoch":"valid","revision":1,"operations":[]}}"#;
+        std::fs::write(&target, bytes).unwrap();
+        std::os::unix::fs::symlink(&target, &service.journal.path).unwrap();
+        assert!(service.journal.read().is_err());
+        assert_eq!(std::fs::read(target).unwrap(), bytes);
+    }
+}
+
+#[test]
+fn journal_writes_validate_before_replacing_private_receipts() {
+    let dir = tempfile::tempdir().unwrap();
+    let (service, _) = service_with_journal(&dir.path().join("private/nested"));
+    let good = Snapshot {
+        epoch: "valid".into(),
+        revision: 1,
+        operations: vec![],
+    };
+    service.journal.write(&good).unwrap();
+    let before = std::fs::read(&service.journal.path).unwrap();
+    let invalid = Snapshot {
+        revision: u64::MAX,
+        ..good
+    };
+    assert_eq!(
+        service.journal.write(&invalid).unwrap_err().kind(),
+        std::io::ErrorKind::InvalidInput
+    );
+    assert_eq!(std::fs::read(&service.journal.path).unwrap(), before);
+    let parent = service.journal.path.parent().unwrap();
+    assert_eq!(std::fs::read_dir(parent).unwrap().count(), 1);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        assert_eq!(
+            std::fs::metadata(parent).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::metadata(&service.journal.path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+    // JS JSON.parse preserves integer-valued exponent notation as a safe number.
+    let decimal: Value = serde_json::from_str(
+        r#"{"schemaVersion":2.0,"snapshot":{"epoch":"valid","revision":1e0,"operations":[]}}"#,
+    )
+    .unwrap();
+    assert_eq!(parse_journal(&decimal), Some(vec![]));
+}

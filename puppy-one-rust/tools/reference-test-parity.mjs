@@ -164,3 +164,76 @@ const setupFile=path.join(root,'fixtures/local-agent-setup-oracle.json');
 if(process.argv.includes('--check')) { if(await readFile(setupFile,'utf8')!==setupOutput) throw Error('Stale TS Local Agent setup oracle'); }
 else await writeFile(setupFile,setupOutput);
 console.log(`${advice.length} TS setup evidence cases and ${capabilities.length} platform/architecture combinations verified`);
+
+// Real journal migration and live-schema boundaries, with no installation work.
+const {mkdtemp,rm} = await import('node:fs/promises');
+const {tmpdir} = await import('node:os');
+const {createActivationJournal} = await import(pathToFileURL(`${reference}/electron/main/local-agent-activation/activation-journal.mjs`));
+const {assertActivationSnapshot} = await import(pathToFileURL(`${reference}/shared/local-agent-activation/schema.mjs`));
+const journalCases=[];
+const baseSnapshot={epoch:'fixture',revision:1,operations:[{operationId:'operation-1',setupId:'codex',displayName:'Codex',status:'ready',steps:['prepare','install','verify'].map(id=>({id,status:'complete'})),installed:true,errorCode:null,updatedAt:1}]};
+const legacy=()=>({epoch:'old',revision:2,operations:[{operationId:'old-task',setupId:'codex',displayName:'Codex',status:'authentication-required',installed:true,errorCode:null,updatedAt:1,steps:[{id:'prepare',status:'complete'},{id:'install',status:'complete'},{id:'login',status:'running'},{id:'verify',status:'pending'}]}]});
+const journalDir=await mkdtemp(path.join(tmpdir(),'puppyone-journal-oracle-'));
+try {
+  async function journalCase(name,value) {
+    const file=path.join(journalDir,'journal.json');
+    await writeFile(file,JSON.stringify(value));
+    let accepted=false,operations=null;
+    try {operations=await createActivationJournal(file).read();accepted=true;} catch {}
+    const unchanged=await readFile(file,'utf8')===JSON.stringify(value);assert(unchanged,name);
+    let liveAccepted=false;
+    try {assertActivationSnapshot(value);liveAccepted=true;} catch {}
+    journalCases.push({name,input:value,accepted,operations,liveAccepted});
+  }
+  await journalCase('v2',{schemaVersion:2,snapshot:baseSnapshot});
+  for(const status of ['authentication-required','authenticating','verifying','detected']) {
+    const value=legacy();value.operations[0].status=status;await journalCase(`legacy/${status}`,value);
+  }
+  for(const errorCode of ['authentication','verification']) {
+    const value=legacy();Object.assign(value.operations[0],{status:'failed',errorCode});await journalCase(`legacy/${errorCode}`,value);
+  }
+  {const value=legacy();value.operations[0].installed=false;await journalCase('legacy/not installed',value);}
+  {const value=legacy();value.operations[0].status='cancelled';await journalCase('legacy/cancelled',value);}
+  for(const kind of ['state','step','extra','version']) {
+    let value=legacy();
+    if(kind==='state')value.operations[0].status='unknown';
+    if(kind==='step')value.operations[0].steps[2].status='unknown';
+    if(kind==='extra')value.operations[0].command='unexpected';
+    if(kind==='version')value={schemaVersion:3,snapshot:value};
+    await journalCase(`legacy/invalid/${kind}`,value);
+  }
+  async function mutate(name,patch) {
+    const snapshot=structuredClone(baseSnapshot);patch(snapshot);
+    await journalCase(`live/${name}`,snapshot);
+    await journalCase(`v2/${name}`,{schemaVersion:2,snapshot});
+  }
+  for(const field of ['epoch','revision','operations']) await mutate(`missing/${field}`,s=>delete s[field]);
+  await mutate('extra',s=>s.command='unexpected');
+  for(const n of [-1,0,1.5,Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1,null,'1']) {
+    await mutate(`revision/${n}`,s=>s.revision=n);
+    await mutate(`updatedAt/${n}`,s=>s.operations[0].updatedAt=n);
+  }
+  for(const value of ['', 'a'.repeat(100),'a'.repeat(101),'../bad','has space','雪','a:b-1',null,1]) {
+    await mutate(`epoch/${String(value)}`,s=>s.epoch=value);
+    await mutate(`setupId/${String(value)}`,s=>s.operations[0].setupId=value);
+    await mutate(`operationId/${String(value)}`,s=>s.operations[0].operationId=value);
+  }
+  for(const value of ['', 'x'.repeat(100),'x'.repeat(101),'😀'.repeat(50),'😀'.repeat(51),null,3]) await mutate(`name/${String(value)}`,s=>s.operations[0].displayName=value);
+  for(const n of [0,16,17]) await mutate(`operations/${n}`,s=>s.operations=Array.from({length:n},(_,i)=>({...structuredClone(baseSnapshot.operations[0]),setupId:`agent-${i}`})));
+  await mutate('duplicate setup',s=>s.operations.push(structuredClone(s.operations[0])));
+  for(const field of Object.keys(baseSnapshot.operations[0])) await mutate(`operation missing/${field}`,s=>delete s.operations[0][field]);
+  await mutate('operation extra',s=>s.operations[0].command='unexpected');
+  for(const status of ['preparing','installing','setup-required','verifying','ready','cancelling','cancelled','failed','interrupted','authenticating','unknown']) await mutate(`status/${status}`,s=>s.operations[0].status=status);
+  for(const errorCode of ['installation-check','download','integrity','archive','installation-busy','installation','interrupted','storage','timeout','process','unsupported','authentication',{},null]) await mutate(`error/${JSON.stringify(errorCode)}`,s=>s.operations[0].errorCode=errorCode);
+  for(const value of [true,false,1,null,'true']) await mutate(`installed/${value}`,s=>s.operations[0].installed=value);
+  for(const status of ['pending','running','complete','skipped','failed','unknown',null]) await mutate(`step status/${status}`,s=>s.operations[0].steps[1].status=status);
+  await mutate('step order',s=>s.operations[0].steps.reverse());
+  await mutate('step extra',s=>s.operations[0].steps[0].command='unexpected');
+  await mutate('step missing',s=>delete s.operations[0].steps[0].status);
+  await mutate('four live steps',s=>s.operations[0].steps.splice(2,0,{id:'login',status:'running'}));
+} finally { await rm(journalDir,{recursive:true,force:true}); }
+const journalOutput=JSON.stringify({sourceCommit:receipt.commit,cases:journalCases})+'\n';
+const journalFile=path.join(root,'fixtures/activation-journal-oracle.json');
+if(process.argv.includes('--check')) {if(await readFile(journalFile,'utf8')!==journalOutput)throw Error('Stale TS activation journal oracle');}
+else await writeFile(journalFile,journalOutput);
+console.log(`${journalCases.length} TS activation journal and live-schema cases verified`);

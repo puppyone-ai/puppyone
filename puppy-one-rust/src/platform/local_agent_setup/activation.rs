@@ -135,7 +135,7 @@ pub struct Operation {
     pub steps: [StepState; 3],
     pub installed: bool,
     pub error: Option<ErrorCode>,
-    pub updated_at: u64,
+    pub updated_at: i64,
 }
 impl Operation {
     /// The 1-based step in progress, as the setup rows count it.
@@ -270,7 +270,7 @@ impl Service {
                     if op.status.active() {
                         op.status = Status::Interrupted;
                         op.error = Some(ErrorCode::Interrupted);
-                        op.updated_at = now;
+                        op.updated_at = now as i64;
                         for step in op.steps.iter_mut() {
                             if *step == StepState::Running {
                                 *step = StepState::Failed;
@@ -413,7 +413,7 @@ impl Service {
             steps: [StepState::Pending; 3],
             installed: false,
             error: None,
-            updated_at: super::super::agent_activity::now_millis(),
+            updated_at: super::super::agent_activity::now_millis() as i64,
         };
         match state.operations.iter().position(|o| o.setup_id == route.id) {
             Some(i) => state.operations[i] = entry,
@@ -667,7 +667,7 @@ impl Service {
             return;
         };
         patch(op);
-        op.updated_at = super::super::agent_activity::now_millis();
+        op.updated_at = super::super::agent_activity::now_millis() as i64;
         state.revision += 1;
         let value = snapshot(state);
         // A closed view cannot affect the work.
@@ -780,13 +780,24 @@ impl Journal {
         parse_journal(&value).ok_or_else(|| "Invalid activation journal.".into())
     }
     fn write(&self, snapshot: &Snapshot) -> std::io::Result<()> {
+        let value = snapshot_json(snapshot);
+        if parse_snapshot(&value).is_none() {
+            return Err(std::io::ErrorKind::InvalidInput.into());
+        }
         let mut written = self.written.lock().unwrap();
         if snapshot.revision < *written {
             return Ok(());
         }
-        let data = json!({ "schemaVersion": 2, "snapshot": snapshot_json(snapshot) }).to_string();
+        let data = json!({ "schemaVersion": 2, "snapshot": value }).to_string();
         let dir = self.path.parent().ok_or(std::io::ErrorKind::InvalidInput)?;
-        std::fs::create_dir_all(dir)?;
+        let mut directories = std::fs::DirBuilder::new();
+        directories.recursive(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt as _;
+            directories.mode(0o700);
+        }
+        directories.create(dir)?;
         let temporary = self
             .path
             .with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
@@ -827,13 +838,98 @@ fn snapshot_json(snapshot: &Snapshot) -> Value {
         })).collect::<Vec<_>>(),
     })
 }
-/// `readJournal` / `assertActivationSnapshot` (schema version 2).
+/// `readJournal`: only disk accepts the original four-step receipt. Migrating
+/// a receipt does not install, authenticate, or rewrite the file being read.
 fn parse_journal(value: &Value) -> Option<Vec<Operation>> {
     let object = value.as_object()?;
-    if object.len() != 2 || value.get("schemaVersion")?.as_u64()? != 2 {
+    if object.contains_key("schemaVersion") {
+        if object.len() != 2 || safe_integer(value.get("schemaVersion")?)? != 2 {
+            return None;
+        }
+        return parse_snapshot(value.get("snapshot")?);
+    }
+    if object.len() != 3 {
         return None;
     }
-    let snapshot = value.get("snapshot")?.as_object()?;
+    let mut migrated = value.clone();
+    let operations = migrated.get_mut("operations")?.as_array_mut()?;
+    if operations.len() > 16 {
+        return None;
+    }
+    for entry in operations {
+        let entry = entry.as_object_mut().filter(|e| e.len() == 8)?;
+        let status = entry.get("status")?.as_str()?;
+        if Status::parse(status).is_none()
+            && !["authentication-required", "authenticating", "detected"].contains(&status)
+        {
+            return None;
+        }
+        let obsolete_error = match entry.get("errorCode")? {
+            Value::Null => false,
+            Value::String(code) if ["authentication", "verification"].contains(&code.as_str()) => {
+                true
+            }
+            Value::String(code) if ErrorCode::parse(code).is_some() => false,
+            _ => return None,
+        };
+        let obsolete = obsolete_error
+            || [
+                "authentication-required",
+                "authenticating",
+                "verifying",
+                "detected",
+            ]
+            .contains(&status);
+        let installed = entry.get("installed")?.as_bool()?;
+        let status = if obsolete {
+            if installed { "ready" } else { "interrupted" }
+        } else {
+            status
+        }
+        .to_owned();
+        let steps = entry
+            .get_mut("steps")?
+            .as_array_mut()
+            .filter(|s| s.len() == 4)?;
+        for (step, id) in steps.iter().zip(["prepare", "install", "login", "verify"]) {
+            let step = step.as_object().filter(|s| s.len() == 2)?;
+            if step.get("id")?.as_str()? != id {
+                return None;
+            }
+            StepState::parse(step.get("status")?.as_str()?)?;
+        }
+        steps.remove(2);
+        for step in steps {
+            let old = StepState::parse(step.get("status")?.as_str()?)?;
+            if status == "ready" && !old.done() {
+                step["status"] = json!("complete");
+            } else if obsolete && old == StepState::Running {
+                step["status"] = json!("failed");
+            }
+        }
+        if obsolete {
+            entry.insert(
+                "errorCode".into(),
+                if installed {
+                    Value::Null
+                } else {
+                    json!("interrupted")
+                },
+            );
+        }
+        entry.insert("status".into(), json!(status));
+    }
+    parse_snapshot(&migrated)
+}
+/// JSON numbers follow the TS safe-integer contract, including integer-valued
+/// decimal notation and negative timestamps (revision alone must be nonnegative).
+fn safe_integer(value: &Value) -> Option<i64> {
+    let n = value.as_f64()?;
+    (n.fract() == 0.0 && n.abs() <= 9_007_199_254_740_991.0).then_some(n as i64)
+}
+/// The live three-step snapshot contract never accepts legacy login states.
+fn parse_snapshot(value: &Value) -> Option<Vec<Operation>> {
+    let snapshot = value.as_object()?;
     if snapshot.len() != 3 {
         return None;
     }
@@ -844,7 +940,7 @@ fn parse_journal(value: &Value) -> Option<Vec<Operation>> {
                 .all(|c| c.is_ascii_alphanumeric() || c == ':' || c == '-')
     };
     id_ok(snapshot.get("epoch")?.as_str()?).then_some(())?;
-    snapshot.get("revision")?.as_u64()?;
+    (safe_integer(snapshot.get("revision")?)? >= 0).then_some(())?;
     let operations = snapshot.get("operations")?.as_array()?;
     if operations.len() > 16 {
         return None;
@@ -856,7 +952,7 @@ fn parse_journal(value: &Value) -> Option<Vec<Operation>> {
             let entry = entry.as_object().filter(|e| e.len() == 8)?;
             let text = |k: &str| entry.get(k)?.as_str();
             let (operation_id, setup_id) = (text("operationId")?, text("setupId")?);
-            let display_name = text("displayName").filter(|n| n.chars().count() <= 100)?;
+            let display_name = text("displayName").filter(|n| n.encode_utf16().count() <= 100)?;
             if !id_ok(operation_id) || !id_ok(setup_id) || !seen.insert(setup_id.to_owned()) {
                 return None;
             }
@@ -882,7 +978,7 @@ fn parse_journal(value: &Value) -> Option<Vec<Operation>> {
                 steps: parsed,
                 installed: entry.get("installed")?.as_bool()?,
                 error,
-                updated_at: entry.get("updatedAt")?.as_u64()?,
+                updated_at: safe_integer(entry.get("updatedAt")?)?,
             })
         })
         .collect()
