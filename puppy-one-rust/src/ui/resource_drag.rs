@@ -4,7 +4,7 @@
 //! without depending on the shell.
 use crate::{theme, ui::appearance::ActiveAppearance, workspace::Workspace};
 use gpui::{prelude::*, *};
-use std::{path::PathBuf, sync::Arc};
+use std::{cell::Cell, path::PathBuf, rc::Rc, sync::Arc};
 
 #[derive(Clone)]
 pub struct ResourceDrag {
@@ -13,6 +13,8 @@ pub struct ResourceDrag {
     pub paths: Vec<PathBuf>,
     pub label: SharedString,
     pub workspace: Option<Arc<Workspace>>,
+    /// The system draws the drag now (it left the window as files).
+    pub native: Rc<Cell<bool>>,
 }
 impl ResourceDrag {
     pub fn belongs_to(&self, workspace: &Option<Arc<Workspace>>) -> bool {
@@ -31,6 +33,9 @@ impl ResourceDrag {
 impl Render for ResourceDrag {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
+        if self.native.get() {
+            return div();
+        }
         div()
             .px(px(10.))
             .py(px(6.))

@@ -372,10 +372,21 @@ impl Render for Explorer {
                 })
             }))
             .on_drop(cx.listener(|s, paths: &ExternalPaths, _, cx| {
-                let import = FileOp::Import(paths.paths().to_vec(), PathBuf::new());
-                s.session
-                    .update(cx, |session, cx| session.run_op(import, cx))
+                s.drop_external(paths, Path::new(""), cx)
             }))
+            // Entries dragged past the window's edge leave as files.
+            .on_drag_move::<rows::DragNodes>(cx.listener(
+                |s, event: &DragMoveEvent<rows::DragNodes>, window, cx| {
+                    let size = window.viewport_size();
+                    let at = event.event.position;
+                    let outside =
+                        at.x < px(0.) || at.y < px(0.) || at.x > size.width || at.y > size.height;
+                    if outside {
+                        let drag = event.drag(cx).clone();
+                        s.drag_left_window(&drag, window, cx);
+                    }
+                },
+            ))
             .child(
                 uniform_list(
                     "explorer",

@@ -157,7 +157,8 @@ impl WebHost {
             })
             // OS file drags over web content never load the file into the
             // page (`acquireNativeSurfaceOcclusionLease` keeps them for the
-            // pane in the product).
+            // pane in the product): the view takes no drags (below), and
+            // swallows any it is still handed.
             .with_drag_drop_handler(|_| true)
             .with_navigation_handler(move |url| {
                 // A locked page stays its entry document (its fragments
@@ -191,6 +192,19 @@ impl WebHost {
             })
             .build_as_child(window)
             .map_err(|e| e.to_string())?;
+        #[cfg(target_os = "macos")]
+        {
+            use objc2::{msg_send, rc::Retained, runtime::AnyObject};
+            use wry::WebViewExtMacOS;
+            let web = view.webview();
+            let web: *mut AnyObject = Retained::as_ptr(&web).cast_mut().cast();
+            // SAFETY: the live WebView, on the main thread. Unregistered, it
+            // is no drag destination: AppKit hands a drag over it to the
+            // window's own view, whose panes take it.
+            unsafe {
+                let _: () = msg_send![web, unregisterDraggedTypes];
+            }
+        }
         let state = Rc::new(HostState {
             window: window_key(window),
             painted: Cell::new(false),
