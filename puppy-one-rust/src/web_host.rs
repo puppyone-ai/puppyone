@@ -357,6 +357,18 @@ impl WebHost {
             unsafe {
                 let _: () = msg_send![web, unregisterDraggedTypes];
             }
+            // Dev captures run behind every other window: WebKit would stop
+            // drawing an occluded page, and the screenshot would show none.
+            #[cfg(feature = "dev-capture")]
+            // SAFETY: as above; the private setter is called only where
+            // WebKit answers to it.
+            unsafe {
+                let selector = objc2::sel!(_setWindowOcclusionDetectionEnabled:);
+                let answers: bool = msg_send![web, respondsToSelector: selector];
+                if answers {
+                    let _: () = msg_send![web, _setWindowOcclusionDetectionEnabled: false];
+                }
+            }
         }
         let state = Rc::new(HostState {
             window: window_key(window),
