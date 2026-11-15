@@ -12,6 +12,13 @@
     "tests/component/editor/document-session/quietAutoSaveStatus.test.tsx": "f2d1a0326e862ab0a19efcd87e3e88cf1e0c79e4d89cdfa6afc1f4999eba121a",
     "tests/unit/editor/document-session/windowAutoSave.test.ts": "1817f44452f2f0f6328eef391555c7ba8e2478843a9e22fbd687f66646e3cf0f",
     "shared/agent-contract/constants.mjs": "bdb31ef6411a128e565ae5bb4aae17b72d82a2e0a9d206d5dff5346d718cd8e5",
-    "shared/agent-contract/types.ts": "0c85bf180ab61114f08205f6dcd38f29694fd07e6c3f291c8a7a8ea8fb65e04f"
+    "shared/agent-contract/types.ts": "0c85bf180ab61114f08205f6dcd38f29694fd07e6c3f291c8a7a8ea8fb65e04f",
+    "shared/presetViewerManifest.js": "6d4ae26b78bdf9129c8d74c6d48cd8de085ad032088bf24735160656de5e3987",
+    "shared/presetViewerManifest.json": "cb8e72b15201cb670fe365a3c701dcdbb267493d4e2a48d5747a4ea96c12c53a",
+    "tests/support/editor/preset-manifest-cases.mjs": "4041cea5c1c56a61582d8abfef6112394a049f39b30c8bba2f42f2376c65a94d",
+    "tests/unit/editor/runtime/presetManifestCharacterization.test.mjs": "d196c60595ea1403efd2a5428c472fdfacab0ddb24092e85362901ca17acac50",
+    "tests/unit/editor/runtime/__snapshots__/presetManifestCharacterization.test.mjs.snap": "fa01cbba130933dbd1c3b907b40aaba19af595cde164a90c3c054a092420156c",
+    "electron/main/viewer-packs/preset-viewer-manifest.mjs": "bb88f5feb5b41212bcc5e97ed4713acd0b45c29aaf31a2184eb910c49e5f1778",
+    "src/shared-ui/editor/registry/presetViewerManifest.ts": "ed56c1d62e7f29bba374e0d48af417dc276380a89634663aea5769ac53d4d002"
   }
 }

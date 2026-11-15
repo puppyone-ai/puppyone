@@ -3730,7 +3730,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -5393,17 +5393,17 @@
       "rust": [
         {
           "package": "po-app",
-          "test": "features::desktop_agent::ui::transcript::history_tests::local_replay_gaps_do_not_render_a_native_history_warning",
+          "test": "features::desktop_agent::ui::transcript::tests::local_replay_gaps_do_not_render_a_native_history_warning",
           "target": "puppy-one-rust"
         },
         {
           "package": "po-app",
-          "test": "features::desktop_agent::ui::transcript::history_tests::unknown_native_history_is_disclosed_even_without_message_rows_and_clears_on_recovery",
+          "test": "features::desktop_agent::ui::transcript::tests::unknown_native_history_is_disclosed_even_without_message_rows_and_clears_on_recovery",
           "target": "puppy-one-rust"
         },
         {
           "package": "po-app",
-          "test": "features::desktop_agent::ui::transcript::history_tests::partial_native_history_and_display_truncation_have_distinct_visible_explanations",
+          "test": "features::desktop_agent::ui::transcript::tests::partial_native_history_and_display_truncation_have_distinct_visible_explanations",
           "target": "puppy-one-rust"
         },
         {
@@ -5414,7 +5414,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::desktop_agent::ui::transcript::history_tests::changing_native_coverage_remeasures_the_existing_first_message_row"
+          "test": "features::desktop_agent::ui::transcript::tests::changing_native_coverage_remeasures_the_existing_first_message_row"
         }
       ],
       "environment": "local"
@@ -5502,6 +5502,477 @@
           "package": "po-app",
           "test": "features::desktop_agent::ui::agent_conversation_history::tests::integration::clicking_load_more_keeps_the_native_cursor_and_scan_epoch_together",
           "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "editor-preset-manifest-characterization",
+      "acceptance": "All 112 shared TS manifest fixtures preserve acceptance, ordered validation diagnostics, canonical field values, and alias identity. Rust shared immutable references replace JS frozen objects; rejection text follows the main-process diagnostic variant. Whole-number JSON notation and safe-integer budget bounds are additionally checked in Rust.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/presetManifestCharacterization.test.mjs",
+          "sha256": "d196c60595ea1403efd2a5428c472fdfacab0ddb24092e85362901ca17acac50",
+          "cases": [
+            {
+              "index": 0,
+              "name": "preset manifest characterization > Main and the renderer read canonical alike"
+            },
+            {
+              "index": 1,
+              "name": "preset manifest characterization > Main and the renderer read minimal alike"
+            },
+            {
+              "index": 2,
+              "name": "preset manifest characterization > Main and the renderer read manifest null alike"
+            },
+            {
+              "index": 3,
+              "name": "preset manifest characterization > Main and the renderer read manifest [] alike"
+            },
+            {
+              "index": 4,
+              "name": "preset manifest characterization > Main and the renderer read manifest \"invalid\" alike"
+            },
+            {
+              "index": 5,
+              "name": "preset manifest characterization > Main and the renderer read unknown manifest fields alike"
+            },
+            {
+              "index": 6,
+              "name": "preset manifest characterization > Main and the renderer read version alike"
+            },
+            {
+              "index": 7,
+              "name": "preset manifest characterization > Main and the renderer read fallback id alike"
+            },
+            {
+              "index": 8,
+              "name": "preset manifest characterization > Main and the renderer read empty viewers alike"
+            },
+            {
+              "index": 9,
+              "name": "preset manifest characterization > Main and the renderer read missing viewers alike"
+            },
+            {
+              "index": 10,
+              "name": "preset manifest characterization > Main and the renderer read definition null alike"
+            },
+            {
+              "index": 11,
+              "name": "preset manifest characterization > Main and the renderer read definition [] alike"
+            },
+            {
+              "index": 12,
+              "name": "preset manifest characterization > Main and the renderer read definition \"invalid\" alike"
+            },
+            {
+              "index": 13,
+              "name": "preset manifest characterization > Main and the renderer read unknown definition fields alike"
+            },
+            {
+              "index": 14,
+              "name": "preset manifest characterization > Main and the renderer read invalid id alike"
+            },
+            {
+              "index": 15,
+              "name": "preset manifest characterization > Main and the renderer read duplicate canonical id alike"
+            },
+            {
+              "index": 16,
+              "name": "preset manifest characterization > Main and the renderer read alias equals canonical id alike"
+            },
+            {
+              "index": 17,
+              "name": "preset manifest characterization > Main and the renderer read alias collides with fallback alike"
+            },
+            {
+              "index": 18,
+              "name": "preset manifest characterization > Main and the renderer read fallback missing alike"
+            },
+            {
+              "index": 19,
+              "name": "preset manifest characterization > Main and the renderer read fallback not placeholder alike"
+            },
+            {
+              "index": 20,
+              "name": "preset manifest characterization > Main and the renderer read multiple placeholders alike"
+            },
+            {
+              "index": 21,
+              "name": "preset manifest characterization > Main and the renderer read missing id alike"
+            },
+            {
+              "index": 22,
+              "name": "preset manifest characterization > Main and the renderer read missing formatViewerIds alike"
+            },
+            {
+              "index": 23,
+              "name": "preset manifest characterization > Main and the renderer read missing capability alike"
+            },
+            {
+              "index": 24,
+              "name": "preset manifest characterization > Main and the renderer read missing source alike"
+            },
+            {
+              "index": 25,
+              "name": "preset manifest characterization > Main and the renderer read missing runtime alike"
+            },
+            {
+              "index": 26,
+              "name": "preset manifest characterization > Main and the renderer read missing surfaceIsolation alike"
+            },
+            {
+              "index": 27,
+              "name": "preset manifest characterization > Main and the renderer read missing computeIsolation alike"
+            },
+            {
+              "index": 28,
+              "name": "preset manifest characterization > Main and the renderer read missing contentSandbox alike"
+            },
+            {
+              "index": 29,
+              "name": "preset manifest characterization > Main and the renderer read missing resourcePolicy alike"
+            },
+            {
+              "index": 30,
+              "name": "preset manifest characterization > Main and the renderer read missing recoveryPolicy alike"
+            },
+            {
+              "index": 31,
+              "name": "preset manifest characterization > Main and the renderer read missing surfacePreparation alike"
+            },
+            {
+              "index": 32,
+              "name": "preset manifest characterization > Main and the renderer read missing readinessSignal alike"
+            },
+            {
+              "index": 33,
+              "name": "preset manifest characterization > Main and the renderer read missing surfaceFamily alike"
+            },
+            {
+              "index": 34,
+              "name": "preset manifest characterization > Main and the renderer read missing surfaceTraits alike"
+            },
+            {
+              "index": 35,
+              "name": "preset manifest characterization > Main and the renderer read invalid capability alike"
+            },
+            {
+              "index": 36,
+              "name": "preset manifest characterization > Main and the renderer read invalid source alike"
+            },
+            {
+              "index": 37,
+              "name": "preset manifest characterization > Main and the renderer read invalid runtime alike"
+            },
+            {
+              "index": 38,
+              "name": "preset manifest characterization > Main and the renderer read invalid surfaceIsolation alike"
+            },
+            {
+              "index": 39,
+              "name": "preset manifest characterization > Main and the renderer read invalid computeIsolation alike"
+            },
+            {
+              "index": 40,
+              "name": "preset manifest characterization > Main and the renderer read invalid contentSandbox alike"
+            },
+            {
+              "index": 41,
+              "name": "preset manifest characterization > Main and the renderer read invalid surfacePreparation alike"
+            },
+            {
+              "index": 42,
+              "name": "preset manifest characterization > Main and the renderer read invalid readinessSignal alike"
+            },
+            {
+              "index": 43,
+              "name": "preset manifest characterization > Main and the renderer read invalid surfaceFamily alike"
+            },
+            {
+              "index": 44,
+              "name": "preset manifest characterization > Main and the renderer read formatViewerIds null alike"
+            },
+            {
+              "index": 45,
+              "name": "preset manifest characterization > Main and the renderer read formatViewerIds \"invalid\" alike"
+            },
+            {
+              "index": 46,
+              "name": "preset manifest characterization > Main and the renderer read formatViewerIds [null] alike"
+            },
+            {
+              "index": 47,
+              "name": "preset manifest characterization > Main and the renderer read formatViewerIds [\"Bad ID\"] alike"
+            },
+            {
+              "index": 48,
+              "name": "preset manifest characterization > Main and the renderer read formatViewerIds [\"alias\",\"alias\"] alike"
+            },
+            {
+              "index": 49,
+              "name": "preset manifest characterization > Main and the renderer read surfaceTraits null alike"
+            },
+            {
+              "index": 50,
+              "name": "preset manifest characterization > Main and the renderer read surfaceTraits \"invalid\" alike"
+            },
+            {
+              "index": 51,
+              "name": "preset manifest characterization > Main and the renderer read surfaceTraits [null] alike"
+            },
+            {
+              "index": 52,
+              "name": "preset manifest characterization > Main and the renderer read surfaceTraits [\"Bad ID\"] alike"
+            },
+            {
+              "index": 53,
+              "name": "preset manifest characterization > Main and the renderer read surfaceTraits [\"scrollable\",\"scrollable\"] alike"
+            },
+            {
+              "index": 54,
+              "name": "preset manifest characterization > Main and the renderer read resourcePolicy unknown field alike"
+            },
+            {
+              "index": 55,
+              "name": "preset manifest characterization > Main and the renderer read resourcePolicy array alike"
+            },
+            {
+              "index": 56,
+              "name": "preset manifest characterization > Main and the renderer read recoveryPolicy unknown field alike"
+            },
+            {
+              "index": 57,
+              "name": "preset manifest characterization > Main and the renderer read recoveryPolicy array alike"
+            },
+            {
+              "index": 58,
+              "name": "preset manifest characterization > Main and the renderer read memory class alike"
+            },
+            {
+              "index": 59,
+              "name": "preset manifest characterization > Main and the renderer read maxSourceBytes -1 alike"
+            },
+            {
+              "index": 60,
+              "name": "preset manifest characterization > Main and the renderer read maxSourceBytes 0.5 alike"
+            },
+            {
+              "index": 61,
+              "name": "preset manifest characterization > Main and the renderer read maxSourceBytes 9007199254740992 alike"
+            },
+            {
+              "index": 62,
+              "name": "preset manifest characterization > Main and the renderer read maxSourceBytes 1 alike"
+            },
+            {
+              "index": 63,
+              "name": "preset manifest characterization > Main and the renderer read maxCanvasPixels -1 alike"
+            },
+            {
+              "index": 64,
+              "name": "preset manifest characterization > Main and the renderer read maxCanvasPixels 0.5 alike"
+            },
+            {
+              "index": 65,
+              "name": "preset manifest characterization > Main and the renderer read maxCanvasPixels 9007199254740992 alike"
+            },
+            {
+              "index": 66,
+              "name": "preset manifest characterization > Main and the renderer read maxCanvasPixels 1 alike"
+            },
+            {
+              "index": 67,
+              "name": "preset manifest characterization > Main and the renderer read maxActiveCanvases -1 alike"
+            },
+            {
+              "index": 68,
+              "name": "preset manifest characterization > Main and the renderer read maxActiveCanvases 0.5 alike"
+            },
+            {
+              "index": 69,
+              "name": "preset manifest characterization > Main and the renderer read maxActiveCanvases 9007199254740992 alike"
+            },
+            {
+              "index": 70,
+              "name": "preset manifest characterization > Main and the renderer read maxActiveCanvases 1 alike"
+            },
+            {
+              "index": 71,
+              "name": "preset manifest characterization > Main and the renderer read maxWorkers -1 alike"
+            },
+            {
+              "index": 72,
+              "name": "preset manifest characterization > Main and the renderer read maxWorkers 0.5 alike"
+            },
+            {
+              "index": 73,
+              "name": "preset manifest characterization > Main and the renderer read maxWorkers 9007199254740992 alike"
+            },
+            {
+              "index": 74,
+              "name": "preset manifest characterization > Main and the renderer read maxWorkers 1 alike"
+            },
+            {
+              "index": 75,
+              "name": "preset manifest characterization > Main and the renderer read retry -1 alike"
+            },
+            {
+              "index": 76,
+              "name": "preset manifest characterization > Main and the renderer read retry 2 alike"
+            },
+            {
+              "index": 77,
+              "name": "preset manifest characterization > Main and the renderer read retry 0.5 alike"
+            },
+            {
+              "index": 78,
+              "name": "preset manifest characterization > Main and the renderer read retry 1 alike"
+            },
+            {
+              "index": 79,
+              "name": "preset manifest characterization > Main and the renderer read safe mode boolean alike"
+            },
+            {
+              "index": 80,
+              "name": "preset manifest characterization > Main and the renderer read edit without source alike"
+            },
+            {
+              "index": 81,
+              "name": "preset manifest characterization > Main and the renderer read preview without source alike"
+            },
+            {
+              "index": 82,
+              "name": "preset manifest characterization > Main and the renderer read placeholder with source alike"
+            },
+            {
+              "index": 83,
+              "name": "preset manifest characterization > Main and the renderer read metadata byte budget alike"
+            },
+            {
+              "index": 84,
+              "name": "preset manifest characterization > Main and the renderer read worker without budget alike"
+            },
+            {
+              "index": 85,
+              "name": "preset manifest characterization > Main and the renderer read browser source alike"
+            },
+            {
+              "index": 86,
+              "name": "preset manifest characterization > Main and the renderer read browser lazy alike"
+            },
+            {
+              "index": 87,
+              "name": "preset manifest characterization > Main and the renderer read native source mismatch alike"
+            },
+            {
+              "index": 88,
+              "name": "preset manifest characterization > Main and the renderer read native compute mismatch alike"
+            },
+            {
+              "index": 89,
+              "name": "preset manifest characterization > Main and the renderer read sandbox without trait alike"
+            },
+            {
+              "index": 90,
+              "name": "preset manifest characterization > Main and the renderer read trait without sandbox alike"
+            },
+            {
+              "index": 91,
+              "name": "preset manifest characterization > Main and the renderer read canvas without budget alike"
+            },
+            {
+              "index": 92,
+              "name": "preset manifest characterization > Main and the renderer read paginated without budget alike"
+            },
+            {
+              "index": 93,
+              "name": "preset manifest characterization > Main and the renderer read grid pagination allowed alike"
+            },
+            {
+              "index": 94,
+              "name": "preset manifest characterization > Main and the renderer read zero source budget alike"
+            },
+            {
+              "index": 95,
+              "name": "preset manifest characterization > Main and the renderer read main thread worker budget alike"
+            },
+            {
+              "index": 96,
+              "name": "preset manifest characterization > Main and the renderer read worker eager alike"
+            },
+            {
+              "index": 97,
+              "name": "preset manifest characterization > Main and the renderer read safe mode requires isolated surface alike"
+            },
+            {
+              "index": 98,
+              "name": "preset manifest characterization > Main and the renderer read valid worker alike"
+            },
+            {
+              "index": 99,
+              "name": "preset manifest characterization > Main and the renderer read valid sandbox alike"
+            },
+            {
+              "index": 100,
+              "name": "preset manifest characterization > Main and the renderer read valid safe mode alike"
+            },
+            {
+              "index": 101,
+              "name": "preset manifest characterization > Main and the renderer read first validation error wins alike"
+            },
+            {
+              "index": 102,
+              "name": "preset manifest characterization > Main and the renderer read browser maxWorkers alike"
+            },
+            {
+              "index": 103,
+              "name": "preset manifest characterization > Main and the renderer read browser maxCanvasPixels alike"
+            },
+            {
+              "index": 104,
+              "name": "preset manifest characterization > Main and the renderer read browser maxActiveCanvases alike"
+            },
+            {
+              "index": 105,
+              "name": "preset manifest characterization > Main and the renderer read valid native alike"
+            },
+            {
+              "index": 106,
+              "name": "preset manifest characterization > Main and the renderer read native capability alike"
+            },
+            {
+              "index": 107,
+              "name": "preset manifest characterization > Main and the renderer read native runtime alike"
+            },
+            {
+              "index": 108,
+              "name": "preset manifest characterization > Main and the renderer read native surfaceIsolation alike"
+            },
+            {
+              "index": 109,
+              "name": "preset manifest characterization > Main and the renderer read native maxWorkers alike"
+            },
+            {
+              "index": 110,
+              "name": "preset manifest characterization > Main and the renderer read native maxCanvasPixels alike"
+            },
+            {
+              "index": 111,
+              "name": "preset manifest characterization > Main and the renderer read native maxActiveCanvases alike"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::registry::manifest::tests::actual_typescript_characterization_oracle_preserves_acceptance_and_diagnostics"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::manifest::tests::javascript_safe_integer_budgets_and_whole_number_json_notation_are_preserved"
         }
       ],
       "environment": "local"

@@ -4,7 +4,8 @@
 //! behaviour; what it may do — capability, input, isolation, budgets — is
 //! declared here.
 use serde::Deserialize;
-use std::{collections::HashSet, sync::OnceLock};
+use std::sync::OnceLock;
+mod validation;
 
 pub const CONTRACT_VERSION: u32 = 8;
 
@@ -74,8 +75,8 @@ pub struct ResourcePolicy {
     /// Maximum UTF-8 source or declared resource bytes for one surface.
     pub max_source_bytes: u64,
     pub max_canvas_pixels: u64,
-    pub max_active_canvases: u32,
-    pub max_workers: u32,
+    pub max_active_canvases: u64,
+    pub max_workers: u64,
 }
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -155,70 +156,10 @@ pub struct ViewerManifest {
 impl ViewerManifest {
     /// `parsePresetViewerManifest`: structure, then the cross-entry rules.
     pub fn parse(json: &str) -> Result<Self, String> {
-        let manifest: Self = serde_json::from_str(json).map_err(|e| e.to_string())?;
-        if manifest.contract_version != CONTRACT_VERSION {
-            return Err("Preset viewer manifest uses an unsupported contract version.".into());
-        }
-        if manifest.viewers.is_empty() {
-            return Err("Preset viewer manifest must declare at least one viewer.".into());
-        }
-        let valid_id = |id: &str| {
-            id.split('-').all(|part| {
-                !part.is_empty()
-                    && part
-                        .bytes()
-                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
-            }) && id.starts_with(|c: char| c.is_ascii_lowercase())
-        };
-        let (mut canonical, mut all) = (HashSet::new(), HashSet::new());
-        for viewer in &manifest.viewers {
-            if !valid_id(&viewer.id) {
-                return Err(format!("Preset viewer id {} is not kebab-case.", viewer.id));
-            }
-            if !canonical.insert(viewer.id.as_str()) {
-                return Err(format!(
-                    "Preset viewer manifest declares {} more than once.",
-                    viewer.id
-                ));
-            }
-            for id in std::iter::once(&viewer.id).chain(&viewer.format_viewer_ids) {
-                if !all.insert(id.as_str()) {
-                    return Err(format!(
-                        "Core viewer id {id} maps to more than one preset viewer."
-                    ));
-                }
-            }
-            let traits: HashSet<_> = viewer.surface_traits.iter().collect();
-            if traits.len() != viewer.surface_traits.len() {
-                return Err(format!(
-                    "Preset viewer {} repeats a surface trait.",
-                    viewer.id
-                ));
-            }
-        }
-        let fallback = manifest
-            .viewers
-            .iter()
-            .find(|v| v.id == manifest.fallback_viewer_id);
-        if !fallback
-            .is_some_and(|f| f.capability == Capability::Placeholder && f.source == Source::None)
-        {
-            return Err(
-                "Preset viewer fallback must be a declared placeholder with source 'none'.".into(),
-            );
-        }
-        if manifest
-            .viewers
-            .iter()
-            .filter(|v| v.capability == Capability::Placeholder)
-            .count()
-            != 1
-        {
-            return Err(
-                "Preset viewer manifest must declare exactly one placeholder fallback.".into(),
-            );
-        }
-        Ok(manifest)
+        let mut value: serde_json::Value = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        validation::validate(&value)?;
+        validation::normalize_numbers(&mut value);
+        serde_json::from_value(value).map_err(|e| e.to_string())
     }
     /// The canonical definition of a viewer contribution id.
     pub fn definition(&self, id: &str) -> Option<&ViewerDefinition> {
@@ -247,6 +188,106 @@ pub fn manifest() -> &'static ViewerManifest {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    #[test]
+    fn actual_typescript_characterization_oracle_preserves_acceptance_and_diagnostics() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../fixtures/preset-manifest-oracle.json"
+        ))
+        .unwrap();
+        let cases = oracle["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 112);
+        let mut failures = Vec::new();
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let result = ViewerManifest::parse(&case["input"].to_string());
+            if case["main"]["accepted"] == true {
+                let parsed = match result {
+                    Ok(parsed) => parsed,
+                    Err(error) => {
+                        failures.push(format!("{name}: refused valid input: {error}"));
+                        continue;
+                    }
+                };
+                let mut expected = case["main"]["value"].clone();
+                for viewer in expected["viewers"].as_array_mut().unwrap() {
+                    viewer.as_object_mut().unwrap().remove("contractVersion");
+                }
+                let expected: ViewerManifest = serde_json::from_value(expected).unwrap();
+                assert_eq!(parsed, expected, "{name}");
+                for viewer in &parsed.viewers {
+                    for id in std::iter::once(&viewer.id).chain(&viewer.format_viewer_ids) {
+                        assert!(
+                            std::ptr::eq(parsed.definition_for_viewer_id(id).unwrap(), viewer),
+                            "{name}: {id}"
+                        );
+                    }
+                }
+                assert!(
+                    parsed
+                        .definition_for_viewer_id("unknown-fixture-viewer")
+                        .is_none()
+                );
+            } else {
+                match result {
+                    Ok(_) => failures.push(format!("{name}: accepted rejected TS input")),
+                    Err(error) if error == case["main"]["message"].as_str().unwrap() => (),
+                    Err(error) => failures.push(format!(
+                        "{name}: {error}; expected {}",
+                        case["main"]["message"]
+                    )),
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn javascript_safe_integer_budgets_and_whole_number_json_notation_are_preserved() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../fixtures/preset-manifest-oracle.json"
+        ))
+        .unwrap();
+        let base = oracle["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["name"] == "valid worker")
+            .unwrap()["input"]
+            .clone();
+        for field in [
+            "maxSourceBytes",
+            "maxCanvasPixels",
+            "maxActiveCanvases",
+            "maxWorkers",
+        ] {
+            for number in [4_294_967_296_u64, 9_007_199_254_740_991] {
+                let mut input = base.clone();
+                input["viewers"][0]["resourcePolicy"][field] = number.into();
+                assert!(
+                    ViewerManifest::parse(&input.to_string()).is_ok(),
+                    "{field}: {number}"
+                );
+            }
+            let mut input = base.clone();
+            input["viewers"][0]["resourcePolicy"][field] = 9_007_199_254_740_992_u64.into();
+            assert!(
+                ViewerManifest::parse(&input.to_string())
+                    .unwrap_err()
+                    .contains("safe integer"),
+                "{field}"
+            );
+        }
+        let integer = ViewerManifest::parse(&base.to_string()).unwrap();
+        let mut floating = base;
+        floating["contractVersion"] = 8.0.into();
+        floating["viewers"][0]["resourcePolicy"]["maxWorkers"] = 1.0.into();
+        floating["viewers"][0]["recoveryPolicy"]["maxAutomaticRetries"] = 0.0.into();
+        assert_eq!(
+            ViewerManifest::parse(&floating.to_string()).unwrap(),
+            integer
+        );
+    }
 
     #[test]
     fn the_shipped_manifest_parses_and_maps_format_viewer_ids() {

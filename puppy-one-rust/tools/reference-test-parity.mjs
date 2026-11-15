@@ -91,3 +91,32 @@ const file = path.join(root,'fixtures/test-parity-oracle.json');
 if(process.argv.includes('--check')) { if(await readFile(file,'utf8') !== output) throw Error('Stale TS acceptance oracle'); }
 else await writeFile(file,output);
 console.log(`${autoSave.length} TS scheduler transitions and ${eventCases.length} TS event cases verified`);
+
+const {parsePresetViewerManifest} = await import(pathToFileURL(`${reference}/shared/presetViewerManifest.js`));
+const {manifestCases} = await import(pathToFileURL(`${reference}/tests/support/editor/preset-manifest-cases.mjs`));
+function execute(input, mode) {
+  try {
+    const manifest = parsePresetViewerManifest(structuredClone(input), mode);
+    assert.deepEqual(manifest, {...input, viewers:input.viewers.map(viewer=>({contractVersion:8,...viewer}))});
+    assert(Object.isFrozen(manifest)); assert(Object.isFrozen(manifest.viewers));
+    for (const viewer of manifest.viewers) for (const value of [viewer,viewer.formatViewerIds,viewer.surfaceTraits,viewer.resourcePolicy,viewer.recoveryPolicy]) assert(Object.isFrozen(value));
+    return {accepted:true, value:manifest};
+  } catch(error) {
+    if (!(error instanceof TypeError)) throw error;
+    return {accepted:false, error:error.name, message:error.message};
+  }
+}
+const cases = manifestCases.map(([name,input])=> {
+  const main=execute(input,'main'), renderer=execute(input,'renderer');
+  assert.equal(main.accepted,renderer.accepted,name);
+  if (main.accepted) assert.deepEqual(main.value,renderer.value,name);
+  return {name,input,main,renderer};
+});
+const presetInputs = {};
+for (const name of ['shared/presetViewerManifest.js','shared/presetViewerManifest.json','tests/support/editor/preset-manifest-cases.mjs','tests/unit/editor/runtime/presetManifestCharacterization.test.mjs','tests/unit/editor/runtime/__snapshots__/presetManifestCharacterization.test.mjs.snap','electron/main/viewer-packs/preset-viewer-manifest.mjs','src/shared-ui/editor/registry/presetViewerManifest.ts']) presetInputs[name]=createHash('sha256').update(await readFile(`${reference}/${name}`)).digest('hex');
+const presetOutput = JSON.stringify({sourceCommit:receipt.commit, inputs:presetInputs, cases})+'\n';
+const presetFile = path.join(root, 'fixtures/preset-manifest-oracle.json');
+if (process.argv.includes('--check')) {
+  if (await readFile(presetFile, 'utf8') !== presetOutput) throw Error('Stale TS preset manifest oracle');
+} else await writeFile(presetFile, presetOutput);
+console.log(`${cases.length} TS preset manifest cases verified in main and renderer modes`);
