@@ -1,10 +1,11 @@
-//! Cloud Computer Screen (`CloudComputerScreen.tsx`): sidebar companion
-//! thumbnail (`CloudScreenThumbnail`), quiet single-action notices, and live
-//! VNC/RFB streaming (`VncScreenViewer.tsx`).
+//! Cloud Computer Screen (`CloudComputerScreen.tsx`): top fixed-height sidebar
+//! entry (`CloudScreenSidebarEntry`), persistent VNC/RFB streaming with Full-Pane
+//! ↔ bottom-right PiP (`288×180`), and explicit `Take control` input gating.
 mod glyph;
 mod keys;
 mod rfb;
 mod session;
+mod stage;
 
 use crate::{
     cloud::auth::Cancellation,
@@ -14,13 +15,14 @@ use crate::{
     },
     localization::t as tr,
     theme::{self, metric},
-    ui::{appearance::ActiveAppearance, components::tooltip},
+    ui::appearance::ActiveAppearance,
     workspace::cloud::sandbox::{CloudSandbox, SandboxSettings, SandboxTarget, ScreenAvailability},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
 use keys::{InputState, fit_bounds, map_pointer};
 use rfb::RfbCommand;
+use stage::{PIP_HEIGHT, PIP_INSET, PIP_RADIUS, PIP_WIDTH};
 use std::{sync::Arc, time::Duration};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +48,10 @@ pub struct CloudScreen {
     target: Option<SandboxTarget>,
     sandbox: CloudSandbox,
     shown: bool,
+    interactive: bool,
+    pip_hidden: bool,
+    transition_seq: usize,
+    transition_from_pip: bool,
     saving: bool,
     phase: StreamPhase,
     generation: u64,
@@ -70,8 +76,8 @@ impl CloudScreen {
         cx: &mut Context<Self>,
     ) -> Self {
         let focus = cx.focus_handle();
-        cx.on_blur(&focus, window, |s, _, _| {
-            s.release_inputs();
+        cx.on_blur(&focus, window, |s, _, cx| {
+            s.release_control(cx);
         })
         .detach();
         cx.subscribe(&preferences, |s, _, _: &PreferencesChanged, cx| {
@@ -91,6 +97,10 @@ impl CloudScreen {
             target: None,
             sandbox: CloudSandbox::default(),
             shown: false,
+            interactive: false,
+            pip_hidden: false,
+            transition_seq: 0,
+            transition_from_pip: false,
             saving: false,
             phase: StreamPhase::Idle,
             generation: 0,
@@ -111,22 +121,20 @@ impl CloudScreen {
         self.shown && self.entry_available(cx)
     }
 
-    /// The experiment is on and this project's computer has a screen. Unlike
-    /// `DesktopCloudFileWorkspace.tsx`, which offers the entry whenever the
-    /// experiment is on and explains a missing desktop inside the screen, a
-    /// computer without one offers no entry: its Profile is fixed when it is
-    /// created, so "Install desktop" there could never take effect.
-    fn entry_available(&self, cx: &App) -> bool {
+    pub fn is_interactive(&self, cx: &App) -> bool {
+        self.interactive && self.is_shown(cx)
+    }
+
+    pub(super) fn entry_available(&self, cx: &App) -> bool {
         self.target.is_some()
             && self.sandbox.screen_present()
             && flags::cloud_screen_enabled(&self.preferences, cx)
     }
 
-    /// After the sandbox changed: a screen that is no longer present closes,
-    /// and the shell hears when the screen's visibility changed.
     fn settle_visibility(&mut self, was_shown: bool, cx: &mut Context<Self>) {
         if !self.entry_available(cx) {
             self.shown = false;
+            self.interactive = false;
         }
         self.reconcile_stream(cx);
         if was_shown != self.is_shown(cx) {
@@ -156,6 +164,9 @@ impl CloudScreen {
         let was_shown = self.is_shown(cx);
         self.teardown_session(cx);
         self.saving = false;
+        self.pip_hidden = false;
+        self.transition_seq = 0;
+        self.transition_from_pip = false;
         self.sandbox = target
             .as_ref()
             .map(SandboxTarget::sandbox)
@@ -163,6 +174,7 @@ impl CloudScreen {
         self.target = target;
         if !same_project {
             self.shown = false;
+            self.interactive = false;
         }
         self.settle_visibility(was_shown, cx);
         cx.notify();
@@ -187,14 +199,24 @@ impl CloudScreen {
         cx.notify();
     }
 
-    pub fn open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn open(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         if !self.entry_available(cx) {
             return;
         }
+        let was_pip = self.pip_visible(cx);
         let changed = !self.shown;
         self.shown = true;
-        self.focus.focus(window, cx);
-        self.reconcile_stream(cx);
+        self.pip_hidden = false;
+        if changed {
+            self.interactive = false;
+            self.transition_seq = self.transition_seq.wrapping_add(1);
+            self.transition_from_pip = was_pip;
+        }
+        if matches!(self.phase, StreamPhase::Failed) {
+            self.retry(cx);
+        } else {
+            self.reconcile_stream(cx);
+        }
         if changed {
             cx.emit(CloudScreenEvent::VisibilityChanged);
         }
@@ -206,16 +228,47 @@ impl CloudScreen {
             return;
         }
         self.shown = false;
-        self.teardown_session(cx);
+        self.release_control(cx);
+        self.transition_seq = self.transition_seq.wrapping_add(1);
+        self.transition_from_pip = false;
+        self.reconcile_stream(cx);
         cx.emit(CloudScreenEvent::VisibilityChanged);
         cx.notify();
     }
 
+    pub fn take_control(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.is_shown(cx) || self.phase != StreamPhase::Connected {
+            return;
+        }
+        self.interactive = true;
+        self.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    pub fn release_control(&mut self, cx: &mut Context<Self>) {
+        self.release_inputs();
+        if self.interactive {
+            self.interactive = false;
+            cx.notify();
+        }
+    }
+
+    pub(super) fn hide_pip(&mut self, cx: &mut Context<Self>) {
+        if !self.pip_hidden {
+            self.pip_hidden = true;
+            cx.notify();
+        }
+    }
+
     fn on_preferences_changed(&mut self, cx: &mut Context<Self>) {
-        if !flags::cloud_screen_enabled(&self.preferences, cx) && self.shown {
+        if !flags::cloud_screen_enabled(&self.preferences, cx) {
+            let was_shown = self.shown;
             self.shown = false;
+            self.interactive = false;
             self.teardown_session(cx);
-            cx.emit(CloudScreenEvent::VisibilityChanged);
+            if was_shown {
+                cx.emit(CloudScreenEvent::VisibilityChanged);
+            }
         } else {
             self.reconcile_stream(cx);
         }
@@ -223,7 +276,7 @@ impl CloudScreen {
     }
 
     fn reconcile_stream(&mut self, cx: &mut Context<Self>) {
-        let wants_stream = self.is_shown(cx)
+        let wants_stream = self.entry_available(cx)
             && matches!(
                 self.sandbox.availability(),
                 ScreenAvailability::Stream { .. }
@@ -237,9 +290,9 @@ impl CloudScreen {
         }
     }
 
-    fn retry(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn retry(&mut self, cx: &mut Context<Self>) {
         self.teardown_session(cx);
-        if self.is_shown(cx)
+        if self.entry_available(cx)
             && matches!(
                 self.sandbox.availability(),
                 ScreenAvailability::Stream { .. }
@@ -250,7 +303,7 @@ impl CloudScreen {
         cx.notify();
     }
 
-    fn wake(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn wake(&mut self, cx: &mut Context<Self>) {
         cx.emit(CloudScreenEvent::WakeWorkspace);
         self.retry(cx);
     }
@@ -259,42 +312,6 @@ impl CloudScreen {
         let bounds = self.viewport_bounds?;
         let (fw, fh) = self.frame_dims?;
         map_pointer(bounds, position, fw, fh)
-    }
-
-    pub fn render_thumbnail(&self, entity: &Entity<Self>, cx: &App) -> Option<AnyElement> {
-        if !self.entry_available(cx) {
-            return None;
-        }
-        let t = cx.palette();
-        let active = self.shown;
-        let stroke = if active {
-            t.accent
-        } else {
-            theme::fade(t.sidebar_text, 0.72)
-        };
-        let label = tr("cloud.sandbox.screen.open");
-        let screen = entity.clone();
-        Some(
-            div()
-                .id("cloud-screen-thumbnail")
-                .debug_selector(|| "cloud-screen-thumbnail".into())
-                .ml(px(12.))
-                .mb(px(10.))
-                .w(px(32.))
-                .h(px(26.))
-                .rounded(px(6.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .cursor(theme::clickable_cursor())
-                .when(!active, |d| d.hover(|s| s.bg(t.hover)))
-                .tooltip(tooltip(label))
-                .on_click(move |_, window, cx| {
-                    screen.update(cx, |s, cx| s.open(window, cx));
-                })
-                .child(glyph::screen_glyph(20., 16., stroke, active))
-                .into_any_element(),
-        )
     }
 
     fn render_notice(
@@ -391,7 +408,7 @@ impl CloudScreen {
 }
 
 impl Render for CloudScreen {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
         match self.sandbox.availability() {
             ScreenAvailability::Preview => {
@@ -470,6 +487,8 @@ impl Render for CloudScreen {
         let connecting = self.phase != StreamPhase::Connected || self.frame_image.is_none();
         let meta = theme::ty().ui.meta;
         let entity = cx.entity();
+        let fullscreen = window.is_fullscreen();
+        let controls = (!connecting).then(|| self.render_stage_controls(fullscreen, cx));
         let fitted = match (
             self.viewport_bounds,
             self.frame_dims,
@@ -481,9 +500,10 @@ impl Render for CloudScreen {
             _ => None,
         };
 
-        div()
+        let stage = div()
             .id("cloud-screen-live")
             .debug_selector(|| "cloud-screen-live".into())
+            .group("cloud-screen-stage")
             .track_focus(&self.focus)
             .relative()
             .size_full()
@@ -520,6 +540,7 @@ impl Render for CloudScreen {
                         .h(rect.size.height),
                 )
             })
+            .when_some(controls, |d, controls| d.child(controls))
             .when(connecting, |d| {
                 d.child(
                     div()
@@ -534,7 +555,43 @@ impl Render for CloudScreen {
                         .text_color(t.subtle)
                         .child(tr("cloud.sandbox.screen.connecting")),
                 )
-            })
-            .into_any_element()
+            });
+
+        if self.transition_from_pip
+            && self.transition_seq > 0
+            && !cfg!(test)
+            && !cx.reduce_motion()
+            && let Some(vp) = self.viewport_bounds
+        {
+            let ew = f32::from(vp.size.width).max(PIP_WIDTH);
+            let eh = f32::from(vp.size.height).max(PIP_HEIGHT);
+            let start_x = (ew - PIP_WIDTH - PIP_INSET).max(PIP_INSET);
+            let start_y = (eh - PIP_HEIGHT - PIP_INSET).max(PIP_INSET);
+            div()
+                .relative()
+                .size_full()
+                .overflow_hidden()
+                .child(stage.with_animation(
+                    ("cloud-screen-expand-morph", self.transition_seq),
+                    Animation::new(Duration::from_millis(320)),
+                    move |d, delta| {
+                        let k = 1. - (1. - delta).powi(3);
+                        let x = start_x * (1. - k);
+                        let y = start_y * (1. - k);
+                        let w = PIP_WIDTH + (ew - PIP_WIDTH) * k;
+                        let h = PIP_HEIGHT + (eh - PIP_HEIGHT) * k;
+                        let r = PIP_RADIUS * (1. - k);
+                        d.absolute()
+                            .left(px(x))
+                            .top(px(y))
+                            .w(px(w))
+                            .h(px(h))
+                            .rounded(px(r))
+                    },
+                ))
+                .into_any_element()
+        } else {
+            stage.into_any_element()
+        }
     }
 }

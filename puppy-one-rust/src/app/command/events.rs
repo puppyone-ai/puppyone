@@ -64,6 +64,7 @@ impl Shell {
             }
             CloudEvent::WakeWorkspace => self.retry_workspace_surface(cx),
             CloudEvent::ScreenVisibilityChanged => {
+                self.push_explorer_host(window, cx);
                 self.gate_editors(window, cx);
                 return cx.notify();
             }

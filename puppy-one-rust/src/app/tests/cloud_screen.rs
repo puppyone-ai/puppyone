@@ -265,10 +265,11 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_thumbnail_settings_tab_and_
         assert!(settings.page_available(Page::CloudComputer, cx));
     });
 
-    // A computer with a desktop offers the companion icon, even with its
-    // stream turned off (the screen then offers to turn it on).
+    // A computer with a desktop offers the companion entry pinned at the top of
+    // the left sidebar, even with its stream turned off (the screen then offers to turn it on).
     sync_sandbox(&view, cx, &sandbox_json(true, true, false));
-    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_some());
+    let thumb = cx.debug_bounds("cloud-screen-thumbnail").unwrap();
+    assert!(f32::from(thumb.origin.y) < 110.);
 
     // Clicking the sidebar monitor icon opens the Cloud Computer screen in the main area
     // and gates the underlying editor area.
@@ -413,16 +414,18 @@ fn screen_notices_drive_stream_toggle_and_asleep_wake(cx: &mut TestAppContext) {
         Some(&json!({"screen_stream": true}))
     );
     assert!(cx.debug_bounds("cloud-screen-wake").is_some());
+    assert!(cx.debug_bounds("cloud-screen-sidebar-wake").is_some());
 
-    // 2. Clicking "Wake it" wakes/reopens the workspace and streams live RFB frames!
+    // 2. Clicking the inline sidebar "Wake it" wakes/reopens the workspace and streams live RFB frames!
     let opens_before = workbench_opens.load(Ordering::Acquire);
     asleep.store(false, Ordering::Release);
-    click_selector(cx, "cloud-screen-wake");
+    click_selector(cx, "cloud-screen-sidebar-wake");
     settle_screen(&view, cx, "woken live RFB frame", &|s, cx| {
         workbench_opens.load(Ordering::Acquire) > opens_before
             && s.cloud.read(cx).screen_shown(cx)
             && s.cloud.read(cx).screen.read(cx).has_live_frame()
     });
+    assert!(cx.debug_bounds("cloud-screen-sidebar-wake").is_none());
     hold_open.store(false, Ordering::Release);
 }
 
@@ -547,7 +550,8 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     });
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
 
-    // Opening a file from Explorer returns the main area from CloudScreen to the editor!
+    // Opening a file from Explorer shrinks Full-Pane CloudScreen into bottom-right
+    // PiP (`288x180`) while keeping the editor ungated and the RFB stream persistent!
     view.update_in(cx, |s, w, cx| {
         s.explorer_event(&ExplorerEvent::Open(PathBuf::from("cloud.md")), w, cx);
     });
@@ -556,7 +560,181 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
         assert!(!s.cloud.read(cx).screen_shown(cx));
         assert!(!s.editor_gate(cx).modal);
     });
+    let pip = cx.debug_bounds("cloud-screen-pip").unwrap();
+    assert!((f32::from(pip.size.width) - 288.).abs() < 0.5);
+    assert!((f32::from(pip.size.height) - 180.).abs() < 0.5);
+    assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
+
+    // Clicking PiP's hide (`x`) button dismisses PiP until reopened from the sidebar,
+    // and clicking PiP expands back to Full-Pane without minting another ticket.
+    click_selector(cx, "cloud-screen-pip-close");
+    assert!(cx.debug_bounds("cloud-screen-pip").is_none());
+    click_selector(cx, "cloud-screen-thumbnail");
+    view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
+    view.update_in(cx, |s, w, cx| {
+        s.explorer_event(&ExplorerEvent::Open(PathBuf::from("cloud.md")), w, cx);
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-screen-pip").is_some());
+    click_selector(cx, "cloud-screen-pip-expand");
+    view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
+    assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
+
     hold_recovered.store(false, Ordering::Release);
+}
+
+#[gpui::test]
+fn explicit_take_control_gates_rfb_input_and_releases_on_escape_or_button(cx: &mut TestAppContext) {
+    let api: Responder = Arc::new(move |req| {
+        let path = req.path.as_str();
+        if path.ends_with("/workbench/screen/session") {
+            return Ok(json!({
+                "ticket": "tok-takeover",
+                "protocol": "puppyone.screen.v1",
+                "ticket_protocol_prefix": "puppyone.screen.ticket.",
+                "transport": "vnc",
+            }));
+        }
+        if path.ends_with("/repository-context") {
+            return Ok(repository_context_json());
+        }
+        if path.ends_with("/workbench/files") {
+            return Ok(json!({"entries": [{"name": "cloud.md", "kind": "file", "size": 5}]}));
+        }
+        if path.ends_with("/workbench") {
+            return Ok(json!({
+                "workspace": {
+                    "id": "ws-a",
+                    "project_id": "project-a",
+                    "generation": "9bb16f54-dfe9-4d26-8c68-c7b1ae97d859",
+                    "state": "running",
+                    "target_ref": "refs/heads/main",
+                    "sandbox": sandbox_json(true, true, true),
+                }
+            }));
+        }
+        Ok(json!({}))
+    });
+
+    let hold_open = Arc::new(AtomicBool::new(true));
+    let pointer_packets = Arc::new(AtomicUsize::new(0));
+    let hold_ws = hold_open.clone();
+    let pointer_ws = pointer_packets.clone();
+    let screen_ws: ScreenResponder = Arc::new(move |_, _| {
+        let (client_sock, server_sock) = ScreenSocket::pair();
+        let hold = hold_ws.clone();
+        let pointers = pointer_ws.clone();
+        std::thread::spawn(move || {
+            block_on_rfb(async move {
+                if server_sock.send(b"RFB 003.008\n".to_vec()).await.is_err() {
+                    return;
+                }
+                if server_sock.recv().await.is_none() {
+                    return;
+                }
+                if server_sock.send(vec![1, 1]).await.is_err() {
+                    return;
+                }
+                if server_sock.recv().await.is_none() {
+                    return;
+                }
+                if server_sock.send(0u32.to_be_bytes().to_vec()).await.is_err() {
+                    return;
+                }
+                if server_sock.recv().await.is_none() {
+                    return;
+                }
+                let mut init = Vec::new();
+                init.extend_from_slice(&4u16.to_be_bytes());
+                init.extend_from_slice(&2u16.to_be_bytes());
+                init.extend_from_slice(&[32, 24, 0, 1, 0, 255, 0, 255, 0, 255, 16, 8, 0, 0, 0, 0]);
+                init.extend_from_slice(&2u32.to_be_bytes());
+                init.extend_from_slice(b"po");
+                if server_sock.send(init).await.is_err() {
+                    return;
+                }
+                if server_sock.recv().await.is_none() {
+                    return;
+                }
+                let mut update = vec![0, 0];
+                update.extend_from_slice(&1u16.to_be_bytes());
+                update.extend_from_slice(&0u16.to_be_bytes());
+                update.extend_from_slice(&0u16.to_be_bytes());
+                update.extend_from_slice(&4u16.to_be_bytes());
+                update.extend_from_slice(&2u16.to_be_bytes());
+                update.extend_from_slice(&0i32.to_be_bytes());
+                for _ in 0..8 {
+                    update.extend_from_slice(&[0x33, 0x66, 0x99, 0xff]);
+                }
+                let _ = server_sock.send(update).await;
+
+                let (tx, rx) = server_sock.split();
+                let _keep_tx = tx;
+                while hold.load(Ordering::Acquire) {
+                    let Some(pkt) = rx.recv().await else {
+                        break;
+                    };
+                    if pkt.len() == 6 && pkt[0] == 5 {
+                        pointers.fetch_add(1, Ordering::AcqRel);
+                    }
+                }
+            });
+        });
+        Ok(client_sock)
+    });
+
+    let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
+    click_selector(cx, "cloud-screen-thumbnail");
+    settle_screen(&view, cx, "live RFB frame", &|s, cx| {
+        s.cloud.read(cx).screen.read(cx).has_live_frame()
+    });
+    draw(cx);
+
+    // 1. Default view-only mode: `Take control` and `Full screen` pills exist,
+    //    `interactive` is false, and clicking on the live stage sends NO RFB pointer packet.
+    view.read_with(cx, |s, cx| {
+        assert!(!s.cloud.read(cx).screen_interactive(cx));
+    });
+    assert!(cx.debug_bounds("cloud-screen-take-control").is_some());
+    assert!(cx.debug_bounds("cloud-screen-fullscreen").is_some());
+    let live = cx.debug_bounds("cloud-screen-live").unwrap();
+    let probe_pt = point(live.origin.x + px(40.), live.center().y);
+    cx.simulate_click(probe_pt, Modifiers::none());
+    draw(cx);
+    std::thread::sleep(Duration::from_millis(25));
+    assert_eq!(pointer_packets.load(Ordering::Acquire), 0);
+
+    // 2. Clicking `Take control` enables input forwarding and swaps to `Release control`.
+    click_selector(cx, "cloud-screen-take-control");
+    view.read_with(cx, |s, cx| {
+        assert!(s.cloud.read(cx).screen_interactive(cx));
+    });
+    assert!(cx.debug_bounds("cloud-screen-release-control").is_some());
+    assert!(cx.debug_bounds("cloud-screen-take-control").is_none());
+
+    cx.simulate_click(probe_pt, Modifiers::none());
+    settle_screen(&view, cx, "forwarded RFB pointer packet", &|_, _| {
+        pointer_packets.load(Ordering::Acquire) >= 2
+    });
+
+    // 3. `Escape` exits takeover without closing Full-Pane screen.
+    command(&view, cx, Command::Escape);
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.cloud.read(cx).screen_shown(cx));
+        assert!(!s.cloud.read(cx).screen_interactive(cx));
+    });
+    assert!(cx.debug_bounds("cloud-screen-take-control").is_some());
+
+    // 4. Re-taking control and clicking `Release control` also exits takeover cleanly.
+    click_selector(cx, "cloud-screen-take-control");
+    view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_interactive(cx)));
+    click_selector(cx, "cloud-screen-release-control");
+    view.read_with(cx, |s, cx| {
+        assert!(!s.cloud.read(cx).screen_interactive(cx))
+    });
+
+    hold_open.store(false, Ordering::Release);
 }
 
 #[gpui::test]

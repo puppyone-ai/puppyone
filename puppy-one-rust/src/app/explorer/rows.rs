@@ -307,7 +307,8 @@ impl Explorer {
         let t = cx.palette();
         let session = self.session.read(cx);
         let tree = session.tree();
-        let selected = tree.selected == item.path || tree.selection.contains(&item.path);
+        let selected = !self.host.screen_active
+            && (tree.selected == item.path || tree.selection.contains(&item.path));
         let drag_paths = if tree.selection.contains(&item.path) {
             tree.selected_roots()
         } else {

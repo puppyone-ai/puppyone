@@ -1,11 +1,12 @@
 """What a GPUI release build is: its channel's application identity, its
 release coordinates and the public Cloud configuration it ships.
 
-Ports `shared/desktop/{application-identity,release-identity,
+Ports `shared/desktop/{application-identity,distribution-contract,release-identity,
 return-to-app-link}.mjs` and the checks `cloud-configuration-plugin.mjs`
-applies, for the GPUI app. The GPUI app keeps its own bundle identity so it
-can sit beside the Electron app; it shares the product's return schemes,
-because template links name them.
+applies. Published channels (`internal`, `stable`) use the exact same bundle
+identity, display name, return scheme, and update feed URLs as the shipped
+Electron app so installed users receive in-place OTA upgrades; `dev` stays
+visually distinct (`PuppyOne Rust Dev`, Blue-`D` icon).
 """
 import json
 import re
@@ -18,26 +19,30 @@ PUBLISHED_CHANNELS = ('internal', 'stable')
 MINIMUM_SYSTEM_VERSION = '12.0'
 
 POLICIES = {
-    'dev': {'id': 'ai.puppyone.desktop.gpui.dev', 'name': 'PuppyOne GPUI Development',
-            'scheme': 'puppyone-development', 'icon': 'puppy-app-image-gpui-dev.png'},
-    'internal': {'id': 'ai.puppyone.desktop.gpui.internal', 'name': 'PuppyOne GPUI Internal',
-                 'scheme': 'puppyone-internal', 'icon': 'puppy-app-image.png'},
-    'stable': {'id': 'ai.puppyone.desktop.gpui', 'name': 'PuppyOne GPUI',
-               'scheme': 'puppyone', 'icon': 'puppy-app-image.png'},
+    'dev': {'id': 'ai.puppyone.desktop.gpui.dev', 'name': 'PuppyOne Rust Dev',
+            'scheme': 'puppyone-development', 'icon': 'puppy-app-image-gpui-dev.png',
+            'feed': None},
+    'internal': {'id': 'ai.puppyone.desktop.internal', 'name': 'PuppyOne Internal',
+                 'scheme': 'puppyone-internal', 'icon': 'puppy-app-image.png',
+                 'feed': 'https://downloads.puppyone.ai/desktop/internal/mac/latest'},
+    'stable': {'id': 'ai.puppyone.desktop', 'name': 'PuppyOne',
+               'scheme': 'puppyone', 'icon': 'puppy-app-image.png',
+               'feed': 'https://updates.puppyone.ai/desktop/stable/mac/latest'},
 }
 BASE_VERSION = re.compile(r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$')
 COMMIT = re.compile(r'^[a-f0-9]{40}$')
 BUILD_NUMBER = re.compile(r'^[1-9]\d*$')
+CANONICAL_TIMESTAMP = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
 
 
 def policy(channel):
     if channel not in POLICIES:
-        raise ValueError(f'Unsupported PuppyOne GPUI build channel: {channel}')
+        raise ValueError(f'Unsupported PuppyOne Desktop build channel: {channel}')
     return POLICIES[channel]
 
 
 def release_identity(base_version, channel, commit, build_number=None, built_at=None, dirty=False):
-    """`resolveDesktopReleaseIdentity`: published channels need a clean tree
+    """`resolveDesktopBuildIdentity`: published channels need a clean tree
     and a build number; a development build is named after its commit."""
     policy(channel)
     if not BASE_VERSION.match(base_version or ''):
@@ -45,20 +50,25 @@ def release_identity(base_version, channel, commit, build_number=None, built_at=
     if not COMMIT.match(commit or ''):
         raise ValueError(f'Invalid commit: {commit}')
     if channel in PUBLISHED_CHANNELS and dirty:
-        raise ValueError('Published PuppyOne GPUI builds require a clean source tree.')
+        raise ValueError('Published PuppyOne Desktop builds require a clean source tree.')
+    resolved_built_at = built_at or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+    if not CANONICAL_TIMESTAMP.match(resolved_built_at):
+        raise ValueError(f'builtAt must be a canonical UTC ISO timestamp: {resolved_built_at}')
     if channel == 'dev':
         build_id = f'g{commit[:8]}'
+        platform_build_number = None
         version = f'{base_version}-dev.{build_id}' + ('.dirty' if dirty else '')
     else:
         if not BUILD_NUMBER.match(str(build_number or '')):
             raise ValueError(f'A {channel} build needs a positive build number.')
         build_id = str(build_number)
+        platform_build_number = build_id
         version = f'{base_version}-internal.{build_id}' if channel == 'internal' else base_version
     return {
-        'schemaVersion': 1, 'product': 'puppyone-desktop-gpui', 'runtime': 'gpui',
+        'schemaVersion': 1, 'product': 'puppyone-desktop', 'runtime': 'gpui',
         'channel': channel, 'baseVersion': base_version, 'version': version,
-        'buildId': build_id, 'commitSha': commit,
-        'builtAt': built_at or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+        'buildId': build_id, 'platformBuildNumber': platform_build_number,
+        'commitSha': commit, 'builtAt': resolved_built_at,
         'sourceDirty': bool(dirty),
     }
 
@@ -74,7 +84,8 @@ def update_feed(value):
 
 def build_environment(release, feed=None):
     """The `PUPPYONE_BUILD_*` stamps `platform::build_identity` reads, and
-    the update feed `platform::updates` reads (never for dev)."""
+    the update feed `platform::updates` reads (defaults to the channel's
+    production feed URL; never stamped for dev)."""
     stamps = {
         'PUPPYONE_BUILD_CHANNEL': release['channel'],
         'PUPPYONE_BUILD_VERSION': release['version'],
@@ -84,8 +95,9 @@ def build_environment(release, feed=None):
         'PUPPYONE_BUILD_DIRTY': 'true' if release['sourceDirty'] else 'false',
         'MACOSX_DEPLOYMENT_TARGET': MINIMUM_SYSTEM_VERSION,
     }
-    if feed and release['channel'] != 'dev':
-        stamps['PUPPYONE_UPDATE_FEED_URL'] = update_feed(feed)
+    effective_feed = policy(release['channel'])['feed'] if feed is None else feed
+    if effective_feed and release['channel'] != 'dev':
+        stamps['PUPPYONE_UPDATE_FEED_URL'] = update_feed(effective_feed)
     return stamps
 
 

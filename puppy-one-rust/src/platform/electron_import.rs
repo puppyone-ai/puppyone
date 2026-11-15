@@ -34,13 +34,36 @@ impl ElectronData {
     }
 }
 
-/// The stable product's data directory, or `PUPPYONE_ELECTRON_DATA_DIR`.
+/// The Electron product's data directory for this channel, or `PUPPYONE_ELECTRON_DATA_DIR`.
 pub fn default_dir() -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os("PUPPYONE_ELECTRON_DATA_DIR") {
         return Some(PathBuf::from(dir));
     }
     let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join("Library/Application Support/PuppyOne"))
+    Some(default_dir_for(
+        Path::new(&home),
+        super::build_identity::current().channel,
+    ))
+}
+
+/// Resolves the existing Electron userData directory under `home`, checking
+/// canonical lowercase channel names (`application-identity.mjs`) before legacy
+/// capitalized `"PuppyOne"` so case-sensitive APFS volumes never miss user data.
+pub fn default_dir_for(home: &Path, channel: super::build_identity::Channel) -> PathBuf {
+    let support = home.join("Library/Application Support");
+    let candidates: &[&str] = match channel {
+        super::build_identity::Channel::Internal => &["puppyone-internal", "puppyone", "PuppyOne"],
+        super::build_identity::Channel::Stable | super::build_identity::Channel::Dev => {
+            &["puppyone", "PuppyOne"]
+        }
+    };
+    for name in candidates {
+        let candidate = support.join(name);
+        if candidate.is_dir() {
+            return candidate;
+        }
+    }
+    support.join(candidates[0])
 }
 
 /// Everything importable under `dir`; `None` when it holds no product data.
@@ -256,5 +279,41 @@ mod tests {
         );
         assert_eq!(data.storage.len(), 1);
         assert!(read(&dir.path().join("absent")).is_none());
+    }
+
+    #[test]
+    fn default_dir_resolves_canonical_lowercase_channel_dirs_and_legacy_fallback() {
+        use crate::platform::build_identity::Channel;
+        let home = tempfile::tempdir().unwrap();
+        let support = home.path().join("Library/Application Support");
+        std::fs::create_dir_all(&support).unwrap();
+
+        // When neither directory exists yet, canonical lowercase names are returned.
+        assert_eq!(
+            default_dir_for(home.path(), Channel::Stable),
+            support.join("puppyone")
+        );
+        assert_eq!(
+            default_dir_for(home.path(), Channel::Internal),
+            support.join("puppyone-internal")
+        );
+
+        // When `puppyone` exists, Stable and Dev resolve to it, and Internal falls back to it.
+        std::fs::create_dir_all(support.join("puppyone")).unwrap();
+        assert_eq!(
+            default_dir_for(home.path(), Channel::Stable),
+            support.join("puppyone")
+        );
+        assert_eq!(
+            default_dir_for(home.path(), Channel::Internal),
+            support.join("puppyone")
+        );
+
+        // When `puppyone-internal` exists, Internal prefers it over `puppyone`.
+        std::fs::create_dir_all(support.join("puppyone-internal")).unwrap();
+        assert_eq!(
+            default_dir_for(home.path(), Channel::Internal),
+            support.join("puppyone-internal")
+        );
     }
 }

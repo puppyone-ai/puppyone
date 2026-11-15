@@ -373,6 +373,9 @@ impl WindowCloud {
         if !resting.is_empty() {
             row = row.child(self.resting_stack(&resting, size, ground, cx));
         }
+        if listed && agents.manageable {
+            row = row.child(self.invite_add_button(size, ground, cx));
+        }
         if seat {
             row = row.child(self.empty_seat(checking, cx));
         }
@@ -472,11 +475,36 @@ impl WindowCloud {
             })
             .into_any_element()
     }
-    /// `InviteAgentTool`: an empty seat where the Agents will be. While the
-    /// server says whether this person may invite, it holds its place.
+    /// `InviteAgentAddButton`: subtle solid circular `+` beside present Agents
+    /// that opens the Agents dialog straight into its invite prompt steps.
+    fn invite_add_button(&self, size: f32, ground: Rgba, cx: &App) -> AnyElement {
+        let t = cx.palette();
+        let host = self.weak.clone();
+        let label = tr("cloud.share.agent.invite.title").to_string();
+        mark_button("cloud-workspace-agent-add".into(), label, t)
+            .justify_center()
+            .size(px(size))
+            .bg(theme::mix(t.text, ground, 0.08))
+            .shadow(vec![BoxShadow {
+                color: ground.into(),
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(0.),
+                spread_radius: px(1.5),
+                inset: false,
+            }])
+            .hover(move |d| d.bg(theme::mix(t.text, ground, 0.14)).text_color(t.text))
+            .on_click(move |_, window, cx| {
+                let _ = host.update(cx, |s, cx| s.press_agents(Opener::Invite, window, cx));
+            })
+            .child(Icon::new("plus").with_size(px(12.)).stroke(2.))
+            .into_any_element()
+    }
+    /// `InviteAgentTool`: subtle solid `+ Invite agent` pill where the Agents
+    /// will be. While the server says whether this person may invite, it holds
+    /// its place without any dashed outline.
     fn empty_seat(&self, checking: bool, cx: &App) -> AnyElement {
         let t = cx.palette();
-        let size = theme::control_compact();
+        let ty = theme::ty().ui;
         let host = self.weak.clone();
         let label = tr(if checking {
             "shell.workspaceSwitcher.location.checking"
@@ -488,31 +516,30 @@ impl WindowCloud {
             label.to_string(),
             t,
         )
+        .px(px(10.))
+        .gap(px(5.))
+        .bg(theme::alpha(t.text, 0.07))
+        .text_size(px(ty.caption))
+        .font_weight(FontWeight::MEDIUM)
         .when(checking, |d| d.opacity(0.7).cursor_default())
         .when(!checking, |d| {
-            d.hover(|d| d.text_color(t.text))
+            d.hover(|d| d.bg(t.active).text_color(t.text))
                 .on_click(move |_, window, cx| {
                     let _ = host.update(cx, |s, cx| s.press_agents(Opener::Invite, window, cx));
                 })
         })
+        .child(if checking {
+            Icon::new("loader-circle")
+                .with_size(px(12.))
+                .stroke(2.)
+                .spinning("cloud-agent-seat-checking")
+        } else {
+            Icon::new("plus").with_size(px(12.)).stroke(2.)
+        })
         .child(
             div()
-                .size(px(size))
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded_full()
-                .border_1()
-                .border_dashed()
-                .border_color(theme::alpha(t.muted, 0.45))
-                .child(if checking {
-                    Icon::new("loader-circle")
-                        .with_size(px(13.))
-                        .stroke(2.)
-                        .spinning("cloud-agent-seat-checking")
-                } else {
-                    Icon::new("plus").with_size(px(13.)).stroke(2.)
-                }),
+                .line_height(px(16.))
+                .child(tr("cloud.share.agent.invite.seat")),
         )
         .into_any_element()
     }

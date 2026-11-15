@@ -52,27 +52,36 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--channel', choices=identity.CHANNELS, required=True)
     parser.add_argument('--build-number', help='Required for internal and stable')
-    parser.add_argument('--base-version', help="Defaults to the pinned product's version")
+    parser.add_argument('--base-version', help="Defaults to the repository package.json version")
+    parser.add_argument('--built-at', default=os.environ.get('PUPPYONE_BUILD_TIMESTAMP'),
+                        help='Canonical UTC ISO timestamp (YYYY-MM-DDTHH:MM:SS.000Z)')
     parser.add_argument('--out', type=Path, default=ROOT / 'artifacts/release')
+    parser.add_argument('--flat-out', action='store_true',
+                        help='Write artifacts directly into --out instead of --out/<channel>')
+    parser.add_argument('--build-info-out', type=Path,
+                        help='Also write canonical build-info.json to this path (e.g. generated/desktop-build-info.json)')
     parser.add_argument('--skip-build', action='store_true', help='Reuse the stamped target/package build')
     parser.add_argument('--update-feed-url', default=os.environ.get('PUPPYONE_UPDATE_FEED_URL'),
-                        help='HTTPS directory the app checks for <channel>-mac.yml (internal/stable)')
+                        help='HTTPS directory the app checks for <channel>-mac.yml (defaults to the channel production feed)')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--release', action='store_true',
                         help='Stable only: fail unless it can be Developer ID signed and notarized')
     args = parser.parse_args()
 
     commit, dirty = identity.source_state(ROOT)
-    base_version = args.base_version or identity.product_version(product_root())
+    repo_root = ROOT.parent
+    base_version = args.base_version or identity.product_version(
+        repo_root if (repo_root / 'package.json').is_file() else product_root()
+    )
     try:
         release = identity.release_identity(base_version, args.channel, commit,
-                                            args.build_number, dirty=dirty)
+                                            args.build_number, built_at=args.built_at, dirty=dirty)
         cloud = identity.cloud_configuration(os.environ.get('VITE_DESKTOP_CLOUD_API_URL'),
                                              os.environ.get('VITE_DESKTOP_CLOUD_WEB_URL'))
     except ValueError as error:
         raise SystemExit(str(error))
     policy = identity.policy(args.channel)
-    out = args.out / args.channel
+    out = args.out if args.flat_out else args.out / args.channel
     app = out / f'{policy["name"]}.app'
     try:
         stamps = identity.build_environment(release, args.update_feed_url)
@@ -104,22 +113,31 @@ def main():
                        env={**os.environ, **stamps, 'CARGO_TARGET_DIR': str(target)})
     binary = target / 'release' / bundle.EXECUTABLE
     stamped = subprocess.run([str(binary), '--puppyone-build-identity'], capture_output=True, text=True)
-    if stamped.returncode != 0 or json.loads(stamped.stdout or '{}').get('version') != release['version']:
-        raise SystemExit(f'{binary} is not stamped as {release["version"]}; build it with this script')
+    stamped_json = json.loads(stamped.stdout or '{}') if stamped.returncode == 0 else {}
+    if (stamped.returncode != 0
+            or stamped_json.get('version') != release['version']
+            or stamped_json.get('updateFeedUrl') != stamps.get('PUPPYONE_UPDATE_FEED_URL')):
+        raise SystemExit(f'{binary} is not stamped as {release["version"]} ({stamps.get("PUPPYONE_UPDATE_FEED_URL")}); build it with this script')
 
     # The channel's folder holds this build's artifacts only.
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
+    build_info_bytes = (json.dumps(release, indent=2) + '\n').encode()
+    if args.build_info_out:
+        args.build_info_out.parent.mkdir(parents=True, exist_ok=True)
+        args.build_info_out.write_bytes(build_info_bytes)
+    icon_source = ROOT / 'assets/release' / policy['icon']
     info = identity.info_plist(release, bundle.document_types(), bundle.cli_declaration())
     bundle.assemble(app, binary, info, resources={
         'desktop-cloud.json': json.dumps(cloud).encode(),
-        'build-info.json': (json.dumps(release, indent=2) + '\n').encode(),
+        'build-info.json': build_info_bytes,
+        'puppy-app-image.png': icon_source.read_bytes(),
     })
-    icon.build(ROOT / 'assets/release' / policy['icon'], app / 'Contents/Resources/icon.icns')
+    icon.build(icon_source, app / 'Contents/Resources/icon.icns')
 
     arch = {'arm64': 'arm64', 'x86_64': 'x64'}[platform.machine()]
-    stem = f'puppyone-gpui-{release["version"]}-{arch}'
+    stem = f'puppyone-{release["version"]}-{arch}'
     with sign.keychain(signing['signing'] if signing['release'] else None) as (signer, keychain):
         sign.sign(app, signer, keychain)
         if signing['release']:
@@ -131,7 +149,7 @@ def main():
         sign.sign(image, signer, keychain)
         if signing['release']:
             sign.notarize(image, signing['notarization'], os.environ)
-    metadata = feed.write(out, args.channel, release['version'], [archive])
+    metadata = feed.write(out, args.channel, release['version'], [archive], released=release['builtAt'])
     for artifact in (app, archive, image, metadata):
         print(f'Packaged {artifact}')
 
