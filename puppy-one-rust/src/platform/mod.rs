@@ -8,6 +8,7 @@ pub mod database;
 pub mod desktop;
 pub mod diagnostics;
 pub mod drag_out;
+pub mod duckdb;
 pub mod editor_state_storage;
 pub mod electron_import;
 pub mod environment;

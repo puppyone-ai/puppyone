@@ -3,8 +3,9 @@
 //! signature, never repaired or written.
 //!
 //! SQLite base tables open through an immutable read-only connection on a
-//! worker thread; DuckDB files are recognised and reported as unsupported
-//! here. A WAL-mode header or any `-journal` / `-wal` / `-shm` sidecar needs
+//! worker thread; DuckDB base tables and views through a read-only,
+//! sandboxed database (`duckdb-adapter.mjs`, `platform::duckdb`), where the
+//! library is present. A SQLite WAL-mode header or any `-journal` / `-wal` / `-shm` sidecar needs
 //! recovery by the database's own application. Objects are listed like
 //! `pragma_table_list` (views and virtual tables stay listed but unreadable),
 //! pages are bounded by the product budget, and a changed file expires the
@@ -109,6 +110,8 @@ pub enum CellKind {
     Real,
     Text,
     Blob,
+    /// A DuckDB list, struct, map or other nested value, shown by kind.
+    Complex,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cell {
@@ -146,10 +149,16 @@ pub struct Page {
 
 static EPOCH: AtomicU64 = AtomicU64::new(1);
 
+enum Backend {
+    Sqlite(Connection),
+    /// With each listed object's schema and name.
+    DuckDb(super::duckdb::Database, Vec<(String, String)>),
+}
+
 pub struct Session {
     path: PathBuf,
     stamp: Option<(u64, SystemTime)>,
-    connection: Connection,
+    backend: Backend,
     objects: Vec<Object>,
     pub epoch: u64,
     opened: Instant,
@@ -187,7 +196,8 @@ impl Session {
         match detect(&head[..n]) {
             Some(Engine::Sqlite { wal: true }) => return Err(Failure::Recovery),
             Some(Engine::Sqlite { wal: false }) => {}
-            Some(Engine::DuckDb) | None => return Err(Failure::Unsupported),
+            Some(Engine::DuckDb) => return Self::open_duckdb(path),
+            None => return Err(Failure::Unsupported),
         }
         // Opening a live log read-only can still write sidecars; never show
         // an incomplete main file.
@@ -219,13 +229,50 @@ impl Session {
         let mut session = Self {
             path: path.to_path_buf(),
             stamp: stamp(path),
-            connection,
+            backend: Backend::Sqlite(connection),
             objects: vec![],
             epoch: EPOCH.fetch_add(1, Ordering::Relaxed),
             opened: Instant::now(),
         };
         session.objects = session.list()?;
         Ok(session)
+    }
+    fn open_duckdb(path: &Path) -> Result<Self, Failure> {
+        if !super::duckdb::available() {
+            return Err(Failure::Unsupported);
+        }
+        let stamp = stamp(path);
+        let database = super::duckdb::Database::open(path).map_err(|_| Failure::Unsupported)?;
+        let rows = database
+            .query(&format!(
+                "SELECT table_schema, table_name, table_type FROM information_schema.tables \
+                 WHERE table_catalog=current_database() ORDER BY table_schema, table_name LIMIT {}",
+                MAX_OBJECTS + 1
+            ))
+            .map_err(|_| Failure::Unsupported)?;
+        if rows.len() > MAX_OBJECTS {
+            return Err(Failure::Budget);
+        }
+        let mut objects = Vec::new();
+        let mut tables = Vec::new();
+        for row in rows {
+            let field = |i: usize| row.get(i).cloned().flatten().unwrap_or_default();
+            let (schema, name, kind) = (field(0), field(1), field(2));
+            let readable = kind == "BASE TABLE" || kind == "VIEW";
+            objects.push(Object {
+                name: format!("{schema}.{name}"),
+                unreadable: (!readable).then_some(Unreadable::Kind),
+            });
+            tables.push((schema, name));
+        }
+        Ok(Self {
+            path: path.to_path_buf(),
+            stamp,
+            backend: Backend::DuckDb(database, tables),
+            objects,
+            epoch: EPOCH.fetch_add(1, Ordering::Relaxed),
+            opened: Instant::now(),
+        })
     }
     fn check(&self) -> Result<(), Failure> {
         if stamp(&self.path) != self.stamp {
@@ -243,8 +290,10 @@ impl Session {
     /// `pragma_table_list` of `main`: only plain base tables are readable.
     fn list(&self) -> Result<Vec<Object>, Failure> {
         self.check()?;
-        let mut statement = self
-            .connection
+        let Backend::Sqlite(connection) = &self.backend else {
+            return Ok(vec![]);
+        };
+        let mut statement = connection
             .prepare("SELECT name, type, ncol FROM pragma_table_list WHERE schema='main' AND name NOT LIKE 'sqlite_%' LIMIT ?1")
             .map_err(|_| Failure::Unsupported)?;
         let entries: Vec<(String, String, i64)> = statement
@@ -261,8 +310,7 @@ impl Session {
         for (name, kind, columns) in entries {
             let table = kind == "table";
             let hidden = table
-                && self
-                    .connection
+                && connection
                     .prepare("SELECT hidden FROM pragma_table_xinfo(?1) WHERE hidden<>0 LIMIT 1")
                     .and_then(|mut s| s.exists([&name]))
                     .map_err(|_| Failure::Unsupported)?;
@@ -281,8 +329,10 @@ impl Session {
     }
     /// The object's columns (`pragma_table_xinfo`).
     fn columns(&self, object: &str) -> Result<Vec<Column>, Failure> {
-        let mut info = self
-            .connection
+        let Backend::Sqlite(connection) = &self.backend else {
+            return Err(Failure::Unsupported);
+        };
+        let mut info = connection
             .prepare("SELECT name, type, pk, hidden FROM pragma_table_xinfo(?1) LIMIT ?2")
             .map_err(|_| Failure::Unsupported)?;
         let fields: Vec<(String, String, i64, i64)> = info
@@ -316,6 +366,15 @@ impl Session {
         column_offset: usize,
     ) -> Result<Page, Failure> {
         self.check()?;
+        if let Backend::DuckDb(database, tables) = &self.backend {
+            let table = self
+                .objects
+                .get(object)
+                .filter(|o| o.unreadable.is_none())
+                .and(tables.get(object))
+                .ok_or(Failure::Unsupported)?;
+            return duckdb_page(database, table, self.epoch, offset, column_offset);
+        }
         let object = self
             .objects
             .get(object)
@@ -360,10 +419,10 @@ impl Session {
             PAGE_ROWS + 1,
             offset
         );
-        let mut statement = self
-            .connection
-            .prepare(&sql)
-            .map_err(|_| Failure::Unsupported)?;
+        let Backend::Sqlite(connection) = &self.backend else {
+            return Err(Failure::Unsupported);
+        };
+        let mut statement = connection.prepare(&sql).map_err(|_| Failure::Unsupported)?;
         let width = visible.len();
         let mut rows: Vec<Vec<Cell>> = statement
             .query_map([], |row| {
@@ -407,6 +466,147 @@ impl Session {
             has_more,
         })
     }
+}
+
+/// The kind a DuckDB column's values show as (`duckdb-adapter.mjs`):
+/// scalars as text (numbers aligned as numbers), BLOBs by size, nested and
+/// other values by kind only.
+fn duckdb_kind(data_type: &str) -> CellKind {
+    static SCALAR: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(
+            r"^(BOOLEAN|U?TINYINT|U?SMALLINT|U?INTEGER|U?BIGINT|U?HUGEINT|FLOAT|DOUBLE|DECIMAL|VARCHAR|DATE|TIME|TIMESTAMP|INTERVAL|UUID)",
+        )
+        .unwrap()
+    });
+    if data_type == "BLOB" {
+        CellKind::Blob
+    } else if !SCALAR.is_match(data_type) || data_type.contains(['[', ']']) {
+        CellKind::Complex
+    } else if data_type.contains("INT") && !data_type.starts_with("INTERVAL") {
+        CellKind::Integer
+    } else if data_type.starts_with("FLOAT")
+        || data_type.starts_with("DOUBLE")
+        || data_type.starts_with("DECIMAL")
+    {
+        CellKind::Real
+    } else {
+        CellKind::Text
+    }
+}
+
+/// Up to 50 rows from `offset` of a DuckDB table or view (`select` and
+/// `next`, as one bounded query per page).
+fn duckdb_page(
+    database: &super::duckdb::Database,
+    (schema, name): &(String, String),
+    epoch: u64,
+    offset: usize,
+    column_offset: usize,
+) -> Result<Page, Failure> {
+    use super::duckdb::literal;
+    let fields = database
+        .query(&format!(
+            "SELECT column_name, data_type FROM information_schema.columns \
+             WHERE table_catalog=current_database() AND table_schema={} AND table_name={} \
+             ORDER BY ordinal_position LIMIT {}",
+            literal(schema),
+            literal(name),
+            MAX_COLUMNS + 1
+        ))
+        .map_err(|_| Failure::Unsupported)?;
+    if fields.is_empty() || fields.len() > MAX_COLUMNS {
+        return Err(Failure::Budget);
+    }
+    let columns: Vec<Column> = fields
+        .iter()
+        .map(|row| Column {
+            name: row.first().cloned().flatten().unwrap_or_default(),
+            native_type: row.get(1).cloned().flatten().unwrap_or_default(),
+            primary_key: false,
+        })
+        .collect();
+    let visible: Vec<Column> = columns
+        .iter()
+        .skip(column_offset)
+        .take(PAGE_COLUMNS)
+        .cloned()
+        .collect();
+    if visible.is_empty() {
+        return Err(Failure::Unavailable);
+    }
+    let kinds: Vec<CellKind> = visible
+        .iter()
+        .map(|c| duckdb_kind(&c.native_type))
+        .collect();
+    let projections: Vec<String> = visible
+        .iter()
+        .zip(&kinds)
+        .map(|(column, kind)| {
+            let col = quote(&column.name);
+            let text = match kind {
+                CellKind::Blob | CellKind::Complex => "NULL".to_owned(),
+                _ => format!(
+                    "substring(CAST({col} AS VARCHAR),1,{})",
+                    CELL_CHARACTERS + 1
+                ),
+            };
+            let bytes = if *kind == CellKind::Blob {
+                format!("octet_length({col})")
+            } else {
+                "0".into()
+            };
+            format!("{col} IS NULL, {text}, {bytes}")
+        })
+        .collect();
+    let rows = database
+        .query(&format!(
+            "SELECT {} FROM {}.{} LIMIT {} OFFSET {}",
+            projections.join(", "),
+            quote(schema),
+            quote(name),
+            PAGE_ROWS + 1,
+            offset
+        ))
+        .map_err(|_| Failure::Unsupported)?;
+    let mut rows: Vec<Vec<Cell>> = rows
+        .into_iter()
+        .map(|row| {
+            kinds
+                .iter()
+                .enumerate()
+                .map(|(i, kind)| {
+                    let value = |j: usize| row.get(i * 3 + j).cloned().flatten();
+                    if value(0).as_deref() == Some("true") {
+                        return Cell {
+                            kind: CellKind::Null,
+                            text: String::new(),
+                            truncated: false,
+                            bytes: 0,
+                        };
+                    }
+                    let text = value(1).unwrap_or_default();
+                    let truncated = text.chars().count() > CELL_CHARACTERS;
+                    Cell {
+                        kind: *kind,
+                        text: text.chars().take(CELL_CHARACTERS).collect(),
+                        truncated: truncated || *kind == CellKind::Complex,
+                        bytes: value(2).and_then(|b| b.parse().ok()).unwrap_or(0),
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    let has_more = rows.len() > PAGE_ROWS;
+    rows.truncate(PAGE_ROWS);
+    Ok(Page {
+        epoch,
+        offset,
+        column_offset,
+        columns,
+        visible,
+        rows,
+        has_more,
+    })
 }
 
 #[cfg(test)]
@@ -513,6 +713,46 @@ mod tests {
         let cell = &session.page(long, 0, 0).unwrap().rows[0][0];
         assert_eq!(cell.text.chars().count(), 256);
         assert!(cell.truncated);
+    }
+
+    #[test]
+    fn duckdb_tables_and_views_page_with_their_kinds() {
+        if !super::super::duckdb::available() {
+            eprintln!("libduckdb absent (tools/fetch-duckdb.py): skipped");
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("app.duckdb");
+        super::super::duckdb::create(
+            &path,
+            "CREATE TABLE people(id INTEGER, name VARCHAR, score DOUBLE, photo BLOB, tags VARCHAR[]);
+             INSERT INTO people SELECT i, 'p' || i, i / 2, CASE WHEN i = 0 THEN '\\x01\\x02'::BLOB END, ['a'] FROM range(120) t(i);
+             CREATE VIEW names AS SELECT name FROM people;
+             CREATE SEQUENCE s;",
+        )
+        .unwrap();
+        let session = Session::open(&path, MAX_SOURCE_BYTES).unwrap();
+        let names: Vec<_> = session.objects().iter().map(|o| o.name.as_str()).collect();
+        assert_eq!(names, ["main.names", "main.people"]);
+        let people = names.iter().position(|n| *n == "main.people").unwrap();
+        let first = session.page(people, 0, 0).unwrap();
+        assert_eq!(first.columns.len(), 5);
+        assert_eq!(first.rows.len(), PAGE_ROWS);
+        assert!(first.has_more);
+        let row = &first.rows[0];
+        assert_eq!(
+            (row[0].kind, row[0].text.as_str()),
+            (CellKind::Integer, "0")
+        );
+        assert_eq!(row[2].kind, CellKind::Real);
+        assert_eq!((row[3].kind, row[3].bytes), (CellKind::Blob, 2));
+        assert_eq!(row[4].kind, CellKind::Complex);
+        assert_eq!(first.rows[1][3].kind, CellKind::Null);
+        let last = session.page(people, 100, 0).unwrap();
+        assert_eq!(last.rows.len(), 20);
+        assert!(!last.has_more);
+        let view = session.page(0, 0, 0).unwrap();
+        assert_eq!(view.rows[0][0].text, "p0");
     }
 
     #[test]

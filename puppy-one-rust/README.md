@@ -128,6 +128,7 @@ Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking 
 - **一个窗口不能拖死全部**：GPUI 所有窗口共用一个前台线程。`platform::tasks` 按 TS `EDITOR_TASK_POLICY` v1 准入编辑器任务（窗口关闭时停止准入并等待退出）；`platform::host_budget` 按 `itemHostBudgetDefaults` 监督终端和 Agent CLI 进程（数量、内存、持续 CPU）；File → Manage Running Sessions 不依赖标签页；`platform::watchdog` 记录前台超过 250 ms 的卡顿、worker panic 和崩溃到 `diagnostics/main-thread-stalls.jsonl`。
 - **查看器准入**：内容型查看器按各自 `maxSourceBytes`（Markdown/文本 16 MiB、CSV/JSON 8 MiB、HTML 4 MiB）。
 - **PDF**：`platform::pdf` + `editor::viewers::pdf`，引擎为 PDFium（`python3 tools/fetch-pdfium.py` 安装到 `vendor/pdfium`，打包时进入 `Frameworks`）。没有引擎时显示资源不可用。
+- **数据库**：`platform::database` + `editor::viewers::database`。SQLite 只读打开；DuckDB 通过 libduckdb 的 C API 只读、沙箱化打开（`python3 tools/fetch-duckdb.py` 安装到 `vendor/duckdb`，打包时进入 `Frameworks`）。没有库时 DuckDB 文件显示为不支持。
 - **Cloud 模型**：`workspace::cloud::{failure, locator, catalog, recovery, publish}` 已移植并测试，界面仍禁用。
 
 ## Retained Editor workbench（迁移进行中，不是全量完成）
