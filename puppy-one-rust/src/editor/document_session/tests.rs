@@ -163,7 +163,7 @@ fn cloud_conflicts_preserve_the_draft_until_discard_and_reload() {
 }
 
 #[test]
-fn cloud_observations_defer_under_unsaved_input_and_converged_writes_adopt() {
+fn cloud_observations_defer_under_unsaved_input_and_converged_writes_acknowledge() {
     let mut s = DocumentEditingSession::new("d".into(), "base".into(), 0);
     s.cloud = true;
     // Clean documents follow the remote like local ones.
@@ -182,8 +182,10 @@ fn cloud_observations_defer_under_unsaved_input_and_converged_writes_adopt() {
     let commit = t.next_commit().unwrap();
     assert_eq!(
         t.complete(commit.sequence, Ok(("mine".into(), true))),
-        Completion::Adopted
+        Completion::Saved
     );
+    assert!(t.drained());
+    assert_eq!(t.baseline, "mine");
     // Local documents remain disk-first.
     let mut l = DocumentEditingSession::new("f".into(), "base".into(), 0);
     l.local_edit(1, true);

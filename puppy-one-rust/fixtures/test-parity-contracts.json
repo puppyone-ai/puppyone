@@ -23,6 +23,32 @@
               "name": "idle auto-save scheduler > flushes only a pending save, immediately"
             }
           ]
+        },
+        {
+          "path": "tests/unit/editor/document-session/documentEditingSession.test.ts",
+          "sha256": "d4ad98d2d334a8c539b0670dee150cd91952b78365ad38c0ada3711ab948de22",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DocumentEditingSession > waits for a typing pause before persisting the newest snapshot"
+            },
+            {
+              "index": 3,
+              "name": "DocumentEditingSession > restarts the pause on every keystroke and coalesces them into one write"
+            },
+            {
+              "index": 4,
+              "name": "DocumentEditingSession > writes at most every two seconds while typing never pauses"
+            },
+            {
+              "index": 5,
+              "name": "DocumentEditingSession > writes a pending edit at once when the window asks, and only then"
+            },
+            {
+              "index": 6,
+              "name": "DocumentEditingSession > drains pending typing on close without waiting for the pause"
+            }
+          ]
         }
       ],
       "rust": [
@@ -41,6 +67,18 @@
         {
           "package": "po-editor",
           "test": "documents::auto_save::tests::flushing_is_immediate_only_once_and_cancelling_never_saves_later"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::local_edit_waits_for_the_pause_then_snapshots_without_freezing_and_writes_real_file"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::leaving_the_window_flushes_pending_typing_once_without_freezing"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::closing_before_the_pause_drains_the_last_input_without_a_later_autosave"
         }
       ],
       "environment": "local"
@@ -536,6 +574,246 @@
         }
       ],
       "environment": "GPUI synthetic"
+    },
+    {
+      "id": "cloud-draft-epochs",
+      "acceptance": "Cloud publication retires old success, CAS and failure while preserving newer draft input until explicit reload. A converged CAS acknowledges its own candidate and still drains newer input.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/documentEditingSession.test.ts",
+          "sha256": "d4ad98d2d334a8c539b0670dee150cd91952b78365ad38c0ada3711ab948de22",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DocumentEditingSession > fences a late Cloud save and preserves typing when Agent publication arrives"
+            },
+            {
+              "index": 1,
+              "name": "DocumentEditingSession > preserves a Cloud draft after CAS rejection until the user reloads"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::acceptance_tests::cloud_publication_fences_every_old_write_outcome_until_explicit_reload"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::cloud_conflicts_preserve_the_draft_until_discard_and_reload"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::acceptance_tests::cloud_converged_old_write_preserves_and_saves_the_newer_draft"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::cloud_converged_save_receipt_never_replaces_newer_input_and_drains_it_to_storage"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "document-save-queue",
+      "acceptance": "Exactly one active write coalesces newest input; own echoes preserve typing; undo after a dispatched write is saved; same bytes under a newer revision are not written twice. External adoption retires old work before close without late acknowledgements.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/documentEditingSession.test.ts",
+          "sha256": "d4ad98d2d334a8c539b0670dee150cd91952b78365ad38c0ada3711ab948de22",
+          "cases": [
+            {
+              "index": 8,
+              "name": "DocumentEditingSession > keeps one write in flight and persists only the newest following edit"
+            },
+            {
+              "index": 9,
+              "name": "DocumentEditingSession > does not treat the filesystem echo of an in-flight save as an external conflict"
+            },
+            {
+              "index": 23,
+              "name": "DocumentEditingSession > writes an undo after the older edited value has crossed storage"
+            },
+            {
+              "index": 24,
+              "name": "DocumentEditingSession > does not write twice when a newer revision has the in-flight content"
+            },
+            {
+              "index": 30,
+              "name": "DocumentEditingSession > waits for an obsolete dispatched save to retire before completing close without writing disk back"
+            },
+            {
+              "index": 37,
+              "name": "DocumentEditingSession > cancels queued old edits and ignores a late save acknowledgement after adopting disk"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::one_active_write_coalesces_pending_input_and_closes_only_after_last_receipt"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::own_echo_and_duplicate_baseline_preserve_newer_typing"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::undo_to_old_baseline_during_write_is_saved_after_that_write"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::new_revision_with_same_inflight_bytes_does_not_replace_file_twice"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::external_disk_retires_pending_and_old_success_error_and_conflict"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "external-disk-epochs",
+      "acceptance": "Local disk adoption retires obsolete saves and pending input; subsequent typing waits for the retired call. Empty, Unicode, CRLF, whitespace and large files retain stored bytes without writeback. Native text internally normalizes CRLF and preserves storage encoding in the provider.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/documentEditingSession.test.ts",
+          "sha256": "d4ad98d2d334a8c539b0670dee150cd91952b78365ad38c0ada3711ab948de22",
+          "cases": [
+            {
+              "index": 17,
+              "name": "DocumentEditingSession > settles queued saves when a rejected older write finds the latest edit already on disk"
+            },
+            {
+              "index": 18,
+              "name": "DocumentEditingSession > ignores an obsolete conditional-write result after a newer disk snapshot"
+            },
+            {
+              "index": 25,
+              "name": "DocumentEditingSession > adopts disk updates over unsaved local edits without writing them back"
+            },
+            {
+              "index": 26,
+              "name": "DocumentEditingSession > cancels autosave before it starts when disk replaces unsaved input"
+            },
+            {
+              "index": 27,
+              "name": "DocumentEditingSession > saves only new typing after adopting disk while an old success is pending"
+            },
+            {
+              "index": 28,
+              "name": "DocumentEditingSession > saves only new typing after adopting disk while an old failure is pending"
+            },
+            {
+              "index": 31,
+              "name": "DocumentEditingSession > adopts a byte-exact empty file external snapshot without persistence"
+            },
+            {
+              "index": 32,
+              "name": "DocumentEditingSession > adopts a byte-exact CJK and emoji external snapshot without persistence"
+            },
+            {
+              "index": 33,
+              "name": "DocumentEditingSession > adopts a byte-exact CRLF line endings external snapshot without persistence"
+            },
+            {
+              "index": 34,
+              "name": "DocumentEditingSession > adopts a byte-exact trailing whitespace external snapshot without persistence"
+            },
+            {
+              "index": 35,
+              "name": "DocumentEditingSession > adopts a byte-exact large text snapshot external snapshot without persistence"
+            },
+            {
+              "index": 39,
+              "name": "DocumentEditingSession > adopts the disk snapshot returned by a rejected conditional write"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::acceptance_tests::local_rejected_old_write_adopts_the_latest_disk_snapshot_and_settles_pending"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::acceptance_tests::new_input_after_disk_adoption_waits_for_old_success_failure_or_conflict"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::acceptance_tests::disk_adoption_is_byte_exact_and_never_queues_writeback"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::external_disk_retires_pending_and_old_success_error_and_conflict"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::conditional_rejection_adopts_disk_and_does_not_offer_conflict_choice"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::external_text_adoption_preserves_stored_bytes_without_an_autosave_or_writeback"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "document-write-failures",
+      "acceptance": "Failed storage retains dirty input and reports the error; no automatic retry loop, explicit retry can save the same input. Removed clean documents close without recreation; removed dirty documents block close.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/documentEditingSession.test.ts",
+          "sha256": "d4ad98d2d334a8c539b0670dee150cd91952b78365ad38c0ada3711ab948de22",
+          "cases": [
+            {
+              "index": 38,
+              "name": "DocumentEditingSession > surfaces a failed conditional write and keeps the dirty snapshot retryable"
+            },
+            {
+              "index": 41,
+              "name": "DocumentEditingSession > keeps local content retryable after a structured not-found persistence failure"
+            },
+            {
+              "index": 42,
+              "name": "DocumentEditingSession > keeps local content retryable after a structured permission-denied persistence failure"
+            },
+            {
+              "index": 43,
+              "name": "DocumentEditingSession > keeps local content retryable after a structured io persistence failure"
+            },
+            {
+              "index": 45,
+              "name": "allows a clean externally removed document to close without recreating it"
+            },
+            {
+              "index": 46,
+              "name": "retains and blocks an unsaved snapshot when its file disappears"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::acceptance_tests::persistence_errors_keep_input_retryable_and_do_not_busy_loop"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::a_clean_removed_document_closes_without_recreating_the_file"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::genuine_write_failure_blocks_close_and_retains_current_document"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

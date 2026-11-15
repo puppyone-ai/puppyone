@@ -182,11 +182,14 @@ impl DocumentEditingSession {
                 self.defer(text);
                 Completion::Deferred
             }
-            Ok((text, true)) => {
+            Ok((text, true)) if !self.cloud => {
                 self.adopt(text);
                 Completion::Adopted
             }
-            Ok((text, false)) => {
+            // Cloud CAS convergence acknowledges exactly the dispatched
+            // candidate, like success. Adopting it as a new external epoch
+            // would discard newer input that arrived during that write.
+            Ok((text, _)) => {
                 self.baseline = text.clone();
                 self.receipt = Some(Snapshot {
                     revision: commit.snapshot.revision,

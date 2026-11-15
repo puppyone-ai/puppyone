@@ -74,6 +74,69 @@ fn cloud_convergence_compares_current_input_retires_old_snapshot_and_never_write
             .any(|m| matches!(m, HostMessage::Open { external: true, .. }))
     );
 }
+
+#[test]
+fn cloud_converged_save_receipt_never_replaces_newer_input_and_drains_it_to_storage() {
+    use crate::workspace::testing::Memory;
+    let provider = Arc::new(Memory::new("memory://converged-save/project/"));
+    let workspace = Workspace::from_provider(provider.clone()).unwrap();
+    let document = workspace.read(Path::new("note.md")).unwrap();
+    let id = document.id.clone();
+    let mut d = Documents {
+        workspace: Some(workspace),
+        document: Some(document),
+        ..Default::default()
+    };
+    let wake = Wake::default();
+    d.ensure_session(&wake);
+    let (started, entered) = mpsc::channel();
+    let (release, finish) = mpsc::channel();
+    *provider.text.lock().unwrap() = "first draft".into();
+    *provider.hook.lock().unwrap() = Some(Box::new(move || {
+        started.send(()).unwrap();
+        finish.recv_timeout(Duration::from_secs(10)).unwrap();
+    }));
+    d.client(
+        ClientMessage::Dirty {
+            id: id.clone(),
+            revision: 1,
+            dirty: true,
+        },
+        &wake,
+    );
+    d.poll_at(&wake, Instant::now() + auto_save::IDLE);
+    let request = d.autosave_request.unwrap().0;
+    reply(&mut d, &wake, request, 1, "first draft");
+    entered.recv_timeout(Duration::from_secs(10)).unwrap();
+    d.client(
+        ClientMessage::Dirty {
+            id: id.clone(),
+            revision: 2,
+            dirty: true,
+        },
+        &wake,
+    );
+    d.poll_at(&wake, Instant::now() + auto_save::IDLE);
+    let request = d.autosave_request.unwrap().0;
+    reply(&mut d, &wake, request, 2, "latest draft");
+    release.send(()).unwrap();
+    wait(&mut d, &wake);
+    assert_eq!(*provider.text.lock().unwrap(), "latest draft");
+    assert_eq!(d.document.as_ref().unwrap().text, "latest draft");
+    assert!(!d.dirty && !d.saving() && !d.cloud_conflict());
+    assert!(d.error.is_none());
+    assert!(
+        !d.outgoing
+            .iter()
+            .any(|m| matches!(m, HostMessage::Open { external: true, .. })),
+        "a converged receipt must not replace the live editor"
+    );
+    assert!(d.outgoing.contains(&HostMessage::Saved {
+        id,
+        revision: 2,
+        text: "latest draft".into()
+    }));
+}
 fn reply(d: &mut Documents, ctx: &Wake, request: u64, revision: u64, text: &str) {
     d.client(
         ClientMessage::Snapshot {
@@ -237,6 +300,88 @@ fn genuine_write_failure_blocks_close_and_retains_current_document() {
     assert!(d.error.is_some());
     assert!(!temp.path().join("a.md").exists());
     assert!(d.outgoing.contains(&HostMessage::Thaw));
+}
+
+#[test]
+fn a_clean_removed_document_closes_without_recreating_the_file() {
+    let (temp, mut d, wake) = setup();
+    d.ensure_session(&wake);
+    std::fs::remove_file(temp.path().join("a.md")).unwrap();
+    d.begin(Intent::Quit, &wake);
+    snapshot(&mut d, &wake, "original");
+    wait(&mut d, &wake);
+    assert!(d.allow_quit);
+    assert!(!d.dirty && !d.saving());
+    assert!(!temp.path().join("a.md").exists());
+}
+
+#[test]
+fn external_text_adoption_preserves_stored_bytes_without_an_autosave_or_writeback() {
+    for text in [
+        String::new(),
+        "你好，外部 Agent 👋\n第二行".into(),
+        "first\r\nsecond\r\n".into(),
+        "value  \n\n".into(),
+        format!("{}\n", "0123456789abcdef".repeat(16_384)),
+    ] {
+        let (temp, mut d, wake) = setup();
+        d.ensure_session(&wake);
+        d.watch = None;
+        d.client(
+            ClientMessage::Dirty {
+                id: d.document.as_ref().unwrap().id.clone(),
+                revision: 1,
+                dirty: true,
+            },
+            &wake,
+        );
+        std::fs::write(temp.path().join("a.md"), &text).unwrap();
+        let modified = std::fs::metadata(temp.path().join("a.md"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        let document = d
+            .workspace
+            .as_ref()
+            .unwrap()
+            .observe(d.document.as_ref().unwrap())
+            .unwrap();
+        let normalized = document.text.clone();
+        d.observing = Some((document.id.clone(), d.read_generation));
+        d.tx.send(Completed::Observed {
+            id: document.id.clone(),
+            generation: d.read_generation,
+            result: Ok(document),
+        })
+        .unwrap();
+        d.poll(&wake);
+        assert!(d.outgoing.iter().any(
+            |m| matches!(m, HostMessage::Open { text, external: true, .. } if text == &normalized)
+        ));
+        assert!(!d.dirty && !d.saving());
+        d.poll_at(&wake, Instant::now() + auto_save::MAX_WAIT);
+        assert!(d.autosave_request.is_none());
+        d.begin(Intent::Quit, &wake);
+        let Phase::Snapshot { request, .. } = d.phase else {
+            panic!("close snapshot required")
+        };
+        let revision = d.revision;
+        reply(&mut d, &wake, request, revision, &normalized);
+        wait(&mut d, &wake);
+        assert!(d.allow_quit);
+        assert_eq!(
+            std::fs::read(temp.path().join("a.md")).unwrap(),
+            text.as_bytes()
+        );
+        assert_eq!(
+            std::fs::metadata(temp.path().join("a.md"))
+                .unwrap()
+                .modified()
+                .unwrap(),
+            modified,
+            "close must not write the adopted bytes back"
+        );
+    }
 }
 #[test]
 fn observed_disk_change_replaces_model_without_a_write_or_conflict_error() {
