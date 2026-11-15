@@ -29,6 +29,7 @@ pub const HISTORY_BYTES: usize = 8 * 1024 * 1024;
 pub struct CodeView {
     pub(super) field: Entity<EditorState>,
     language: Language,
+    language_override: Option<String>,
     committed: String,
     composing: bool,
     read_only: bool,
@@ -40,17 +41,31 @@ pub struct CodeView {
     /// Bracket, selection-match and trailing-space decorations.
     passive: gpui_kit::component::input::RangeDecorationCollection,
     passive_key: Option<(usize, std::ops::Range<usize>, usize)>,
+    /// Visual-editor active element highlight in the split source panel.
+    visual_highlight: gpui_kit::component::input::RangeDecorationCollection,
     _subscriptions: Vec<Subscription>,
 }
 
 impl EventEmitter<SurfaceEvent> for CodeView {}
 
 impl CodeView {
+    #[cfg(test)]
     fn new(request: &SurfaceRequest, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::new_with(request, None, false, window, cx)
+    }
+
+    fn new_with(
+        request: &SurfaceRequest,
+        language_override: Option<&str>,
+        soft_wrap: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        let language = Language::resolve(request.format.monaco_language.as_deref(), request.name);
+        let explicit = language_override.or(request.format.monaco_language.as_deref());
+        let language = Language::resolve(explicit, request.name);
         let text = match request.input {
             SurfaceInput::Text(text) => text,
             _ => "",
@@ -63,7 +78,7 @@ impl CodeView {
                     hard_tabs: false,
                 })
                 .searchable(false)
-                .soft_wrap(false)
+                .soft_wrap(soft_wrap)
                 .default_value(text)
         });
         let changed = cx.subscribe_in(&field, window, |this, _, event: &InputEvent, w, cx| {
@@ -88,10 +103,14 @@ impl CodeView {
         let passive = field.update(cx, |s, cx| {
             s.create_range_decorations_collection(Vec::new(), cx)
         });
+        let visual_highlight = field.update(cx, |s, cx| {
+            s.create_range_decorations_collection(Vec::new(), cx)
+        });
         style::project(request.dark, request.scale, cx);
         Self {
             field,
             language,
+            language_override: language_override.map(str::to_owned),
             committed: text.into(),
             composing: false,
             read_only: false,
@@ -101,6 +120,7 @@ impl CodeView {
             conflicts_expanded: false,
             passive,
             passive_key: None,
+            visual_highlight,
             _subscriptions: vec![changed, observed],
         }
     }
@@ -399,7 +419,11 @@ impl CodeView {
         let format =
             crate::editor::registry::resolve(&crate::editor::registry::EditorDocument::local(name))
                 .format;
-        let language = Language::resolve(format.monaco_language.as_deref(), name);
+        let explicit = self
+            .language_override
+            .as_deref()
+            .or(format.monaco_language.as_deref());
+        let language = Language::resolve(explicit, name);
         if self.language != language {
             self.language = language;
             self.field.update(cx, |s, cx| {
@@ -432,6 +456,35 @@ impl CodeView {
         });
         self.sync(window, cx);
         true
+    }
+    fn reveal_range(
+        &mut self,
+        range: Option<std::ops::Range<usize>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use gpui_kit::base::input::RopeExt as _;
+        use gpui_kit::component::input::{RangeDecoration, RangeDecorationStyle};
+        let len = self.committed.len();
+        let Some(range) = range.filter(|r| r.start <= r.end && r.end <= len) else {
+            self.visual_highlight.clear(cx);
+            return;
+        };
+        let p = crate::theme::Theme::new(self.dark);
+        let marks = vec![
+            RangeDecoration::new(range.clone())
+                .with_style(RangeDecorationStyle::Fill)
+                .with_color(crate::theme::alpha(p.accent, 0.16).into()),
+            RangeDecoration::new(range.clone())
+                .with_color(crate::theme::alpha(p.accent, 0.45).into()),
+        ];
+        self.visual_highlight.set(marks, cx);
+        if !self.field.focus_handle(cx).is_focused(window) {
+            self.field.update(cx, |s, cx| {
+                s.unfold_at(s.text().offset_to_position(range.start), cx);
+                s.set_selected_range(range.start..range.start, cx);
+            });
+        }
     }
     /// Undo or redo while another view (the HTML visual editor) is shown:
     /// the same history, without taking focus.
@@ -497,8 +550,18 @@ impl Render for CodeView {
 }
 
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
+    open_with(request, None, false, window, cx)
+}
+
+pub fn open_with(
+    request: &SurfaceRequest,
+    language: Option<&str>,
+    soft_wrap: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> Box<dyn ViewerSurface> {
     Box::new(CodeSurface {
-        view: cx.new(|cx| CodeView::new(request, window, cx)),
+        view: cx.new(|cx| CodeView::new_with(request, language, soft_wrap, window, cx)),
     })
 }
 struct CodeSurface {
@@ -530,6 +593,15 @@ impl ViewerSurface for CodeSurface {
     ) -> bool {
         self.view
             .update(cx, |v, cx| v.edit_utf16(edits, window, cx))
+    }
+    fn reveal_range(
+        &self,
+        range: Option<std::ops::Range<usize>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.view
+            .update(cx, |v, cx| v.reveal_range(range, window, cx));
     }
     fn rebind_name(&self, name: &str, cx: &mut App) {
         self.view.update(cx, |v, cx| v.rebind(name, cx));

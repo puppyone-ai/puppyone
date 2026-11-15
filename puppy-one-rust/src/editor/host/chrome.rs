@@ -30,6 +30,7 @@ impl DocumentEditor {
         });
         Contribution {
             segmented,
+            toggles: entries.toggles,
             items: entries.items,
             find: entries.find,
             open_external: true,

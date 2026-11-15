@@ -46,30 +46,23 @@ use explorer::{Explorer, ExplorerEvent, ExplorerSession, Host, SessionEvent};
 use panes::{Layout, PaneEvent, PaneLayout, PaneStack, Side};
 use right_sidebar::Surface;
 use sidebar::{ExplorerColumn, SidebarFooter};
-/// The layout of a pane embedded as a cached view: it fills the frame the
-/// shell places it in. A cached pane renders again only when its entity is
-/// notified (or the window refreshes), so editor scrolling and typing do not
-/// rebuild the Explorer or the right sidebar.
+/// Cached pane views fill their frame and rerender only when notified.
 fn fill() -> StyleRefinement {
     StyleRefinement::default().size_full()
 }
 
 pub struct Shell {
-    /// The documents runtime, the project lifecycle, the owner key and the
-    /// applied title.
+    /// Documents runtime, project lifecycle, owner key and applied title.
     session: session::WindowSession,
-    /// The shared preferences and what the window projects of them.
+    /// Shared preferences and what the window projects of them.
     prefs: appearance::WindowPreferences,
-    /// The Explorer's and the right sidebar's frames: open, width, edge
-    /// drags and motion.
+    /// Explorer and right sidebar frames: open, width, edge drags and motion.
     panes: Entity<PaneLayout>,
-    /// The project's Explorer session (its tree, selection, clipboard and
-    /// pins, kept per project) and its view on the left.
+    /// Per-project Explorer session and its view on the left.
     explorer: explorer::ExplorerPane,
     /// The editor area's hosts, drops, resizes and save notices.
     editor: Entity<editor_area::EditorArea>,
-    /// What the right sidebar shows: the Agent workbench, Changes / History
-    /// and a hosted Project's History.
+    /// Right sidebar surfaces: Agent workbench, Changes / History, Cloud History.
     sidebar: Entity<right_sidebar::RightSidebar>,
     /// The Header, its popovers, the project rail and the introductions.
     chrome: Entity<chrome::WindowChrome>,
@@ -381,7 +374,9 @@ impl Shell {
         if appearance {
             self.gate_editors(window, cx);
         }
-        if let Some(stored) = panes {
+        if let Some(stored) = panes
+            && !self.file_mode()
+        {
             self.panes.update(cx, |p, cx| p.restore(stored, cx));
         }
     }
@@ -654,7 +649,12 @@ impl Render for Shell {
         crate::platform::watchdog::activity("shell.render");
         // Native web content draws above GPUI: overlays hide it, and only
         // surfaces painted in this frame stay visible.
-        let overlay = !self.dialogs.read(cx).is_empty() || self.chrome.read(cx).popover.is_some();
+        let overlay = !self.dialogs.read(cx).is_empty()
+            || self.chrome.read(cx).popover.is_some()
+            || self
+                .file
+                .as_ref()
+                .is_some_and(|f| f.read(cx).menu.is_some());
         crate::web_host::set_overlay(window, overlay);
         crate::web_host::frame_drawn(window);
         #[cfg(test)]
@@ -662,14 +662,20 @@ impl Render for Shell {
             self.frame.frames += 1;
         }
         let size = window.viewport_size();
-        let w = f32::from(size.width);
-        let h = f32::from(size.height);
-        let rail = self.chrome.read(cx).rail_width();
-        let reduce_motion = cx.reduce_motion();
-        // This frame's layout (reading it advances the panes' motion).
-        let panes = self.panes.read(cx).frames(w, h, rail, reduce_motion);
-        self.frame.layout = if self.file_mode() {
-            // `.file-mode-window`: the title bar over the document alone.
+        let (w, h) = (f32::from(size.width), f32::from(size.height));
+        let file = self.file_mode();
+        let rail = if file {
+            0.
+        } else {
+            self.chrome.read(cx).rail_width()
+        };
+        let panes = self.panes.read(cx).frames(w, h, rail, cx.reduce_motion());
+        let html_chat_shown = file
+            && self.file.as_ref().is_some_and(|f| f.read(cx).is_html())
+            && (panes.end.is_some()
+                || self.panes.read(cx).right().open
+                || self.panes.read(cx).dragging().is_some());
+        self.frame.layout = if file && !html_chat_shown {
             Layout::new(w, h, 0., 0., 0.)
         } else {
             panes.layout
@@ -681,13 +687,10 @@ impl Render for Shell {
         if !self.frame.captured && std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
             cx.defer_in(window, |s, w, cx| s.capture_tick(w, cx));
         }
-        let t = cx.palette();
-        // ⌘V on the Homepage takes a template link (`onPaste`); elsewhere a
-        // paste belongs to what is focused.
-        let homepage = self.home_visible(cx);
+        let (t, home) = (cx.palette(), self.home_visible(cx));
         let mut root = div()
             .id("gpui-shell")
-            .when(homepage, |d| d.key_context("Homepage"))
+            .when(home, |d| d.key_context("Homepage"))
             .relative()
             .size_full()
             .font(crate::ui::fonts::font(
@@ -697,10 +700,7 @@ impl Render for Shell {
             .text_size(px(theme::font_size(theme::FONT)))
             .text_color(t.text)
             .track_focus(&self.frame.focus);
-        let file = self.file_mode();
-        let home = self.home_visible(cx);
-        // The panes' frames under the editor; the Homepage and a file window
-        // show none.
+        // An HTML file window embeds its on-demand Agent drawer inside `FileWindow`.
         root = root.child(if file {
             self.file
                 .clone()
@@ -733,8 +733,7 @@ impl Render for Shell {
         root = on_shell_actions(root, move |command, window, cx| {
             let _ = weak.update(cx, |s, cx| s.command(command, window, cx));
         });
-        // The Homepage, with its intro's curtain over the window under the
-        // Header.
+        // The Homepage, with its intro's curtain under the Header.
         if home {
             root = root.child(self.home.clone());
         }
@@ -761,7 +760,7 @@ impl Render for Shell {
         if !file {
             root = root.child(at(self.frame.layout.header).child(self.chrome.clone()));
         }
-        if !home && !opening && !file {
+        if (!home && !opening && !file) || (file && !opening && html_chat_shown) {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }
         // `FloatingNoticeStack`s over the workspace: its own notices and

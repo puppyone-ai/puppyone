@@ -231,9 +231,11 @@ impl EditorArea {
                         HostMessage::Open { .. } | HostMessage::OpenResource { .. }
                     );
                 let references = self.references(slot, cx);
-                let workspace = (!self.file_mode)
-                    .then(|| self.docs.read(cx).slot(slot)?.workspace.clone())
-                    .flatten();
+                let workspace = self
+                    .docs
+                    .read(cx)
+                    .slot(slot)
+                    .and_then(|s| s.workspace.clone());
                 let replies = self.hosts[&slot].update(cx, |s, cx| {
                     s.set_reference_context(references, cx);
                     s.set_workspace(workspace);
@@ -315,6 +317,9 @@ impl EditorArea {
             },
         )
         .detach();
+        if file_mode {
+            cx.observe(&editor, |_, _, cx| cx.notify()).detach();
+        }
         editor
     }
     /// Holds each editor behind the gate: a dialog, the Homepage, a slot

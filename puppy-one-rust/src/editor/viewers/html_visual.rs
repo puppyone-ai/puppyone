@@ -74,6 +74,10 @@ enum Inbound {
         direction: String,
     },
     Unavailable,
+    SelectRange {
+        from: Option<usize>,
+        to: Option<usize>,
+    },
     Import {
         request: String,
         name: String,
@@ -281,6 +285,17 @@ fn receive(
             history(state, frame, direction == "redo", source, window, cx);
         }
         Inbound::Unavailable => on_unavailable(window, cx),
+        Inbound::SelectRange { from, to } => {
+            let range = {
+                let s = state.borrow();
+                from.zip(to).and_then(|(from, to)| {
+                    let start = byte_offset(&s.mirror, from)?;
+                    let end = byte_offset(&s.mirror, to)?;
+                    (start <= end).then_some(start..end)
+                })
+            };
+            source.reveal_range(range, window, cx);
+        }
         Inbound::Import {
             request,
             name,

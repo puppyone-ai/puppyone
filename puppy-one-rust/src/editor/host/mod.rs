@@ -11,7 +11,10 @@ use crate::{
             SurfaceRequest, ViewerSurface,
             packs::{ExtensionHost, Route, route},
         },
-        viewers::external,
+        viewers::{
+            external,
+            html_tools::{HtmlToolAction, HtmlToolEvent, HtmlToolMode, HtmlToolSnapshot},
+        },
     },
     typography::Scale,
 };
@@ -82,6 +85,7 @@ pub struct DocumentEditor {
     /// `normalizeContent`: the text the surface was given and the raw text
     /// it stands for, until the person edits.
     displayed: Option<(String, String)>,
+    html_events: Vec<HtmlToolEvent>,
 }
 
 impl EventEmitter<ClientMessage> for DocumentEditor {}
@@ -113,6 +117,7 @@ impl DocumentEditor {
             references: None,
             workspace: None,
             displayed: None,
+            html_events: Vec::new(),
         }
     }
 
@@ -193,6 +198,7 @@ impl DocumentEditor {
             dark: self.dark,
             scale: self.scale,
             workspace: self.workspace.clone(),
+            file_mode: self.file_mode,
         };
         let surface = match self.extension_surface(&document, &request, window, cx) {
             Some(surface) => surface,
@@ -204,14 +210,24 @@ impl DocumentEditor {
         let host = cx.weak_entity();
         self.subscription = surface.subscribe(
             Rc::new(move |event, cx| {
-                let _ = host.update(cx, |s, cx| match event {
-                    SurfaceEvent::Changed => s.changed(cx),
-                    SurfaceEvent::FindResult { current, total } => {
-                        if let Some(bar) = &s.find {
-                            bar.update(cx, |b, cx| b.set_result(current, total, cx));
+                let host = host.clone();
+                cx.defer(move |cx| {
+                    let _ = host.update(cx, |s, cx| match event {
+                        SurfaceEvent::Changed => s.changed(cx),
+                        SurfaceEvent::Redraw => cx.notify(),
+                        SurfaceEvent::FindResult { current, total } => {
+                            if let Some(bar) = &s.find {
+                                bar.update(cx, |b, cx| b.set_result(current, total, cx));
+                            }
                         }
-                    }
-                    SurfaceEvent::OpenPaths(paths) => cx.emit(ClientMessage::OpenPaths { paths }),
+                        SurfaceEvent::OpenPaths(paths) => {
+                            cx.emit(ClientMessage::OpenPaths { paths })
+                        }
+                        SurfaceEvent::HtmlTool(ev) => {
+                            s.html_events.push(ev);
+                            cx.notify();
+                        }
+                    });
                 });
             }),
             cx,
@@ -316,6 +332,7 @@ impl DocumentEditor {
             }
             HostMessage::Clear => {
                 self.displayed = None;
+                self.html_events.clear();
                 self.session = None;
                 self.surface = None;
                 self.subscription = None;
@@ -483,6 +500,61 @@ impl DocumentEditor {
         self.session.as_ref().map(|s| s.viewer.id)
     }
 
+    pub fn html_tool_state(&self) -> Option<HtmlToolSnapshot> {
+        self.surface.as_ref()?.html_tool_state()
+    }
+
+    pub fn set_html_tool(
+        &mut self,
+        mode: HtmlToolMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(surface) = &self.surface {
+            surface.set_html_tool(mode, window, cx);
+            cx.notify();
+        }
+    }
+
+    pub fn trigger_html_action(
+        &mut self,
+        action: HtmlToolAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(surface) = &self.surface {
+            surface.trigger_html_action(action, window, cx);
+            cx.notify();
+        }
+    }
+
+    pub fn take_html_events(&mut self) -> Vec<HtmlToolEvent> {
+        std::mem::take(&mut self.html_events)
+    }
+
+    /// Replaces the entire open document text in-place and marks it dirty so
+    /// File Mode autosave persists the restored snapshot immediately.
+    pub fn replace_document_text(
+        &mut self,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(surface) = &self.surface {
+            surface.replace_text(text, window, cx);
+            self.displayed = None;
+            self.changed(cx);
+            cx.notify();
+        }
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn lab_deliver_html_ipc(&self, body: &str, cx: &mut App) {
+        if let Some(surface) = &self.surface {
+            let _ = surface.html_page_deliver(body, cx);
+        }
+    }
+
     pub fn focus_document(&self, window: &mut Window, cx: &mut App) {
         match self.surface.as_ref().and_then(|s| s.focus_handle(cx)) {
             Some(handle) => handle.focus(window, cx),
@@ -497,8 +569,9 @@ fn label(name: &str) -> String {
 }
 
 impl Render for DocumentEditor {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::platform::watchdog::activity("editor.render");
+        crate::web_host::frame_drawn(window);
         use crate::editor::workbench::pane;
         let weak = cx.entity().downgrade();
         let measure = canvas(

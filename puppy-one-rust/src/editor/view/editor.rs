@@ -243,6 +243,27 @@ impl EditorView {
         self.dispatch(tr, cx);
     }
 
+    /// Apply a companion source panel edit so it updates the live view and
+    /// joins history even while the live view itself is not in edit mode.
+    pub fn sync_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.abandon_composition(cx);
+        if text == self.text() {
+            return;
+        }
+        let end = self.state.doc.len();
+        let head = self.state.selection.head.min(text.len());
+        let read_only = self.read_only;
+        self.read_only = false;
+        let tr = Transaction {
+            changes: ChangeSet::replace(0..end, text),
+            selection: Some(Selection::cursor(head)),
+            event: UserEvent::Input,
+            scroll_into_view: false,
+        };
+        self.dispatch(tr, cx);
+        self.read_only = read_only;
+    }
+
     pub fn dispatch(&mut self, tr: Transaction, cx: &mut Context<Self>) {
         // Anything but the input method itself ends an open composition
         // first (the marked text stays as typed).

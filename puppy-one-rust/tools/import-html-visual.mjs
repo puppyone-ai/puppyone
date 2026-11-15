@@ -8,10 +8,10 @@ import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {root, productRoot} from './product-bundle.mjs';
+import {root} from './product-bundle.mjs';
 
 const check = process.argv.includes('--check');
-const product = await productRoot(process.argv.slice(2).find(a => !a.startsWith('--')));
+const product = path.resolve(root, process.argv.slice(2).find(a => !a.startsWith('--')) ?? '../../puppyone-qubits');
 const modules = path.join(product, 'node_modules');
 const {build} = await import(pathToFileURL(path.join(modules, 'esbuild/lib/main.js')));
 const source = p => path.join(product, p);

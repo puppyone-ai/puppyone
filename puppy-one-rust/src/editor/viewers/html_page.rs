@@ -143,7 +143,11 @@ const target=document.getElementById(id)||document.getElementsByName(id)[0];
 if(!id)scrollTo(0,0);else target?.scrollIntoView();
 try{{location.hash=fragment}}catch{{}}return}}
 ipc&&ipc.postMessage(JSON.stringify({{type:'link',href}}))}};
-addEventListener('click',follow);addEventListener('auxclick',follow)}})();</script>"
+const edit=event=>{{if(!event.isTrusted||event.defaultPrevented)return;
+const el=event.target instanceof Element?event.target:null;
+if(!el||el.closest('a,button,input,textarea,select,summary,[contenteditable]'))return;
+ipc&&ipc.postMessage(JSON.stringify({{type:'edit'}}))}};
+addEventListener('click',follow);addEventListener('auxclick',follow);addEventListener('dblclick',edit)}})();</script>"
     )
 }
 
@@ -340,8 +344,9 @@ impl Folder {
                     ));
                 }
                 let content = document.text.clone();
+                let modified = content_stamp(&content);
                 self.read.insert(name, document);
-                Ok(serde_json::json!({ "content": content, "modified": null }))
+                Ok(serde_json::json!({ "content": content, "modified": modified }))
             }
             Some("write") => {
                 let name = name()?;
@@ -401,6 +406,15 @@ impl Folder {
             Err(refuse("NotFoundError", format!("{name} was not found.")))
         }
     }
+}
+
+/// Stable 53-bit content stamp for `File.lastModified` so polling pages detect
+/// changes without re-rendering when files are untouched.
+fn content_stamp(content: &str) -> u64 {
+    let hash = blake3::hash(content.as_bytes());
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&hash.as_bytes()[..8]);
+    (u64::from_le_bytes(bytes) & 0x001f_ffff_ffff_ffff).max(1)
 }
 
 #[cfg(test)]

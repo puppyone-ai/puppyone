@@ -136,6 +136,103 @@ impl Workbench {
             .unwrap_or_default()
     }
 
+    /// Snapshot of the active tab in the active group if it has `kind`.
+    pub fn active_item_snapshot(&self, kind: ItemKind, cx: &App) -> Option<ItemSnapshot> {
+        let p = self.project()?;
+        let tab = p.layout.groups.get(&p.layout.active_group)?.active?;
+        let item = p.content.get(&tab)?.item()?;
+        (item.kind() == kind).then(|| item.snapshot(cx))
+    }
+
+    /// View of the active tab in the active group if it has `kind`.
+    pub fn active_item_view(&self, kind: ItemKind) -> Option<AnyView> {
+        let p = self.project()?;
+        let tab = p.layout.groups.get(&p.layout.active_group)?.active?;
+        let item = p.content.get(&tab)?.item()?;
+        (item.kind() == kind).then(|| item.view())
+    }
+
+    /// Activates or reopens an existing `kind` tab in the shown project, or
+    /// returns the `(group, launcher_tab)` slot where the host can place a new
+    /// item.
+    pub fn ensure_item_view(
+        &mut self,
+        kind: ItemKind,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Option<AnyView>, Option<(Id, Option<Id>)>) {
+        if self.root.is_none() {
+            return (None, None);
+        }
+        if let Some(p) = self.project_mut()
+            && p.loading
+        {
+            p.loading = false;
+        }
+        if let Some(view) = self.active_item_view(kind) {
+            return (Some(view), None);
+        }
+        let found_live = self.project().and_then(|p| {
+            for (&gid, g) in &p.layout.groups {
+                for &tid in &g.tabs {
+                    if let Some(Content::Item { item, .. }) = p.content.get(&tid)
+                        && item.kind() == kind
+                    {
+                        return Some((gid, tid));
+                    }
+                }
+            }
+            None
+        });
+        if let Some((gid, tid)) = found_live {
+            if let Some(p) = self.project_mut() {
+                p.layout.activate(gid, tid);
+            }
+            cx.notify();
+            return (
+                self.project()
+                    .and_then(|p| p.content.get(&tid))
+                    .and_then(Content::item)
+                    .map(|item| item.view()),
+                None,
+            );
+        }
+        let found_retained = self.project().and_then(|p| {
+            for (&gid, g) in &p.layout.groups {
+                for &tid in &g.tabs {
+                    if let Some(Content::Retained(item)) = p.content.get(&tid)
+                        && item.kind() == Some(kind)
+                    {
+                        return Some((gid, tid, item.clone()));
+                    }
+                }
+            }
+            None
+        });
+        if let Some((gid, tid, retained)) = found_retained {
+            self.reopen(gid, tid, retained, window, cx);
+            if let Some(view) = self
+                .project()
+                .and_then(|p| p.content.get(&tid))
+                .and_then(Content::item)
+                .map(|item| item.view())
+            {
+                return (Some(view), None);
+            }
+        }
+        let slot = self.project().map(|p| {
+            let gid = p.layout.active_group;
+            let launcher = p.layout.groups.get(&gid).and_then(|g| {
+                g.tabs
+                    .iter()
+                    .copied()
+                    .find(|t| matches!(p.content.get(t), Some(Content::Launcher)))
+            });
+            (gid, launcher)
+        });
+        (None, slot)
+    }
+
     pub(super) fn attach(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         if !self.projects.contains_key(&root) {
             self.projects.insert(
@@ -158,7 +255,9 @@ impl Workbench {
         while let Ok(event) = self.store_rx.try_recv() {
             match event {
                 ResultEvent::Loaded(root, result) => {
-                    if let Some(project) = self.projects.get_mut(&root) {
+                    if let Some(project) = self.projects.get_mut(&root)
+                        && project.loading
+                    {
                         project.loading = false;
                         match result {
                             Ok(Some(saved)) => match StoredProject::read(saved) {

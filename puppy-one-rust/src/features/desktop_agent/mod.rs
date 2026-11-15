@@ -17,7 +17,7 @@ pub use infrastructure::host::agent_host_global::CloudCompute;
 
 pub use domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget as HistoryTarget;
 pub use ui::agent_conversation_history::{HistoryBrowser, HistoryBrowserEvent};
-pub use ui::panel::bind_keys;
+pub use ui::panel::{AgentChatTabPanel, bind_keys};
 #[cfg(feature = "dev-capture")]
 pub use workbench::{AgentChatItem, lab_history_browser};
 // What other features' tests drive.

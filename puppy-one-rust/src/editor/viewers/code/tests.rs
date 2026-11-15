@@ -35,6 +35,7 @@ fn setup<'a>(
                 dark: true,
                 scale: Scale::Medium,
                 workspace: None,
+                file_mode: false,
             },
             w,
             cx,

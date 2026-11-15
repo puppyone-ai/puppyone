@@ -173,6 +173,7 @@ pub fn bind_keys(cx: &mut App) {
     ]);
     cx.bind_keys([KeyBinding::new("escape", Escape, None)]);
     super::explorer::bind_keys(cx);
+    super::file_mode::bind_keys(cx);
 }
 
 /// The native menu bar (`createApplicationMenuTemplate`); rebuilt when the

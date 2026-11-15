@@ -225,6 +225,17 @@ impl PaneLayout {
         self.changed(before, false, cx);
     }
 
+    /// Initializes panes for a standalone File Mode window: no Explorer, right
+    /// Agent drawer closed at a compact 380px width ready for HTML Chat split.
+    pub fn configure_file_mode(&mut self, cx: &mut Context<Self>) {
+        let before = self.open_state();
+        self.explorer.open = false;
+        self.right.open = false;
+        self.right.width = 380.;
+        *self.motion.get_mut() = Default::default();
+        self.changed(before, false, cx);
+    }
+
     // ------------------------------------------------------- stored layout
     pub fn stored(&self) -> StoredPanes {
         StoredPanes {

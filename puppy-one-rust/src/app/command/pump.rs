@@ -41,9 +41,15 @@ impl Shell {
         if let Some((ws, nodes)) = pumped.entered {
             self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
             explorer.update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
-            // A lone file has no Agent, Git or Terminal.
+            // A lone file has no Git or Terminal; an HTML file window binds its
+            // parent folder only for the on-demand Local Agent Chat drawer.
             if !self.file_mode() {
                 self.sidebar.update(cx, |s, cx| s.enter(&ws, cx));
+            } else if self.file.as_ref().is_some_and(|f| f.read(cx).is_html())
+                && let Some(root) = ws.local_root()
+            {
+                let root = root.to_path_buf();
+                self.sidebar.update(cx, |s, cx| s.enter_file_mode(root, cx));
             }
             self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
             let root = ws.local_root().map(PathBuf::from);
@@ -115,11 +121,16 @@ impl Shell {
         &mut self,
         file: file_mode::FileTarget,
         hold: bool,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.session.docs.update(cx, |d, _| d.file_window = true);
         self.session.project.update(cx, |p, _| p.file_window = true);
+        self.panes.update(cx, |p, cx| p.configure_file_mode(cx));
+        if file.is_html() {
+            let root = file.root.clone();
+            self.sidebar.update(cx, |s, cx| s.enter_file_mode(root, cx));
+        }
         if file.admission == file_mode::Admission::Readable && !hold {
             self.session.project.update(cx, |p, _| {
                 p.record.open_first = Some(PathBuf::from(&file.name))
@@ -129,8 +140,18 @@ impl Shell {
                 .docs
                 .update(cx, |d, _| d.begin(Intent::OpenFolder(root)));
         }
-        let (docs, editor) = (self.session.docs.clone(), self.editor.clone());
-        let file = cx.new(|cx| file_mode::FileWindow::new(file, docs, editor, cx));
+        let (docs, editor, prefs, sidebar, panes, cloud) = (
+            self.session.docs.clone(),
+            self.editor.clone(),
+            self.prefs.store.clone(),
+            self.sidebar.clone(),
+            self.panes.clone(),
+            self.cloud.clone(),
+        );
+        let file = cx.new(|cx| {
+            file_mode::FileWindow::new(file, docs, editor, prefs, sidebar, panes, cloud, window, cx)
+        });
+        cx.observe(&file, |_, _, cx| cx.notify()).detach();
         self.file = Some(file);
     }
     /// What the window's features read of the session, handed over when it
@@ -189,6 +210,9 @@ impl Shell {
     /// Store the committed pane layout (`setExplorerWidth`,
     /// `setSidebarCollapsed`, `setRightSidebarWidth`).
     pub(in crate::app) fn persist_panes(&mut self, cx: &mut Context<Self>) {
+        if self.file_mode() {
+            return;
+        }
         let stored = self.panes.read(cx).stored();
         self.prefs.store.update(cx, |store, cx| {
             store.change(

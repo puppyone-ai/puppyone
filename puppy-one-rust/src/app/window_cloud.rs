@@ -402,6 +402,24 @@ impl WindowCloud {
         self.catalog
             .update(cx, |c, cx| c.ensure(enabled, retry, cx));
     }
+    /// Opens the Cloud publish activation dialog from a standalone HTML File
+    /// Mode window's `Share` card, targeting the file's parent directory.
+    pub(super) fn open_file_mode_publish(
+        &mut self,
+        root: PathBuf,
+        name: String,
+        cx: &mut Context<Self>,
+    ) {
+        self.session.root = Some(root);
+        self.session.workspace = true;
+        self.session.name = name;
+        self.sync_cloud_publish(cx);
+        if !self.dialog_open(DialogKey::CloudPublish, cx) {
+            self.open_dialog(DialogKey::CloudPublish, cx);
+        }
+        self.refresh(cx);
+    }
+
     /// A returning window may probe the Cloud association once.
     pub fn probe(&mut self, cx: &mut Context<Self>) {
         self.repository.update(cx, |r, cx| r.probe(cx));

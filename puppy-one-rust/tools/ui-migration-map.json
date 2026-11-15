@@ -1378,7 +1378,9 @@
       ],
       "targets": [
         "src/editor/viewers/html.rs",
+        "src/editor/viewers/html_tools.rs",
         "src/editor/viewers/html_visual.rs",
+        "src/editor/viewers/source_split.rs",
         "tools/html-visual-entry.tsx",
         "tools/import-html-visual.mjs",
         "src/editor/viewers/html_interact.rs",

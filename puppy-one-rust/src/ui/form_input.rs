@@ -189,7 +189,23 @@ impl TextInput {
         if tokens.is_empty() {
             return true;
         }
-        dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+        if let Some(content) = self.pending_content.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                let end = content.text().len();
+                s.set_value(content, window, cx);
+                s.set_selected_range(end..end, cx);
+            }));
+        }
+        if let Some(value) = self.pending.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                s.set_value(value.text, window, cx);
+                s.set_selected_range(
+                    value.anchor.min(value.cursor)..value.anchor.max(value.cursor),
+                    cx,
+                );
+            }));
+        }
+        let ok = dispatch!(&self.field, |s| s.update(cx, |s, cx| {
             let value = s.value().to_string();
             let range = s.selected_range();
             let before = value[..range.start].chars().next_back();
@@ -222,7 +238,9 @@ impl TextInput {
                 s.insert(" ", window, cx);
             }
             true
-        }))
+        }));
+        self.value = dispatch!(&self.field, |s| s.read(cx).value());
+        ok
     }
     /// The editor's text now, consistent with [`Self::token_spans`]; the
     /// cached [`Self::text`] follows only once the edit's events ran.
@@ -252,6 +270,23 @@ impl TextInput {
         self.pending = None;
         self.value = content.text().clone();
         self.pending_content = Some(content);
+        cx.notify();
+    }
+    /// Immediately replace the value and inline tokens when a `Window` is available.
+    pub fn set_content(
+        &mut self,
+        content: InputContent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.pending = None;
+        self.pending_content = None;
+        self.value = content.text().clone();
+        dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+            let end = content.text().len();
+            s.set_value(content, window, cx);
+            s.set_selected_range(end..end, cx);
+        }));
         cx.notify();
     }
     pub fn clear(&mut self, cx: &mut Context<Self>) {
