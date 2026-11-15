@@ -75,6 +75,7 @@ impl ViewerSurface for PdfSurface {
         let view = self.view.read(cx);
         PaneEntries {
             segmented: None,
+            toggles: vec![],
             items: vec![Item {
                 id: "pdf-reload",
                 label: t("editor.app.reload").into(),

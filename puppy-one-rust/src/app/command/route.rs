@@ -286,11 +286,18 @@ impl Shell {
                     .update(cx, |h, cx| h.back(cx));
             }
             Command::Escape => {
-                let closed = self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
-                if !closed && self.chrome.read(cx).popover.is_some() {
-                    self.set_popover(None, cx);
-                    let focus = self.chrome.read(cx).project_focus.clone();
-                    focus.focus(window, cx);
+                let closed_file = self
+                    .file
+                    .as_ref()
+                    .cloned()
+                    .is_some_and(|f| f.update(cx, |f, cx| f.dismiss_escape(window, cx)));
+                if !closed_file {
+                    let closed = self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
+                    if !closed && self.chrome.read(cx).popover.is_some() {
+                        self.set_popover(None, cx);
+                        let focus = self.chrome.read(cx).project_focus.clone();
+                        focus.focus(window, cx);
+                    }
                 }
             }
             Command::PasteTemplateLink => {

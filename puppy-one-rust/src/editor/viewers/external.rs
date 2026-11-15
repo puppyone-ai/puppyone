@@ -76,6 +76,7 @@ impl Chooser {
             dark: self.dark,
             scale: self.scale,
             workspace: None,
+            file_mode: false,
         };
         self.opened = Some((self.render)(&request, &self.candidates[index], window, cx));
         cx.notify();

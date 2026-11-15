@@ -235,6 +235,14 @@ impl ComposerView {
         self.input
             .update(cx, |input, cx| input.composing(window, cx))
     }
+    /// Focuses the prompt input.
+    pub fn focus(&self, window: &mut Window, cx: &mut App) {
+        self.input.focus_handle(cx).focus(window, cx);
+    }
+    /// Current `(text, mentions)` shown in the prompt input.
+    pub fn document(&self, cx: &App) -> (String, Vec<PromptMention>) {
+        self.composer_document(cx)
+    }
     /// The composer's document as `(text, mentions)`: each token is one
     /// mention, its range in UTF-16 units.
     fn composer_document(&self, cx: &App) -> (String, Vec<PromptMention>) {
@@ -245,6 +253,12 @@ impl ComposerView {
         let mentions = input
             .token_spans(cx)
             .into_iter()
+            .filter(|(_, range)| {
+                range.start <= range.end
+                    && range.end <= text.len()
+                    && text.is_char_boundary(range.start)
+                    && text.is_char_boundary(range.end)
+            })
             .map(|(id, range)| PromptMention {
                 reference_id: id,
                 start: crate::text::len16(&text[..range.start]),
@@ -279,7 +293,7 @@ impl ComposerView {
                     }
                 }
                 self.input
-                    .update(cx, |input, cx| input.restore_content(content, cx));
+                    .update(cx, |input, cx| input.set_content(content, window, cx));
             }
             self.shown_draft = draft;
         }

@@ -793,6 +793,17 @@ impl Shell {
                     return false;
                 };
                 editor.update(cx, |e, cx| {
+                    if e.title_controls(cx)
+                        .toggles
+                        .iter()
+                        .any(|t| t.id == "document-editing" && !t.checked)
+                    {
+                        e.run_title_action(
+                            crate::editor::workbench::pane::Action::Item("document-editing"),
+                            window,
+                            cx,
+                        );
+                    }
                     e.focus_document(window, cx);
                     e.lab_type(" ", window, cx);
                 });

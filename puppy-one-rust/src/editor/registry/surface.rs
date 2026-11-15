@@ -3,17 +3,26 @@
 //! drives. The host never names a concrete viewer; a viewer implements only
 //! the hooks its capability needs (read-only previews implement `element`).
 use crate::{
-    editor::workbench::{
-        find::FindEvent,
-        pane::{Item, Segmented},
+    editor::{
+        viewers::html_tools::{HtmlToolAction, HtmlToolEvent, HtmlToolMode, HtmlToolSnapshot},
+        workbench::{
+            find::FindEvent,
+            pane::{Item, Segmented, Switch},
+        },
     },
     formats::FileFormat,
     typography::Scale,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 use gpui::SharedString;
 use gpui::{AnyElement, App, FocusHandle, Subscription, Window};
 use std::rc::Rc;
+
+pub use crate::editor::viewers::html_tools::{
+    HtmlJsError as SurfaceHtmlJsError, HtmlToolAction as SurfaceHtmlToolAction,
+    HtmlToolEvent as SurfaceHtmlToolEvent, HtmlToolMode as SurfaceHtmlToolMode,
+    HtmlToolSnapshot as SurfaceHtmlToolSnapshot,
+};
 
 /// What the host hands a viewer to open (`PresetViewerRenderContext`).
 pub struct SurfaceRequest<'a> {
@@ -30,6 +39,9 @@ pub struct SurfaceRequest<'a> {
     /// The document's workspace (`workspaceRoot`, `contextMapEnvironment`);
     /// `None` for a lone file.
     pub workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
+    /// Standalone file window (`FileModeApp`): viewers use `edit-and-source-panel`
+    /// Header controls instead of the workbench segmented switch.
+    pub file_mode: bool,
 }
 
 /// The viewer's input, as its manifest `source` asks.
@@ -48,10 +60,14 @@ pub enum SurfaceInput<'a> {
 pub enum SurfaceEvent {
     /// The document text changed (the host derives the dirty state).
     Changed,
+    /// The surface's own view state or pane contribution changed.
+    Redraw,
     /// Match counts changed after editing while the pane find bar is open.
     FindResult { current: usize, total: usize },
     /// Open workspace paths the document referenced.
     OpenPaths(Vec<String>),
+    /// Standalone HTML File Mode interactive tool event.
+    HtmlTool(HtmlToolEvent),
 }
 pub type SurfaceEvents = Rc<dyn Fn(SurfaceEvent, &mut App)>;
 
@@ -60,6 +76,7 @@ pub type SurfaceEvents = Rc<dyn Fn(SurfaceEvent, &mut App)>;
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PaneEntries {
     pub segmented: Option<Segmented>,
+    pub toggles: Vec<Switch>,
     pub items: Vec<Item>,
     pub find: bool,
 }
@@ -98,6 +115,15 @@ pub trait ViewerSurface {
         _cx: &mut App,
     ) -> bool {
         false
+    }
+    /// Highlight and reveal a UTF-8 byte range in the source editor when
+    /// another view (the HTML visual editor) selects an element.
+    fn reveal_range(
+        &self,
+        _range: Option<std::ops::Range<usize>>,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) {
     }
     fn rebind_name(&self, _name: &str, _cx: &mut App) {}
     fn rebind_resource(&self, _resource: &crate::workspace::PreviewResource, _cx: &mut App) {}
@@ -154,13 +180,21 @@ pub trait ViewerSurface {
     fn code_editor(&self) -> Option<gpui::Entity<crate::editor::viewers::code::CodeView>> {
         None
     }
+    /// Standalone HTML File Mode tool snapshot (`None` for non-HTML viewers).
+    fn html_tool_state(&self) -> Option<HtmlToolSnapshot> {
+        None
+    }
+    /// Switches the active in-page HTML tool overlay in standalone File Mode.
+    fn set_html_tool(&self, _mode: HtmlToolMode, _window: &mut Window, _cx: &mut App) {}
+    /// Runs an imperative HTML File Mode tool action (reload/reset, full-page capture, clear).
+    fn trigger_html_action(&self, _action: HtmlToolAction, _window: &mut Window, _cx: &mut App) {}
     /// A message from the HTML Edit page, as its WebView would post it.
     #[cfg(test)]
     fn html_visual_deliver(&self, _body: &str) -> bool {
         false
     }
     /// A message from the HTML Interact page, and the notice it left.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     fn html_page_deliver(&self, _body: &str, _cx: &mut App) -> Option<SharedString> {
         None
     }

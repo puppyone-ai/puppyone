@@ -49,11 +49,21 @@ pub struct Item {
     pub kind: ItemKind,
 }
 
+/// A document's own Header switch (`EditorPaneMenuToggle` with `icon`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Switch {
+    pub id: &'static str,
+    pub icon: &'static str,
+    pub label: SharedString,
+    pub checked: bool,
+}
+
 /// What the pane's editor contributes (`EditorPaneMenuContribution` plus
 /// the find command and the external opener).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Contribution {
     pub segmented: Option<Segmented>,
+    pub toggles: Vec<Switch>,
     pub items: Vec<Item>,
     pub find: bool,
     pub open_external: bool,
@@ -446,7 +456,7 @@ pub fn menu(
         spread_radius: px(-2.),
         inset: false,
     };
-    let top = pane.origin.y + px(4. + 13. + 4.);
+    let top = px(4. + 13. + 4.);
     let surface = div()
         .id("desktop-editor-pane-menu")
         .track_focus(&chrome.focus)
@@ -506,7 +516,7 @@ pub fn menu(
         deferred(
             div()
                 .absolute()
-                .left(pane.origin.x + px(8.))
+                .left(px(8.))
                 .w(pane.size.width - px(16.))
                 .top(top)
                 .flex()
@@ -541,6 +551,7 @@ mod tests {
                 ],
                 value: "live",
             }),
+            toggles: vec![],
             items: vec![
                 Item {
                     id: "toggle",

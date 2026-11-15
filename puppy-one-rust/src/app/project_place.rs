@@ -387,7 +387,6 @@ impl WindowCloud {
             .flex_shrink(4.)
             .text_size(px(ty.content))
             .line_height(px(ty.line_height))
-            .font_weight(FontWeight::MEDIUM)
             .trailing(
                 h_flex()
                     .min_w_0()

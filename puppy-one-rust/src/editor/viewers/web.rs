@@ -49,6 +49,39 @@ impl WebFrame {
             None => false,
         }
     }
+    /// Captures a PNG snapshot of the visible WebView (optionally cropped to
+    /// `crop` over `viewport`). Returns `false` if the native engine is not mounted.
+    pub fn capture_png(
+        &self,
+        crop: Option<(f32, f32, f32, f32)>,
+        viewport: Option<(f32, f32)>,
+        done: impl FnOnce(Option<Vec<u8>>) + 'static,
+    ) -> bool {
+        if let Some(host) = &self.host {
+            host.capture_png(crop, viewport, done);
+            return true;
+        }
+        #[cfg(any(test, feature = "test-support"))]
+        {
+            let img = image::RgbaImage::from_pixel(160, 120, image::Rgba([69, 153, 223, 255]));
+            let mut buf = std::io::Cursor::new(Vec::new());
+            let _ = image::DynamicImage::ImageRgba8(img).write_to(&mut buf, image::ImageFormat::Png);
+            let mut png = buf.into_inner();
+            if let Some(rect) = crop {
+                let vp = viewport.unwrap_or((160., 120.));
+                if let Some(cropped) = crate::web_host::crop_png_bytes(&png, rect, vp) {
+                    png = cropped;
+                }
+            }
+            done(Some(png));
+            true
+        }
+        #[cfg(not(any(test, feature = "test-support")))]
+        {
+            let _ = (crop, viewport, done);
+            false
+        }
+    }
 }
 impl Render for WebFrame {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -62,6 +95,7 @@ impl Render for WebFrame {
                 Err(error) => self.failed = Some(error),
             }
         }
+        crate::web_host::frame_drawn(window);
         if let Some(error) = self.failed.clone() {
             return div()
                 .size_full()
@@ -80,26 +114,29 @@ impl Render for WebFrame {
             .relative()
             .size_full()
             .bg(p.canvas)
-            .child(
-                div()
-                    .absolute()
-                    .size_full()
-                    .flex()
-                    .flex_col()
-                    .items_center()
-                    .justify_center()
-                    .gap(px(8.))
-                    .text_size(px(theme::ty().ui.meta))
-                    .text_color(p.subtle)
-                    .child(LoadingMark::new("web-pending"))
-                    .child(t("editor.preview.loading")),
-            )
+            .when(host.is_none(), |d| {
+                d.child(
+                    div()
+                        .absolute()
+                        .size_full()
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .justify_center()
+                        .gap(px(8.))
+                        .text_size(px(theme::ty().ui.meta))
+                        .text_color(p.subtle)
+                        .child(LoadingMark::new("web-pending"))
+                        .child(t("editor.preview.loading")),
+                )
+            })
             .child(
                 canvas(
                     |_, _, _| {},
-                    move |bounds, _, _, _| {
+                    move |bounds, _, window, _| {
                         if let Some(host) = &host {
                             host.place(bounds);
+                            crate::web_host::frame_drawn(window);
                         }
                     },
                 )

@@ -13,6 +13,7 @@ impl Language {
             "py" => Some("python"),
             "bash" | "zsh" | "sh" => Some("shell"),
             "yml" => Some("yaml"),
+            "md" => Some("markdown"),
             "text" | "txt" => Some("plaintext"),
             value => Some(
                 [
@@ -22,6 +23,7 @@ impl Language {
                     "json",
                     "jsx",
                     "less",
+                    "markdown",
                     "plaintext",
                     "python",
                     "scss",

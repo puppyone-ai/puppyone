@@ -227,6 +227,45 @@ impl WorkbenchLauncher {
             .cloned()
             .collect()
     }
+    /// Brand mark for the preferred/detected local Agent installation, or Built-in Agent.
+    pub(crate) fn preferred_chat_brand(&self) -> Option<&'static crate::ui::agent_brands::Brand> {
+        let visible = self.visible_installations();
+        if let Some(inst) = visible
+            .iter()
+            .find(|i| i.chat && !i.bundled())
+            .or_else(|| visible.iter().find(|i| i.chat))
+            && let Some(brand) =
+                crate::ui::agent_brands::resolve(Some(inst.id), None, Some(inst.label.as_str()))
+        {
+            return Some(brand);
+        }
+        crate::ui::agent_brands::get("built-in-agent")
+    }
+    /// Launches a fresh preferred/detected local Agent chat tab in `(group, tab)`.
+    pub(crate) fn launch_preferred_chat(
+        &mut self,
+        group: Id,
+        tab: Option<Id>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::agent::connections::legacy_runtime_registry::Runtime;
+        let visible = self.visible_installations();
+        let installation = visible
+            .iter()
+            .find(|i| i.chat && !i.bundled())
+            .or_else(|| visible.iter().find(|i| i.chat))
+            .cloned()
+            .unwrap_or_else(|| Installation {
+                runtime: Runtime::PuppyOne,
+                id: agents::BUILT_IN_AGENT_ID,
+                label: agents::BUILT_IN_AGENT_LABEL.into(),
+                executable: PathBuf::new(),
+                chat: true,
+            });
+        self.chat_mode = true;
+        self.launch(group, tab, Some(installation), window, cx);
+    }
     /// `discovery.refresh`: rescan local agent installations.
     fn rescan(&mut self, cx: &mut Context<Self>) {
         if self.scanning {

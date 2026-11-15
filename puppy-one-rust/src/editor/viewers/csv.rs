@@ -116,6 +116,7 @@ impl ViewerSurface for CsvSurface {
             .collect();
         PaneEntries {
             segmented: None,
+            toggles: vec![],
             items,
             find: true,
         }

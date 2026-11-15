@@ -92,6 +92,7 @@ pub(super) struct RightSidebar {
     surface: Surface,
     /// The stored surface has been applied (once, when preferences load).
     restored: bool,
+    file_mode: bool,
 }
 impl EventEmitter<SidebarEvent> for RightSidebar {}
 
@@ -172,6 +173,7 @@ impl RightSidebar {
             panes,
             surface,
             restored: false,
+            file_mode: false,
         };
         let shown = Shown::of(&preferences.read(cx).state);
         sidebar.show(&shown, cx);
@@ -227,6 +229,60 @@ impl RightSidebar {
     pub fn reload_agent_configuration(&self, cx: &mut App) {
         self.launcher
             .update(cx, |l, cx| l.reload_model_connections(cx));
+    }
+
+    /// Binds only the local Agent workbench to an HTML File Mode window's
+    /// parent folder (never Git source control or stored surface switches).
+    pub fn enter_file_mode(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        self.file_mode = true;
+        self.restored = true;
+        self.surface = Surface::Agent;
+        self.launcher.update(cx, |l, cx| l.show_local(root, cx));
+        cx.notify();
+    }
+
+    /// Brand mark for the active chat tab or preferred local Agent installation.
+    pub fn active_agent_brand(&self, cx: &App) -> Option<&'static crate::ui::agent_brands::Brand> {
+        use crate::features::workbench::ItemKind;
+        if let Some(snap) = self
+            .workbench
+            .read(cx)
+            .active_item_snapshot(ItemKind::Chat, cx)
+            && let Some(brand) = crate::ui::agent_brands::resolve(
+                None,
+                snap.icon_key.as_deref(),
+                Some(snap.title.as_str()),
+            )
+        {
+            return Some(brand);
+        }
+        self.launcher.read(cx).preferred_chat_brand()
+    }
+
+    /// Ensures an active `ItemKind::Chat` tab is open in the current project
+    /// and returns its [`crate::features::desktop_agent::AgentChatTabPanel`].
+    pub fn ensure_active_chat(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<Entity<crate::features::desktop_agent::AgentChatTabPanel>> {
+        use crate::features::desktop_agent::AgentChatTabPanel;
+        use crate::features::workbench::ItemKind;
+        let (existing, slot) = self
+            .workbench
+            .update(cx, |w, cx| w.ensure_item_view(ItemKind::Chat, window, cx));
+        if let Some(view) = existing {
+            return view.downcast::<AgentChatTabPanel>().ok();
+        }
+        let (group, launcher_tab) = slot?;
+        self.launcher.update(cx, |l, cx| {
+            l.launch_preferred_chat(group, launcher_tab, window, cx)
+        });
+        self.workbench
+            .read(cx)
+            .active_item_view(ItemKind::Chat)?
+            .downcast::<AgentChatTabPanel>()
+            .ok()
     }
 
     // ------------------------------------------------------- Header entries
@@ -354,6 +410,9 @@ impl RightSidebar {
     }
     /// Store the surface (`setRightSidebarSurface`).
     pub fn store(&self, cx: &mut App) {
+        if self.file_mode {
+            return;
+        }
         let Some(surface) = self.stored(cx) else {
             return;
         };

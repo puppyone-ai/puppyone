@@ -73,12 +73,14 @@ fn ask(question: Question, cx: &mut App) {
                             .variant(ButtonVariant::Secondary)
                             .label(decline.clone())
                             .track_focus(&decline_focus)
+                            .debug_selector(|| "viewer-question-decline".into())
                             .on_click(move |_, _, cx| on_decline(false, cx)),
                     )
                     .footer(
                         Button::new("viewer-question-accept")
                             .variant(ButtonVariant::Solid)
                             .label(accept.clone())
+                            .debug_selector(|| "viewer-question-accept".into())
                             .on_click(move |_, _, cx| on_accept(true, cx)),
                     )
                     .into_any_element()

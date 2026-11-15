@@ -127,8 +127,11 @@ function App() {
     return () => { window.__puppyoneHtmlVisual = undefined; };
   }, []);
   const unavailable = useCallback(() => post({ type: "unavailable" }), []);
+  const selectRange = useCallback((range: { from: number; to: number } | null) => {
+    post({ type: "selectRange", from: range?.from ?? null, to: range?.to ?? null });
+  }, []);
   const surface = <HtmlVisualSurface model={model} path={boot.name} title={boot.name} fileUrl={boot.fileUrl}
-    canEdit={canEdit} registerPrepare={registerPrepare} onUnavailable={unavailable} />;
+    canEdit={canEdit} registerPrepare={registerPrepare} onUnavailable={unavailable} onSelectRange={selectRange} />;
   return <section className="editor-host html-document-editor">
     {boot.canImport ? <DocumentAssetImportBoundary port={assets}>{surface}</DocumentAssetImportBoundary> : surface}
   </section>;

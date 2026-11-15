@@ -13,6 +13,7 @@
 use super::{
     html_page::{self, Folder},
     html_preview,
+    html_tools::{HtmlJsError, HtmlToolAction, HtmlToolEvent, HtmlToolMode, HtmlToolSnapshot},
     web::WebFrame,
 };
 use crate::{
@@ -85,6 +86,9 @@ pub fn preview_html(text: &str, csp: &str, scripts: &str) -> String {
     html_preview::interactive_document(text, &base, csp, &extra)
 }
 
+type EditCallback = Rc<dyn Fn(&mut App)>;
+type FullpageSlices = (u64, Vec<(f32, Vec<u8>)>);
+
 #[derive(Default)]
 struct State {
     access: Access,
@@ -93,8 +97,13 @@ struct State {
     asking: bool,
     references: Option<ReferenceContext>,
     events: Option<SurfaceEvents>,
+    on_edit: Option<EditCallback>,
     /// The shown page's messages.
     inbox: Option<Task<()>>,
+    tool_mode: HtmlToolMode,
+    js_errors: Vec<HtmlJsError>,
+    has_annotations: bool,
+    fullpage_slices: Option<FullpageSlices>,
 }
 
 /// Interact's page and its decisions, shared by the surface and the Edit
@@ -114,6 +123,7 @@ pub(super) struct Inner {
     /// or a hosted document has none, and never asks.
     workspace: Option<Arc<Workspace>>,
     name: Rc<RefCell<String>>,
+    file_mode: bool,
     window: AnyWindowHandle,
     pub notice: Rc<RefCell<Option<SharedString>>>,
     state: RefCell<State>,
@@ -145,6 +155,7 @@ impl Interact {
             assets,
             workspace: workspace.filter(|w| w.local_root().is_some()),
             name: Rc::new(RefCell::new(name)),
+            file_mode: request.file_mode,
             window: window.window_handle(),
             notice: Rc::default(),
             state: RefCell::default(),
@@ -167,6 +178,9 @@ impl Interact {
     }
     pub fn set_events(&self, events: SurfaceEvents) {
         self.state.borrow_mut().events = Some(events);
+    }
+    pub fn set_on_edit(&self, on_edit: Rc<dyn Fn(&mut App)>) {
+        self.state.borrow_mut().on_edit = Some(on_edit);
     }
     /// What Interact shows now.
     pub fn element(&self) -> AnyElement {
@@ -381,6 +395,15 @@ impl Interact {
             scripts.push_str(&html_page::folder_script(&name, storage));
         }
         scripts.push_str(&html_page::link_script(page_url.as_deref()));
+        if self.file_mode {
+            let mut st = self.state.borrow_mut();
+            st.tool_mode = HtmlToolMode::None;
+            st.js_errors.clear();
+            st.has_annotations = false;
+            st.fullpage_slices = None;
+            drop(st);
+            scripts.push_str(&super::html_tools::injected_head_bundle());
+        }
         let (csp, policy) = if offline {
             (html_page::OFFLINE_CSP, html_page::OFFLINE_HEADER)
         } else {
@@ -424,6 +447,297 @@ impl Interact {
             }
         });
         self.state.borrow_mut().inbox = Some(inbox);
+        if self.file_mode {
+            self.emit_tool(HtmlToolEvent::StateChanged, cx);
+        }
+        self.redraw(cx);
+    }
+    pub fn tool_snapshot(&self, visual_edit: bool, source_open: bool) -> HtmlToolSnapshot {
+        let st = self.state.borrow();
+        HtmlToolSnapshot {
+            mode: st.tool_mode,
+            js_errors: st.js_errors.clone(),
+            has_annotations: st.has_annotations,
+            visual_edit,
+            source_open,
+        }
+    }
+    pub fn set_tool_mode(&self, mode: HtmlToolMode, cx: &mut App) {
+        if !self.file_mode {
+            return;
+        }
+        {
+            let mut st = self.state.borrow_mut();
+            if st.tool_mode == mode {
+                return;
+            }
+            st.tool_mode = mode;
+        }
+        let script = format!(
+            "window.__puppyoneHtmlTools&&window.__puppyoneHtmlTools.setMode('{}')",
+            mode.as_js_name()
+        );
+        self.frame.read(cx).evaluate(&script);
+        self.emit_tool(HtmlToolEvent::StateChanged, cx);
+    }
+    pub fn trigger_tool_action(&self, action: HtmlToolAction, cx: &mut App) {
+        if !self.file_mode {
+            return;
+        }
+        match action {
+            HtmlToolAction::ReloadAndReset => {
+                {
+                    let mut st = self.state.borrow_mut();
+                    st.tool_mode = HtmlToolMode::None;
+                    st.js_errors.clear();
+                    st.has_annotations = false;
+                    st.fullpage_slices = None;
+                }
+                self.refresh(cx);
+                self.emit_tool(HtmlToolEvent::StateChanged, cx);
+            }
+            HtmlToolAction::ClearAnnotations => {
+                self.state.borrow_mut().has_annotations = false;
+                self.frame.read(cx).evaluate(
+                    "window.__puppyoneHtmlTools&&window.__puppyoneHtmlTools.clearAnnotations()",
+                );
+                self.emit_tool(HtmlToolEvent::StateChanged, cx);
+            }
+            HtmlToolAction::ClearErrors => {
+                self.state.borrow_mut().js_errors.clear();
+                self.emit_tool(HtmlToolEvent::StateChanged, cx);
+            }
+            HtmlToolAction::CaptureFullPage => {
+                self.state.borrow_mut().tool_mode = HtmlToolMode::None;
+                self.emit_tool(HtmlToolEvent::StateChanged, cx);
+                let ran = self.frame.read(cx).evaluate(
+                    "window.__puppyoneHtmlTools&&window.__puppyoneHtmlTools.captureFullPage()",
+                );
+                if !ran {
+                    self.capture_single_png(
+                        None,
+                        None,
+                        "copy-screenshot".into(),
+                        "full-page".into(),
+                        0,
+                        cx,
+                    );
+                }
+            }
+        }
+    }
+    fn emit_tool(&self, event: HtmlToolEvent, cx: &mut App) {
+        let events = self.state.borrow().events.clone();
+        if let Some(events) = events {
+            events(SurfaceEvent::HtmlTool(event), cx);
+        }
+    }
+    fn capture_single_png(
+        &self,
+        crop: Option<(f32, f32, f32, f32)>,
+        viewport: Option<(f32, f32)>,
+        purpose: String,
+        label: String,
+        stroke_count: usize,
+        cx: &mut App,
+    ) {
+        let (tx, rx) = async_channel::bounded::<Option<Vec<u8>>>(1);
+        let started = self.frame.read(cx).capture_png(crop, viewport, move |bytes| {
+            let _ = tx.try_send(bytes);
+        });
+        if !started {
+            return;
+        }
+        let this = self.clone();
+        cx.spawn(async move |cx| {
+            let bytes = rx.recv().await.ok().flatten();
+            cx.update(|cx| {
+                this.frame.read(cx).evaluate(
+                    "window.__puppyoneHtmlTools&&window.__puppyoneHtmlTools.restoreChrome()",
+                );
+                let Some(png) = bytes else {
+                    return;
+                };
+                match purpose.as_str() {
+                    "send-annotated" => {
+                        this.emit_tool(
+                            HtmlToolEvent::SendAnnotatedToAgent { png, stroke_count },
+                            cx,
+                        );
+                    }
+                    _ => {
+                        this.emit_tool(HtmlToolEvent::CopyScreenshot { png, label }, cx);
+                    }
+                }
+            });
+        })
+        .detach();
+    }
+    fn receive_tool(&self, message: &serde_json::Value, cx: &mut App) {
+        if !self.file_mode {
+            return;
+        }
+        match message["kind"].as_str() {
+            Some("js-error") => {
+                let text = message["message"].as_str().unwrap_or_default().trim();
+                if text.is_empty() {
+                    return;
+                }
+                let line = message["line"].as_u64().map(|n| n as u32);
+                let column = message["col"].as_u64().map(|n| n as u32);
+                let mut st = self.state.borrow_mut();
+                if st.js_errors.len() < 20 {
+                    st.js_errors.push(HtmlJsError {
+                        message: text.to_owned(),
+                        line,
+                        column,
+                    });
+                    drop(st);
+                    self.emit_tool(HtmlToolEvent::StateChanged, cx);
+                }
+            }
+            Some("state") => {
+                let next_mode = HtmlToolMode::from_js_name(message["mode"].as_str().unwrap_or(""));
+                let has_annotations = message["hasAnnotations"].as_bool().unwrap_or(false);
+                let changed = {
+                    let mut st = self.state.borrow_mut();
+                    let diff = st.tool_mode != next_mode || st.has_annotations != has_annotations;
+                    st.tool_mode = next_mode;
+                    st.has_annotations = has_annotations;
+                    diff
+                };
+                if changed {
+                    self.emit_tool(HtmlToolEvent::StateChanged, cx);
+                }
+            }
+            Some("picked") => {
+                self.state.borrow_mut().tool_mode = HtmlToolMode::None;
+                let selector = message["selector"].as_str().unwrap_or("div").to_owned();
+                let tag = message["tag"].as_str().unwrap_or("div").to_owned();
+                let id = message["id"].as_str().unwrap_or_default().to_owned();
+                let classes: Vec<String> = message["classes"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(str::to_owned))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let index = message["index"].as_u64().unwrap_or(0) as usize;
+                let text_preview = message["text"].as_str().unwrap_or_default().to_owned();
+                let html_snippet = message["html"].as_str().unwrap_or_default().to_owned();
+                let raw_source = self.source.text(cx).unwrap_or_default();
+                let lines = super::html_tools::locate_element_lines(
+                    &raw_source,
+                    &tag,
+                    &id,
+                    &classes,
+                    &text_preview,
+                    index,
+                );
+                self.emit_tool(HtmlToolEvent::StateChanged, cx);
+                self.emit_tool(
+                    HtmlToolEvent::ElementPicked {
+                        selector,
+                        tag,
+                        lines,
+                        text_preview,
+                        html_snippet,
+                    },
+                    cx,
+                );
+            }
+            Some("snapshot") => {
+                let purpose = message["purpose"]
+                    .as_str()
+                    .unwrap_or("copy-screenshot")
+                    .to_owned();
+                let crop = message["crop"].as_array().and_then(|a| {
+                    if a.len() == 4 {
+                        Some((
+                            a[0].as_f64()? as f32,
+                            a[1].as_f64()? as f32,
+                            a[2].as_f64()? as f32,
+                            a[3].as_f64()? as f32,
+                        ))
+                    } else {
+                        None
+                    }
+                });
+                let viewport = message["viewport"].as_array().and_then(|a| {
+                    if a.len() == 2 {
+                        Some((a[0].as_f64()? as f32, a[1].as_f64()? as f32))
+                    } else {
+                        None
+                    }
+                });
+                let label = message["label"].as_str().unwrap_or("PNG").to_owned();
+                let stroke_count = message["strokeCount"].as_u64().unwrap_or(0) as usize;
+                self.capture_single_png(crop, viewport, purpose, label, stroke_count, cx);
+            }
+            Some("fullpage-slice") => {
+                let Some(id) = message["id"].as_u64() else {
+                    return;
+                };
+                let index = message["index"].as_u64().unwrap_or(0) as usize;
+                let count = message["count"].as_u64().unwrap_or(1) as usize;
+                let scroll_y = message["scrollY"].as_f64().unwrap_or(0.) as f32;
+                let total_h = message["totalHeight"].as_f64().unwrap_or(1.) as f32;
+                let vh = message["viewportHeight"].as_f64().unwrap_or(1.) as f32;
+                let vw = message["viewportWidth"].as_f64().unwrap_or(1.) as f32;
+                let (tx, rx) = async_channel::bounded::<Option<Vec<u8>>>(1);
+                let started = self
+                    .frame
+                    .read(cx)
+                    .capture_png(None, Some((vw, vh)), move |bytes| {
+                        let _ = tx.try_send(bytes);
+                    });
+                if !started {
+                    return;
+                }
+                let this = self.clone();
+                cx.spawn(async move |cx| {
+                    let bytes = rx.recv().await.ok().flatten();
+                    cx.update(|cx| {
+                        if let Some(png) = bytes {
+                            let mut st = this.state.borrow_mut();
+                            if st.fullpage_slices.as_ref().is_none_or(|(jid, _)| *jid != id) {
+                                st.fullpage_slices = Some((id, Vec::new()));
+                            }
+                            if let Some((_, list)) = &mut st.fullpage_slices {
+                                list.push((scroll_y, png));
+                            }
+                        }
+                        let next_js = format!(
+                            "window.__puppyoneHtmlTools&&window.__puppyoneHtmlTools.nextSlice({id})"
+                        );
+                        this.frame.read(cx).evaluate(&next_js);
+                        if index + 1 >= count {
+                            let slices = this
+                                .state
+                                .borrow_mut()
+                                .fullpage_slices
+                                .take()
+                                .map(|(_, list)| list)
+                                .unwrap_or_default();
+                            if let Some(stitched) =
+                                crate::web_host::stitch_png_slices(&slices, total_h, vh)
+                            {
+                                this.emit_tool(
+                                    HtmlToolEvent::CopyScreenshot {
+                                        png: stitched,
+                                        label: format!("{}×{}", vw as u32, total_h as u32),
+                                    },
+                                    cx,
+                                );
+                            }
+                        }
+                    });
+                })
+                .detach();
+            }
+            _ => {}
+        }
     }
     fn receive(
         &self,
@@ -433,6 +747,11 @@ impl Interact {
         cx: &mut App,
     ) {
         match message["type"].as_str() {
+            Some("edit") => {
+                if let Some(on_edit) = self.state.borrow().on_edit.clone() {
+                    on_edit(cx);
+                }
+            }
             Some("link") => {
                 if let Some(href) = message["href"].as_str() {
                     self.follow(href, base.as_deref(), folder.is_some(), cx);
@@ -480,6 +799,7 @@ impl Interact {
                     )
                     .detach();
             }
+            Some("po-tool") => self.receive_tool(&message, cx),
             _ => {}
         }
     }
@@ -545,7 +865,7 @@ impl Interact {
         }
     }
     /// A message from the page, as its web view would post it.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn deliver(&self, body: &str, cx: &mut App) {
         let text = self.source.text(cx).unwrap_or_default();
         let folder = self.bridge().filter(|_| self.access() == Access::Allowed);
@@ -553,7 +873,7 @@ impl Interact {
             self.receive(message, html_preview::base_href(&text), folder, cx);
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn notice(&self) -> Option<SharedString> {
         self.notice.borrow().clone()
     }
@@ -561,7 +881,11 @@ impl Interact {
         *self.notice.borrow_mut() = Some(t(&format!("editor.html.linkFailure.{reason}")).into());
         self.redraw(cx);
     }
-    fn redraw(&self, cx: &mut App) {
+    pub fn redraw(&self, cx: &mut App) {
+        let events = self.state.borrow().events.clone();
+        if let Some(events) = events {
+            events(SurfaceEvent::Redraw, cx);
+        }
         let _ = cx.update_window(self.window, |_, window, _| window.refresh());
     }
 }

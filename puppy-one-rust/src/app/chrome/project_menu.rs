@@ -66,8 +66,7 @@ impl WindowChrome {
             .min_w_0()
             .px(px(6.))
             .text_size(px(ty.content))
-            .line_height(px(ty.line_height))
-            .font_weight(FontWeight::MEDIUM);
+            .line_height(px(ty.line_height));
         let items = self.owners.home.read(cx).project_items(cx);
         let cloud = self.owners.cloud.read(cx);
         let place = cloud.place_menu(&items, cx).filter(|_| opening.is_none());
@@ -110,8 +109,7 @@ impl WindowChrome {
             .label(tr("shell.brand.name"))
             .px(px(6.))
             .text_size(px(ty.content))
-            .line_height(px(ty.line_height))
-            .font_weight(FontWeight::MEDIUM);
+            .line_height(px(ty.line_height));
         self.header_popover(Popover::Brand, button, cx)
             .into_any_element()
     }
