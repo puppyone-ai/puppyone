@@ -150,6 +150,11 @@ pub(super) enum DialogEvent {
     ForgetProject(PathBuf),
     /// Settings changed the model connections: Agents read them again.
     ModelConfigurationChanged,
+    /// Settings › Computer updated a Cloud project's sandbox configuration.
+    CloudSandboxChanged {
+        project: String,
+        sandbox: crate::workspace::cloud::sandbox::CloudSandbox,
+    },
 }
 
 pub(super) struct DialogLayer {
@@ -204,6 +209,12 @@ impl DialogLayer {
                     cx.emit(DialogEvent::FolderSharing {
                         folder: folder.clone(),
                         name: name.clone(),
+                    });
+                }
+                SettingsEvent::CloudSandboxChanged { project, sandbox } => {
+                    cx.emit(DialogEvent::CloudSandboxChanged {
+                        project: project.clone(),
+                        sandbox: sandbox.clone(),
                     });
                 }
             }
@@ -394,6 +405,11 @@ impl DialogLayer {
     /// The project root the Settings page reads (`Project` settings).
     pub fn set_root(&mut self, root: Option<PathBuf>, cx: &mut Context<Self>) {
         self.settings.update(cx, |s, cx| s.set_root(root, cx));
+    }
+    /// The hosted Cloud project the Settings page reads (`Computer` settings).
+    pub fn set_cloud_project(&mut self, project: Option<String>, cx: &mut Context<Self>) {
+        self.settings
+            .update(cx, |s, cx| s.set_cloud_project(project, cx));
     }
     /// The Documents error over everything (`None` when it cleared), and
     /// whether the failed file operation behind a notice can run again.

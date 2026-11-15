@@ -93,7 +93,11 @@ impl Shell {
             }
             self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
             let root = ws.local_root().map(PathBuf::from);
-            self.dialogs.update(cx, |d, cx| d.set_root(root, cx));
+            let hosted = self.hosted_project(cx);
+            self.dialogs.update(cx, |d, cx| {
+                d.set_root(root, cx);
+                d.set_cloud_project(hosted, cx);
+            });
         }
         if let Some((path, result)) = pumped.children {
             explorer.update(cx, |e, cx| e.children_loaded(&path, result, cx));
@@ -241,11 +245,45 @@ impl Shell {
         self.chrome
             .update(cx, |c, cx| c.set_session(view.clone(), cx));
         let popover = self.chrome.read(cx).popover;
+        let sandbox = (!home && !self.file_mode())
+            .then(|| self.files(cx).workspace.as_ref()?.sandbox_target())
+            .flatten();
         self.cloud.update(cx, |c, cx| {
             c.set_session(view, cx);
             c.set_popover(popover, cx);
+            c.set_screen_target(sandbox, cx);
         });
         self.guard_cloud_history(cx);
+    }
+
+    /// What the Explorer shows of the shell (`Host`), handed over when it
+    /// changes: a document opens or closes, the folder picker opens, a pane
+    /// opens or closes, the window resizes. The frame is the Explorer's open
+    /// plane, which it keeps while its frame moves.
+    pub(in crate::app) fn push_explorer_host(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let size = window.viewport_size();
+        let (w, h) = (f32::from(size.width), f32::from(size.height));
+        let rail = self.chrome.read(cx).rail_width();
+        let panes = self.panes.read(cx);
+        let host = Host {
+            frame: panes.open_plane(Side::Start, w, h, rail),
+            open: panes.explorer().open,
+            opened: self
+                .files(cx)
+                .opened()
+                .map(|(_, relative)| relative.to_path_buf()),
+            open_resources: self.files(cx).open_paths(),
+            documents_busy: self.files(cx).busy(),
+            folder_busy: self.files(cx).folder_busy,
+            picking: self.session.project.read(cx).picking,
+        };
+        self.explorer
+            .view
+            .update(cx, |explorer, cx| explorer.set_host(host, cx));
     }
     /// Store the committed pane layout (`setExplorerWidth`,
     /// `setSidebarCollapsed`, `setRightSidebarWidth`).

@@ -62,6 +62,12 @@ impl Shell {
             }
             // Before any dialog's own handling: a dialog takes no ⌘W.
             Command::CloseEditorOrWindow => {
+                if self.cloud.read(cx).screen_shown(cx) {
+                    self.cloud.update(cx, |c, cx| c.close_screen(cx));
+                    self.gate_editors(window, cx);
+                    cx.notify();
+                    return;
+                }
                 if self.open_editors(cx).is_some() {
                     self.session
                         .docs
@@ -152,9 +158,13 @@ impl Shell {
                 Command::Settings if task == Task::Settings => self.close_tasks(cx),
                 Command::Settings => {
                     let root = self.workspace_root(cx);
+                    let hosted = (!self.home_visible(cx))
+                        .then(|| self.hosted_project(cx))
+                        .flatten();
                     self.dialogs.update(cx, |d, cx| {
                         d.feedback.update(cx, |f, cx| f.reset(cx));
                         d.set_root(root, cx);
+                        d.set_cloud_project(hosted, cx);
                         d.open(Modal::Task(Task::Settings), cx);
                     });
                     self.frame.focus.focus(window, cx);
@@ -169,6 +179,7 @@ impl Shell {
         match command {
             Command::Undo | Command::Redo => {
                 if !self.modal(cx)
+                    && !self.cloud.read(cx).screen_shown(cx)
                     && !self.files(cx).busy()
                     && let Some(id) = self.files(cx).document.as_ref().map(|doc| doc.id.clone())
                 {
@@ -182,10 +193,15 @@ impl Shell {
             }
             Command::Save => self.session.docs.update(cx, |d, _| d.begin(Intent::Save)),
             Command::Reload => self.session.docs.update(cx, |d, _| d.begin(Intent::Reload)),
-            Command::CloseFile => self
-                .session
-                .docs
-                .update(cx, |d, _| d.begin(Intent::CloseFile)),
+            Command::CloseFile => {
+                if self.cloud.read(cx).screen_shown(cx) {
+                    self.cloud.update(cx, |c, cx| c.close_screen(cx));
+                } else {
+                    self.session
+                        .docs
+                        .update(cx, |d, _| d.begin(Intent::CloseFile));
+                }
+            }
             // Pane menu "Open in default app" (`EditorPaneActionsMenu`).
             Command::OpenExternal => {
                 if let (Some(ws), Some((_, relative))) =
@@ -224,8 +240,12 @@ impl Shell {
                 self.set_popover(None, cx);
                 self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
                 let root = self.workspace_root(cx);
+                let hosted = (!self.home_visible(cx))
+                    .then(|| self.hosted_project(cx))
+                    .flatten();
                 self.dialogs.update(cx, |d, cx| {
                     d.set_root(root, cx);
+                    d.set_cloud_project(hosted, cx);
                     d.open(Modal::Task(Task::Settings), cx)
                 });
                 self.focus_dialogs(window, cx);
@@ -258,6 +278,8 @@ impl Shell {
                 if !self.home_visible(cx) {
                     self.home.update(cx, |h, _| h.hold_list());
                 }
+                self.dialogs
+                    .update(cx, |d, cx| d.set_cloud_project(None, cx));
                 self.session.project.update(cx, |p, cx| {
                     p.leave_device(cx);
                     p.home = true;
@@ -318,7 +340,12 @@ impl Shell {
             Command::ToggleMarkdownSource => {
                 let front = self.editor.read(cx).front.clone();
                 let markdown = front.read(cx).viewer_id() == Some("markdown");
-                if markdown && !self.files(cx).busy() && !self.modal(cx) && !self.home_visible(cx) {
+                if markdown
+                    && !self.files(cx).busy()
+                    && !self.modal(cx)
+                    && !self.home_visible(cx)
+                    && !self.cloud.read(cx).screen_shown(cx)
+                {
                     front.update(cx, |s, cx| s.command("source", window, cx));
                 }
             }
@@ -403,7 +430,7 @@ impl Shell {
     /// A project's editor tabs and the active one's index, while they show
     /// (`activeView === "data"` with editors): what ⌘W and ⌃Tab act on.
     pub(in crate::app) fn open_editors(&self, cx: &App) -> Option<(Vec<String>, usize)> {
-        if self.file_mode() || self.home_visible(cx) {
+        if self.file_mode() || self.home_visible(cx) || self.cloud.read(cx).screen_shown(cx) {
             return None;
         }
         let catalog = &self.files(cx).state()?.catalog;

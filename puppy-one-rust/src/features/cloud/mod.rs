@@ -14,6 +14,7 @@ mod clients;
 mod managed_compute;
 mod publish;
 mod repository;
+mod screen;
 mod spaces;
 mod workspace_agents;
 
@@ -31,6 +32,7 @@ pub use managed_compute::{Reason as ComputeReason, global as global_compute, mon
 pub use publish::install_factory;
 pub use publish::{CloudPublish, HeaderStatus, Organizations};
 pub use repository::RepositoryCloud;
+pub use screen::{CloudScreen, CloudScreenEvent};
 pub use spaces::{
     CloudSpaces, Status as SpacesStatus, global as global_spaces, mark as space_mark,
     name as space_name, plan_badge as space_plan_badge, read as global_spaces_read,

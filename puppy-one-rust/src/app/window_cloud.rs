@@ -20,10 +20,13 @@ use super::{
 use crate::features::cloud::CloudAgents;
 use crate::features::cloud::CloudCatalog;
 use crate::features::cloud::CloudPublish;
+use crate::features::cloud::CloudScreen;
+use crate::features::cloud::CloudScreenEvent;
 use crate::features::cloud::RepositoryCloud;
 use crate::features::settings::{Page, PreferencesStore};
 use crate::features::source_control::SourceControl;
 use crate::workspace::cloud::opening::Failure;
+use crate::workspace::cloud::sandbox::{CloudSandbox, SandboxTarget};
 use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
 
@@ -39,6 +42,10 @@ pub(super) enum CloudEvent {
     Error(String),
     /// `CreateTeamDialog` made this space.
     SpaceCreated(String),
+    /// `CloudScreen`'s `Wake it` action asked to wake and reopen the workspace.
+    WakeWorkspace,
+    /// `CloudScreen` entered or left the main editor area.
+    ScreenVisibilityChanged,
 }
 
 pub(super) struct WindowCloud {
@@ -62,6 +69,8 @@ pub(super) struct WindowCloud {
     pub repository: Entity<RepositoryCloud>,
     /// Who is in the hosted Project (`useWorkspaceAgents`).
     pub agents: Entity<CloudAgents>,
+    /// Cloud Computer Screen (`CloudComputerScreen.tsx`).
+    pub screen: Entity<CloudScreen>,
     pub agents_anchor: AgentsAnchor,
     /// The card under the Header face pointed at.
     pub(super) agent_cards: AgentCards,
@@ -128,6 +137,13 @@ impl WindowCloud {
         cx.observe(&repository, |s, _, cx| s.refresh(cx)).detach();
         let agents = cx.new(|_| CloudAgents::new());
         cx.observe(&agents, |s, _, cx| s.refresh(cx)).detach();
+        let screen = cx.new(|cx| CloudScreen::new(preferences.clone(), window, cx));
+        cx.subscribe(&screen, |_, _, event: &CloudScreenEvent, cx| match event {
+            CloudScreenEvent::WakeWorkspace => cx.emit(CloudEvent::WakeWorkspace),
+            CloudScreenEvent::VisibilityChanged => cx.emit(CloudEvent::ScreenVisibilityChanged),
+        })
+        .detach();
+        cx.observe(&screen, |_, _, cx| cx.notify()).detach();
         cx.observe(&catalog, |_, _, cx| cx.notify()).detach();
         cx.observe(&source_control, |_, _, cx| cx.notify()).detach();
         // Cloud turned on or off, Share, the account: everything follows.
@@ -174,6 +190,7 @@ impl WindowCloud {
             publish_reported: None,
             repository,
             agents,
+            screen,
             agents_anchor: Default::default(),
             agent_cards: Default::default(),
             deny_focus: cx.focus_handle(),
@@ -423,6 +440,24 @@ impl WindowCloud {
     /// A returning window may probe the Cloud association once.
     pub fn probe(&mut self, cx: &mut Context<Self>) {
         self.repository.update(cx, |r, cx| r.probe(cx));
+    }
+
+    // --------------------------------------------------------- computer screen
+    pub fn screen_thumbnail(&self, cx: &App) -> Option<AnyElement> {
+        self.screen.read(cx).render_thumbnail(&self.screen, cx)
+    }
+    pub fn screen_shown(&self, cx: &App) -> bool {
+        self.screen.read(cx).is_shown(cx)
+    }
+    pub fn close_screen(&mut self, cx: &mut Context<Self>) {
+        self.screen.update(cx, |s, cx| s.close(cx));
+    }
+    pub fn set_screen_target(&mut self, target: Option<SandboxTarget>, cx: &mut Context<Self>) {
+        self.screen.update(cx, |s, cx| s.set_target(target, cx));
+    }
+    pub fn sync_sandbox(&mut self, project: &str, sandbox: CloudSandbox, cx: &mut Context<Self>) {
+        self.screen
+            .update(cx, |s, cx| s.sync_sandbox(project, sandbox, cx));
     }
 
     // -------------------------------------------------------------- dialogs

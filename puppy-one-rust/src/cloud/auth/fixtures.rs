@@ -9,6 +9,9 @@ use std::sync::{
 type Hook = Arc<dyn Fn() + Send + Sync>;
 /// Answers API requests in place of the fixed `{"ok":true}`.
 pub type Responder = Arc<dyn Fn(&ApiRequest) -> Result<serde_json::Value> + Send + Sync>;
+/// Answers ticketed screen WebSocket opens in tests.
+pub type ScreenResponder =
+    Arc<dyn Fn(&url::Url, (&str, &str)) -> Result<super::ScreenSocket> + Send + Sync>;
 #[derive(Default)]
 pub(super) struct MemoryStore {
     pub saved: Mutex<Option<Credential>>,
@@ -59,6 +62,7 @@ pub(super) struct FakeRemote {
     pub fail_initialize: AtomicBool,
     pub fail_logout: AtomicBool,
     pub responder: Mutex<Option<Responder>>,
+    pub screen_responder: Mutex<Option<ScreenResponder>>,
 }
 impl Default for FakeRemote {
     fn default() -> Self {
@@ -82,6 +86,7 @@ impl Default for FakeRemote {
             fail_logout: AtomicBool::new(false),
             logout_hook: Mutex::default(),
             responder: Mutex::default(),
+            screen_responder: Mutex::default(),
         }
     }
 }
@@ -200,6 +205,19 @@ impl Remote for FakeRemote {
         }
         Ok(serde_json::json!({"ok":true}))
     }
+    fn screen_stream(
+        &self,
+        url: &url::Url,
+        protocols: (&str, &str),
+        fence: &Fence,
+    ) -> Result<super::ScreenSocket> {
+        fence.check()?;
+        let responder = self.screen_responder.lock().unwrap().clone();
+        match responder {
+            Some(responder) => responder(url, protocols),
+            None => Err(Error::Unsupported),
+        }
+    }
 }
 pub(super) fn env() -> Environment {
     Environment::new("http://127.0.0.1:18080/api/v1", "http://127.0.0.1:13000").unwrap()
@@ -294,6 +312,21 @@ pub fn responding_account_fixture(
 ) {
     let remote = FakeRemote::default();
     *remote.responder.lock().unwrap() = Some(responder);
+    let pair = Broker::new(env(), Arc::new(remote), Arc::new(MemoryStore::default()));
+    login(&pair.0, "alice").unwrap();
+    pair
+}
+/// A signed-in account whose API and screen-stream answers come from test responders.
+pub fn responding_screen_account_fixture(
+    responder: Responder,
+    screen: ScreenResponder,
+) -> (
+    Arc<Broker>,
+    async_channel::Receiver<super::service::BrowserEvent>,
+) {
+    let remote = FakeRemote::default();
+    *remote.responder.lock().unwrap() = Some(responder);
+    *remote.screen_responder.lock().unwrap() = Some(screen);
     let pair = Broker::new(env(), Arc::new(remote), Arc::new(MemoryStore::default()));
     login(&pair.0, "alice").unwrap();
     pair

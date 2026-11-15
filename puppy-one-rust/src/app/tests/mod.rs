@@ -6,6 +6,7 @@ use gpui::EntityInputHandler;
 
 mod across_windows;
 mod cloud_opening;
+mod cloud_screen;
 mod cloud_share;
 mod dialog_layer;
 mod editing;

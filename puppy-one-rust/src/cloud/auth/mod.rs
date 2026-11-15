@@ -12,10 +12,14 @@ pub use service::{Broker, BrowserEvent};
 mod fixtures;
 #[cfg(any(test, feature = "test-support"))]
 pub use fixtures::{
-    Responder, SignInControl, account_fixture, protocol_fixture, refresh_token_broker, relogin,
-    responding_account_fixture, sign_in_fixture,
+    Responder, ScreenResponder, SignInControl, account_fixture, protocol_fixture,
+    refresh_token_broker, relogin, responding_account_fixture, responding_screen_account_fixture,
+    sign_in_fixture,
 };
-pub use transport::{BILLING_DISABLED, Cancellation, HostTunnel, ServiceCode, StreamEvent};
+pub use transport::{
+    BILLING_DISABLED, Cancellation, HostTunnel, ScreenReceiver, ScreenSender, ScreenSocket,
+    ServiceCode, StreamEvent,
+};
 #[cfg(test)]
 mod http_tests;
 #[cfg(test)]

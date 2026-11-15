@@ -18,6 +18,7 @@ pub mod pricing;
 pub mod publish;
 pub mod recovery;
 pub mod repository;
+pub mod sandbox;
 pub mod services;
 pub mod spaces;
 #[cfg(test)]
@@ -254,6 +255,15 @@ impl DataPort for Cloud {
             project: self.shared.runtime.project_id.clone(),
             workbench: self.shared.runtime.id.clone(),
             storage: self.shared.descriptor.storage.as_str().to_owned(),
+        })
+    }
+    fn sandbox_target(&self) -> Option<sandbox::SandboxTarget> {
+        Some(sandbox::SandboxTarget {
+            broker: self.shared.broker.clone(),
+            binding: self.shared.binding.clone(),
+            project: self.shared.runtime.project_id.clone(),
+            storage: self.shared.descriptor.storage.as_str().to_owned(),
+            sandbox: self.shared.sandbox.clone(),
         })
     }
     fn check_authority(&self) -> Result<()> {

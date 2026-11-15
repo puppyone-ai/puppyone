@@ -23,6 +23,14 @@ pub fn account_available(cx: &App) -> bool {
 pub fn cloud_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
     account_available(cx) && preferences.read(cx).state.experimental.cloud_workspace
 }
+pub fn cloud_screen_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
+    cloud_enabled(preferences, cx)
+        && preferences
+            .read(cx)
+            .state
+            .experimental
+            .cloud_computer_screen
+}
 /// `VITE_HOST_DEVICES_ENABLED`: whether a build offers the owner's other
 /// computers out of the box (the Settings switch can still turn them on).
 pub const HOST_DEVICES_BUILD: bool = option_env!("PUPPYONE_HOST_DEVICES_ENABLED").is_some();

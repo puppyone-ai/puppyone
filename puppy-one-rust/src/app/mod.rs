@@ -486,10 +486,12 @@ impl Shell {
         }
     }
     /// What the window holds over the editors: a dialog (here or in the
-    /// Agent workbench), the Homepage, the appearance.
+    /// Agent workbench), the Cloud Computer screen, the Homepage, the appearance.
     fn editor_gate(&self, cx: &App) -> editor_area::EditorGate {
         editor_area::EditorGate {
-            modal: self.modal(cx) || self.sidebar.read(cx).workbench.read(cx).dialog_open(),
+            modal: self.modal(cx)
+                || self.sidebar.read(cx).workbench.read(cx).dialog_open()
+                || self.cloud.read(cx).screen_shown(cx),
             home: self.home_visible(cx),
             dark: self.prefs.dark,
             theme: crate::editor::tokens::theme_key(),
@@ -527,31 +529,6 @@ impl Shell {
     /// The local project this window shows.
     pub fn workspace_root(&self, cx: &App) -> Option<PathBuf> {
         self.session.project.read(cx).root(cx)
-    }
-    /// What the Explorer shows of the shell (`Host`), handed over when it
-    /// changes: a document opens or closes, the folder picker opens, a pane
-    /// opens or closes, the window resizes. The frame is the Explorer's open
-    /// plane, which it keeps while its frame moves.
-    fn push_explorer_host(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let size = window.viewport_size();
-        let (w, h) = (f32::from(size.width), f32::from(size.height));
-        let rail = self.chrome.read(cx).rail_width();
-        let panes = self.panes.read(cx);
-        let host = Host {
-            frame: panes.open_plane(Side::Start, w, h, rail),
-            open: panes.explorer().open,
-            opened: self
-                .files(cx)
-                .opened()
-                .map(|(_, relative)| relative.to_path_buf()),
-            open_resources: self.files(cx).open_paths(),
-            documents_busy: self.files(cx).busy(),
-            folder_busy: self.files(cx).folder_busy,
-            picking: self.session.project.read(cx).picking,
-        };
-        self.explorer
-            .view
-            .update(cx, |explorer, cx| explorer.set_host(host, cx));
     }
     /// `DesktopSidebarFooterNavigation`: Settings, Help and the busy cue.
     fn footer(&self, cx: &mut Context<Self>) -> SidebarFooter {
@@ -651,6 +628,7 @@ impl Render for Shell {
         // surfaces painted in this frame stay visible.
         let overlay = !self.dialogs.read(cx).is_empty()
             || self.chrome.read(cx).popover.is_some()
+            || self.cloud.read(cx).screen_shown(cx)
             || self
                 .file
                 .as_ref()
@@ -716,8 +694,9 @@ impl Render for Shell {
                     explorer.w,
                     footer.bottom() - explorer.y,
                 );
-                let column =
-                    ExplorerColumn::new(self.explorer.view.clone()).footer(self.footer(cx));
+                let column = ExplorerColumn::new(self.explorer.view.clone())
+                    .companion(self.cloud.read(cx).screen_thumbnail(cx))
+                    .footer(self.footer(cx));
                 stack = stack.start(plane, column);
             }
             if !home && panes.end.is_some() {
@@ -725,8 +704,13 @@ impl Render for Shell {
                 // content starts at the divider like the product's.
                 stack = stack.end(self.frame.layout.auxiliary, self.sidebar.clone());
             }
+            let main = if !home && self.cloud.read(cx).screen_shown(cx) {
+                self.cloud.read(cx).screen.clone().into_any_element()
+            } else {
+                self.editor.clone().into_any_element()
+            };
             stack
-                .main(at(self.frame.layout.editor).child(self.editor.clone()))
+                .main(at(self.frame.layout.editor).child(main))
                 .into_any_element()
         });
         let weak = cx.weak_entity();
