@@ -314,8 +314,7 @@ fn share(t: &Theme, s: f32) -> impl IntoElement {
 }
 
 fn qr(t: &Theme, s: f32) -> impl IntoElement {
-    let ground = theme::on_solid();
-    let ink = theme::qr_ink();
+    let (ink, ground) = theme::qr_ink();
     div()
         .flex_none()
         .size(u(s, 22.))

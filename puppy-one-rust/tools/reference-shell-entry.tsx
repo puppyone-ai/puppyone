@@ -9,8 +9,10 @@
 //   `-error` after Send fails (a message and an email, no screenshot).
 // - `coachmark-agent` / `-changes`: `HeaderFeatureCoachmark` open below an
 //   entry box fixed at (1236, 6) 28×28; only the overlay is compared.
-// - `home-empty`: after the intro, with the disclosure; `home-intro-*` hold
-//   the intro at `fixture.intro` milliseconds.
+// - `home-empty`: after the intro, with the disclosure; `home-empty-<moment>`
+//   opens a first-run moment by its dot; `home-empty-<medium|narrow>` are the
+//   same page in smaller windows; `home-intro-*` hold the intro at
+//   `fixture.intro` milliseconds.
 import React, { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { LocalizationProvider } from "@puppyone/localization/react";
@@ -67,6 +69,12 @@ initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeIte
 desktopPreferencesStore.getState().setThemeMode(fixture.mode);
 // The launcher button lives in the sidebar footer; only its dialog is compared.
 document.head.insertAdjacentHTML("beforeend", "<style>.desktop-help-launcher{visibility:hidden}</style>");
+// First run's moments are compared at rest: no dot fills toward the next one,
+// and the orbits and Agents hold still (the native lab settles the same ones).
+if (scenario.startsWith("home-empty")) {
+  document.head.insertAdjacentHTML("beforeend",
+    "<style>.onboarding-value-dot>i,.onboarding-value-hub-orbits,.onboarding-value-agent{animation:none!important}</style>");
+}
 
 /** Type into a React-controlled field. */
 function type(selector: string, value: string) {

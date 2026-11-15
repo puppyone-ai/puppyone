@@ -1,14 +1,76 @@
 {
-  "note": "Shell surfaces: the Help launcher's feedback dialog (DesktopHelpLauncher), the Header introductions (HeaderFeatureCoachmark below an entry box fixed at 1236,6 28x28) and the empty Homepage (MinimalOnboarding) with its first-run analytics disclosure and empty-state intro. `intro` holds the intro at that many milliseconds (reference: paused animations; native: PUPPYONE_MOTION_AT over the 1100ms intro). Fixtures mirror src/lab.rs (shell-* cases) and tools/reference-shell-entry.tsx.",
-  "scenarios": [
-    {"scenario": "feedback", "width": 1280, "height": 800},
-    {"scenario": "feedback-filled", "width": 1280, "height": 800, "data": "fixtures/feedback/screenshot.png"},
-    {"scenario": "feedback-sent", "width": 1280, "height": 800, "data": "fixtures/feedback/screenshot.png"},
-    {"scenario": "feedback-error", "width": 1280, "height": 800},
-    {"scenario": "coachmark-agent", "width": 1280, "height": 800},
-    {"scenario": "coachmark-changes", "width": 1280, "height": 800},
-    {"scenario": "home-empty", "width": 1280, "height": 800},
-    {"scenario": "home-intro-breathe", "width": 1280, "height": 800, "intro": 97},
-    {"scenario": "home-intro-reveal", "width": 1280, "height": 800, "intro": 560}
-  ]
+ "note": "Shell surfaces: the Help launcher's feedback dialog (DesktopHelpLauncher), the Header introductions (HeaderFeatureCoachmark below an entry box fixed at 1236,6 28x28) and the empty Homepage (MinimalOnboarding) with its first-run analytics disclosure and empty-state intro. `intro` holds the intro at that many milliseconds (reference: paused animations; native: PUPPYONE_MOTION_AT over the 1100ms intro). Fixtures mirror src/lab.rs (shell-* cases) and tools/reference-shell-entry.tsx. The empty Homepage's first-run moments follow qubits 67b1e3865 (MinimalOnboarding's value carousel), ahead of the v0.4.4 pin: render those references with PUPPYONE_PRODUCT_ROOT on a qubits checkout and PUPPYONE_PRODUCT_UNPINNED=1. `click` opens a moment by its dot; both sides hold the moments at rest (no progress, drift or orbit).",
+ "scenarios": [
+  {
+   "scenario": "feedback",
+   "width": 1280,
+   "height": 800
+  },
+  {
+   "scenario": "feedback-filled",
+   "width": 1280,
+   "height": 800,
+   "data": "fixtures/feedback/screenshot.png"
+  },
+  {
+   "scenario": "feedback-sent",
+   "width": 1280,
+   "height": 800,
+   "data": "fixtures/feedback/screenshot.png"
+  },
+  {
+   "scenario": "feedback-error",
+   "width": 1280,
+   "height": 800
+  },
+  {
+   "scenario": "coachmark-agent",
+   "width": 1280,
+   "height": 800
+  },
+  {
+   "scenario": "coachmark-changes",
+   "width": 1280,
+   "height": 800
+  },
+  {
+   "scenario": "home-empty",
+   "width": 1280,
+   "height": 800
+  },
+  {
+   "scenario": "home-empty-edit",
+   "width": 1280,
+   "height": 800,
+   "click": ".onboarding-value-dot:nth-child(2)"
+  },
+  {
+   "scenario": "home-empty-forward",
+   "width": 1280,
+   "height": 800,
+   "click": ".onboarding-value-dot:nth-child(3)"
+  },
+  {
+   "scenario": "home-empty-medium",
+   "width": 1000,
+   "height": 640
+  },
+  {
+   "scenario": "home-empty-narrow",
+   "width": 720,
+   "height": 520
+  },
+  {
+   "scenario": "home-intro-breathe",
+   "width": 1280,
+   "height": 800,
+   "intro": 97
+  },
+  {
+   "scenario": "home-intro-reveal",
+   "width": 1280,
+   "height": 800,
+   "intro": 560
+  }
+ ]
 }

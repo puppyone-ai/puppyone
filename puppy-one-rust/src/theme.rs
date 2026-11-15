@@ -351,10 +351,6 @@ pub fn video_black() -> Rgba {
 pub fn on_solid() -> Rgba {
     rgb(0xffffff)
 }
-/// `.onboarding-scene-qr`'s dark modules on its `#fff` tile.
-pub fn qr_ink() -> Rgba {
-    rgb(0x111111)
-}
 /// `--po-success-contrast`: text on a success fill. Only the fallback layer
 /// and Neutral define it, so every Default theme uses Neutral's values.
 pub fn success_contrast(dark: bool) -> Rgba {
@@ -414,6 +410,11 @@ pub fn native_resize_grip(dark: bool) -> (Rgba, Option<Rgba>) {
     } else {
         (rgb(0x666666), None)
     }
+}
+/// A QR code's modules and quiet ground (`.onboarding-scene-qr`: `#111` on
+/// `#fff`), the same in every theme, as a code must read.
+pub fn qr_ink() -> (Rgba, Rgba) {
+    (rgb(0x111111), rgb(0xffffff))
 }
 /// CSS `color-mix(in srgb, c p%, transparent)`.
 pub fn alpha(c: Rgba, weight: f32) -> Rgba {
