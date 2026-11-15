@@ -9,7 +9,7 @@ use crate::localization::t as tr;
 use crate::theme;
 use crate::ui::{
     appearance::ActiveAppearance as _,
-    components::{Button, ButtonVariant, Icon, IconButton, ProductIcon},
+    components::{Button, ButtonVariant, Icon, IconButton, ProductIcon, SurfaceFrame},
     loading::{LoaderSize, LoadingMark, Tone},
 };
 use gpui::{prelude::*, *};
@@ -19,7 +19,7 @@ use gpui_kit::{
 };
 use std::time::Instant;
 
-use crate::ui::moments::{self, Carousel, Cast, Picture, Scene, forward, hub, paint};
+use crate::ui::moments::{self, Carousel, Cast, Picture, Scene, forward, hub};
 
 const PICTURE: Picture = Picture {
     side: 228.,
@@ -414,19 +414,12 @@ impl WindowCloud {
                 .child(copy)
         };
 
-        let surface = div()
-            .id("cloud-sign-in-dialog")
+        let surface = SurfaceFrame::dialog("cloud-sign-in-dialog")
+            .radius(theme::metric::TASK_DIALOG_RADIUS)
+            .clip(false)
             .debug_selector(|| "cloud-sign-in-dialog".into())
-            .occlude()
-            .relative()
             .max_w(viewport.width - px(32.))
             .max_h(viewport.height - px(32.))
-            .border_1()
-            .border_color(t.border)
-            .rounded(px(theme::metric::TASK_DIALOG_RADIUS))
-            .bg(t.overlay)
-            .text_color(t.text)
-            .shadow(vec![paint::shadow(t.shadow, px(24.), px(48.), px(0.))])
             .child(layout)
             .child(close_button);
 

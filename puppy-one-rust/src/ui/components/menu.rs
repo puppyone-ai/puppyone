@@ -1,8 +1,12 @@
 //! Menus: the product surface of `components/DesktopMenu.tsx`
 //! (`.desktop-menu-surface`, `.desktop-menu-item`, `.desktop-menu-separator`)
-//! and its variants. Opening, placement and dismissal belong to
-//! [`super::PopoverMenu`] / [`super::AnchoredMenu`], which run on GPUI Kit.
-use super::Icon;
+//! and its variants, built on [`super::SurfaceFrame`]. Opening, placement and
+//! dismissal belong to [`super::PopoverMenu`] / [`super::AnchoredMenu`], which
+//! run on GPUI Kit.
+use super::{
+    Icon,
+    surface::{SurfaceElevation, SurfaceFrame, SurfaceVariant, child_id},
+};
 use crate::{
     theme::{self, Theme, metric},
     ui::appearance::ActiveAppearance,
@@ -15,6 +19,8 @@ use gpui_kit::{
 use std::{rc::Rc, time::Duration};
 
 type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
+type KeyDownHandler = Rc<dyn Fn(&KeyDownEvent, &mut Window, &mut App)>;
+type MouseDownHandler = Rc<dyn Fn(&MouseDownEvent, &mut Window, &mut App)>;
 type SubmenuBuilder = Rc<dyn Fn(&mut Window, &mut App) -> Menu>;
 
 /// Which `.desktop-menu-surface` a menu is.
@@ -27,6 +33,8 @@ pub enum MenuVariant {
     SidebarAction,
     /// The Explorer's list-end "New" menu: sidebar row geometry, no separators.
     SidebarLauncher,
+    /// Right-rail / Agent session pickers: right-panel type, compact elevation.
+    RightRail,
     /// `.desktop-project-menu` under the Header.
     Project,
 }
@@ -57,17 +65,28 @@ enum Trailing {
     Inherit,
 }
 impl MenuVariant {
+    pub const fn surface_variant(self) -> SurfaceVariant {
+        match self {
+            Self::Default => SurfaceVariant::Menu,
+            Self::SidebarAction | Self::SidebarLauncher | Self::RightRail => {
+                SurfaceVariant::CompactMenu
+            }
+            Self::Project => SurfaceVariant::ProjectMenu,
+        }
+    }
     fn style(self) -> MenuStyle {
         let m = theme::ty();
-        let sidebar = !matches!(self, Self::Default);
+        let (font, line_height, meta) = match self {
+            Self::Default => (m.ui.control, 18., m.ui.meta),
+            Self::RightRail => (m.right.content, m.right.control_line_height, m.right.meta),
+            Self::SidebarAction | Self::SidebarLauncher | Self::Project => {
+                (m.left.content, m.left.line_height, m.left.meta)
+            }
+        };
         MenuStyle {
-            font: if sidebar {
-                m.left.content
-            } else {
-                m.ui.control
-            },
-            line_height: if sidebar { m.left.line_height } else { 18. },
-            meta: if sidebar { m.left.meta } else { m.ui.meta },
+            font,
+            line_height,
+            meta,
             padding: if self == Self::Project {
                 metric::PROJECT_MENU_SPACING
             } else {
@@ -96,41 +115,15 @@ impl MenuVariant {
             hover_trailing_inset: metric::MENU_ITEM_PADDING_INLINE,
         }
     }
-    /// The surface's elevation (`--po-elevation-*`), for surfaces that
-    /// draw their own rows (editor menus).
+    /// The surface's elevation (`--po-elevation-*`).
     pub fn shadow(self, t: Theme) -> Vec<BoxShadow> {
-        let shadow = |color: Rgba, y: f32, blur: f32, spread: f32| BoxShadow {
-            inset: false,
-            color: color.into(),
-            offset: point(px(0.), px(y)),
-            blur_radius: px(blur),
-            spread_radius: px(spread),
-        };
-        match self {
-            // `--po-elevation-popover`.
-            Self::Default => vec![shadow(
-                theme::alpha(t.shadow, if t.dark { 0.36 } else { 0.64 }),
-                3.,
-                8.,
-                -4.,
-            )],
-            // `--po-elevation-low`.
-            Self::SidebarAction | Self::SidebarLauncher => vec![shadow(
-                theme::alpha(t.shadow, if t.dark { 0.28 } else { 0.32 }),
-                2.,
-                4.,
-                -2.,
-            )],
-            Self::Project => vec![
-                shadow(theme::alpha(t.shadow, 0.45), 2., 4., 0.),
-                shadow(theme::alpha(t.shadow, 0.65), 6., 16., -4.),
-            ],
-        }
+        self.surface_variant().elevation().shadows(t)
     }
 }
 
 /// One row of a [`Menu`].
 pub struct MenuItem {
+    id: Option<ElementId>,
     label: SharedString,
     icon: Option<Icon>,
     glyph: Option<AnyElement>,
@@ -162,6 +155,7 @@ pub struct MenuItem {
 impl MenuItem {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
+            id: None,
             label: label.into(),
             icon: None,
             glyph: None,
@@ -182,6 +176,10 @@ impl MenuItem {
             color: None,
             on_click: None,
         }
+    }
+    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
     /// States a fact rather than offering an action; it is not dimmed.
     pub fn fact(mut self, fact: bool) -> Self {
@@ -321,6 +319,15 @@ impl Menu {
 pub struct Menu {
     id: ElementId,
     variant: MenuVariant,
+    palette: Option<Theme>,
+    elevation: Option<SurfaceElevation>,
+    header: Option<AnyElement>,
+    footer: Option<AnyElement>,
+    scroll: Option<ScrollHandle>,
+    focus: Option<FocusHandle>,
+    key_down: Option<KeyDownHandler>,
+    mouse_down_out: Option<MouseDownHandler>,
+    absorb_mouse_down: bool,
     entries: Vec<MenuEntry>,
     on_dismiss: Option<Handler>,
     style: StyleRefinement,
@@ -330,6 +337,15 @@ impl Menu {
         Self {
             id: id.into(),
             variant: MenuVariant::Default,
+            palette: None,
+            elevation: None,
+            header: None,
+            footer: None,
+            scroll: None,
+            focus: None,
+            key_down: None,
+            mouse_down_out: None,
+            absorb_mouse_down: false,
             entries: vec![],
             on_dismiss: None,
             style: StyleRefinement::default(),
@@ -337,6 +353,50 @@ impl Menu {
     }
     pub fn variant(mut self, variant: MenuVariant) -> Self {
         self.variant = variant;
+        self
+    }
+    pub fn palette(mut self, palette: Theme) -> Self {
+        self.palette = Some(palette);
+        self
+    }
+    pub fn elevation(mut self, elevation: SurfaceElevation) -> Self {
+        self.elevation = Some(elevation);
+        self
+    }
+    /// A fixed header band above the scrollable rows (such as a search input).
+    pub fn header(mut self, header: impl IntoElement) -> Self {
+        self.header = Some(header.into_any_element());
+        self
+    }
+    /// A fixed footer band below the scrollable rows (such as a count note).
+    pub fn footer(mut self, footer: impl IntoElement) -> Self {
+        self.footer = Some(footer.into_any_element());
+        self
+    }
+    pub fn scroll_handle(mut self, scroll: ScrollHandle) -> Self {
+        self.scroll = Some(scroll);
+        self
+    }
+    pub fn track_focus(mut self, handle: &FocusHandle) -> Self {
+        self.focus = Some(handle.clone());
+        self
+    }
+    pub fn on_key_down(
+        mut self,
+        handler: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.key_down = Some(Rc::new(handler));
+        self
+    }
+    pub fn on_mouse_down_out(
+        mut self,
+        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.mouse_down_out = Some(Rc::new(handler));
+        self
+    }
+    pub fn absorb_mouse_down(mut self) -> Self {
+        self.absorb_mouse_down = true;
         self
     }
     pub fn item(mut self, item: MenuItem) -> Self {
@@ -384,19 +444,16 @@ impl Styled for Menu {
 }
 impl RenderOnce for Menu {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let t = cx.palette();
+        let t = self.palette.unwrap_or_else(|| cx.palette());
         let s = self.variant.style();
         let max_height = window.viewport_size().height - px(24.);
-        let (border, background) = if self.variant == MenuVariant::Project {
-            (t.shell_divider, t.header)
-        } else {
-            (t.border, t.menu_bg)
-        };
         let dismiss = self.on_dismiss.clone();
         let id = self.id.clone();
-        let scroll = crate::ui::scrollbar::handle(child_id(&id, "scroll"), window, cx);
-        // The rows scroll inside; the frame keeps the border, the shadow and
-        // the fill clipped to its padding box (`background-clip`).
+        let scroll = self
+            .scroll
+            .unwrap_or_else(|| crate::ui::scrollbar::handle(child_id(&id, "scroll"), window, cx));
+        // The rows scroll inside; `SurfaceFrame` keeps the border, the shadow
+        // and the fill clipped to its padding box (`background-clip`).
         let mut surface = div()
             .id(child_id(&id, "rows"))
             .flex()
@@ -418,42 +475,51 @@ impl RenderOnce for Menu {
                         .flex_shrink_0()
                         .gap(px(gap))
                         .children(items.into_iter().enumerate().map(|(row_index, item)| {
-                            row(
-                                child_id(&id, format!("{index}-{row_index}")),
-                                item,
-                                s,
-                                t,
-                                dismiss.clone(),
-                            )
+                            let fallback = child_id(&id, format!("{index}-{row_index}"));
+                            row(fallback, item, s, t, dismiss.clone())
                         })),
                 ),
-                MenuEntry::Item(item) => surface.child(row(
-                    child_id(&id, index.to_string()),
-                    *item,
-                    s,
-                    t,
-                    dismiss.clone(),
-                )),
+                MenuEntry::Item(item) => {
+                    let fallback = child_id(&id, index.to_string());
+                    surface.child(row(fallback, *item, s, t, dismiss.clone()))
+                }
             };
         }
-        div()
-            .id(self.id)
-            .relative()
-            .flex()
-            .flex_col()
-            .border_1()
-            .border_color(border)
-            .rounded(px(metric::MENU_RADIUS))
-            .shadow(self.variant.shadow(t))
-            .text_color(t.text)
-            .max_h(max_height)
-            .occlude()
-            .child(padding_box_fill(metric::MENU_RADIUS, background))
-            .child(surface)
-            .child(crate::ui::scrollbar::vertical(
-                child_id(&id, "scrollbar"),
-                &scroll,
-            ))
+        let mut frame = SurfaceFrame::new(self.id)
+            .variant(self.variant.surface_variant())
+            .palette(t)
+            .max_h(max_height);
+        if let Some(elevation) = self.elevation {
+            frame = frame.elevation(elevation);
+        }
+        if let Some(focus) = &self.focus {
+            frame = frame.track_focus(focus);
+        }
+        if let Some(on_key) = self.key_down {
+            frame = frame.on_key_down(move |e, w, cx| on_key(e, w, cx));
+        }
+        if let Some(outside) = self.mouse_down_out {
+            frame = frame.on_mouse_down_out(move |e, w, cx| outside(e, w, cx));
+        }
+        if self.absorb_mouse_down {
+            frame = frame.absorb_mouse_down();
+        }
+        frame
+            .children(self.header)
+            .child(
+                div()
+                    .relative()
+                    .flex()
+                    .flex_col()
+                    .min_h_0()
+                    .flex_shrink(1.)
+                    .child(surface)
+                    .child(crate::ui::scrollbar::vertical(
+                        child_id(&id, "scrollbar"),
+                        &scroll,
+                    )),
+            )
+            .children(self.footer)
             .refine_style(&self.style)
     }
 }
@@ -478,12 +544,13 @@ struct SubmenuState {
 }
 /// `.desktop-menu-item`.
 fn row(
-    element_id: ElementId,
+    fallback_id: ElementId,
     item: MenuItem,
     s: MenuStyle,
     t: Theme,
     dismiss: Option<Handler>,
 ) -> AnyElement {
+    let element_id = item.id.unwrap_or(fallback_id);
     let group = SharedString::from(format!("menu-row-{element_id}"));
     let fact = item.fact || (item.on_click.is_none() && item.line);
     let disabled = item.disabled || fact;
@@ -754,21 +821,7 @@ impl RenderOnce for SubmenuRow {
         row
     }
 }
-/// A stable id for a named part of an element.
-pub(crate) fn child_id(parent: &ElementId, name: impl Into<SharedString>) -> ElementId {
-    ElementId::NamedChild(std::sync::Arc::new(parent.clone()), name.into())
-}
 /// A row that centres its children on the cross axis.
 fn h_row() -> Div {
     div().flex().items_center()
-}
-
-/// `background-clip: padding-box` (`.desktop-menu-surface`): the fill of a
-/// menu surface `radius` round, kept inside its 1px border so a translucent
-/// border shows the backdrop, not the fill. GPUI paints borders over the
-/// background; give the surface no `bg` and this as its first child. Not for
-/// a scroller: an absolute child counts as its content (`Menu` scrolls an
-/// inner layer).
-pub fn padding_box_fill(radius: f32, fill: Rgba) -> Div {
-    div().absolute().inset_0().rounded(px(radius - 1.)).bg(fill)
 }

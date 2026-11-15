@@ -7,6 +7,7 @@ use crate::{
     typography::Scale,
     ui::components::{
         Icon, Segment, SegmentLayout, SegmentedControl, SettingRow, SettingsList, SettingsSection,
+        SurfaceCorners, SurfaceFrame, SurfaceStyledExt,
     },
 };
 use gpui::{prelude::*, *};
@@ -46,7 +47,7 @@ impl SettingsWorkspaceSurface {
 /// `TypographyPreview` (`settings-controls.css`): a static workspace on the
 /// live type roles: header, Files sidebar, a Markdown sample on the product
 /// heading rhythm (`--po-md-h*-gap-*`) and a Chat sidebar.
-fn preview(t: Theme) -> Div {
+fn preview(t: Theme) -> SurfaceFrame {
     let m = theme::ty();
     let md = crate::editor::tokens::Tokens::get(t.dark, theme::scale());
     let icon = |name: &'static str, size: f32| {
@@ -89,6 +90,7 @@ fn preview(t: Theme) -> Div {
         .py(px(12.))
         .px(px(8.))
         .bg(t.panel)
+        .surface_corners(10., SurfaceCorners::bottom_left())
         .border_r_1()
         .border_color(t.divider)
         .text_size(px(m.left.content))
@@ -159,7 +161,6 @@ fn preview(t: Theme) -> Div {
     ];
     let editor = v_flex()
         .p(px(18.))
-        .bg(t.canvas)
         .child(heading(
             m.editor.headings[0],
             650.,
@@ -199,6 +200,7 @@ fn preview(t: Theme) -> Div {
         .py(px(12.))
         .px(px(8.))
         .bg(t.panel)
+        .surface_corners(10., SurfaceCorners::bottom_right())
         .border_l_1()
         .border_color(t.divider)
         .text_size(px(m.right.content))
@@ -229,14 +231,10 @@ fn preview(t: Theme) -> Div {
                         .child(tr("settings.typography.preview.message")),
                 ),
         );
-    v_flex()
+    SurfaceFrame::card("typography-preview")
+        .radius(10.)
         .mt(px(18.))
         .mx(px(10.))
-        .rounded(px(10.))
-        .border_1()
-        .border_color(t.divider)
-        .overflow_hidden()
-        .bg(t.canvas)
         .child(
             h_flex()
                 .min_h(px(theme::control()))
@@ -244,6 +242,7 @@ fn preview(t: Theme) -> Div {
                 .py(px(6.))
                 .gap(px(8.))
                 .bg(t.panel)
+                .surface_corners(10., SurfaceCorners::top())
                 .border_b_1()
                 .border_color(t.divider)
                 .text_size(px(m.header.content))

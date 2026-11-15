@@ -12,7 +12,7 @@ use crate::features::source_control::{relative_time, short_date};
 use crate::localization::{t as tr, tf};
 use crate::ui::{
     agent_brands, agent_creature,
-    components::{Button, ButtonVariant, Icon},
+    components::{Button, ButtonVariant, Icon, SurfaceFrame},
 };
 use crate::workspace::cloud::agents::{Admission, AgentRequest, WorkspaceAgent};
 use gpui_kit::{
@@ -597,16 +597,10 @@ impl WindowCloud {
                 )
             };
         let ground = t.menu_bg;
-        let card = v_flex()
-            .id("cloud-agent-card")
+        let card = SurfaceFrame::popover_card("cloud-agent-card")
+            .occlude(false)
             .debug_selector(|| "cloud-agent-card".into())
             .w(px(CARD_WIDTH))
-            .rounded(px(12.))
-            .border_1()
-            .border_color(t.shell_divider)
-            .bg(ground)
-            .text_color(t.text)
-            .shadow(card_shadow(t))
             .child(
                 h_flex()
                     .gap(px(7.))
@@ -698,17 +692,9 @@ impl WindowCloud {
                 entity.update(cx, |a, cx| a.decide(&id, allow, cx));
             }
         };
-        let card = v_flex()
-            .id("cloud-agent-request-card")
+        let card = SurfaceFrame::popover_card("cloud-agent-request-card")
             .debug_selector(|| "cloud-agent-request-card".into())
-            .occlude()
             .w(px(CARD_WIDTH))
-            .rounded(px(12.))
-            .border_1()
-            .border_color(t.shell_divider)
-            .bg(ground)
-            .text_color(t.text)
-            .shadow(card_shadow(t))
             .child(
                 h_flex()
                     .gap(px(7.))
@@ -886,26 +872,6 @@ impl WindowCloud {
             self.agent_cards.timer = None;
         }
     }
-}
-
-/// The card's shadow, as a menu's.
-fn card_shadow(t: Theme) -> Vec<BoxShadow> {
-    vec![
-        BoxShadow {
-            color: theme::alpha(t.shadow, 0.35).into(),
-            offset: point(px(0.), px(2.)),
-            blur_radius: px(4.),
-            spread_radius: px(0.),
-            inset: false,
-        },
-        BoxShadow {
-            color: theme::alpha(t.shadow, 0.60).into(),
-            offset: point(px(0.), px(12.)),
-            blur_radius: px(32.),
-            spread_radius: px(-6.),
-            inset: false,
-        },
-    ]
 }
 
 #[cfg(test)]

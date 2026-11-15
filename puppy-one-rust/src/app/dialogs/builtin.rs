@@ -7,7 +7,7 @@ use crate::{
     theme::{self, Theme},
     ui::{
         appearance::ActiveAppearance,
-        components::{Button, Dialog},
+        components::{Button, Dialog, SurfaceFrame, SurfaceVariant},
     },
 };
 
@@ -245,27 +245,16 @@ pub(crate) fn task_backdrop(t: Theme) -> Rgba {
     }
 }
 /// `DesktopDialogSurface` (`.desktop-dialog-surface`) at `r`.
-pub(crate) fn modal_card(r: Rect, t: Theme) -> Stateful<Div> {
-    div()
+pub(crate) fn modal_card(r: Rect, t: Theme) -> SurfaceFrame {
+    SurfaceFrame::dialog("modal-card")
+        .palette(t)
+        .stroke(t.divider)
+        .absorb_mouse_down()
         .absolute()
         .left(px(r.x))
         .top(px(r.y))
         .w(px(r.w))
         .h(px(r.h))
-        .id("modal-card")
-        .bg(t.overlay)
-        .border_1()
-        .border_color(t.divider)
-        .rounded(px(crate::theme::metric::DIALOG_RADIUS))
-        .shadow(vec![BoxShadow {
-            inset: false,
-            color: t.shadow.into(),
-            offset: point(px(0.), px(24.)),
-            blur_radius: px(48.),
-            spread_radius: px(0.),
-        }])
-        .overflow_hidden()
-        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 /// `SettingsDialog` (`.desktop-settings-dialog`): the task dialog centred in
 /// a `w`×`h` window. Shared by the shell and the pixel lab.
@@ -274,14 +263,13 @@ pub(crate) fn settings_dialog(
     w: f32,
     h: f32,
     t: Theme,
-) -> Stateful<Div> {
+) -> SurfaceFrame {
     let (width, height) = settings_size(w, h);
     modal_card(
         Rect::new((w - width) / 2., (h - height) / 2., width, height),
         t,
     )
-    .rounded(px(crate::theme::metric::TASK_DIALOG_RADIUS))
-    .bg(t.canvas)
+    .variant(SurfaceVariant::TaskDialog)
     .child(settings)
 }
 pub fn settings_size(w: f32, h: f32) -> (f32, f32) {

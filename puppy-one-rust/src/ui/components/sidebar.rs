@@ -1,7 +1,7 @@
 //! Sidebar building blocks shared by the Explorer, Git Changes, Settings
 //! navigation and the right-sidebar lists: `.tree-row` / `.po-sidebar-row`,
 //! their hover-revealed row actions, section headers and groups.
-use super::{Icon, IconButton, menu::child_id};
+use super::{Icon, IconButton, surface::child_id};
 use crate::{
     theme::{self, Theme, metric},
     ui::appearance::ActiveAppearance,

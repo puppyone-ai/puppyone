@@ -269,6 +269,23 @@ for retired in ["src/ui/primitives.rs", "src/ui/menu.rs", "src/ui/exact_text.rs"
                 "src/features/settings/components.rs", "src/geometry/menu_position.rs"]:
     if (root / retired).exists():
         errors.append(f"{retired}: retired presentation helper remains; use ui::components")
+# Framed surfaces: `ui::components` submodules stay private so internal
+# helpers (`padding_box_fill`, `child_id`) cannot leak, and menu/dialog
+# outer-radius tokens (`MENU_RADIUS`, `DIALOG_RADIUS`) are resolved by
+# `SurfaceFrame` / `Menu` / `Dialog` rather than hand-rolled `div` shells.
+components_mod = code(root / "src/ui/components/mod.rs")
+for found in re.finditer(r"\bpub\s+mod\s+(\w+)\s*;", components_mod):
+    errors.append(
+        f"src/ui/components/mod.rs: `pub mod {found.group(1)}` exposes component internals; re-export public types"
+    )
+surface_token = re.compile(r"\b(?:MENU_RADIUS|DIALOG_RADIUS)\b")
+for path in (root / "src").rglob("*.rs"):
+    if path == root / "src/theme.rs" or root / "src/ui/components" in path.parents:
+        continue
+    if surface_token.search(code(path)):
+        errors.append(
+            f"{path.relative_to(root)}: hand-rolled menu/dialog surface radius; compose ui::components::{{Menu, Dialog, SurfaceFrame}}"
+        )
 # Surfaces the product retired (qubits `6f896add1`, `acf8b23df`): the Cloud
 # services dialog and its pages, Share with people, Project Reach and the
 # missing-project replacement. They stay retired.

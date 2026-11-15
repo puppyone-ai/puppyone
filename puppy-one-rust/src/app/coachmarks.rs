@@ -21,7 +21,7 @@ use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Button;
 use crate::ui::components::ButtonVariant;
 use crate::ui::components::Icon;
-use crate::ui::components::MenuVariant;
+use crate::ui::components::SurfaceFrame;
 use gpui::{prelude::*, *};
 use gpui_kit::{
     base::{h_flex, v_flex},
@@ -369,22 +369,12 @@ pub(crate) fn overlay(
     };
     // `.desktop-titlebar-menu.desktop-header-coachmark` on the header
     // typography surface.
-    let surface = v_flex()
-        .id("header-coachmark")
+    let surface = SurfaceFrame::menu("header-coachmark")
+        .palette(t)
+        .on_mouse_down_out(outside)
         .w(px(width))
         .p(px(2. * metric::MENU_ITEM_PADDING_INLINE))
         .gap(px(metric::MENU_ITEM_GAP + metric::MENU_PADDING))
-        .border_1()
-        .border_color(t.border)
-        .rounded(px(metric::MENU_RADIUS))
-        .relative()
-        .child(crate::ui::components::menu::padding_box_fill(
-            metric::MENU_RADIUS,
-            t.menu_bg,
-        ))
-        .shadow(MenuVariant::Default.shadow(t))
-        .text_color(t.text)
-        .on_mouse_down_out(outside)
         .child(
             h_flex()
                 .items_start()

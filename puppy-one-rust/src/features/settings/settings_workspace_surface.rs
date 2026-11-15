@@ -10,7 +10,9 @@ use crate::{
     theme::{self, metric},
     ui::{
         appearance::ActiveAppearance,
-        components::{Button, Icon, IconButton, MutedRow, SettingsSection},
+        components::{
+            Button, Icon, IconButton, MutedRow, SettingsSection, SurfaceCorners, SurfaceStyledExt,
+        },
     },
 };
 use gpui::{prelude::*, *};
@@ -462,7 +464,6 @@ impl Render for SettingsWorkspaceSurface {
             });
         v_flex()
             .size_full()
-            .bg(t.canvas)
             .font_weight(FontWeight::NORMAL)
             .text_color(t.text)
             .child(
@@ -474,6 +475,7 @@ impl Render for SettingsWorkspaceSurface {
                     .pr(px(6.))
                     .gap(px(6.))
                     .bg(t.header)
+                    .surface_corners(metric::TASK_DIALOG_RADIUS, SurfaceCorners::top())
                     .child(
                         div()
                             .size(px(20.))
