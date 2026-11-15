@@ -197,7 +197,7 @@ impl Homepage {
                     .items_center()
                     .justify_center()
                     .child(
-                        ProjectFolderGlyph::compact(self.item_previews(item).len())
+                        ProjectFolderGlyph::compact(self.item_previews(item))
                             .lit(lit)
                             .fade(fade),
                     ),

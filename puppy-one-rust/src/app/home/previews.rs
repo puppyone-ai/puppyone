@@ -3,7 +3,7 @@
 //!
 //! Up to three non-dot regular files from a project's root directory are ranked
 //! by preview priority (`html` → `md` → `csv` → `other`) and collated by name,
-//! so a project folder on Home shows calm sheets for what lives inside it.
+//! so a project folder on Home shows a sheet printed for each kind inside it.
 use super::projects::collate;
 use crate::workspace::cloud::services::TreeEntry;
 use std::path::Path;

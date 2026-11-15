@@ -18,8 +18,8 @@ pub(super) fn modified_ago(item: &Item) -> Option<String> {
 }
 
 impl Homepage {
-    /// One project on the Grid: a `104×78` folder (blank sheets for the files
-    /// it holds), its name (`body`) and one caption (`meta`). The group heading
+    /// One project on the Grid: a `104×78` folder (a printed sheet for each
+    /// root file), its name (`body`) and one caption (`meta`). The group heading
     /// already says where the project lives, so the caption only says when it
     /// changed; another computer's folder says what it allows there, and an
     /// unavailable folder why. The full place is in the tooltip.
@@ -107,7 +107,7 @@ impl Homepage {
             .tooltip(crate::ui::components::tooltip(tooltip))
             .child(
                 div().mb(px(8.)).child(
-                    ProjectFolderGlyph::grid(self.item_previews(item).len())
+                    ProjectFolderGlyph::grid(self.item_previews(item))
                         .lit(lit)
                         .fade(fade.or(status.map(|_| 0.4))),
                 ),
