@@ -12,19 +12,10 @@ import re
 import shutil
 import signal
 import subprocess
+from source_identity import source_hashes
 
 ROOT = Path(__file__).resolve().parents[1]
 CARGO = shutil.which('cargo') or str(Path.home() / '.cargo/bin/cargo')
-
-
-def source_hashes(root=ROOT):
-    paths = [root / p for p in ('Cargo.toml', 'Cargo.lock')]
-    for folder in ('src', 'crates', 'tools', 'assets', 'fixtures', 'vendor'):
-        paths += [p for p in (root / folder).rglob('*') if p.is_file()
-                  and not {'__pycache__', 'target'}.intersection(p.relative_to(root).parts)
-                  and p.suffix not in ('.dylib', '.so', '.dll')]
-    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in sorted(paths)}
 
 
 def outcomes(output):

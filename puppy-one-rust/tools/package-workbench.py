@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from source_identity import verify_source_receipt
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--qa-root', type=Path, help='Existing disposable workspace for the isolated QA app')
@@ -32,15 +33,10 @@ digest = bundle.digest
 
 def verified_receipt(relative):
     receipt = json.loads((root / relative).read_text())
-    if not receipt.get('passed') or not receipt.get('sourceUnchangedDuringVerification', True):
-        raise SystemExit(f'Checks did not pass: {relative}')
-    hashes = receipt.get('sourceHashes', {})
-    if not hashes:
-        raise SystemExit(f'Missing source identity: {relative}')
-    for name, expected in hashes.items():
-        path = root / name
-        if not path.is_file() or digest(path) != expected:
-            raise SystemExit(f'Source changed after verification: {name}')
+    try:
+        verify_source_receipt(receipt, root)
+    except ValueError as error:
+        raise SystemExit(f'{relative}: {error}') from error
     return receipt
 
 
@@ -96,7 +92,8 @@ if preview_root:
         'PUPPYONE_WORKSPACE': str(preview_root),
         'PUPPYONE_RUST_DATA_DIR': str(preview_root / '.puppyone-data'),
     })
-expected = {'puppyone-native', 'handshakes', 'pty', 'codex', 'claude', 'cursor', 'pi'}
+expected = {'puppyone-native', 'pty', 'codex', 'claude', 'cursor', 'pi',
+            'handshake-codex', 'handshake-claude', 'handshake-cursor', 'handshake-pi'}
 scope = set(runtimes.get('scope', [c['name'] for c in runtimes['checks']]))
 receipt = {
     'app': str(app.relative_to(root)), 'bundleVersion': version,

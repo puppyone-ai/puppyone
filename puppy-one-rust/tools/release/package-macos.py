@@ -36,17 +36,16 @@ import icon  # noqa: E402
 import identity  # noqa: E402
 import sign  # noqa: E402
 from product_source import product_root  # noqa: E402
+from source_identity import verify_source_receipt  # noqa: E402
 
 
 def verified_source():
     """A passing verification of exactly the source being packaged."""
     receipt = json.loads((ROOT / 'artifacts/gpui-verification/result.json').read_text())
-    if not receipt.get('passed') or not receipt.get('sourceUnchangedDuringVerification', True):
-        raise SystemExit('tools/verify.py did not pass for this source')
-    for name, expected in receipt.get('sourceHashes', {}).items():
-        path = ROOT / name
-        if not path.is_file() or bundle.digest(path) != expected:
-            raise SystemExit(f'Source changed after verification: {name}')
+    try:
+        verify_source_receipt(receipt, ROOT)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
 
 
 def main():
