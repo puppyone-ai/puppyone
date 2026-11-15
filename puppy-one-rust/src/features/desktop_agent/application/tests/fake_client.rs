@@ -3,6 +3,7 @@ use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::dto::{SessionFailure, SessionFrame};
 use crate::agent::contract::protocol::{AgentOperation, AgentRequest};
 use crate::features::desktop_agent::application::agent_client_port::{AgentClientPort, Cleanup};
+use crate::features::desktop_agent::application::ui_runtime::{UiRuntime, microtask};
 use crate::features::desktop_agent::fixtures::{JsonAnswer as ClientFuture, read_answer};
 use serde_json::Value;
 use std::cell::{Cell, RefCell};
@@ -24,12 +25,17 @@ pub struct FakeClient {
     frame_subscriptions: RefCell<Vec<Listener>>,
     listens: Cell<bool>,
     interceptor: RefCell<Option<Interceptor>>,
+    runtime: RefCell<Option<Rc<dyn UiRuntime>>>,
     /// Methods the bridge defines (`vi.fn()` exists even once its queued
     /// implementations are spent).
     defined: RefCell<std::collections::HashSet<String>>,
 }
 
 impl FakeClient {
+    /// Use the real window scheduler when a GPUI component drives this port.
+    pub fn set_runtime(&self, runtime: Rc<dyn UiRuntime>) {
+        *self.runtime.borrow_mut() = Some(runtime);
+    }
     pub fn new() -> Rc<Self> {
         let client = Rc::new(Self::default());
         client.listens.set(true);
@@ -140,6 +146,10 @@ impl FakeClient {
         self.frame_subscriptions.borrow()[index].clone()
     }
 
+    pub fn frame_subscription_count(&self) -> usize {
+        self.frame_subscriptions.borrow().len()
+    }
+
     /// Delivers a session runtime failure to the registered listener.
     pub fn fail(&self, failure: Value) {
         let listener = self.failure_listener.borrow().clone();
@@ -236,9 +246,14 @@ impl FakeClient {
         };
         // A JS promise settles its awaiters on a later microtask, even when
         // it is already resolved.
+        let runtime = self.runtime.borrow().clone();
         Box::pin(async move {
             let result = pending.await;
-            next_turn().await;
+            if let Some(runtime) = runtime {
+                microtask(&runtime).await;
+            } else {
+                next_turn().await;
+            }
             result
         })
     }

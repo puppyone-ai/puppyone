@@ -221,6 +221,7 @@ impl TranscriptView {
         let notice = agent_history_notice(projection)?;
         let m = theme::ty();
         let open = self.history_notice_open;
+        let label = t(notice.message_key);
         Some(
             div()
                 .w_full()
@@ -235,6 +236,7 @@ impl TranscriptView {
                 .child(
                     h_flex()
                         .id("agent-history-notice")
+                        .debug_selector(|| "agent-history-notice".into())
                         .gap(px(7.))
                         .cursor(theme::clickable_cursor())
                         .on_click(cx.listener(|s, _, _, cx| {
@@ -248,15 +250,21 @@ impl TranscriptView {
                                 .stroke(2.)
                                 .color(a.text_subtle),
                         )
-                        .child(t(notice.message_key)),
+                        .child(
+                            div()
+                                .debug_selector(move || format!("agent-history-summary:{label}"))
+                                .child(label),
+                        ),
                 )
                 .when(open, |d| {
-                    d.children(
-                        notice
-                            .reason_keys
-                            .iter()
-                            .map(|key| div().mt(px(6.)).whitespace_normal().child(t(key))),
-                    )
+                    d.children(notice.reason_keys.iter().map(|key| {
+                        let label = t(key);
+                        div()
+                            .debug_selector(move || format!("agent-history-reason:{label}"))
+                            .mt(px(6.))
+                            .whitespace_normal()
+                            .child(label)
+                    }))
                 })
                 .into_any_element(),
         )

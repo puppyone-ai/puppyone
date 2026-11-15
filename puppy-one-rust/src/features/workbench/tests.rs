@@ -273,3 +273,59 @@ fn split_move_and_overflow_keep_the_same_content_instance(cx: &mut TestAppContex
         let _ = w.draw(cx);
     });
 }
+
+#[gpui::test]
+fn native_history_read_failure_renders_retry_but_confirmed_missing_history_does_not(
+    cx: &mut TestAppContext,
+) {
+    use crate::features::desktop_agent::OpenFailure;
+    use std::cell::Cell;
+    cx.update(gpui_kit::init);
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    let retries = Rc::new(Cell::new(0));
+    for (code, retryable, message) in [
+        (
+            "HISTORY_READ_FAILED",
+            true,
+            "History messages could not be loaded. Try again.",
+        ),
+        (
+            "SESSION_NOT_FOUND",
+            false,
+            "This saved chat is no longer available.",
+        ),
+    ] {
+        let failure = OpenFailure {
+            code: Some(code.into()),
+            retryable,
+        };
+        let rendered = crate::localization::t(failure.message_key().unwrap());
+        assert_eq!(rendered, message);
+        let retried = retries.clone();
+        let retry = failure
+            .retryable
+            .then(|| -> CreationRetry { Rc::new(move |_, _| retried.set(retried.get() + 1)) });
+        view.update(cx, |w, cx| w.fail_creation(0, rendered.into(), retry, cx));
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        let message_selector = if retryable {
+            "floating-notice-message:History messages could not be loaded. Try again."
+        } else {
+            "floating-notice-message:This saved chat is no longer available."
+        };
+        assert!(cx.debug_bounds(message_selector).is_some());
+        let button = cx.debug_bounds("floating-notice-action:Retry");
+        assert_eq!(button.is_some(), retryable);
+        if let Some(bounds) = button {
+            cx.simulate_click(bounds.center(), Modifiers::none());
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            assert_eq!(retries.get(), 1);
+            assert!(view.read_with(cx, |w, _| w.creation_failure.is_none()));
+        }
+    }
+    assert_eq!(retries.get(), 1);
+}

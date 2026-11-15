@@ -187,7 +187,7 @@ impl TranscriptView {
             build_agent_timeline_layout(&layout_rows, &HashMap::new(), AGENT_TIMELINE_SPACING);
         self.gaps = layout.gaps.iter().map(|gap| *gap as f32).collect();
         let tail = live_tail(input);
-        let history_notice = agent_history_notice(&input.projection).is_some();
+        let history_notice = agent_history_notice(&input.projection);
         self.parts = timeline.parts;
         self.rows = rows;
         let mut next: Vec<(String, blake3::Hash)> = self
@@ -212,11 +212,16 @@ impl TranscriptView {
             next.push(("live-tail".into(), hasher.finalize()));
         }
         if let Some(first) = next.first_mut()
-            && history_notice
+            && let Some(notice) = history_notice
         {
             let mut hasher = blake3::Hasher::new();
             hasher.update(first.1.as_bytes());
             hasher.update(&[1, u8::from(self.history_notice_open)]);
+            hasher.update(notice.kind.as_bytes());
+            hasher.update(notice.message_key.as_bytes());
+            for reason in notice.reason_keys {
+                hasher.update(reason.as_bytes());
+            }
             first.1 = hasher.finalize();
         }
         let previous = std::mem::take(&mut self.row_signatures);
@@ -304,7 +309,11 @@ impl Render for TranscriptView {
         let has_live_tail = tail.connection.is_some() || tail.working.is_some();
         let mut region = div().relative().size_full();
         if self.row_signatures.is_empty() {
-            if self.input.startup_loading && !has_live_tail {
+            if let Some(notice) = self.render_history_notice(&self.input.projection, &a, cx) {
+                // Native history can be partial or unverified even when no
+                // messages were returned. It must not depend on a first row.
+                region = region.child(div().w_full().px(px(INSET)).pt(px(PAD_TOP)).child(notice));
+            } else if self.input.startup_loading && !has_live_tail {
                 region = region.child(
                     div()
                         .size_full()

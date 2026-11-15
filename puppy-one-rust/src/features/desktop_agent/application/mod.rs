@@ -18,5 +18,5 @@ pub mod conversation_history_controller;
 pub mod conversation_history_source;
 pub mod session_ui_state_store;
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
 pub mod ui_runtime;

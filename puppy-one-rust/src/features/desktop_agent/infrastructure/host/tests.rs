@@ -87,6 +87,69 @@ fn a_controller_prepares_a_session_and_renders_its_turn_through_the_host() {
 }
 
 #[test]
+fn retrying_an_owned_conversation_keeps_the_same_native_session_instance() {
+    let host = start_host();
+    let workspace = tempfile::tempdir().expect("workspace");
+    let root = std::fs::canonicalize(workspace.path())
+        .expect("root")
+        .to_string_lossy()
+        .into_owned();
+    host.authorize_roots(13, [root.clone()]);
+    let runtime = TokioUiRuntime::create();
+    let shutdown = host.clone();
+    run(async move {
+        let client = AgentHostClient::connect(host, 13, &runtime);
+        let port: Rc<dyn AgentClientPort> = client.clone();
+        let provider = create_project_agent_client_provider(Rc::new(move || Some(port.clone())));
+        let controller = AgentSessionController::new(&root, provider, runtime);
+        assert!(
+            controller
+                .initialize_for_runtime("codex")
+                .await
+                .expect("initialize")
+        );
+        assert!(controller.prepare_session().await);
+        eventually(|| controller.get_snapshot().replica_status == ReplicaStatus::Live).await;
+        let before = controller.get_snapshot().session.expect("owned session");
+        assert!(before.instance_id.is_some());
+
+        controller
+            .initialize(true)
+            .await
+            .expect("refresh and resume");
+        eventually(|| controller.get_snapshot().replica_status == ReplicaStatus::Live).await;
+        let after = controller.get_snapshot().session.expect("same session");
+        assert_eq!(after.id, before.id);
+        assert_eq!(after.instance_id, before.instance_id);
+        assert_eq!(after.provider_session_id, before.provider_session_id);
+        assert_eq!(controller.get_snapshot().error, None);
+        assert!(
+            controller
+                .submit("Continue the owned conversation")
+                .await
+                .expect("submit")
+        );
+        eventually(|| {
+            controller
+                .get_snapshot()
+                .projection
+                .messages
+                .iter()
+                .any(|message| message.text == "Continue the owned conversation")
+        })
+        .await;
+        assert_eq!(
+            controller.get_snapshot().session_id(),
+            Some(before.id.as_str())
+        );
+        controller.close_tab_session().await;
+        controller.dispose(false);
+        drop(client);
+    });
+    run(async move { shutdown.shutdown().await });
+}
+
+#[test]
 fn an_unopened_project_fails_with_the_structured_operation_failure() {
     let host = start_host();
     let runtime = TokioUiRuntime::create();

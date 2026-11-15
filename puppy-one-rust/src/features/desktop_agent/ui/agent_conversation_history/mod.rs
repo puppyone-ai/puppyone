@@ -5,6 +5,8 @@
 //! opening one is the workbench's job (`HistoryBrowserEvent::Open`).
 mod list;
 mod model;
+#[cfg(test)]
+mod tests;
 mod toolbar;
 
 use super::agent_theme::AgentTheme;
@@ -140,9 +142,7 @@ impl HistoryBrowser {
         History::new(self.source.snapshot(), &self.excluded)
     }
     fn back(&mut self, cx: &mut Context<Self>) {
-        if self.opening.is_none() {
-            cx.emit(HistoryBrowserEvent::Back);
-        }
+        cx.emit(HistoryBrowserEvent::Back);
     }
     fn close_search(&mut self, cx: &mut Context<Self>) {
         self.search.update(cx, |s, cx| s.clear(cx));

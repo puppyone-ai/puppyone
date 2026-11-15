@@ -12,6 +12,7 @@ impl HistoryBrowser {
     ) -> Stateful<Div> {
         div()
             .id(id)
+            .debug_selector(move || id.to_string())
             .size(px(BUTTON))
             .flex_shrink_0()
             .flex()
@@ -71,6 +72,7 @@ impl HistoryBrowser {
                 slot.child(
                     div()
                         .id("history-search")
+                        .debug_selector(|| "history-search".into())
                         .w_full()
                         .h(px(BUTTON))
                         .pl(px(6.))

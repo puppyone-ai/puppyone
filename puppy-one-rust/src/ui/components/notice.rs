@@ -158,6 +158,7 @@ impl RenderOnce for FloatingNotice {
         let dismissible = self.on_dismiss.is_some();
         let mini = theme::control_mini();
         let id = self.id.clone();
+        let message = self.message.clone();
         SurfaceFrame::menu(self.id)
             .fill(surface)
             .stroke(border)
@@ -195,7 +196,13 @@ impl RenderOnce for FloatingNotice {
                     .justify_center()
                     .child(Icon::new(glyph).with_size(px(15.)).stroke(1.8).color(tone))
             }))
-            .child(div().min_w_0().flex_1().child(self.message))
+            .child(
+                div()
+                    .debug_selector(move || format!("floating-notice-message:{message}"))
+                    .min_w_0()
+                    .flex_1()
+                    .child(self.message),
+            )
             .when(!self.actions.is_empty(), |d| {
                 d.child(
                     h_flex()
@@ -205,6 +212,7 @@ impl RenderOnce for FloatingNotice {
                         .my(px(-2.))
                         .children(self.actions.into_iter().map(|action| {
                             let handler = action.on_click.clone();
+                            let label = action.label.clone();
                             let (bg, fg, hover) = if action.emphasis {
                                 (
                                     t.warning,
@@ -216,6 +224,7 @@ impl RenderOnce for FloatingNotice {
                             };
                             div()
                                 .id(action.id)
+                                .debug_selector(move || format!("floating-notice-action:{label}"))
                                 .flex()
                                 .flex_shrink_0()
                                 .items_center()

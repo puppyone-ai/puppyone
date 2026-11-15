@@ -256,6 +256,8 @@ fn makes_an_earlier_workspace_generation_inert_after_deactivation() {
         ] {
             assert_eq!(client.count(method), 0);
         }
+        assert_eq!(client.frame_subscription_count(), 0);
+        history.dispose();
     });
 }
 

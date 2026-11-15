@@ -92,3 +92,59 @@ fn a_hosted_location_offers_its_agent_only(cx: &mut TestAppContext) {
         );
     });
 }
+
+#[gpui::test]
+fn allowing_history_records_permission_and_enables_its_browser_once(cx: &mut TestAppContext) {
+    use crate::features::desktop_agent::{ConversationHistorySource, ConversationHistoryState};
+    use std::cell::Cell;
+    struct Source(Rc<Cell<usize>>);
+    impl ConversationHistorySource for Source {
+        fn snapshot(&self) -> ConversationHistoryState {
+            ConversationHistoryState::default()
+        }
+        fn activate(&self) {
+            self.0.set(self.0.get() + 1);
+        }
+        fn refresh(&self) {
+            panic!("permission alone must not refresh the source")
+        }
+        fn watch(&self, _: Wake) -> Box<dyn FnOnce()> {
+            Box::new(|| {})
+        }
+    }
+    let (workbench, launcher, cx) = compose(cx);
+    let prefs = cx.update(|_, cx| cx.new(|_| PreferencesStore::memory()));
+    assert!(!prefs.read_with(cx, |p, _| p.state.local_agents.chat_history_discovery));
+    let root = tempfile::tempdir().unwrap();
+    launcher.update(cx, |l, cx| {
+        l.set_preference_store(prefs.clone(), cx);
+        l.show_local(root.path().to_path_buf(), cx);
+    });
+    let tab = workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    let calls = Rc::new(Cell::new(0));
+    let browser = launcher.update_in(cx, |l, window, cx| {
+        let browser =
+            cx.new(|cx| HistoryBrowser::new(Rc::new(Source(calls.clone())), false, window, cx));
+        l.install_history(tab, browser.clone(), window, cx);
+        browser
+    });
+    cx.run_until_parked();
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    assert_eq!(calls.get(), 0);
+    let bounds = cx
+        .debug_bounds("history-permission-allow")
+        .expect("permission renders in the launcher tab");
+    cx.simulate_click(bounds.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert!(prefs.read_with(cx, |p, _| p.state.local_agents.chat_history_discovery));
+    assert!(browser.read_with(cx, |b, _| b.enabled()));
+    assert_eq!(calls.get(), 1);
+    // Re-observing the shared permission does not reactivate this browser.
+    launcher.update(cx, |l, cx| l.sync_history(cx));
+    assert_eq!(calls.get(), 1);
+    assert!(workbench.read_with(cx, |w, _| w.is_launcher(root.path(), tab)));
+}

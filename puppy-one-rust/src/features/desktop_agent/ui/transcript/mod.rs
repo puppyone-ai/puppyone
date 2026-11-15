@@ -2,6 +2,8 @@
 //! steps and live tail, the transcript's vertical rhythm and viewport
 //! anchors.
 mod activity;
+#[cfg(test)]
+mod history_tests;
 mod live_tail;
 mod parts;
 mod stream;

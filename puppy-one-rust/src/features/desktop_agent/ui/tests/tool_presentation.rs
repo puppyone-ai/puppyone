@@ -156,3 +156,33 @@ fn renders_a_structured_tool_result_without_an_adapter_preview() {
     normalized["kind"] = json!("mcp");
     assert!(output_for_activity(&typed::<Activity>(normalized)).contains(expected));
 }
+
+#[test]
+fn normalized_plan_text_is_visible_without_structured_steps() {
+    use crate::agent::contract::dto::Part;
+    use crate::agent::runtimes::codex::codex_events::normalize_codex_notification;
+    use crate::features::desktop_agent::ui::activity::agent_activity_views::{
+        ActivityView, ShellDetail, activity_view,
+    };
+    let events = normalize_codex_notification(&json!({
+        "method": "item/plan/delta",
+        "params": {"threadId": "thread-1", "turnId": "A", "itemId": "plan-A",
+            "delta": "PLAN_BODY_SENTINEL"},
+    }));
+    assert_eq!(events.len(), 1);
+    let part: Part = typed(json!({
+        "id": "plan-A", "turnId": "A", "itemId": "plan-A", "kind": "plan",
+        "status": "running", "label": "Plan", "detail": events[0]["payload"],
+        "output": "", "sequence": 1,
+    }));
+    let ActivityView::Shell(shell) = activity_view(&part) else {
+        panic!("a normalized plan must produce a visible activity shell");
+    };
+    assert!(shell.has_detail());
+    assert!(shell.default_expanded);
+    let ShellDetail::Prose { text, plan } = shell.detail else {
+        panic!("plan text must reach the prose renderer");
+    };
+    assert_eq!(text.as_deref(), Some("PLAN_BODY_SENTINEL"));
+    assert!(plan.is_empty());
+}

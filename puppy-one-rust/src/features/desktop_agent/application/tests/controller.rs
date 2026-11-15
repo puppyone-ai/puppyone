@@ -1,8 +1,6 @@
 //! `tests/unit/agent/sessions/desktop-agent.controller.test.ts`.
-//!
-//! Not yet ported: "retries the owned conversation through Main without
-//! allocating another host" drives the item-host process service
-//! (`agent-process-service.mjs`), which lands with that layer.
+//! The owned-conversation retry also runs through the real Rust host thread
+//! in `infrastructure/host/tests.rs`.
 use super::display_fixture::{DisplayFeed, display_snapshot};
 use super::fake_client::FakeClient;
 use super::session_feed::{advance, settle, wait_for};

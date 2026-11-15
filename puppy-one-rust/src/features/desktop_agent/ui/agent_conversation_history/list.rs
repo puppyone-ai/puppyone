@@ -34,6 +34,7 @@ impl HistoryBrowser {
                     .child(
                         div()
                             .id("history-permission-allow")
+                            .debug_selector(|| "history-permission-allow".into())
                             .h(px(theme::control()))
                             .px(px(14.))
                             .flex()
@@ -59,7 +60,9 @@ impl HistoryBrowser {
 
     pub(super) fn message(icon: &'static str, text: String, spin: bool, a: AgentTheme) -> Div {
         // `.desktop-agent-history-empty`.
+        let label = text.clone();
         div()
+            .debug_selector(move || format!("history-message:{label}"))
             .min_h(px(theme::control_large()))
             .px(px(8.))
             .py(px(3.))
@@ -94,6 +97,7 @@ impl HistoryBrowser {
         let runtime = AgentMark::from_icon_key(&history.icon_key(session));
         let disabled = self.opening.is_some();
         let title = session.title.clone();
+        let locator = session.id.clone();
         let updated = (session.updated_at_known != Some(false))
             .then_some(session.updated_at.as_str())
             .filter(|at| !at.is_empty())
@@ -108,6 +112,7 @@ impl HistoryBrowser {
             .child(
                 div()
                     .id(("history-option", index))
+                    .debug_selector(move || format!("history-option:{locator}"))
                     .h(px(ROW))
                     .w_full()
                     .px(px(6.))
@@ -211,12 +216,18 @@ impl HistoryBrowser {
                 .into_any_element()
         };
         let warning = |text: String| {
+            let label = text.clone();
             div()
+                .debug_selector(|| "history-warning".into())
                 .text_center()
                 .text_color(t.warning)
                 .text_size(px(theme::ty().right.micro))
                 .line_height(px(theme::ty().right.micro_line_height))
-                .child(text)
+                .child(
+                    div()
+                        .debug_selector(move || format!("history-warning:{label}"))
+                        .child(text),
+                )
         };
         let notes = history.source_notes();
         let more_disabled = state.loading_more || state.refreshing;
@@ -244,6 +255,7 @@ impl HistoryBrowser {
         }
         if !notes.is_empty() {
             let open = self.details_open;
+            let summary = tr("agent.history.sourceSummary");
             let mut details = div()
                 .max_w_full()
                 .text_color(a.text_subtle)
@@ -252,10 +264,15 @@ impl HistoryBrowser {
                 .child(
                     div()
                         .id("history-source-summary")
+                        .debug_selector(|| "history-source-summary".into())
                         .flex()
                         .gap(px(4.))
                         .child(if open { "▾" } else { "▸" })
-                        .child(tr("agent.history.sourceSummary"))
+                        .child(
+                            div()
+                                .debug_selector(move || format!("history-summary:{summary}"))
+                                .child(summary),
+                        )
                         .on_click(cx.listener(|s, _, _, cx| {
                             s.details_open = !s.details_open;
                             cx.notify();
@@ -263,11 +280,14 @@ impl HistoryBrowser {
                 );
             if open {
                 for (id, key) in &notes {
-                    details = details.child(div().text_center().child(format!(
-                        "{}: {}",
-                        history.label_for(id),
-                        tr(key)
-                    )));
+                    let text = format!("{}: {}", history.label_for(id), tr(key));
+                    let label = text.clone();
+                    details = details.child(
+                        div()
+                            .debug_selector(move || format!("history-source-note:{label}"))
+                            .text_center()
+                            .child(text),
+                    );
                 }
             }
             footer = footer.child(details);
@@ -281,6 +301,7 @@ impl HistoryBrowser {
             footer = footer.child(
                 div()
                     .id("history-more")
+                    .debug_selector(|| "history-more".into())
                     .px(px(8.))
                     .py(px(2.))
                     .rounded(px(4.))
