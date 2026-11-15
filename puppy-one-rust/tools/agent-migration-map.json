@@ -416,7 +416,23 @@
         "src/features/desktop_agent/ui/panel/status.rs",
         "src/features/desktop_agent/ui/panel/docks.rs"
       ],
-      "remaining": "Bounded virtual rows, native Markdown/table/code rendering, copy, previews, slash suggestions and per-thread drafts are implemented. The panel renders them over the display contract. Full renderer registry, Mermaid, inline assets, advanced autocomplete, accessibility and OS visual verification remain pending."
+      "remaining": "Bounded virtual rows, native Markdown/table/code rendering, copy, previews, slash suggestions and per-thread drafts are implemented. The panel renders them over the display contract. Full renderer registry, inline assets, advanced autocomplete, accessibility and OS visual verification remain pending."
+    },
+    {
+      "name": "Agent Markdown blocks and policy",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownEnvironment.tsx",
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownMermaidBlock.tsx",
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownSourceBlock.tsx",
+        "src/features/desktop-agent/ui/markdown/agentMarkdownBlockRegistry.tsx",
+        "src/features/desktop-agent/ui/markdown/agentMarkdownPolicy.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/agent_markdown.rs",
+        "src/features/desktop_agent/ui/agent_markdown_policy.rs"
+      ],
+      "remaining": "Mermaid blocks render through the shared render service and fall back to their source; long answers open on the policy's first window (24 KiB, 240 blocks) with Show full response / Collapse; links keep the product's href classification. The block registry is a fixed match rather than an extensible registry, and the environment's image-loading capability has no native counterpart (assistant images show their alt text)."
     },
     {
       "name": "Provider activities",

@@ -328,7 +328,7 @@ python3 tools/audit-ui-migration.py --check  # 只校验映射
 python3 tools/audit-agent-migration.py   # 默认读 product-source.json 固定的 v0.4.4 checkout
 ```
 
-报告输出到 `artifacts/agent-migration/inventory.json`，同时记录源 HEAD、未提交修改和逐文件哈希。当前 8 个 Agent 源根（4 个目录与 4 个单独的 IPC / 宿主文件）的 368 个文件中，363 个标为 partial、5 个 pending（`ui/markdown/` 下的 Environment、Mermaid 块、Source 块、block registry 与 policy，尚未登记），**没有文件被宣称全量对等**；这是可追溯清单，不是按文件数计算的功能完成率。完整迁移仍须逐项对齐原契约和测试，不能只依靠目录结构验收。
+报告输出到 `artifacts/agent-migration/inventory.json`，同时记录源 HEAD、未提交修改和逐文件哈希。当前 8 个 Agent 源根（4 个目录与 4 个单独的 IPC / 宿主文件）的 368 个文件全部标为 partial、没有 pending，**没有文件被宣称全量对等**；这是可追溯清单，不是按文件数计算的功能完成率。完整迁移仍须逐项对齐原契约和测试，不能只依靠目录结构验收。
 
 ## 架构调研与差异（R0）
 
