@@ -294,11 +294,22 @@ fn the_product_installer_refuses_unreviewed_sources_without_a_request() {
         installer.install(&recipe, &cancel, &never, &|| {}),
         Err(ErrorCode::Integrity)
     );
-    assert_eq!(
-        download(&recipe, &home.join("a.tgz"), &cancel),
-        Err(ErrorCode::Integrity)
-    );
-    assert!(!home.join("a.tgz").exists());
+    for url in [
+        "http://registry.npmjs.org/x",
+        "https://evil.example/x",
+        "https://user@registry.npmjs.org/x",
+        "https://registry.npmjs.org:8443/x",
+    ] {
+        let untrusted = Recipe {
+            url: url.into(),
+            ..recipe.clone()
+        };
+        assert_eq!(
+            download(&untrusted, &home.join("a.tgz"), &cancel),
+            Err(ErrorCode::Integrity)
+        );
+        assert!(!home.join("a.tgz").exists());
+    }
     let guided = Recipe {
         setup_id: "claude",
         ..recipe
@@ -383,7 +394,7 @@ fn real_version_processes_enforce_time_output_environment_and_pre_cancel_limits(
             &clean,
             &home,
             &AtomicBool::new(false),
-            Duration::from_secs(2),
+            Duration::from_secs(20),
             environment
         ),
         Ok(())
@@ -604,5 +615,279 @@ fn cancelling_a_download_cleans_staging_and_excludes_a_second_installer() {
             .unwrap()
             .count(),
         0
+    );
+}
+
+#[test]
+fn an_already_cancelled_download_never_polls_a_ready_network_operation() {
+    let polled = AtomicBool::new(false);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let result = runtime.block_on(cancellable(
+        async {
+            polled.store(true, Ordering::SeqCst);
+            7
+        },
+        &AtomicBool::new(true),
+    ));
+    assert_eq!(result, Err(ErrorCode::Interrupted));
+    assert!(!polled.load(Ordering::SeqCst));
+}
+
+#[test]
+fn the_production_body_pipeline_verifies_pinned_bytes_and_rejects_invalid_or_cancelled_streams() {
+    use futures_util::stream;
+    let root = tempfile::tempdir().unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let body = b"official-test-fixture";
+        const SHA512: &str = concat!(
+            "ML3URAs4re1FChlf6whfXIJ1WMGLdtZ+XPMn3OV5gAf1W5zSXlX5ZI/",
+            "F0fZ2nd0aN3GhK/vbGL/XsYuZwGwSJQ=="
+        );
+        // Independent SHA results from the frozen TS test's node:crypto input.
+        for (i, (algorithm, digest)) in [
+            (
+                Algorithm::Sha256,
+                "FPa2FhWYD9+TqlOd944u7RlXWxdGbBDpINdMYxOEsZw=",
+            ),
+            (Algorithm::Sha512, SHA512),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let recipe = Recipe {
+                setup_id: "codex",
+                version: "test-1",
+                entry: "codex",
+                binary: "codex".into(),
+                url: "https://registry.npmjs.org/fixture.tgz".into(),
+                algorithm,
+                digest,
+            };
+            let path = root.path().join(format!("good-{i}"));
+            let chunks = body.chunks(3).map(|b| Ok::<_, ()>(b.to_vec()));
+            save_artifact_body(
+                &recipe,
+                &path,
+                &AtomicBool::new(false),
+                ArtifactResponse {
+                    success: true,
+                    length: Some(body.len() as u64),
+                },
+                stream::iter(chunks),
+                MAX_DOWNLOAD,
+            )
+            .await
+            .unwrap();
+            assert_eq!(std::fs::read(&path).unwrap(), body);
+            let bad = Recipe {
+                digest: "wrong",
+                ..recipe.clone()
+            };
+            assert_eq!(
+                save_artifact_body(
+                    &bad,
+                    &root.path().join(format!("bad-{i}")),
+                    &AtomicBool::new(false),
+                    ArtifactResponse {
+                        success: true,
+                        length: None
+                    },
+                    stream::iter([Ok::<_, ()>(body)]),
+                    MAX_DOWNLOAD
+                )
+                .await,
+                Err(ErrorCode::Integrity)
+            );
+            for (kind, metadata) in [
+                (
+                    "status",
+                    ArtifactResponse {
+                        success: false,
+                        length: None,
+                    },
+                ),
+                (
+                    "length",
+                    ArtifactResponse {
+                        success: true,
+                        length: Some(MAX_DOWNLOAD + 1),
+                    },
+                ),
+            ] {
+                let output = root.path().join(format!("{kind}-{i}"));
+                let unpolled = stream::poll_fn(|_| -> std::task::Poll<Option<Result<&[u8], ()>>> {
+                    panic!("rejected response must not read its body")
+                });
+                assert_eq!(
+                    save_artifact_body(
+                        &recipe,
+                        &output,
+                        &AtomicBool::new(false),
+                        metadata,
+                        unpolled,
+                        MAX_DOWNLOAD
+                    )
+                    .await,
+                    Err(ErrorCode::Download)
+                );
+                assert!(!output.exists());
+            }
+            let limit = root.path().join(format!("limit-{i}"));
+            assert_eq!(
+                save_artifact_body(
+                    &recipe,
+                    &limit,
+                    &AtomicBool::new(false),
+                    ArtifactResponse {
+                        success: true,
+                        length: None
+                    },
+                    stream::iter(body.chunks(3).map(Ok::<_, ()>)),
+                    10
+                )
+                .await,
+                Err(ErrorCode::Download)
+            );
+            assert!(std::fs::metadata(limit).unwrap().len() <= 10);
+            let failed = root.path().join(format!("stream-{i}"));
+            assert_eq!(
+                save_artifact_body(
+                    &recipe,
+                    &failed,
+                    &AtomicBool::new(false),
+                    ArtifactResponse {
+                        success: true,
+                        length: None
+                    },
+                    stream::iter([Ok(body.as_slice()), Err(())]),
+                    MAX_DOWNLOAD
+                )
+                .await,
+                Err(ErrorCode::Download)
+            );
+            let cancelled = AtomicBool::new(false);
+            let late = stream::poll_fn(|_| {
+                cancelled.store(true, Ordering::SeqCst);
+                std::task::Poll::Ready(Some(Ok::<_, ()>(body.as_slice())))
+            });
+            let cancelled_output = root.path().join(format!("cancel-{i}"));
+            assert_eq!(
+                save_artifact_body(
+                    &recipe,
+                    &cancelled_output,
+                    &cancelled,
+                    ArtifactResponse {
+                        success: true,
+                        length: None
+                    },
+                    late,
+                    MAX_DOWNLOAD
+                )
+                .await,
+                Err(ErrorCode::Interrupted)
+            );
+            assert_eq!(std::fs::metadata(cancelled_output).unwrap().len(), 0);
+        }
+    });
+}
+
+#[test]
+fn the_artifact_http_policy_rejects_redirects_and_does_not_retain_response_cookies() {
+    use std::process::{Command, Stdio};
+    let dir = tempfile::tempdir().unwrap();
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/activation-download-tls/server.py");
+    let mut command = Command::new("python3");
+    command
+        .arg(fixture)
+        .arg(dir.path())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::from(
+            std::fs::File::create(dir.path().join("server.log")).unwrap(),
+        ));
+    crate::platform::process::isolate(&mut command);
+    struct Server(std::process::Child);
+    impl Drop for Server {
+        fn drop(&mut self) {
+            crate::platform::process::terminate(&mut self.0);
+        }
+    }
+    let mut server = Server(
+        command
+            .spawn()
+            .expect("TLS integration fixture requires python3 and openssl"),
+    );
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let port = loop {
+        if let Ok(text) = std::fs::read_to_string(dir.path().join("port"))
+            && let Ok(port) = text.parse::<u16>()
+        {
+            break port;
+        }
+        assert!(
+            server.0.try_wait().unwrap().is_none() && std::time::Instant::now() < deadline,
+            "TLS fixture failed: {}",
+            std::fs::read_to_string(dir.path().join("server.log")).unwrap()
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let certificate =
+        reqwest::Certificate::from_pem(&std::fs::read(dir.path().join("ca.pem")).unwrap()).unwrap();
+    let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        // The real production policy; only trust and DNS point to our fixture.
+        let client = artifact_client(
+            reqwest::Client::builder()
+                .no_proxy()
+                .add_root_certificate(certificate)
+                .resolve("registry.npmjs.org", address),
+        )
+        .build()
+        .unwrap();
+        let base = format!("https://registry.npmjs.org:{port}");
+        let first = client.get(format!("{base}/redirect")).send().await.unwrap();
+        assert_eq!(
+            first.status(),
+            reqwest::StatusCode::FOUND,
+            "redirect must be returned, not followed"
+        );
+        drop(first);
+        let second = client.get(format!("{base}/landing")).send().await.unwrap();
+        assert_eq!(second.status(), reqwest::StatusCode::OK);
+        let error = client
+            .get(format!("http://127.0.0.1:{port}/insecure"))
+            .send()
+            .await
+            .unwrap_err();
+        assert!(
+            error.is_builder(),
+            "HTTP must fail before opening a connection"
+        );
+    });
+    let requests: Vec<serde_json::Value> =
+        std::fs::read_to_string(dir.path().join("requests.jsonl"))
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0]["path"], "/redirect");
+    assert_eq!(requests[1]["path"], "/landing");
+    assert!(
+        requests
+            .iter()
+            .all(|r| r["cookie"].is_null() && r["authorization"].is_null())
     );
 }

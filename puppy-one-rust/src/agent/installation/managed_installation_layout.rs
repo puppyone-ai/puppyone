@@ -37,3 +37,55 @@ pub fn managed_installation_candidate(
         _ => Vec::new(),
     }
 }
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use crate::agent::{
+        application::tests_support::run_local,
+        installation::{
+            executable_resolver::{
+                Observation, ObservationRequest, SearchContext, resolve_executable_observation,
+            },
+            installation_definition::NameSpec,
+        },
+    };
+    use core::prelude::v1::test;
+    use std::os::unix::fs::PermissionsExt as _;
+
+    #[test]
+    fn managed_and_external_candidates_do_not_override_vendor_update_policy() {
+        run_local(async {
+            let home = tempfile::tempdir().unwrap();
+            for (id, name) in [("cursor", "cursor-agent"), ("codex", "codex")] {
+                let managed = managed_installation_candidate(home.path(), "darwin", id).remove(0);
+                assert!(managed.args_prefix.is_none());
+                let path = Path::new(&managed.path);
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(path, "fixture binary").unwrap();
+                std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                for candidate in [
+                    managed.clone(),
+                    CandidateSpec::new(managed.path.clone(), "configured"),
+                ] {
+                    let source = candidate.source.clone();
+                    let observed = resolve_executable_observation(ObservationRequest {
+                        names: vec![NameSpec::from(name)],
+                        configured_candidates: vec![candidate],
+                        search_context: Some(SearchContext::default()),
+                        platform: "darwin".into(),
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap();
+                    let Observation::Found { candidate, .. } = observed else {
+                        panic!("fixture executable not discovered")
+                    };
+                    assert!(candidate.args_prefix.is_empty());
+                    assert_eq!(candidate.source, source);
+                    assert_eq!(candidate.executable_path, managed.path);
+                }
+            }
+        });
+    }
+}

@@ -3730,7 +3730,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -7045,6 +7045,52 @@
         {
           "package": "po-platform",
           "test": "platform::local_agent_setup::activation::tests::installation_failure_is_a_typed_receipt_and_never_marks_the_cli_installed"
+        }
+      ]
+    },
+    {
+      "id": "local-agent-artifact-transport-and-vendor-policy",
+      "acceptance": "Managed and external Cursor/Codex candidates preserve vendor update policy without injected arguments. The production response-body pipeline verifies independent SHA-256/SHA-512 pinned bytes and rejects invalid status, header/body limits, stream failures and cancellation. Already-cancelled requests never poll transport. The real HTTPS client refuses redirects and HTTP, does not retain response cookies or send authorization; untrusted URLs are rejected before runtime/file creation. TLS integration uses a disposable loopback server and ephemeral trust only in the fixture.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-activation/managed-installer.test.mjs",
+          "sha256": "6cebccd716cf8e13001980b245ec55600109bfbcf95fb720598d39d847b280cd",
+          "cases": [
+            {
+              "index": 5,
+              "name": "managed installation safety > leaves cursor update policy to the vendor for managed and external installations"
+            },
+            {
+              "index": 6,
+              "name": "managed installation safety > leaves codex update policy to the vendor for managed and external installations"
+            },
+            {
+              "index": 10,
+              "name": "managed installation safety > verifies pinned bytes and rejects untrusted URLs before fetching"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::installation::managed_installation_layout::tests::managed_and_external_candidates_do_not_override_vendor_update_policy"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::an_already_cancelled_download_never_polls_a_ready_network_operation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::the_production_body_pipeline_verifies_pinned_bytes_and_rejects_invalid_or_cancelled_streams"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::the_artifact_http_policy_rejects_redirects_and_does_not_retain_response_cookies"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::the_product_installer_refuses_unreviewed_sources_without_a_request"
         }
       ]
     }

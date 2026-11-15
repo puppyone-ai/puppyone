@@ -356,6 +356,13 @@ fn touch(path: &Path) -> bool {
     path.is_dir()
 }
 
+fn artifact_client(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
+    builder
+        .redirect_policy(reqwest::redirect::Policy::none())
+        .https_only(true)
+        .timeout(Duration::from_secs(10 * 60))
+}
+
 /// `downloadVerifiedArtifact`.
 pub fn download(recipe: &Recipe, destination: &Path, cancel: &AtomicBool) -> Result<(), ErrorCode> {
     let url = allowed_url(&recipe.url).ok_or(ErrorCode::Integrity)?;
@@ -363,37 +370,64 @@ pub fn download(recipe: &Recipe, destination: &Path, cancel: &AtomicBool) -> Res
         .enable_all()
         .build()
         .map_err(|_| ErrorCode::Download)?;
-    let mut hasher = Hasher::new(recipe.algorithm);
     runtime.block_on(async {
-        let client = crate::platform::proxy::system(reqwest::Client::builder())
-            .redirect_policy(reqwest::redirect::Policy::none())
-            .https_only(true)
-            .timeout(Duration::from_secs(10 * 60))
+        let client = artifact_client(crate::platform::proxy::system(reqwest::Client::builder()))
             .build()
             .map_err(|_| ErrorCode::Download)?;
-        let mut response = cancellable(client.get(url).send(), cancel)
+        let response = cancellable(client.get(url).send(), cancel)
             .await?
             .map_err(|_| ErrorCode::Download)?;
-        if !response.status().is_success()
-            || response.content_length().is_some_and(|n| n > MAX_DOWNLOAD)
-        {
+        let metadata = ArtifactResponse {
+            success: response.status().is_success(),
+            length: response.content_length(),
+        };
+        save_artifact_body(
+            recipe,
+            destination,
+            cancel,
+            metadata,
+            response.bytes_stream(),
+            MAX_DOWNLOAD,
+        )
+        .await
+    })
+}
+struct ArtifactResponse {
+    success: bool,
+    length: Option<u64>,
+}
+/// The production response body pipeline, with only transport and size policy
+/// supplied separately so offline fixtures can drive real writes and digests.
+async fn save_artifact_body<T: AsRef<[u8]>, E>(
+    recipe: &Recipe,
+    destination: &Path,
+    cancel: &AtomicBool,
+    response: ArtifactResponse,
+    body: impl futures_util::Stream<Item = Result<T, E>>,
+    max_bytes: u64,
+) -> Result<(), ErrorCode> {
+    use futures_util::StreamExt as _;
+    if cancel.load(Ordering::Relaxed) {
+        return Err(ErrorCode::Interrupted);
+    }
+    if !response.success || response.length.is_some_and(|n| n > max_bytes) {
+        return Err(ErrorCode::Download);
+    }
+    let mut file = new_file(destination, 0o600).map_err(|_| ErrorCode::Download)?;
+    let mut hasher = Hasher::new(recipe.algorithm);
+    let mut bytes = 0u64;
+    futures_util::pin_mut!(body);
+    while let Some(chunk) = cancellable(body.next(), cancel).await? {
+        let chunk = chunk.map_err(|_| ErrorCode::Download)?;
+        let chunk = chunk.as_ref();
+        bytes += chunk.len() as u64;
+        if bytes > max_bytes {
             return Err(ErrorCode::Download);
         }
-        let mut file = new_file(destination, 0o600).map_err(|_| ErrorCode::Download)?;
-        let mut bytes = 0u64;
-        while let Some(chunk) = cancellable(response.chunk(), cancel)
-            .await?
-            .map_err(|_| ErrorCode::Download)?
-        {
-            bytes += chunk.len() as u64;
-            if bytes > MAX_DOWNLOAD {
-                return Err(ErrorCode::Download);
-            }
-            hasher.update(&chunk);
-            file.write_all(&chunk).map_err(|_| ErrorCode::Download)?;
-        }
-        file.sync_all().map_err(|_| ErrorCode::Download)
-    })?;
+        hasher.update(chunk);
+        file.write_all(chunk).map_err(|_| ErrorCode::Download)?;
+    }
+    file.sync_all().map_err(|_| ErrorCode::Download)?;
     if hasher.finish() != recipe.digest {
         return Err(ErrorCode::Integrity);
     }
@@ -404,10 +438,13 @@ async fn cancellable<F: std::future::Future>(
     future: F,
     cancel: &AtomicBool,
 ) -> Result<F::Output, ErrorCode> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err(ErrorCode::Interrupted);
+    }
     tokio::pin!(future);
     loop {
         tokio::select! {
-            out = &mut future => return Ok(out),
+            out = &mut future => return if cancel.load(Ordering::Relaxed) { Err(ErrorCode::Interrupted) } else { Ok(out) },
             _ = tokio::time::sleep(Duration::from_millis(100)) => {
                 if cancel.load(Ordering::Relaxed) {
                     return Err(ErrorCode::Interrupted);
