@@ -1,4 +1,4 @@
-//! `CloudSignInDialog` (`v3.html`): bare "Sign in" controls in the Header and
+//! `CloudSignInDialog` (`v4.html`): bare "Sign in" controls in the Header and
 //! Place menu open the 2-moment explainer before starting browser OAuth, while
 //! dismissals leave OAuth untouched and completion closes the dialog.
 use super::*;
@@ -65,6 +65,10 @@ fn header_sign_in_opens_explainer_switches_moments_and_completes_oauth(cx: &mut 
             dialog.active_title(),
             "Keep it in Cloud,\nevery Agent can reach it"
         );
+        assert_eq!(
+            dialog.active_body(),
+            "Claude and ChatGPT reach it directly,\nand it opens on your phone anytime."
+        );
     });
 
     {
@@ -73,6 +77,10 @@ fn header_sign_in_opens_explainer_switches_moments_and_completes_oauth(cx: &mut 
         view.read_with(cx, |s, cx| {
             let dialog = s.cloud.read(cx).sign_in.as_ref().unwrap();
             assert_eq!(dialog.active_title(), "放在云上，\n所有 Agent 都能用");
+            assert_eq!(
+                dialog.active_body(),
+                "Claude、ChatGPT 直接访问，\n手机上也能随时打开。"
+            );
         });
     }
 
@@ -85,6 +93,17 @@ fn header_sign_in_opens_explainer_switches_moments_and_completes_oauth(cx: &mut 
         assert_eq!(dialog.active_moment(), "share");
         assert_eq!(dialog.active_title(), "One link,\nfor anyone or any Agent");
     });
+    {
+        let _guard = LocaleGuard;
+        crate::localization::set_current("zh-Hans");
+        view.read_with(cx, |s, cx| {
+            let dialog = s.cloud.read(cx).sign_in.as_ref().unwrap();
+            assert_eq!(
+                dialog.active_body(),
+                "发短信给同事，或发给 Grok\u{00a0}Bot，\n点开就能看、能接着改。"
+            );
+        });
+    }
     cx.simulate_mouse_move(point(px(10.), px(10.)), None, Modifiers::none());
     draw(cx);
     view.update(cx, |s, cx| {

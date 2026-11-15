@@ -1,7 +1,7 @@
-//! `CloudSignInDialog` (`cloud-sign-in-dialog.css` / `v3.html`): explains what
-//! signing in unlocks before opening the browser OAuth flow, with first run's
-//! stacked-files and link-handoff moments ([`crate::ui::moments`]) at `228px`
-//! (`0.6` scale), labelled for Cloud and handing the link to Grok Bot.
+//! `CloudSignInDialog` (`cloud-sign-in-dialog.css` / `v4.html`): explains what
+//! signing in unlocks before opening the browser OAuth flow, with the
+//! radial-spoke Cloud pile (`hub::spokes`) and Grok Bot link-handoff
+//! (`forward::scene`) moments ([`crate::ui::moments`]) at `228px` (`0.6` scale).
 use super::WindowCloud;
 use crate::app::dialogs::DialogKey;
 use crate::features::cloud::account::{self, Status};
@@ -45,7 +45,7 @@ const MOMENTS: [Moment; 2] = [
         label: "cloud.auth.explainer.cloud.label",
         title: "cloud.auth.explainer.cloud.title",
         body: "cloud.auth.explainer.cloud.body",
-        scene: hub::scene,
+        scene: hub::spokes,
     },
     Moment {
         id: "share",
@@ -96,6 +96,11 @@ impl SignInDialog {
     #[cfg(test)]
     pub(in crate::app) fn active_title(&self) -> &'static str {
         tr(MOMENTS[self.carousel.index()].title)
+    }
+
+    #[cfg(test)]
+    pub(in crate::app) fn active_body(&self) -> &'static str {
+        tr(MOMENTS[self.carousel.index()].body)
     }
 
     #[cfg(test)]

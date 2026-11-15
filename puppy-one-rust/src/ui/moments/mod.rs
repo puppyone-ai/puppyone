@@ -4,7 +4,8 @@
 //! both tell their story with them; each owns its table of moments, its copy
 //! and its layout, and draws the same scenes in its own [`Cast`].
 //!
-//! - [`hub`]: the person's files in one pile, Agents drifting round them
+//! - [`hub`]: the person's files in one pile, with Agents drifting round them
+//!   or linked by radial spokes
 //! - [`edit`]: a chart circled, one line said, redrawn
 //! - [`forward`]: a file's link handed to an Agent, which takes it over
 //! - [`paint`]: what the scenes draw that GPUI has no element for
