@@ -12,8 +12,19 @@ use std::{
         Arc, Condvar, Mutex, Weak,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+pub(super) struct VerifyAuthFailure {
+    pub error: auth::Error,
+    pub dispatched: bool,
+    pub elapsed: Duration,
+}
+
+pub(super) enum VerifyError {
+    Auth(VerifyAuthFailure),
+    Contract(Error),
+}
 
 pub(super) struct Shared {
     pub broker: Arc<Broker>,
@@ -49,11 +60,12 @@ impl Shared {
             lists: Flights::default(),
         })
     }
+    pub fn check_auth(&self) -> std::result::Result<(), auth::Error> {
+        self.cancel.check()?;
+        self.broker.check_binding(&self.binding)
+    }
     pub fn check(&self) -> Result<()> {
-        self.cancel.check().map_err(|_| model::stale())?;
-        self.broker
-            .check_binding(&self.binding)
-            .map_err(|_| model::stale())
+        self.check_auth().map_err(|_| model::stale())
     }
     pub fn invalidate(&self) {
         self.epoch.fetch_add(1, Ordering::AcqRel);
@@ -114,6 +126,57 @@ impl Shared {
                     self.retire();
                 }
                 Err(map_error(error))
+            }
+        }
+    }
+    /// Verifies the root directory once during opening, preserving the full
+    /// `auth::Error` (status, reason, request id, retryable) without side
+    /// channels on `Shared`, and reusing a server-verified opening listing
+    /// when present.
+    pub fn verify_opening_root(
+        &self,
+        opening_root: Option<Value>,
+    ) -> std::result::Result<Vec<Entry>, VerifyError> {
+        let check_fenced = || {
+            self.check_auth().map_err(|error| {
+                VerifyError::Auth(VerifyAuthFailure {
+                    error,
+                    dispatched: false,
+                    elapsed: Duration::ZERO,
+                })
+            })
+        };
+        check_fenced()?;
+        let root = RelativePath::new(std::path::Path::new("")).map_err(VerifyError::Contract)?;
+        if let Some(entries) = opening_root {
+            let parsed =
+                model::entries(json!({ "entries": entries }), &root).map_err(VerifyError::Contract)?;
+            check_fenced()?;
+            return Ok(parsed);
+        }
+        let endpoint = self
+            .endpoint("/files", Some(&root), Method::GET, None)
+            .map_err(VerifyError::Contract)?;
+        let started = Instant::now();
+        match self
+            .broker
+            .request_scoped(&self.binding, &endpoint, &self.cancel)
+        {
+            Ok(value) => {
+                check_fenced()?;
+                model::entries(value, &root).map_err(VerifyError::Contract)
+            }
+            Err(error) => {
+                let elapsed = started.elapsed();
+                self.invalidate();
+                if terminal(error) {
+                    self.retire();
+                }
+                Err(VerifyError::Auth(VerifyAuthFailure {
+                    error,
+                    dispatched: true,
+                    elapsed,
+                }))
             }
         }
     }

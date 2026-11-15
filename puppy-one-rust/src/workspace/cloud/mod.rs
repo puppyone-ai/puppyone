@@ -32,12 +32,11 @@ use crate::{
     },
     model::Node,
 };
-use client::{Shared, map_error};
+use client::{Shared, VerifyAuthFailure, VerifyError, map_error};
 pub use model::Target;
 use reqwest::Method;
 use serde_json::json;
 use std::{
-    path::Path,
     sync::{Arc, atomic::Ordering},
     time::{Duration, Instant},
 };
@@ -180,15 +179,36 @@ fn prepare_verified(
     scope: Cancellation,
     runtime: model::Runtime,
 ) -> Result<Prepared> {
-    let project = context.target.project()?.to_owned();
-    runtime.ready(&project)?;
-    let api = url::Url::parse(binding.environment.api()).map_err(|_| model::invalid())?;
+    prepare_verified_opening(broker, binding, context, scope, runtime, None).map_err(|error| {
+        match error {
+            VerifyError::Auth(failure) => map_error(failure.error),
+            VerifyError::Contract(error) => error,
+        }
+    })
+}
+
+fn prepare_verified_opening(
+    broker: Arc<Broker>,
+    binding: Binding,
+    context: model::Context,
+    scope: Cancellation,
+    runtime: model::Runtime,
+    opening_root: Option<serde_json::Value>,
+) -> std::result::Result<Prepared, VerifyError> {
+    let project = context
+        .target
+        .project()
+        .map_err(VerifyError::Contract)?
+        .to_owned();
+    runtime.ready(&project).map_err(VerifyError::Contract)?;
+    let api = url::Url::parse(binding.environment.api())
+        .map_err(|_| VerifyError::Contract(model::invalid()))?;
     let authority = &api[url::Position::BeforeHost..url::Position::AfterPort];
-    let mut identity =
-        url::Url::parse(&format!("puppyone-cloud://{authority}/")).map_err(|_| model::invalid())?;
+    let mut identity = url::Url::parse(&format!("puppyone-cloud://{authority}/"))
+        .map_err(|_| VerifyError::Contract(model::invalid()))?;
     identity
         .path_segments_mut()
-        .map_err(|_| model::invalid())?
+        .map_err(|_| VerifyError::Contract(model::invalid()))?
         .push(api.scheme())
         .extend(api.path().trim_matches('/').split('/'))
         .push(&binding.user)
@@ -201,7 +221,7 @@ fn prepare_verified(
         .iter()
         .any(|v| v == "content.write");
     let descriptor = Descriptor {
-        storage: StorageId::new(identity.as_str())?,
+        storage: StorageId::new(identity.as_str()).map_err(VerifyError::Contract)?,
         name: context.project.name,
         local_root: None,
         limits: Limits::CLOUD,
@@ -218,16 +238,47 @@ fn prepare_verified(
         },
     };
     let shared = Shared::new(broker, binding, scope, runtime, descriptor);
+    let check_fenced = || {
+        shared.check_auth().map_err(|error| {
+            VerifyError::Auth(VerifyAuthFailure {
+                error,
+                dispatched: false,
+                elapsed: Duration::ZERO,
+            })
+        })
+    };
+    check_fenced()?;
     let provider = Arc::new(Cloud {
         shared: shared.clone(),
         hub: events::Hub::new(shared.clone()),
     });
-    let workspace = Workspace::from_provider(provider)?;
+    let workspace = Workspace::from_provider(provider).map_err(|error| {
+        shared
+            .check_auth()
+            .err()
+            .map(|auth| {
+                VerifyError::Auth(VerifyAuthFailure {
+                    error: auth,
+                    dispatched: false,
+                    elapsed: Duration::ZERO,
+                })
+            })
+            .unwrap_or(VerifyError::Contract(error))
+    })?;
     let epoch = shared.epoch.load(Ordering::Acquire);
     // A status is a hint, not proof that the file service or grant is usable.
-    // Optional server handoff/root reuse is left to the navigation stage.
-    let root = workspace.list(Path::new(""))?;
-    shared.check()?;
+    // Reuse a server-verified opening listing once, or verify live `/files`.
+    let root = shared
+        .verify_opening_root(opening_root)?
+        .into_iter()
+        .map(|row| Node {
+            name: row.name,
+            path: row.path.as_path().to_owned(),
+            folder: row.folder,
+            ..Default::default()
+        })
+        .collect();
+    check_fenced()?;
     Ok(Prepared {
         workspace: Some(workspace),
         root: Some(root),

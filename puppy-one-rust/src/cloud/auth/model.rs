@@ -12,6 +12,7 @@ pub enum Error {
     Configuration,
     SecureStorage,
     Unavailable,
+    Timeout,
     InvalidResponse,
     InvalidCredentials,
     SessionChanged,
@@ -91,6 +92,7 @@ impl std::fmt::Display for Error {
             Self::Configuration => "Cloud endpoints are missing or invalid. Configure this native build's API and Web origins.",
             Self::SecureStorage => "Secure credential storage failed. A saved sign-in may remain; retry sign-out before leaving this device.",
             Self::Unavailable => "Cloud authentication is temporarily unavailable. Your saved sign-in has not been discarded.",
+            Self::Timeout => "The Cloud request timed out.",
             Self::InvalidResponse => "The authentication response could not be verified.",
             Self::InvalidCredentials => "Sign-in credentials expired or were revoked. Sign in again.",
             Self::SessionChanged => "The account or service changed; this operation is no longer authorized.",
@@ -518,8 +520,21 @@ impl ApiRequest {
             || self.method == reqwest::Method::HEAD
             || (self.method == reqwest::Method::POST && self.project_endpoint("repository-context"))
     }
+    /// Whether a transport, timeout, cancellation or 5xx failure carries its
+    /// own meaning instead of collapsing into `OutcomeUnknown`. Reads, keyed
+    /// idempotent creations, and explicit workbench opening admission (`POST
+    /// /projects/{id}/workbench`, whose server intent is idempotent and whose
+    /// 5xx/503 body carries the structured `cloudOpeningFailure` code) keep
+    /// their exact error and diagnostic.
+    pub fn preserves_failure(&self) -> bool {
+        self.read_only()
+            || self.safe_session_retry()
+            || (self.method == reqwest::Method::POST && self.project_endpoint("workbench"))
+    }
     /// Opening/status have a server-side wait. Keep ordinary APIs bounded to
-    /// 15 s, while allowing the explicit workbench handshake to finish. A
+    /// 15 s, while allowing the explicit workbench handshake to finish.
+    /// `GET /workbench?wait_seconds=20` observes up to 20 s and then runs
+    /// `opening.prepare` (up to 35 s) in the same request on the server. A
     /// workbench file read or write has no deadline in the product
     /// (`sessionReadOptions`): an 8 MiB file on a slow link must not turn a
     /// save into an unknown outcome, so only a dead connection (10 minutes)
@@ -537,7 +552,7 @@ impl ApiRequest {
                 .iter()
                 .any(|(k, v)| k == "wait_seconds" && v == "20")
         {
-            Duration::from_secs(25)
+            Duration::from_secs(65)
         } else {
             Duration::from_secs(15)
         }
@@ -574,7 +589,7 @@ mod request_policy_tests {
     fn workbench_waits_and_file_transfers_get_their_own_budgets() {
         for (path, method, wait, seconds) in [
             ("/projects/project-a/workbench", Method::POST, false, 120),
-            ("/projects/project-a/workbench", Method::GET, true, 25),
+            ("/projects/project-a/workbench", Method::GET, true, 65),
             ("/projects/project-a/workbench", Method::GET, false, 15),
             ("/projects/project-a/workbench/file", Method::GET, true, 600),
             (

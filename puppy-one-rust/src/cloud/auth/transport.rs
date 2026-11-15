@@ -164,7 +164,7 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
         return Error::Response(404, Some(BILLING_DISABLED), Default::default());
     }
     // Allowlisted reason codes survive for recovery copy (`cloudOpeningFailure`).
-    let reason = [
+    let raw_code = [
         "/detail/code",
         "/data/code",
         "/error/code",
@@ -172,9 +172,11 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
         "/error_code",
     ]
     .iter()
-    .find_map(|pointer| value.pointer(pointer).and_then(serde_json::Value::as_str))
-    .and_then(crate::workspace::cloud::failure::allowlisted);
+    .find_map(|pointer| value.pointer(pointer).and_then(serde_json::Value::as_str));
+    let reason = raw_code.and_then(crate::workspace::cloud::failure::allowlisted);
     if status >= 500 || matches!(status, 408 | 429) || reason.is_some() {
+        let reason =
+            reason.or_else(|| raw_code.and_then(crate::workspace::cloud::failure::workbench_code));
         return Error::Response(status, reason, Default::default());
     }
     let code = value
@@ -188,7 +190,14 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
         Some("workbench_not_running") => ServiceCode::NotRunning,
         Some("workbench_not_found") => ServiceCode::WorkbenchNotFound,
         Some("file_operation_rejected") => ServiceCode::OperationRejected,
-        _ => return Error::Http(status),
+        _ => {
+            if let Some(reason) =
+                raw_code.and_then(crate::workspace::cloud::failure::workbench_code)
+            {
+                return Error::Response(status, Some(reason), Default::default());
+            }
+            return Error::Http(status);
+        }
     };
     Error::Service(status, code)
 }

@@ -152,7 +152,10 @@ pub fn auth_failure(error: &AuthError) -> HostError {
         | AuthError::Service(status, _)
         | AuthError::Response(status, ..) => *status,
         AuthError::InvalidCredentials | AuthError::Expired => 401,
-        AuthError::Unavailable | AuthError::Cancelled | AuthError::SessionChanged => 0,
+        AuthError::Unavailable
+        | AuthError::Timeout
+        | AuthError::Cancelled
+        | AuthError::SessionChanged => 0,
         _ => 400,
     };
     let code = match status {

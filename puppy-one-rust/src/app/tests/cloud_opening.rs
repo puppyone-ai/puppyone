@@ -1049,3 +1049,82 @@ fn a_failed_opening_names_its_code_and_request_for_a_report(cx: &mut TestAppCont
     assert_eq!(line["fields"]["code"], "workbench_disk_lost");
     assert!(!line.to_string().contains("project-a"));
 }
+
+#[gpui::test]
+fn open_post_and_root_files_failures_surface_diagnostics_in_recovery_dialog(
+    cx: &mut TestAppContext,
+) {
+    use crate::cloud::auth::{Error, model::Diagnostic};
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+
+    for (stage, req_id) in [("open", "req-open-ui"), ("files", "req-files-ui")] {
+        let diagnostic = Diagnostic::read(
+            &serde_json::json!({"data": {"code": "workbench_preparing", "retryable": true}}),
+            Some(req_id),
+        );
+        let base = cloud_project_responder();
+        let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
+            if stage == "open" && request.path.ends_with("/workbench") {
+                if request.method == reqwest::Method::GET {
+                    return Ok(serde_json::json!({
+                        "workspace": {
+                            "id": "workspace-a",
+                            "project_id": "project-a",
+                            "generation": "9bb16f54-dfe9-4d26-8c68-c7b1ae97d859",
+                            "state": "paused",
+                            "operation": null
+                        }
+                    }));
+                }
+                return Err(Error::Response(
+                    503,
+                    Some("workbench_preparing"),
+                    diagnostic,
+                ));
+            }
+            if stage == "files" && request.path.ends_with("/workbench/files") {
+                return Err(Error::Response(
+                    503,
+                    Some("workbench_preparing"),
+                    diagnostic,
+                ));
+            }
+            base(request)
+        });
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+        cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+        settle_cloud(&view, cx, "sign-in", &|_, cx| {
+            crate::features::cloud::account::has_account(cx)
+        });
+        view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+        settle_cloud(&view, cx, "the recovery", &|s, cx| {
+            s.has_dialog("CloudRecovery", cx)
+        });
+        draw(cx);
+        assert!(
+            cx.debug_bounds("cloud-open-diagnostic").is_some(),
+            "missing diagnostic in stage {stage}"
+        );
+        let failure = view.read_with(cx, |s, cx| s.cloud.read(cx).recovery.clone().unwrap().1);
+        assert_eq!(failure.code, "workspace-preparing");
+        assert_eq!(
+            failure.diagnostic(),
+            Some((Some("workbench_preparing".into()), Some(req_id.into())))
+        );
+        let lines = crate::platform::diagnostics::recorded("[cloud-opening] request failed");
+        let line = lines
+            .iter()
+            .find(|l| l["fields"]["request_id"] == req_id)
+            .expect("the opening's log line");
+        assert_eq!(line["fields"]["stage"], stage);
+        assert_eq!(line["fields"]["code"], "workbench_preparing");
+        view.update(cx, |s, cx| {
+            s.cloud.update(cx, |c, cx| c.close_cloud_recovery(cx));
+        });
+    }
+}

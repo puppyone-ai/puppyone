@@ -204,7 +204,7 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
         let delay = [250, 1000, 3000].get(attempts).copied();
         // Transport loss, server errors and 429 reconnect; any other 4xx is
         // a decision (`status >= 400 && status < 500 && status !== 429`).
-        let transient = failure == auth::Error::Unavailable
+        let transient = matches!(failure, auth::Error::Unavailable | auth::Error::Timeout)
             || matches!(failure, auth::Error::Response(status, _, _) | auth::Error::Http(status) if status >= 500 || status == 429);
         if !transient || delay.is_none() {
             break map_error(failure);
