@@ -282,15 +282,23 @@ fn literal_attributes(s: &str) -> Option<Vec<(String, String)>> {
 fn tabs(source: &str) -> Option<Vec<Tab>> {
     let tokens = scan(source, 0);
     let (root, last) = (tokens.first()?, tokens.last()?);
-    if root.closing || root.from != 0 || root.name != "Tabs" {
+    if root.closing
+        || root.self_closing
+        || tokens.len() < 2
+        || root.from != 0
+        || root.name != "Tabs"
+    {
         return None;
     }
     // `validateBalancedTokens`.
     let mut stack: Vec<&str> = Vec::new();
     let mut depth = 0;
-    for t in &tokens {
+    for (idx, t) in tokens.iter().enumerate() {
         if t.closing {
             if stack.pop() != Some(t.name.as_str()) {
+                return None;
+            }
+            if stack.is_empty() && idx + 1 != tokens.len() {
                 return None;
             }
         } else if !t.self_closing {
@@ -377,15 +385,23 @@ impl MarkdownFeature for MdxFeature {
             let line = cx.doc.line_range(cx.doc.line_index(block.start)).start;
             let range = line..block.end.min(doc.len());
             let source = doc[block.start..range.end].trim_end_matches(['\n', '\r']);
-            let Some(tabs) = tabs(source) else { continue };
             let range = range.start..block.start + source.len();
+            let presentation = match tabs(source) {
+                Some(tabs) => Presentation::BlockAtom(BlockEmbed::new(
+                    ID,
+                    TabsBlock {
+                        range: range.clone(),
+                        tabs,
+                    },
+                )),
+                // Unsupported, malformed or self-closing MDX components stay
+                // literal source rather than falling through to HTML blocks.
+                None => Presentation::VisibleSource,
+            };
             out.push(Plan {
                 element: None,
-                source: range.clone(),
-                presentation: Presentation::BlockAtom(BlockEmbed::new(
-                    ID,
-                    TabsBlock { range, tabs },
-                )),
+                source: range,
+                presentation,
                 delete_units: Vec::new(),
             });
         }
@@ -517,5 +533,66 @@ mod tests {
         assert_eq!(t.name, "Tab");
         assert!(tag_at("<div>", 0).is_none(), "lowercase is HTML");
         assert!(tag_at("</Tab x>", 0).is_none());
+    }
+
+    #[test]
+    fn self_closing_tabs_at_line_start_stay_literal_source() {
+        use crate::{
+            editor::{
+                markdown::{
+                    composition::MDX_FEATURES,
+                    core::{
+                        decorations::{self, DecorateCx},
+                        plans,
+                        presentation::block_rhythm,
+                        state::{CalloutFolds, PreviewState},
+                        syntax::Syntax,
+                    },
+                    style::MarkdownTheme,
+                },
+                text::buffer::Buffer,
+                view::decoration::Block,
+            },
+            typography::Scale,
+        };
+        for snippet in ["<Tabs/>", "<Tabs />"] {
+            assert!(tabs(snippet).is_none(), "{snippet} must not parse as Tabs");
+        }
+        let doc = Buffer::new("<Tabs/>\n\n<Tabs />\n");
+        let syntax = Syntax::parse(&doc);
+        let compiled = plans::compile(&doc, &syntax, &CalloutFolds::default(), MDX_FEATURES);
+        assert!(
+            compiled
+                .iter()
+                .all(|p| p.embed().and_then(|e| e.model::<TabsBlock>()).is_none()),
+            "self-closing <Tabs/> must not emit TabsBlock"
+        );
+        let rhythm = block_rhythm(&doc, &syntax, None);
+        let md_theme = MarkdownTheme::resolve(true, Scale::Medium);
+        let preview = PreviewState::default();
+        let decorated = decorations::decorate(&DecorateCx {
+            doc: &doc,
+            syntax: &syntax,
+            plans: &compiled,
+            rhythm: &rhythm,
+            theme: &md_theme,
+            preview: &preview,
+            live: true,
+            features: MDX_FEATURES,
+            assets: None,
+            references: None,
+        });
+        assert!(
+            decorated.hidden.is_empty(),
+            "self-closing <Tabs/> lines must remain visible source: {:?}",
+            decorated.hidden
+        );
+        assert!(
+            decorated
+                .blocks
+                .iter()
+                .all(|b| matches!(b, Block::Line { .. })),
+            "self-closing <Tabs/> must not be replaced by a block widget"
+        );
     }
 }

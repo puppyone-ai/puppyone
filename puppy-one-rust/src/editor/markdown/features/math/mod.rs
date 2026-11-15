@@ -137,4 +137,32 @@ mod tests {
         assert_eq!(doc.slice(found[0].content.clone()), "E = mc^2");
         assert_eq!(found[0].text, "E = mc²");
     }
+
+    #[test]
+    fn incomplete_groups_in_display_and_math_fences_stay_displayable() {
+        use crate::editor::markdown::{
+            composition::FEATURES,
+            core::{plans, state::CalloutFolds, syntax::Syntax},
+        };
+        for formula in [r"x^{\", r"\frac{\", r"\sqrt{\", r"\mathbb{\"] {
+            for doc_text in [
+                format!("$$\n{formula}\n$$\n"),
+                format!("```math\n{formula}\n```\n"),
+                format!("```math\n{formula}"),
+            ] {
+                let doc = Buffer::new(&doc_text);
+                let syntax = Syntax::parse(&doc);
+                let compiled = plans::compile(&doc, &syntax, &CalloutFolds::default(), FEATURES);
+                let blocks: Vec<&MathBlock> = compiled
+                    .iter()
+                    .filter_map(|p| p.embed()?.model::<MathBlock>())
+                    .collect();
+                assert_eq!(blocks.len(), 1, "expected 1 math block for {doc_text:?}");
+                assert!(
+                    !blocks[0].text.is_empty(),
+                    "expected displayable text for {doc_text:?}"
+                );
+            }
+        }
+    }
 }

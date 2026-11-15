@@ -440,9 +440,6 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         self.focus.focus(window, cx);
-        if self.read_only {
-            return;
-        }
         if let Some(tr) = self.extension.command(command, &self.state) {
             self.dispatch(tr, cx);
         }

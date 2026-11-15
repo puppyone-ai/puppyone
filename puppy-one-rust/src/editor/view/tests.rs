@@ -528,3 +528,104 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         "an old revision cannot activate a link"
     );
 }
+
+#[gpui::test]
+fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext) {
+    let initial = "alpha beta gamma delta epsilon\nsecond line here";
+    let (view, cx) = setup(cx, initial);
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+
+    let far_right = view.read_with(cx, |v, _| {
+        let layout = v.layout.as_ref().unwrap();
+        let start = initial.find("epsilon").unwrap();
+        layout.range_boxes(start..start + 7)[0].center()
+    });
+
+    // Shrink the document to multi-byte UTF-8 ("中文") WITHOUT drawing a frame,
+    // so `layout.revision != state.revision` and `far_right` maps to a byte
+    // offset (> 20) well past `"中文".len()` (6), and also test an offset landing
+    // inside a 3-byte UTF-8 character (`offset = 2` -> `"中文"`).
+    view.update_in(cx, |v, w, cx| {
+        v.replace_text("中文", cx);
+        assert_ne!(v.layout.as_ref().unwrap().revision, v.state.revision);
+
+        v.mouse_down(
+            &MouseDownEvent {
+                button: MouseButton::Left,
+                position: far_right,
+                click_count: 2,
+                ..Default::default()
+            },
+            w,
+            cx,
+        );
+        assert_eq!(v.state.selection, Selection::range(0, 6));
+
+        v.mouse_move(
+            &MouseMoveEvent {
+                position: far_right,
+                pressed_button: Some(MouseButton::Left),
+                ..Default::default()
+            },
+            w,
+            cx,
+        );
+        v.mouse_up(
+            &MouseUpEvent {
+                button: MouseButton::Left,
+                position: far_right,
+                click_count: 2,
+                ..Default::default()
+            },
+            w,
+            cx,
+        );
+    });
+
+    // Also verify when the old layout offset lands mid-codepoint (e.g. byte 1 or 2 of "中文").
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.update_in(cx, |v, _, cx| v.replace_text("ab third", cx));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    let byte_two = view.read_with(cx, |v, _| {
+        let layout = v.layout.as_ref().unwrap();
+        layout.range_boxes(1..2)[0].right_center()
+    });
+    view.update_in(cx, |v, w, cx| {
+        // Replace "ab third" (where `byte_two` hits byte ~2) with "中文 word"
+        // (where byte 2 is inside '中' = 0..3) and immediately double-click & triple-click.
+        v.replace_text("中文 word", cx);
+        assert_ne!(v.layout.as_ref().unwrap().revision, v.state.revision);
+
+        v.mouse_down(
+            &MouseDownEvent {
+                button: MouseButton::Left,
+                position: byte_two,
+                click_count: 2,
+                ..Default::default()
+            },
+            w,
+            cx,
+        );
+        let s = v.state.selection;
+        assert!(v.text().is_char_boundary(s.anchor) && v.text().is_char_boundary(s.head));
+
+        v.mouse_down(
+            &MouseDownEvent {
+                button: MouseButton::Left,
+                position: far_right,
+                click_count: 3,
+                ..Default::default()
+            },
+            w,
+            cx,
+        );
+        let s = v.state.selection;
+        assert_eq!((s.from(), s.to()), (0, "中文 word".len()));
+    });
+}

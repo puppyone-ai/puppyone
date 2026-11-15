@@ -114,3 +114,51 @@ pub type Features = &'static [&'static dyn MarkdownFeature];
 pub fn find(features: Features, id: &str) -> Option<&'static dyn MarkdownFeature> {
     features.iter().copied().find(|f| f.id() == id)
 }
+
+/// Diagnostic event emitted when a feature panics at a pure pipeline boundary.
+pub const FEATURE_PANIC_EVENT: &str = "[markdown-editor] feature panicked";
+
+/// Isolates a pure `MarkdownFeature` callback (`compile_element`,
+/// `compile_blocks`, `block_widget`). On panic, discards partial output and
+/// logs one diagnostic per feature ID per process session.
+pub fn catch_feature_panic<T>(
+    feature: &'static str,
+    stage: &'static str,
+    work: impl FnOnce() -> T,
+) -> Option<T> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)) {
+        Ok(value) => Some(value),
+        Err(payload) => {
+            let message = payload
+                .downcast_ref::<&str>()
+                .map(|s| (*s).to_owned())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "feature panicked".to_owned());
+            report_feature_panic_once(feature, stage, &message);
+            None
+        }
+    }
+}
+
+fn report_feature_panic_once(feature: &'static str, stage: &'static str, message: &str) {
+    use std::{
+        collections::HashSet,
+        sync::{Mutex, OnceLock},
+    };
+    static REPORTED: OnceLock<Mutex<HashSet<&'static str>>> = OnceLock::new();
+    let reported = REPORTED.get_or_init(|| Mutex::new(HashSet::new()));
+    let first = reported
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(feature);
+    if first {
+        crate::platform::diagnostics::warn(
+            FEATURE_PANIC_EVENT,
+            serde_json::json!({
+                "feature": feature,
+                "stage": stage,
+                "message": message,
+            }),
+        );
+    }
+}

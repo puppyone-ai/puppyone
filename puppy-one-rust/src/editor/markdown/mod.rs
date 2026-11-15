@@ -225,6 +225,7 @@ impl EditorExtension for MarkdownExtension {
             self.preview.selecting,
             self.preview.callout_title,
             &self.preview.callout_folds,
+            &self.preview.diagrams,
             &self.preview.tabs,
             self.preview
                 .revealed_source
