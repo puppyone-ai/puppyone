@@ -42,7 +42,7 @@ pub struct Recipe {
 }
 
 /// One setup route (`createSetupRegistry` over `defaultLocalAgentCatalog`).
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Route {
     /// The setup id, which is also the installation id.
     pub id: &'static str,

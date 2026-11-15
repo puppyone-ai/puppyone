@@ -6,7 +6,7 @@
 //! dialog, and a cancel never waits behind a provider operation. At most
 //! three run at once; an operation still running when the app quit reads
 //! back as interrupted.
-use super::{Recipe, Route, Surface, platform, route};
+use super::{Recipe, Route, Surface, platform};
 use serde_json::{Value, json};
 use std::{
     path::PathBuf,
@@ -213,6 +213,8 @@ struct State {
     loaded: Option<Result<(), String>>,
     disposed: bool,
 }
+type ActivationWork = Box<dyn FnOnce() + Send>;
+type Spawn = Arc<dyn Fn(ActivationWork) -> std::io::Result<()> + Send + Sync>;
 #[derive(Clone)]
 pub struct Service {
     state: Arc<Mutex<State>>,
@@ -221,6 +223,8 @@ pub struct Service {
     journal: Arc<Journal>,
     platform: &'static str,
     arch: &'static str,
+    routes: &'static [Route],
+    spawn: Spawn,
 }
 impl Service {
     pub fn new(journal: PathBuf, ports: Arc<dyn Ports>, publish: Publish) -> Self {
@@ -232,6 +236,18 @@ impl Service {
         publish: Publish,
         platform: &'static str,
         arch: &'static str,
+    ) -> Self {
+        Self::for_routes(journal, ports, publish, platform, arch, &super::ROUTES)
+    }
+    /// Trusted static composition. The engine consumes declared capabilities;
+    /// selecting an artifact never requires a brand branch in the engine.
+    pub fn for_routes(
+        journal: PathBuf,
+        ports: Arc<dyn Ports>,
+        publish: Publish,
+        platform: &'static str,
+        arch: &'static str,
+        routes: &'static [Route],
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(State {
@@ -253,6 +269,13 @@ impl Service {
             }),
             platform,
             arch,
+            routes,
+            spawn: Arc::new(|work| {
+                std::thread::Builder::new()
+                    .name("local-agent-activation".into())
+                    .spawn(work)
+                    .map(|_| ())
+            }),
         }
     }
     /// The first request reads the journal (`initialized`). Operations that
@@ -304,7 +327,10 @@ impl Service {
     }
     /// `createActivationRegistry`: the platform's routes with their recipes.
     fn registered(&self, id: &str) -> Option<(&'static Route, Option<Recipe>)> {
-        let route = route(id).filter(|r| r.platforms.contains(&self.platform))?;
+        let route = self
+            .routes
+            .iter()
+            .find(|r| r.id == id && r.platforms.contains(&self.platform))?;
         Some((route, route.recipe(self.platform, self.arch)))
     }
     pub fn read(&self) -> Result<Snapshot, ErrorCode> {
@@ -536,10 +562,36 @@ impl Service {
         }
         let service = self.clone();
         let id = operation_id.to_owned();
-        std::thread::Builder::new()
-            .name("local-agent-activation".into())
-            .spawn(move || service.run(&id, &cancel))
-            .ok();
+        if (self.spawn)(Box::new(move || service.run(&id, &cancel))).is_err() {
+            let cancelled = state
+                .tasks
+                .iter()
+                .find(|t| t.operation_id == operation_id)
+                .is_some_and(|t| t.cancel.load(Ordering::Relaxed));
+            if let Some(task) = state
+                .tasks
+                .iter_mut()
+                .find(|t| t.operation_id == operation_id)
+            {
+                task.running = false;
+            }
+            self.emit(state, operation_id, |op| {
+                reset_running(
+                    op,
+                    if cancelled {
+                        StepState::Pending
+                    } else {
+                        StepState::Failed
+                    },
+                );
+                op.status = if cancelled {
+                    Status::Cancelled
+                } else {
+                    Status::Failed
+                };
+                op.error = (!cancelled).then_some(ErrorCode::Process);
+            });
+        }
     }
     /// `run`: prepare (is it installed?), install from the recipe when
     /// there is one, then let discovery confirm.
@@ -658,7 +710,9 @@ impl Service {
         drop(state);
         // A consequence of explicit setup, never of opening a view.
         if installed {
-            self.ports.refresh();
+            // Refresh is advisory and runs after releasing state. A closed or
+            // failing observer cannot reject or poison a completed operation.
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.ports.refresh()));
         }
     }
     /// `emit`: apply, bump the revision, publish, persist.

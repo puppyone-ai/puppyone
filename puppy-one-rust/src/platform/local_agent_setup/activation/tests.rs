@@ -17,6 +17,7 @@ struct Fake {
     resolves: AtomicUsize,
     install_attempts: AtomicUsize,
     refreshes: AtomicUsize,
+    fail_refresh: bool,
 }
 impl Ports for Fake {
     fn resolve(&self, id: &str) -> Result<bool, ErrorCode> {
@@ -53,6 +54,7 @@ impl Ports for Fake {
     }
     fn refresh(&self) {
         self.refreshes.fetch_add(1, Ordering::SeqCst);
+        assert!(!self.fail_refresh, "refresh unavailable");
     }
 }
 fn wait_for_refresh(ports: &Fake, expected: usize) {
@@ -1023,4 +1025,132 @@ fn journal_writes_validate_before_replacing_private_receipts() {
     )
     .unwrap();
     assert_eq!(parse_journal(&decimal), Some(vec![]));
+}
+
+#[test]
+fn declared_recipes_and_surface_capabilities_drive_an_injected_catalog() {
+    fn claude_recipe(platform: &str, arch: &str) -> Option<Recipe> {
+        let mut recipe = super::super::ROUTES[1].recipe(platform, arch)?;
+        recipe.setup_id = "claude";
+        Some(recipe)
+    }
+    static ROUTES: [Route; 2] = [
+        Route {
+            recipe: claude_recipe,
+            ..super::super::ROUTES[0]
+        },
+        Route {
+            chat: false,
+            ..super::super::ROUTES[1]
+        },
+    ];
+    let dir = tempfile::tempdir().unwrap();
+    let ports = Arc::new(Fake::default());
+    let service = Service::for_routes(
+        dir.path().join("activation.json"),
+        ports.clone(),
+        Arc::new(|_| {}),
+        "darwin",
+        "arm64",
+        &ROUTES,
+    );
+    let plan = service.plan("window", "claude", Surface::Chat).unwrap();
+    assert!(plan.automatic);
+    service.start("window", &plan.plan_id).unwrap();
+    assert_eq!(settle(&service, "claude").status, Status::Ready);
+    assert_eq!(*ports.installs.lock().unwrap(), ["claude"]);
+    assert!(matches!(
+        service.plan("window", "codex", Surface::Chat),
+        Err(ErrorCode::Unsupported)
+    ));
+    ports.found.lock().unwrap().push("codex".into());
+    let terminal = service.plan("window", "codex", Surface::Terminal).unwrap();
+    service.start("window", &terminal.plan_id).unwrap();
+    assert_eq!(settle(&service, "codex").status, Status::Ready);
+    assert_eq!(
+        *ports.installs.lock().unwrap(),
+        ["claude"],
+        "existing terminal-only installation is reused"
+    );
+    assert!(
+        matches!(
+            service.plan("window", "cursor", Surface::Chat),
+            Err(ErrorCode::Unsupported)
+        ),
+        "global routes may not escape the injected catalog"
+    );
+    let (normal, _) = new_service(&dir.path().join("default"), Arc::new(Fake::default()));
+    assert!(matches!(
+        normal.plan("window", "workbuddy-china", Surface::Terminal),
+        Err(ErrorCode::Unsupported)
+    ));
+    service.settle_for_test();
+}
+
+#[test]
+fn a_synchronously_failing_refresh_cannot_panic_or_reject_a_completed_worker() {
+    let dir = tempfile::tempdir().unwrap();
+    let ports = Arc::new(Fake {
+        found: Mutex::new(vec!["cursor".into()]),
+        fail_refresh: true,
+        ..Fake::default()
+    });
+    let (mut service, _) = new_service(dir.path(), ports.clone());
+    let (finished, completed) = mpsc::channel();
+    service.spawn = Arc::new(move |work| {
+        let finished = finished.clone();
+        std::thread::spawn(move || {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work));
+            finished.send(result.is_ok()).unwrap();
+        });
+        Ok(())
+    });
+    let plan = service.plan("window", "cursor", Surface::Chat).unwrap();
+    service.start("window", &plan.plan_id).unwrap();
+    let survived = completed.recv_timeout(Duration::from_secs(3)).unwrap();
+    service.settle_for_test();
+    assert!(
+        survived,
+        "an advisory refresh must not escape the completed worker"
+    );
+    let operation = settle(&service, "cursor");
+    assert_eq!(
+        (operation.status, operation.installed, operation.error),
+        (Status::Ready, true, None)
+    );
+    assert_eq!(ports.refreshes.load(Ordering::SeqCst), 1);
+    assert!(ports.installs.lock().unwrap().is_empty());
+}
+
+#[test]
+fn worker_spawn_failure_publishes_a_terminal_receipt_and_releases_activation_capacity() {
+    let dir = tempfile::tempdir().unwrap();
+    let ports = Arc::new(Fake::default());
+    let (mut service, _) = new_service(dir.path(), ports.clone());
+    service.spawn = Arc::new(|_| Err(std::io::Error::other("native thread unavailable")));
+    for id in ["claude", "codex", "cursor", "hermes"] {
+        let plan = service.plan("window", id, Surface::Chat).unwrap();
+        let result = service.start("window", &plan.plan_id).unwrap();
+        let op = result
+            .operations
+            .iter()
+            .find(|op| op.setup_id == id)
+            .unwrap();
+        assert_eq!(
+            (op.status, op.error, op.installed),
+            (Status::Failed, Some(ErrorCode::Process), false)
+        );
+        assert_eq!(op.steps[PREPARE], StepState::Failed);
+    }
+    assert_eq!(ports.resolves.load(Ordering::SeqCst), 0);
+    assert_eq!(ports.install_attempts.load(Ordering::SeqCst), 0);
+    service.settle_for_test();
+    assert!(
+        service
+            .journal
+            .read()
+            .unwrap()
+            .iter()
+            .all(|op| op.status == Status::Failed)
+    );
 }
