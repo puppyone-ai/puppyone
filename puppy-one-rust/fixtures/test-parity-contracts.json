@@ -1,6 +1,6 @@
 {
   "referenceCommit": "dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2",
-  "qualification": "Each row maps only its stated acceptance criteria. A referenced TS file can contain additional assertions; references are not whole-file equivalence or execution evidence. The inventory reports all other TS files for further review.",
+  "qualification": "Only explicitly indexed TS cases count as reviewed case-level acceptance. File-only citations cover the stated criterion, not every assertion in that file. Native ownership mechanisms may differ; each mapping must preserve the observable acceptance. Execution receipts and unmapped cases are reported separately.",
   "contracts": [
     {
       "id": "save-scheduling",
@@ -8,7 +8,21 @@
       "typescript": [
         {
           "path": "tests/unit/editor/document-session/autoSavePolicy.test.ts",
-          "sha256": "ca9f63b483521b9f385df322d95b3ac5b83ec4a95149d5c0ef7335f010f0cc47"
+          "sha256": "ca9f63b483521b9f385df322d95b3ac5b83ec4a95149d5c0ef7335f010f0cc47",
+          "cases": [
+            {
+              "index": 0,
+              "name": "idle auto-save scheduler > saves once after the quiet period, restarting it on each edit"
+            },
+            {
+              "index": 1,
+              "name": "idle auto-save scheduler > bounds the wait from the first unsaved edit while edits keep arriving"
+            },
+            {
+              "index": 3,
+              "name": "idle auto-save scheduler > flushes only a pending save, immediately"
+            }
+          ]
         }
       ],
       "rust": [
@@ -285,15 +299,91 @@
     },
     {
       "id": "explorer-scope",
-      "acceptance": "Refresh only loaded directories affected by the change and nearest loaded ancestors; unknown scope refreshes all.",
+      "acceptance": "Named changes relist only their loaded parent/ancestor, unknown changes relist all loaded folders. Actual Explorer session publishes additions/deletions, preserves unchanged projection and selection, rejects stale results, and keeps a disjoint pending read without cancellation or duplicate I/O. The same native session serves local and hosted providers; Cloud provider caching is independently covered by cloud-cache and cloud-http-integration.",
       "typescript": [
         {
           "path": "tests/unit/workspace/explorer/explorerRefreshScope.test.ts",
-          "sha256": "c11905e8bc389ce1e4800be610d8327b010068b8931e9664ba01c4290a8106fa"
+          "sha256": "c11905e8bc389ce1e4800be610d8327b010068b8931e9664ba01c4290a8106fa",
+          "cases": [
+            {
+              "index": 0,
+              "name": "explorer refresh scope > re-lists only the parent folder of a changed file"
+            },
+            {
+              "index": 1,
+              "name": "explorer refresh scope > re-lists the unnamed root for a top-level change in a single-Folder tree"
+            },
+            {
+              "index": 2,
+              "name": "explorer refresh scope > re-lists a changed folder that is loaded, together with its parent"
+            },
+            {
+              "index": 3,
+              "name": "explorer refresh scope > re-lists the nearest loaded ancestor for a change inside a folder that was never opened"
+            },
+            {
+              "index": 4,
+              "name": "explorer refresh scope > names each folder once for a batch"
+            }
+          ]
         },
         {
           "path": "tests/component/workspace/explorer/explorerScopedRefresh.test.tsx",
-          "sha256": "3988ed44940fe2c5de0952a0bab6f6b201088c3827bb2aadfb1b4020004815e9"
+          "sha256": "3988ed44940fe2c5de0952a0bab6f6b201088c3827bb2aadfb1b4020004815e9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Explorer refresh after a named change (Cloud listings with cached snapshots) > re-lists only the folder holding the changed file"
+            },
+            {
+              "index": 1,
+              "name": "Explorer refresh after a named change (Cloud listings with cached snapshots) > re-lists the root for a top-level change and nothing else"
+            },
+            {
+              "index": 2,
+              "name": "Explorer refresh after a named change (Cloud listings with cached snapshots) > shows an entry another writer added, leaving other rows untouched"
+            },
+            {
+              "index": 3,
+              "name": "Explorer refresh after a named change (Cloud listings with cached snapshots) > removes an entry another writer deleted"
+            },
+            {
+              "index": 4,
+              "name": "Explorer refresh after a named change (Cloud listings with cached snapshots) > still revalidates every loaded folder when the change cannot be named"
+            },
+            {
+              "index": 5,
+              "name": "Explorer refresh after a named change (local listings read from disk) > re-lists only the folder holding the changed file"
+            },
+            {
+              "index": 6,
+              "name": "Explorer refresh after a named change (local listings read from disk) > re-lists the root for a top-level change and nothing else"
+            },
+            {
+              "index": 7,
+              "name": "Explorer refresh after a named change (local listings read from disk) > shows an entry another writer added, leaving other rows untouched"
+            },
+            {
+              "index": 8,
+              "name": "Explorer refresh after a named change (local listings read from disk) > removes an entry another writer deleted"
+            },
+            {
+              "index": 9,
+              "name": "Explorer refresh after a named change (local listings read from disk) > still revalidates every loaded folder when the change cannot be named"
+            },
+            {
+              "index": 10,
+              "name": "Explorer refresh stability > does not produce a new tree when a re-listed folder did not change"
+            },
+            {
+              "index": 11,
+              "name": "Explorer refresh stability > keeps the newest listing of a folder when an older one returns last"
+            },
+            {
+              "index": 12,
+              "name": "Explorer refresh stability > does not cancel another folder's load when one folder is re-listed"
+            }
+          ]
         }
       ],
       "rust": [
@@ -301,6 +391,21 @@
           "package": "po-app",
           "test": "app::explorer::refresh_scope::tests::scoped_changes_refresh_the_nearest_loaded_ancestor_and_never_unopened_folders",
           "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::session::tests::scoped_refresh::named_and_unknown_changes_refresh_only_their_scope_and_preserve_unchanged_projection"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::session::tests::scoped_refresh::a_scoped_refresh_keeps_another_folders_pending_result_without_reading_it_twice"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::session::tests::scoped_refresh::newer_listing_wins_when_an_old_result_is_waiting_for_foreground_delivery"
         }
       ],
       "environment": "GPUI synthetic"
@@ -329,14 +434,113 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "binary-preview-invalidation",
+      "acceptance": "Image, PDF, Office, audio and video reacquire only on own/ancestor or unknown changes, publish the replacement and release the old native snapshot. Hidden and rebound reads are fenced; failed refresh preserves the shown snapshot and Retry reacquires from the provider. Native Arc ownership replaces TS URL revocation.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/resources/fileResourceLease.test.tsx",
+          "sha256": "85e548b14beafb4fe5234086de43c1c49bbd4a5ddb14d1b324db5e10584810a3",
+          "cases": [
+            {
+              "index": 1,
+              "name": "file resource lease > 'html-artifact' reacquires only for its own external change and retires the previous lease"
+            },
+            {
+              "index": 2,
+              "name": "file resource lease > 'image-preview' reacquires only for its own external change and retires the previous lease"
+            },
+            {
+              "index": 3,
+              "name": "file resource lease > 'pdf-preview' reacquires only for its own external change and retires the previous lease"
+            },
+            {
+              "index": 4,
+              "name": "file resource lease > 'office-preview' reacquires only for its own external change and retires the previous lease"
+            },
+            {
+              "index": 5,
+              "name": "file resource lease > 'audio-preview' reacquires only for its own external change and retires the previous lease"
+            },
+            {
+              "index": 7,
+              "name": "file resource lease > treats a null path list as a real bulk resource invalidation"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "documents::resource_tests::every_binary_preview_watches_its_own_path_and_unknown_changes_without_text_or_writeback"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::resource_tests::a_failed_preview_refresh_retains_the_committed_snapshot_and_recovers_on_retry"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::resource_tests::a_newer_resource_change_fences_an_inflight_snapshot_and_hidden_previews_resume_fresh"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::resource_tests::a_late_previous_provider_cannot_replace_a_rebound_preview_or_subscription"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "editor-persistence-admission",
+      "acceptance": "CSV semantic type does not override its editable format; Office remains read-only; format and workspace write capability both gate actual input; unavailable or oversized source never becomes an editable truncated fallback.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/editorAccess.test.ts",
+          "sha256": "0ee2929f65c4a510bf5378c9c26ccf60052121cf7dcfa72d3adb893b8925c1d0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor access routing > allows a loaded CSV classified as a spreadsheet to use the editable contribution"
+            },
+            {
+              "index": 1,
+              "name": "editor access routing > never promotes a preview or truncated fallback into an editable source"
+            },
+            {
+              "index": 2,
+              "name": "editor access routing > keeps modern Office resources read-only regardless of text persistence"
+            },
+            {
+              "index": 3,
+              "name": "editor access routing > requires a host persistence capability after format and Viewer approval"
+            },
+            {
+              "index": 4,
+              "name": "editor access routing > treats the format registry as the edit policy source of truth"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::csv_semantics_do_not_override_format_policy_or_make_office_editable"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::a_host_without_persistence_never_accepts_user_input"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::source_admission_counts_utf8_bytes_and_never_opens_a_truncated_editable_fallback"
+        }
+      ],
+      "environment": "GPUI synthetic"
     }
   ],
   "openAcceptance": [
     "Full assertion-level review of the remaining TS inventory",
     "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
-    "Installed CLI handshake and paid inference on all supported runtimes",
-    "Real Cloud and cross-device deployment acceptance",
-    "Reproducible production line/branch coverage baseline",
-    "Existing failing macOS platform tests and execution on an unrestricted runner"
+    "Real Cloud and cross-device deployment acceptance"
   ]
 }

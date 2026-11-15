@@ -19,7 +19,8 @@ out.mkdir(parents=True, exist_ok=True)
 cargo = shutil.which('cargo') or str(Path.home() / '.cargo/bin/cargo')
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'README.md', 'THIRD_PARTY.md', 'product-source.json']]
 for folder in ['src', 'crates', 'assets', 'fixtures', 'tools']:
-    paths.extend(p for p in sorted((root / folder).rglob('*')) if p.is_file() and "__pycache__" not in p.parts)
+    paths.extend(p for p in sorted((root / folder).rglob('*')) if p.is_file()
+                 and not {'__pycache__', 'target'}.intersection(p.relative_to(root).parts))
 def source_hashes():
     return {os.path.relpath(p, root): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
 verified_sources = source_hashes()
@@ -27,8 +28,9 @@ verified_sources = source_hashes()
 commands = [
     ('fmt', [cargo, 'fmt', '--check']),
     ('boundaries', ['python3', 'tools/check-ui-boundaries.py']),
-    ('test-runner', ['python3', '-B', '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_test_runner.py']),
+    ('test-runner', ['python3', '-B', '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_*.py']),
     ('test-parity-reference', ['node', 'tools/reference-test-parity.mjs', '--check']),
+    ('test-parity-cases', ['node', 'tools/collect-test-cases.mjs']),
     ('test-parity-contracts', ['python3', '-B', 'tools/verify-test-parity.py']),
     ('product-layers', ['python3', 'tools/audit-product-layers.py']),
     ('auth-reference', ['python3', 'tools/check-auth-reference.py']),
@@ -58,9 +60,7 @@ commands = [
     ('app-preview', ['node', 'tools/import-app-preview.mjs', '--check']),
     ('terminal-glyphs', ['node', 'tools/import-xterm-glyphs.mjs', '--check']),
     ('ui-migration', ['python3', 'tools/audit-ui-migration.py']),
-    ('test', [cargo, 'test', '--locked', '--features', 'dev-capture']),
-    ('native-dependencies', ['python3', '-B', 'tools/verify-native-dependencies.py']),
-    ('native-agent-http', ['python3', '-B', 'tools/verify-agent-runtimes.py', '--only', 'puppyone-native']),
+    ('coverage', ['python3', '-B', 'tools/verify-coverage.py']),
     ('clippy', [cargo, 'clippy', '--locked', '--all-targets', '--features', 'dev-capture', '--', '-D', 'warnings']),
     ('release', [cargo, 'build', '--locked', '--release']),
     ('editor-frames', ['python3', 'tools/bench-editor.py', '--check']),

@@ -43,6 +43,8 @@ jobs:
           rustup override set 1.97.1
           npm ci --prefix ../../puppyone-qubits
           cargo fetch --locked
+          cargo fetch --locked --manifest-path tools/source-index/Cargo.toml
+          cargo install cargo-llvm-cov --version 0.9.1 --locked
       - name: Install the pinned native engines
         run: |
           python3 tools/fetch-pdfium.py
@@ -53,22 +55,15 @@ jobs:
           python3 -B tools/check-ui-boundaries.py
           python3 -B tools/audit-product-layers.py
           python3 -B tools/audit-ui-migration.py --check
-          python3 -B -m unittest discover -s tools -p 'test_test_runner.py'
+          python3 -B -m unittest discover -s tools -p 'test_*.py'
           node tools/reference-test-parity.mjs --check
-      - name: Test the entire Rust workspace
-        run: |
-          mkdir -p artifacts
-          cargo test --locked --offline --workspace --features dev-capture --no-fail-fast 2>&1 | tee artifacts/full-workspace.log
+      - name: Collect exact cases from the pinned TS product
+        run: node tools/collect-test-cases.mjs
+      - name: Verify production coverage and actual native dependencies
+        run: python3 -B tools/verify-coverage.py
       - name: Verify reviewed TS acceptance criteria
         if: ${{ !cancelled() }}
         run: python3 -B tools/verify-test-parity.py
-      - name: Test actual native engines
-        if: ${{ !cancelled() }}
-        run: python3 -B tools/verify-native-dependencies.py
-      - name: Test native HTTP
-        if: ${{ !cancelled() }}
-        run: |
-          python3 -B tools/verify-agent-runtimes.py --only puppyone-native
       - name: Check all production and test targets
         if: ${{ !cancelled() }}
         run: cargo clippy --locked --offline --workspace --all-targets --features dev-capture -- -D warnings

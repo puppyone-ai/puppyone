@@ -1071,8 +1071,11 @@ fn document_and_tree_subscriptions_share_one_stream_and_last_drop_stops_it() {
     drop(document);
     wait(|| f.state.streams.lock().unwrap().is_empty());
     let (_next, _) = subscription(&ws);
-    wait(|| shared.epoch.load(Ordering::SeqCst) >= epoch + 22);
+    // Cache invalidation also advances the epoch when subscribers leave. It
+    // cannot prove that a replacement HTTP stream has actually connected.
+    wait(|| f.state.stream_count.load(Ordering::SeqCst) == 2);
     assert_eq!(f.state.stream_count.load(Ordering::SeqCst), 2);
+    assert_eq!(f.state.streams.lock().unwrap().len(), 1);
 }
 #[test]
 fn reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease() {
