@@ -106,6 +106,14 @@ impl WindowCloud {
                 p.load_organizations(cx);
             }
         });
+        self.sync_backup_card(cx);
+    }
+    /// The Changes backup card follows Cloud and a running publication.
+    pub(super) fn sync_backup_card(&mut self, cx: &mut Context<Self>) {
+        let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        let publishing = self.publish.read(cx).running.is_some();
+        self.source_control
+            .update(cx, |s, cx| s.set_cloud_backup(enabled, publishing, cx));
     }
     pub(super) fn project_display_name(&self, cx: &App) -> String {
         self.root()

@@ -51,6 +51,8 @@ pub(super) enum SidebarEvent {
     CloudPublished,
     /// A Changes operation failed, or its failure was dismissed.
     GitFailure,
+    /// The backup card's Publish (`cloudBackup.start`).
+    BackUpToCloud,
     /// History closed itself: the window takes the focus back.
     Closed,
 }
@@ -125,6 +127,7 @@ impl RightSidebar {
             }
             SourceControlEvent::Surface => s.store(cx),
             SourceControlEvent::Failure => cx.emit(SidebarEvent::GitFailure),
+            SourceControlEvent::BackUpToCloud => cx.emit(SidebarEvent::BackUpToCloud),
         })
         .detach();
         // History's Close and Back leave the sidebar closed on the workbench.

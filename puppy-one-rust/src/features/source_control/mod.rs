@@ -5,6 +5,7 @@
 //! `source-control/styles/*`. Git runs through `platform/git.rs` on a worker.
 //! A selected change opens its file diff in place (`WorkingFileDetail` over
 //! the format-aware `diff` registry).
+mod backup_card;
 mod cloud_history;
 pub(crate) use cloud_history::{relative_time, short_date};
 mod diff;
@@ -133,6 +134,8 @@ pub enum SourceControlEvent {
     /// An operation failed, or its failure was dismissed: the window shows
     /// or closes `GitOperationErrorDialog` ([`SourceControl::has_failure`]).
     Failure,
+    /// `cloudBackup.start`: put the folder in Puppyone Cloud.
+    BackUpToCloud,
 }
 /// `GitSidebarPanelId` of the local status panels, in display order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -281,6 +284,11 @@ pub struct SourceControl {
     /// The dialog's "Copied" and its reset.
     prompt_copied: bool,
     prompt_reset: Option<Task<()>>,
+    /// Cloud is on, a first publication runs, and the backup card was
+    /// dismissed (`backupCardDismissed`).
+    cloud_enabled: bool,
+    cloud_publishing: bool,
+    backup_dismissed: bool,
     busy: bool,
     /// The running mutation's label (`gitOperationLoading`).
     running: Option<&'static str>,
@@ -365,6 +373,9 @@ impl SourceControl {
             failure: None,
             prompt_copied: false,
             prompt_reset: None,
+            cloud_enabled: false,
+            cloud_publishing: false,
+            backup_dismissed: false,
             busy: false,
             running: None,
             queued_operation: None,
@@ -411,6 +422,7 @@ impl SourceControl {
         self.snapshot = None;
         self.error = None;
         self.dismiss_failure(cx);
+        self.backup_dismissed = false;
         self.busy = false;
         self.running = None;
         self.queued_operation = None;
@@ -1315,6 +1327,10 @@ impl SourceControl {
             list = list.child(self.incoming_notice(behind, primary == Some(PrimarySlot::Sync), cx));
         }
         list = list.child(stack);
+        // `.desktop-git-fixed-region`.
+        if self.shows_backup_card(snapshot) {
+            list = list.child(self.backup_card(cx));
+        }
         if let Some(error) = &self.error {
             list = list.child(self.error_banner(error.clone(), cx));
         }
@@ -2001,6 +2017,38 @@ mod tests {
         });
         cx.run_until_parked();
         assert_eq!(failures.get(), 2);
+    }
+    /// `GitRemotePrompt`: Cloud on, nowhere to send commits, not dismissed.
+    #[gpui::test]
+    fn the_backup_card_asks_only_without_a_remote(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(SourceControl::new);
+        view.update(cx, |s, cx| {
+            let local = Snapshot {
+                branch: "main".into(),
+                ..Snapshot::default()
+            };
+            assert!(!s.shows_backup_card(&local));
+            s.set_cloud_backup(true, false, cx);
+            assert!(s.shows_backup_card(&local));
+            for elsewhere in [
+                Snapshot {
+                    remotes: vec!["origin".into()],
+                    ..local.clone()
+                },
+                Snapshot {
+                    cloud_backup: true,
+                    ..local.clone()
+                },
+                Snapshot {
+                    upstream: Some("main".into()),
+                    ..local.clone()
+                },
+            ] {
+                assert!(!s.shows_backup_card(&elsewhere), "{elsewhere:?}");
+            }
+            s.backup_dismissed = true;
+            assert!(!s.shows_backup_card(&local));
+        });
     }
     #[gpui::test]
     fn reads_follow_invalidations_and_the_metadata_watch_not_a_clock(cx: &mut TestAppContext) {

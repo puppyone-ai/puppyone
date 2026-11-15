@@ -426,6 +426,11 @@ impl Shell {
             }
             SidebarEvent::Closed => self.frame.focus.focus(window, cx),
             SidebarEvent::GitFailure => return self.git_failure(cx),
+            // `handleStartCloudInitialization`: the first publication's
+            // page, which asks for the organization before it uploads.
+            SidebarEvent::BackUpToCloud => {
+                return self.cloud.update(cx, |c, cx| c.put_in_cloud(window, cx));
+            }
         }
         self.receive(window, cx);
         cx.notify();

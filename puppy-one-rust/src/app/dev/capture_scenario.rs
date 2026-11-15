@@ -86,6 +86,8 @@ enum Step {
     /// `plan-fixture:<state>`: Settings › Plan as `#cloud-plans-visual-smoke`
     /// shows it (`free`, `team`, `enterprise`, `scheduled`).
     PlanFixture(String),
+    /// `cloud-offline`: an available account with Cloud on, nothing behind it.
+    CloudOffline,
     /// `host-share:<absolute path>`: the sharing dialog for that folder.
     HostShare(PathBuf),
     HomeHover(usize),
@@ -176,6 +178,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
                 "plan-fixture" => Step::PlanFixture(arg.to_string()),
+                "cloud-offline" => Step::CloudOffline,
                 "updates-fixture" => Step::UpdatesFixture(arg.to_string()),
                 "host-share" => Step::HostShare(path()),
                 "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
@@ -706,6 +709,13 @@ impl Shell {
             }
             Step::UpdatesFixture(preview) => {
                 crate::features::updates::install_fixture(preview, cx);
+            }
+            Step::CloudOffline => {
+                crate::features::cloud::account::install_offline(cx);
+                self.prefs.store.update(cx, |p, cx| {
+                    p.state.experimental.cloud_workspace = true;
+                    cx.notify();
+                });
             }
             Step::PlanFixture(state) => {
                 // An available account and Cloud with payments, nothing behind them.

@@ -53,6 +53,10 @@ pub struct Snapshot {
     /// A merge, rebase, cherry-pick or revert waiting to be continued or
     /// aborted (`sourceControl.operation`).
     pub operation: Option<RepositoryOperation>,
+    /// The configured remotes' names.
+    pub remotes: Vec<String>,
+    /// `.puppyone/config.json` turns Cloud backup on (`backup.enabled`).
+    pub cloud_backup: bool,
 }
 /// `readGitRepositoryOperationKind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -185,7 +189,15 @@ pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
         .unwrap_or_default();
     snapshot.prefix = prefix;
     snapshot.operation = repository_operation(root, cancel);
-    snapshot.target = sync_target(root, &snapshot, cancel);
+    let remotes = remotes(root, cancel);
+    let config = workspace_config(root);
+    snapshot.target = sync_target(root, &snapshot, &remotes, config.as_ref(), cancel);
+    snapshot.remotes = remotes.into_iter().map(|r| r.name).collect();
+    snapshot.cloud_backup = config
+        .as_ref()
+        .and_then(|c| c.pointer("/backup/enabled"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true);
     // A branch that tracks nothing compares with the branch a first push
     // would create, once that exists (`readGitAheadBehindCounts`).
     if snapshot.upstream.is_none()
@@ -226,13 +238,18 @@ fn repository_operation(root: &Path, cancel: &AtomicBool) -> Option<RepositoryOp
         .find(|(path, _)| root.join(path.trim()).exists())
         .map(|(_, (_, kind))| kind)
 }
-fn sync_target(root: &Path, snapshot: &Snapshot, cancel: &AtomicBool) -> Option<SyncTarget> {
-    let remotes = remotes(root, cancel);
+fn sync_target(
+    root: &Path,
+    snapshot: &Snapshot,
+    remotes: &[Remote],
+    config: Option<&serde_json::Value>,
+    cancel: &AtomicBool,
+) -> Option<SyncTarget> {
     let (remote, branch) = choose_target(
-        &remotes,
+        remotes,
         snapshot.current_branch(),
         snapshot.upstream.as_deref(),
-        configured_remote(root).as_deref(),
+        config.and_then(configured_remote).as_deref(),
     )?;
     let exists = text(
         root,
@@ -339,11 +356,13 @@ fn cloud_locator(raw: &str) -> bool {
         _ => false,
     }
 }
-/// The workspace's chosen remote in `.puppyone/config.json`
+/// The workspace's `.puppyone/config.json` (`readPuppyoneWorkspaceConfig`).
+fn workspace_config(root: &Path) -> Option<serde_json::Value> {
+    serde_json::from_slice(&std::fs::read(root.join(".puppyone/config.json")).ok()?).ok()
+}
+/// The workspace's chosen remote
 /// (`sync.sourceOfTruth.remote ?? git.primaryRemote ?? backup.remote`).
-fn configured_remote(root: &Path) -> Option<String> {
-    let config: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(root.join(".puppyone/config.json")).ok()?).ok()?;
+fn configured_remote(config: &serde_json::Value) -> Option<String> {
     [
         "/sync/sourceOfTruth/remote",
         "/git/primaryRemote",
@@ -389,6 +408,11 @@ impl Snapshot {
     /// `remote.canPush`: commits to send and none to receive first.
     pub fn can_push(&self) -> bool {
         self.operation.is_none() && self.remote_exists() && self.ahead > 0 && self.behind == 0
+    }
+    /// `GitSyncState.setupRequired` for a repository: a branch that tracks
+    /// nothing, with no remote and no Cloud backup configured.
+    pub fn setup_required(&self) -> bool {
+        self.upstream.is_none() && self.remotes.is_empty() && !self.cloud_backup
     }
     /// The sync target exists: incoming and outgoing commits are counted.
     pub fn remote_exists(&self) -> bool {
@@ -722,7 +746,7 @@ fn push_remote(
             ))
         };
     }
-    if let Some(preferred) = configured_remote(root) {
+    if let Some(preferred) = workspace_config(root).as_ref().and_then(configured_remote) {
         return if has(&preferred) {
             Ok(preferred)
         } else {
@@ -1153,6 +1177,34 @@ mod tests {
             operate(root, &Operation::Abort, &cancel).unwrap().operation,
             None
         );
+    }
+    #[test]
+    fn a_repository_without_remotes_needs_a_place_to_go() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let cancel = AtomicBool::new(false);
+        operate(root, &Operation::Init, &cancel).unwrap();
+        let s = status(root, &cancel).unwrap();
+        assert!(s.remotes.is_empty() && s.setup_required());
+        // Cloud backup configured: the product's own setup takes over.
+        std::fs::create_dir(root.join(".puppyone")).unwrap();
+        std::fs::write(
+            root.join(".puppyone/config.json"),
+            r#"{"version":3,"backup":{"enabled":true}}"#,
+        )
+        .unwrap();
+        assert!(!status(root, &cancel).unwrap().setup_required());
+        std::fs::remove_dir_all(root.join(".puppyone")).unwrap();
+        git(
+            root,
+            &["remote", "add", "origin", "/tmp/x.git"],
+            None,
+            &cancel,
+        )
+        .unwrap();
+        let s = status(root, &cancel).unwrap();
+        assert_eq!(s.remotes, ["origin"]);
+        assert!(!s.setup_required());
     }
     #[test]
     fn empty_commits_take_the_product_default_message() {

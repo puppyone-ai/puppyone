@@ -116,6 +116,7 @@ impl WindowCloud {
                 s.publish_reported = published;
                 s.repository.update(cx, |r, cx| r.retry(cx));
             }
+            s.sync_backup_card(cx);
             cx.notify()
         })
         .detach();
