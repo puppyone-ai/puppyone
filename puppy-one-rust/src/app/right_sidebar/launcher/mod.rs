@@ -296,7 +296,7 @@ impl WorkbenchLauncher {
                 return;
             };
             if let Some(tab) = tab
-                && !w.is_launcher(&root, tab)
+                && !w.launcher_available(&root, tab)
             {
                 return;
             }
@@ -391,7 +391,7 @@ impl WorkbenchLauncher {
             // Preparation belongs to the exact launcher; a stale click
             // cannot replace an existing session.
             if let Some(tab) = tab
-                && !w.is_launcher(&root, tab)
+                && !w.launcher_available(&root, tab)
             {
                 return;
             }

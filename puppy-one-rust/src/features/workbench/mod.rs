@@ -4,6 +4,7 @@
 //! state; each tab's content is a contribution's [`WorkbenchItem`]. The
 //! launcher and the items it creates come from the shell's
 //! [`WorkbenchHost`]; nothing here names a contribution.
+mod admission;
 mod close_dialog;
 mod drag;
 mod header;
@@ -85,6 +86,7 @@ impl Content {
 }
 #[derive(Default)]
 struct Project {
+    preparing: admission::Preparations,
     layout: Layout,
     content: HashMap<Id, Content>,
     loading: bool,

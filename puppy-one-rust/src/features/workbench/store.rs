@@ -31,10 +31,9 @@ impl Workbench {
         }
         let gid = p.layout.active_group;
         let launcher = p.layout.groups.get(&gid).and_then(|g| {
-            g.tabs
-                .iter()
-                .copied()
-                .find(|t| matches!(p.content.get(t), Some(Content::Launcher)))
+            g.tabs.iter().copied().find(|t| {
+                matches!(p.content.get(t), Some(Content::Launcher)) && !p.preparing.has_tab(*t)
+            })
         });
         cx.notify();
         Some((gid, launcher))
@@ -90,11 +89,23 @@ impl Workbench {
         item: Rc<dyn WorkbenchItem>,
         cx: &mut Context<Self>,
     ) -> Option<Id> {
+        if !self.can_create(item.kind()) {
+            return None;
+        }
+        if let Some(tab) = tab {
+            let root = self.root.as_ref()?;
+            if !self.launcher_available(root, tab) {
+                return None;
+            }
+        }
         let content = self.content(item, cx);
         let p = self.project_mut()?;
         let id = tab.unwrap_or_else(|| p.layout.add(group));
         p.content.insert(id, content);
-        p.layout.activate(group, id);
+        // Replacing a launcher keeps its visual key, group and current selection.
+        if tab.is_none() {
+            p.layout.activate(group, id);
+        }
         cx.notify();
         Some(id)
     }
@@ -248,10 +259,9 @@ impl Workbench {
         let slot = self.project().map(|p| {
             let gid = p.layout.active_group;
             let launcher = p.layout.groups.get(&gid).and_then(|g| {
-                g.tabs
-                    .iter()
-                    .copied()
-                    .find(|t| matches!(p.content.get(t), Some(Content::Launcher)))
+                g.tabs.iter().copied().find(|t| {
+                    matches!(p.content.get(t), Some(Content::Launcher)) && !p.preparing.has_tab(*t)
+                })
             });
             (gid, launcher)
         });
@@ -417,12 +427,13 @@ impl Workbench {
 
     /// `ProjectWorkbenchStore.canCreate`: a contribution's `maximumItems`.
     pub fn can_create(&self, kind: ItemKind) -> bool {
-        self.project().is_none_or(|p| {
-            p.content
-                .values()
-                .filter(|c| c.kind() == Some(kind))
-                .count()
-                < kind.maximum_items()
+        self.project().is_some_and(|p| {
+            !p.preparing.has_kind(kind)
+                && p.content
+                    .values()
+                    .filter(|c| c.kind() == Some(kind))
+                    .count()
+                    < kind.maximum_items()
         })
     }
 
@@ -501,6 +512,7 @@ impl Workbench {
         if let Some(p) = self.projects.get_mut(root) {
             p.layout.remove(id);
             p.content.remove(&id);
+            p.preparing.remove(id);
         }
         if let Some(host) = self.host.clone() {
             cx.defer(move |cx| host.tab_removed(id, cx));

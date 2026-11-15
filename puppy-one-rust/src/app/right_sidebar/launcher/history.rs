@@ -85,9 +85,8 @@ impl WorkbenchLauncher {
                     return;
                 };
                 if let Some(group) = workbench.read(cx).group_of(tab) {
-                    workbench.update(cx, |w, cx| w.clear_creation_failure(cx));
                     if self.hosted.is_open() {
-                        self.open_hosted_history_target(group, tab, target.id.clone(), window, cx);
+                        self.open_hosted_history_target(group, tab, target.clone(), window, cx);
                     } else {
                         self.restore_history_target(group, tab, target.clone(), window, cx);
                     }
@@ -101,7 +100,7 @@ impl WorkbenchLauncher {
     /// stays and the failure is retryable (`recordCreationFailure`).
     pub(super) fn restore_history_target(
         &mut self,
-        group: Id,
+        _group: Id,
         tab: Id,
         target: HistoryTarget,
         window: &mut Window,
@@ -113,9 +112,16 @@ impl WorkbenchLauncher {
         let Some(root) = workbench.read(cx).root().cloned() else {
             return;
         };
+        let Some(permit) =
+            workbench.update(cx, |w, cx| w.reserve_creation(ItemKind::Chat, tab, cx))
+        else {
+            self.clear_history_opening(tab, cx);
+            return;
+        };
         let mut saved = match self.chats.open_saved(&root, &target, cx) {
             Ok(saved) => saved,
             Err(_) => {
+                workbench.update(cx, |w, cx| w.cancel_creation(permit, cx));
                 self.history_restore_failed(tab, target, OpenFailure::default(), cx);
                 return;
             }
@@ -125,15 +131,21 @@ impl WorkbenchLauncher {
             let opened = opening.await;
             this.update_in(cx, |s, window, cx| {
                 let launcher = workbench.read(cx).is_launcher(&root, tab);
-                if opened.is_ok() && launcher {
+                if opened.is_ok() && workbench.read(cx).creation_is_current(&permit) {
                     let item: Rc<dyn WorkbenchItem> =
                         Rc::new(s.chats.saved_chat(saved, window, cx));
                     s.history.remove(&tab);
-                    workbench.update(cx, |w, cx| w.place(group, Some(tab), item, cx));
+                    workbench.update(cx, |w, cx| w.commit_creation(permit, item, cx));
                     cx.notify();
                     return;
                 }
-                cx.foreground_executor().spawn(saved.discard()).detach();
+                // Keep admission occupied until native cleanup has settled.
+                cx.spawn(async move |_, cx| {
+                    saved.discard().await;
+                    workbench.update(cx, |w, cx| w.cancel_creation(permit, cx));
+                })
+                .detach();
+                s.clear_history_opening(tab, cx);
                 if launcher && let Err(failure) = opened {
                     s.history_restore_failed(tab, target, failure, cx);
                 }
@@ -237,7 +249,7 @@ impl WorkbenchLauncher {
         &mut self,
         group: Id,
         tab: Id,
-        session_id: String,
+        target: HistoryTarget,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -247,13 +259,33 @@ impl WorkbenchLauncher {
         let Some(root) = workbench.read(cx).root().cloned() else {
             return;
         };
-        let session = self.hosted.session(&session_id);
-        match self.hosted_chat(&root, tab, session, window, cx) {
+        let Some(permit) =
+            workbench.update(cx, |w, cx| w.reserve_creation(ItemKind::Chat, tab, cx))
+        else {
+            self.clear_history_opening(tab, cx);
+            return;
+        };
+        let Some(session) = self.hosted.session(&target.id) else {
+            workbench.update(cx, |w, cx| w.cancel_creation(permit, cx));
+            // Cache absence is not proof of deletion, and never means "new chat".
+            self.history_restore_failed(
+                tab,
+                target,
+                OpenFailure {
+                    code: Some("HISTORY_READ_FAILED".into()),
+                    retryable: true,
+                },
+                cx,
+            );
+            return;
+        };
+        match self.hosted_chat(&root, tab, Some(session), window, cx) {
             Ok(item) => {
                 self.history.remove(&tab);
-                workbench.update(cx, |w, cx| w.place(group, Some(tab), item, cx));
+                workbench.update(cx, |w, cx| w.commit_creation(permit, item, cx));
             }
             Err(error) => {
+                workbench.update(cx, |w, cx| w.cancel_creation(permit, cx));
                 if let Some(browser) = self.history.get(&tab) {
                     browser.update(cx, |browser, _| browser.opening = None);
                 }
@@ -261,6 +293,14 @@ impl WorkbenchLauncher {
             }
         }
         cx.notify();
+    }
+    fn clear_history_opening(&mut self, tab: Id, cx: &mut Context<Self>) {
+        if let Some(browser) = self.history.get(&tab) {
+            browser.update(cx, |b, cx| {
+                b.opening = None;
+                cx.notify();
+            });
+        }
     }
     /// A History browser in place of the launcher of `tab`.
     pub(super) fn render_history(&self, tab: Id) -> Option<AnyElement> {

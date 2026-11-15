@@ -1,5 +1,5 @@
 use super::*;
-use crate::features::desktop_agent::{AgentChatHistoryPayload, HistoryTarget};
+use crate::features::desktop_agent::{AgentChatHistoryPayload, HistoryBrowserEvent, HistoryTarget};
 use core::prelude::v1::test;
 use gpui::{TestAppContext, VisualTestContext};
 use std::path::Path;
@@ -147,4 +147,192 @@ fn allowing_history_records_permission_and_enables_its_browser_once(cx: &mut Tes
     launcher.update(cx, |l, cx| l.sync_history(cx));
     assert_eq!(calls.get(), 1);
     assert!(workbench.read_with(cx, |w, _| w.is_launcher(root.path(), tab)));
+}
+
+#[gpui::test]
+fn history_restore_respects_the_chat_limit_before_preparing_a_native_session(
+    cx: &mut TestAppContext,
+) {
+    let (workbench, launcher, cx) = compose(cx);
+    let root = tempfile::tempdir().unwrap();
+    launcher.update(cx, |l, cx| l.show_local(root.path().to_path_buf(), cx));
+    workbench.update(cx, |w, cx| {
+        for n in 0..8 {
+            w.lab_retained(
+                RetainedItem::Chat {
+                    runtime: crate::agent::connections::legacy_runtime_registry::Runtime::Codex,
+                    thread: None,
+                    title: format!("chat {n}"),
+                    runtime_id: Some("codex".into()),
+                },
+                cx,
+            );
+        }
+        assert!(!w.can_create(ItemKind::Chat));
+    });
+    let tab = workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    launcher.update_in(cx, |l, window, cx| {
+        l.restore_history_target(
+            0,
+            tab,
+            HistoryTarget {
+                id: "saved".into(),
+                title: "Saved".into(),
+                icon_key: None,
+                // Admission must refuse even before target validation can report a failure.
+                payload: AgentChatHistoryPayload {
+                    runtime_id: "codex".into(),
+                    session_id: String::new(),
+                },
+            },
+            window,
+            cx,
+        );
+    });
+    workbench.read_with(cx, |w, _| {
+        assert_eq!(w.tab_count(), 9);
+        assert!(w.is_launcher(root.path(), tab));
+        assert_eq!(
+            w.creation_failure_tab(),
+            None,
+            "capacity refusal must not start target preparation"
+        );
+    });
+}
+
+#[gpui::test]
+fn a_pending_history_preparation_blocks_terminal_launch_in_the_same_tab(cx: &mut TestAppContext) {
+    let (workbench, launcher, cx) = compose(cx);
+    let root = tempfile::tempdir().unwrap();
+    launcher.update(cx, |l, cx| l.show_local(root.path().to_path_buf(), cx));
+    let (tab, permit) = workbench.update(cx, |w, cx| {
+        let tab = w.new_launcher_tab(0, cx).unwrap();
+        let permit = w.reserve_creation(ItemKind::Chat, tab, cx).unwrap();
+        (tab, permit)
+    });
+    launcher.update_in(cx, |l, window, cx| l.launch(0, Some(tab), None, window, cx));
+    workbench.update(cx, |w, cx| {
+        assert!(w.is_launcher(root.path(), tab));
+        assert!(w.creation_is_current(&permit));
+        assert_eq!(w.open_resources(ItemKind::Terminal, cx).len(), 0);
+        assert_eq!(w.tab_count(), 1);
+        w.cancel_creation(permit, cx);
+        assert!(w.launcher_available(root.path(), tab));
+    });
+}
+
+fn empty_hosted_history(dir: &Path) -> std::sync::Arc<crate::features::cloud::Hub> {
+    use crate::workspace::cloud::agent::{Client, Error, Event, Transport};
+    struct NoRequests;
+    impl Transport for NoRequests {
+        fn request(
+            &self,
+            _: crate::cloud::auth::model::ApiRequest,
+        ) -> Result<serde_json::Value, Error> {
+            panic!("history admission must not allocate or query a hosted conversation")
+        }
+        fn events(
+            &self,
+            _: &str,
+            _: u64,
+            _: &crate::cloud::auth::Cancellation,
+        ) -> Result<Vec<Event>, Error> {
+            panic!("history admission must not observe a hosted conversation")
+        }
+    }
+    crate::features::cloud::Hub::new(
+        Client::new(
+            std::sync::Arc::new(NoRequests),
+            "project-a".into(),
+            "workbench-a".into(),
+        ),
+        "admission-fixture".into(),
+        dir.to_path_buf(),
+        Box::new(|| {}),
+    )
+}
+
+#[gpui::test]
+fn missing_hosted_history_stays_on_the_launcher_instead_of_creating_a_new_chat(
+    cx: &mut TestAppContext,
+) {
+    let (workbench, launcher, cx) = compose(cx);
+    let root = tempfile::tempdir().unwrap();
+    let receipts = tempfile::tempdir().unwrap();
+    launcher.update(cx, |l, cx| {
+        l.show_local(root.path().to_path_buf(), cx);
+        l.hosted.open_hub(empty_hosted_history(receipts.path()));
+    });
+    let tab = workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    let target = HistoryTarget {
+        id: "removed-session".into(),
+        title: "Saved".into(),
+        icon_key: None,
+        payload: AgentChatHistoryPayload {
+            runtime_id: "cloud-pi".into(),
+            session_id: "removed-session".into(),
+        },
+    };
+    launcher.update_in(cx, |l, window, cx| {
+        l.history_event(tab, &HistoryBrowserEvent::Open(target), window, cx);
+    });
+    workbench.read_with(cx, |w, _| {
+        assert!(
+            w.is_launcher(root.path(), tab),
+            "a missing locator must never become a new conversation"
+        );
+        assert_eq!(w.creation_failure_tab(), Some(tab));
+        assert!(
+            w.can_create(ItemKind::Chat),
+            "failure releases the preparation"
+        );
+    });
+    assert_eq!(receipts.path().read_dir().unwrap().count(), 0);
+}
+
+#[gpui::test]
+fn hosted_history_obeys_the_chat_limit_before_allocating_receipts(cx: &mut TestAppContext) {
+    let (workbench, launcher, cx) = compose(cx);
+    let root = tempfile::tempdir().unwrap();
+    let receipts = tempfile::tempdir().unwrap();
+    launcher.update(cx, |l, cx| {
+        l.show_local(root.path().to_path_buf(), cx);
+        l.hosted.open_hub(empty_hosted_history(receipts.path()));
+    });
+    let tab = workbench.update(cx, |w, cx| {
+        for n in 0..8 {
+            w.lab_retained(
+                RetainedItem::Chat {
+                    runtime: crate::agent::connections::legacy_runtime_registry::Runtime::Codex,
+                    thread: None,
+                    title: format!("chat {n}"),
+                    runtime_id: Some("codex".into()),
+                },
+                cx,
+            );
+        }
+        w.new_launcher_tab(0, cx).unwrap()
+    });
+    let target = HistoryTarget {
+        id: "saved-session".into(),
+        title: "Saved".into(),
+        icon_key: None,
+        payload: AgentChatHistoryPayload {
+            runtime_id: "cloud-pi".into(),
+            session_id: "saved-session".into(),
+        },
+    };
+    launcher.update_in(cx, |l, window, cx| {
+        l.history_event(tab, &HistoryBrowserEvent::Open(target), window, cx)
+    });
+    workbench.read_with(cx, |w, _| {
+        assert!(w.is_launcher(root.path(), tab));
+        assert_eq!(w.creation_failure_tab(), None);
+        assert_eq!(w.tab_count(), 9);
+    });
+    assert_eq!(receipts.path().read_dir().unwrap().count(), 0);
 }

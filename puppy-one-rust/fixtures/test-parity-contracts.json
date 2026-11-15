@@ -5976,6 +5976,106 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "workbench-history-preparation-admission",
+      "acceptance": "Async preparation owns its project, contribution kind and launcher, preserves a later selection and a moved launcher group, refuses replacement after close, and enforces eight chats without eviction. GPUI retains the launcher ID as its visual key instead of creating the distinct runtime-item ID used in TS; runtime identity stays on the contribution. Native-specific regression tests also fence project reuse and abandoned futures, guard both history entry points, and prevent a missing Cloud cache locator from creating a new chat. Contribution disable/retry and exact publication assertions in other TS cases remain unreviewed.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/item-hosts/projectWorkbenchAdmission.test.ts",
+          "sha256": "d5ea159ab5e83c1be26182d1ecb4117b34eaabcd263186ee975facc43a7e17c0",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Project Workbench contribution admission > allows another blank during preparation without redirecting the result or selection"
+            },
+            {
+              "index": 3,
+              "name": "Project Workbench contribution admission > follows a pending launcher's current Group without stealing another Group's selection"
+            },
+            {
+              "index": 4,
+              "name": "Project Workbench contribution admission > discards late readiness after the launcher closes, without recreating tabs"
+            },
+            {
+              "index": 5,
+              "name": "Project Workbench contribution admission > does not prepare two different runtimes for the same launcher"
+            },
+            {
+              "index": 14,
+              "name": "Project Workbench contribution admission > enforces the Chat limit without evicting an existing Item"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::blank_tabs_do_not_consume_quota_and_the_ninth_chat_cannot_evict_an_item"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::preparing_locks_the_kind_and_launcher_but_not_other_kinds_or_blank_tabs"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::completion_replaces_only_its_launcher_without_stealing_a_new_selection"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::completion_follows_the_launchers_current_group_without_changing_group_selection"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::a_closed_launcher_discards_late_readiness_without_recreating_a_tab"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::project_switches_cannot_redirect_a_prepared_item"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::dropping_an_abandoned_preparation_releases_admission"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::a_wrong_contribution_kind_cannot_commit_under_another_permit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::a_stale_permit_cannot_release_the_same_tab_number_in_a_reopened_project"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::history_restore_respects_the_chat_limit_before_preparing_a_native_session"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::a_pending_history_preparation_blocks_terminal_launch_in_the_same_tab"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::hosted_history_obeys_the_chat_limit_before_allocating_receipts"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::missing_hosted_history_stays_on_the_launcher_instead_of_creating_a_new_chat"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
