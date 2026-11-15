@@ -46,7 +46,7 @@ pub struct Identity {
 pub const FLAG: &str = "--puppyone-build-identity";
 
 impl Identity {
-    /// The identity as `build-info.json` names it.
+    /// The identity as `build-info.json` names it, plus any compiled-in update feed.
     pub fn json(&self) -> serde_json::Value {
         serde_json::json!({
             "runtime": "gpui",
@@ -56,6 +56,10 @@ impl Identity {
             "commitSha": self.commit,
             "builtAt": self.built_at,
             "sourceDirty": self.source_dirty,
+            "updateFeedUrl": match self.channel {
+                Channel::Dev => None,
+                _ => option_env!("PUPPYONE_UPDATE_FEED_URL").filter(|v| !v.is_empty()),
+            },
         })
     }
     /// `formatDesktopBuildDiagnostics`: what Settings › General copies.

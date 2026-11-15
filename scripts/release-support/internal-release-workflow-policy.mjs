@@ -56,7 +56,7 @@ export function inspectInternalReleaseWorkflow(workflowSource) {
     ["scripts/prepare-desktop-build.mjs", "the Internal workflow must use the canonical Build Identity resolver"],
     ["--channel internal", "the Internal workflow must resolve only the Internal build channel"],
     ["--target macos-arm64", "the Internal workflow must resolve its build target through the target manifest"],
-    ["npm run dist:mac:prepared", "the Internal workflow must package the prepared identity"],
+    ["puppy-one-rust/tools/release/package-macos.py", "the Internal workflow must package the prepared identity"],
     ["Verify packaged Internal Build Identity", "the Internal workflow must inspect packaged identity"],
     ["--build-info generated/desktop-build-info.json", "release metadata must consume resolved Build Identity"],
     ["Create self-describing release bundle", "the internal build must create release metadata"],

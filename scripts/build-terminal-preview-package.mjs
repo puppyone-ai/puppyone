@@ -100,7 +100,11 @@ export async function buildTerminalPreviewPackage({
           ? new URL(resolvedArchiveUrl).hostname
           : undefined,
         appBundleName: `${channelPolicy.applicationName}.app`,
-        executableRelativePath: `Contents/MacOS/${rootPackage.build?.mac?.executableName || "puppyone"}`,
+        executableRelativePath: `Contents/MacOS/${
+          buildInfo.runtime === "gpui"
+            ? "puppy-one-rust"
+            : (rootPackage.build?.mac?.executableName || "puppyone")
+        }`,
         releaseTag: releaseTag || canonicalTag,
       },
     };

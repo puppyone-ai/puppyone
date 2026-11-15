@@ -7,20 +7,27 @@ signature.
 
     python3 tools/release/verify-macos-release.py artifacts/release/stable
 """
+import argparse
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import feed  # noqa: E402
+import identity  # noqa: E402
 import sign  # noqa: E402
 
 
 def main():
-    if len(sys.argv) != 2:
-        raise SystemExit(__doc__)
-    directory = Path(sys.argv[1])
-    channel = directory.name
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('directory', type=Path)
+    parser.add_argument('--channel', choices=identity.CHANNELS,
+                        help='Defaults to the directory basename (e.g. artifacts/release/stable)')
+    args = parser.parse_args()
+    directory = args.directory
+    channel = args.channel or directory.name
+    if channel not in identity.CHANNELS:
+        raise SystemExit(f'Cannot infer release channel from {directory}; pass --channel')
     apps = sorted(directory.glob('*.app'))
     dmgs = sorted(directory.glob('*.dmg'))
     zips = sorted(directory.glob('*.zip'))

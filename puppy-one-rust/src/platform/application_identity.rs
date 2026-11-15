@@ -23,12 +23,12 @@ pub const fn channel_policy(channel: Channel) -> ChannelApplicationPolicy {
             published: false,
         },
         Channel::Internal => ChannelApplicationPolicy {
-            application_id: "ai.puppyone.desktop.gpui.internal",
+            application_id: "ai.puppyone.desktop.internal",
             application_name: "PuppyOne Internal",
             published: true,
         },
         Channel::Stable => ChannelApplicationPolicy {
-            application_id: "ai.puppyone.desktop.gpui",
+            application_id: "ai.puppyone.desktop",
             application_name: "PuppyOne",
             published: true,
         },
@@ -158,13 +158,25 @@ mod tests {
 
     #[test]
     fn channel_policies_match_product_contracts() {
+        assert_eq!(
+            channel_policy(Channel::Stable).application_id,
+            "ai.puppyone.desktop"
+        );
         assert_eq!(channel_policy(Channel::Stable).application_name, "PuppyOne");
         assert!(channel_policy(Channel::Stable).published);
+        assert_eq!(
+            channel_policy(Channel::Internal).application_id,
+            "ai.puppyone.desktop.internal"
+        );
         assert_eq!(
             channel_policy(Channel::Internal).application_name,
             "PuppyOne Internal"
         );
         assert!(channel_policy(Channel::Internal).published);
+        assert_eq!(
+            channel_policy(Channel::Dev).application_id,
+            "ai.puppyone.desktop.gpui.dev"
+        );
         assert_eq!(
             channel_policy(Channel::Dev).application_name,
             "PuppyOne Rust Dev"

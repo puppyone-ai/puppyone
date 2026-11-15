@@ -19,27 +19,38 @@ class ReleaseIdentityTest(unittest.TestCase):
         dev = identity.release_identity('0.4.4', 'dev', COMMIT, dirty=True)
         self.assertEqual(dev['version'], '0.4.4-dev.gaaaaaaaa.dirty')
         self.assertEqual(dev['buildId'], 'gaaaaaaaa')
+        self.assertIsNone(dev['platformBuildNumber'])
+        self.assertEqual(dev['product'], 'puppyone-desktop')
         internal = identity.release_identity('0.4.4', 'internal', COMMIT, '12')
         self.assertEqual(internal['version'], '0.4.4-internal.12')
+        self.assertEqual(internal['platformBuildNumber'], '12')
         stable = identity.release_identity('0.4.4', 'stable', COMMIT, '12')
         self.assertEqual(stable['version'], '0.4.4')
+        self.assertEqual(stable['platformBuildNumber'], '12')
+        self.assertEqual(stable['product'], 'puppyone-desktop')
         self.assertEqual(stable['runtime'], 'gpui')
 
     def test_published_builds_refuse_what_cannot_be_released(self):
         for args in [('0.4', 'stable', COMMIT, '1'), ('0.4.4', 'stable', 'abc', '1'),
                      ('0.4.4', 'stable', COMMIT, None), ('0.4.4', 'internal', COMMIT, '0'),
-                     ('0.4.4', 'qubits', COMMIT, '1')]:
+                     ('0.4.4', 'qubits', COMMIT, '1'),
+                     ('0.4.4', 'stable', COMMIT, '1', '2026-11-15')]:
             with self.assertRaises(ValueError, msg=args):
                 identity.release_identity(*args)
         with self.assertRaises(ValueError):
             identity.release_identity('0.4.4', 'stable', COMMIT, '1', dirty=True)
 
-    def test_stamps_name_every_coordinate(self):
+    def test_stamps_name_every_coordinate_and_default_production_feeds(self):
         release = identity.release_identity('0.4.4', 'internal', COMMIT, '3', built_at='2026-11-14T00:00:00.000Z')
         stamps = identity.build_environment(release)
         self.assertEqual(stamps['PUPPYONE_BUILD_VERSION'], '0.4.4-internal.3')
         self.assertEqual(stamps['PUPPYONE_BUILD_DIRTY'], 'false')
         self.assertEqual(stamps['MACOSX_DEPLOYMENT_TARGET'], identity.MINIMUM_SYSTEM_VERSION)
+        self.assertEqual(stamps['PUPPYONE_UPDATE_FEED_URL'], 'https://downloads.puppyone.ai/desktop/internal/mac/latest')
+        stable_stamps = identity.build_environment(
+            identity.release_identity('0.4.4', 'stable', COMMIT, '3', built_at='2026-11-14T00:00:00.000Z')
+        )
+        self.assertEqual(stable_stamps['PUPPYONE_UPDATE_FEED_URL'], 'https://updates.puppyone.ai/desktop/stable/mac/latest')
 
 
 class CloudConfigurationTest(unittest.TestCase):
@@ -67,7 +78,8 @@ class InfoPlistTest(unittest.TestCase):
     def test_the_bundle_declares_its_channel(self):
         release = identity.release_identity('0.4.4', 'internal', COMMIT, '7')
         info = identity.info_plist(release, bundle.document_types(), bundle.cli_declaration())
-        self.assertEqual(info['CFBundleIdentifier'], 'ai.puppyone.desktop.gpui.internal')
+        self.assertEqual(info['CFBundleIdentifier'], 'ai.puppyone.desktop.internal')
+        self.assertEqual(info['CFBundleName'], 'PuppyOne Internal')
         self.assertEqual(info['CFBundleShortVersionString'], '0.4.4')
         self.assertEqual(info['CFBundleVersion'], '7')
         self.assertEqual(info['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['puppyone-internal'])
@@ -75,8 +87,15 @@ class InfoPlistTest(unittest.TestCase):
         self.assertEqual(info['CFBundleIconFile'], 'icon.icns')
         self.assertEqual(info['PuppyOneCliUserDataName'], 'PuppyOne GPUI')
         self.assertIn('md', info['CFBundleDocumentTypes'][0]['CFBundleTypeExtensions'])
+        stable = identity.info_plist(identity.release_identity('0.4.4', 'stable', COMMIT, '9'),
+                                     bundle.document_types(), bundle.cli_declaration())
+        self.assertEqual(stable['CFBundleIdentifier'], 'ai.puppyone.desktop')
+        self.assertEqual(stable['CFBundleName'], 'PuppyOne')
+        self.assertEqual(stable['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['puppyone'])
         dev = identity.info_plist(identity.release_identity('0.4.4', 'dev', COMMIT),
                                   bundle.document_types(), bundle.cli_declaration())
+        self.assertEqual(dev['CFBundleIdentifier'], 'ai.puppyone.desktop.gpui.dev')
+        self.assertEqual(dev['CFBundleName'], 'PuppyOne Rust Dev')
         self.assertEqual(dev['CFBundleVersion'], '0.4.4')
         self.assertEqual(dev['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['puppyone-development'])
 
@@ -112,7 +131,7 @@ class FeedTest(unittest.TestCase):
 
     def test_written_metadata_passes_the_verifier(self):
         with tempfile.TemporaryDirectory() as out:
-            archive = Path(out) / 'puppyone-gpui-0.4.5-arm64.zip'
+            archive = Path(out) / 'puppyone-0.4.5-arm64.zip'
             archive.write_bytes(b'archive')
             meta = feed.parse(feed.write(out, 'stable', '0.4.5', [archive],
                                          released='2026-11-15T00:00:00.000Z').read_text())
