@@ -6349,6 +6349,126 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "local-agent-activation-native-interaction",
+      "acceptance": "Actual GPUI frames and pointer clicks preserve settings and disk persistence, confirmation before installation, three-step presentation, background continuation and operation identity, independently clickable Stop/Close while a request is pending, retained-installation retry consent, guided copy, inventory precedence over five stale receipt statuses, and ready-task dismissal. Wrapped activation footers keep all four guided actions inside the dialog. Retired process epochs and older revisions cannot restore stale progress. The retained pending-request fixture exercises the same perform path without external installation; this does not substitute for native OS input or accessibility acceptance.",
+      "typescript": [
+        {
+          "path": "tests/component/settings/local-agents/local-agent-setup.test.tsx",
+          "sha256": "fd61a0afde0aeeba9f4a09fbfdc8773088ac229a0350c6f20e3749a344500685",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Local Agent activation interaction > owns setup visibility and suggestion controls, preserving unrelated local-agent settings"
+            },
+            {
+              "index": 2,
+              "name": "Local Agent activation interaction > explains changes before consent; only confirmation starts installation"
+            },
+            {
+              "index": 3,
+              "name": "Local Agent activation interaction > closing the view does not cancel; re-opening keeps the same operation and can stop it"
+            },
+            {
+              "index": 4,
+              "name": "Local Agent activation interaction > does not tie stopping to a pending installation check or disable the close button"
+            },
+            {
+              "index": 5,
+              "name": "Local Agent activation interaction > does not hide an ongoing task when suggestions are disabled"
+            },
+            {
+              "index": 6,
+              "name": "Local Agent activation interaction > CLI discovery overrides a stale installing receipt"
+            },
+            {
+              "index": 7,
+              "name": "Local Agent activation interaction > CLI discovery overrides a stale cancelled receipt"
+            },
+            {
+              "index": 8,
+              "name": "Local Agent activation interaction > CLI discovery overrides a stale failed receipt"
+            },
+            {
+              "index": 9,
+              "name": "Local Agent activation interaction > CLI discovery overrides a stale interrupted receipt"
+            },
+            {
+              "index": 10,
+              "name": "Local Agent activation interaction > CLI discovery overrides a stale ready receipt"
+            },
+            {
+              "index": 11,
+              "name": "Local Agent activation interaction > does not recommend activation without a desktop app"
+            },
+            {
+              "index": 12,
+              "name": "Local Agent activation interaction > shows retained installation after cancellation and requires new consent to retry"
+            },
+            {
+              "index": 13,
+              "name": "Local Agent activation interaction > guided providers do not promise automatic installation"
+            },
+            {
+              "index": 14,
+              "name": "Local Agent activation interaction > removes a ready task row without auto-launching or leaving the modal stuck"
+            },
+            {
+              "index": 15,
+              "name": "Local Agent activation interaction > preserves progress when receiving stale snapshots"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::retired_activation_epochs_cannot_restore_stale_operations"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::rendered_suggestion_toggle_preserves_other_settings_and_running_tasks"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::discovered_clis_override_every_stale_activation_receipt_in_the_rendered_launcher"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::missing_companions_do_not_render_activation_suggestions"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::actual_activation_clicks_require_consent_and_reopen_the_same_background_operation"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::retained_installation_retry_gets_a_fresh_plan_without_starting_again"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::guided_activation_clicks_use_the_official_flow_without_automatic_installation_copy"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::completed_activation_removes_its_row_and_the_actual_close_button_dismisses_the_dialog"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::pending_activation_requests_keep_stop_and_close_clickable"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

@@ -30,6 +30,7 @@ pub struct Dialog {
     body_padding: (f32, f32),
     body: Vec<AnyElement>,
     footer: Vec<AnyElement>,
+    wrap_footer: bool,
     on_close: Option<Handler>,
     close_on_backdrop: bool,
     close_on_escape: bool,
@@ -51,6 +52,7 @@ impl Dialog {
             body_padding: (12., 18.),
             body: Vec::new(),
             footer: Vec::new(),
+            wrap_footer: false,
             on_close: None,
             close_on_backdrop: true,
             close_on_escape: true,
@@ -100,6 +102,11 @@ impl Dialog {
     }
     pub fn body_padding(mut self, top: f32, bottom: f32) -> Self {
         self.body_padding = (top, bottom);
+        self
+    }
+    /// Keep a larger set of dialog actions inside the surface on narrow windows.
+    pub fn wrap_footer(mut self) -> Self {
+        self.wrap_footer = true;
         self
     }
     pub fn footer(mut self, action: impl IntoElement) -> Self {
@@ -245,6 +252,7 @@ impl RenderOnce for Dialog {
                         .flex_shrink_0()
                         .items_center()
                         .justify_end()
+                        .when(self.wrap_footer, |d| d.flex_wrap())
                         .gap(px(10.))
                         .px(px(self.inset.unwrap_or(20.)))
                         .pb(px(self.inset.unwrap_or(20.)))

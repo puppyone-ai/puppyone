@@ -107,6 +107,7 @@ pub struct InstallationsChanged;
 pub struct Activation {
     service: activation::Service,
     pub snapshot: Snapshot,
+    retired_epochs: HashSet<String>,
     /// `error`: the last read or update failed.
     pub error: bool,
     companions: Option<Vec<(&'static str, Presence)>>,
@@ -197,6 +198,7 @@ impl Activation {
                 revision: 0,
                 operations: vec![],
             },
+            retired_epochs: HashSet::new(),
             error: false,
             companions: None,
             scanning: false,
@@ -215,8 +217,13 @@ impl Activation {
         store
     }
     fn accept(&mut self, snapshot: Snapshot, cx: &mut Context<Self>) {
-        if snapshot.epoch == self.snapshot.epoch && snapshot.revision < self.snapshot.revision {
+        if self.retired_epochs.contains(&snapshot.epoch)
+            || (snapshot.epoch == self.snapshot.epoch && snapshot.revision < self.snapshot.revision)
+        {
             return;
+        }
+        if snapshot.epoch != self.snapshot.epoch {
+            self.retired_epochs.insert(self.snapshot.epoch.clone());
         }
         self.snapshot = snapshot;
         self.error = false;
@@ -595,6 +602,7 @@ impl Render for SetupSection {
             let on = suggestions.enabled;
             let toggle = h_flex()
                 .id("agent-setup-suggestions")
+                .debug_selector(|| "agent-setup-suggestions".into())
                 .items_start()
                 .gap(px(8.))
                 .cursor(theme::clickable_cursor())
@@ -705,6 +713,10 @@ impl Render for SetupSection {
                                         t_static("settings.activation.view").into(),
                                         false,
                                     )
+                                    .debug_selector({
+                                        let id = op.setup_id.clone();
+                                        move || format!("agent-setup-view:{id}")
+                                    })
                                     .on_click(cx.listener(
                                         move |s, _, w, cx| s.select(&view_id, &view_name, w, cx),
                                     )),
@@ -717,6 +729,10 @@ impl Render for SetupSection {
                                             t_static("settings.activation.stop").into(),
                                             cancelling,
                                         )
+                                        .debug_selector({
+                                            let id = op.setup_id.clone();
+                                            move || format!("agent-setup-stop:{id}")
+                                        })
                                         .when(
                                             !cancelling,
                                             |b| {
@@ -796,6 +812,7 @@ impl Render for SetupSection {
                     t_static("settings.agentSetup.title"),
                     cx,
                 )
+                .debug_selector(|| "agent-setup-directory".into())
                 .on_click(cx.listener(move |s, _, _, cx| {
                     s.directory_open = !open;
                     cx.notify();
@@ -806,6 +823,7 @@ impl Render for SetupSection {
                     entries.iter().enumerate().map(|(i, e)| {
                         let (id, name) = (e.setup_id, e.display_name);
                         Self::text_button(("agent-setup-entry", i), name, cx)
+                            .debug_selector(move || format!("agent-setup-entry:{id}"))
                             .on_click(cx.listener(move |s, _, w, cx| s.select(id, name, w, cx)))
                             .into_any_element()
                     }),
@@ -820,6 +838,12 @@ impl Render for SetupSection {
 }
 fn t_static(key: &str) -> &'static str {
     t(key)
+}
+fn activation_copy(text: SharedString) -> Div {
+    let label = text.clone();
+    div()
+        .debug_selector(move || format!("activation-copy:{label}"))
+        .child(text)
 }
 
 /// `LocalAgentActivationDialog`.
@@ -987,11 +1011,10 @@ impl Render for ActivationDialog {
             );
         // `.local-agent-activation-note`: caption type on the body's 1.6.
         let note = |text: SharedString| {
-            div()
+            activation_copy(text)
                 .text_color(t.muted)
                 .text_size(px(m.ui.caption))
                 .line_height(px(m.ui.caption * 1.6))
-                .child(text)
         };
         let agent = [("agent", self.display_name.clone().into())];
         // `.local-agent-activation-steps`: numbered while confirming, then
@@ -1001,6 +1024,7 @@ impl Render for ActivationDialog {
                 let label = t_static(&format!("settings.activation.step.{id}"));
                 match states {
                     None => h_flex()
+                        .debug_selector(move || format!("activation-step:{id}"))
                         .py(px(6.))
                         .child(
                             div()
@@ -1015,6 +1039,7 @@ impl Render for ActivationDialog {
                     Some(states) => {
                         let state = states[i];
                         h_flex()
+                            .debug_selector(move || format!("activation-step:{id}"))
                             .py(px(6.))
                             .gap(px(10.))
                             .text_color(if state == StepState::Running {
@@ -1051,14 +1076,17 @@ impl Render for ActivationDialog {
             .line_height(px(m.ui.meta * 1.6));
         if self.confirming {
             body = body
-                .child(div().child(tf(
-                    if guided {
-                        "settings.activation.guided"
-                    } else {
-                        "settings.activation.consent"
-                    },
-                    &agent,
-                )))
+                .child(activation_copy(
+                    tf(
+                        if guided {
+                            "settings.activation.guided"
+                        } else {
+                            "settings.activation.consent"
+                        },
+                        &agent,
+                    )
+                    .into(),
+                ))
                 .child(steps(None))
                 .child(note(t_static("settings.activation.control").into()));
             if let Some(plan) = self.plan.as_ref().filter(|p| p.automatic) {
@@ -1105,12 +1133,9 @@ impl Render for ActivationDialog {
                 body = body.child(note(t_static("settings.agentSetup.claude").into()));
             }
         } else if let Some(op) = &operation {
-            body = body
-                .child(steps(Some(op.steps)))
-                .child(div().child(t_static(&format!(
-                    "settings.activation.status.{}",
-                    op.status.key()
-                ))));
+            body = body.child(steps(Some(op.steps))).child(activation_copy(
+                t_static(&format!("settings.activation.status.{}", op.status.key())).into(),
+            ));
             if let (Some(code), activation::Status::Failed) = (op.error, op.status) {
                 body = body.child(
                     div()
@@ -1148,6 +1173,7 @@ impl Render for ActivationDialog {
                     .child(
                         div().child(
                             Button::new("activation-refresh")
+                                .debug_selector(|| "activation-refresh".into())
                                 .variant(ButtonVariant::Secondary)
                                 .label(t_static("settings.activation.refresh"))
                                 .on_click(cx.listener(|s, _, w, cx| {
@@ -1171,6 +1197,7 @@ impl Render for ActivationDialog {
         }
         let close = cx.weak_entity();
         let mut dialog = Dialog::new("local-agent-activation")
+            .wrap_footer()
             .width(420.)
             .heading(heading)
             .focus_handle(self.focus.clone())
@@ -1183,12 +1210,14 @@ impl Render for ActivationDialog {
             dialog = dialog
                 .footer(
                     Button::new("activation-cancel")
+                        .debug_selector(|| "activation-cancel".into())
                         .variant(ButtonVariant::Secondary)
                         .label(t_static("common.action.cancel"))
                         .on_click(cx.listener(|s, _, w, cx| s.close(w, cx))),
                 )
                 .footer(
                     Button::new("activation-start")
+                        .debug_selector(|| "activation-start".into())
                         .variant(ButtonVariant::Solid)
                         .label(t_static(if guided {
                             "settings.activation.beginGuided"
@@ -1203,6 +1232,7 @@ impl Render for ActivationDialog {
                 let cancelling = op.status == activation::Status::Cancelling;
                 dialog = dialog.footer(
                     Button::new("activation-stop")
+                        .debug_selector(|| "activation-stop".into())
                         .variant(ButtonVariant::Secondary)
                         .label(t_static("settings.activation.cancel"))
                         .disabled(cancelling)
@@ -1212,6 +1242,7 @@ impl Render for ActivationDialog {
             if !active && op.status != activation::Status::Ready {
                 dialog = dialog.footer(
                     Button::new("activation-retry")
+                        .debug_selector(|| "activation-retry".into())
                         .variant(ButtonVariant::Secondary)
                         .label(t_static("settings.activation.retry"))
                         .on_click(cx.listener(|s, _, _, cx| {
@@ -1224,6 +1255,7 @@ impl Render for ActivationDialog {
                 dialog = dialog
                     .footer(
                         Button::new("activation-guide")
+                            .debug_selector(|| "activation-guide".into())
                             .variant(ButtonVariant::Secondary)
                             .label(t_static("settings.agentSetup.guide"))
                             .disabled(self.busy)
@@ -1231,6 +1263,7 @@ impl Render for ActivationDialog {
                     )
                     .footer(
                         Button::new("activation-check")
+                            .debug_selector(|| "activation-check".into())
                             .variant(ButtonVariant::Solid)
                             .label(t_static("settings.activation.check"))
                             .disabled(self.busy)
@@ -1240,6 +1273,7 @@ impl Render for ActivationDialog {
             let id = op.operation_id.clone();
             dialog = dialog.footer(
                 Button::new("activation-close")
+                    .debug_selector(|| "activation-close".into())
                     .variant(ButtonVariant::Secondary)
                     .label(t_static(if active {
                         "settings.activation.background"
@@ -1266,186 +1300,4 @@ impl Render for ActivationDialog {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-    use std::sync::Mutex;
-    #[derive(Default)]
-    struct Fake {
-        found: Mutex<Vec<String>>,
-    }
-    impl activation::Ports for Fake {
-        fn resolve(&self, id: &str) -> Result<bool, ErrorCode> {
-            Ok(self.found.lock().unwrap().iter().any(|f| f == id))
-        }
-        fn install(
-            &self,
-            recipe: &Recipe,
-            _: &AtomicBool,
-            committed: &dyn Fn(),
-        ) -> Result<(), ErrorCode> {
-            self.found.lock().unwrap().push(recipe.setup_id.into());
-            committed();
-            Ok(())
-        }
-        fn open_guide(&self, _: &str) -> Result<(), String> {
-            Ok(())
-        }
-        fn refresh(&self) {}
-    }
-    fn until(cx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
-        for _ in 0..400 {
-            cx.run_until_parked();
-            if done(cx) {
-                return;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        panic!("condition not reached");
-    }
-    #[gpui::test]
-    fn an_unfinished_installation_scan_never_recommends_installing_an_agent(
-        cx: &mut TestAppContext,
-    ) {
-        cx.executor().allow_parking();
-        cx.update(gpui_kit::init);
-        let dir = tempfile::tempdir().unwrap();
-        let store = cx.update(|cx| {
-            install(
-                dir.path().join("activation.json"),
-                |_| Arc::new(Fake::default()),
-                cx,
-            )
-        });
-        store.update(cx, |s, _| {
-            s.companions = Some(vec![("codex", Presence::Present)])
-        });
-        let preferences = cx.new(|_| PreferencesStore::memory());
-        preferences.update(cx, |p, _| {
-            p.state.local_agents.setup_suggestions.enabled = true
-        });
-        let (section, cx) = cx.add_window_view(|_, cx| {
-            SetupSection::new(
-                Presentation::Launcher,
-                Surface::Chat,
-                preferences.clone(),
-                "fixture-window".into(),
-                cx,
-            )
-        });
-        let rendered = |cx: &mut VisualTestContext| {
-            cx.run_until_parked();
-            cx.update(|w, cx| {
-                let _ = w.draw(cx);
-            });
-            cx.debug_bounds("agent-setup-activate:codex").is_some()
-        };
-        assert!(!rendered(cx));
-        let rows = section.update(cx, |s, cx| s.model(cx).2);
-        assert!(
-            rows.is_empty(),
-            "an installed companion alone cannot prove its CLI is absent"
-        );
-        assert!(!section.update(cx, |s, cx| s.visible(cx)));
-        section.update(cx, |s, cx| s.set_found(Some(vec![]), cx));
-        let rows = section.update(cx, |s, cx| s.model(cx).2);
-        assert_eq!(
-            rows.iter().map(|e| e.setup_id).collect::<Vec<_>>(),
-            vec!["codex"]
-        );
-        assert!(rendered(cx));
-        section.update(cx, |s, cx| s.set_found(None, cx));
-        assert!(!rendered(cx));
-        assert!(
-            section.update(cx, |s, cx| s.model(cx).2.is_empty()),
-            "a rescan revokes stale absence evidence"
-        );
-        for presentation in [Presentation::Launcher, Presentation::Settings] {
-            section.update(cx, |s, cx| {
-                s.presentation = presentation;
-                s.set_observations(
-                    vec![setup::Observation {
-                        id: "codex".into(),
-                        status: setup::ObservationStatus::Failed,
-                        failure: Some(setup::ObservationFailure::Product),
-                    }],
-                    cx,
-                );
-            });
-            assert!(
-                !rendered(cx),
-                "failed evidence does not render an install action"
-            );
-            section.update(cx, |s, cx| s.set_found(Some(vec![]), cx));
-            assert!(
-                rendered(cx),
-                "a completed absence observation restores the action"
-            );
-            section.update(cx, |s, cx| s.set_found(Some(vec!["codex"]), cx));
-            assert!(!rendered(cx), "a found CLI removes the action");
-        }
-        assert!(
-            store.read_with(cx, |s, _| s.snapshot.operations.is_empty()),
-            "inspection must not install anything"
-        );
-    }
-
-    #[gpui::test]
-    fn the_setup_directory_activates_an_agent_from_its_recipe(cx: &mut TestAppContext) {
-        cx.executor().allow_parking();
-        cx.update(gpui_kit::init);
-        let dir = tempfile::tempdir().unwrap();
-        let journal = dir.path().join("local-agent-activation.json");
-        let store = cx.update(|cx| install(journal, |_| Arc::new(Fake::default()), cx));
-        cx.update(|cx| cx.set_global(Shared(store.clone())));
-        let preferences = cx.new(|_| PreferencesStore::memory());
-        let (section, cx) = cx.add_window_view(|_, cx| {
-            SetupSection::new(
-                Presentation::Settings,
-                Surface::Chat,
-                preferences.clone(),
-                "w".into(),
-                cx,
-            )
-        });
-        section.update(cx, |s, cx| s.set_found(Some(vec!["claude"]), cx));
-        // Settings lists every Chat route of this platform.
-        let entries = section.update(cx, |s, cx| s.model(cx).0);
-        assert_eq!(entries.len(), if cfg!(target_os = "macos") { 8 } else { 6 });
-        assert!(entries.iter().all(|e| !e.recommended));
-        section.update_in(cx, |s, w, cx| s.select("codex", "Codex", w, cx));
-        let dialog = section.read_with(cx, |s, _| s.dialog.clone().unwrap());
-        until(cx, |cx| {
-            dialog.read_with(cx, |d, _| d.plan.is_some() || d.error)
-        });
-        let automatic = dialog.read_with(cx, |d, _| d.plan.as_ref().unwrap().automatic);
-        assert_eq!(automatic, cfg!(target_os = "macos"));
-        if !automatic {
-            return;
-        }
-        dialog.update_in(cx, |d, w, cx| d.start(w, cx));
-        until(cx, |cx| {
-            dialog.read_with(cx, |d, cx| {
-                !d.confirming
-                    && d.operation(cx)
-                        .is_some_and(|o| o.status == activation::Status::Ready)
-            })
-        });
-        let op = dialog.read_with(cx, |d, cx| d.operation(cx).unwrap());
-        assert_eq!(op.steps, [StepState::Complete; 3]);
-        // A ready Agent is no longer pending in the section.
-        section.update(cx, |s, cx| s.set_found(Some(vec!["claude", "codex"]), cx));
-        assert!(section.update(cx, |s, cx| s.model(cx).1.is_empty()));
-        // Close dismisses the finished operation.
-        dialog.update_in(cx, |d, w, cx| {
-            d.perform(
-                move |store, cx| store.act(op.operation_id.clone(), Action::Dismiss, cx),
-                |d, w, cx| d.close(w, cx),
-                w,
-                cx,
-            )
-        });
-        until(cx, |cx| section.read_with(cx, |s, _| s.dialog.is_none()));
-        assert!(store.read_with(cx, |s, _| s.snapshot.operations.is_empty()));
-    }
-}
+mod tests;

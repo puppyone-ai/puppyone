@@ -61,7 +61,19 @@ pub struct PreferencesStore {
 impl EventEmitter<PreferencesChanged> for PreferencesStore {}
 impl PreferencesStore {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        let (writer, rx) = preference_storage::start();
+        Self::with_storage(preference_storage::start(), cx)
+    }
+    #[cfg(test)]
+    pub(crate) fn isolated(directory: std::path::PathBuf, cx: &mut Context<Self>) -> Self {
+        Self::with_storage(preference_storage::start_at(directory), cx)
+    }
+    fn with_storage(
+        (writer, rx): (
+            std::sync::mpsc::Sender<Write>,
+            async_channel::Receiver<Event>,
+        ),
+        cx: &mut Context<Self>,
+    ) -> Self {
         cx.spawn(async move |this, cx| {
             while let Ok(event) = rx.recv().await {
                 if this.update(cx, |s, cx| s.receive(event, cx)).is_err() {

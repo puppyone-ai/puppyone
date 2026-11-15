@@ -13,11 +13,20 @@ pub struct Write {
     pub value: Value,
 }
 pub fn start() -> (mpsc::Sender<Write>, async_channel::Receiver<Event>) {
+    spawn(None)
+}
+/// Isolated preferences directory; never imports another application profile.
+pub fn start_at(directory: PathBuf) -> (mpsc::Sender<Write>, async_channel::Receiver<Event>) {
+    spawn(Some(directory))
+}
+fn spawn(directory: Option<PathBuf>) -> (mpsc::Sender<Write>, async_channel::Receiver<Event>) {
     let (tx, rx) = mpsc::channel::<Write>();
     let (events, out) = async_channel::unbounded();
     std::thread::spawn(move || {
-        let isolated = std::env::var_os("PUPPYONE_RUST_DATA_DIR");
-        let base = isolated.clone().map(PathBuf::from).unwrap_or_else(|| {
+        let explicit = directory.is_some();
+        let isolated =
+            directory.or_else(|| std::env::var_os("PUPPYONE_RUST_DATA_DIR").map(PathBuf::from));
+        let base = isolated.clone().unwrap_or_else(|| {
             PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
                 .join("Library/Application Support/PuppyOne GPUI")
         });
@@ -26,10 +35,12 @@ pub fn start() -> (mpsc::Sender<Write>, async_channel::Receiver<Event>) {
             // An isolated data directory (tests, captures) imports only from
             // an explicitly named product directory.
             Ok(None) => Event::Fresh(
-                (isolated.is_none() || std::env::var_os("PUPPYONE_ELECTRON_DATA_DIR").is_some())
-                    .then(super::electron_import::default_dir)
-                    .flatten()
-                    .and_then(|dir| super::electron_import::read(&dir)),
+                (!explicit
+                    && (isolated.is_none()
+                        || std::env::var_os("PUPPYONE_ELECTRON_DATA_DIR").is_some()))
+                .then(super::electron_import::default_dir)
+                .flatten()
+                .and_then(|dir| super::electron_import::read(&dir)),
             ),
             other => Event::Loaded(other),
         };
