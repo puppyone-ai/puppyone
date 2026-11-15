@@ -72,6 +72,39 @@ fn setup_with<'a>(
 }
 
 #[gpui::test]
+fn a_host_without_persistence_never_accepts_user_input(cx: &mut TestAppContext) {
+    use crate::workspace::{Workspace, testing::Memory};
+    use gpui::EntityInputHandler;
+    for writable in [false, true] {
+        let mut provider = Memory::new("memory://editor-access/project/");
+        provider.descriptor.capabilities.write = writable;
+        let workspace = Workspace::from_provider(std::sync::Arc::new(provider)).unwrap();
+        let (view, messages, visual) =
+            setup_with(cx, "access", Some(workspace), "note.md", "original");
+        let editor = view.read_with(visual, |view, _| {
+            view.surface.as_ref().unwrap().editor_view().unwrap()
+        });
+        editor.update_in(visual, |editor, window, cx| {
+            editor.replace_text_in_range(None, "x", window, cx)
+        });
+        visual.run_until_parked();
+        view.read_with(visual, |view, cx| {
+            assert_eq!(
+                view.surface.as_ref().unwrap().text(cx).unwrap(),
+                if writable { "xoriginal" } else { "original" }
+            );
+        });
+        assert_eq!(
+            messages
+                .borrow()
+                .iter()
+                .any(|message| matches!(message, ClientMessage::Dirty { dirty: true, .. })),
+            writable
+        );
+    }
+}
+
+#[gpui::test]
 fn csv_contributes_view_items_and_find(cx: &mut TestAppContext) {
     let (view, messages, cx) = setup(cx, "data/table.csv", "id,name\n1,anna\n2,bob\n");
     view.update_in(cx, |v, w, cx| {

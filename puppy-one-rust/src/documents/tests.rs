@@ -14,6 +14,65 @@ fn setup() -> (TempDir, Documents, Wake) {
     };
     (temp, d, Wake::default())
 }
+
+#[test]
+fn cloud_convergence_compares_current_input_retires_old_snapshot_and_never_writes() {
+    use crate::workspace::testing::Memory;
+    use std::sync::atomic::Ordering;
+    let provider = Arc::new(Memory::new("memory://convergence/project/"));
+    let ws = Workspace::from_provider(provider.clone()).unwrap();
+    let doc = ws.read(Path::new("note.md")).unwrap();
+    let mut d = Documents {
+        workspace: Some(ws.clone()),
+        document: Some(doc),
+        ..Default::default()
+    };
+    let wake = Wake::default();
+    let id = d.document.as_ref().unwrap().id.clone();
+    d.client(
+        ClientMessage::Dirty {
+            id,
+            revision: 1,
+            dirty: true,
+        },
+        &wake,
+    );
+    d.poll_at(&wake, Instant::now() + Duration::from_secs(1));
+    let old_request = d.autosave_request.unwrap().0;
+    *provider.text.lock().unwrap() = "converged".into();
+    let remote = ws.observe(d.document.as_ref().unwrap()).unwrap();
+    d.tx.send(Completed::Observed {
+        id: remote.id.clone(),
+        generation: d.read_generation,
+        result: Ok(remote),
+    })
+    .unwrap();
+    d.poll(&wake);
+    let new_request = d
+        .autosave_request
+        .expect("compare current draft immediately")
+        .0;
+    assert_ne!(old_request, new_request);
+    reply(&mut d, &wake, old_request, 1, "old snapshot");
+    assert!(d.cloud_conflict());
+    let before = provider.calls.load(Ordering::SeqCst);
+    reply(&mut d, &wake, new_request, 1, "converged");
+    assert!(!d.cloud_conflict() && !d.dirty && !d.saving());
+    assert!(d.error.is_none());
+    assert_eq!(d.document.as_ref().unwrap().text, "converged");
+    assert!(d.deferred_document.is_none());
+    d.poll_at(&wake, Instant::now() + Duration::from_secs(3));
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        before,
+        "no writeback or extra read after convergence"
+    );
+    assert!(
+        d.outgoing
+            .iter()
+            .any(|m| matches!(m, HostMessage::Open { external: true, .. }))
+    );
+}
 fn reply(d: &mut Documents, ctx: &Wake, request: u64, revision: u64, text: &str) {
     d.client(
         ClientMessage::Snapshot {
@@ -662,6 +721,39 @@ fn viewers_admit_the_smaller_of_their_own_budget_and_the_workspace_text_bound() 
         crate::editor::registry::source_budget("big.md").min(ws.text_limit() as u64)
     );
     assert_eq!(super::read_budget("page.html", &ws), 4 * 1024 * 1024);
+}
+
+#[test]
+fn source_admission_counts_utf8_bytes_and_never_opens_a_truncated_editable_fallback() {
+    use crate::workspace::testing::Memory;
+    for (content, accepted) in [
+        ("你好", true),
+        ("😀ab", true),
+        ("你好a", false),
+        ("😀abc", false),
+    ] {
+        let mut provider = Memory::new("memory://source-budget/project/");
+        provider.descriptor.limits.text_bytes = 6;
+        *provider.text.lock().unwrap() = content.into();
+        let mut d = Documents {
+            workspace: Some(Workspace::from_provider(Arc::new(provider)).unwrap()),
+            ..Default::default()
+        };
+        let wake = Wake::default();
+        d.begin(Intent::OpenFile("note.md".into()), &wake);
+        wait(&mut d, &wake);
+        assert_eq!(d.document.is_some(), accepted, "{content}");
+        assert_eq!(d.error.is_none(), accepted, "{content}");
+        if accepted {
+            assert_eq!(d.document.as_ref().unwrap().text, content);
+        } else {
+            assert!(d.resource.is_none());
+            assert!(!d.outgoing.iter().any(|m| matches!(
+                m,
+                HostMessage::Open { .. } | HostMessage::OpenResource { .. }
+            )));
+        }
+    }
 }
 
 #[test]

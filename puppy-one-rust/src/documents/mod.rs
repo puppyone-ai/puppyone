@@ -80,6 +80,9 @@ pub enum HostMessage {
 /// What the document editor reports back.
 #[derive(Clone, Debug)]
 pub enum ClientMessage {
+    RetryInput {
+        id: String,
+    },
     Dirty {
         id: String,
         revision: u64,
@@ -155,7 +158,17 @@ enum Completed {
         result: workspace::Result<Document>,
     },
     /// A preview resolved again under a new lease of its storage.
-    ResourceRebound(PathBuf, workspace::Result<workspace::PreviewResource>),
+    ResourceRebound {
+        id: String,
+        generation: u64,
+        relative: PathBuf,
+        result: workspace::Result<workspace::PreviewResource>,
+    },
+    ResourceObserved {
+        id: String,
+        generation: u64,
+        result: workspace::Result<workspace::PreviewResource>,
+    },
 }
 /// Resources of a hosted document through its workspace provider.
 /// A Markdown image's bytes, at most this many.
@@ -241,6 +254,7 @@ pub struct Documents {
     session: Option<DocumentEditingSession>,
     autosave_request: Option<(u64, u64, Instant)>,
     observing: bool,
+    resource_observing: Option<(String, u64)>,
     read_generation: u64,
     watch: Option<workspace::Subscription>,
     observation_pending: bool,
@@ -274,6 +288,7 @@ impl Default for Documents {
             session: None,
             autosave_request: None,
             observing: false,
+            resource_observing: None,
             read_generation: 0,
             task_scope: "documents".into(),
             cloud_phase: Default::default(),
@@ -368,17 +383,28 @@ impl Documents {
             self.session = None;
             self.auto_save.cancel();
             self.autosave_request = None;
-            self.watch = None;
-            self.observation_pending = false;
+            if self.resource.is_none() {
+                self.watch = None;
+                self.resource_observing = None;
+                self.observation_pending = false;
+            }
         }
     }
     fn start_watch(&mut self, ctx: &Wake) {
-        if let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
+        if let Some(ws) = &self.workspace
             && ws.capabilities().watch
             && !self.allow_quit
         {
             let wake = ctx.clone();
-            match ws.watch(doc, Arc::new(move || wake.notify())) {
+            let notify: workspace::ports::Notify = Arc::new(move || wake.notify());
+            let subscription = match (&self.document, &self.resource) {
+                (Some(doc), _) => ws.watch(doc, notify),
+                // Binary resources have no text revision. A provider's root
+                // change stream still carries scoped hints, filtered below.
+                (_, Some(_)) => ws.watch_root(notify),
+                _ => return,
+            };
+            match subscription {
                 Ok(watch) => self.watch = Some(watch),
                 Err(error) => self.error = Some(error.to_string()),
             }
@@ -391,7 +417,8 @@ impl Documents {
     }
     /// Read the open file again once, as a watch invalidation would.
     pub fn revalidate(&mut self) {
-        if self.document.is_some() {
+        if self.document.is_some() || self.resource.is_some() {
+            self.read_generation += 1;
             self.observation_pending = true;
         }
     }
@@ -400,12 +427,17 @@ impl Documents {
     pub fn pause_watch(&mut self) {
         self.watch = None;
         self.observing = false;
+        self.resource_observing = None;
+        self.observation_pending = false;
+        self.read_generation += 1;
     }
     /// Showing it again subscribes again and revalidates once, since
     /// changes while hidden were not observed.
     pub fn resume_watch(&mut self, ctx: &Wake) {
-        if self.watch.is_none() && self.document.is_some() && self.session.is_some() {
-            self.observation_pending = true;
+        if self.watch.is_none()
+            && ((self.document.is_some() && self.session.is_some()) || self.resource.is_some())
+        {
+            self.revalidate();
             self.start_watch(ctx);
         }
     }
@@ -445,6 +477,7 @@ impl Documents {
         self.workspace = Some(ws.clone());
         self.watch = None;
         self.observing = false;
+        self.resource_observing = None;
         self.observation_pending = false;
         self.read_generation += 1;
         let tx = self.tx.clone();
@@ -462,10 +495,17 @@ impl Documents {
                 ctx.notify();
             });
         } else if let Some(resource) = &self.resource {
+            let id = resource.id.clone();
+            let generation = self.read_generation;
             let relative = resource.relative.clone();
             crate::localization::spawn(move || {
                 let result = ws.resource(&relative);
-                let _ = tx.send(Completed::ResourceRebound(relative, result));
+                let _ = tx.send(Completed::ResourceRebound {
+                    id,
+                    generation,
+                    relative,
+                    result,
+                });
                 ctx.notify();
             });
         }
@@ -482,6 +522,7 @@ impl Documents {
     }
     pub fn rebind_resource(&mut self, relative: PathBuf, preview: workspace::PreviewResource) {
         if let Some(resource) = &mut self.resource {
+            self.revision += 1;
             resource.relative = relative;
             resource.preview = preview.clone();
             self.outgoing.push(HostMessage::Rebind {
@@ -631,6 +672,12 @@ impl Documents {
     pub fn client(&mut self, message: ClientMessage, ctx: &Wake) {
         self.ensure_session(ctx);
         match message {
+            ClientMessage::RetryInput { id } => {
+                if self.opened().is_some_and(|(current, _)| current == id) {
+                    self.revalidate();
+                    ctx.notify();
+                }
+            }
             ClientMessage::Dirty {
                 id,
                 revision,
@@ -715,7 +762,14 @@ impl Documents {
                     return;
                 }
                 let snapshot = Snapshot { revision, text };
+                let was_conflicted = self.cloud_conflict();
                 self.session.as_mut().unwrap().enqueue(snapshot.clone());
+                if was_conflicted && !self.cloud_conflict() {
+                    self.document = self.deferred_document.take().or(self.document.take());
+                    self.error = None;
+                    self.sync_state();
+                    self.show_storage_update();
+                }
                 self.auto_save.cancel();
                 self.sync_state();
                 if automatic {
@@ -1037,6 +1091,17 @@ impl Documents {
     pub fn cloud_conflict(&self) -> bool {
         self.session.as_ref().is_some_and(|s| s.conflicted())
     }
+    fn hold_cloud_baseline(&mut self, document: Option<Document>) {
+        self.deferred_document = document;
+        self.error = Some(crate::localization::t("editor.session.cloudConflict").into());
+        self.auto_save.cancel();
+        // The earlier snapshot request belongs to the previous storage epoch.
+        // Retire it now so comparison of the current draft is not delayed until
+        // the old request's acknowledgement timeout.
+        self.autosave_request = None;
+        self.outgoing
+            .retain(|m| !matches!(m, HostMessage::Snapshot { freeze: false, .. }));
+    }
     /// `reloadExternalBaseline`: replace the preserved draft with the newer
     /// Cloud content the person chose to keep.
     pub fn reload_cloud_baseline(&mut self) {
@@ -1124,6 +1189,21 @@ impl Documents {
     pub fn poll(&mut self, ctx: &Wake) {
         self.poll_at(ctx, Instant::now());
     }
+    fn consume_watch(&mut self) {
+        if let Some(event) = self.watch.as_ref().and_then(workspace::Subscription::next) {
+            match event {
+                workspace::ports::WatchEvent::Invalidated => self.revalidate(),
+                workspace::ports::WatchEvent::Changed(paths) => {
+                    if self.opened().is_some_and(|(_, current)| {
+                        paths.iter().any(|p| current.starts_with(p.as_path()))
+                    }) {
+                        self.revalidate();
+                    }
+                }
+                workspace::ports::WatchEvent::Failed(error) => self.error = Some(error.to_string()),
+            }
+        }
+    }
     fn poll_at(&mut self, ctx: &Wake, now: Instant) {
         if self
             .saving_since
@@ -1132,6 +1212,9 @@ impl Documents {
             self.save_announced = true;
         }
         self.ensure_session(ctx);
+        // A newer change may already be queued alongside an older read's
+        // completion. Fence that completion before it reaches a viewer.
+        self.consume_watch();
         if matches!(&self.phase, Phase::Snapshot { since, .. } if since.elapsed() > Duration::from_secs(5))
         {
             self.fail(crate::localization::t("native.editor.noAck").into());
@@ -1215,9 +1298,7 @@ impl Documents {
                             self.save_error = Some(error);
                         }
                         Completion::Deferred => {
-                            self.deferred_document = result.ok().map(|r| r.document);
-                            self.error =
-                                Some(crate::localization::t("editor.session.cloudConflict").into());
+                            self.hold_cloud_baseline(result.ok().map(|r| r.document));
                         }
                         Completion::Retired => {}
                     }
@@ -1227,8 +1308,11 @@ impl Documents {
                     generation,
                     result,
                 } => {
-                    self.observing = false;
                     let current = self.session.as_ref().is_some_and(|s| s.id == id);
+                    if !current {
+                        continue;
+                    }
+                    self.observing = false;
                     if generation != self.read_generation
                         || !matches!(self.phase, Phase::Idle)
                         || !current
@@ -1252,10 +1336,7 @@ impl Documents {
                                 self.show_storage_update();
                             }
                             StorageObservation::Deferred => {
-                                self.deferred_document = Some(doc);
-                                self.error = Some(
-                                    crate::localization::t("editor.session.cloudConflict").into(),
-                                );
+                                self.hold_cloud_baseline(Some(doc));
                             }
                         },
                         Err(error) => self.error = Some(error.to_string()),
@@ -1274,10 +1355,7 @@ impl Documents {
                     match result {
                         Ok(doc) => match self.session.as_mut().unwrap().observe(&doc.text) {
                             StorageObservation::Deferred => {
-                                self.deferred_document = Some(doc);
-                                self.error = Some(
-                                    crate::localization::t("editor.session.cloudConflict").into(),
-                                );
+                                self.hold_cloud_baseline(Some(doc));
                             }
                             observation => {
                                 // Saves and watches continue under the new lease.
@@ -1293,16 +1371,53 @@ impl Documents {
                         Err(error) => self.error = Some(error.to_string()),
                     }
                 }
-                Completed::ResourceRebound(relative, result) => {
-                    if self
-                        .resource
-                        .as_ref()
-                        .is_some_and(|r| r.relative == relative)
+                Completed::ResourceRebound {
+                    id,
+                    generation,
+                    relative,
+                    result,
+                } => {
+                    if generation == self.read_generation
+                        && self
+                            .resource
+                            .as_ref()
+                            .is_some_and(|r| r.id == id && r.relative == relative)
                     {
                         match result {
-                            Ok(preview) => self.rebind_resource(relative, preview),
+                            Ok(preview) => {
+                                self.rebind_resource(relative, preview);
+                                self.error = None;
+                                self.start_watch(ctx);
+                                self.revalidate();
+                            }
                             Err(error) => self.error = Some(error.to_string()),
                         }
+                    }
+                }
+                Completed::ResourceObserved {
+                    id,
+                    generation,
+                    result,
+                } => {
+                    if self.resource_observing.as_ref() != Some(&(id.clone(), generation)) {
+                        continue;
+                    }
+                    self.resource_observing = None;
+                    let current = self.resource.as_ref().is_some_and(|r| r.id == id);
+                    if !current {
+                        continue;
+                    }
+                    if generation != self.read_generation || !matches!(self.phase, Phase::Idle) {
+                        self.observation_pending = true;
+                        continue;
+                    }
+                    match result {
+                        Ok(preview) => {
+                            let path = self.resource.as_ref().unwrap().relative.clone();
+                            self.rebind_resource(path, preview);
+                            self.error = None;
+                        }
+                        Err(error) => self.error = Some(error.to_string()),
                     }
                 }
                 Completed::Resource(relative, Ok(preview)) => {
@@ -1313,6 +1428,7 @@ impl Documents {
                         preview,
                     });
                     self.watch = None;
+                    self.resource_observing = None;
                     self.session = None;
                     self.dirty = false;
                     self.revision = 0;
@@ -1320,6 +1436,10 @@ impl Documents {
                     self.error = None;
                     self.status = "Opened".into();
                     self.show_document();
+                    self.start_watch(ctx);
+                    // Close the read-before-watch race without hiding the
+                    // committed preview or disposing its surface.
+                    self.revalidate();
                 }
                 Completed::Root(Err(error)) => {
                     *self.cloud_phase.lock().unwrap() = None;
@@ -1340,13 +1460,7 @@ impl Documents {
                 }
             }
         }
-        if let Some(event) = self.watch.as_ref().and_then(workspace::Subscription::next) {
-            match event {
-                workspace::ports::WatchEvent::Invalidated
-                | workspace::ports::WatchEvent::Changed(_) => self.observation_pending = true,
-                workspace::ports::WatchEvent::Failed(error) => self.error = Some(error.to_string()),
-            }
-        }
+        self.consume_watch();
         self.pump(ctx);
         if self.allow_quit {
             self.watch = None;
@@ -1388,6 +1502,30 @@ impl Documents {
                     wake.notify();
                 });
             }
+            if self.resource_observing.is_none()
+                && self.observation_pending
+                && let (Some(ws), Some(resource)) = (&self.workspace, &self.resource)
+            {
+                let (ws, id, relative, tx, wake, generation) = (
+                    ws.clone(),
+                    resource.id.clone(),
+                    resource.relative.clone(),
+                    self.tx.clone(),
+                    ctx.clone(),
+                    self.read_generation,
+                );
+                self.resource_observing = Some((id.clone(), generation));
+                self.observation_pending = false;
+                crate::localization::spawn(move || {
+                    let result = ws.resource(&relative);
+                    let _ = tx.send(Completed::ResourceObserved {
+                        id,
+                        generation,
+                        result,
+                    });
+                    wake.notify();
+                });
+            }
         }
         if self.document.is_some()
             && !self.allow_quit
@@ -1407,5 +1545,7 @@ pub(crate) fn read_budget(path: &str, workspace: &crate::workspace::Workspace) -
     crate::editor::registry::source_budget(path).min(workspace.text_limit() as u64)
 }
 
+#[cfg(test)]
+mod resource_tests;
 #[cfg(test)]
 mod tests;

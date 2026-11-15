@@ -12,6 +12,45 @@ const BURST_QUIET: Duration = Duration::from_millis(120);
 /// Longest a continuous stream of changes defers the tree's reread.
 const BURST_LIMIT: Duration = Duration::from_secs(1);
 
+// Preserve the provider's path scope for resource previews. Unknown scopes
+// (including OS event queue overflow) must still invalidate every consumer.
+fn change_hint(root: &Path, result: notify::Result<notify::Event>) -> Option<WatchEvent> {
+    let event = match result {
+        Ok(event) => event,
+        Err(error) => {
+            return Some(WatchEvent::Failed(Error::new(
+                ErrorKind::Io,
+                error.to_string(),
+            )));
+        }
+    };
+    if event.need_rescan() || event.paths.is_empty() {
+        return Some(WatchEvent::Invalidated);
+    }
+    if matches!(event.kind, notify::EventKind::Access(_)) {
+        return None;
+    }
+    let mut paths = Vec::new();
+    for absolute in event.paths {
+        let Ok(relative) = absolute.strip_prefix(root) else {
+            return Some(WatchEvent::Invalidated);
+        };
+        if relative.components().any(|c| c.as_os_str() == ".git") {
+            continue;
+        }
+        let Ok(path) = RelativePath::new(relative) else {
+            return Some(WatchEvent::Invalidated);
+        };
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+        if paths.len() > 256 {
+            return Some(WatchEvent::Invalidated);
+        }
+    }
+    (!paths.is_empty()).then_some(WatchEvent::Changed(paths))
+}
+
 struct LocalProvider {
     inner: Arc<Workspace>,
     descriptor: Descriptor,
@@ -129,23 +168,14 @@ impl ResourceWatchPort for LocalProvider {
     fn watch_root(&self, notify: Notify) -> Result<WatchSubscription> {
         use notify::{RecursiveMode, Watcher};
         let root = self.inner.absolute(std::path::Path::new(""))?;
-        let events = Arc::new(Mutex::new(None));
+        let events = Arc::new(Mutex::new(None::<WatchEvent>));
         let pending = events.clone();
-        let (tx, rx) = mpsc::channel::<()>();
+        let (tx, rx) = mpsc::channel::<WatchEvent>();
         let filtered = root.clone();
         let mut watcher =
             notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
-                let relevant = match &result {
-                    Ok(event) => event.paths.iter().any(|p| {
-                        !p.strip_prefix(&filtered)
-                            .unwrap_or(p)
-                            .components()
-                            .any(|c| c.as_os_str() == ".git")
-                    }),
-                    Err(_) => true,
-                };
-                if relevant {
-                    let _ = tx.send(());
+                if let Some(event) = change_hint(&filtered, result) {
+                    let _ = tx.send(event);
                 }
             })
             .map_err(|e| Error::new(ErrorKind::Io, e.to_string()))?;
@@ -158,16 +188,22 @@ impl ResourceWatchPort for LocalProvider {
             let _watcher = watcher;
             loop {
                 match rx.recv_timeout(Duration::from_millis(250)) {
-                    Ok(()) => {
+                    Ok(mut event) => {
                         // Coalesce the burst, then publish one reset; a
                         // stream that never quiets (a build, an install)
                         // still publishes once per `BURST_LIMIT`.
                         let started = Instant::now();
-                        while started.elapsed() < BURST_LIMIT
-                            && rx.recv_timeout(BURST_QUIET).is_ok()
-                        {}
+                        while started.elapsed() < BURST_LIMIT {
+                            let Ok(next) = rx.recv_timeout(BURST_QUIET) else {
+                                break;
+                            };
+                            event = event.coalesce(next);
+                        }
                         if let Ok(mut slot) = pending.lock() {
-                            *slot = Some(WatchEvent::Invalidated);
+                            *slot = Some(match slot.take() {
+                                Some(previous) => previous.coalesce(event),
+                                None => event,
+                            });
                         }
                         notify();
                     }
@@ -225,5 +261,61 @@ impl ResourceWatchPort for LocalProvider {
                 let _ = cancel.send(());
             }),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify::{
+        Event, EventKind,
+        event::{Flag, ModifyKind, RenameMode},
+    };
+
+    #[test]
+    fn root_notifications_keep_both_rename_paths_and_ignore_git_internals() {
+        let root = Path::new("/project");
+        let event = Event::new(EventKind::Modify(ModifyKind::Name(RenameMode::Both)))
+            .add_path(root.join("old/image.png"))
+            .add_path(root.join("new/image.png"))
+            .add_path(root.join(".git/index"));
+        let Some(WatchEvent::Changed(paths)) = change_hint(root, Ok(event)) else {
+            panic!("scoped paths required")
+        };
+        assert_eq!(
+            paths.iter().map(|p| p.as_path()).collect::<Vec<_>>(),
+            [Path::new("old/image.png"), Path::new("new/image.png")]
+        );
+        let event = Event::new(EventKind::Any).add_path(root.join(".git/objects/abc"));
+        assert!(change_hint(root, Ok(event)).is_none());
+    }
+
+    #[test]
+    fn overflow_unknown_and_outside_root_changes_force_revalidation() {
+        let root = Path::new("/project");
+        for event in [
+            Event::new(EventKind::Any),
+            Event::new(EventKind::Any).add_path(Path::new("/outside/image.png").into()),
+            Event::new(EventKind::Any)
+                .add_path(root.join("image.png"))
+                .set_flag(Flag::Rescan),
+        ] {
+            assert!(matches!(
+                change_hint(root, Ok(event)),
+                Some(WatchEvent::Invalidated)
+            ));
+        }
+        let mut event = Event::new(EventKind::Any);
+        for n in 0..257 {
+            event = event.add_path(root.join(format!("{n}.png")));
+        }
+        assert!(matches!(
+            change_hint(root, Ok(event)),
+            Some(WatchEvent::Invalidated)
+        ));
+        assert!(matches!(
+            change_hint(root, Err(notify::Error::generic("watch unavailable"))),
+            Some(WatchEvent::Failed(_))
+        ));
     }
 }

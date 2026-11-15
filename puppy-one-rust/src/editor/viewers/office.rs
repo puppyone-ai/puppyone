@@ -12,7 +12,7 @@
 //! file in its default application, opening links, and Retry.
 use super::{html_visual::script_json, web::WebFrame};
 use crate::{
-    editor::registry::{SurfaceInput, SurfaceRequest, ViewerSurface},
+    editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
     platform::webview::{Content, Entry, Ipc, local_url_for, url_for},
     workspace::{PreviewData, PreviewResource},
 };
@@ -82,6 +82,13 @@ struct OfficeSurface {
     view: Entity<OfficeView>,
 }
 impl ViewerSurface for OfficeSurface {
+    fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
+        Some(
+            cx.subscribe(&self.view, move |_, event: &SurfaceEvent, cx| {
+                events(event.clone(), cx)
+            }),
+        )
+    }
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
@@ -104,6 +111,7 @@ impl ViewerSurface for OfficeSurface {
         self.view.update(cx, |view, cx| view.set_dark(dark, cx));
     }
 }
+impl EventEmitter<SurfaceEvent> for OfficeView {}
 struct OfficeView {
     name: String,
     extension: String,
@@ -292,7 +300,7 @@ impl OfficeView {
                     let _ = crate::platform::desktop::open_url(&url);
                 }
             }
-            Inbound::Retry => self.load(cx),
+            Inbound::Retry => cx.emit(SurfaceEvent::RetryInput),
         }
     }
     /// `openExternalFile`: local files only.

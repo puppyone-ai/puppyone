@@ -10,7 +10,7 @@
 //! Retry (`onRetryInput`), which reads the resource again.
 use super::{image::resource_failure, web::WebFrame};
 use crate::{
-    editor::registry::{SurfaceInput, SurfaceRequest, ViewerSurface},
+    editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
     localization::{t, tf},
     platform::webview::{Content, Entry, Ipc, url_for},
     theme,
@@ -151,6 +151,13 @@ struct MediaSurface {
     view: Entity<MediaView>,
 }
 impl ViewerSurface for MediaSurface {
+    fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
+        Some(
+            cx.subscribe(&self.view, move |_, event: &SurfaceEvent, cx| {
+                events(event.clone(), cx)
+            }),
+        )
+    }
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
@@ -162,6 +169,7 @@ impl ViewerSurface for MediaSurface {
         });
     }
 }
+impl EventEmitter<SurfaceEvent> for MediaView {}
 struct MediaView {
     kind: Kind,
     name: SharedString,
@@ -241,7 +249,7 @@ impl Render for MediaView {
                     unavailable,
                     p,
                     move |_, cx| {
-                        let _ = view.update(cx, |view, cx| view.load(cx));
+                        let _ = view.update(cx, |_, cx| cx.emit(SurfaceEvent::RetryInput));
                     },
                 ))
                 .into_any_element();

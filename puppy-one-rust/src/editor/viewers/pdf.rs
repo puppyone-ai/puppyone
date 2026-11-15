@@ -9,7 +9,9 @@
 //! at device resolution, and a superseded zoom level is ignored.
 use crate::{
     editor::{
-        registry::{PaneEntries, SurfaceInput, SurfaceRequest, ViewerSurface},
+        registry::{
+            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+        },
         workbench::pane::{Item, ItemKind},
     },
     localization::{t, tf},
@@ -60,6 +62,13 @@ struct PdfSurface {
     view: Entity<PdfView>,
 }
 impl ViewerSurface for PdfSurface {
+    fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
+        Some(
+            cx.subscribe(&self.view, move |_, event: &SurfaceEvent, cx| {
+                events(event.clone(), cx)
+            }),
+        )
+    }
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
@@ -104,6 +113,7 @@ struct Rendered {
     width: u32,
     image: Arc<RenderImage>,
 }
+impl EventEmitter<SurfaceEvent> for PdfView {}
 pub struct PdfView {
     id: String,
     resource: Option<PreviewResource>,
@@ -141,8 +151,7 @@ impl PdfView {
         }
     }
     fn reload(&mut self, cx: &mut Context<Self>) {
-        let resource = self.resource.clone();
-        self.load(resource, cx);
+        cx.emit(SurfaceEvent::RetryInput);
     }
     fn load(&mut self, resource: Option<PreviewResource>, cx: &mut Context<Self>) {
         self.resource = resource;

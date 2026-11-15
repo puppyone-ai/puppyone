@@ -3,7 +3,7 @@
 //! pending label while it decodes and an honest message if it cannot.
 use crate::workspace::{PreviewData, PreviewResource};
 use crate::{
-    editor::registry::{SurfaceInput, SurfaceRequest, ViewerSurface},
+    editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
     localization::{t, tf},
     theme,
     ui::appearance::ActiveAppearance,
@@ -21,6 +21,7 @@ pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn V
         resource,
         image,
         transcoding: false,
+        generation: 0,
     });
     transcode_if_needed(&view, request.name, cx);
     Box::new(ImageSurface { view })
@@ -36,9 +37,10 @@ fn transcode_if_needed(view: &Entity<ImagePreview>, name: &str, cx: &mut App) {
         Some(Ok(PreviewData::LocalFile(path))) => path.clone(),
         _ => return,
     };
-    view.update(cx, |v, _| {
+    let generation = view.update(cx, |v, _| {
         v.image = None;
         v.transcoding = true;
+        v.generation
     });
     let budget = crate::editor::registry::source_budget(name);
     let task = cx
@@ -48,6 +50,9 @@ fn transcode_if_needed(view: &Entity<ImagePreview>, name: &str, cx: &mut App) {
     cx.spawn(async move |cx| {
         let result = task.await;
         let _ = view.update(cx, |v, cx| {
+            if generation != v.generation {
+                return;
+            }
             if let Ok(png) = result {
                 v.image = Some(ImageSource::from(Arc::new(Image::from_bytes(
                     ImageFormat::Png,
@@ -65,11 +70,25 @@ struct ImageSurface {
     view: Entity<ImagePreview>,
 }
 impl ViewerSurface for ImageSurface {
+    fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
+        Some(
+            cx.subscribe(&self.view, move |_, event: &SurfaceEvent, cx| {
+                events(event.clone(), cx)
+            }),
+        )
+    }
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
     fn rebind_resource(&self, resource: &PreviewResource, cx: &mut App) {
         self.view.update(cx, |view, cx| {
+            view.generation += 1;
+            view.transcoding = false;
+            // Local files keep the same path after an external write. Drop
+            // GPUI's decoded asset so the new lease displays the new bytes.
+            if let Some(image) = view.image.take() {
+                image.remove_asset(cx);
+            }
             view.resource = Some(resource.clone());
             view.image = source(resource);
             cx.notify();
@@ -94,15 +113,13 @@ struct ImagePreview {
     image: Option<ImageSource>,
     /// A platform transcode is running: show loading, not failure.
     transcoding: bool,
+    generation: u64,
 }
+impl EventEmitter<SurfaceEvent> for ImagePreview {}
 impl ImagePreview {
     /// `onRetryInput`: forget the failed decode and read the file again.
     fn retry(&mut self, cx: &mut Context<Self>) {
-        if let Some(image) = self.image.take() {
-            image.remove_asset(cx);
-        }
-        self.image = self.resource.as_ref().and_then(source);
-        cx.notify();
+        cx.emit(SurfaceEvent::RetryInput);
     }
 }
 /// `.editor-state.editor-state--stacked.danger`: the reason over Retry.
@@ -191,5 +208,80 @@ impl Render for ImagePreview {
             .p(px(24.))
             .bg(p.canvas)
             .child(content)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[gpui::test]
+    fn an_external_replacement_at_the_same_path_evicts_the_decoded_image(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("image.png");
+        std::fs::write(&path, include_bytes!("../../../fixtures/editor/sample.png")).unwrap();
+        let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+        let resource = ws.resource(std::path::Path::new("image.png")).unwrap();
+        let (view, cx) = cx.add_window_view(|_, _| ImagePreview {
+            image: source(&resource),
+            resource: Some(resource),
+            transcoding: false,
+            generation: 0,
+        });
+        cx.update(|window, cx| {
+            let _ = window.draw(cx);
+        });
+        view.read_with(cx, |view, cx| {
+            assert!(view.image.as_ref().unwrap().is_asset_cached(cx))
+        });
+        std::fs::write(&path, include_bytes!("../../../fixtures/editor/broken.png")).unwrap();
+        let replacement = ws.resource(std::path::Path::new("image.png")).unwrap();
+        cx.update(|_, cx| {
+            ImageSurface { view: view.clone() }.rebind_resource(&replacement, cx);
+            assert!(
+                !view.read(cx).image.as_ref().unwrap().is_asset_cached(cx),
+                "same-path cache must not keep displaying obsolete bytes"
+            )
+        });
+    }
+
+    #[gpui::test]
+    fn a_late_avif_transcode_cannot_replace_the_new_png_resource(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("old.avif"),
+            include_bytes!("../../../fixtures/media/red.avif"),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("new.png"),
+            include_bytes!("../../../fixtures/editor/sample.png"),
+        )
+        .unwrap();
+        let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+        let old = ws.resource(std::path::Path::new("old.avif")).unwrap();
+        let new = ws.resource(std::path::Path::new("new.png")).unwrap();
+        let (view, cx) = cx.add_window_view(|_, _| ImagePreview {
+            image: source(&old),
+            resource: Some(old),
+            transcoding: false,
+            generation: 0,
+        });
+        cx.update(|_, cx| {
+            transcode_if_needed(&view, "old.avif", cx);
+            ImageSurface { view: view.clone() }.rebind_resource(&new, cx);
+        });
+        cx.run_until_parked();
+        view.read_with(cx, |view, _| {
+            assert!(
+                matches!(&view.image, Some(ImageSource::Resource(_))),
+                "obsolete transcode replaced the new source"
+            );
+            assert_eq!(view.resource.as_ref().unwrap(), &new);
+            assert!(!view.transcoding);
+        });
     }
 }

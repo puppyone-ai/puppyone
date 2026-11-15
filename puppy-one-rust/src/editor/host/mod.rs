@@ -208,11 +208,16 @@ impl DocumentEditor {
         };
         surface.set_reference_context(self.references.clone(), cx);
         let host = cx.weak_entity();
+        let input_id = id.to_owned();
         self.subscription = surface.subscribe(
             Rc::new(move |event, cx| {
                 let host = host.clone();
+                let input_id = input_id.clone();
                 cx.defer(move |cx| {
                     let _ = host.update(cx, |s, cx| match event {
+                        SurfaceEvent::RetryInput => {
+                            cx.emit(ClientMessage::RetryInput { id: input_id })
+                        }
                         SurfaceEvent::Changed => s.changed(cx),
                         SurfaceEvent::Redraw => cx.notify(),
                         SurfaceEvent::FindResult { current, total } => {
@@ -461,6 +466,10 @@ impl DocumentEditor {
     fn apply_gate(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let read_only = self.blocked
             || self.read_only
+            || self
+                .workspace
+                .as_ref()
+                .is_some_and(|workspace| !workspace.capabilities().write)
             || self
                 .session
                 .as_ref()

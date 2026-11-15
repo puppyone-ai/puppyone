@@ -61,6 +61,8 @@ pub enum SurfaceInput<'a> {
 /// What a surface reports to its host.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SurfaceEvent {
+    /// Reacquire the provider input before retrying a failed preview.
+    RetryInput,
     /// The document text changed (the host derives the dirty state).
     Changed,
     /// The surface's own view state or pane contribution changed.

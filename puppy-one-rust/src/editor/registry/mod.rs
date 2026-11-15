@@ -289,6 +289,39 @@ mod tests {
     }
 
     #[test]
+    fn csv_semantics_do_not_override_format_policy_or_make_office_editable() {
+        let mut csv = EditorDocument::local("Untitled.csv");
+        csv.kind = "spreadsheet".into();
+        csv.mime = Some("text/csv; charset=utf-8".into());
+        let resolved = resolve(&csv);
+        assert_eq!(resolved.viewer.id, "csv-table");
+        assert!(
+            resolved
+                .viewer
+                .editable(&resolved.view_match(&csv), "one,two")
+        );
+        let readonly = resolve(&EditorDocument::local("book.xlsx"));
+        assert!(!resolved.viewer.editable(
+            &ViewerMatch {
+                document: &csv,
+                format: readonly.format
+            },
+            "one,two"
+        ));
+        for name in ["book.xlsx", "report.docx", "slides.pptx", "table.ods"] {
+            let doc = EditorDocument::local(name);
+            let resolved = resolve(&doc);
+            assert_eq!(resolved.viewer.id, "office-preview", "{name}");
+            assert!(
+                !resolved
+                    .viewer
+                    .editable(&resolved.view_match(&doc), "some text"),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
     fn registries_breaking_the_contract_are_refused() {
         let all = builtin::contributions();
         // Incomplete: a declared viewer without an implementation.

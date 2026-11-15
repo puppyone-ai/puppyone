@@ -189,3 +189,46 @@ fn cloud_observations_defer_under_unsaved_input_and_converged_writes_adopt() {
     l.local_edit(1, true);
     assert_eq!(l.observe("disk"), StorageObservation::Adopted);
 }
+
+#[test]
+fn cloud_matching_external_bytes_before_autosave_adopt_without_writeback() {
+    let mut s = session();
+    s.cloud = true;
+    s.local_edit(1, true);
+    assert_eq!(s.observe("converged"), StorageObservation::Deferred);
+    assert!(
+        s.needs_snapshot,
+        "the native host must compare current input"
+    );
+    s.enqueue(Snapshot {
+        revision: 1,
+        text: "converged".into(),
+    });
+    assert!(s.next_commit().is_none());
+    assert_eq!(s.baseline, "converged");
+    assert!(!s.conflicted());
+    assert!(s.drained());
+}
+
+#[test]
+fn cloud_comparison_never_uses_an_old_revision_or_replaced_remote_baseline() {
+    let mut s = session();
+    s.cloud = true;
+    s.local_edit(2, true);
+    s.observe("remote");
+    s.enqueue(Snapshot {
+        revision: 1,
+        text: "remote".into(),
+    });
+    assert!(s.conflicted() && s.needs_snapshot);
+    s.observe("newer remote");
+    s.enqueue(Snapshot {
+        revision: 2,
+        text: "remote".into(),
+    });
+    assert!(s.conflicted());
+    assert!(!s.needs_snapshot);
+    assert!(s.next_commit().is_none());
+    assert_eq!(s.external.as_deref(), Some("newer remote"));
+    assert_eq!(s.baseline, "base");
+}

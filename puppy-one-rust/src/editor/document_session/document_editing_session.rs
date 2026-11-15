@@ -52,7 +52,9 @@ impl DocumentEditingSession {
         self.external = Some(text);
         self.pending = None;
         self.dirty = true;
-        self.needs_snapshot = false;
+        // Native editor snapshots arrive asynchronously. Compare the current
+        // draft before deciding that different Cloud bytes are a conflict.
+        self.needs_snapshot = true;
         self.error = Some("external-conflict".into());
     }
     /// Lifecycle/appearance events never call this. A revision notification is
@@ -77,13 +79,17 @@ impl DocumentEditingSession {
         }
     }
     pub fn enqueue(&mut self, snapshot: Snapshot) {
-        if self.external.is_some() {
-            self.revision = self.revision.max(snapshot.revision);
-            self.needs_snapshot = false;
-            return;
-        }
         if snapshot.revision < self.revision {
             self.needs_snapshot = true;
+            return;
+        }
+        if let Some(external) = &self.external {
+            self.revision = snapshot.revision;
+            if snapshot.text == *external {
+                self.adopt(snapshot.text);
+            } else {
+                self.needs_snapshot = false;
+            }
             return;
         }
         self.revision = snapshot.revision;

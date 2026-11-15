@@ -108,3 +108,113 @@ impl ResourceWatchPort for Memory {
         Err(Error::unsupported())
     }
 }
+
+/// A provider with immutable binary snapshots and controllable notifications.
+/// Consumers can prove that preview refreshes do not go through text storage.
+type ResourceSink = (std::sync::Weak<Mutex<Option<WatchEvent>>>, Notify);
+pub struct Resources {
+    pub memory: Memory,
+    pub bytes: Mutex<std::collections::HashMap<String, Vec<u8>>>,
+    pub reads: Mutex<Vec<String>>,
+    pub failures: Mutex<std::collections::HashMap<String, Error>>,
+    pub after_read: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    sinks: Mutex<Vec<ResourceSink>>,
+}
+impl Default for Resources {
+    fn default() -> Self {
+        let mut memory = Memory::new("memory://preview-tests/project/");
+        memory.descriptor.capabilities.watch = true;
+        Self {
+            memory,
+            bytes: Default::default(),
+            reads: Default::default(),
+            failures: Default::default(),
+            after_read: Default::default(),
+            sinks: Default::default(),
+        }
+    }
+}
+impl Resources {
+    pub fn publish(&self, event: WatchEvent) {
+        self.sinks.lock().unwrap().retain(|(slot, notify)| {
+            if let Some(slot) = slot.upgrade() {
+                let mut pending = slot.lock().unwrap();
+                *pending = Some(
+                    pending
+                        .take()
+                        .map_or_else(|| event.clone(), |old| old.coalesce(event.clone())),
+                );
+                drop(pending);
+                notify();
+                true
+            } else {
+                false
+            }
+        });
+    }
+    pub fn subscribers(&self) -> usize {
+        self.sinks
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(slot, _)| slot.strong_count() > 0)
+            .count()
+    }
+}
+impl DataPort for Resources {
+    fn descriptor(&self) -> Descriptor {
+        self.memory.descriptor.clone()
+    }
+    fn list(&self, path: &RelativePath) -> Result<Vec<Entry>> {
+        self.memory.list(path)
+    }
+}
+impl DocumentStoragePort for Resources {
+    fn read(&self, _: &RelativePath) -> Result<TextSnapshot> {
+        panic!("binary previews must not request text")
+    }
+    fn write(&self, _: &RelativePath, _: &Revision, _: &str) -> Result<WriteResult> {
+        panic!("binary preview refresh must not write")
+    }
+}
+impl ResourcePort for Resources {
+    fn preview(&self, path: &RelativePath) -> Result<PreviewData> {
+        let name = path.as_path().to_str().unwrap().to_owned();
+        self.reads.lock().unwrap().push(name.clone());
+        let snapshot = if let Some(error) = self.failures.lock().unwrap().get(&name) {
+            Err(error.clone())
+        } else {
+            self.bytes
+                .lock()
+                .unwrap()
+                .get(&name)
+                .cloned()
+                .ok_or_else(|| Error::new(ErrorKind::NotFound, "Preview removed"))
+        };
+        let hook = self.after_read.lock().unwrap().take();
+        if let Some(hook) = hook {
+            hook();
+        }
+        Ok(PreviewData::Bytes {
+            mime: "application/octet-stream".into(),
+            bytes: snapshot?.into(),
+        })
+    }
+}
+impl ResourceWatchPort for Resources {
+    fn watch_root(&self, notify: Notify) -> Result<WatchSubscription> {
+        let events = Arc::new(Mutex::new(Some(WatchEvent::Invalidated)));
+        self.sinks
+            .lock()
+            .unwrap()
+            .push((Arc::downgrade(&events), notify.clone()));
+        notify();
+        Ok(WatchSubscription {
+            events,
+            cancel: WatchCancellation::new(|| {}),
+        })
+    }
+    fn watch(&self, _: &RelativePath, _: &Revision, _: Notify) -> Result<WatchSubscription> {
+        panic!("binary previews have no text revision")
+    }
+}
