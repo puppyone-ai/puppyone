@@ -1,7 +1,7 @@
 # PuppyOne Rust — GPUI local workspace / Markdown integration
 
 > **Rust 前端现统一依赖 GPUI Kit 0.8.0（其 GPUI 后端为 gpui-pre 0.3.9）。**
-> 可以打开真实文件夹、编辑已有文本文件并保存；文档编辑器全部是 **Rust 原生实现**（Markdown 实时预览、CSV 表格、纯文本），不再内嵌 WebView。
+> 可以打开真实文件夹、编辑已有文本文件并保存；Markdown（实时预览 / 源码）、CSV 表格、代码与纯文本编辑器是 **Rust 原生实现**。HTML 页面、Excalidraw 白板、Office、音视频、App 预览，以及 Mermaid / KaTeX 的渲染服务运行在系统 WebView（`wry`，macOS 为 WKWebView）里。
 > 仍是实验版本：不是现有 Desktop 的完整替代品，未通过像素级验收。先用测试文件夹试用。
 > 当前产品规范仍归 [puppy-issues / puppyone-desktop](https://github.com/puppyone-ai/puppy-issues/tree/main/document/puppyone-desktop)；本目录不改变现有 Electron 产品或发布入口。
 
@@ -13,7 +13,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 cargo run --release --locked
 ```
 
-启动后点击 **Open folder…** 选目录。Header 项目菜单列出最近项目、打开文件夹、首页，以及当前项目的位置菜单（Put in the Cloud / History / Open in Cloud）；产品在 qubits@671143f2a 已删除 Header 的本地 / Cloud 切换。
+启动后点击 **Open folder…** 选目录。Header 读作 `[位置] / [文件夹]`：位置菜单列出 Home、本机、各空间与账号，文件夹菜单列出同一位置里的文件夹和 New（v0.4.4，见下文）；产品在 qubits@671143f2a 已删除 Header 的本地 / Cloud 切换。
 
 直接打开一个文件夹 / 文件：
 
@@ -28,10 +28,10 @@ cargo run --release --locked -- --workspace /path/to/project --file README.md
 
 ## GPUI Kit 复用范围
 
-- `gpui_kit::application/open_window`：平台入口、窗口 Root、焦点和组件初始化；不维护 Kit fork。
-- 界面控件来自产品组件库 `src/ui/components/`（见下节）：外观是 PuppyOne 的，行为——焦点、键盘、弹层定位与关闭、对话框焦点陷阱——来自 Kit 的无样式层 `gpui-base`。Kit 不 fork、不改源码，也不使用 `gpui-component` 的默认外观组件（如 `PopupMenu`）。
+- `gpui_kit::application/open_window`：平台入口、窗口 Root、焦点和组件初始化；不维护 Kit fork（`gpui-base` 只有几处有文档的补丁，见“第三方 crate 补丁”）。
+- 界面控件来自产品组件库 `src/ui/components/`（见下节）：外观是 PuppyOne 的，行为——焦点、键盘、弹层定位与关闭、对话框焦点陷阱——来自 Kit 的无样式层 `gpui-base`。Kit 不 fork（`gpui-base` 的补丁见“第三方 crate 补丁”），也不使用 `gpui-component` 的默认外观组件（如 `PopupMenu`）。
 - 普通表单、Agent composer、Git commit、模型配置及问答字段使用 Kit Input/Textarea。选择、文本编辑、IME 事务和撤销交给 Kit；薄适配器保留长度限制、Tab 焦点和 ⌘Enter。
-- Agent Markdown 使用 Kit TextView，代码复制和受限链接保留；正文中的图片地址不会自动读取本地文件或请求网络。
+- Agent Markdown 按产品的 `AgentMarkdownDocument` 原生排版（`agent_markdown.rs` + `RichText`），代码复制和受限链接保留，Mermaid 由渲染服务绘制；正文中的图片只显示替代文字，不会读取本地文件或请求网络。
 - 原生文档编辑器（`src/editor/`）由 Kit 公开的 `text::editor_host` 排版和绘制正文；文档、装饰、块几何、选区、光标、输入法和指针由应用持有（见 [`src/editor/ARCHITECTURE.md`](src/editor/ARCHITECTURE.md)）。Kit 不是完整的编辑内核；文件树加载、分屏拓扑、Terminal/Agent 运行和文件保存同样保留各自 owner。
 
 未采用 `gpui-kit-markdown-editor` 或其他独立编辑器库。GPUI Kit 上游在 2026-10-23 查询时为 18,506 stars；这是本次选型门槛，不是成熟度或无缺陷保证。此后新增直接依赖仍需按用户的项目规模限制评估。
@@ -118,9 +118,9 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 监听由 Provider 持有：本地仍为 500ms 有界文本观察，合并为重读通知；关闭文档或撤销租约停止观察。它不是递归目录 watcher 或持久 journal。本地条件写仍保留 BOM/换行/权限与磁盘优先规则，未增加 Cloud 冲突策略。资源型预览支持本地文件或不可变字节，租约撤销后不再交付；原有本地路径型预览的 OS 打开行为不宣称变成原子文件快照。
 
-**Provider 底座不是 Cloud 已接通**：原生登录由独立认证服务承接；HTTP/SSE 文件 Provider 的协议切片见第三步；Cloud 导航与保活、云端草稿处理仍未启用；本地多文档工作台已接入，范围与缺口见下一节。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
+**Provider 底座本身不等于 Cloud 已接通**：原生登录由独立认证服务承接；HTTP/SSE 文件 Provider 的协议切片见第三步；Cloud 项目从首页 / 项目菜单进入，宿主保活与 Cloud 草稿策略（`deferCloudBaseline`，C-6.6）已接入（见 PARITY §0.5、§0.6）；本地多文档工作台已接入，范围与缺口见下一节。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
 
-Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking → Connecting → Files，已运行工作区复用，显式打开最多发送一次 wake POST，后续只 GET 观察；核对项目/generation、服务期限、取消和根目录读取后才交付一次性 Prepared。认证请求携带 repository contract 2；workbench 长轮询允许 25 秒、显式启动允许 120 秒，普通 API 仍为 15 秒。2026-11-04 起已接入首页和项目菜单：选中 Cloud 项目就在当前窗口进入并等待（阶段跟随服务端 `operation.phase`，Esc 取消），失败保留服务端错误码并显示恢复提示。仍只经回环服务验证，没有真实后端验收。
+Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking → Connecting → Files，已运行工作区复用，显式打开最多发送一次 wake POST，后续只 GET 观察；核对项目/generation、服务期限、取消和根目录读取后才交付一次性 Prepared。认证请求携带 repository contract 2；workbench 长轮询允许 25 秒、显式启动允许 120 秒，普通 API 仍为 15 秒。2026-11-04 起已接入首页和项目菜单：选中 Cloud 项目就在当前窗口进入并等待（阶段跟随服务端 `operation.phase`，Esc 取消），失败保留服务端错误码并显示恢复提示。除回环服务测试外，v0.4.4 对齐时在真实 qubits 部署上验收了 Cloud 项目链路（见下文 v0.4.4 节）；不是生产后端验收。
 
 ## 运行底座与多窗口（2026-10-29）
 
@@ -129,7 +129,7 @@ Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking 
 - **查看器准入**：内容型查看器按各自 `maxSourceBytes`（Markdown/文本 16 MiB、CSV/JSON 8 MiB、HTML 4 MiB）。
 - **PDF**：`platform::pdf` + `editor::viewers::pdf`，引擎为 PDFium（`python3 tools/fetch-pdfium.py` 安装到 `vendor/pdfium`，打包时进入 `Frameworks`）。没有引擎时显示资源不可用。
 - **数据库**：`platform::database` + `editor::viewers::database`。SQLite 只读打开；DuckDB 通过 libduckdb 的 C API 只读、沙箱化打开（`python3 tools/fetch-duckdb.py` 安装到 `vendor/duckdb`，打包时进入 `Frameworks`）。没有库时 DuckDB 文件显示为不支持。
-- **Cloud 模型**：`workspace::cloud::{failure, locator, catalog, recovery, publish}` 已移植并测试，界面仍禁用。
+- **Cloud 模型**：`workspace::cloud::{failure, locator, catalog, recovery, publish}` 已移植并测试，2026-11-04 起由首页、项目菜单和位置菜单使用。
 
 ## Retained Editor workbench（迁移进行中，不是全量完成）
 
@@ -144,7 +144,7 @@ Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking 
 
 代码与 JSON 使用 `editor/viewers/code` 的 GPUI Kit 原生 Editor：正文、撤销、多光标和折叠由同一编辑状态持有；产品语言规则与 Markdown 代码块共享。平台 IME 代理保留 Kit 的几何和编辑语义，额外报告组字结束，保证冻结快照不会保存 preedit 或在取消后悬挂。语言重绑保留实例、选区和历史。查找按 TS 从选区起点选择最近匹配，并按 NFKD/Unicode 小写比较；编辑后更新计数。参考与回归入口为 `tools/reference-code.mjs --check`、`tools/verify-native-editor.py`。
 
-**仍未完成用户要求的全部 TS 功能**：Cloud 项目选择/显式启动准备与两种导航、Cloud→Editor 来源/权限/viewer budget、既有 Cloud 草稿与未知保存结果语义、目录订阅和执行隔离；改变扩展名后的 viewer 转换、按资源范围并发的操作队列、完整每 Pane 视图状态与跨 Root composition、跨应用原生资源拖放、完整快捷键/可访问性和拖放实机/视觉验收。元数据恢复不是崩溃草稿恢复。Cloud UI 仍禁用；五个复刻领域的剩余验收项见 `PARITY_TODO.md` §0.3。
+**仍未完成用户要求的全部 TS 功能**：Cloud 的执行隔离（Cloud 项目不开放本地执行能力）；完整每 Pane 视图状态与跨 Root composition、完整快捷键/可访问性和拖放实机/视觉验收。改扩展名换查看器（E-2）、按资源范围排队的文件操作（E-3）、目录订阅（FSEvents）和拖到其他应用（EX-4）已接入。元数据恢复不是崩溃草稿恢复。五个复刻领域的剩余验收项见 `PARITY_TODO.md` §0.3。
 
 ## 工作区文档引用（迁移切片）
 
@@ -159,16 +159,16 @@ CSV 的引用标签/按钮和 ⌘ 点击已经接入实际宿主。Markdown 的�
 `src/workspace/cloud/` 实现现有四个 Provider 端口，不增加第二套文件 UI 或保存队列。`prepare_running` 通过账号/环境绑定的 Broker 校验项目根 context、固定 workbench ID/generation，并实际读取根目录；返回 5 秒、一次性消费的准备收据。创建/唤醒与 opening/polling/recovery 状态机在 `workspace/cloud/opening.rs`，只由用户显式打开项目时触发；读文件和断线重连时不会 POST 启动计算。
 
 - live list/read、条件写、新建（不覆盖）、目录创建、重命名/移动/删除；读写受服务端逐次授权与 generation 约束。Scope、复制/导入、本地路径与执行能力不开放，无本地镜像或已发布 Git 回退。
-- 不可变字节预览验证名称、类型、长度、base64 与 SHA-256；本地仍为 4 MiB/2,000 条目，Cloud 为 8 MiB/10,000 条目。文本保留 BOM/CRLF；revision 同时绑定存储、workbench、generation 和路径。并发读/list 合并，失效代次拦截旧读取。
+- 不可变字节预览验证名称、类型、长度、base64 与 SHA-256；本地文本上限为 16 MiB/2,000 条目，Cloud 为 8 MiB/10,000 条目。文本保留 BOM/CRLF；revision 同时绑定存储、workbench、generation 和路径。并发读/list 合并，失效代次拦截旧读取。
 - 凭据和 HTTP/SSE 均归原生认证 Broker，Provider 不拿 token。单个 Provider 共享一条有界 reset 流；验证媒体类型、分片 UTF-8/CRLF、32 KiB 帧与 generation。断线最多重连三次，每次重新失效；正常 token 续期不消耗断线重连预算。不使用 Agent cursor 或文件轮询。
 - 撤销/最后一个订阅 Drop 取消相应 I/O；观测到权限撤销或账号/环境/运行代次变化后，旧预览访问失败。已交付的字节/已派发的解码无法追回；共享账号刷新可自行收尾，但取消后不再派发文件请求。流终止/重试耗尽后须重新授权准备，不静默换 generation。
-- 不确定写入返回 `OutcomeUnknown`，不重放；CAS 冲突提供外部快照。**Documents 的既有 TS Cloud dirty-draft/未知结果行为须随工作台接入一起迁移，不能据此启用 Cloud 编辑 UI。** 账号/仓库两种导航、保活与执行隔离也仍未接通；启用 Cloud host 前还须遵守所选 viewer 更小的 source budget，不能把 8 MiB 传输上限当作全体编辑器准入。
+- 不确定写入返回 `OutcomeUnknown`，不重放；CAS 冲突提供外部快照。Documents 已迁入 TS 的 Cloud dirty-draft / 未知结果行为（`deferCloudBaseline`，C-6.6），Cloud 文档可编辑；文档准入取所选 viewer 的 source budget 与 8 MiB 传输上限中较小者。执行隔离仍未接通：Cloud 项目不开放本地执行能力。
 
 20 项新增本地协议测试使用真实 loopback HTTP/SSE、合成认证与内存 vault，覆盖完整 8 MiB 收发、故障与取消；两配置各 412 passed / 9 ignored。不是后端实际部署、真实账号/Keychain/浏览器验收或大文件编辑器延迟证明。参考 TS/后端 HEAD 与 12 个实际输入哈希见 `fixtures/cloud/provider-reference.json`，由 `tools/check-cloud-reference.py` 校验。规范归 [Cloud Workspace State](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/cloud/workspace-state.md)。
 
 ## Native Cloud authentication（第二步）
 
-`src/cloud/auth/`（po-workspace）是唯一原生账号权威：复用现有 Web `/login`、PKCE S256 和 IP-loopback 回调，以及邮箱登录的顶层表单 POST。HTTP 禁止重定向并限制响应大小；本地认证请求不经过代理。`features/cloud/account.rs` 仅把无凭证快照交给 Settings，系统浏览器只有在用户发起且请求仍有效时才打开。Cloud 工作区、计费/订阅和文件服务没有随登录一起启用。
+`src/cloud/auth/`（po-workspace）是唯一原生账号权威：复用现有 Web `/login`、PKCE S256 和 IP-loopback 回调，以及邮箱登录的顶层表单 POST。HTTP 禁止重定向并限制响应大小；本地认证请求不经过代理。`features/cloud/account.rs` 仅把无凭证快照交给 Settings，系统浏览器只有在用户发起且请求仍有效时才打开。登录本身不开启 Cloud 工作区、计费/订阅或文件服务；它们各自接入（见上文 Cloud 各节与 v0.4.4 节）。
 
 Cloud 端点与 TS 同名：开发时只读 **`VITE_DESKTOP_CLOUD_API_URL`**（以 `/api/v1` 结束）和 **`VITE_DESKTOP_CLOUD_WEB_URL`**（origin）；打包版本只读取可执行文件旁（macOS 为 `Contents/Resources/`）的公开 `desktop-cloud.json`（`{schemaVersion: 1, apiBase, webOrigin}`，与 TS 的 `dist/desktop-cloud.json` 相同），不接受环境变量覆盖（`loadDesktopCloudConfiguration`）。只允许官方 `puppyone.ai` 域族 HTTPS，或 `localhost` / `127.0.0.1` 的 HTTP 开发环境；loopback API 可以用 `VITE_DESKTOP_CLOUD_GIT_ORIGIN` 显式信任一个 HTTPS 托管 Git origin。无生产默认值，不读取 TS 的 `.env`、登录文件或凭证。缺配置或平台不支持时登录不可用。截图/lab 不启动认证服务。
 
@@ -188,15 +188,15 @@ python3 tools/check-auth-reference.py
 
 - 选择真实本地文件夹，展开目录，读取文件；目录扫描和读写在后台线程。
 - 点击已有 UTF-8 文本文件，在原生编辑器里编辑：Markdown（`.md` / `.mdx` / `.markdown`）实时预览与源码模式，CSV / TSV 表格（产品的表格查看器没有源码模式），其他文本为纯文本编辑。Markdown 用 `⌘/` 或 `⇧⌘M`、或标题栏 / Pane 菜单的视图切换在实时预览与源码之间切换。
-- **Markdown 源码是唯一真相**：实时预览不改写原文。原生支持标题、强调、链接 / 维基链接、列表、任务、引用、分隔线、带高亮的代码块和可编辑表格；数学公式、Mermaid、图片、HTML / MDX 块尚未原生实现，按原文显示，不会被静默丢弃。几何与产品逐块对齐的验收见 PARITY_TODO §7。
+- **Markdown 源码是唯一真相**：实时预览不改写原文。原生支持标题、强调、链接 / 维基链接（目标缺失或有歧义时另有下划线样式）、列表、任务、引用、分隔线、带高亮的代码块、可编辑表格（可拖动列宽）、Front matter、Callout、脚注、HTML 块与行内 HTML、独占一行与文字旁的图片、视频 / 音频、点击后才加载的网页嵌入，以及 `.mdx` 的 Tabs；数学公式（KaTeX）和 Mermaid 由渲染服务绘制。其余 MDX 组件和渲染失败的块按原文显示，不会被静默丢弃。几何与产品逐块对齐的验收见 PARITY_TODO §7。
 - 输入法：所有原生编辑器共用一套组字适配（中文 / 日文 / 韩文 / 死键 / 长按重音），整段组字一步撤销；过滤部分输入法（如搜狗）把方向键当文字插入的功能键字符。
-- 其他文本文件：撤销 / 重做、查找、输入法；暂无行号和语法高亮。
-- 编辑默认自动落盘；`⌘S` 仅用于 flush/retry；`⌘W` 关闭当前编辑器，没有编辑器时关闭窗口；`⌃Tab` / `⌃⇧Tab` 在标签间切换。菜单栏按产品的模板：应用、File（New Window / Manage Executions / Close Window）、Edit、View（Toggle Full Screen）、Theme、Window、Help。
+- 代码、JSON 与其他文本文件：原生代码编辑器（行号、折叠、按语言语法高亮）、撤销 / 重做、查找、输入法。
+- 编辑默认自动落盘；`⌘S` 仅用于 flush/retry；`⌘W` 关闭当前编辑器，没有编辑器时关闭窗口；`⌃Tab` / `⌃⇧Tab` 在标签间切换。菜单栏按产品的模板：应用（含 Check for Updates、Settings）、File（New Window / Manage Executions / Close Window）、Edit、View（只有 Toggle Full Screen，产品 View 菜单的缩放 ⌘+ / ⌘− / ⌘0 未做，WN-1）、Theme、Window、Help。
 - 显式关闭文档、资源修改和正常退出会取得冻结快照并等待自动写入完成；IME 结束后继续，不弹出普通文档保存确认。标签、Pane 和本地项目切换保留文档，不以关闭/重开实现保活。
 - 磁盘轮询/条件写确认外部变化后采纳磁盘内容，推进 persistence epoch，忽略旧写回执；自身写回声不得覆盖新输入。真正 I/O 失败保留输入并显示可重试错误。
 - 保留 UTF-8 BOM、LF / CRLF 和末尾换行；普通 POSIX 文件权限随保存保留。
 - Header 的按钮切换左右区域（产品没有对应快捷键）；Markdown 内容焦点内的 `⌘B` / `⌘I` 是粗体 / 斜体。拖动分隔线调整宽度。
-- Settings 按 Web 的 sidebar/main/components 分层；语言、深/浅色、三档文字尺度、Header Changes/Terminal 可见性、Project Rail 和创建菜单配置修改后自动持久化。不跟随系统主题；其他未接通设置明确只读/禁用。Feedback 已有原生表单，但附件和发送禁用，**不会上传任何内容**。
+- Settings 按 Web 的 sidebar/main/components 分层；语言、System / 浅 / 深色（System 跟随系统外观）、三档文字尺度、Header Changes/Terminal 可见性、Project Rail 和创建菜单配置修改后自动持久化；其他未接通设置明确只读/禁用。Help → Feedback 可附截图，发送到产品同一个表单地址，只带留言、邮箱、截图与版本 / 语言 / 平台，不带工作区和账号数据。
 
 **已有本地多文档和分屏，仍不是完整多格式 Editor workbench/L3。** Header 的 Git 显示实际变更和同步计数，打开右侧 Changes；Terminal 图标打开原生工作台。两者切换保留 Agent/Terminal 实例。
 
@@ -228,7 +228,7 @@ src/editor/
   - 项目文件夹移动或消失时会提示，原地改名的能找回；
   - Claude Code 用自己的登录也算已认证，并能找到 Homebrew 装的 Claude Code；
   - Git 元数据每 2 s 对账；
-  - reqwest 跟随系统代理。
+  - reqwest 跟随系统代理，包括 PAC / WPAD（WN-2，经 CFNetwork 按域名解析）。
 - **其他电脑**按 v0.4.4 的发布门控关闭。Settings › Computer access 和 Host 文件夹的 2 s 对账已实现，但门控下不可见。
 
 逐项清单与已知差异见 PARITY_TODO 和桌面清单《PuppyOne-Rust-对齐v0.4.4-TODO-2026-11-14》。真实 qubits 验收（不付款；所建的项目、空间和邀请在结束时删除）：
@@ -257,15 +257,23 @@ cargo test -p po-workspace --features test-support -- workspace::acceptance --ig
 
 未做：系统睡眠 / 唤醒通知（靠 30 s 静默检测重连）、文件服务与终端放进独立的 utility 进程、Linux XDG / Windows 登录项、把 Git History（graph / commit_detail）开放给其他电脑。
 
+## 第三方 crate 补丁（`vendor/`）
+
+三个 crate 以 crates.io 发布版为底，经 `Cargo.toml` 的 `[patch.crates-io]` 使用；改动都写在各自的 `PUPPYONE_PATCH.md` 里，其余与发布版相同：
+
+- `vendor/gpui-base`（0.8.0）：代码 gutter、`replay_undo`、撤销历史保留、悬停显示滚动条、文本颜色标记、行内代码内边距与无下划线链接。
+- `vendor/russh`（0.65.1）：接受 TS 客户端按证书类型命名的证书签名（见上文“互通”）。
+- `vendor/vt100`（0.15.2）：OSC 8 超链接（单元格记录所属链接，`Screen::hyperlink`），以及 `Screen::scrolled_rows()` 给每行一个在整个输出中的位置，让终端选区跨越 scrollback（TM-1、TM-2）。
+
 ## Native Git and Agent workbench
 
-- `src/features/source_control/`：Changes 分组、虚拟文件列表、Diff、最近 100 条提交历史、暂存/取消暂存、提交、Fetch/Pull/Push。Git CLI 后台执行，使用 literal pathspec、NUL 状态解析、超时和 workspace epoch；只在已打开的仓库根目录执行。状态在窗口激活时每 3 秒刷新，也支持手动刷新。Discard、Pull、Push 有明确的操作确认。
+- `src/features/source_control/`：Changes 分组、虚拟文件列表、Diff（含 Word 文档修订视图，GT-5）、最近 100 条提交历史、暂存/取消暂存、提交、Fetch/Pull/Push、发布没有上游的分支（GT-1）、合并 / 变基进行中的 Continue / Abort（GT-2）、按错误分类的 Git 错误对话框（GT-3）、没有远程时的备份到 Cloud 卡片（GT-4）。Git CLI 后台执行，使用 literal pathspec、NUL 状态解析、超时和 workspace epoch；文件夹在仓库子目录时与 TS 一样管理整个仓库，操作只作用于文件夹内（G-13）。不轮询状态：工作区与 Git 元数据的变更通知（防抖 250 ms；元数据快照每 2 s 对账一次，补漏掉的 OS 事件）、聚焦时超过 5 秒未读和每次操作触发重读；窗口聚焦时静默 fetch 同步目标的远程。Discard 与 Abort 前用系统确认框询问，Pull、Push 与产品一样不确认。
 - `src/features/workbench/`：中立的项目级标签/分组/分屏模型；每次 `+` 产生独立 New tab；拖动重排/跨组/边缘分屏、调整分屏、溢出列表、Header 左右/Home/End 导航。隐藏或切换项目保留实例；关闭最后标签显示 launcher；运行中的标签及应用退出先确认停止。
 - `src/features/desktop_agent/`：沿原产品的 domain / application / infrastructure / ui 分层；原生虚拟转录、Markdown/表格/代码复制、工具折叠、图片附件预览、拖入/选择引用、命令建议、逐会话草稿、失败草稿显式恢复、模型/模式/思考强度、历史过滤及审批/问题/MCP 表单。
 - `src/agent/`：独立 native runtime port、composition root、Codex/Claude adapters、共享 ACP 与 Pi RPC、不可变引用、会话 catalog、有界 JSONL transport。Codex 支持 fork/steer/rename/compact/archive；其他运行时按实际协商能力显示控件。每项目最多 8 个、应用最多 32 个 Agent owner，隐藏不释放租约。
 - `src/agent/model_connections/` 与 `src/features/model_connections/`：独立的 Rust 模型配置服务和 GPUI 设置；新增/刷新/删除确认、配置代次检查、删除后防复活与 Keychain 引用；成功写入后清理无引用旧密钥。Settings 和 Agent 页面共用服务。Local Agents 设置显示实际安装位置与缺失状态。
 - `src/agent/runtimes/puppyone_agent/`：产品内置的 Rust HTTP/tool loop；从 **Settings → Model Connections** 或 Agent 页的 **Model connections…** 配置 OpenAI-compatible endpoint/model。支持本地兼容服务；远端使用 HTTPS、禁止自动重定向，密钥仅进入 macOS Keychain；JSON 只存版本化 credential reference，密钥值不进入 JSON/argv/env。具备 read/ls/find/grep/write/edit/bash、显式写入/命令审批、Plan 模式、停止、持久历史、分叉、重命名、上下文压缩和模型绑定代次检查。没有自动导入 Electron 凭证，也没有把外部 Pi CLI 改名冒充内置运行时。
-- `src/features/terminal/` + `src/platform/terminal.rs`：原生 GPUI 终端、PTY、VT100/ANSI、颜色、光标、滚屏、IME、粘贴、终端查询响应和窗口尺寸同步；视口拖选/双击选词/复制、Cmd 点击 HTTP(S) 链接、X10/UTF-8/SGR 鼠标（Shift 绕过）、功能键/导航修饰键。输出、滚动及 resize 会清除选区，尚无跨滚屏持久选区/OSC 8/像素鼠标；本机发现的 Claude Code、Cursor、Hermes、OpenCode、Pi、WorkBuddy 等 CLI 可从终端启动。
+- `src/features/terminal/` + `src/platform/terminal.rs`：原生 GPUI 终端、PTY、VT100/ANSI、颜色、光标、滚屏、IME、粘贴、终端查询响应和窗口尺寸同步；拖选/双击选词/复制、Cmd 点击 HTTP(S) 链接与 OSC 8 超链接（TM-1）、X10/UTF-8/SGR 鼠标（Shift 绕过）、功能键/导航修饰键。选区按整个输出的行号记录，滚动和新输出时保留，可跨越 scrollback，拖出边缘自动滚动（TM-2）；输入、resize 和切换备用屏幕会清除选区；尚无像素鼠标（SGR-Pixels）；本机发现的 Claude Code、Cursor、Hermes、OpenCode、Pi、WorkBuddy 等 CLI 可从终端启动。
 - `src/platform/` 与 `src/agent/transports/`：独立 worker 管理 Git/JSONL/PTY；有界管道与 Wake，前台不执行阻塞式等待。关闭发送进程组信号并由 worker 回收 child；PTY 真实退出有集成验证。
 
 原生 Chat 入口覆盖 PuppyOne Agent、Codex、Claude、Cursor、Hermes、OpenCode、Pi、WorkBuddy；安装发现、协议握手与真实推理是不同层级的验证。Workbench 将布局和 native session identity 原子保存为项目元数据；重启后显式 Resume，不重放之前的命令。CLI 自己拥有登录，Rust 不复制其认证文件。
@@ -285,7 +293,7 @@ python3 tools/package-workbench.py
 
 收据在 `artifacts/gpui-verification/`、`artifacts/agent-runtime-verification/`。本轮电脑控制接口返回 native pipe startup failed；Kit 版本已有独立窗口的编辑器 smoke 和 Agent 静态 port 截图；系统 IME、全部工作台交互与像素一致性仍未验收，GPUI test context 不等同 OS 实机验收。
 
-尚不能称为 Electron Agent 的全量对等：Mermaid 图形、全部活动 renderer/内联资源/高级 mention、完整安装/账户/托管 compute、持久 feed/request ledger、崩溃级 supervisor、终端鼠标/选区、完整辅助技术和视觉对齐仍有缺项。高级 Git hunk/分支/图历史也未迁入。
+尚不能称为 Electron Agent 的全量对等：全部活动 renderer/内联资源/高级 mention、完整安装/账户/托管 compute、持久 feed/request ledger、崩溃级 supervisor、终端像素鼠标、完整辅助技术和视觉对齐仍有缺项。Changes 分区之间的拖动 / 键盘调整大小也未迁入；待拉取改动审阅（`IncomingChangesRegion`）只在 Reach 实验下出现，不在范围（产品本身没有 hunk 暂存，分支切换入口在 v0.4.4 不可达）。
 
 ## Web → Rust 产品分层
 
@@ -317,32 +325,35 @@ python3 tools/audit-ui-migration.py --check  # 只校验映射
 - `tools/agent-migration-map.json` 记录已识别的源模块、Rust 目标和逐组缺项；`tools/audit-agent-migration.py` 枚举所有源文件，未映射项自动记为 pending，不会默默排除。
 
 ```bash
-python3 tools/audit-agent-migration.py --source-root ../../puppyone-qubits
+python3 tools/audit-agent-migration.py   # 默认读 product-source.json 固定的 v0.4.4 checkout
 ```
 
-报告输出到 `artifacts/agent-migration/inventory.json`，同时记录源 HEAD、未提交修改和逐文件哈希。当前三个 Agent 目录的 360 个文件中，89 个标为 partial、271 个 pending，**没有文件被宣称全量对等**；这是可追溯清单，不是按文件数计算的功能完成率。完整迁移仍须逐项对齐原契约和测试，不能只依靠目录结构验收。
+报告输出到 `artifacts/agent-migration/inventory.json`，同时记录源 HEAD、未提交修改和逐文件哈希。当前 8 个 Agent 源根（4 个目录与 4 个单独的 IPC / 宿主文件）的 368 个文件中，363 个标为 partial、5 个 pending（`ui/markdown/` 下的 Environment、Mermaid 块、Source 块、block registry 与 policy，尚未登记），**没有文件被宣称全量对等**；这是可追溯清单，不是按文件数计算的功能完成率。完整迁移仍须逐项对齐原契约和测试，不能只依靠目录结构验收。
 
 ## 架构调研与差异（R0）
 
 细化草案已归到 `puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/README.md`，分为依赖/身份、Appearance/组件、Web 宿主/生命周期、像素与迁移验收四个专题；全部明确为 Proposed。
 
-**原生编辑器使用 `editor/document_session` 的自动保存队列与磁盘 epoch。** `documents.rs` 只适配导航、快照和 I/O 完成；完整 L3 Working Copy/Root registry 与多 pane 寿命仍未迁入。当前 Home 仍临时切换 Explorer，centered Header 也不是正式默认布局；已登记为迁移缺口。
+**原生编辑器使用 `editor/document_session` 的自动保存队列与磁盘 epoch。** `documents.rs` 只适配导航、快照和 I/O 完成；完整 L3 Working Copy/Root registry 与多 pane 寿命仍未迁入。（R0 时的记录：Home 临时切换 Explorer、centered Header 不是正式布局；现在首页是独立的 `Homepage` entity，Header 见“v0.4.4 对齐”。）
 
-`src/ui/` 提供 GPUI 按钮、图标与原生文本输入；Shell、Settings、Feedback、项目菜单、分隔线、文件树和确认框已迁移。文件树使用 GPUI 虚拟列表；目录选择与编辑激活分离，祖先线绘制有预算。后台完成通过有界唤醒通道回到 GPUI entity，无持续空闲绘制；Git 在已打开项目且窗口激活时按 3 秒周期刷新。完整 UI kit、同源 token 编译和产品样式弹层尚未完成。
+`src/ui/` 提供 GPUI 按钮、图标与原生文本输入；Shell、Settings、Feedback、项目菜单、分隔线、文件树和确认框已迁移。文件树使用 GPUI 虚拟列表；目录选择与编辑激活分离，祖先线绘制有预算。后台完成通过有界唤醒通道回到 GPUI entity，无持续空闲绘制；Git 不轮询，由变更通知、聚焦与操作触发重读（见“Native Git and Agent workbench”）。完整 UI kit 与同源 token 编译尚未完成（弹层已交给 Kit 的 `Popover` / `Positioner`，见 PARITY P2-7）。
 
-## 架构：全部 Rust / GPUI，无 WebView
+## 架构：Rust / GPUI 外壳，WebView 只承载网页类内容
 
 ```text
 Rust / GPUI Kit 0.8.0 / gpui-pre 0.3.9 / Metal (macOS)
 ├─ 标题栏、项目入口、Explorer、系统菜单、分隔线和弹窗
 ├─ 原生 Changes、Workbench tabs/groups、多运行时 Agent Chat、PTY Terminal
 ├─ Workspace capability、后台读写、文档身份、保存与关闭协调
-└─ 原生文档编辑器（src/editor）
-   ├─ 窗格外框：⋯ 手柄、窗格菜单、查找
-   └─ Markdown（实时预览 / 源码）、CSV / TSV 表格、纯文本，按扩展名路由
+├─ 原生文档编辑器（src/editor）
+│  ├─ 窗格外框：⋯ 手柄、窗格菜单、查找
+│  └─ Markdown（实时预览 / 源码）、CSV / TSV 表格、代码 / 文本，按查看器注册表路由
+├─ 原生查看器：图片、PDF（PDFium）、SQLite / DuckDB
+└─ 系统 WebView（wry / WKWebView）：HTML、白板、Office、音视频、App 预览，
+   以及隐藏的渲染服务（Mermaid / KaTeX → 图片）
 ```
 
-- 没有 HTML/CSS 外壳、WebView、Tauri 或 Electron 运行时；编辑器与外壳在同一 Metal 帧内绘制。
+- 没有 HTML/CSS 外壳、Tauri 或 Electron 运行时；外壳与原生编辑器在同一 Metal 帧内绘制。WebView 是叠在窗格矩形上的原生子视图，内容只经 `puppyone-preview://` 协议读取授权文件夹（`platform::webview`）；菜单和对话框打开时隐藏网页内容，而不是被它盖住。
 - 编辑器没有文件系统 API；只上报已打开文档的 revision 和快照。保存路径由 Rust 文档会话持有。
 - `cap-std` 将目录访问约束在原生打开的 capability 内。拒绝绝对 / `..` 路径、外部符号链接和特殊文件；文档还绑定 workspace grant。
 - 切换 / 关闭不单靠异步 dirty 标记：先冻结编辑器并索取快照，确认收到后才决策（组字中会等组字结束）。5 秒内无确认则取消操作，不静默关掉文件。
@@ -350,18 +361,18 @@ Rust / GPUI Kit 0.8.0 / gpui-pre 0.3.9 / Metal (macOS)
 - 项目 popup 支持重复触发、外侧点击、Escape、本地项关闭和 trigger focus。Feedback backdrop 不关闭；显式关闭清空未发送字段，与原产品对齐。
 - macOS 原生 Edit 菜单提供剪贴板 / 撤销快捷键；Quit 经过同一自动保存 drain。
 
-应用不导入已安装 Desktop 的配置或更新源。Codex 运行与原生历史由本机 CLI 使用其现有登录；Agent 在用户发起任务后可操作所选项目。文档编辑器与设置偏好修改后自动写入，Git 变更由对应操作触发；没有应用遥测。
+首次启动时一次性读取已安装 Electron Desktop 的最近项目、语言与 `localStorage` 偏好（PL-3），不读凭据；更新只来自打包时写入的本应用 feed（DS-5）。Codex 运行与原生历史由本机 CLI 使用其现有登录；Agent 在用户发起任务后可操作所选项目。文档编辑器与设置偏好修改后自动写入，Git 变更由对应操作触发。应用遥测与产品一致：只有打包的 Stable 构建在看过一次性说明后发送两种匿名事件，Settings → Privacy 可关闭（PARITY P1-18）。
 
 ## 当前限制：务必先看
 
 - **每个窗口一个当前根目录**（多窗口见上文）；编辑器工作台的范围与缺口见“Retained Editor workbench”一节。
-- 文本文件上限 **4 MiB**；单目录最多 **2,000 项**。二进制、非 UTF-8、混合换行 / CR-only 明确拒绝；不是所有格式都能编辑。
+- 文本按查看器准入：Markdown / 文本 **16 MiB**、CSV / JSON **8 MiB**、HTML **4 MiB**；单目录最多 **2,000 项**。二进制、非 UTF-8、混合换行 / CR-only 明确拒绝；不是所有格式都能编辑。
 - 保存只读文件、符号链接文件本身和硬链接会拒绝；不自动重建已被外部删除的文件。
 - 保存会保留基本权限，**不保证保留 ACL、扩展属性、原 owner 等全部元数据**。
 - 版本检查与 rename 之间仍存在普通文件系统的竞争窗口，**不是针对不协作写入者的原子 compare-and-swap**。不要把 M1 用于有持续并发写入的重要文件。
 - 没有崩溃恢复或磁盘草稿；强制退出 / 系统崩溃可能丢未保存内容。窗口正常关闭等待写入完成，不等于崩溃恢复已实现。
 - 中文正文已参与真实保存测试；macOS 文件名使用可用的系统 Unicode 字体 fallback。完整中文 IME、RTL、辅助技术、拖放和各平台剪贴板矩阵尚未验收。
-- 尚无完整 Git / Cloud / 设置服务、Feedback 发送、全部 Agent 能力、HTML / PDF / Office / 媒体查看器、代码语法高亮；Markdown 数学公式、Mermaid、图片资源、链接导航也未接通。**不是“所有外围与业务都迁完了”。**
+- 尚无完整 Cloud / 设置服务、全部 Agent 能力；各查看器与 TS 的完整能力和失败态未逐项验收；Markdown 的 backlinks、资源预览、跨文档 heading 与其余 MDX 组件未接通。**不是“所有外围与业务都迁完了”。**
 - 像素精度仍未达标，菜单 / 窗口按钮 / 字体光栅 / 截断仍需收敛。
 
 ## 验证
@@ -392,7 +403,7 @@ python3 tools/bench-editor.py --check
 | 原生编辑器 | GPUI 测试平台上的输入、撤销、Markdown 装饰与命令、表格操作、CSV 视图、查找、宿主协议；输入法场景矩阵见 `src/editor/view/ime_tests.rs` |
 | 帧耗时 | `tools/bench-editor.py`：编辑器与整窗在 245–3845 行 Markdown 上滚动 / 缩放的每帧 CPU 耗时（Core Text 真实排版，每个规模独立进程），按 `tools/editor-frame-budgets.json` 检查绝对预算，以及每帧耗时不随文档长度增长 |
 
-GUI 冒烟脚本随 WebView 一起移除。真实系统输入法、焦点、全屏、DPI、辅助技术和原生文件选择器仍需手动验证。
+GUI 冒烟脚本随旧的 WebView 编辑器一起移除。真实系统输入法、焦点、全屏、DPI、辅助技术和原生文件选择器仍需手动验证。
 
 上游 `block 0.1.6` 和 `proc-macro-error2 2.0.1` 有 future-incompatibility 警告；当前构建通过，但工具链升级前需处理。
 
@@ -468,7 +479,7 @@ Python 比图依赖 Pillow / numpy。截图模式显式使用合成树，只测�
 - `src/ui/ime.rs`：系统输入法补充（丢弃组字、过滤功能键字符），所有文本输入共用。
 - `src/wake.rs`：后台 I/O 的有界唤醒；`src/capture.rs`：显式启用的 macOS 合成截图。
 - `src/app/dialogs/builtin.rs`：首批原生 Settings / Help 等任务框；尚未通过完整像素验收。
-- `src/workspace/mod.rs` / `src/workspace/{contracts,ports}.rs`：统一资源、Provider 端口、能力与租约；私有 `src/workspace/local.rs` / `local/adapter.rs` 保留本地受限访问、编码和条件写；`src/workspace/cloud/` 是尚未接导航的 live HTTP/SSE 适配器。
+- `src/workspace/mod.rs` / `src/workspace/{contracts,ports}.rs`：统一资源、Provider 端口、能力与租约；私有 `src/workspace/local.rs` / `local/adapter.rs` 保留本地受限访问、编码和条件写；`src/workspace/cloud/` 是 live HTTP/SSE 适配器，由 Cloud 项目的打开流程使用。
 - `src/documents/mod.rs`：单文档状态机和关闭检查。
 - `src/localization.rs` / `tools/import-localization.py`：同源 locale 投影，不持久化用户偏好。
 - `src/app/chrome/project_menu.rs`：锚定 Header 的原生项目位置 popup。
