@@ -16,10 +16,28 @@ const rule = (selector: string) => {
 };
 
 describe("Homepage visual contract", () => {
-  it("draws every folder in the theme's ink alone: no colour, outline, gradient or shadow", () => {
-    for (const selector of [".project-folder-back", ".project-folder-front", ".onboarding-project-folder"]) {
+  it("draws every folder's back and front in the theme's ink alone: no colour, outline, gradient or shadow", () => {
+    for (const selector of [
+      ".project-folder-back",
+      ".project-folder-front",
+      ".project-folder-stage-back",
+      ".project-folder-stage-front",
+      ".onboarding-project-folder",
+    ]) {
       expect(rule(selector)).not.toMatch(/brand-blue|--po-accent|#[0-9a-f]{3,8}\b|gradient|shadow|stroke|url\(/i);
     }
+  });
+
+  it("allows asset preview sheets inside folders to use only theme surface, elevation and file-accent tokens, without rising or breathing animations", () => {
+    const preview = rule(".project-folder-preview");
+    expect(preview).toMatch(/background:\s*var\(--po-panel-raised,\s*var\(--po-project-folder-sheet\)\);/);
+    expect(preview).toMatch(/box-shadow:\s*0 0 0 1px var\(--po-border-subtle\),\s*var\(--po-elevation-low\);/);
+    expect(preview).not.toMatch(/#[0-9a-f]{3,8}\b|animation|transition/i);
+    expect(rule('.project-folder-preview[data-preview-kind="html"]')).toContain("var(--po-file-accent-html)");
+    expect(rule('.project-folder-preview[data-preview-kind="md"]')).toContain("var(--po-file-accent-markdown)");
+    expect(rule('.project-folder-preview[data-preview-kind="csv"]')).toContain("var(--po-file-accent-sheet)");
+    expect(css).not.toContain(".project-folder-sheet");
+    expect(css).not.toMatch(/@keyframes\s+(?:breathe|shimmer|rise)/);
   });
 
   it("keeps colour out of the groups: their labels, rules and drop targets are ink", () => {
@@ -27,13 +45,9 @@ describe("Homepage visual contract", () => {
     expect(groups).not.toMatch(/brand-blue|--po-accent|--po-success|#[0-9a-f]{3,8}\b/i);
   });
 
-  it("lets the sheet arrive without motion for those who ask for less", () => {
-    expect(css).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.project-folder-sheet \{\s*transition: none;/);
-  });
-
-  it("sets group labels and New in the product's own type tokens, never a hardcoded size", () => {
+  it("sets group labels and top-bar actions in the product's own type tokens, never a hardcoded size", () => {
     expect(rule(".onboarding-project-group-head")).toMatch(/font-size: var\(--onboarding-caption-font-size\)/);
-    expect(css).toMatch(/:is\(\.onboarding-entry-action, \.onboarding-entry-menu-trigger\) \{[^}]*font-size: var\(--po-type-ui-meta/);
+    expect(rule(".onboarding-start-actions .onboarding-entry-action")).toMatch(/font-size: var\(--po-type-ui-meta/);
   });
 
   it("divides groups with a hairline on each later heading's own edge, in the divider's ink", () => {
@@ -64,6 +78,7 @@ describe("Homepage visual contract", () => {
       const allowed = new Set([
         "var(--desktop-titlebar-context-font-size)",
         "var(--onboarding-caption-font-size)",
+        "var(--onboarding-preview-badge-size)",
         "var(--onboarding-row-font-size)",
         "var(--po-text-size-caption, 11px)",
         "var(--po-type-ui-body, 14px)",
@@ -75,6 +90,7 @@ describe("Homepage visual contract", () => {
       expect([...sizes].filter((size) => !allowed.has(size))).toEqual([]);
       expect(onboardingCss).toMatch(/--onboarding-row-font-size:\s*var\(--po-type-ui-body, 14px\);/);
       expect(onboardingCss).toMatch(/--onboarding-caption-font-size:\s*var\(--po-type-ui-caption, 12px\);/);
+      expect(onboardingCss).toMatch(/--onboarding-preview-badge-size:\s*7px;/);
     });
 
     it("lets the project scrollport use remaining height without fixed list caps", () => {
@@ -91,7 +107,7 @@ describe("Homepage visual contract", () => {
       expect(onboardingCss).toMatch(
         /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ var\(--onboarding-title-inset\)\);[^}]*padding-block-end:\s*0;/s,
       );
-      expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*8px;[^}]*--onboarding-primary-actions-gap:\s*0;/s);
+      expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*20px;[^}]*--onboarding-primary-actions-gap:\s*0;/s);
     });
 
     it("uses one page skeleton and one framed primary section for both home states", () => {

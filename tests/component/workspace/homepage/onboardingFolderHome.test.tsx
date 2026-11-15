@@ -26,8 +26,8 @@ describe("project folder home", () => {
     const readTemplateImportIntent = vi.fn().mockResolvedValue(null);
     window.puppyoneDesktop = { readTemplateImportIntent } as unknown as NonNullable<typeof window.puppyoneDesktop>;
     const openCreate = vi.fn();
-    const projectEntryController = { step: null, templateUrl: null, templateCopied: false, openCreate,
-      openLauncher: vi.fn(), openImport: vi.fn(), openTemplate: vi.fn(), close: vi.fn() };
+    const projectEntryController = { step: null, templateUrl: null, templateCopied: false, agentRuntimeId: null, openCreate,
+      openAgentStart: vi.fn(), openLauncher: vi.fn(), openImport: vi.fn(), openTemplate: vi.fn(), close: vi.fn() };
     const container = renderHome({ projectEntryController,
       onChooseProjectLocation: vi.fn(async () => null), onCreateProject: vi.fn(createProjectResult) });
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='create']")?.click());
@@ -230,23 +230,22 @@ describe("project folder home", () => {
     expect(container.textContent).not.toContain("Other options");
     expect(container.textContent).not.toContain("Get started with puppyone");
     expectBrandLockup(container, "projects");
-    // One quiet New at the page's head, a neutral button rather than a call in colour.
+    // Three visible place actions sit on the left of the head, without an arrow menu.
     const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-brand-lockup .onboarding-entry-action")];
-    expect(projectActions.map((action) => action.textContent)).toEqual(["New project"]);
+    expect(projectActions.map((action) => action.textContent)).toEqual(["New project", "Open a folder", "Import"]);
     expect(projectActions[0]?.classList.contains("po-button--primary")).toBe(false);
     expect(container.querySelector(".onboarding-project-group-head [data-onboarding-action]")).toBeNull();
-    act(() => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
-    expect([...container.querySelectorAll(".onboarding-entry-menu [role='menuitem']")].map((item) => item.textContent)).toEqual([
-      "Open a folder",
-      "Import",
-    ]);
+    expect(container.querySelector("[data-onboarding-action='more']")).toBeNull();
     expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
     const brand = container.querySelector(".onboarding-brand-lockup");
     const primary = container.querySelector(".onboarding-home-primary");
     const actions = container.querySelector(".onboarding-entry-actions");
     expect(requireSurface(container).dataset.onboardingState).toBe("projects");
     expect(primary?.getAttribute("data-onboarding-primary")).toBe("projects");
-    expect(primary?.children).toHaveLength(1);
+    expect([...primary!.children].map((child) => child.className)).toEqual([
+      "onboarding-projects-head",
+      "onboarding-project-groups",
+    ]);
     expect(container.querySelector(".onboarding-project-list")?.children).toHaveLength(1);
     expect(brand!.compareDocumentPosition(primary as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(actions).toBeNull();
@@ -311,8 +310,7 @@ describe("project folder home", () => {
     // Opening history is not a project modification timestamp.
     expect(container.querySelector(".desktop-menu-item-trailing")?.textContent ?? "").toBe("");
 
-    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
-    await act(async () => document.body.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click());
     expect(onChooseWorkspace).toHaveBeenCalledTimes(1);
     expect(document.body.querySelector(".onboarding-project-group-menu-surface")).toBeNull();
   });

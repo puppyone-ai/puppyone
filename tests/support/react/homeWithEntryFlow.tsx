@@ -18,6 +18,7 @@ export type HomeWithEntryFlowProps =
     onImportSourceProgress?: FlowProps["onImportProgress"];
     onListAppFolders?: FlowProps["onListAppFolders"];
     onAddAppFolders?: FlowProps["onAddAppFolders"];
+    onAgentProjectStarted?: FlowProps["onAgentProjectStarted"];
   };
 
 /** The Homepage wired to its entry flow as the window wires it. A given controller stands for a window's. */
@@ -33,6 +34,7 @@ export function HomeWithEntryFlow({
   onImportSourceProgress,
   onListAppFolders,
   onAddAppFolders,
+  onAgentProjectStarted,
   ...home
 }: HomeWithEntryFlowProps) {
   const ownFlow = useProjectEntryFlow();
@@ -59,6 +61,7 @@ export function HomeWithEntryFlow({
           onImportProgress={onImportSourceProgress}
           onListAppFolders={onListAppFolders}
           onAddAppFolders={onAddAppFolders}
+          onAgentProjectStarted={onAgentProjectStarted}
         />
       )}
     </>

@@ -173,5 +173,16 @@
   "entry.import.openFailed": "El proyecto se importó, pero no se pudo abrir. Comprueba que la carpeta esté disponible e inténtalo de nuevo.",
   "entry.import.app.loading": "Leyendo carpetas…",
   "entry.import.app.readFailed": "No se pudieron leer las carpetas. Inténtalo de nuevo.",
-  "sharing.thisMac": "Este Mac"
+  "sharing.thisMac": "Este Mac",
+  "agents.label": "Tus Agents",
+  "agents.thisComputer": "Este ordenador",
+  "agents.cloud": "En la nube",
+  "agents.lastActive": "{agent} · {time}",
+  "agents.start": "Que {agent} empiece un proyecto",
+  "agents.connected": "Configurado para puppyone",
+  "agents.connect": "Añadir",
+  "agentStart.promptLabel": "Dile a {agent} para qué es este proyecto",
+  "agentStart.promptPlaceholder": "Por ejemplo: convertir revenue.csv en un panel trimestral",
+  "agentStart.note": "puppyone solo crea la carpeta y le pasa tus palabras a {agent}. A partir de ahí, {agent} trabaja en el proyecto y cualquiera de tus Agents puede continuar.",
+  "agentStart.submit": "Crear y pasar a {agent}"
 }

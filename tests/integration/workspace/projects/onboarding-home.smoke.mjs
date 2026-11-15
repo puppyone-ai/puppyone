@@ -21,19 +21,20 @@ let server;
 /** The smallest window the app allows, and the column the page keeps down to it. */
 const MINIMUM_WIDTH = 720;
 const MINIMUM_HEIGHT = 520;
-const PROJECT_COLUMN = 640;
+const projectColumn = (width) => Math.min(912, width - 2 * (width <= 820 ? 28 : 44));
 /** First run's column beside its picture; below 860px it narrows so the picture still fits. */
 const emptyColumn = (width) => (width < 860 ? 340 : 400);
-const TITLE_INSET = 32;
-/** From the head to the first group's label. */
+const TITLE_INSET = 22;
+/** From the top row to the Projects heading, and from Projects to the first group's label. */
+const PROJECTS_HEAD_GAP = 20;
 const GROUP_LABEL_GAP = 12;
 /** The projects run to the window's edge; what is below shows there. */
 const PAGE_END_INSET = 0;
-const GRID_COLUMNS = 5;
-// A group's label and a row's details in the caption, New in the meta, names in the body.
-const PROJECT_TYPE = ["12px/400", "12px/500", "13px/600", "14px/400"];
-/** Under a folder a name is a caption, so the Grid has no body type. */
-const GRID_TYPE = ["12px/400", "12px/500", "13px/600"];
+const GRID_COLUMNS = 4;
+// Group labels and row details in caption, start buttons in meta, Projects heading and names in body.
+const PROJECT_TYPE = ["12px/400", "12px/500", "13px/500", "14px/400", "14px/600"];
+/** On the Grid, tile names wear medium body type and location/time wear caption type. */
+const GRID_TYPE = ["12px/400", "12px/500", "13px/500", "14px/500", "14px/600"];
 // Each moment's line and the keys in the body, its title in display.
 const EMPTY_TYPE = ["14px/400", "25px/600"];
 /** The default window: the picture at its full size. */
@@ -341,67 +342,59 @@ async function validateProjectsArea(theme, width, height) {
 async function validateProjectsHead(theme, width, height) {
   const context = `projects/${theme}/${width}x${height}`;
   await open({ theme, state: "projects", width, height, count: 3, layout: "list" });
-  await validateChrome(context, theme, PROJECT_COLUMN, width);
+  await validateChrome(context, theme, projectColumn(width), width);
   { const levels = await evaluate(typeLevels); assert.deepEqual(levels, PROJECT_TYPE, `${context}: the page's levels of type (${levels})`); }
   const page = await evaluate(`(() => { ${rects}
     const head = document.querySelector('.onboarding-brand-lockup');
     const surface = document.querySelector('.onboarding-home-primary');
     const create = document.querySelector('[data-onboarding-action=create]');
-    const more = document.querySelector('[data-onboarding-action=more]');
+    const openFolder = document.querySelector('[data-onboarding-action=open]');
+    const importBtn = document.querySelector('[data-onboarding-action=import]');
     const label = create.querySelector('.po-button__label');
     const brand = document.querySelector('.desktop-titlebar .onboarding-header-brand');
     const brandName = brand?.querySelector('.desktop-titlebar-context-name');
     const surfaceStyle = getComputedStyle(surface);
-    return { header:rect(document.querySelector('.desktop-titlebar')), head:rect(head), surface:rect(surface), create:rect(create), more:rect(more),
-      chevron:rect(more.querySelector('svg')), label:rect(label), labelClip:getComputedStyle(label).clipPath,
+    return { header:rect(document.querySelector('.desktop-titlebar')), head:rect(head), surface:rect(surface),
+      create:rect(create), open:rect(openFolder), import:rect(importBtn),
+      more:document.querySelector('[data-onboarding-action=more]'),
+      label:rect(label), labelClip:getComputedStyle(label).clipPath,
       brandName:brandName?.textContent, brandMark:rect(brand?.querySelector('img, svg')), brandFont:brandName && getComputedStyle(brandName).fontSize,
       brandColor:brandName && getComputedStyle(brandName).color,
       headerMuted:(probe => { document.querySelector('.desktop-titlebar').append(probe); probe.style.color = 'var(--desktop-titlebar-text-muted)'; const color = getComputedStyle(probe).color; probe.remove(); return color; })(document.createElement('span')),
-      headMark:!!head.querySelector('img'), title:!!head.querySelector('.onboarding-brand-name'),
+      headMark:!!head.querySelector('img:not(.onboarding-agent-strip img)'), title:!!head.querySelector('.onboarding-brand-name'),
       border:surfaceStyle.borderTopWidth, fill:surfaceStyle.backgroundColor,
-      keys:!!document.querySelector('.onboarding-entry-actions'), other:document.querySelectorAll('[data-onboarding-action=open], [data-onboarding-action=import]').length };
+      keys:!!document.querySelector('.onboarding-entry-actions') };
   })()`);
   assert.equal(page.brandName, "puppyone", `${context}: the Header names the product`);
   assert.equal(page.brandColor, page.headerMuted, `${context}: the name wears a project name's muted ink`);
   assert.equal(page.brandMark, null, `${context}: the Header names the product in words alone`);
-  assert.equal(page.headMark, false, `${context}: one mark on the page`);
+  assert.equal(page.headMark, false, `${context}: no product mark on the page`);
   assert.equal(page.title, false, `${context}: the head holds no title`);
   assert.equal(page.head.y - page.header.bottom, TITLE_INSET, `${context}: the inset above the head`);
   assert.equal(page.border, "0px", `${context}: no rule`);
   assert.equal(page.fill, "rgba(0, 0, 0, 0)", `${context}: the projects sit on the page itself`);
   assert.equal(page.keys, false, `${context}: the entries live at the head`);
-  assert.equal(page.other, 0, `${context}: the other entries wait behind the arrow`);
-  assert.equal(page.more.right, page.head.right, `${context}: the entry menu ends on the column's edge`);
-  assert.equal(page.more.x - page.create.right, 1, `${context}: the two halves of one button`);
-  assert.equal(page.chevron.width, 14, `${context}: the arrow never disappears`);
+  assert.equal(page.more, null, `${context}: no split-button arrow menu`);
+  assert.equal(page.create.x, page.head.x, `${context}: New starts on the column's left edge`);
+  assert.equal(page.create.y, page.open.y, `${context}: New and Open share one row`);
+  assert.equal(page.open.y, page.import.y, `${context}: Open and Import share one row`);
+  assert.equal(page.open.x - page.create.right, 8, `${context}: 8px between New and Open`);
+  assert.equal(page.import.x - page.open.right, 8, `${context}: 8px between Open and Import`);
   assert.equal(page.labelClip, "none", `${context}: New keeps its words down to the smallest window`);
   assert.ok(page.label.width > 60, `${context}: New keeps its words down to the smallest window`);
   await shot(`projects-${theme}-${width}`);
-  // The entry menu by keyboard, and focus coming home from the dialog it opens.
+  // Direct keyboard navigation across the three start actions.
   window.focus();
   window.webContents.focus();
-  await evaluate("document.querySelector('[data-onboarding-action=more]').focus()");
-  press("Enter");
+  await evaluate("document.querySelector('[data-onboarding-action=create]').focus()");
+  press("Tab");
   await until("document.activeElement?.dataset.onboardingAction === 'open'");
-  const menu = await evaluate(`(() => { ${rects} const surface = document.querySelector('.onboarding-entry-menu'); const item = surface.querySelector('.desktop-menu-item');
-    return { rect:rect(surface), padding:getComputedStyle(surface).paddingTop, radius:getComputedStyle(surface).borderRadius, icon:rect(item.querySelector('svg')).width, gap:getComputedStyle(item).columnGap }; })()`);
-  assert.equal(menu.padding, "4px", `${context}: the menu's standard inset`);
-  assert.equal(menu.radius, "8px", `${context}: the menu's standard radius`);
-  assert.equal(menu.icon, 14, `${context}: menu icons match the rest of the page`);
-  assert.ok(menu.rect.right <= width, `${context}: the menu stays onscreen`);
-  await shot(`projects-entry-menu-${theme}-${width}`);
-  press("Down");
-  await until("document.activeElement?.dataset.onboardingAction === 'import'");
-  press("Escape");
-  await until("!document.querySelector('.onboarding-entry-menu') && document.activeElement?.dataset.onboardingAction === 'more'");
-  press("Enter");
-  await until("document.activeElement?.dataset.onboardingAction === 'open'");
-  press("Down");
+  press("Tab");
   await until("document.activeElement?.dataset.onboardingAction === 'import'");
   press("Enter");
   await validateImportPicker(context);
   press("Escape");
-  await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'more'");
+  await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'import'");
   await evaluate("document.querySelector('[data-onboarding-action=create]').focus()");
   press("Enter");
   await until("!!document.querySelector('.onboarding-entry-dialog')");
@@ -415,8 +408,10 @@ async function validateToolbar(theme) {
   await open({ theme, state: "projects", width: 1180, height: 760, count: 9, mixed: true, layout: "grid" });
   const view = `(() => { ${rects}
     const controls = [...document.querySelectorAll('${CONTROLS}')];
+    const projectsHead = document.querySelector('.onboarding-projects-head');
+    const projectsTitle = document.querySelector('.onboarding-projects-title');
     return { controls:controls.map(rect), tips:controls.map(control => control.dataset.tooltip), words:controls.map(control => control.textContent),
-      head:rect(document.querySelector('.onboarding-brand-lockup')), create:rect(document.querySelector('[data-onboarding-action=create]')),
+      head:rect(document.querySelector('.onboarding-brand-lockup')), projectsHead:rect(projectsHead), projectsTitle:rect(projectsTitle),
       chevrons:document.querySelectorAll('.onboarding-project-toolbar .lucide-chevron-down').length, segments:document.querySelectorAll('.desktop-theme-segment').length,
       shown:[...document.querySelectorAll('.onboarding-project-row-wrap')].map(row => row.dataset.projectLocation),
       groups:[...document.querySelectorAll('.onboarding-project-group')].map(group => [...group.querySelectorAll('.onboarding-project-tile-name')].map(name => name.textContent)) };
@@ -426,7 +421,8 @@ async function validateToolbar(theme) {
   assert.deepEqual(rest.tips, ["Sort projects: Last modified", "Project layout: Grid"], `${context}: the tooltips carry what the icons leave out`);
   assert.equal(rest.chevrons, 0, `${context}: no dropdown arrows`);
   assert.equal(rest.segments, 0, `${context}: the layout is one icon, not a highlighted switch`);
-  assert.equal(rest.create.x - rest.controls[1].right, 8, `${context}: the icons sit just before New`);
+  assert.equal(rest.projectsTitle.x, rest.head.x, `${context}: Projects aligns with the column's left edge`);
+  assert.equal(rest.controls[1].right, rest.head.right, `${context}: view controls end on the column's right edge`);
   assert.ok(rest.controls[0].right <= rest.controls[1].x, `${context}: order, then layout`);
   assert.equal(rest.shown.length, 9, context);
   const item = (name) => `[...document.querySelectorAll('.onboarding-view-menu .desktop-menu-item')].find(node => node.textContent === ${JSON.stringify(name)})`;
@@ -476,8 +472,8 @@ async function validateMenuPlacement(theme) {
       await evaluate(`${trigger}.click()`);
       await until("!!document.querySelector('.onboarding-view-menu')");
       const placement = await evaluate(`(() => { const t = ${trigger}.getBoundingClientRect(); const m = document.querySelector('.onboarding-view-menu').getBoundingClientRect();
-        return { trigger:t.left + t.width / 2, menu:m.left + m.width / 2, left:m.left, right:m.right, top:m.top - t.bottom, width:m.width }; })()`);
-      assert.ok(Math.abs(placement.trigger - placement.menu) < 1, `${context}: centred under its control (${placement.trigger} vs ${placement.menu})`);
+        return { triggerRight:t.right, left:m.left, right:m.right, top:m.top - t.bottom, width:m.width }; })()`);
+      assert.ok(Math.abs(placement.triggerRight - placement.right) < 1, `${context}: aligned to its control's right edge (${placement.triggerRight} vs ${placement.right})`);
       assert.ok(placement.left >= 0 && placement.right <= width, `${context}: stays in the window (${placement.left}-${placement.right})`);
       assert.equal(placement.top, 4, `${context}: hangs just under its control`);
       await shot(`menu-${name}-${theme}-${width}`);
@@ -501,21 +497,24 @@ async function validateGrid(theme) {
     { const levels = await evaluate(typeLevels); assert.deepEqual(levels, GRID_TYPE, `${context}: the page's levels of type (${levels})`); }
     const snapshot = await evaluate(`(() => { const element = document.querySelector('${SCROLLPORT}');
       const folders = [...document.querySelectorAll('.onboarding-project-folder')].map(folder => folder.getBoundingClientRect());
+      const projectsHead = document.querySelector('.onboarding-projects-head').getBoundingClientRect();
       return { sideways:element.scrollWidth - element.clientWidth, overflows:element.scrollHeight > element.clientHeight, columns:new Set(folders.map(folder => folder.left)).size,
-        toLabel:document.querySelector('.onboarding-project-group-title').getBoundingClientRect().top - document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().bottom,
+        toProjectsHead:projectsHead.top - document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().bottom,
+        toLabel:document.querySelector('.onboarding-project-group-head').getBoundingClientRect().top - projectsHead.bottom,
         labelEdges:(r => [r.left, r.right])(document.querySelector('.onboarding-project-group-head').getBoundingClientRect()),
         gridEdges:[document.querySelector('.onboarding-project-tile').getBoundingClientRect().left, document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().right],
         lastColumn:Math.max(...[...document.querySelectorAll('.onboarding-project-tile')].map(t => t.getBoundingClientRect().right)),
         overrun:[...document.querySelectorAll('.onboarding-project-tile')].filter(tile => { const name = tile.querySelector('.onboarding-project-tile-label').getBoundingClientRect(); const cell = tile.getBoundingClientRect(); return name.left < cell.left - 0.5 || name.right > cell.right + 0.5; }).map(tile => tile.textContent),
-        fade:getComputedStyle(element).maskImage, sheets:document.querySelector('.project-folder-glyph').querySelectorAll('.project-folder-sheet').length };
+        fade:getComputedStyle(element).maskImage, sheets:document.querySelectorAll('.project-folder-sheet').length };
     })()`);
     assert.equal(snapshot.sideways, 0, `${context}: the Grid never scrolls sideways`);
-    assert.equal(snapshot.toLabel, GROUP_LABEL_GAP, `${context}: the first group's label hangs just under the head (${snapshot.toLabel})`);
+    assert.equal(snapshot.toProjectsHead, PROJECTS_HEAD_GAP, `${context}: Projects heading sits cleanly under the top bar (${snapshot.toProjectsHead})`);
+    assert.equal(snapshot.toLabel, GROUP_LABEL_GAP, `${context}: the first group's label hangs just under Projects (${snapshot.toLabel})`);
     assert.deepEqual(snapshot.labelEdges, snapshot.gridEdges, `${context}: a group's label and rule start on the first folder's edge and run the column`);
     if (count >= GRID_COLUMNS) assert.equal(snapshot.lastColumn, snapshot.gridEdges[1], `${context}: a full row ends on the column's edge`);
     assert.deepEqual(snapshot.overrun, [], `${context}: no name runs past its folder's cell`);
-    assert.equal(snapshot.columns, Math.min(count, GRID_COLUMNS), `${context}: five folders across, down to the smallest window`);
-    assert.equal(snapshot.sheets, 1, `${context}: each folder holds one sheet`);
+    assert.equal(snapshot.columns, Math.min(count, GRID_COLUMNS), `${context}: four folders across, down to the smallest window`);
+    assert.equal(snapshot.sheets, 0, `${context}: no rising paper animation on empty folders`);
     assert.equal(await evaluate("document.querySelector('.onboarding-project-tile').dataset.tooltip"), "/example/Projects", `${context}: the tooltip adds only what the folder does not show`);
     await validateProjectActions(context);
     if (snapshot.overflows) assert.match(snapshot.fade, /gradient/, `${context}: more projects below fade into the window's edge`);

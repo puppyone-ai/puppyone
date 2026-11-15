@@ -111,6 +111,26 @@ export function AgentChatTabPanel({
     setComputeAccessPrompt(false);
     return controller.submit(prompt);
   }, [controller, routingReady, canRequestComputeAccess]);
+
+  useEffect(() => {
+    if (!controller.hasPendingInitialAutoSubmit() || !state.initialized || view.loading || !routingPreferences.preferencesReady) {
+      return;
+    }
+    const prompt = controller.consumeInitialAutoSubmit();
+    if (!prompt) return;
+    if (routingReady && state.phase === "ready" && !view.unavailable) {
+      void handleSubmit(prompt);
+    }
+  }, [
+    controller,
+    handleSubmit,
+    routingPreferences.preferencesReady,
+    routingReady,
+    state.initialized,
+    state.phase,
+    view.loading,
+    view.unavailable,
+  ]);
   const selectSessionControl = (id: AgentSessionControlId, value: string) => {
     if (id === "model" && controller.requiresNewModelConnectionSession(value)) {
       setPendingConnectionModel(value);

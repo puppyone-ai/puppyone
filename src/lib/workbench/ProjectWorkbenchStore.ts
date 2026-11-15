@@ -4,13 +4,13 @@ import {
 } from "@puppyone/shared-ui";
 import type { ProjectSessionContext } from "../../../shared/project-session-contract/types";
 import type {
-  AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget, AuxiliaryWorkbenchCreationFailure,
+  AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchCreationSeed, AuxiliaryWorkbenchHistoryTarget, AuxiliaryWorkbenchCreationFailure,
   AuxiliaryWorkbenchItemSnapshot, AuxiliaryWorkbenchPreparationContext, AuxiliaryWorkbenchProject,
 } from "./types";
 
 export const LAUNCHER_ITEM_KIND = "launcher";
 const entityId = () => crypto.randomUUID();
-type CreationIntent = { kind: string; group: string | null; recipe: AuxiliaryWorkbenchCreationRecipe | null; history: AuxiliaryWorkbenchHistoryTarget | null; launcherId: string | null };
+type CreationIntent = { kind: string; group: string | null; recipe: AuxiliaryWorkbenchCreationRecipe | null; history: AuxiliaryWorkbenchHistoryTarget | null; launcherId: string | null; seed: AuxiliaryWorkbenchCreationSeed | null };
 type WorkbenchSnapshot = Readonly<{
   topology: AuxiliaryWorkbenchState;
   snapshots: ReadonlyMap<string, AuxiliaryWorkbenchItemSnapshot>;
@@ -115,16 +115,16 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
     return !this.disposed && !this.snapshot.closing && !!contribution && !this.snapshot.preparingKinds.has(kind)
       && this.snapshot.topology.items.filter((item) => item.kind === kind).length < (contribution.maximumItems ?? Infinity);
   };
-  create = async (kind: string, group: string | null, recipe: AuxiliaryWorkbenchCreationRecipe | null = null, history: AuxiliaryWorkbenchHistoryTarget | null = null, launcherId: string | null = null): Promise<string | null> => {
+  create = async (kind: string, group: string | null, recipe: AuxiliaryWorkbenchCreationRecipe | null = null, history: AuxiliaryWorkbenchHistoryTarget | null = null, launcherId: string | null = null, seed: AuxiliaryWorkbenchCreationSeed | null = null): Promise<string | null> => {
     const contribution = this.contributions.get(kind);
     if (!contribution || !this.canCreate(kind)) return null;
     if (launcherId && (!this.hasLauncher(launcherId) || this.preparingLaunchers.has(launcherId))) return null;
     if (!isCreationRequestValid(contribution, recipe, history)) return null;
-    const intent = { kind, group, recipe, history, launcherId };
+    const intent = { kind, group, recipe, history, launcherId, seed };
     if (launcherId) this.preparingLaunchers.add(launcherId);
     this.failedIntent = null;
     this.patch({ preparingKinds: new Set([...this.snapshot.preparingKinds, kind]), creationFailure: null });
-    const preparation: AuxiliaryWorkbenchPreparationContext = { item: this.reserve(kind), recipe, historyTarget: history, project: this };
+    const preparation: AuxiliaryWorkbenchPreparationContext = { item: this.reserve(kind), recipe, historyTarget: history, seed, project: this };
     let committed = false;
     try {
       await contribution.prepare?.(preparation);
@@ -163,7 +163,7 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
   }
   retryCreation = () => {
     const intent = this.failedIntent;
-    return intent && this.snapshot.creationFailure?.retryable ? this.create(intent.kind, intent.group, intent.recipe, intent.history, intent.launcherId) : Promise.resolve(null);
+    return intent && this.snapshot.creationFailure?.retryable ? this.create(intent.kind, intent.group, intent.recipe, intent.history, intent.launcherId, intent.seed) : Promise.resolve(null);
   };
   dismissCreationFailure = () => { this.failedIntent = null; this.patch({ creationFailure: null }); };
   dispose() {

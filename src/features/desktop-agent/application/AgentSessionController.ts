@@ -57,6 +57,7 @@ export class AgentSessionController {
   private modelCatalogEpoch = 0;
   private sessionModelIds: ReadonlySet<string> = new Set();
   private disposed = false;
+  private initialAutoSubmitArmed = false;
   private stopIntent: AgentTurnInterruptRequest | null = null;
   private readonly stopScope = new ManagedOperationScope();
 
@@ -151,6 +152,7 @@ export class AgentSessionController {
   dispose({ preserveDraft = false } = {}) {
     if (this.disposed) return;
     this.disposed = true;
+    this.initialAutoSubmitArmed = false;
     this.stopScope.cancel();
     this.submission.dispose();
     this.sessionPreparer.dispose();
@@ -500,7 +502,26 @@ export class AgentSessionController {
     this.setDraftDocument(draft, []);
   }
 
+  seedInitialPrompt(prompt: string) {
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    this.setDraft(trimmed);
+    this.initialAutoSubmitArmed = true;
+  }
+
+  hasPendingInitialAutoSubmit() {
+    return this.initialAutoSubmitArmed && Boolean(this.state.draft.trim());
+  }
+
+  consumeInitialAutoSubmit(): string | null {
+    if (!this.initialAutoSubmitArmed) return null;
+    this.initialAutoSubmitArmed = false;
+    const prompt = this.state.draft.trim();
+    return prompt || null;
+  }
+
   setDraftDocument(draft: string, draftMentions: AgentControllerState["draftMentions"]) {
+    this.initialAutoSubmitArmed = false;
     const mentions = draftMentions.map((mention) => ({ ...mention }));
     this.patch({ draft, draftMentions: mentions });
     this.writeCurrentSessionUi({ draft, draftMentions: mentions });

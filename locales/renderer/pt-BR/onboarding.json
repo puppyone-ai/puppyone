@@ -173,5 +173,16 @@
   "entry.import.openFailed": "O projeto foi importado, mas não pôde ser aberto. Verifique se a pasta está disponível e tente novamente.",
   "entry.import.app.loading": "Lendo pastas…",
   "entry.import.app.readFailed": "Não foi possível ler as pastas. Tente novamente.",
-  "sharing.thisMac": "Este Mac"
+  "sharing.thisMac": "Este Mac",
+  "agents.label": "Seus Agents",
+  "agents.thisComputer": "Este computador",
+  "agents.cloud": "Na nuvem",
+  "agents.lastActive": "{agent} · {time}",
+  "agents.start": "Pedir a {agent} para começar um projeto",
+  "agents.connected": "Configurado para o puppyone",
+  "agents.connect": "Adicionar",
+  "agentStart.promptLabel": "Diga a {agent} para que serve este projeto",
+  "agentStart.promptPlaceholder": "Por exemplo: transformar revenue.csv em um painel trimestral",
+  "agentStart.note": "O puppyone só cria a pasta e passa suas palavras para {agent}. A partir daí, {agent} trabalha no projeto, e qualquer um dos seus Agents pode continuar.",
+  "agentStart.submit": "Criar e passar para {agent}"
 }

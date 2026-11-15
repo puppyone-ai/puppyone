@@ -173,5 +173,16 @@
   "entry.import.openFailed": "プロジェクトはインポートされましたが、開けませんでした。フォルダーにアクセスできることを確認して、もう一度お試しください。",
   "entry.import.app.loading": "フォルダーを読み取り中…",
   "entry.import.app.readFailed": "フォルダーを読み取れませんでした。もう一度お試しください。",
-  "sharing.thisMac": "この Mac"
+  "sharing.thisMac": "この Mac",
+  "agents.label": "あなたの Agent",
+  "agents.thisComputer": "このコンピュータ",
+  "agents.cloud": "クラウド",
+  "agents.lastActive": "{agent} · {time}",
+  "agents.start": "{agent} にプロジェクトを始めてもらう",
+  "agents.connected": "puppyone の設定済み",
+  "agents.connect": "追加",
+  "agentStart.promptLabel": "このプロジェクトで何をするか {agent} に伝える",
+  "agentStart.promptPlaceholder": "例：revenue.csv から四半期の売上ダッシュボードを作る",
+  "agentStart.note": "puppyone はフォルダを作り、この言葉を {agent} に渡すだけです。その後は {agent} がプロジェクトで作業し、ほかの Agent も続きができます。",
+  "agentStart.submit": "作成して {agent} に渡す"
 }

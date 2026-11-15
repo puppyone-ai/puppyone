@@ -3,6 +3,8 @@ import { useDesktopPreference } from "../../preferencesStore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OnboardingImportDialog } from "../../components/OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "../../components/OnboardingProjectEntryDialog";
+import { AgentProjectStartDialog, type AgentProjectStart } from "../../components/AgentProjectStartDialog";
+import { LOCAL_AGENT_CHAT_RECIPES } from "../local-agents";
 import { TemplateImportCard } from "../../components/TemplateImportCard";
 import { looksLikeTemplateLink } from "../../../shared/desktop/template-link.mjs";
 import type {
@@ -23,12 +25,15 @@ import {
   resolveVisibleImportSources,
 } from "../project-import/importSourceRegistry";
 
-export type ProjectEntryFlowStep = "launcher" | "create" | "template" | "import" | null;
+export type ProjectEntryFlowStep = "launcher" | "create" | "agent" | "template" | "import" | null;
 
 export type ProjectEntryFlowController = Readonly<{
   step: ProjectEntryFlowStep;
   openLauncher: () => void;
   openCreate: () => void;
+  /** Starts a project for one of the person's own Agents, which then gets their words. */
+  openAgentStart: (runtimeId: string) => void;
+  agentRuntimeId: string | null;
   /** `copied` says the link came from the clipboard rather than the store. */
   openTemplate: (url: string, options?: { copied?: boolean }) => void;
   templateUrl: string | null;
@@ -46,6 +51,7 @@ export function useProjectEntryFlow(): ProjectEntryFlowController {
   const [step, setStep] = useState<ProjectEntryFlowStep>(null);
   const [templateUrl, setTemplateUrl] = useState<string | null>(null);
   const [templateCopied, setTemplateCopied] = useState(false);
+  const [agentRuntimeId, setAgentRuntimeId] = useState<string | null>(null);
   const openTemplate = useCallback((url: string, options?: { copied?: boolean }) => {
     setTemplateUrl(url);
     setTemplateCopied(options?.copied === true);
@@ -53,19 +59,30 @@ export function useProjectEntryFlow(): ProjectEntryFlowController {
   }, []);
   const openLauncher = useCallback(() => setStep("launcher"), []);
   const openCreate = useCallback(() => setStep("create"), []);
+  const openAgentStart = useCallback((runtimeId: string) => {
+    setAgentRuntimeId(runtimeId);
+    setStep("agent");
+  }, []);
   const openImport = useCallback(() => setStep("import"), []);
-  const close = useCallback(() => { setTemplateUrl(null); setTemplateCopied(false); setStep(null); }, []);
+  const close = useCallback(() => {
+    setTemplateUrl(null);
+    setTemplateCopied(false);
+    setAgentRuntimeId(null);
+    setStep(null);
+  }, []);
 
   return useMemo(() => ({
     step,
     openLauncher,
     openCreate,
+    openAgentStart,
+    agentRuntimeId,
     openTemplate,
     templateUrl,
     templateCopied,
     openImport,
     close,
-  }), [close, openCreate, openImport, openLauncher, openTemplate, step, templateCopied, templateUrl]);
+  }), [agentRuntimeId, close, openAgentStart, openCreate, openImport, openLauncher, openTemplate, step, templateCopied, templateUrl]);
 }
 
 export type ProjectEntryFlowProps = Readonly<{
@@ -82,6 +99,8 @@ export type ProjectEntryFlowProps = Readonly<{
   onCreateCloudProject?: (spaceId: string, name: string, operationId: string) => Promise<void>;
   /** Offers a project just created and opened here to the owner's other computers. */
   onShareWithMyDevices?: (path: string) => Promise<void>;
+  /** A project made for an Agent is open; the window hands it the words. */
+  onAgentProjectStarted?: (start: AgentProjectStart) => void;
   onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceImportSourceResult | null>;
   onConnectSource?: (provider: string) => Promise<{ connectionId: string }>;
   onListResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
@@ -128,6 +147,7 @@ export function ProjectEntryFlow({
   cloudSpaces,
   onCreateCloudProject,
   onShareWithMyDevices,
+  onAgentProjectStarted,
   onImportSource,
   onConnectSource,
   onListResources,
@@ -244,6 +264,22 @@ export function ProjectEntryFlow({
         onDefaultLocation={onDefaultLocation}
         onChooseLocation={onChooseLocation}
         onSubmit={onCreateProject}
+      />
+    );
+  }
+
+  const startingAgent = LOCAL_AGENT_CHAT_RECIPES.find((recipe) => recipe.id === controller.agentRuntimeId);
+  if (controller.step === "agent" && startingAgent && onCreateProject && onAgentProjectStarted) {
+    return (
+      <AgentProjectStartDialog
+        key={startingAgent.id}
+        agent={{ runtimeId: startingAgent.id, label: startingAgent.label, iconKey: startingAgent.iconKey }}
+        openInNewWindow={projectIsOpen}
+        onClose={controller.close}
+        onDefaultLocation={onDefaultLocation}
+        onChooseLocation={onChooseLocation}
+        onSubmit={onCreateProject}
+        onStarted={onAgentProjectStarted}
       />
     );
   }

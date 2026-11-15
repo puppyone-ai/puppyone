@@ -11,11 +11,22 @@ const themeMode = query.get("theme") === "light" ? "light" : "dark";
 document.documentElement.classList.toggle("dark", themeMode === "dark");
 const noop = async () => undefined;
 const location = async () => ({ grantId: "fixture-location", path: "/example/Projects" });
+const samplePreviews = query.has("previews")
+  ? new Map([
+    ["/example/Projects/Notes-0", [
+      { name: "dashboard.html", kind: "html" as const, snippet: "Dashboard" },
+      { name: "README.md", kind: "md" as const, snippet: "# Notes" },
+      { name: "revenue.csv", kind: "csv" as const, snippet: "month,amount" },
+    ]],
+  ])
+  : undefined;
 
 createRoot(document.getElementById("root")!).render(
   <TestLocalizationProvider locale="en" messages={englishCatalog}>
     <HomeWithEntryFlow
       appearance={createTestSurfaceAppearance({ themeMode })}
+      projectPreviews={samplePreviews}
+      onOpenAgentSettings={query.has("agents") ? () => undefined : undefined}
       projectItems={query.get("state") === "projects" ? Array.from({ length: Math.max(1, Math.min(100, Number(query.get("count")) || 1)) }, (_, index) => ({
         id: `example-project-${index}`,
         label: index ? `Notes ${index + 1}` : "Notes",

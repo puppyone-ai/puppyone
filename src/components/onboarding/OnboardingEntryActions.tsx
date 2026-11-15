@@ -51,6 +51,35 @@ export function OnboardingEntryActions({
   );
 }
 
+/**
+ * Every way to start a project by hand, at the head of a page that already has some:
+ * New first, as the one filled key, then opening a folder and importing. They sit in
+ * view rather than behind an arrow, since the Agents beside them are the other way in.
+ */
+export function OnboardingStartActions({
+  canCreateProject,
+  onCreateProject,
+  ...entry
+}: Omit<OnboardingEntryActionsProps, "draggingFolder"> & {
+  canCreateProject: boolean;
+  onCreateProject: () => void;
+}) {
+  const { t } = useLocalization();
+  return (
+    <div className="onboarding-start-actions" role="group" aria-label={t("onboarding.projects.title")}>
+      <OnboardingCreateProjectAction busy={entry.busy} canCreateProject={canCreateProject} onCreateProject={onCreateProject} />
+      <OpenFolderAction busy={entry.busy} openingFolder={entry.openingFolder} draggingFolder={false} onOpenFolder={entry.onOpenFolder} />
+      <ImportAction
+        busy={entry.busy}
+        canImport={entry.canImport}
+        importPreviewBrands={entry.importPreviewBrands}
+        showPreviewBrands={false}
+        onImport={entry.onImport}
+      />
+    </div>
+  );
+}
+
 export function OnboardingCreateProjectAction({
   busy,
   canCreateProject,
@@ -109,8 +138,11 @@ function ImportAction({
   busy,
   canImport,
   importPreviewBrands,
+  showPreviewBrands = true,
   onImport,
-}: Pick<OnboardingEntryActionsProps, "busy" | "canImport" | "importPreviewBrands" | "onImport">) {
+}: Pick<OnboardingEntryActionsProps, "busy" | "canImport" | "importPreviewBrands" | "onImport"> & {
+  showPreviewBrands?: boolean;
+}) {
   const { t } = useLocalization();
 
   return (
@@ -125,7 +157,7 @@ function ImportAction({
         onClick={onImport}
       >
         <span className="onboarding-entry-import-label">{t("onboarding.action.importFromApps")}</span>
-        <ImportSourcePreview brands={importPreviewBrands} />
+        {showPreviewBrands && <ImportSourcePreview brands={importPreviewBrands} />}
       </Button>
     </div>
   );

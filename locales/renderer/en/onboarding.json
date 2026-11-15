@@ -173,5 +173,16 @@
   "entry.import.openFailed": "The project was imported, but could not be opened. Check that its folder is available, then try again.",
   "entry.import.app.loading": "Reading folders…",
   "entry.import.app.readFailed": "Could not read folders. Try again.",
-  "sharing.thisMac": "This Mac"
+  "sharing.thisMac": "This Mac",
+  "agents.label": "Your Agents",
+  "agents.thisComputer": "This computer",
+  "agents.cloud": "Cloud",
+  "agents.lastActive": "{agent} · {time}",
+  "agents.start": "Have {agent} start a project",
+  "agents.connected": "Set up for puppyone",
+  "agents.connect": "Add",
+  "agentStart.promptLabel": "Tell {agent} what this project is for",
+  "agentStart.promptPlaceholder": "For example: turn revenue.csv into a quarterly dashboard",
+  "agentStart.note": "puppyone only makes the folder and hands your words to {agent}. From there, {agent} does the work in the project, and any of your Agents can carry on.",
+  "agentStart.submit": "Create and hand to {agent}"
 }

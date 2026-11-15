@@ -86,7 +86,7 @@ const focusIsIn = (selector) => `!!document.activeElement?.closest(${JSON.string
 const activeTile = `[...document.querySelectorAll(${JSON.stringify(TILE)})].indexOf(document.activeElement)`;
 
 async function openCreateDialog() {
-  await click(await pointAt('.onboarding-entry-menu-root [data-onboarding-action="create"]'));
+  await click(await pointAt('.onboarding-start-actions [data-onboarding-action="create"]'));
   await until("!!document.querySelector('[role=dialog]')", "the create dialog");
   await until("!!document.querySelector('[role=dialog] button[type=submit]:not(:disabled)')", "the default location");
   await wait(220);
@@ -136,7 +136,18 @@ async function aClosedDialogLightsNothing() {
   await openCreateDialog();
   const inert = await evaluate("document.getElementById('root').hasAttribute('inert')");
   check("The page behind an open dialog is inert", inert);
-  const cancel = await pointAt("[role=dialog] .desktop-dialog-footer .desktop-dialog-button:not(.primary)");
+  const cancel = await evaluate(`(() => {
+    const button = document.querySelector("[role=dialog] .desktop-dialog-footer .desktop-dialog-button:not(.primary)").getBoundingClientRect();
+    const rows = [...document.querySelectorAll('.onboarding-project-row-wrap')].map((row) => row.getBoundingClientRect());
+    const candidates = [
+      { x: Math.round(button.left + button.width / 2), y: Math.round(button.top + button.height / 2) },
+      { x: Math.round(button.left + 10), y: Math.round(button.top + 6) },
+      { x: Math.round(button.right - 10), y: Math.round(button.top + 6) },
+      { x: Math.round(button.left + 10), y: Math.round(button.bottom - 6) },
+      { x: Math.round(button.right - 10), y: Math.round(button.bottom - 6) },
+    ];
+    return candidates.find((pt) => rows.some((r) => pt.x >= r.left && pt.x <= r.right && pt.y >= r.top && pt.y <= r.bottom)) ?? candidates[0];
+  })()`);
   await click(cancel);
   await until("!document.querySelector('[role=dialog]')", "the dialog to close");
   check("The page comes back when the dialog closes", !await evaluate("document.getElementById('root').hasAttribute('inert')"));
@@ -161,7 +172,7 @@ async function aClosedDialogLightsNothing() {
 
 /** One stop on the way through the page, and the arrow keys inside it, with a visible ring. */
 async function theListIsOneTabStop() {
-  await evaluate("document.querySelector('.onboarding-entry-menu-trigger').focus()");
+  await evaluate("[...document.querySelectorAll('.onboarding-project-toolbar button')].at(-1).focus()");
   await press("Tab");
   check("Tab enters the list at its first project", await evaluate(`${activeTile} === 0`), `at ${await evaluate(activeTile)}`);
   const ring = await evaluate(`(() => {

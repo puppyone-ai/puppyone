@@ -339,6 +339,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   attachFolder: (folderPath) => ipcRenderer.invoke("workspace:attach-current", folderPath),
   detachFolder: (folderPath) => ipcRenderer.invoke("workspace:detach-current", folderPath),
   getFolderStatus: (paths) => ipcRenderer.invoke("workspace:folder-status", { paths }),
+  getProjectPreviews: (paths) => ipcRenderer.invoke("workspace:project-previews", { paths }),
   locateFolder: (folderPath) => ipcRenderer.invoke("workspace:locate-folder", { path: folderPath }),
   relocateFolder: (token) => ipcRenderer.invoke("workspace:relocate-folder", { token }),
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),

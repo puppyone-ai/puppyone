@@ -53,15 +53,14 @@ describe("a project's actions on the Homepage", () => {
         lastOpenedAt: null,
       }],
     });
-    const more = container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']");
-    await act(async () => more?.click());
+    const openButton = container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']");
 
     await act(async () => {
-      document.body.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click();
+      openButton?.click();
       await Promise.resolve();
     });
 
-    expect(more?.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
+    expect(openButton?.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
     expect(container.querySelector(".onboarding-operation-status")).toBeNull();
     expect(container.querySelector(".onboarding-project-row [data-puppy-loader]")).toBeNull();
 

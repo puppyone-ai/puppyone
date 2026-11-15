@@ -11,3 +11,4 @@ export type { LocalAgentsSettings } from "./setup/localAgentSetupPreferences";
 export { normalizeAvailableLocalAgentIds } from "./installation/localAgentInstallationAvailability";
 export type { LocalAgentInstallationDiscoveryPhase } from "./installation/localAgentInstallationAvailability";
 export { LOCAL_AGENT_CHAT_RECIPES, localAgentIdForAgentChatRuntime } from "./setup/localAgentCatalog";
+export { useAgentActivityEnrollment } from "./setup/useAgentActivityEnrollment";

@@ -83,11 +83,11 @@ export function expectBrandLockup(
   state: "empty" | "projects" = "empty",
 ) {
   const lockup = container.querySelector(".onboarding-brand-lockup");
-  // On every Homepage the Header names the product, in words alone; the page carries no mark.
+  // On every Homepage the Header names the product, in words alone; the page carries no product mark.
   const brand = container.querySelector(".desktop-titlebar .onboarding-header-brand");
   expect(brand?.textContent).toBe("puppyone");
   expect(brand?.querySelector("img, svg")).toBeNull();
-  expect(lockup?.querySelector("img")).toBeNull();
+  expect(lockup?.querySelector("img:not(.onboarding-agent-strip img)")).toBeNull();
   if (state === "projects") {
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
     expect(lockup?.querySelectorAll("p")).toHaveLength(0);

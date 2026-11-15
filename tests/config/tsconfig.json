@@ -3,6 +3,7 @@
   "include": [
     "../../src/vite-env.d.ts",
     "../../src/types/css-tree.d.ts",
+    "../../src/types/novnc.d.ts",
     "../**/*.ts",
     "../**/*.tsx"
   ],

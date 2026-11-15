@@ -173,5 +173,16 @@
   "entry.import.openFailed": "프로젝트를 가져왔지만 열지 못했습니다. 폴더에 접근할 수 있는지 확인한 후 다시 시도하세요.",
   "entry.import.app.loading": "폴더를 읽는 중…",
   "entry.import.app.readFailed": "폴더를 읽지 못했습니다. 다시 시도하세요.",
-  "sharing.thisMac": "이 Mac"
+  "sharing.thisMac": "이 Mac",
+  "agents.label": "내 Agent",
+  "agents.thisComputer": "이 컴퓨터",
+  "agents.cloud": "클라우드",
+  "agents.lastActive": "{agent} · {time}",
+  "agents.start": "{agent}에게 프로젝트 시작 맡기기",
+  "agents.connected": "puppyone 설정 완료",
+  "agents.connect": "추가",
+  "agentStart.promptLabel": "{agent}에게 이 프로젝트에서 할 일을 알려 주세요",
+  "agentStart.promptPlaceholder": "예: revenue.csv로 분기 매출 대시보드 만들기",
+  "agentStart.note": "puppyone은 폴더를 만들고 이 말을 {agent}에게 전달할 뿐입니다. 그다음에는 {agent}가 프로젝트에서 작업하고, 다른 Agent도 이어서 할 수 있습니다.",
+  "agentStart.submit": "만들고 {agent}에게 맡기기"
 }

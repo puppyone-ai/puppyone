@@ -732,6 +732,16 @@ export type FolderAvailability = "available" | "missing" | "disconnected" | "den
 export type FolderMatch = "same-folder" | "same-cloud-project" | "different";
 export type FolderCandidate = { token: string; path: string; name: string; match: FolderMatch };
 export type FolderStatus = { path: string; state: FolderAvailability; suggestion?: FolderCandidate };
+export type ProjectAssetPreviewKind = "html" | "md" | "csv" | "other";
+export type ProjectAssetPreview = {
+  name: string;
+  kind: ProjectAssetPreviewKind;
+  snippet: string | null;
+};
+export type ProjectFolderPreviews = {
+  path: string;
+  previews: ProjectAssetPreview[];
+};
 export type FolderLocateResult =
   | { status: "cancelled" | "unchanged" }
   | ({ status: "selected" } & FolderCandidate);
@@ -1310,6 +1320,8 @@ declare global {
       detachFolder: (folderPath: string) => Promise<WorkspaceDetachResult>;
       /** Whether each known project folder can be opened now; a renamed one comes with where it is. */
       getFolderStatus: (paths: readonly string[]) => Promise<FolderStatus[]>;
+      /** Up to three top-level files from each recent project folder, sorted HTML > MD > CSV > other. */
+      getProjectPreviews: (paths: readonly string[]) => Promise<ProjectFolderPreviews[]>;
       /** The person points at where a project's folder is now, in the system dialog. */
       locateFolder: (folderPath: string) => Promise<FolderLocateResult>;
       /** Use a confirmed new place for the project from now on. */
