@@ -8,3 +8,6 @@ pub mod harness;
 mod requests;
 #[cfg(test)]
 mod service;
+
+#[cfg(test)]
+mod resolution;

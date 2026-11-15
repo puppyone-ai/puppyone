@@ -379,7 +379,8 @@ mod tests {
 
     #[test]
     fn applies_one_aggregate_text_and_node_budget_across_nested_renderer_payloads() {
-        let chunk = "x".repeat(32 * 1024);
+        // Owned Rust strings need no 1.3 GiB allocation to exceed the same aggregate budget.
+        let chunk = "x".repeat(1024);
         let payload: Value = Value::Object(
             (0..200)
                 .map(|index| {

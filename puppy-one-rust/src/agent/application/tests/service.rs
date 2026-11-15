@@ -394,6 +394,7 @@ fn indexes_native_session_metadata_on_explicit_refresh_without_persisting_transc
             result["sessions"][0],
             json!({"runtimeId": "codex", "providerSessionId": "native-external", "origin": "native-discovery"})
         );
+        assert_eq!(harness.persistence.upserts.borrow().len(), 1);
         assert!(
             harness
                 .persistence
@@ -1234,6 +1235,7 @@ fn keeps_only_one_renderer_destroyed_listener_per_owner_and_removes_it_after_the
             .create_session(&owner, &json!({"runtimeId": "codex"}), "/workspace-b")
             .await
             .unwrap();
+        assert_eq!(owner.destroyed_listener_count(), 1);
         // The store registers one destroyed listener per owner: destroying the
         // window after both sessions closed must not reach the service.
         harness
@@ -1246,6 +1248,7 @@ fn keeps_only_one_renderer_destroyed_listener_per_owner_and_removes_it_after_the
             .await
             .unwrap();
         assert_eq!(harness.service.get_session_count(), 1);
+        assert_eq!(owner.destroyed_listener_count(), 1);
         harness
             .service
             .close_session(
@@ -1255,6 +1258,7 @@ fn keeps_only_one_renderer_destroyed_listener_per_owner_and_removes_it_after_the
             )
             .await
             .unwrap();
+        assert_eq!(owner.destroyed_listener_count(), 0);
         owner.destroy();
         settle().await;
         assert_eq!(harness.service.get_session_count(), 0);
@@ -1352,6 +1356,7 @@ fn compiles_an_external_file_mention_for_the_harness_while_persisting_only_displ
             start["prompt"],
             format!("Review `{private_path}` in this turn")
         );
+        assert_eq!(start["references"].as_array().unwrap().len(), 1);
         assert_match!(
             start["references"][0],
             json!({"id": "ref-notes", "inlineMentioned": true})
@@ -1374,6 +1379,13 @@ fn compiles_an_external_file_mention_for_the_harness_while_persisting_only_displ
         assert_match!(
             started["payload"],
             json!({"prompt": prompt, "promptMentions": [{"referenceId": "ref-notes", "start": 7, "end": 16}]})
+        );
+        assert_eq!(
+            started["payload"]["referenceDisplays"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
         );
         assert_match!(
             started["payload"]["referenceDisplays"][0],

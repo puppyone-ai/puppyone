@@ -10,3 +10,9 @@ pub mod agent_session_history_port;
 pub mod history_source_scope;
 pub mod native_persistence_reporter;
 pub mod runtime_discovery_supervisor;
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod history_discovery_tests;

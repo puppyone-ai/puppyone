@@ -213,13 +213,12 @@ impl AgentRuntimeAdapter for FakeAdapter {
         self.call("interruptTurn", request, || Ok(Value::Null))
     }
     fn dispose(&self) -> AdapterFuture<'_, ()> {
-        self.calls
-            .borrow_mut()
-            .entry("dispose")
-            .or_default()
-            .push(Value::Null);
-        self.disposed.set(true);
-        Box::pin(async { Ok(()) })
+        let pending = self.call("dispose", Value::Null, || Ok(Value::Null));
+        Box::pin(async move {
+            pending.await?;
+            self.disposed.set(true);
+            Ok(())
+        })
     }
     fn implements(&self, name: &str) -> bool {
         matches!(
@@ -472,10 +471,13 @@ impl Logger for RecordingLogger {
     }
 }
 
+pub type DisposeRuntime = Rc<dyn Fn() -> LocalBoxFuture<'static, AgentResult<()>>>;
+
 /// `createServiceHarness(options)`.
 #[derive(Default)]
 pub struct HarnessOptions {
     pub capabilities: Option<Value>,
+    pub runtime_dispose: Option<DisposeRuntime>,
     pub attachment_store: Option<Rc<dyn AttachmentStore>>,
     pub resume_session_error: Option<AgentError>,
     pub native_sessions: Vec<Value>,
@@ -529,7 +531,7 @@ pub fn create_service_harness(options: HarnessOptions) -> Harness {
             factory_adapters.borrow_mut().push(adapter.clone());
             Ok(adapter as Rc<dyn AgentRuntimeAdapter>)
         }),
-        dispose: None,
+        dispose: options.runtime_dispose,
     };
     let registry = AgentRuntimeRegistry::new(vec![definition], None, None).expect("registry");
     let persistence = Rc::new(FakePersistence::default());

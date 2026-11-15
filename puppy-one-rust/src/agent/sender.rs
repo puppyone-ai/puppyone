@@ -67,6 +67,11 @@ impl Sender {
             .retain(|(listener, _)| *listener != id);
     }
 
+    #[cfg(test)]
+    pub(crate) fn destroyed_listener_count(&self) -> usize {
+        self.0.listeners.borrow().len()
+    }
+
     /// The window closed.
     pub fn destroy(&self) {
         if self.0.destroyed.replace(true) {

@@ -509,6 +509,8 @@ fn inspects_the_native_account_model_catalog_with_user_only_settings_and_the_cla
             })
         );
         assert_eq!(options.permission_mode.as_deref(), Some("default"));
+        let args = super::claude_agent_sdk::process_transport::build_args(&options);
+        assert!(!args.iter().any(|arg| arg.contains("skip-permissions")));
         assert!(query.closed.get() > 0);
         fixture.adapter.dispose().await.unwrap();
     });
@@ -526,12 +528,19 @@ fn uses_claude_codes_reported_credential_without_requiring_an_api_key() {
             json!({ "apiProvider": "bedrock" }),
         ] {
             let query = inspection_query(account.clone());
+            let sdk = inspection_sdk(query);
             let fixture = create_adapter(
-                inspection_sdk(query),
+                sdk.clone(),
                 json!({ "PATH": "/usr/bin", "HOME": "/home/test" }),
                 None,
             );
             let inspection = fixture.adapter.inspect().await.unwrap();
+            assert!(
+                !sdk.options(0)
+                    .env
+                    .unwrap()
+                    .contains_key("ANTHROPIC_API_KEY")
+            );
             assert_eq!(
                 inspection["account"]["account"]["type"], account["apiProvider"],
                 "{account}"
@@ -565,12 +574,19 @@ fn requires_sign_in_when_there_is_no_native_credential_source() {
             json!({ "apiProvider": "firstParty", "tokenSource": "none", "apiKeySource": "none" }),
         ] {
             let query = inspection_query(account.clone());
+            let sdk = inspection_sdk(query);
             let fixture = create_adapter(
-                inspection_sdk(query),
+                sdk.clone(),
                 json!({ "PATH": "/usr/bin", "HOME": "/home/test" }),
                 None,
             );
             let inspection = fixture.adapter.inspect().await.unwrap();
+            assert!(
+                !sdk.options(0)
+                    .env
+                    .unwrap()
+                    .contains_key("ANTHROPIC_API_KEY")
+            );
             assert!(!inspection["models"].as_array().unwrap().is_empty());
             assert_eq!(inspection["account"]["account"], Value::Null, "{account}");
             assert_eq!(
@@ -1223,6 +1239,8 @@ fn combines_workspace_path_context_with_a_native_structured_image_block() {
     )
     .unwrap();
     let blocks = content.as_array().unwrap();
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].as_object().unwrap().len(), 2);
     assert_eq!(blocks[0]["type"], "text");
     assert!(
         blocks[0]["text"]

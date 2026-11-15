@@ -250,6 +250,7 @@ fn finds_the_active_nvm_claude_through_path_and_opencode_through_its_product_fal
         .unwrap();
         let snapshot = inventory.discover(true, None).await.unwrap();
         let connections = snapshot["connections"].as_array().unwrap();
+        assert_eq!(connections.len(), 2);
         assert_eq!(connections[0]["id"], "claude");
         assert_eq!(connections[0]["installation"], "detected");
         assert_eq!(connections[0]["version"], "2.1.159");
@@ -350,7 +351,11 @@ fn still_kills_an_unresponsive_cursor_status_process_and_blocks_selection() {
                     return Ok(output(0, "2026.10.01-e373342", ""));
                 }
                 let _ = file;
-                run_bounded_probe_command("/bin/sleep", &["60".into()], options).await
+                assert_eq!(options.timeout_ms, 10_000);
+                let started = tokio::time::Instant::now();
+                let result = run_bounded_probe_command("/bin/sleep", &["60".into()], options).await;
+                assert!(started.elapsed() >= std::time::Duration::from_secs(10));
+                result
             })
         });
         let cursor = probe_cursor_local(
@@ -409,9 +414,7 @@ fn disposes_an_in_flight_codex_protocol_probe_when_application_inventory_is_canc
                 assert!(error.message.contains("connection closed"));
             })
         };
-        for _ in 0..8 {
-            tokio::task::yield_now().await;
-        }
+        wait_until(|| !connection.requests.borrow().is_empty()).await;
         let requests = connection.requests.borrow().clone();
         assert_eq!(requests[0]["method"], "initialize");
         assert_eq!(requests[0]["timeoutMs"], 1_500);
@@ -525,9 +528,7 @@ fn deduplicates_concurrent_scans_caches_for_five_minutes_and_isolates_per_tool_f
         .unwrap();
         let first = inventory.discover(false, None);
         let concurrent = inventory.discover(false, None);
-        for _ in 0..16 {
-            tokio::task::yield_now().await;
-        }
+        wait_until(|| calls.get() == 1).await;
         assert_eq!(calls.get(), 1);
         let _ = release.borrow_mut().take().unwrap().send(());
         let (snapshot, same) = futures_util::join!(first, concurrent);
@@ -578,9 +579,7 @@ fn lets_explicit_refresh_supersede_an_in_flight_scan_without_caching_aborted_fai
         })
         .unwrap();
         let first = inventory.discover(false, None);
-        for _ in 0..16 {
-            tokio::task::yield_now().await;
-        }
+        wait_until(|| calls.get() == 1).await;
         assert_eq!(calls.get(), 1);
         let refreshed = inventory.discover(true, None);
         let error = first.await.unwrap_err();
@@ -780,4 +779,15 @@ fn accepts_a_real_cursor_shaped_cli_whose_version_and_status_each_exceed_the_gen
         assert_eq!(cursor["selectable"], true);
         assert!(!cursor.to_string().contains("private@example.test"));
     });
+}
+
+async fn wait_until(ready: impl Fn() -> bool) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while !ready() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "inventory operation was not dispatched"
+        );
+        tokio::task::yield_now().await;
+    }
 }

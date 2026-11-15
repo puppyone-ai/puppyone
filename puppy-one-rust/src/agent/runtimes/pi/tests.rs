@@ -354,6 +354,8 @@ fn discovers_pi_owned_providers_models_reasoning_levels_and_commands() {
             inspection["providers"][0]["defaultModel"],
             "openai-codex/gpt-5.6-sol"
         );
+        assert_eq!(inspection["models"].as_array().unwrap().len(), 1);
+        assert_eq!(inspection["commands"].as_array().unwrap().len(), 1);
         let model = &inspection["models"][0];
         assert_eq!(model["model"], "openai-codex/gpt-5.6-sol");
         assert_eq!(model["isDefault"], true);
@@ -471,6 +473,10 @@ fn routes_pi_extension_dialogs_through_the_shared_structured_question_contract()
         let question = fixture.of("question.requested")[0].clone();
         assert_eq!(question["turnId"], turn["turnId"]);
         assert_eq!(
+            question["payload"]["questions"].as_array().unwrap().len(),
+            1
+        );
+        assert_eq!(
             question["payload"]["questions"][0]["question"],
             "Pick a branch"
         );
@@ -535,9 +541,19 @@ fn requires_the_installed_executable_to_expose_the_official_rpc_mode() {
             directory.path(),
             "Pi - AI coding assistant\n--mode <mode>  Output mode: text, json, or rpc",
         );
-        let readiness = discover_pi_executable(discovery_options(Some(executable.clone())), None)
-            .await
-            .unwrap();
+        let probes: Rc<RefCell<Vec<Vec<String>>>> = Rc::default();
+        let recorded = probes.clone();
+        let real = crate::agent::discovery::bounded_process_probe::default_probe_runner();
+        let mut options = discovery_options(Some(executable.clone()));
+        options.run_probe = Some(Rc::new(move |file, args, options| {
+            recorded.borrow_mut().push(args.clone());
+            real(file, args, options)
+        }));
+        let readiness = discover_pi_executable(options, None).await.unwrap();
+        assert_eq!(
+            *probes.borrow(),
+            vec![vec!["--version".to_string()], vec!["--help".to_string()]]
+        );
         for (key, value) in [
             ("runtimeId", json!("pi")),
             ("status", json!("ready")),

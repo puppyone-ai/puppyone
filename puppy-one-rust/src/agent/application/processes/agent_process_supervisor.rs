@@ -115,3 +115,139 @@ impl Default for AgentProcessSupervisor {
         Self::new(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent::application::tests_support::run_local;
+    use crate::agent::tasks::Canceller;
+    use core::prelude::v1::test;
+    use std::cell::Cell;
+    use std::time::{Duration, Instant};
+
+    async fn wait_until(ready: impl Fn() -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !ready() {
+            assert!(
+                Instant::now() < deadline,
+                "process admission did not settle"
+            );
+            tokio::task::yield_now().await;
+        }
+    }
+
+    #[test]
+    fn native_start_capacity_is_bounded_and_waiters_are_admitted_in_order() {
+        run_local(async {
+            let supervisor = AgentProcessSupervisor::new(Some(2));
+            let active = Rc::new(Cell::new(0));
+            let peak = Rc::new(Cell::new(0));
+            let entered = Rc::new(RefCell::new(Vec::new()));
+            let releases = Rc::new(RefCell::new(VecDeque::new()));
+            let mut tasks = Vec::new();
+            for label in ["one", "two", "three"] {
+                let (supervisor, active, peak, entered, releases) = (
+                    supervisor.clone(),
+                    active.clone(),
+                    peak.clone(),
+                    entered.clone(),
+                    releases.clone(),
+                );
+                tasks.push(tokio::task::spawn_local(async move {
+                    supervisor
+                        .run_start(None, || async move {
+                            active.set(active.get() + 1);
+                            peak.set(peak.get().max(active.get()));
+                            entered.borrow_mut().push(label);
+                            let (reply, pending) = oneshot::channel();
+                            releases.borrow_mut().push_back(reply);
+                            pending.await.unwrap();
+                            active.set(active.get() - 1);
+                            Ok(label)
+                        })
+                        .await
+                }));
+            }
+            wait_until(|| supervisor.0.borrow().queue.len() == 1).await;
+            {
+                let state = supervisor.0.borrow();
+                assert_eq!((state.in_use, state.queue.len(), state.limit), (2, 1, 2));
+            }
+            assert_eq!(peak.get(), 2);
+            assert_eq!(*entered.borrow(), ["one", "two"]);
+            releases.borrow_mut().pop_front().unwrap().send(()).unwrap();
+            wait_until(|| entered.borrow().len() == 3).await;
+            {
+                let state = supervisor.0.borrow();
+                assert_eq!((state.in_use, state.queue.len()), (2, 0));
+            }
+            assert_eq!(peak.get(), 2);
+            assert_eq!(*entered.borrow(), ["one", "two", "three"]);
+            for release in releases.borrow_mut().drain(..) {
+                release.send(()).unwrap();
+            }
+            let mut results = Vec::new();
+            for task in tasks {
+                results.push(task.await.unwrap().unwrap());
+            }
+            assert_eq!(results, ["one", "two", "three"]);
+            let state = supervisor.0.borrow();
+            assert_eq!((state.in_use, state.queue.len()), (0, 0));
+        });
+    }
+
+    #[test]
+    fn cancelling_a_queued_start_removes_it_without_consuming_a_slot() {
+        run_local(async {
+            let supervisor = AgentProcessSupervisor::new(Some(1));
+            let (release, pending) = oneshot::channel();
+            let running = {
+                let supervisor = supervisor.clone();
+                tokio::task::spawn_local(async move {
+                    supervisor
+                        .run_start(None, || async move {
+                            pending.await.unwrap();
+                            Ok("done")
+                        })
+                        .await
+                })
+            };
+            wait_until(|| supervisor.0.borrow().in_use == 1).await;
+            let controller = Canceller::new();
+            let signal = controller.signal();
+            let queued = {
+                let supervisor = supervisor.clone();
+                tokio::task::spawn_local(async move {
+                    supervisor
+                        .run_start(Some(&signal), || async {
+                            panic!("cancelled queued start was dispatched");
+                            #[allow(unreachable_code)]
+                            Ok(())
+                        })
+                        .await
+                })
+            };
+            wait_until(|| supervisor.0.borrow().queue.len() == 1).await;
+            controller.cancel(AgentError::new("cancelled"));
+            assert_eq!(
+                queued.await.unwrap().unwrap_err().name.as_deref(),
+                Some("AbortError")
+            );
+            {
+                let state = supervisor.0.borrow();
+                assert_eq!((state.in_use, state.queue.len()), (1, 0));
+            }
+            release.send(()).unwrap();
+            assert_eq!(running.await.unwrap().unwrap(), "done");
+            assert_eq!(
+                supervisor
+                    .run_start(None, || async { Ok("next") })
+                    .await
+                    .unwrap(),
+                "next"
+            );
+            let state = supervisor.0.borrow();
+            assert_eq!((state.in_use, state.queue.len()), (0, 0));
+        });
+    }
+}

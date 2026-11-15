@@ -15,6 +15,7 @@ pub const DEFAULT_RUNTIME_DISCOVERY_TIMEOUT_MS: u64 = 15_000;
 struct Flight {
     controller: Canceller,
     result: SharedTask<AgentResult<Value>>,
+    native: SharedTask<AgentResult<Value>>,
 }
 
 #[derive(Clone)]
@@ -46,8 +47,16 @@ impl RuntimeDiscoverySupervisor {
         if self.0.disposed.get() {
             return shared(async { Err(AgentError::new("Agent runtime discovery has closed.")) });
         }
-        if let Some(existing) = self.0.flights.borrow().get(runtime_id) {
-            return existing.result.clone();
+        let existing = self.0.flights.borrow().get(runtime_id).cloned();
+        if let Some(existing) = existing {
+            if existing.native.peek().is_none() {
+                return existing.result.clone();
+            }
+            // Awaiting a completed probe can resume before the cleanup task gets
+            // scheduled. A new operation (especially Refresh after installation)
+            // must not reuse that settled observation. A timed-out probe whose
+            // native work is still pending remains quarantined above.
+            self.0.flights.borrow_mut().remove(runtime_id);
         }
         let controller = Canceller::new();
         let signal = controller.signal();
@@ -78,6 +87,7 @@ impl RuntimeDiscoverySupervisor {
         let flight = Rc::new(Flight {
             controller,
             result: observed.clone(),
+            native: native.clone(),
         });
         self.0
             .flights

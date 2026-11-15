@@ -32,7 +32,13 @@ fn run<F: std::future::Future>(future: F) -> F::Output {
 #[test]
 fn rejects_non_canonical_process_launch_inputs_before_spawning() {
     run(async {
-        let (spawner, child) = fake_spawner(true);
+        let (spawn, child) = fake_spawner(true);
+        let starts = Rc::new(std::cell::Cell::new(0));
+        let recorded = starts.clone();
+        let spawner: super::jsonl_rpc_connection::Spawner = Rc::new(move |options| {
+            recorded.set(recorded.get() + 1);
+            spawn(options)
+        });
         let mut relative = options(spawner.clone());
         relative.executable_path = PathBuf::from("codex");
         assert!(
@@ -52,6 +58,7 @@ fn rejects_non_canonical_process_launch_inputs_before_spawning() {
                 .contains("arguments are invalid")
         );
         assert!(child.writes.borrow().is_empty());
+        assert_eq!(starts.get(), 0, "invalid launch reached the native spawner");
     });
 }
 

@@ -143,7 +143,10 @@ fn sends_an_explicitly_registered_provider_extension_without_method_fallback() {
                 .unwrap(),
             json!({ "ready": true })
         );
-        assert_eq!(connection.requests.borrow()[0]["timeoutMs"], 1_250);
+        assert_eq!(
+            connection.requests.borrow()[0],
+            json!({"method": "_fixture/status", "params": {}, "timeoutMs": 1_250})
+        );
         assert_eq!(
             client
                 .request_extension(" ", json!({}), None)

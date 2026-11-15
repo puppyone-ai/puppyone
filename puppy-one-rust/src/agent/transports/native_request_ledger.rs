@@ -188,3 +188,39 @@ impl NativeRequestLedger {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    #[test]
+    fn abandoned_receipts_are_bounded_and_shutdown_releases_them() {
+        crate::agent::application::tests_support::run_paused_local(async {
+            let ledger = NativeRequestLedger::new(512, Rc::new(|_| true));
+            for index in 0..520 {
+                let id = index.to_string();
+                let error = ledger
+                    .request(
+                        &id,
+                        "read",
+                        1,
+                        None,
+                        || AgentError::new("timeout"),
+                        || AgentError::new("cancelled"),
+                        || Ok(()),
+                        None,
+                    )
+                    .await
+                    .unwrap_err();
+                assert_eq!(error.message, "timeout");
+            }
+            assert_eq!(ledger.pending_count(), 0);
+            assert_eq!(ledger.state.borrow().late.len(), 512);
+            assert_eq!(ledger.state.borrow().late_order.len(), 512);
+            assert!(matches!(ledger.take("0"), Taken::Expired));
+            ledger.close(|_| AgentError::new("closed"));
+            assert!(ledger.state.borrow().late.is_empty());
+            assert!(ledger.state.borrow().late_order.is_empty());
+        });
+    }
+}

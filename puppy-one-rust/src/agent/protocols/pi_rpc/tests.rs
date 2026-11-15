@@ -27,18 +27,28 @@ fn options(spawner: crate::agent::transports::jsonl_rpc_connection::Spawner) -> 
 #[test]
 fn launches_the_official_jsonl_mode_and_correlates_command_responses_without_json_rpc_fields() {
     run_local(async {
-        let launched: Rc<RefCell<Vec<Vec<String>>>> = Rc::default();
+        let launched: Rc<
+            RefCell<Vec<crate::agent::transports::jsonl_rpc_connection::ConnectionOptions>>,
+        > = Rc::default();
         let (spawner, child) = fake_spawner(true);
         let recorded = launched.clone();
         let spawning: crate::agent::transports::jsonl_rpc_connection::Spawner =
             Rc::new(move |options| {
-                recorded.borrow_mut().push(options.args.clone());
+                recorded.borrow_mut().push(options.clone());
                 spawner(options)
             });
         let client = PiRpcClient::spawn(options(spawning)).unwrap();
         assert_eq!(
-            launched.borrow()[0],
+            launched.borrow()[0].args,
             ["--mode", "rpc", "--no-approve", "--no-session"]
+        );
+        assert_eq!(
+            launched.borrow()[0].executable_path,
+            std::path::PathBuf::from("/usr/local/bin/pi")
+        );
+        assert_eq!(
+            launched.borrow()[0].cwd,
+            std::path::PathBuf::from("/workspace")
         );
         let pending = {
             let client = client.clone();

@@ -492,6 +492,7 @@ fn uses_agent_acp_with_cursor_login_permissions_questions_and_streaming() {
             .cloned()
             .unwrap();
         assert_eq!(prompt["timeoutMs"], 0);
+        assert_eq!(prompt["params"]["prompt"].as_array().unwrap().len(), 2);
         assert_eq!(
             prompt["params"]["prompt"][0],
             json!({ "type": "text", "text": "Fix @cursor-notes.txt" })
@@ -600,6 +601,7 @@ fn discovers_and_hydrates_native_acp_sessions_only_when_the_runtime_advertises_t
             json!({ "scopeComplete": false, "snapshotId": null })
         );
         assert_eq!(page["nextCursor"], Value::Null);
+        assert_eq!(page["sessions"].as_array().unwrap().len(), 1);
         assert_eq!(page["sessions"][0]["providerSessionId"], "cursor-history");
         assert_eq!(page["sessions"][0]["title"], "Fix tabs");
         adapter
@@ -676,6 +678,119 @@ fn uses_acp_session_resume_when_an_agent_can_reconnect_but_cannot_replay_history
         assert!(connection.methods().contains(&"session/resume".to_string()));
         assert!(!connection.methods().contains(&"session/load".to_string()));
         assert!(adapter.read_history().is_empty());
+        adapter.dispose().await.unwrap();
+    });
+}
+
+#[test]
+fn history_replay_cannot_modify_a_real_workspace_file() {
+    run_local(async {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("README.md");
+        std::fs::write(&path, b"owner's unsaved reference\r\n").unwrap();
+        let before = std::fs::metadata(&path).unwrap().modified().unwrap();
+        let connection = CursorConnection::new(Script {
+            replay_history: true,
+            ..Default::default()
+        });
+        let root = directory.path().to_string_lossy().into_owned();
+        let mut options =
+            AcpAdapterOptions::new(readiness(), &root, CURSOR_RUNTIME_DESCRIPTOR.clone());
+        options.connection_factory = Some(connection.connection.factory());
+        options.project_instruction_loader = Some(Rc::new(|_| Ok(None)));
+        let adapter = cursor_acp_adapter(options).unwrap();
+        adapter
+            .resume_session(json!({ "threadId": "cursor-history" }))
+            .await
+            .unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while !connection
+                .connection
+                .errors
+                .borrow()
+                .iter()
+                .any(|e| e["id"] == 92)
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("replayed write must receive a refusal");
+        let errors = connection.connection.errors.borrow().clone();
+        assert!(errors.iter().any(|e| {
+            e["id"] == 92
+                && e["code"] == -32603
+                && e["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("history is loading")
+        }));
+        adapter.dispose().await.unwrap();
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"owner's unsaved reference\r\n"
+        );
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().modified().unwrap(),
+            before
+        );
+    });
+}
+
+#[test]
+fn resolves_the_advertised_session_permission_through_the_live_acp_adapter() {
+    run_local(async {
+        let connection = CursorConnection::new(Script::default());
+        let events: Events = Rc::default();
+        let adapter = adapter(&connection, readiness(), Some(events.clone()), None);
+        adapter.create_session(json!({})).await.unwrap();
+        let turn = adapter
+            .start_turn(json!({"prompt": "Inspect"}))
+            .await
+            .unwrap();
+        send_request(
+            &connection.connection,
+            97,
+            "session/request_permission",
+            json!({
+                "sessionId": "cursor-session",
+                "toolCall": { "toolCallId": "edit-1", "kind": "edit", "title": "Edit file" },
+                "options": [
+                    { "optionId": "allow_always", "kind": "allow_always" },
+                    { "optionId": "allow_session", "kind": "allow_always" }
+                ]
+            }),
+        );
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while find(&events, "approval.requested").is_none() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("permission request must reach the owner");
+        let requested = find(&events, "approval.requested").unwrap();
+        adapter
+            .resolve_approval_now(&json!({
+                "requestId": requested["payload"]["requestId"],
+                "turnId": turn["turnId"], "decision": "acceptForSession"
+            }))
+            .unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while !connection
+                .connection
+                .responses
+                .borrow()
+                .iter()
+                .any(|r| r["id"] == 97)
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("permission response must reach the provider");
+        assert!(connection.connection.responses.borrow().contains(&json!({
+            "id": 97, "result": { "outcome": { "outcome": "selected", "optionId": "allow_session" } }
+        })));
         adapter.dispose().await.unwrap();
     });
 }

@@ -184,14 +184,13 @@ pub async fn run_bounded_process_probe(
     let stderr = child.stderr.take().expect("piped stderr");
     let limit = options.max_output_bytes;
     let output = async {
-        let (stdout, stderr) = tokio::join!(
+        // Stop as soon as either stream crosses the shared budget. Waiting for
+        // both streams to close lets a noisy child keep the other pipe open
+        // until the deadline instead of enforcing the output limit.
+        tokio::try_join!(
             read_bounded(stdout, total.clone(), limit),
             read_bounded(stderr, total.clone(), limit)
-        );
-        match (stdout, stderr) {
-            (Ok(stdout), Ok(stderr)) => Ok((stdout, stderr)),
-            _ => Err(()),
-        }
+        )
     };
     let deadline =
         tokio::time::Instant::now() + Duration::from_millis(options.timeout_ms.clamp(1, 10_000));
@@ -217,21 +216,35 @@ pub async fn run_bounded_process_probe(
         Outcome::Output(Ok(output)) => output,
         Outcome::Output(Err(())) => {
             kill(&mut child);
+            let _ = child.wait().await;
             return Err(failure("output exceeded the safety limit."));
         }
         Outcome::Timeout => {
             kill(&mut child);
+            let _ = child.wait().await;
             return Err(failure("timed out."));
         }
         Outcome::Cancelled => {
             kill(&mut child);
+            let _ = child.wait().await;
             return Err(failure("was cancelled."));
         }
     };
     let status = tokio::select! {
         status = child.wait() => status.map_err(|_| failure("could not start."))?,
+        _ = async {
+            match options.signal.as_ref() {
+                Some(signal) => { signal.cancelled().await; }
+                None => futures_util::future::pending::<()>().await,
+            }
+        } => {
+            kill(&mut child);
+            let _ = child.wait().await;
+            return Err(failure("was cancelled."));
+        },
         _ = tokio::time::sleep_until(deadline) => {
             kill(&mut child);
+            let _ = child.wait().await;
             return Err(failure("timed out."));
         }
     };

@@ -137,3 +137,144 @@ fn serves_a_window_on_the_host_thread_and_returns_its_session_frames() {
     host.close_window(7);
     block_on(host.shutdown());
 }
+
+#[test]
+fn shutdown_waits_for_active_sessions_or_inspected_sidecars_and_coalesces_duplicate_quits() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+    for has_session in [false, true] {
+        let disposing = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        let calls = Arc::new(AtomicUsize::new(0));
+        let (prepared, ready) = tokio::sync::oneshot::channel();
+        let (host_disposing, host_release, host_calls) =
+            (disposing.clone(), release.clone(), calls.clone());
+        let host = AgentHostHandle::start(Box::new(move |roots| {
+            let backend_dispose = if !has_session {
+                let disposing = host_disposing.clone();
+                let release = host_release.clone();
+                let calls = host_calls.clone();
+                Some(Rc::new(move || {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    disposing.notify_one();
+                    let release = release.clone();
+                    Box::pin(async move {
+                        release.notified().await;
+                        Ok(())
+                    })
+                        as futures_util::future::LocalBoxFuture<
+                            'static,
+                            crate::agent::agent_error::AgentResult<()>,
+                        >
+                })
+                    as Rc<
+                        dyn Fn() -> futures_util::future::LocalBoxFuture<
+                            'static,
+                            crate::agent::agent_error::AgentResult<()>,
+                        >,
+                    >)
+            } else {
+                None
+            };
+            let harness = create_service_harness(HarnessOptions {
+                runtime_dispose: backend_dispose,
+                ..Default::default()
+            });
+            let service = harness.service.clone();
+            let services = AgentHostServices {
+                requests: AgentRequests {
+                    agent_service: Rc::new(service.clone()),
+                    local_agent_inventory: None,
+                    authorize_workspace_root: window_root_authorizer(roots),
+                    resolve_workspace_resource: None,
+                    attachment_store: None,
+                    pick_workspace_paths: None,
+                },
+                service,
+                attachment_store: None,
+            };
+            tokio::task::spawn_local(async move {
+                if has_session {
+                    let sender = crate::agent::application::tests::harness::create_sender(98).0;
+                    harness
+                        .service
+                        .create_session(
+                            &sender,
+                            &serde_json::json!({"runtimeId":"codex"}),
+                            "/workspace",
+                        )
+                        .await
+                        .unwrap();
+                } else {
+                    harness
+                        .service
+                        .discover_providers(
+                            &serde_json::json!({"runtimeId":"codex"}),
+                            Some("/workspace"),
+                        )
+                        .await
+                        .unwrap();
+                    assert_eq!(harness.service.get_session_count(), 0);
+                }
+                assert_eq!(harness.adapters.borrow().len(), 1);
+                if has_session {
+                    harness.adapter(0).once("dispose", move |_| {
+                        host_calls.fetch_add(1, Ordering::SeqCst);
+                        host_disposing.notify_one();
+                        let release = host_release.clone();
+                        Box::pin(async move {
+                            release.notified().await;
+                            Ok(serde_json::Value::Null)
+                        })
+                    });
+                }
+                prepared.send(()).unwrap();
+            });
+            Ok(services)
+        }))
+        .unwrap();
+        block_on(async {
+            tokio::time::timeout(Duration::from_secs(3), ready)
+                .await
+                .unwrap()
+                .unwrap();
+            let first = host.shutdown();
+            let second = host.shutdown();
+            tokio::pin!(first);
+            tokio::pin!(second);
+            tokio::time::timeout(Duration::from_secs(3), disposing.notified())
+                .await
+                .unwrap();
+            assert!(matches!(
+                futures_util::poll!(&mut first),
+                std::task::Poll::Pending
+            ));
+            assert!(matches!(
+                futures_util::poll!(&mut second),
+                std::task::Poll::Pending
+            ));
+            release.notify_one();
+            tokio::time::timeout(Duration::from_secs(3), async {
+                first.await;
+                second.await
+            })
+            .await
+            .unwrap();
+        });
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn an_empty_host_does_not_hold_up_an_updater_quit() {
+    let host = start();
+    block_on(async {
+        tokio::time::timeout(std::time::Duration::from_secs(2), host.shutdown())
+            .await
+            .unwrap();
+        // A repeated quit after shutdown also completes without another drain.
+        tokio::time::timeout(std::time::Duration::from_secs(2), host.shutdown())
+            .await
+            .unwrap();
+    });
+}

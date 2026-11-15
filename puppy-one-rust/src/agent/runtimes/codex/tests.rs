@@ -320,12 +320,16 @@ fn maps_current_generated_schema_notifications_to_provider_neutral_events() {
     }));
     assert_eq!(user.len(), 1);
     assert_eq!(user[0]["type"], "user.message");
+    assert_eq!(user[0]["providerSessionId"], "thread-1");
+    assert_eq!(user[0]["turnId"], "turn-1");
     assert_eq!(user[0]["itemId"], "user-1");
     assert_eq!(user[0]["payload"], json!({ "text": "follow up" }));
     let boundary = normalize_codex_notification(&json!({
         "method": "item/reasoning/summaryPartAdded",
         "params": { "threadId": "thread-1", "turnId": "turn-1", "itemId": "reasoning-1", "summaryIndex": 1 },
     }));
+    assert_eq!(boundary.len(), 1);
+    assert_eq!(boundary[0]["type"], "reasoning.summary.delta");
     assert_eq!(
         boundary[0]["payload"],
         json!({ "delta": "", "summaryIndex": 1, "boundary": true })

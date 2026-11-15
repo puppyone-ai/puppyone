@@ -407,3 +407,137 @@ fn reads_the_login_shell_environment_between_private_markers() {
         assert_eq!(snapshot.environment, base);
     });
 }
+
+#[test]
+fn timed_out_and_combined_output_overflow_probes_reap_the_actual_child() {
+    run_local(async {
+        let directory = tempfile::tempdir().unwrap();
+        for (name, body, budget, expected) in [
+            (
+                "timeout",
+                "printf '%s' \"$$\" > \"$1\"; exec /bin/sleep 60",
+                16 * 1024,
+                "timed out",
+            ),
+            (
+                "overflow",
+                "printf '%s' \"$$\" > \"$1\"; printf 01234567890123456789; printf 01234567890123456789 >&2; exec /bin/sleep 60",
+                32,
+                "safety limit",
+            ),
+        ] {
+            let pid_file = directory.path().join(name);
+            let error = run_bounded_process_probe(
+                "/bin/sh",
+                &[
+                    "-c".into(),
+                    body.into(),
+                    "probe".into(),
+                    pid_file.to_string_lossy().into_owned(),
+                ],
+                ProbeOptions {
+                    timeout_ms: 500,
+                    max_output_bytes: budget,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err();
+            assert!(error.message.contains(expected), "{}", error.message);
+            let pid: i32 = std::fs::read_to_string(&pid_file).unwrap().parse().unwrap();
+            // Signal zero checks existence without signalling or changing the child.
+            assert_eq!(
+                unsafe { libc::kill(pid, 0) },
+                -1,
+                "probe child {pid} survived {name}"
+            );
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(libc::ESRCH)
+            );
+        }
+    });
+}
+
+#[test]
+fn cancellation_reaps_a_probe_after_its_output_pipes_close() {
+    run_local(async {
+        let directory = tempfile::tempdir().unwrap();
+        let pid_file = directory.path().join("pid");
+        let controller = Canceller::new();
+        let options = ProbeOptions {
+            signal: Some(controller.signal()),
+            timeout_ms: 2_000,
+            ..Default::default()
+        };
+        let path = pid_file.to_string_lossy().into_owned();
+        let running = tokio::task::spawn_local(async move {
+            run_bounded_process_probe(
+                "/bin/sh",
+                &[
+                    "-c".into(),
+                    "exec 1>&- 2>&-; printf '%s' \"$$\" > \"$1\"; exec /bin/sleep 60".into(),
+                    "probe".into(),
+                    path,
+                ],
+                options,
+            )
+            .await
+        });
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let pid: i32 = loop {
+            if let Ok(text) = std::fs::read_to_string(&pid_file)
+                && let Ok(pid) = text.parse()
+            {
+                break pid;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "child did not close its output pipes"
+            );
+            tokio::task::yield_now().await;
+        };
+        controller.cancel(crate::agent::agent_error::AgentError::new(
+            "inventory cancelled",
+        ));
+        let error = running.await.unwrap().unwrap_err();
+        assert!(error.message.contains("was cancelled"), "{}", error.message);
+        assert_eq!(
+            unsafe { libc::kill(pid, 0) },
+            -1,
+            "cancelled child survived"
+        );
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
+    });
+}
+
+#[test]
+fn an_already_cancelled_probe_never_spawns_the_native_executable() {
+    run_local(async {
+        let (_guard, home) = temporary_directory();
+        let marker = home.join("started");
+        let cli = executable(&home.join("probe"), "touch \"$1\"");
+        let controller = Canceller::new();
+        controller.cancel(crate::agent::agent_error::AgentError::new(
+            "cancel before start",
+        ));
+        let error = run_bounded_process_probe(
+            &cli,
+            &[marker.to_string_lossy().into()],
+            ProbeOptions {
+                signal: Some(controller.signal()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(error.message.contains("was cancelled"));
+        assert!(
+            !marker.exists(),
+            "pre-cancelled discovery spawned the executable"
+        );
+    });
+}

@@ -10,3 +10,9 @@ pub mod rpc_connection;
 pub mod test_support;
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod lifecycle_tests;
+
+#[cfg(test)]
+mod managed_process_tests;

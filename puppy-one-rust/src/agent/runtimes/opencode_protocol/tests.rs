@@ -63,6 +63,7 @@ fn streams_assistant_text_working_state_tools_diffs_plans_and_usage() {
     assert_eq!(assistant[0]["type"], "assistant.delta");
     assert_eq!(assistant[0]["payload"], json!({ "delta": "Hello " }));
     assert_eq!(thought.len(), 1);
+    assert_eq!(thought[0]["type"], "reasoning.summary.delta");
     assert_eq!(
         thought[0]["payload"],
         json!({ "delta": "", "boundary": true, "status": "working" })
@@ -97,6 +98,7 @@ fn streams_assistant_text_working_state_tools_diffs_plans_and_usage() {
     );
     let completions = normalizer.complete_assistant(Some("session-1"));
     assert_eq!(completions.len(), 1);
+    assert_eq!(completions[0]["type"], "assistant.completed");
     assert_eq!(completions[0]["payload"], json!({ "text": "Hello world" }));
 }
 
@@ -358,10 +360,14 @@ fn open_code_connection(options: ConnectionOptions) -> Launch {
     }
 }
 
-async fn settle() {
-    for _ in 0..16 {
-        tokio::task::yield_now().await;
-    }
+async fn wait_until(ready: impl Fn() -> bool) {
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        while !ready() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("ACP event was not delivered");
 }
 
 #[test]
@@ -435,6 +441,7 @@ fn uses_one_native_acp_session_for_model_selection_streaming_approvals_and_follo
             .map(|m| m["model"].as_str().unwrap())
             .collect();
         assert_eq!(models, ["openai/gpt-5", "openai/gpt-4.1"]);
+        assert_eq!(inspection["commands"].as_array().unwrap().len(), 1);
         assert_eq!(inspection["commands"][0]["name"], "review");
         {
             let launches = launches.borrow();
@@ -471,9 +478,14 @@ fn uses_one_native_acp_session_for_model_selection_streaming_approvals_and_follo
             }))
             .await
             .unwrap();
-        settle().await;
+        wait_until(|| !runtime.requests_of("session/prompt").is_empty()).await;
         let prompt = runtime.requests_of("session/prompt")[0].clone();
         assert_eq!(prompt["sessionId"], "session-1");
+        assert_eq!(prompt["prompt"].as_array().unwrap().len(), 2);
+        assert_eq!(prompt["prompt"][0]["type"], "text");
+        assert!(runtime.requests.borrow().contains(&json!({
+            "method": "session/prompt", "params": prompt, "timeoutMs": 0,
+        })));
         assert!(
             prompt["prompt"][0]["text"]
                 .as_str()
@@ -507,7 +519,13 @@ fn uses_one_native_acp_session_for_model_selection_streaming_approvals_and_follo
                 ],
             },
         })));
-        settle().await;
+        wait_until(|| {
+            events
+                .borrow()
+                .iter()
+                .any(|e| e["type"] == "approval.requested")
+        })
+        .await;
         let approval = events
             .borrow()
             .iter()
@@ -523,7 +541,7 @@ fn uses_one_native_acp_session_for_model_selection_streaming_approvals_and_follo
                 "turnId": turn["turnId"],
             }))
             .unwrap();
-        settle().await;
+        wait_until(|| runtime.responses.borrow().iter().any(|r| r["id"] == 10)).await;
         assert!(runtime
             .responses
             .borrow()
@@ -536,7 +554,13 @@ fn uses_one_native_acp_session_for_model_selection_streaming_approvals_and_follo
         finish(
             json!({ "stopReason": "end_turn", "usage": { "inputTokens": 10, "outputTokens": 4, "totalTokens": 14 } }),
         );
-        settle().await;
+        wait_until(|| {
+            events
+                .borrow()
+                .iter()
+                .any(|e| e["type"] == "turn.completed" && e["turnId"] == turn["turnId"])
+        })
+        .await;
         let kinds: Vec<String> = events
             .borrow()
             .iter()
@@ -557,12 +581,20 @@ fn uses_one_native_acp_session_for_model_selection_streaming_approvals_and_follo
             .start_turn(json!({ "prompt": "Follow up", "model": "openai/gpt-5", "effort": "low", "mode": "build" }))
             .await
             .unwrap();
-        settle().await;
+        wait_until(|| launches.borrow()[1].prompt.borrow().is_some()).await;
         assert_eq!(launches.borrow().len(), 2);
         assert_eq!(runtime.requests_of("session/new").len(), 1);
         assert!(adapter.read_history().is_empty());
         finish(json!({ "stopReason": "end_turn" }));
-        settle().await;
+        wait_until(|| {
+            events
+                .borrow()
+                .iter()
+                .filter(|e| e["type"] == "turn.completed")
+                .count()
+                == 2
+        })
+        .await;
         adapter.dispose().await.unwrap();
     });
 }

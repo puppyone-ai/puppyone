@@ -9,3 +9,6 @@ pub mod opencode_protocol;
 pub mod pi;
 pub mod puppyone_agent;
 pub mod workbuddy;
+
+#[cfg(test)]
+mod discovery_tests;
