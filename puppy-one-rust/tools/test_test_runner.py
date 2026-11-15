@@ -2,7 +2,11 @@ import unittest
 from unittest.mock import patch, Mock
 import signal
 import subprocess
-from test_runner import validate_result, execute
+from test_runner import validate_result, execute, isolated_test_environment
+from pathlib import Path
+import os
+import sys
+import tempfile
 
 
 class LibtestEvidence(unittest.TestCase):
@@ -31,3 +35,32 @@ class LibtestEvidence(unittest.TestCase):
         self.assertTrue(start.call_args.kwargs['start_new_session'])
         kill.assert_called_once_with(12345, signal.SIGKILL)
         self.assertEqual(child.communicate.call_count, 2)
+
+
+class ApplicationDataIsolation(unittest.TestCase):
+    def test_real_child_writes_only_to_a_fresh_profile_and_cleanup_preserves_the_parent(self):
+        with tempfile.TemporaryDirectory() as parent:
+            sentinel = Path(parent) / 'sentinel'
+            sentinel.write_text('user state')
+            profiles = []
+            with patch.dict(os.environ, {'PUPPYONE_RUST_DATA_DIR': parent}):
+                for _ in range(2):
+                    with isolated_test_environment({'PUPPYONE_FIXTURE_VALUE': 'kept'}) as env:
+                        profiles.append(Path(env['PUPPYONE_RUST_DATA_DIR']))
+                        self.assertNotEqual(profiles[-1], Path(parent))
+                        code, output = execute([sys.executable, '-c',
+                            "import os;from pathlib import Path;"
+                            "Path(os.environ['PUPPYONE_RUST_DATA_DIR'],'owned').write_text(os.environ['PUPPYONE_FIXTURE_VALUE'])"], env=env)
+                        self.assertEqual(code, 0, output)
+                        self.assertEqual((profiles[-1] / 'owned').read_text(), 'kept')
+                    self.assertFalse(profiles[-1].exists())
+                self.assertEqual(os.environ['PUPPYONE_RUST_DATA_DIR'], parent)
+            self.assertNotEqual(*profiles)
+            self.assertEqual(sentinel.read_text(), 'user state')
+            self.assertEqual(list(Path(parent).iterdir()), [sentinel])
+
+    def test_an_explicit_gate_profile_remains_owned_by_its_caller(self):
+        with tempfile.TemporaryDirectory() as profile:
+            with isolated_test_environment({'PUPPYONE_RUST_DATA_DIR': profile}) as env:
+                self.assertEqual(env['PUPPYONE_RUST_DATA_DIR'], profile)
+            self.assertTrue(Path(profile).is_dir())

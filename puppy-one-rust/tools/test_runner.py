@@ -3,6 +3,7 @@
 A successful exit alone is insufficient: every required, fully qualified test
 must be discovered exactly once and actually pass, including ignored tests.
 """
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -12,10 +13,27 @@ import re
 import shutil
 import signal
 import subprocess
+import tempfile
 from source_identity import source_hashes
 
 ROOT = Path(__file__).resolve().parents[1]
 CARGO = shutil.which('cargo') or str(Path.home() / '.cargo/bin/cargo')
+
+
+@contextmanager
+def isolated_test_environment(overrides=None):
+    """Libtest never inherits the user's writable application profile.
+
+    A gate may explicitly supply its own isolated profile (runtime acceptance
+    does this); otherwise each exact test gets a fresh, disposable directory.
+    """
+    env = dict(os.environ)
+    env.update(overrides or {})
+    if overrides is not None and 'PUPPYONE_RUST_DATA_DIR' in overrides:
+        yield env
+    else:
+        with tempfile.TemporaryDirectory(prefix='puppyone-libtest-') as directory:
+            yield dict(env, PUPPYONE_RUST_DATA_DIR=directory)
 
 
 def outcomes(output):
@@ -90,9 +108,10 @@ def run_gate(name, required, *, env=None, metadata=None):
         if error:
             result_code, content = 1, error + '\n'
         else:
-            result_code, content = execute([binaries[target], test, '--exact', '--include-ignored',
-                                            '--test-threads=1', '--color=never'], env=env,
-                                           timeout=item.get('timeout', 240))
+            with isolated_test_environment(env) as test_env:
+                result_code, content = execute([binaries[target], test, '--exact', '--include-ignored',
+                                                '--test-threads=1', '--color=never'], env=test_env,
+                                               timeout=item.get('timeout', 240))
             error = validate_result(test, result_code, content)
         log = f'{index:02d}-{test.split("::")[-1]}.log'
         (out / log).write_text(content)
@@ -103,6 +122,7 @@ def run_gate(name, required, *, env=None, metadata=None):
               'passed': bool(checks) and all(c['passed'] for c in checks) and unchanged,
               'checks': checks, 'sourceHashes': before,
               'binaryHashes': binary_hashes,
-              'sourceUnchangedDuringVerification': unchanged, **(metadata or {})}
+              'sourceUnchangedDuringVerification': unchanged,
+              'testDataIsolation': 'temporary-per-test-unless-explicit', **(metadata or {})}
     receipt.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     return report

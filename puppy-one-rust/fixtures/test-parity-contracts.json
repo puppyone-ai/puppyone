@@ -5421,7 +5421,7 @@
     },
     {
       "id": "agent-history-browser-composition",
-      "acceptance": "Real history controller plus GPUI frames/input: excluded locators, separate native capability/catalog capacity disclosures, shared permission recorded before subsequent activation, exact 8-second runtime and catalog deadlines with recovery, pending native discovery stays loading, healthy source remains actionable beside a failed source, opaque restoration payloads and Back navigation, and cursor/scan epoch retained on actual Load more clicks. Bridge I/O is scripted; the original CSS/brand presentation case remains separately unreviewed.",
+      "acceptance": "Real history controller plus GPUI frames/input: excluded locators, separate native capability/catalog capacity disclosures, shared permission recorded before subsequent activation, exact 8-second runtime and catalog deadlines with recovery, pending native discovery stays loading, healthy source remains actionable beside a failed source, opaque restoration payloads and Back navigation, and cursor/scan epoch retained on actual Load more clicks. Bridge I/O is scripted; the original CSS/brand presentation case remains separately unreviewed. Explicit launcher creation retires pending layout restore immediately, so permission UI is not hidden behind a loading placeholder or replaced by late saved state.",
       "typescript": [
         {
           "path": "tests/component/agent/history/desktop-agent.history-browser.test.tsx",
@@ -5502,6 +5502,11 @@
           "package": "po-app",
           "test": "features::desktop_agent::ui::agent_conversation_history::tests::integration::clicking_load_more_keeps_the_native_cursor_and_scan_epoch_together",
           "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_new_launcher_cancels_pending_layout_restore_and_keeps_late_results_from_replacing_it"
         }
       ],
       "environment": "local"
@@ -7223,6 +7228,44 @@
           "package": "po-app",
           "target": "puppy-one-rust",
           "test": "features::local_agents::setup::tests::companion_cache_survives_view_replacement_and_application_shutdown_revokes_it"
+        }
+      ]
+    },
+    {
+      "id": "activation-catalog-composition-and-worker-failure",
+      "acceptance": "The shared engine consumes its injected trusted route composition, including new managed recipes and terminal-only/chat-only capability admission; absent global routes cannot escape that composition. Synchronous failure of an advisory installation refresh cannot panic the completed worker or change Ready. Failure to spawn a native worker publishes Failed(Process), persists a terminal receipt, and releases concurrency capacity without discovery or installation. This row does not claim full catalog projection deduplication.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-activation/activation-catalog-contract.test.mjs",
+          "sha256": "3d0dab75f145e40ece7c5734dffaddb28dfa02cc0ed43cacc7360ce164308d5b",
+          "cases": [
+            {
+              "index": 36,
+              "name": "every registered Agent obeys the same activation contract > uses a new declared recipe without adding a brand branch to the activation engine"
+            },
+            {
+              "index": 37,
+              "name": "every registered Agent obeys the same activation contract > enforces surface capability for both terminal-only and chat-only definitions"
+            },
+            {
+              "index": 39,
+              "name": "every registered Agent obeys the same activation contract > a synchronously failing refresh cannot reject a completed task"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::declared_recipes_and_surface_capabilities_drive_an_injected_catalog"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::a_synchronously_failing_refresh_cannot_panic_or_reject_a_completed_worker"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::worker_spawn_failure_publishes_a_terminal_receipt_and_releases_activation_capacity"
         }
       ]
     }
