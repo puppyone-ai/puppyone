@@ -357,6 +357,11 @@ fn file_window_html_dom_picker_and_js_error_self_heal_stage_into_local_agent_cha
         let sb = s.sidebar.clone();
         sb.update(cx, |sb, cx| sb.ensure_active_chat(w, cx).unwrap())
     });
+    settle_cloud(&view, cx, "the picked HTML context in Chat", &|_, cx| {
+        let (draft, refs) = panel.read(cx).debug_staged_summary();
+        refs.iter().any(|r| r == "report.html")
+            && draft.contains("section#revenue-chart.chart-card")
+    });
     view.read_with(cx, |_, cx| {
         let (draft, refs) = panel.read(cx).debug_staged_summary();
         assert!(
@@ -387,8 +392,18 @@ fn file_window_html_dom_picker_and_js_error_self_heal_stage_into_local_agent_cha
         assert_eq!(state.js_errors[0].line, Some(7));
     });
     fw.update_in(cx, |f, w, cx| f.stage_js_errors_to_chat(w, cx));
-    cx.run_until_parked();
-    draw(cx);
+    settle_cloud(
+        &view,
+        cx,
+        "the JavaScript error context in Chat",
+        &|_, cx| {
+            panel
+                .read(cx)
+                .debug_staged_summary()
+                .0
+                .contains("[L7:12] Uncaught ReferenceError: renderRevenueSeries is not defined")
+        },
+    );
     view.read_with(cx, |_, cx| {
         let (draft, _) = panel.read(cx).debug_staged_summary();
         assert!(
@@ -461,6 +476,14 @@ fn file_window_html_screenshot_and_annotations_copy_png_and_stage_to_chat(cx: &m
         let sb = s.sidebar.clone();
         sb.update(cx, |sb, cx| sb.ensure_active_chat(w, cx).unwrap())
     });
+    settle_cloud(&view, cx, "the screenshot attachment in Chat", &|_, cx| {
+        panel
+            .read(cx)
+            .debug_staged_summary()
+            .1
+            .iter()
+            .any(|r| r == "html-screenshot.png")
+    });
     view.read_with(cx, |_, cx| {
         assert!(!fw.read(cx).has_screenshot_toast());
         let (_, refs) = panel.read(cx).debug_staged_summary();
@@ -482,6 +505,10 @@ fn file_window_html_screenshot_and_annotations_copy_png_and_stage_to_chat(cx: &m
     editor.update(cx, |e, cx| e.lab_deliver_html_ipc(&ann_msg, cx));
     cx.run_until_parked();
     draw(cx);
+    settle_cloud(&view, cx, "the annotated screenshot in Chat", &|_, cx| {
+        let (draft, refs) = panel.read(cx).debug_staged_summary();
+        refs.iter().any(|r| r == "annotated-page.png") && !draft.is_empty()
+    });
     view.read_with(cx, |_, cx| {
         let (draft, refs) = panel.read(cx).debug_staged_summary();
         assert!(
