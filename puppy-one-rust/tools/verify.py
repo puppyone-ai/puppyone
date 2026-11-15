@@ -50,6 +50,7 @@ commands = [
     ('structured-viewers', ['node', 'tools/import-structured-viewers.mjs', '--check']),
     ('excalidraw', ['node', 'tools/import-excalidraw.mjs', '--check']),
     ('render-service', ['node', 'tools/import-render-service.mjs', '--check']),
+    ('document-defaults', ['node', 'tools/import-document-defaults.mjs', '--check']),
     ('app-preview', ['node', 'tools/import-app-preview.mjs', '--check']),
     ('terminal-glyphs', ['node', 'tools/import-xterm-glyphs.mjs', '--check']),
     ('ui-migration', ['python3', 'tools/audit-ui-migration.py']),

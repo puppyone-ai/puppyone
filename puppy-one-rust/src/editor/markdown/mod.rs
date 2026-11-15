@@ -73,6 +73,8 @@ pub struct MarkdownExtension {
     pub assets: Option<crate::editor::registry::DocumentAssets>,
     /// The dialect's features (`.mdx`: with MDX components).
     features: core::feature::Features,
+    /// The Sub Theme the theme was resolved under (`tokens::theme_key`).
+    theme_key: u64,
 }
 
 impl MarkdownExtension {
@@ -88,6 +90,7 @@ impl MarkdownExtension {
             references: None,
             assets: None,
             features: FEATURES,
+            theme_key: crate::editor::tokens::theme_key(),
         }
     }
 
@@ -99,9 +102,11 @@ impl MarkdownExtension {
 
     /// Follow the app appearance; returns whether anything changed.
     pub fn set_appearance(&mut self, dark: bool, scale: Scale) -> bool {
-        if self.theme.dark == dark && self.scale == scale {
+        let theme_key = crate::editor::tokens::theme_key();
+        if self.theme.dark == dark && self.scale == scale && self.theme_key == theme_key {
             return false;
         }
+        self.theme_key = theme_key;
         self.theme = MarkdownTheme::resolve(dark, scale);
         self.scale = scale;
         true

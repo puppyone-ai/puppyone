@@ -64,6 +64,8 @@ enum Step {
     Scroll(f32),
     /// A left click at a window point.
     Click(f32, f32),
+    /// The Sub Theme for both colour modes.
+    Pack(String),
     /// The pointer moved to a window point.
     Move(f32, f32),
     /// The left button pressed / released at a window point (a drag is
@@ -154,6 +156,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home" => Step::Command(crate::app::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
                 "scroll" => Step::Scroll(arg.trim().parse().ok()?),
+                "pack" => Step::Pack(arg.trim().to_owned()),
                 "click" | "move" | "press" | "release" => {
                     let n: Vec<f32> = arg
                         .split(',')
@@ -650,6 +653,17 @@ impl Shell {
                     )
                 });
             }
+            Step::Pack(id) => self.prefs.store.update(cx, |p, cx| {
+                p.change(
+                    |p| {
+                        p.sub_theme_ids = crate::features::settings::SubThemeIds {
+                            light: id.clone(),
+                            dark: id.clone(),
+                        }
+                    },
+                    cx,
+                )
+            }),
             Step::HomeList => self.prefs.store.update(cx, |p, cx| {
                 p.change(
                     |p| p.homepage_project_layout = crate::features::settings::HomepageLayout::List,

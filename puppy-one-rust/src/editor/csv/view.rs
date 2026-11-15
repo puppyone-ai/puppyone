@@ -86,6 +86,8 @@ pub struct CsvEditor {
     layout: ColumnLayout,
     theme: CsvTheme,
     frame: FrameTheme,
+    /// The Sub Theme the styles were resolved under (`tokens::theme_key`).
+    theme_key: u64,
     /// The first record is presented as a sticky header
     /// (`readCsvFirstRecordAsHeaderPreference`, default: the model's guess).
     pub header: bool,
@@ -154,6 +156,7 @@ impl CsvEditor {
             layout,
             frame: FrameTheme::resolve(dark, scale, theme.surface),
             theme,
+            theme_key: crate::editor::tokens::theme_key(),
             header,
             row_numbers: stored.show_row_numbers.unwrap_or(true),
             read_only: false,
@@ -217,9 +220,11 @@ impl CsvEditor {
     }
 
     pub fn set_appearance(&mut self, dark: bool, scale: Scale, cx: &mut Context<Self>) {
-        if self.theme.dark == dark && self.theme.scale == scale {
+        let theme_key = crate::editor::tokens::theme_key();
+        if self.theme.dark == dark && self.theme.scale == scale && self.theme_key == theme_key {
             return;
         }
+        self.theme_key = theme_key;
         self.theme = CsvTheme::resolve(dark, scale);
         self.frame = FrameTheme::resolve(dark, scale, self.theme.surface);
         // Editors carry resolved styles: rebuild them in the new appearance.

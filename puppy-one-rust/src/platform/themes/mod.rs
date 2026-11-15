@@ -1,11 +1,12 @@
 //! Installed Sub Themes: the Themes Folder, the product's theme contracts and
 //! CSS compiler checks, and the palette projection for the native renderer.
-//! Only the Application target changes native colours; Typography, Markdown
-//! and CSV targets are validated like the product's (the native Markdown and
-//! CSV views still read the Neutral profile, for built-in themes too).
+//! The Application target changes native colours; the Markdown and CSV
+//! targets (with the Application) cascade over the viewers' Neutral tokens
+//! (`document`); Typography is validated like the product's.
 pub mod compiler;
 pub mod contract;
 pub mod css;
+pub mod document;
 mod named_colors;
 pub mod palette;
 pub mod service;

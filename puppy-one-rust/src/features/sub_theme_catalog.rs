@@ -156,6 +156,18 @@ impl Catalog {
     }
     fn install(&mut self, snapshot: service::Snapshot, palettes: Vec<crate::theme::InstalledPack>) {
         crate::theme::set_installed(palettes);
+        crate::editor::tokens::set_installed(
+            snapshot
+                .themes
+                .iter()
+                .map(|t| {
+                    (
+                        t.id.clone(),
+                        crate::platform::themes::document::Document::of(t),
+                    )
+                })
+                .collect(),
+        );
         let mut diagnostics = snapshot.diagnostics;
         let mut installed = Vec::new();
         for theme in snapshot.themes {

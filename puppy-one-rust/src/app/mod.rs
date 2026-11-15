@@ -497,6 +497,7 @@ impl Shell {
             modal: self.modal(cx) || self.sidebar.read(cx).workbench.read(cx).dialog_open(),
             home: self.home_visible(cx),
             dark: self.prefs.dark,
+            theme: crate::editor::tokens::theme_key(),
         }
     }
     /// The window's gate over the editors changed.

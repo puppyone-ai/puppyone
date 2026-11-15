@@ -629,7 +629,7 @@ pub fn set_pack(id: &str) {
     let pack = find(id).unwrap_or_else(|| packs()[0].clone());
     PACK.with(|p| *p.borrow_mut() = Some(pack));
 }
-#[cfg(any(test, feature = "test-support"))]
+/// The active Sub Theme's id.
 pub fn pack_id() -> String {
     active().id.clone()
 }
