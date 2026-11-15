@@ -3971,6 +3971,145 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "agent-native-history-indexing",
+      "acceptance": "Discovery and resolution deadlines release process admission without invalidating live readiness; only a complete, identical source snapshot across all pages can tombstone missing history. Failed pages retain exact retry cursors; detached scope, page size, ordering, malformed pages and cursor loops fail before writes. Superseding an active scan is safe and makes late responses inert; duplicate continuations share native work and catalog commit; failed disposal quarantines resources; pending catalog writes report unknown completion and require refresh; page limits and capacity feedback remain explicit.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/history/electron.agent-native-conversation-indexer.test.mjs",
+          "sha256": "4140fbfe4b15a6a672cfb0efaf7912212233f430f17f3bc43fab8eddd5a6e84f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native Agent conversation indexing > times out discovery, releases process admission and never invalidates live readiness"
+            },
+            {
+              "index": 1,
+              "name": "native Agent conversation indexing > also bounds runtime resolution and does not create an adapter after its deadline"
+            },
+            {
+              "index": 2,
+              "name": "native Agent conversation indexing > reconciles only after all pages prove the same complete source snapshot"
+            },
+            {
+              "index": 3,
+              "name": "native Agent conversation indexing > never hides missing rows when source coverage is unproven or changes (undefined)"
+            },
+            {
+              "index": 4,
+              "name": "native Agent conversation indexing > never hides missing rows when source coverage is unproven or changes ({\"scopeComplete\":false,\"snapshotId\":null})"
+            },
+            {
+              "index": 5,
+              "name": "native Agent conversation indexing > never hides missing rows when source coverage is unproven or changes ({\"scopeComplete\":true,\"snapshotId\":\"changed\"})"
+            },
+            {
+              "index": 6,
+              "name": "native Agent conversation indexing > retains the exact failed page for retry without committing or reconciling it"
+            },
+            {
+              "index": 7,
+              "name": "native Agent conversation indexing > rejects detached scope, changed page size and out-of-order continuation"
+            },
+            {
+              "index": 8,
+              "name": "native Agent conversation indexing > rejects the entire malformed page before a catalog write ({\"supported\":true,\"sessions\":[{\"providerSessionId\":\"valid\",\"title\":\"valid\",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"updatedAt\":\"2026-09-01T00:00:00.000Z\"},{\"title\":\"no id\"}],\"nextCursor\":null})"
+            },
+            {
+              "index": 9,
+              "name": "native Agent conversation indexing > rejects the entire malformed page before a catalog write ({\"supported\":true,\"sessions\":null,\"nextCursor\":null})"
+            },
+            {
+              "index": 10,
+              "name": "native Agent conversation indexing > rejects the entire malformed page before a catalog write ({\"supported\":true,\"sessions\":[{\"providerSessionId\":\"a\",\"title\":\"a\",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"updatedAt\":\"2026-09-01T00:00:00.000Z\"}],\"nextCursor\":{}})"
+            },
+            {
+              "index": 11,
+              "name": "native Agent conversation indexing > rejects the entire malformed page before a catalog write ({\"supported\":true,\"sessions\":[{\"providerSessionId\":\"a\",\"title\":\"a\",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"updatedAt\":\"2026-09-01T00:00:00.000Z\"}],\"nextCursor\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"})"
+            },
+            {
+              "index": 12,
+              "name": "native Agent conversation indexing > stops repeated cursors instead of retrying an endless source"
+            },
+            {
+              "index": 13,
+              "name": "native Agent conversation indexing > makes a superseded scan inert even when its native response arrives late"
+            },
+            {
+              "index": 14,
+              "name": "native Agent conversation indexing > coalesces duplicate continuation requests into one native call and transaction"
+            },
+            {
+              "index": 15,
+              "name": "native Agent conversation indexing > does not reopen a source whose query resource failed disposal"
+            },
+            {
+              "index": 16,
+              "name": "native Agent conversation indexing > reports an unsettled catalog commit honestly and requires refresh"
+            },
+            {
+              "index": 17,
+              "name": "native Agent conversation indexing > bounds total pages and preserves source capacity feedback"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::timed_out_discovery_releases_admission_without_invalidating_live_readiness"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::resolution_deadline_prevents_late_adapter_creation_and_catalog_writes"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::reconciles_only_when_every_page_proves_one_complete_source_snapshot"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::absent_incomplete_or_changed_coverage_never_tombstones_unseen_history"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::failed_page_keeps_its_exact_continuation_for_retry_without_committing"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::rejects_scope_page_size_and_cursor_mismatches_before_native_work"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::malformed_page_is_rejected_whole_before_any_catalog_write"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::repeated_cursor_ends_the_scan_without_committing_a_duplicate_page"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::superseded_scan_cannot_commit_a_late_native_response"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::duplicate_continuations_share_one_native_call_and_one_catalog_transaction"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::failed_disposal_quarantines_the_source_instead_of_spawning_another_adapter"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::pending_catalog_commit_is_reported_as_unknown_and_requires_a_new_scan"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::page_budget_stops_unbounded_scans_and_reports_catalog_capacity"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

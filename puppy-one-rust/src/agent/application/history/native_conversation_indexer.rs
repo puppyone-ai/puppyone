@@ -219,7 +219,10 @@ impl NativeConversationIndexer {
                         Some(false),
                     ));
                 }
-                if let Some(previous) = self.0.latest.borrow().get(&key).cloned() {
+                // Expiring the old scan mutates `latest`; release the lookup
+                // borrow before cancelling and removing that scan.
+                let previous = self.0.latest.borrow().get(&key).cloned();
+                if let Some(previous) = previous {
                     self.expire(
                         &previous,
                         Some(history_failure(
@@ -684,3 +687,7 @@ impl NativeConversationIndexer {
         self.close_matching(|_, _| true).await
     }
 }
+
+#[cfg(test)]
+#[path = "tests/indexer.rs"]
+mod tests;
