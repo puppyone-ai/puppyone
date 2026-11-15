@@ -34,6 +34,7 @@ import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchD
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 import { CloudPublishDialog } from "../cloud";
 import { DesktopWorkspaceLocationSurface } from "./DesktopWorkspaceLocationSurface";
+import { DesktopLocalComputerWorkspace } from "./DesktopLocalComputerWorkspace";
 import { DesktopCloudFileWorkspace } from "../cloud/workbench/DesktopCloudFileWorkspace";
 import type { NativeCloudWorkbench } from "../cloud/workbench/useNativeCloudWorkbench";
 
@@ -258,7 +259,7 @@ export function DesktopWorkspaceContent({
     },
   } : null;
   const workspaceSurface = dataPort && fileSurfaceProps
-    ? <DesktopDataWorkspaceSurface {...fileSurfaceProps} />
+    ? <DesktopLocalComputerWorkspace surfaceProps={fileSurfaceProps} />
     : resolvedSurface.content.main;
 
   return (

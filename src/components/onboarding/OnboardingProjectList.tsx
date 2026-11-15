@@ -16,6 +16,11 @@ import { hasProjectAudience, type ProjectAudience } from "../project-audience";
 import { DesktopMenuItem } from "../DesktopMenu";
 import type { HomepageCloudAgent } from "./HomepageAgentStrip";
 import { ProjectFolderGlyph } from "./ProjectFolderGlyph";
+import {
+  normalizeComputerWorkspacePath,
+  ProjectComputerGlyph,
+  type ComputerVisualPowerState,
+} from "../../features/computer-mode";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
 import { useProjectListNavigation } from "./useProjectListNavigation";
 
@@ -57,6 +62,10 @@ type OnboardingProjectListProps = ProjectChanges & {
   previews?: ReadonlyMap<string, readonly ProjectAssetPreview[]>;
   /** Agents with access to each Cloud project, shown on Cloud project tiles only. */
   cloudProjectAgents?: ReadonlyMap<string, readonly HomepageCloudAgent[]>;
+  /** Outer visual entity: ordinary folder or miniature computer. */
+  presentation?: "folder" | "computer";
+  /** Power state per normalized workspace path when rendered as computers. */
+  computerPowerByPath?: ReadonlyMap<string, ComputerVisualPowerState>;
   onDragStart: (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => void;
   onDragEnd: () => void;
 };
@@ -74,6 +83,8 @@ export function OnboardingProjectList({
   onOpenUnavailable,
   previews,
   cloudProjectAgents,
+  presentation = "folder",
+  computerPowerByPath,
   onDragStart,
   onDragEnd,
   sharing,
@@ -124,6 +135,14 @@ export function OnboardingProjectList({
         const itemAgents = location === "cloud" && item.cloudProjectId
           ? cloudProjectAgents?.get(item.cloudProjectId)
           : undefined;
+        const normalizedPath = normalizeComputerWorkspacePath(item.localPath);
+        const computerPower: ComputerVisualPowerState = location === "cloud"
+          ? "running"
+          : (computerPowerByPath?.get(normalizedPath) ?? "running");
+        const computerKind = location === "cloud" ? "cloud" : "on-device";
+        const rowGlyph = presentation === "computer"
+          ? <ProjectComputerGlyph kind={computerKind} power={computerPower} previews={itemPreviews} size="sm" />
+          : <ProjectFolderGlyph previews={itemPreviews} size="sm" />;
         let rowDetail = <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>;
         if (location === "cloud") rowDetail = <ProjectHomeItemCaption item={item} />;
         else if (unavailableCaption) rowDetail = <span className="onboarding-project-status">{unavailableCaption}</span>;
@@ -152,10 +171,11 @@ export function OnboardingProjectList({
             data-linked-cloud-project-id={linked?.id}
             onFocus={() => navigation.setFocusedId(item.id)}>
             {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} shared={Boolean(sharedId)}
-              status={unavailableCaption} previews={itemPreviews} agents={itemAgents} {...open} /> : <DesktopMenuItem
+              status={unavailableCaption} previews={itemPreviews} agents={itemAgents}
+              presentation={presentation} computerPower={computerPower} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
-              icon={<span className={`onboarding-project-icon ${itemPreviews && itemPreviews.length > 0 ? "has-previews" : ""}`} aria-hidden="true"><ProjectFolderGlyph previews={itemPreviews} size="sm" /></span>}
+              icon={<span className={`onboarding-project-icon ${itemPreviews && itemPreviews.length > 0 ? "has-previews" : ""}`} aria-hidden="true">{rowGlyph}</span>}
               label={<><bdi>{name}</bdi><ProjectPlaceMark cloud={location === "cloud"} /></>}
               detail={rowDetail}
               trailing={modified}
@@ -236,7 +256,18 @@ export function ProjectPlaceMark({ cloud }: { cloud: boolean }) {
  * folder. The tooltip adds where it lives and when it last changed, and the name
  * itself only when the line has cut it.
  */
-function ProjectTile({ item, name, modified, shared, status, previews, agents, ...button }: {
+function ProjectTile({
+  item,
+  name,
+  modified,
+  shared,
+  status,
+  previews,
+  agents,
+  presentation = "folder",
+  computerPower = "running",
+  ...button
+}: {
   item: ProjectHomeItem;
   name: string;
   modified: string | null;
@@ -245,14 +276,24 @@ function ProjectTile({ item, name, modified, shared, status, previews, agents, .
   status?: string | null;
   previews?: readonly ProjectAssetPreview[];
   agents?: readonly HomepageCloudAgent[];
+  presentation?: "folder" | "computer";
+  computerPower?: ComputerVisualPowerState;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const { t } = useLocalization();
   const caption = useProjectHomeItemCaption(item);
   const isCloud = projectHomeItemLocation(item) === "cloud";
   const place = isCloud ? caption : getWorkspaceParentPathForDisplay(item.localPath);
   const tilePlace = isCloud ? place : compactDisplayPath(place, 1);
-  const meta = [tilePlace, modified].filter(Boolean).join(" · ");
+  let powerLabel: string | null = null;
+  if (presentation === "computer" && !isCloud) {
+    powerLabel = t(`onboarding.computerMode.status.${computerPower}`);
+  }
+  const meta = [powerLabel ?? tilePlace, modified].filter(Boolean).join(" · ");
   const hasPreviews = Boolean(previews && previews.length > 0);
+  const computerKind = isCloud ? "cloud" : "on-device";
+  const tileGlyph = presentation === "computer"
+    ? <ProjectComputerGlyph kind={computerKind} power={computerPower} previews={previews} />
+    : <ProjectFolderGlyph previews={previews} />;
   const nameRef = useRef<HTMLElement>(null);
   const [nameCut, setNameCut] = useState(false);
   const measureName = () => {
@@ -263,7 +304,7 @@ function ProjectTile({ item, name, modified, shared, status, previews, agents, .
     <Tooltip content={[nameCut && name, place, shared && t("hosts.home.shared"), modified].filter(Boolean).join(" · ")}>
       <button type="button" className="onboarding-project-tile" onPointerEnter={measureName} onFocus={measureName} {...button}>
         <span className={`onboarding-project-folder ${hasPreviews ? "has-previews" : ""}`} aria-hidden="true">
-          <ProjectFolderGlyph previews={previews} />
+          {tileGlyph}
           {agents && agents.length > 0 && (
             <span className="onboarding-project-folder-agents">
               {agents.slice(0, 3).map((agent) => (

@@ -690,5 +690,7 @@
   "plan.storageFull": "Storage is full",
   "plan.storagePolicy": "When full, free up space or expand storage. Existing files remain available.",
   "experimental.cloudComputerScreen.title": "Cloud Computer screen",
-  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview."
+  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview.",
+  "experimental.computerMode.title": "Computer mode",
+  "experimental.computerMode.detail": "Present Cloud spaces and workspaces on this computer as miniature computers with screens, keeping plain folders quiet at the bottom."
 }

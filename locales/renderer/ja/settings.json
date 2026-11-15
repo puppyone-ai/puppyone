@@ -690,5 +690,7 @@
   "plan.storageFull": "ストレージがいっぱいです",
   "plan.storagePolicy": "容量がいっぱいになったら、空きを作るか容量を増やしてください。既存のファイルは引き続き利用できます。",
   "experimental.cloudComputerScreen.title": "Cloud Computer screen",
-  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview."
+  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview.",
+  "experimental.computerMode.title": "コンピュータモード",
+  "experimental.computerMode.detail": "クラウドスペースとこのコンピュータ上の作業環境を画面付きの小さなコンピュータとして表示し、通常のフォルダを下部にまとめます。"
 }

@@ -27,6 +27,14 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
   const assignments = useSharedFolderAssignments();
   const local = base.local && { ...base.local, items: base.local.items.map((item) => assignments.has(item.localPath)
     ? { ...item, hostFolderId: assignments.get(item.localPath) ?? undefined } : item) };
+  const computerMode = base.computerMode && {
+    ...base.computerMode,
+    items: base.computerMode.items.map((item) => (
+      assignments.has(item.localPath)
+        ? { ...item, hostFolderId: assignments.get(item.localPath) ?? undefined }
+        : item
+    )),
+  };
   const mine = catalog.devices.find((device) => device.id === catalog.thisComputerId);
   // Paused still means shared. On a failed read, retain recorded offers instead
   // of incorrectly promising that other devices have never had access.
@@ -37,12 +45,14 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
   for (const item of local?.items ?? []) {
     if (item.hostFolderId && assignments.get(item.localPath) === item.hostFolderId) sharedFolderIds.add(item.hostFolderId);
   }
-  const groups = onboardingBaseGroups({ ...base, local }, {
+  const sharingCallbacks = {
     sharedFolderIds,
     otherComputers: catalog.devices.filter((device) => device.id !== catalog.thisComputerId).map((device) => device.name),
-    onSharingSettings: ({ folderId, name, rootPath }) => setSharingTarget({ kind: "settings", folderId, name, rootPath }),
+    onSharingSettings: ({ folderId, name, rootPath }: { folderId: string; name: string; rootPath: string }) => (
+      setSharingTarget({ kind: "settings", folderId, name, rootPath })
+    ),
     // Main asks before the folder closes to the other computers; a refusal changes nothing.
-    onStopSharing: mine ? ({ folderId, rootPath }) => {
+    onStopSharing: mine ? ({ folderId, rootPath }: { folderId: string; rootPath: string }) => {
       let cancelled = false;
       void catalog.run(async () => {
         const result = await window.puppyoneDesktop?.removeHostFolder({ deviceId: mine.id, folderId,
@@ -51,7 +61,8 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
         return result;
       }, "hosts.catalog.stopFailure").then((done) => { if (done && !cancelled) forgetSharedFolder(folderId, rootPath); });
     } : undefined,
-  });
+  };
+  const groups = onboardingBaseGroups({ ...base, local, computerMode }, sharingCallbacks);
   const others = catalog.devices.filter((device) => device.id !== catalog.thisComputerId);
   const localFolderIds = new Set(local?.items.flatMap((item) => item.hostFolderId ? [item.hostFolderId] : []));
   const visible = others.map((device) => ({ ...device,
@@ -73,11 +84,12 @@ export function HomepageComputers({ session, apiBase, onOpen, base }: {
           name: folder.name, hostName: device.name, writable: folder.capabilities.includes("folder.write"), capabilities: folder.capabilities })} />),
     });
   }
-  const localIndex = groups.findIndex((group) => group.id === "local-only");
+  const localIndex = groups.findIndex((group) => group.id === "local-only" || group.id === "local-computers");
   if (localIndex >= 0 && catalog.thisComputerId) groups[localIndex] = { ...groups[localIndex],
     detail: <ThisComputerDetail catalog={catalog} offering={sharedFolderIds.size} /> };
   return <>
     <OnboardingProjectGroups label={base.label} groups={groups}
+      footer={base.footer?.(sharingCallbacks)}
       note={catalog.error ? <HomepageComputersNote catalog={catalog} /> : undefined} />
     {sharingTarget && <HostFolderSharingDialog target={sharingTarget} catalog={catalog}
       onClose={() => setSharingTarget(null)} />}

@@ -7,6 +7,7 @@ import type {
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
 import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
+import type { LocalComputersBridge } from "../../shared/local-computers/types";
 import type { HostCatalogDevice, HostFileOperation, HostFolderEvent, HostFolderResult, HostLauncher, HostSession,
   HostSharingStatus, HostTerminalEvent, RecentHostFolder } from "../../shared/host-contract/types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
@@ -1291,6 +1292,7 @@ declare global {
         }) => Promise<ProjectAppearance>;
         onChanged: (callback: (appearance: ProjectAppearance) => void) => () => void;
       };
+      localComputers?: LocalComputersBridge;
       removeRecentWorkspace: (folderPath: string) => Promise<{
         ok: true;
         removed: true;

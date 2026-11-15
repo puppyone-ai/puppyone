@@ -70,6 +70,7 @@ export function useDesktopPreferenceEffects(catalog: SubThemeCatalogSnapshot = B
     query.addEventListener("change", sync);
     window.addEventListener("storage", syncPreferenceStorageEvent);
     const stopGit = subscribeGitAutoCommitPreference();
+    syncComputerModePreference();
     return () => {
       query.removeEventListener("change", sync);
       window.removeEventListener("storage", syncPreferenceStorageEvent);
@@ -90,6 +91,11 @@ function subscribeGitAutoCommitPreference() {
   void desktop.getGitAutoCommitSettings().then(apply).catch(() => undefined);
   const stop = desktop.onGitAutoCommitStateChanged?.(apply);
   return () => { active = false; stop?.(); };
+}
+function syncComputerModePreference() {
+  if (window.location.hash === "#file-mode") return;
+  const enabled = desktopPreferencesStore.getState().experimentalSettings.enableComputerMode;
+  void window.puppyoneDesktop?.localComputers?.setExperimentalOptIn({ enabled }).catch(() => undefined);
 }
 function syncPreferenceStorageEvent(event: StorageEvent) {
   if (event.key === CREATE_NEW_MENU_STORAGE_KEY || event.key === null) {

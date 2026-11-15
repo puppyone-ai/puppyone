@@ -62,7 +62,9 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
   const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const folders = useMemo(() => [surfaceService.folder], [surfaceService]);
   // Read on every render: the row is accepted when the data port becomes ready.
-  const screenEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudComputerScreen);
+  const screenEnabled = useDesktopPreference(
+    s => s.experimentalSettings.enableCloudComputerScreen || s.experimentalSettings.enableComputerMode,
+  );
   const cloud = surfaceService as Partial<NativeCloudDataService>;
   // Read on every render: the row is accepted when the data port becomes ready.
   // A settings change answers with the resolved view, which then wins.

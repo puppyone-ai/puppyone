@@ -36,6 +36,7 @@ import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingValueCarousel, type ValueSlideIndex } from "./onboarding/OnboardingValueCarousel";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
+import { useComputerModeHomepage } from "../features/computer-mode";
 import { OtherComputersLabel, type CloudCopy, type ProjectAudience } from "./project-audience";
 import { onboardingBaseGroups, OnboardingProjectGroups, type OnboardingGroupsBase } from "./onboarding/OnboardingProjectGroups";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
@@ -299,13 +300,18 @@ export function MinimalOnboarding({
       } : undefined,
     };
   };
-  const projectList = (listItems: ProjectHomeItem[], sharing?: ProjectListSharing) => (
+  const renderProjectListWithPresentation = (
+    presentation: "folder" | "computer",
+    powerMap?: ReadonlyMap<string, import("../features/computer-mode").ComputerVisualPowerState>,
+  ) => (listItems: ProjectHomeItem[], sharing?: ProjectListSharing) => (
     <OnboardingProjectList
       audience={projectAudience(sharing)}
       held={groupsHeld}
       items={listItems}
       sharing={sharing}
       layout={projectLayout}
+      presentation={presentation}
+      computerPowerByPath={powerMap}
       onOpenCloudProject={onOpenCloudProject}
       busy={busy}
       openingPath={openingPath}
@@ -323,10 +329,24 @@ export function MinimalOnboarding({
       onDragEnd={() => setDraggingPath(null)}
     />
   );
+  const projectList = renderProjectListWithPresentation("folder");
+  const computerHome = useComputerModeHomepage({
+    localItems,
+    platform: desktopPlatform?.platform,
+    canCreateProject,
+    onCreateComputer: projectEntryController.openCreate,
+    renderComputerList: (listItems, sharing, powerByPath) => (
+      renderProjectListWithPresentation("computer", powerByPath)(listItems, sharing)
+    ),
+    renderPlainFolderList: projectList,
+  });
+  const cloudProjectRenderer = computerHome.computerMode
+    ? renderProjectListWithPresentation("computer", computerHome.computerPowerByPath)
+    : projectList;
   // This computer stays visible; cloud Space and device-sharing facts keep their own groups.
   const cloudGroups = useCloudProjectGroups({
     spaces: cloudSpaces,
-    cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
+    cloudItems, localItems, renderProjects: cloudProjectRenderer, draggingPath, busy,
     onPublish: onPublishToSpace ? (path, spaceId) => runOpening(path, () => onPublishToSpace(path, spaceId)) : undefined,
     onDragEnd: () => setDraggingPath(null),
     onManageSpace,
@@ -348,7 +368,7 @@ export function MinimalOnboarding({
       onStart={canCreateProject ? projectEntryController.openAgentStart : undefined} onConnect={onOpenAgentSettings} />,
   } : null;
   const groupsBase: OnboardingGroupsBase = {
-    label: t("onboarding.projects.title"),
+    label: computerHome.sectionTitle,
     layout: projectLayout,
     cloud: cloudGroups,
     localShare: onShareLocalFolder ? { draggingPath, busy,
@@ -359,14 +379,24 @@ export function MinimalOnboarding({
       items: localItems,
       render: projectList,
     } : null,
+    computerMode: computerHome.computerGroup,
+    footer: computerHome.plainFoldersFooter,
   };
   let projects: ReactNode = projectList(projectView.visibleItems);
   if (!groupsHeld && projectGroups) projects = projectGroups(groupsBase);
-  else if (!groupsHeld) projects = <OnboardingProjectGroups label={groupsBase.label} groups={onboardingBaseGroups(groupsBase)} />;
+  else if (!groupsHeld) {
+    projects = (
+      <OnboardingProjectGroups
+        label={groupsBase.label}
+        groups={onboardingBaseGroups(groupsBase)}
+        footer={groupsBase.footer?.()}
+      />
+    );
+  }
   // The projects are titled, with how they are ordered and arranged at the title's end.
   const projectsHead = (
     <div className="onboarding-projects-head">
-      <strong className="onboarding-projects-title">{t("onboarding.projects.title")}</strong>
+      <strong className="onboarding-projects-title">{computerHome.sectionTitle}</strong>
       <OnboardingProjectToolbar view={projectView} disabled={busy}>
         <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={busy} onChange={setProjectLayout} />
       </OnboardingProjectToolbar>

@@ -690,5 +690,7 @@
   "plan.storageFull": "저장 공간이 가득 찼습니다",
   "plan.storagePolicy": "공간이 가득 차면 정리하거나 용량을 늘리세요. 기존 파일은 계속 사용할 수 있습니다.",
   "experimental.cloudComputerScreen.title": "Cloud Computer screen",
-  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview."
+  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview.",
+  "experimental.computerMode.title": "컴퓨터 모드",
+  "experimental.computerMode.detail": "클라우드 스페이스와 이 컴퓨터의 작업 환경을 화면이 있는 작은 컴퓨터로 표시하고 일반 폴더는 하단에 조용히 배치합니다."
 }

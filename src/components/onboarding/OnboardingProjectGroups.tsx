@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
 import { LocalIcon } from "@puppyone/shared-ui";
+import { Cpu } from "lucide-react";
 import type { ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
 import type { ProjectListSharing } from "./OnboardingProjectList";
@@ -46,10 +47,34 @@ export type OnboardingGroupsBase = Readonly<{
     items: readonly ProjectHomeItem[];
     render: (items: ProjectHomeItem[], sharing?: ProjectListSharing) => ReactNode;
   }> | null;
+  /** When Computer Mode is active: Cloud Spaces lead, then on-device computers, then muted plain folders. */
+  computerMode?: Readonly<{
+    title: string;
+    items: readonly ProjectHomeItem[];
+    render: (items: ProjectHomeItem[], sharing?: ProjectListSharing) => ReactNode;
+    actions?: ReactNode;
+    emptyState?: ReactNode;
+  }>;
+  footer?: (sharing?: ProjectListSharing) => ReactNode;
 }>;
 
 /** Every registered local folder stays on this computer, including shared folders and Cloud checkouts. */
 export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: ProjectListSharing): OnboardingProjectGroup[] {
+  if (base.computerMode) {
+    const cloud = base.cloud.filter((group) => !group.empty || group.keepEmpty);
+    const hasComputers = base.computerMode.items.length > 0;
+    const onDevice: OnboardingProjectGroup[] = hasComputers || base.computerMode.emptyState ? [{
+      id: "local-computers",
+      title: base.computerMode.title,
+      mark: <Cpu size={15} strokeWidth={1.75} />,
+      actions: base.computerMode.actions,
+      alwaysShowHeading: true,
+      children: hasComputers
+        ? base.computerMode.render([...base.computerMode.items], sharing)
+        : base.computerMode.emptyState,
+    }] : [];
+    return [...cloud, ...onDevice];
+  }
   const local: OnboardingProjectGroup[] = base.local?.items.length ? [{ id: "local-only", title: base.local.title,
     mark: <LocalIcon size={16} strokeWidth={1.75} />,
     alwaysShowHeading: true, children: base.local.render([...base.local.items], sharing) }] : [];
@@ -61,15 +86,17 @@ export function onboardingBaseGroups(base: OnboardingGroupsBase, sharing?: Proje
  * scrolls, and heterogeneous local/hosted/device lists flow through one grid.
  * Generic callers may still opt into an unheaded single list.
  */
-export function OnboardingProjectGroups({ groups, label, note }: {
+export function OnboardingProjectGroups({ groups, label, footer, note }: {
   groups: readonly OnboardingProjectGroup[];
   label: string;
+  /** De-emphasized trailing content, such as plain folders in Computer Mode. */
+  footer?: ReactNode;
   /** A line after the groups, such as why some of them could not be listed. */
   note?: ReactNode;
 }) {
-  if (groups.length === 0 && note === undefined) return null;
+  if (groups.length === 0 && footer === undefined && note === undefined) return null;
   const [only] = groups;
-  const plain = groups.length === 1 && !only.alwaysShowHeading && only.detail === undefined && only.actions === undefined;
+  const plain = groups.length === 1 && !only.alwaysShowHeading && only.detail === undefined && only.actions === undefined && footer === undefined;
   if (plain && note === undefined) return <>{only.children}</>;
   const ordered = groups;
   // A project is being dragged: the groups that take it become places to drop it.
@@ -80,6 +107,7 @@ export function OnboardingProjectGroups({ groups, label, note }: {
     <div className="onboarding-project-groups" data-po-scrollbar="menu"
       data-project-dragging={dragging || undefined} aria-label={label}>
       {ordered.map((group) => <ProjectGroup key={group.id} group={group} />)}
+      {footer}
       {note}
     </div>
   );

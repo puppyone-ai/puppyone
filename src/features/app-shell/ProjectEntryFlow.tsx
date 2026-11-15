@@ -3,6 +3,8 @@ import { useDesktopPreference } from "../../preferencesStore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OnboardingImportDialog } from "../../components/OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "../../components/OnboardingProjectEntryDialog";
+import { ComputerModeEntryDialog } from "../computer-mode";
+import { useComputerModeEnabled } from "../flags";
 import { AgentProjectStartDialog, type AgentProjectStart } from "../../components/AgentProjectStartDialog";
 import { LOCAL_AGENT_CHAT_RECIPES } from "../local-agents";
 import { TemplateImportCard } from "../../components/TemplateImportCard";
@@ -203,6 +205,7 @@ export function ProjectEntryFlow({
     return () => document.removeEventListener("paste", onPaste);
   }, [controller, onCreateProject]);
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const computerMode = useComputerModeEnabled();
   const visibleImportSources = resolveVisibleImportSources({ enableOtherAppImports });
   const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
 
@@ -253,6 +256,18 @@ export function ProjectEntryFlow({
   }
 
   if (controller.step === "create" && onCreateProject && onChooseLocation) {
+    if (computerMode) {
+      return (
+        <ComputerModeEntryDialog
+          cloudSpaces={cloudSpaces}
+          onCreateCloudProject={onCreateCloudProject}
+          onClose={controller.close}
+          onDefaultLocation={onDefaultLocation}
+          onChooseLocation={onChooseLocation}
+          onSubmit={onCreateProject}
+        />
+      );
+    }
     return (
       <OnboardingProjectEntryDialog
         cloudSpaces={cloudSpaces}

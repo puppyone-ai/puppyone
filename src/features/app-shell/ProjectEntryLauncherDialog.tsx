@@ -1,7 +1,8 @@
 import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
-import { Download, FilePlus2, Plus } from "lucide-react";
+import { Download, FilePlus2, Monitor, Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
+import { useComputerModeEnabled } from "../flags";
 import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
@@ -38,7 +39,12 @@ export function ProjectEntryLauncherDialog({
   onOpenFolder,
 }: ProjectEntryLauncherDialogProps) {
   const { t } = useLocalization();
+  const computerMode = useComputerModeEnabled();
   const title = t("shell.workspaceSwitcher.createNew");
+  const createLabel = computerMode
+    ? t("onboarding.computerMode.createAction")
+    : t("onboarding.action.createLocalProject");
+  const createIcon = computerMode ? <Monitor /> : <FilePlus2 />;
 
   return (
     <DesktopDialogRoot onClose={onClose}>
@@ -67,8 +73,8 @@ export function ProjectEntryLauncherDialog({
             aria-label={title}
           >
             <ProjectEntryOption
-              icon={<FilePlus2 />}
-              label={t("onboarding.action.createLocalProject")}
+              icon={createIcon}
+              label={createLabel}
               initialFocus={canCreateProject}
               disabled={!canCreateProject}
               onClick={onCreateProject}

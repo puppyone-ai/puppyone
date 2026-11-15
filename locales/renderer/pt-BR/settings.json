@@ -690,5 +690,7 @@
   "plan.storageFull": "O armazenamento está cheio",
   "plan.storagePolicy": "Quando encher, libere espaço ou amplie o armazenamento. Os arquivos existentes continuam disponíveis.",
   "experimental.cloudComputerScreen.title": "Cloud Computer screen",
-  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview."
+  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview.",
+  "experimental.computerMode.title": "Modo computador",
+  "experimental.computerMode.detail": "Apresenta os espaços na nuvem e neste computador como pequenos computadores com tela, mantendo as pastas comuns na parte inferior."
 }

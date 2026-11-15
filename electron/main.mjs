@@ -158,6 +158,8 @@ import {
 import { createProjectLocationGrantStore } from "./main/project-location-grants.mjs";
 import { createDesktopLocaleService } from "./main/localization/desktop-locale-service.mjs";
 import { createWorkspaceWatchService } from "./main/workspace-watch-service.mjs";
+import { createLocalComputerService } from "./main/local-computers/local-computer-service.mjs";
+import { registerLocalComputerIpcHandlers } from "./main/ipc/local-computer-ipc.mjs";
 import { createWorkspaceMutationTracker } from "./main/workspace-mutation-tracker.mjs";
 import { createGitMetadataWatchService } from "./main/git-metadata-watch-service.mjs";
 import { createDesktopTelemetryHost } from "./main/telemetry/bootstrap/create-desktop-telemetry-host.mjs";
@@ -546,6 +548,21 @@ const workspaceStateStore = createWorkspaceStateStore({
   canonicalizeWorkspacePath,
   workspaceFromPath,
   resolveWorkspaceIdentity: resolveLocalWorkspaceIdentity,
+});
+const localComputerService = createLocalComputerService({
+  stateDirectory: path.join(app.getPath("userData"), "local-computers"),
+  canonicalizeWorkspacePath,
+  publishSnapshot: (snapshot) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      try {
+        if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+          window.webContents.send("local-computers:changed", snapshot);
+        }
+      } catch {
+        // Window may close during delivery.
+      }
+    }
+  },
 });
 const projectEntryService = createProjectEntryService({
   journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
@@ -1263,6 +1280,7 @@ app.on("will-quit", () => {
     powerMonitor.removeListener("resume", gitAutoCommitHost.reconcileAfterResume);
   }
   gitAutoCommitHost.closeAll();
+  void localComputerService.closeAll().catch(() => {});
   workspaceWatchService.closeAll();
   gitMetadataWatchService.closeAll();
 });
@@ -1491,6 +1509,13 @@ function registerIpcHandlers() {
   gitAutoCommitHost.registerIpcHandlers({
     ipcMain: trustedIpcMain,
     authorizeWorkspaceRoot,
+  });
+  registerLocalComputerIpcHandlers({
+    ipcMain: trustedIpcMain,
+    service: localComputerService,
+    requireRecentWorkspacePath: (folderPath) => (
+      workspaceStateStore.requireRecentWorkspacePath(folderPath)
+    ),
   });
   registerTerminalIpcHandlers({
     ipcMain: trustedIpcMain,

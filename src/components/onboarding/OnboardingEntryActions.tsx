@@ -1,6 +1,7 @@
 import { Button, FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { Download, FilePlus2 } from "lucide-react";
+import { Download, FilePlus2, Monitor } from "lucide-react";
+import { useComputerModeEnabled } from "../../features/flags";
 import { InlineLoading } from "../loading";
 import { ImportSourcePreview } from "./ImportSourcePreview";
 import type { ImportSourceBrand } from "./ImportSourceMark";
@@ -65,8 +66,12 @@ export function OnboardingStartActions({
   onCreateProject: () => void;
 }) {
   const { t } = useLocalization();
+  const computerMode = useComputerModeEnabled();
+  const groupLabel = computerMode
+    ? t("onboarding.computerMode.sectionTitle")
+    : t("onboarding.projects.title");
   return (
-    <div className="onboarding-start-actions" role="group" aria-label={t("onboarding.projects.title")}>
+    <div className="onboarding-start-actions" role="group" aria-label={groupLabel}>
       <OnboardingCreateProjectAction busy={entry.busy} canCreateProject={canCreateProject} onCreateProject={onCreateProject} />
       <OpenFolderAction busy={entry.busy} openingFolder={entry.openingFolder} draggingFolder={false} onOpenFolder={entry.onOpenFolder} />
       <ImportAction
@@ -94,6 +99,13 @@ export function OnboardingCreateProjectAction({
   withIcon?: boolean;
 }) {
   const { t } = useLocalization();
+  const computerMode = useComputerModeEnabled();
+  const label = computerMode
+    ? t("onboarding.computerMode.createAction")
+    : t("onboarding.action.createLocalProject");
+  const icon = computerMode
+    ? <Monitor className="onboarding-entry-create-icon" size={14} strokeWidth={1.85} aria-hidden="true" />
+    : <FilePlus2 className="onboarding-entry-create-icon" size={14} strokeWidth={1.85} aria-hidden="true" />;
 
   return (
     <Button
@@ -101,10 +113,10 @@ export function OnboardingCreateProjectAction({
       data-onboarding-action="create"
       tone={prominent ? "primary" : "neutral"}
       disabled={busy || !canCreateProject}
-      leadingIcon={withIcon ? <FilePlus2 className="onboarding-entry-create-icon" size={14} strokeWidth={1.85} aria-hidden="true" /> : undefined}
+      leadingIcon={withIcon ? icon : undefined}
       onClick={onCreateProject}
     >
-      {t("onboarding.action.createLocalProject")}
+      {label}
     </Button>
   );
 }
