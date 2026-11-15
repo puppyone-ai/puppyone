@@ -2,7 +2,7 @@
 //! Settings exclusively owns connection configuration. Without Payments,
 //! PuppyOne's own compute is not a route at all and the only remaining step
 //! is the user's own connection.
-use super::status::{ButtonTone, agent_button};
+use super::super::elements::{ButtonTone, agent_button};
 use super::{AgentChatPanelEvent, AgentChatTabPanel};
 use crate::agent::contract::dto::Model;
 use crate::features::desktop_agent::domain::agent_session_controls::{
@@ -130,6 +130,7 @@ impl AgentChatTabPanel {
                 }
                 s.compute_revision = revision;
                 s.compute = Some(snapshot);
+                s.refresh_views();
                 cx.notify();
             })
             .ok();
@@ -219,7 +220,10 @@ impl AgentChatTabPanel {
                         })
                         .collect(),
                 };
-                summary = summary.child(self.session_picker(&control, 220., disabled, cx));
+                let picker = self
+                    .pickers
+                    .update(cx, |p, cx| p.picker(&control, 220., disabled, cx));
+                summary = summary.child(picker);
             }
             section = section.child(summary);
         }

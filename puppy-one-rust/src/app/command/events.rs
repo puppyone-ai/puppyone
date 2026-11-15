@@ -309,8 +309,8 @@ impl Shell {
                 self.frame.focus.focus(window, cx);
             }
             DialogEvent::ModelConfigurationChanged => {
-                let workbench = self.sidebar.read(cx).workbench.clone();
-                workbench.update(cx, |w, cx| w.reload_agent_configuration(cx));
+                let sidebar = self.sidebar.clone();
+                sidebar.update(cx, |s, cx| s.reload_agent_configuration(cx));
             }
             DialogEvent::ForgetProject(path) => {
                 let path = path.clone();

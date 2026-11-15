@@ -127,12 +127,22 @@ for path in (root / 'src/features/desktop_agent/ui').rglob('*.rs'):
 # `agent::contract::protocol`); JSON stays in the contract, and in the Cloud
 # Agent's API client.
 for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
-    if fixture(path) or (root / 'src/features/desktop_agent/infrastructure/cloud') in [path, *path.parents] \
-            or path == root / 'src/features/desktop_agent/infrastructure/cloud.rs':
+    if fixture(path):
         continue
     source = path.read_text().split('#[cfg(test)]')[0]
     if re.search(r'serde_json|\bValue\b|json!|contract::js', source):
         errors.append(f'{path.relative_to(root)}: Agent window code handles JSON instead of the contract types')
+# The right workbench (`AuxiliaryWorkbenchPanel` over `ProjectWorkbenchStore`)
+# hosts contributions' items and never names one: the shell's launcher creates
+# Agent chats, terminals and hosted chats (`renderLauncher`, contributions).
+contribution_feature = re.compile(
+    r'(?:features\s*::\s*|super\s*::\s*)(?:desktop_agent|terminal|cloud|local_agents)\b')
+for path in (root / 'src/features/workbench').rglob('*.rs'):
+    if fixture(path):
+        continue
+    source = re.sub(r'//[^\n]*', '', path.read_text().split('#[cfg(test)]')[0])
+    if contribution_feature.search(source):
+        errors.append(f'{path.relative_to(root)}: the workbench names a contribution; the shell composes it')
 # Provider neutrality (`check-agent-architecture.mjs`): only a runtime
 # implementation, a concrete adapter layer, the composition root or a
 # migration edge names a concrete Agent; the Agent window names none outside
@@ -154,6 +164,33 @@ for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
         continue
     if provider_name.search(code(path)):
         errors.append(f'{path.relative_to(root)}: names a concrete runtime; the Agent window outside its views is provider-neutral')
+# The Agent window's chat views are shared: the hosted Agent's conversation
+# (`features/cloud/agent`) composes them; they never name the hosted Agent.
+hosted_agent = re.compile(r'features\s*::\s*cloud\b|workspace\s*::\s*cloud\s*::\s*agent\b')
+for path in (root / 'src/features/desktop_agent').rglob('*.rs'):
+    if fixture(path):
+        continue
+    if hosted_agent.search(code(path)):
+        errors.append(f'{path.relative_to(root)}: the Agent window names the hosted Agent; it composes the shared views')
+# The window reaches the Agent host through its public surface: the
+# contract and its error, the host handle, product identities and the local
+# inventory (`connections`), model connections and tasks. An infrastructure
+# adapter may reach a runtime's services; tests and fixtures reach anything.
+# The Agent window's views see the contract alone.
+agent_surface = {'contract', 'agent_error', 'host', 'connections', 'model_connections', 'tasks'}
+agent_module = re.compile(r'crate\s*::\s*agent\s*::\s*(\w+)')
+for path in [*(root / 'src/features').rglob('*.rs'), *(root / 'src/app').rglob('*.rs')]:
+    if fixture(path) or 'infrastructure' in path.parts or path.stem == 'infrastructure':
+        continue
+    for found in agent_module.finditer(code(path)):
+        if found.group(1) not in agent_surface:
+            errors.append(f'{path.relative_to(root)}: reaches the Agent host\'s {found.group(1)}; use its public surface')
+for path in (root / 'src/features/desktop_agent/ui').rglob('*.rs'):
+    if fixture(path):
+        continue
+    for found in agent_module.finditer(code(path)):
+        if found.group(1) != 'contract':
+            errors.append(f'{path.relative_to(root)}: an Agent view reads agent::{found.group(1)}; views see the contract')
 # Features are reached through their facades (`features/<name>/mod.rs`):
 # their modules are private, but for the few public API modules below, and
 # nothing names another feature's internals.
@@ -296,6 +333,21 @@ for name, crates in sorted(mounted.items()):
     if parent and re.search(rf'^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{child}\s*;',
                             (root / 'src' / parent / 'mod.rs').read_text(), re.M):
         errors.append(f'src/{name}: declared again by src/{parent}/mod.rs')
+# Views stay readable: a view file over 500 lines (its tests aside) is
+# reported, not refused; split it along the product's components.
+large_views = []
+view_roots = [*(root / 'src/features').glob('*/ui'), root / 'src/features/workbench',
+              root / 'src/app/right_sidebar']
+view_files = [path for base in view_roots for path in base.rglob('*.rs')]
+view_files += [root / 'src/features/cloud/agent' / name for name in ('conversation.rs', 'item.rs')]
+for path in view_files:
+    if fixture(path):
+        continue
+    lines = len(path.read_text().split('#[cfg(test)]')[0].splitlines())
+    if lines > 500:
+        large_views.append(f'{path.relative_to(root)} ({lines})')
+if large_views:
+    print('Views over 500 lines: ' + ', '.join(sorted(large_views)))
 if errors:
     raise SystemExit("\n".join(errors))
 print("Native UI boundary guard passed (GPUI primitives, Markdown layers and retired framework guard)")

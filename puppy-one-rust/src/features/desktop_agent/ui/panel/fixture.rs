@@ -609,27 +609,15 @@ impl AgentChatTabPanel {
             return;
         }
         if lab.picker {
-            self.picker_open =
-                Some(crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId::Model);
+            self.pickers.update(cx, |p, cx| {
+                p.lab_open(
+                    crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId::Model,
+                    cx,
+                )
+            });
         }
-        if lab.expand_command {
-            let row = self
-                .rows
-                .iter()
-                .find(|row| row.tool_group)
-                .map(|row| row.row.id.clone());
-            let Some(row) = row else {
-                return;
-            };
-            let part = self
-                .parts
-                .keys()
-                .find(|id| id.contains("tool-command"))
-                .cloned();
-            if let Some(part) = part {
-                self.group_selected.insert(row.clone(), part);
-                self.splice_row(&row);
-            }
+        if lab.expand_command && !self.transcript.update(cx, |t, cx| t.lab_expand_command(cx)) {
+            return;
         }
         if lab.references {
             // The product fixture's draft: `@README.md ` with its mention,

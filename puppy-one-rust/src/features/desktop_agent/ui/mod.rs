@@ -1,5 +1,4 @@
 pub mod activity;
-pub mod agent_brand_mark;
 pub mod agent_chat_view_model;
 pub mod agent_conversation_history;
 pub mod agent_error_presentation;
@@ -10,7 +9,13 @@ pub mod agent_panel_presentation;
 pub mod agent_rich_text;
 pub mod agent_theme;
 pub mod agent_tool_group_presentation;
+pub mod composer;
+pub mod docks;
+pub mod elements;
+pub mod empty_state;
 pub mod panel;
+pub mod pickers;
+pub mod provider_notices;
 #[cfg(test)]
 mod tests;
 pub mod transcript;

@@ -1,9 +1,8 @@
 //! `AgentChatWorkbenchItem.tsx` and `agentChatCloseAdapter.ts`: a chat tab
-//! is an [`AgentChatTabPanel`] over a controller its project owns, or over a
-//! hosted conversation, so hiding or moving the tab never ends its session.
+//! is an [`AgentChatTabPanel`] over a controller its project owns, so hiding
+//! or moving the tab never ends its session.
 use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
-use crate::features::desktop_agent::ui::agent_brand_mark::runtime_for_icon_key;
 use crate::features::desktop_agent::ui::panel::{
     AgentChatPanelEvent, AgentChatTabPanel, AgentChatTabPresentation,
 };
@@ -61,15 +60,33 @@ pub fn present_agent_chat_workbench_item(
     }
 }
 
-/// How a chat's tab closes: a local chat releases its session through its
-/// project's controllers; a hosted chat releases only its view.
+/// The close dialog of a chat tab: a blocked one (an unconfirmed hosted
+/// submission) keeps the tab; a running one asks to close it.
+pub fn agent_chat_close_copy(blocked: bool, title: String) -> CloseCopy {
+    if blocked {
+        return CloseCopy {
+            title: tr("cloud.agent.pendingTitle").into(),
+            detail: tr("cloud.agent.pendingDetail"),
+            action: tr("agent.closeDialog.keepOpen"),
+            blocked: true,
+        };
+    }
+    CloseCopy {
+        title: tf("agent.closeDialog.activeTitle", &[("title", title.into())]),
+        detail: tr("agent.closeDialog.activeDetail"),
+        action: tr("common.action.close"),
+        blocked: false,
+    }
+}
+
+/// How a chat's tab closes: it releases its session through its project's
+/// controllers.
 #[derive(Clone)]
 pub(super) enum Release {
     Session {
         registry: Rc<AgentControllerRegistry>,
         item: String,
     },
-    Hosted,
     /// Fixtures own no session.
     #[cfg(feature = "dev-capture")]
     View,
@@ -121,13 +138,6 @@ impl AgentChatItem {
         use gpui::AppContext as _;
         Self::fixture(cx.new(|cx| AgentChatTabPanel::lab_fixture(scenario, window, cx)))
     }
-
-    fn hosted_unreleasable(&self, cx: &App) -> bool {
-        self.panel
-            .read(cx)
-            .hosted()
-            .is_some_and(|chat| !chat.can_release())
-    }
 }
 
 impl WorkbenchItem for AgentChatItem {
@@ -170,49 +180,37 @@ impl WorkbenchItem for AgentChatItem {
             runtime: presentation
                 .as_ref()
                 .and_then(|p| p.runtime_icon_key.as_deref())
-                .and_then(runtime_for_icon_key)
+                .and_then(Runtime::from_icon_key)
                 .unwrap_or(Runtime::PuppyOne),
             thread: presentation.as_ref().and_then(|p| p.session_id.clone()),
             title: presentation.map(|p| p.title).unwrap_or_default(),
         }
     }
 
-    /// A hosted chat never stops its run on close, and an unconfirmed
-    /// submission keeps its tab; a local chat with a running turn asks.
+    /// A chat with a running turn asks before it closes.
     fn close_decision(&self, cx: &App) -> CloseDecision {
-        match self.release {
-            Release::Hosted if self.hosted_unreleasable(cx) => CloseDecision::Blocked,
-            Release::Hosted => CloseDecision::Close,
-            _ if self.snapshot(cx).running => CloseDecision::Confirm,
-            _ => CloseDecision::Close,
+        if self.snapshot(cx).running {
+            CloseDecision::Confirm
+        } else {
+            CloseDecision::Close
         }
     }
 
     fn close_copy(&self, blocked: bool, title: String) -> CloseCopy {
-        if blocked {
-            return CloseCopy {
-                title: tr("cloud.agent.pendingTitle").into(),
-                detail: tr("cloud.agent.pendingDetail"),
-                action: tr("agent.closeDialog.keepOpen"),
-                blocked: true,
-            };
-        }
-        CloseCopy {
-            title: tf("agent.closeDialog.activeTitle", &[("title", title.into())]),
-            detail: tr("agent.closeDialog.activeDetail"),
-            action: tr("common.action.close"),
-            blocked: false,
-        }
+        agent_chat_close_copy(blocked, title)
     }
 
     /// `requestCloseAgentChatWorkbenchItem`: the tab closes once its session
     /// is released.
     fn commit_close(&self) -> Option<LocalBoxFuture<'static, bool>> {
-        let Release::Session { registry, item } = &self.release else {
-            return None;
-        };
-        let closing = registry.close(item);
-        Some(Box::pin(async move { closing.await.closed() }))
+        match &self.release {
+            Release::Session { registry, item } => {
+                let closing = registry.close(item);
+                Some(Box::pin(async move { closing.await.closed() }))
+            }
+            #[cfg(feature = "dev-capture")]
+            Release::View => None,
+        }
     }
 
     fn set_presentation(

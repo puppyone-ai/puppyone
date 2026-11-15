@@ -9,8 +9,6 @@
 //! workbench launcher (suggested and running activations only);
 //! [`ActivationDialog`] asks for consent, then follows the operation.
 use crate::agent::connections::legacy_local_agent_inventory as local_agent_inventory;
-use crate::features::desktop_agent::LauncherIdentity;
-use crate::features::desktop_agent::launcher_icon;
 use crate::features::settings::PreferencesStore;
 use crate::localization::t;
 use crate::localization::tf;
@@ -30,6 +28,7 @@ use crate::platform::local_agent_setup::companion::Presence;
 #[cfg(not(test))]
 use crate::platform::local_agent_setup::installer;
 use crate::theme;
+use crate::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Button;
 use crate::ui::components::ButtonVariant;
@@ -345,7 +344,7 @@ fn agent_icon(id: &str, cx: &App) -> AnyElement {
     let t = cx.palette();
     match local_agent_inventory::runtime_for(id) {
         Some(runtime) => launcher_icon(
-            LauncherIdentity::Runtime(runtime),
+            LauncherIdentity::brand(runtime.icon_key()),
             false,
             cx.is_dark(),
             t.muted,

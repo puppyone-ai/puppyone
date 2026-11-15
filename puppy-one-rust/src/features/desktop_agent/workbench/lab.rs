@@ -5,9 +5,7 @@ use crate::features::desktop_agent::application::agent_client_port::AgentClientP
 use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryController;
 use crate::features::desktop_agent::fixtures::{JsonAgent, JsonAnswer, JsonPort};
 use crate::features::desktop_agent::infrastructure::host::window_runtime::WindowUiRuntime;
-use crate::features::desktop_agent::ui::agent_conversation_history::{
-    HistoryBrowser, HistorySource,
-};
+use crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser;
 use gpui::{App, AppContext as _, Entity, Window};
 use std::rc::Rc;
 
@@ -25,7 +23,7 @@ pub fn lab_history_browser(
         Rc::new(move || Some(client.clone())),
         WindowUiRuntime::create(cx),
     );
-    cx.new(|cx| HistoryBrowser::new(HistorySource::Agent(controller), enabled, window, cx))
+    cx.new(|cx| HistoryBrowser::new(std::rc::Rc::new(controller), enabled, window, cx))
 }
 
 /// The reference entry's History: four runtimes and five saved chats.

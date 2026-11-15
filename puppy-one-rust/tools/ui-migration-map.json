@@ -1044,10 +1044,10 @@
         "src/lib/terminalLaunchers.ts"
       ],
       "targets": [
-        "src/features/workbench/auxiliary_workbench_launcher.rs",
+        "src/app/right_sidebar/launcher/view.rs",
         "src/assets.rs",
         "assets/agents",
-        "src/features/desktop_agent/ui/agent_brand_mark.rs",
+        "src/ui/agent_brand_mark.rs",
         "tools/import-agent-marks.py",
         "src/features/local_agents/chat_recipes.rs",
         "src/agent/connections/legacy_local_agent_inventory.rs",
@@ -1107,7 +1107,7 @@
         "src/features/workbench/header_layout.rs",
         "src/features/workbench/item.rs",
         "src/features/workbench/drag.rs",
-        "src/app/right_sidebar.rs"
+        "src/app/right_sidebar/mod.rs"
       ],
       "evidence": [
         "test:move_split_preserves_identity_and_order",
@@ -1788,7 +1788,7 @@
         "src/features/workbench/mod.rs",
         "src/features/workbench/menus.rs",
         "src/features/workbench/close_dialog.rs",
-        "src/features/workbench/auxiliary_workbench_launcher.rs",
+        "src/app/right_sidebar/launcher/view.rs",
         "src/features/terminal/view/mod.rs",
         "src/platform/terminal.rs"
       ],
@@ -1924,7 +1924,7 @@
       ],
       "targets": [
         "src/workspace/cloud/agent.rs",
-        "src/features/desktop_agent/infrastructure/cloud.rs",
+        "src/features/cloud/agent/controller.rs",
         "src/features/workbench/mod.rs"
       ],
       "evidence": [
@@ -2217,7 +2217,7 @@
       "targets": [
         "src/workspace/cloud/events.rs",
         "src/workspace/cloud/mod.rs",
-        "src/features/desktop_agent/infrastructure/cloud.rs"
+        "src/features/cloud/agent/controller.rs"
       ],
       "evidence": [
         "test:live_files_share_the_facade_without_a_local_root_or_git_fallback",
@@ -2278,7 +2278,7 @@
       ],
       "targets": [
         "src/workspace/cloud/agents.rs",
-        "src/features/cloud/agents.rs",
+        "src/features/cloud/workspace_agents.rs",
         "src/app/cloud_agents_ui.rs",
         "src/app/cloud_agents_ui/dialog.rs",
         "src/app/cloud_agents_ui/paste_art.rs",
@@ -2722,7 +2722,7 @@
         "src/app/home/projects/list.rs",
         "src/app/project_place.rs",
         "src/app/chrome/mod.rs",
-        "src/app/right_sidebar.rs",
+        "src/app/right_sidebar/mod.rs",
         "src/theme.rs"
       ],
       "evidence": [
@@ -2793,7 +2793,7 @@
       ],
       "targets": [
         "src/ui/agent_brands.rs",
-        "src/features/desktop_agent/ui/agent_brand_mark.rs",
+        "src/ui/agent_brand_mark.rs",
         "src/assets.rs",
         "assets/agents",
         "tools/import-agent-marks.py"
@@ -3022,7 +3022,7 @@
       ],
       "targets": [
         "src/app/explorer/mod.rs",
-        "src/features/desktop_agent/ui/panel/transcript.rs"
+        "src/features/desktop_agent/ui/transcript/view.rs"
       ],
       "evidence": [
         "test:sidebar_tree_fade_follows_use_scroll_edge_state",
@@ -3140,7 +3140,7 @@
         "src/app/chrome/rail.rs",
         "src/app/sidebar/column.rs",
         "src/app/editor_area.rs",
-        "src/app/right_sidebar.rs",
+        "src/app/right_sidebar/mod.rs",
         "src/app/explorer/clipboard_notice.rs",
         "src/app/explorer/pins.rs"
       ],
@@ -3476,7 +3476,7 @@
         "src/workspace/hosts/mod.rs",
         "src/features/cloud/account.rs",
         "src/cloud/auth/mod.rs",
-        "src/app/right_sidebar.rs",
+        "src/app/right_sidebar/mod.rs",
         "src/features/settings/main/plan/view.rs",
         "src/features/settings/settings_workspace_surface.rs"
       ],
@@ -3561,7 +3561,7 @@
       ],
       "targets": [
         "src/app/mod.rs",
-        "src/app/right_sidebar.rs",
+        "src/app/right_sidebar/mod.rs",
         "src/app/chrome/project_menu.rs",
         "src/app/panes/layout.rs",
         "src/theme.rs",

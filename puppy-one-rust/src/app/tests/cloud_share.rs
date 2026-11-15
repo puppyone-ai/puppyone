@@ -141,25 +141,17 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
         s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
     });
     view.read_with(cx, |s, cx| {
-        assert!(!s.sidebar.read(cx).workbench.read(cx).cloud_location())
+        assert!(!s.sidebar.read(cx).launcher.read(cx).is_hosted())
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the hosted Agent", &|s, cx| {
         s.hosted_project(cx).as_deref() == Some("project-a")
-            && s.sidebar.read(cx).workbench.read(cx).cloud_location()
+            && s.sidebar.read(cx).launcher.read(cx).is_hosted()
     });
     view.read_with(cx, |s, cx| {
-        let offered = s
-            .sidebar
-            .read(cx)
-            .workbench
-            .read(cx)
-            .visible_installations();
+        let offered = s.sidebar.read(cx).launcher.read(cx).visible_installations();
         assert_eq!(offered.len(), 1);
-        assert_eq!(
-            offered[0].label,
-            crate::features::desktop_agent::HOSTED_AGENT_LABEL
-        );
+        assert_eq!(offered[0].label, crate::features::cloud::HOSTED_AGENT_LABEL);
     });
     // Opening the Agent sidebar sends nothing.
     view.update_in(cx, |s, w, cx| s.command(Command::ToggleRightSidebar, w, cx));
@@ -170,7 +162,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
     view.update_in(cx, |s, w, cx| s.open_project(root.clone(), w, cx));
     settle_cloud(&view, cx, "the local workbench", &|s, cx| {
         s.workspace_root(cx).as_deref() == Some(root.as_path())
-            && !s.sidebar.read(cx).workbench.read(cx).cloud_location()
+            && !s.sidebar.read(cx).launcher.read(cx).is_hosted()
     });
 }
 

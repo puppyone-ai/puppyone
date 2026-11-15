@@ -4,7 +4,8 @@
 use super::drag::{self, DropIntent};
 use super::header_layout::{self as metrics, Mode};
 use super::*;
-use crate::features::desktop_agent::{LauncherIdentity, launcher_icon, runtime_for_icon_key};
+use crate::agent::connections::legacy_runtime_registry::Runtime;
+use crate::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::Icon;
 use gpui_kit::component::Sizable as _;
@@ -23,14 +24,17 @@ impl Workbench {
     pub(super) fn tab_status(&self, tab: Id, content: &Content, fg: Rgba, cx: &App) -> AnyElement {
         let t = cx.palette();
         let identity = |runtime: Option<Runtime>| {
-            runtime.map_or(LauncherIdentity::Shell, LauncherIdentity::Runtime)
+            runtime.map_or(LauncherIdentity::Shell, |r| {
+                LauncherIdentity::brand(r.icon_key())
+            })
         };
+        let launcher_mark = matches!(content, Content::Launcher)
+            .then(|| self.host.as_ref()?.launcher_mark(tab, fg, cx))
+            .flatten();
+        if let Some(mark) = launcher_mark {
+            return mark;
+        }
         match content {
-            Content::Launcher if self.history_open(tab) => Icon::new("history")
-                .small()
-                .stroke(2.)
-                .color(fg)
-                .into_any_element(),
             Content::Launcher | Content::Retained(RetainedItem::Launcher) => {
                 Icon::new("square-dashed")
                     .small()
@@ -38,16 +42,22 @@ impl Workbench {
                     .color(fg)
                     .into_any_element()
             }
-            Content::Retained(RetainedItem::Chat { runtime, .. }) => {
-                launcher_icon(LauncherIdentity::Runtime(*runtime), true, t.dark, t.muted)
-                    .into_any_element()
-            }
+            Content::Retained(RetainedItem::Chat { runtime, .. }) => launcher_icon(
+                LauncherIdentity::brand(runtime.icon_key()),
+                true,
+                t.dark,
+                t.muted,
+            )
+            .into_any_element(),
             Content::Retained(RetainedItem::Terminal { runtime, .. }) => {
                 launcher_icon(identity(*runtime), true, t.dark, t.muted).into_any_element()
             }
             Content::Item { item, .. } => item.status_mark(tab, fg, cx).unwrap_or_else(|| {
                 let snapshot = item.snapshot(cx);
-                let runtime = snapshot.icon_key.as_deref().and_then(runtime_for_icon_key);
+                let runtime = snapshot
+                    .icon_key
+                    .as_deref()
+                    .and_then(Runtime::from_icon_key);
                 div()
                     .relative()
                     .size(px(14.))

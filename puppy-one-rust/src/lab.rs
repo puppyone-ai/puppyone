@@ -259,11 +259,9 @@ impl Lab {
                     Surface::Settings(settings)
                 }
                 None => {
-                    let workbench = cx.new(|cx| {
-                        let mut workbench = Workbench::new(window, cx);
-                        workbench.lab_fixture(&scenario, window, cx);
-                        workbench
-                    });
+                    let (workbench, launcher) =
+                        crate::app::right_sidebar::launcher::compose(window, cx);
+                    launcher.update(cx, |l, cx| l.lab_fixture(&scenario, window, cx));
                     cx.observe(&workbench, |_, _, cx| cx.notify()).detach();
                     Surface::Workbench(workbench)
                 }

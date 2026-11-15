@@ -1,51 +1,32 @@
-//! The Agent chat contribution's window state (`projectAgentControllers.ts`,
-//! `lazy.ts`'s preparation and `CloudAgentWorkbench`): this window's Agent
-//! bridge, each open project's controllers and History, the hosted target's
-//! Hubs, and the routing every open chat follows.
+//! The Agent chat contribution's window state (`projectAgentControllers.ts`
+//! and `lazy.ts`'s preparation): this window's Agent bridge, each open
+//! project's controllers and History, and the routing every open chat
+//! follows. The hosted Agent's chats are the Cloud feature's.
 use super::item::{AgentChatItem, Release};
-use crate::agent::connections::legacy_local_agent_inventory::Installation;
-use crate::agent::connections::legacy_runtime_registry::Runtime;
 use crate::agent::host::agent_host::AgentHostHandle;
 use crate::features::desktop_agent::application::agent_client_port::AgentClientPort;
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
 use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
 use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryController;
+use crate::features::desktop_agent::application::conversation_history_source::ConversationHistorySource;
 use crate::features::desktop_agent::application::ui_runtime::UiRuntime;
 use crate::features::desktop_agent::domain::agent_chat_history_target::{
     AuxiliaryWorkbenchHistoryTarget, parse_agent_chat_history_target,
 };
-use crate::features::desktop_agent::infrastructure::cloud::{self, CloudAgentController, Hub};
 use crate::features::desktop_agent::infrastructure::host::{
     agent_host_client::AgentHostClient, agent_host_global::agent_host,
     project_agent_client::create_project_agent_client_provider, window_runtime::WindowUiRuntime,
 };
-use crate::features::desktop_agent::ui::agent_conversation_history::{
-    HistoryBrowser, HistorySource,
-};
+use crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser;
 use crate::features::desktop_agent::ui::panel::{AgentChatTabPanel, AgentRouting};
 use crate::features::local_agents::hidden_agent_chat_runtime_ids;
 use crate::features::settings::AgentRoutingPreferences;
 use crate::features::settings::PreferencesStore;
-use crate::wake::Wake;
-use crate::workspace::cloud::agent::{AgentTarget, BrokerTransport, Client, Session};
 use futures_util::future::LocalBoxFuture;
 use gpui::{App, AppContext as _, Entity, WeakEntity, Window};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::Arc;
-
-/// `CLOUD_AGENT_LABEL`'s creation recipe: the only runtime a Cloud launcher
-/// offers (no local discovery, no terminal).
-pub fn hosted_installation() -> Installation {
-    Installation {
-        runtime: Runtime::PuppyOne,
-        id: cloud::INSTALLATION_ID,
-        label: cloud::LABEL.into(),
-        executable: PathBuf::new(),
-        chat: true,
-    }
-}
 
 /// This window's Agent bridge (the preload's `agent:*` API): its frames
 /// arrive on the window's executor, and closing the window releases its
@@ -96,6 +77,25 @@ pub struct OpenFailure {
     pub retryable: bool,
 }
 
+impl OpenFailure {
+    /// `OPEN_FAILURE_MESSAGE_KEYS`: the message its code names, if any.
+    pub fn message_key(&self) -> Option<&'static str> {
+        Some(match self.code.as_deref()? {
+            "SESSION_NOT_FOUND" => "agent.history.openError.sessionNotFound",
+            "SOURCE_CHANGED" => "agent.history.openError.sourceChanged",
+            "HISTORY_READ_FAILED" => "agent.history.openError.readFailed",
+            "AUTH_REQUIRED" => "agent.history.openError.authRequired",
+            "AUTH_EXPIRED" => "agent.history.openError.authExpired",
+            "RUNTIME_UNAVAILABLE" => "agent.history.openError.runtimeUnavailable",
+            "RESUME_UNSUPPORTED" => "agent.history.openError.unsupported",
+            "RESUME_TIMED_OUT" => "agent.history.openError.timedOut",
+            "WORKSPACE_MISMATCH" => "agent.history.openError.workspaceMismatch",
+            "PROTOCOL_ERROR" => "agent.history.openError.protocol",
+            _ => return None,
+        })
+    }
+}
+
 impl SavedChat {
     /// Whether the saved session opened.
     pub fn opening(&mut self) -> LocalBoxFuture<'static, Result<(), OpenFailure>> {
@@ -125,10 +125,6 @@ pub struct AgentChats {
     preferences: Option<Entity<PreferencesStore>>,
     /// Every chat panel this window opened.
     panels: Vec<(PathBuf, WeakEntity<AgentChatTabPanel>)>,
-    /// The hosted location shown, and the Hubs of the targets seen (by
-    /// storage, account binding and workbench).
-    hosted: Option<Arc<Hub>>,
-    hubs: HashMap<String, Arc<Hub>>,
 }
 
 impl AgentChats {
@@ -143,8 +139,6 @@ impl AgentChats {
             payments: false,
             preferences: None,
             panels: Vec::new(),
-            hosted: None,
-            hubs: HashMap::new(),
         }
     }
 
@@ -391,98 +385,8 @@ impl AgentChats {
         )
     }
 
-    /// The hosted Project's Agent (`useCloudAgentWorkspace`): tabs persist
-    /// per API, account and target; one Hub per binding and workbench. The
-    /// Workbench location of its tabs.
-    pub fn open_hosted(
-        &mut self,
-        target: AgentTarget,
-        published: Box<dyn Fn() + Send + Sync>,
-    ) -> PathBuf {
-        let identity = format!(
-            "{}#{}#{}#{}",
-            target.storage, target.binding.instance, target.binding.epoch, target.workbench
-        );
-        let hub = self
-            .hubs
-            .entry(identity)
-            .or_insert_with(|| {
-                let transport = Arc::new(BrokerTransport {
-                    broker: target.broker.clone(),
-                    binding: target.binding.clone(),
-                    cancel: Default::default(),
-                    wait: crate::workspace::cloud::agent::BATCH_WAIT,
-                });
-                Hub::new(
-                    Client::new(transport, target.project.clone(), target.workbench.clone()),
-                    target.storage.clone(),
-                    cloud::storage_dir(),
-                    published,
-                )
-            })
-            .clone();
-        self.hosted = Some(hub);
-        PathBuf::from(format!(
-            "puppyone-cloud-agent-{}",
-            blake3::hash(target.storage.as_bytes()).to_hex()
-        ))
-    }
-
-    /// The hosted location over `hub`.
-    #[cfg(test)]
-    pub fn open_hosted_hub(&mut self, hub: Arc<Hub>) {
-        self.hosted = Some(hub);
-    }
-
-    /// A local project is shown.
-    pub fn close_hosted(&mut self) {
-        self.hosted = None;
-    }
-
-    /// Whether the hosted Agent is shown.
-    pub fn is_hosted(&self) -> bool {
-        self.hosted.is_some()
-    }
-
-    /// `CloudAgentWorkbench.prepare(id, session)`: a hosted chat of the
-    /// location `root` whose receipts persist under `key`; a History
-    /// `session` opens it.
-    pub fn hosted_chat(
-        &mut self,
-        root: &Path,
-        key: &str,
-        session: Option<Session>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Result<AgentChatItem, String> {
-        let hub = self
-            .hosted
-            .clone()
-            .ok_or_else(|| String::from("The hosted Agent is not open."))?;
-        let (wake, changes) = Wake::channel();
-        let chat = CloudAgentController::new(hub, key, session, wake)?;
-        let panel = cx.new(|cx| AgentChatTabPanel::new_hosted(chat, changes, window, cx));
-        self.track(root, &panel);
-        Ok(AgentChatItem::new(
-            panel,
-            Release::Hosted,
-            root.to_path_buf(),
-            self.preferences.clone(),
-        ))
-    }
-
-    /// The hosted History's conversation `id`.
-    pub fn hosted_session(&self, id: &str) -> Option<Session> {
-        self.hosted
-            .as_ref()?
-            .history()
-            .sessions
-            .into_iter()
-            .find(|s| s.id == id)
-    }
-
-    /// The chat contribution's `history.renderBrowser`: the hosted target's
-    /// locators (no discovery permission), or the project's Agent History.
+    /// The chat contribution's `history.renderBrowser`: the project's Agent
+    /// History, discovering only with the user's permission.
     pub fn history_browser(
         &mut self,
         root: &Path,
@@ -490,14 +394,9 @@ impl AgentChats {
         window: &mut Window,
         cx: &mut App,
     ) -> Result<Entity<HistoryBrowser>, String> {
-        let (source, enabled) = match &self.hosted {
-            Some(hub) => (HistorySource::Hosted(hub.clone()), true),
-            None => (
-                HistorySource::Agent(self.project_agents(root, cx)?.history.clone()),
-                discovery,
-            ),
-        };
-        Ok(cx.new(|cx| HistoryBrowser::new(source, enabled, window, cx)))
+        let source: Rc<dyn ConversationHistorySource> =
+            Rc::new(self.project_agents(root, cx)?.history.clone());
+        Ok(cx.new(|cx| HistoryBrowser::new(source, discovery, window, cx)))
     }
 
     /// Dev captures: every chat of `root` is prepared, or failed.
@@ -550,5 +449,44 @@ impl AgentChats {
         self.live_panels(Some(root))
             .first()
             .map(|panel| panel.read(cx).controller().clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OpenFailure;
+
+    #[test]
+    fn open_failures_name_their_cause() {
+        let key = |code: &str| {
+            OpenFailure {
+                code: Some(code.into()),
+                retryable: false,
+            }
+            .message_key()
+        };
+        assert_eq!(
+            key("RESUME_TIMED_OUT"),
+            Some("agent.history.openError.timedOut")
+        );
+        assert_eq!(
+            key("WORKSPACE_MISMATCH"),
+            Some("agent.history.openError.workspaceMismatch")
+        );
+        assert_eq!(key("SOMETHING_ELSE"), None);
+        assert_eq!(OpenFailure::default().message_key(), None);
+        for code in [
+            "SESSION_NOT_FOUND",
+            "SOURCE_CHANGED",
+            "HISTORY_READ_FAILED",
+            "AUTH_REQUIRED",
+            "AUTH_EXPIRED",
+            "RUNTIME_UNAVAILABLE",
+            "RESUME_UNSUPPORTED",
+            "PROTOCOL_ERROR",
+        ] {
+            let message = key(code).unwrap();
+            assert_ne!(crate::localization::t(message), message, "{code}");
+        }
     }
 }
