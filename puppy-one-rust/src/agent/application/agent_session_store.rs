@@ -332,3 +332,61 @@ impl Default for AgentSessionStore {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent::application::tests::harness::{create_sender, run};
+    use crate::agent::domain::agent_session_model::{
+        SessionRecordInput, create_agent_session_record,
+    };
+    use core::prelude::v1::test;
+    use serde_json::json;
+
+    #[test]
+    fn missing_retired_lookup_preserves_the_exact_allocation_until_it_is_taken() {
+        run(async {
+            let (sender, _) = create_sender(8);
+            let retained = create_agent_session_record(SessionRecordInput {
+                id: "retained".into(),
+                owner_id: 8,
+                sender,
+                workspace_root: "/workspace".into(),
+                runtime_id: "codex".into(),
+                runtime: None,
+                model: None,
+                effort: None,
+                mode: None,
+                events: vec![],
+                sequence: 0,
+                created_at: None,
+                title: None,
+                terminal_state: None,
+            })
+            .unwrap();
+            retained.state_mut().provider_session_id = Some("native-retained".into());
+            retained
+                .actor
+                .dispatch(json!({"type": "adapter.attached"}))
+                .unwrap();
+            let generation = retained.actor.control()["adapterGeneration"].clone();
+            retained.actor.dispatch(json!({"type": "adapter.exited", "adapterGeneration": generation, "reason": "connection-lost"})).unwrap();
+            assert!(retained.provider_exited());
+            let store = AgentSessionStore::new();
+            store.add(&retained).unwrap();
+            for (owner, root, requested) in [
+                (8, "/workspace", Some("missing")),
+                (9, "/workspace", None),
+                (8, "/other", None),
+            ] {
+                assert!(store.take_retired(owner, root, requested).is_none());
+                assert_eq!(store.size(), 1);
+            }
+            let taken = store.take_retired(8, "/workspace", None).unwrap();
+            assert!(Rc::ptr_eq(&taken, &retained));
+            assert_eq!(store.size(), 0);
+            assert_eq!(taken.sender.destroyed_listener_count(), 0);
+            assert!(store.take_retired(8, "/workspace", None).is_none());
+        });
+    }
+}

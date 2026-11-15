@@ -837,10 +837,18 @@ fn joins_live_replay_with_the_catalogs_authoritative_availability_for_exact_open
             .save(&js::with(&session("durable"), "availability", "available"))
             .await
             .unwrap();
-        cache
-            .save(&js::with(&session("durable"), "title", "Live title"))
-            .await
-            .unwrap();
+        let replay = json!([{
+            "schemaVersion": 1, "sequence": 1, "sessionId": "durable", "runtimeId": "codex",
+            "provider": "codex", "providerSessionId": "native-durable", "turnId": "turn-1",
+            "itemId": null, "emittedAt": "2026-09-01T00:00:00.000Z",
+            "type": "turn.started", "payload": {"status": "running"},
+        }]);
+        let live = js::with(
+            &js::with(&session("durable"), "title", "Live title"),
+            "events",
+            replay.clone(),
+        );
+        cache.save(&live).await.unwrap();
         let joined = repository
             .find_by_id("durable", Some("/workspace"))
             .await
@@ -849,6 +857,14 @@ fn joins_live_replay_with_the_catalogs_authoritative_availability_for_exact_open
         assert_eq!(joined["providerSessionId"], "native-durable");
         assert_eq!(joined["title"], "Live title");
         assert_eq!(joined["availability"], "available");
-        assert!(joined.get("events").is_some());
+        assert_eq!(joined["events"], replay);
+        catalog.mark_unavailable("durable", None).await.unwrap();
+        let unavailable = repository
+            .find_by_id("durable", Some("/workspace"))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(unavailable["availability"], "unavailable");
+        assert_eq!(unavailable["events"], replay);
     });
 }

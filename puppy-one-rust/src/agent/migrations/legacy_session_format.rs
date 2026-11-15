@@ -158,4 +158,42 @@ mod tests {
             "Built-in Agent"
         );
     }
+
+    #[test]
+    fn restores_both_former_managed_labels_to_the_current_public_identity() {
+        for label in ["PuppyOne Agent", "Workspace Agent"] {
+            let record = json!({"runtimeId": "puppyone-agent", "runtime": {
+                "id": "puppyone-agent", "displayName": label, "kind": "managed-harness",
+            }});
+            assert_eq!(
+                resolve_persisted_runtime_id(&record, None),
+                "puppyone-agent"
+            );
+            assert_eq!(
+                migrated_runtime_descriptor(&record, "puppyone-agent"),
+                json!({
+                    "id": "puppyone-agent", "displayName": "Built-in Agent", "kind": "managed-harness",
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn restores_each_legacy_workbuddy_channel_from_its_native_history_scope() {
+        use crate::agent::runtimes::workbuddy::workbuddy_history_source::work_buddy_history_source;
+        let home = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default());
+        for channel in [WORKBUDDY_CHINA_CHANNEL, WORKBUDDY_INTERNATIONAL_CHANNEL] {
+            let scope = work_buddy_history_source(&channel, &|key| std::env::var(key).ok(), &home);
+            let record = json!({"runtimeId": "workbuddy", "sourceScopeId": scope, "runtime": {
+                "id": "workbuddy", "displayName": "WorkBuddy", "kind": "native-cli",
+            }});
+            assert_eq!(resolve_persisted_runtime_id(&record, None), channel.id);
+            assert_eq!(
+                migrated_runtime_descriptor(&record, channel.id),
+                json!({
+                    "id": channel.id, "displayName": channel.display_name, "kind": "native-cli",
+                })
+            );
+        }
+    }
 }

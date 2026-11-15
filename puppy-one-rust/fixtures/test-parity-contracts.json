@@ -3530,6 +3530,277 @@
           "test": "agent::host::tests::an_empty_host_does_not_hold_up_an_updater_quit"
         }
       ]
+    },
+    {
+      "id": "agent-control-plane-concurrency",
+      "acceptance": "An explicit recovery keeps its source turn; a terminal event before its receipt settles one generation; late interrupt/steer replies never alter the next turn or its blockers/attachments; written start timeout remains unknown without killing or resending and native confirmation reconciles it; queue lease transfer/release is exact and session-scoped; dispatch rechecks idle; compacted replay preserves replace/append reasoning; Codex interrupt acknowledges only its target. Attachment claims are detached synchronously before async revocation so immediate next-turn staging cannot be revoked by an earlier terminal event.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/electron.agent-control-plane-concurrency.test.mjs",
+          "sha256": "229a9b64bec27ff518c99d66e95b42d35e2d80f7c293b4155c40424380a793fd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent control-plane concurrency invariants > persists the originating degraded turn on an explicit recovery start"
+            },
+            {
+              "index": 1,
+              "name": "Agent control-plane concurrency invariants > settles a start when its terminal event precedes its native receipt"
+            },
+            {
+              "index": 2,
+              "name": "Agent control-plane concurrency invariants > keeps B blockers when A interrupt acceptance arrives late"
+            },
+            {
+              "index": 3,
+              "name": "Agent control-plane concurrency invariants > marks a written start with no response as outcome-unknown"
+            },
+            {
+              "index": 4,
+              "name": "Agent control-plane concurrency invariants > releases a queued attachment lease when native start rejects"
+            },
+            {
+              "index": 5,
+              "name": "Agent control-plane concurrency invariants > transfers a queued attachment lease to the accepted turn without releasing it"
+            },
+            {
+              "index": 6,
+              "name": "Agent control-plane concurrency invariants > scopes equal command IDs to their own session queues"
+            },
+            {
+              "index": 7,
+              "name": "Agent control-plane concurrency invariants > revalidates idle state inside the queued dispatch microtask"
+            },
+            {
+              "index": 8,
+              "name": "Agent control-plane concurrency invariants > does not let a late A steer failure replace B attachment ownership"
+            },
+            {
+              "index": 9,
+              "name": "Agent control-plane concurrency invariants > rebuilds replace and append text with the same object semantics as live projection"
+            },
+            {
+              "index": 10,
+              "name": "Agent control-plane concurrency invariants > scopes a native Codex interrupt receipt to its target turn"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::explicit_recovery_records_the_originating_degraded_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::terminal_event_before_start_receipt_settles_once_without_a_phantom_active_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::late_interrupt_acceptance_preserves_the_next_turn_and_both_of_its_blockers"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::written_start_timeout_stays_unknown_until_native_confirmation_without_restarting_or_resending"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::rejected_queued_start_releases_exactly_its_own_attachment_lease"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::accepted_queued_lease_is_owned_until_its_turn_finishes"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::equal_command_ids_belong_to_separate_session_queues"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::queued_dispatch_rechecks_idle_after_a_native_turn_starts_in_the_same_tick"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::late_steer_failure_cannot_replace_the_following_turns_attachment_ownership"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::compacted_history_rebuilds_interleaved_replace_and_append_reasoning_exactly"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::codex::tests::late_interrupt_receipt_does_not_answer_the_next_turns_native_approval"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-exact-open-errors",
+      "acceptance": "The seven provider failure classes map to the exact closed public code vocabulary and retryability; the public failure envelope contains exactly status, code, message and retryability.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/electron.agent-session-open-errors.test.mjs",
+          "sha256": "573272815a482cb4c97788cb2d5d837540ee3dde55ad4956792ef201531447c9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent exact-open error contract > maps provider failures into a closed code vocabulary"
+            },
+            {
+              "index": 1,
+              "name": "Agent exact-open error contract > maps provider failures into a closed code vocabulary"
+            },
+            {
+              "index": 2,
+              "name": "Agent exact-open error contract > maps provider failures into a closed code vocabulary"
+            },
+            {
+              "index": 3,
+              "name": "Agent exact-open error contract > maps provider failures into a closed code vocabulary"
+            },
+            {
+              "index": 4,
+              "name": "Agent exact-open error contract > maps provider failures into a closed code vocabulary"
+            },
+            {
+              "index": 5,
+              "name": "Agent exact-open error contract > maps provider failures into a closed code vocabulary"
+            },
+            {
+              "index": 6,
+              "name": "Agent exact-open error contract > maps provider failures into a closed code vocabulary"
+            },
+            {
+              "index": 7,
+              "name": "Agent exact-open error contract > constructs the public failure envelope in one place"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::session::agent_session_open_errors::tests::maps_provider_failures_to_the_closed_public_code_and_retryability_contract"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::session::agent_session_open_errors::tests::constructs_the_exact_public_failure_envelope"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-session-repository-durability",
+      "acceptance": "Empty allocated sessions stay process-local until a durable checkpoint; native discovery availability never destroys process-local replay; explicit removal does; exact lookup preserves actual replay events while the catalog is authoritative for native identity and availability.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/electron.agent-session-repository.test.mjs",
+          "sha256": "a32ba35c6adcfa2c2ff788da766ed263a861665e9e9b0f7edcdb387607bfddff",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent session repository durability boundary > keeps allocated empty sessions process-local until a durable checkpoint"
+            },
+            {
+              "index": 1,
+              "name": "Agent session repository durability boundary > preserves process-local replay when discovery changes catalog availability"
+            },
+            {
+              "index": 2,
+              "name": "Agent session repository durability boundary > joins live replay with the catalog's authoritative availability for exact open"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::keeps_allocated_empty_sessions_process_local_until_a_durable_checkpoint"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::preserves_process_local_replay_when_discovery_changes_catalog_availability"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::joins_live_replay_with_the_catalogs_authoritative_availability_for_exact_open"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-session-store-ownership",
+      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
+          "sha256": "ff85aa5d571b5de3602cac627f26f310344e9ca162eb89be3cada19c63f94ac3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AgentSessionStore > owns one destruction listener per window and releases it after the final session"
+            },
+            {
+              "index": 1,
+              "name": "AgentSessionStore > keeps an unrelated retired snapshot when a requested id is missing"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::keeps_only_one_renderer_destroyed_listener_per_owner_and_removes_it_after_the_final_session"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::agent_session_store::tests::missing_retired_lookup_preserves_the_exact_allocation_until_it_is_taken"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::does_not_discard_a_retired_snapshot_when_a_different_requested_session_is_missing"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-legacy-session-identity",
+      "acceptance": "Both historical managed Agent labels migrate to Built-in Agent without changing runtime identity; legacy WorkBuddy records resolve each channel from the native source scope and restore the channel-specific public name.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/electron.legacy-session-format.test.mjs",
+          "sha256": "f77b5fe47c210fd84143eeb521700143e204c50e75c8e1e23c5200f01bcffae0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "legacy Agent session identity > projects the legacy PuppyOne Agent label to the current public identity"
+            },
+            {
+              "index": 1,
+              "name": "legacy Agent session identity > projects the legacy Workspace Agent label to the current public identity"
+            },
+            {
+              "index": 2,
+              "name": "legacy Agent session identity > migrates a legacy WorkBuddy locator to 'workbuddy-china' from its native source scope"
+            },
+            {
+              "index": 3,
+              "name": "legacy Agent session identity > migrates a legacy WorkBuddy locator to 'workbuddy-international' from its native source scope"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::migrations::legacy_session_format::tests::restores_both_former_managed_labels_to_the_current_public_identity"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::migrations::legacy_session_format::tests::restores_each_legacy_workbuddy_channel_from_its_native_history_scope"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

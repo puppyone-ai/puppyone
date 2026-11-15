@@ -110,3 +110,78 @@ pub fn classify_session_open_failure(error: &AgentError) -> Value {
         true,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn maps_provider_failures_to_the_closed_public_code_and_retryability_contract() {
+        for (error, code, retryable) in [
+            (
+                AgentError::coded("AUTHENTICATION_EXPIRED", "expired"),
+                "AUTH_EXPIRED",
+                true,
+            ),
+            (
+                AgentError::coded("AUTHENTICATION_REQUIRED", "required"),
+                "AUTH_REQUIRED",
+                true,
+            ),
+            (
+                AgentError::new("resume request timed out"),
+                "RESUME_TIMED_OUT",
+                true,
+            ),
+            (
+                AgentError::new("session/resume method not found"),
+                "RESUME_UNSUPPORTED",
+                false,
+            ),
+            (
+                AgentError::new("workspace reference is outside the assigned root"),
+                "WORKSPACE_MISMATCH",
+                false,
+            ),
+            (
+                AgentError::new("runtime executable is missing"),
+                "RUNTIME_UNAVAILABLE",
+                true,
+            ),
+            (
+                AgentError::new("unexpected protocol response"),
+                "PROTOCOL_ERROR",
+                true,
+            ),
+            (
+                AgentError::coded("HISTORY_SOURCE_CHANGED", "private profile path"),
+                "SOURCE_CHANGED",
+                false,
+            ),
+            (
+                AgentError::coded("HISTORY_READ_FAILED", "private history path"),
+                "HISTORY_READ_FAILED",
+                true,
+            ),
+        ] {
+            let failure = classify_session_open_failure(&error);
+            assert_eq!(failure["status"], "failed", "{error:?}");
+            assert_eq!(failure["error"]["code"], code, "{error:?}");
+            assert_eq!(failure["error"]["retryable"], retryable, "{error:?}");
+            assert_eq!(failure["error"].as_object().unwrap().len(), 3);
+            assert!(!failure["error"]["message"].as_str().unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn constructs_the_exact_public_failure_envelope() {
+        assert_eq!(
+            session_open_failure("SESSION_NOT_FOUND", "Gone", false),
+            json!({
+                "status": "failed",
+                "error": {"code": "SESSION_NOT_FOUND", "message": "Gone", "retryable": false},
+            })
+        );
+    }
+}

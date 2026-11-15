@@ -680,7 +680,7 @@ fn does_not_discard_a_retired_snapshot_when_a_different_requested_session_is_mis
     run(async {
         let harness = create_service_harness(HarnessOptions::default());
         let (owner, _) = create_sender(42);
-        harness
+        let created = harness
             .service
             .create_session(&owner, &json!({"runtimeId": "codex"}), "/workspace")
             .await
@@ -706,6 +706,11 @@ fn does_not_discard_a_retired_snapshot_when_a_different_requested_session_is_mis
             .await
             .unwrap();
         assert!(!resumed.is_null());
+        assert_eq!(resumed["session"]["id"], created["session"]["id"]);
+        assert_eq!(
+            harness.adapter(1).calls("resumeSession")[0]["threadId"],
+            "thread-1"
+        );
     });
 }
 
