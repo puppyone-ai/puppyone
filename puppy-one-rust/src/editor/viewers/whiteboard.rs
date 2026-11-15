@@ -15,11 +15,12 @@
 //! ([`fonts_dir`]); without them the board's text uses the system's fonts.
 use super::{html_visual::script_json, web::WebFrame};
 use crate::{
+    editor::registry::{AssetReader, DocumentAssets},
     editor::{
         navigation::{self, Reference, ReferenceContext},
         registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
     },
-    platform::webview::{Content, DiskAssets, Entry, Ipc},
+    platform::webview::{Content, DiskAssets, Entry, Ipc, ResourceSource, Source},
     typography::Scale,
 };
 use gpui::{prelude::*, *};
@@ -74,12 +75,26 @@ pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn V
         .as_ref()
         .and_then(|w| w.local_root())
         .map(|r| r.to_string_lossy().into_owned());
+    let assets = crate::editor::registry::document_assets(request.id);
     let view = cx.new(|cx| {
         let mut view = WhiteboardView::new(request.name.to_owned(), root, text, request.dark);
+        view.assets = assets;
         view.show(cx);
         view
     });
     Box::new(WhiteboardSurface { view })
+}
+
+/// An embedded page or one of its resources at most (the reader's own
+/// Markdown asset budget applies first).
+const EMBED_MAX_BYTES: u64 = 32 * 1024 * 1024;
+
+/// Workspace files by workspace-relative path, for embedded pages.
+struct Workspace(AssetReader);
+impl ResourceSource for Workspace {
+    fn read(&self, relative: &Path) -> Option<Vec<u8>> {
+        (self.0)(relative)
+    }
 }
 
 /// What the page asked of the workbench.
@@ -99,6 +114,8 @@ struct WhiteboardView {
     ready: bool,
     /// The workspace's documents, for links (`resolveWorkspaceReference`).
     references: Option<ReferenceContext>,
+    /// Where embedded HTML pages and their resources are read from.
+    assets: Option<DocumentAssets>,
     frame: Option<Entity<WebFrame>>,
     _inbox: Option<Task<()>>,
 }
@@ -114,6 +131,7 @@ impl WhiteboardView {
             dark,
             ready: false,
             references: None,
+            assets: None,
             frame: None,
             _inbox: None,
         }
@@ -128,14 +146,20 @@ impl WhiteboardView {
             "workspaceRoot": self.workspace_root,
             "locale": crate::localization::current_code(),
             "direction": "ltr",
-            "messages": crate::localization::messages(&["editor.whiteboard.", "common.", "shared-ui."]),
+            "messages": crate::localization::messages(&["editor.whiteboard.", "common.", "shared-ui.", "editor.html."]),
+            // Embedded HTML pages (`WhiteboardEmbed`) resolve to the served
+            // workspace, where there is one.
+            "assets": self.assets.is_some(),
         });
         let (tx, rx) = async_channel::unbounded::<String>();
         let content = Content {
             root: None,
-            source: None,
+            source: self.assets.as_ref().map(|a| {
+                Source(std::sync::Arc::new(Workspace(a.read.clone()))
+                    as std::sync::Arc<dyn ResourceSource>)
+            }),
             entry: Entry::Html(page(&boot, self.dark)),
-            max_bytes: 0,
+            max_bytes: EMBED_MAX_BYTES,
             assets: vec![("excalidraw.js", SCRIPT), ("excalidraw.css", STYLE)],
             ipc: Some(Ipc(tx)),
             policy: None,

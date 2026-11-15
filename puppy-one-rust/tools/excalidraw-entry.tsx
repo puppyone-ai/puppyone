@@ -25,7 +25,7 @@ import { DesktopTooltipLayer } from "./src/components/DesktopTooltipLayer";
 
 type Boot = Readonly<{
   text: string; name: string; path: string; canEdit: boolean; workspaceRoot: string | null;
-  locale: string; direction: "ltr" | "rtl"; messages: Record<string, string>;
+  locale: string; direction: "ltr" | "rtl"; messages: Record<string, string>; assets: boolean;
 }>;
 type Inbound = { type: "reset"; text: string }
   | { type: "enabled"; value: boolean }
@@ -70,6 +70,24 @@ const documentNavigation: DocumentNavigationPort = {
   openReference: (reference) => { post({ type: "link", link: reference.raw }); },
 };
 
+// Embedded pages (`WhiteboardEmbed`) and their resources: a link relative to
+// the board (or to the workspace, after `/`) is served by the host from the
+// workspace; one that would leave it resolves to nothing.
+const markdownEnvironment = boot.assets ? {
+  assetUrlResolver: (documentPath: string, link: string) => {
+    const target = link.split(/[?#]/)[0];
+    const parts = target.startsWith("/") ? [] : documentPath.split("/").slice(0, -1);
+    for (const part of decodeURIComponent(target).split("/")) {
+      if (!part || part === ".") continue;
+      if (part === "..") {
+        if (!parts.length) return null;
+        parts.pop();
+      } else parts.push(part);
+    }
+    return `puppyone-preview://local/${parts.map(encodeURIComponent).join("/")}`;
+  },
+} : null;
+
 // `Mod+Z` / `Mod+Shift+Z` on the board's own keyboard target.
 function history(redo: boolean) {
   const target = document.querySelector(".whiteboard-editor .excalidraw");
@@ -101,8 +119,8 @@ function App() {
   const document = useMemo(() => ({ name: boot.name, path: boot.path, type: "excalidraw" }) as never, []);
   return <EditableDocumentSourceProvider source={source}>
     <section className="editor-host whiteboard-host">
-      <ExcalidrawViewer {...{ document, content, canEdit, documentNavigation,
-        workspaceRoot: boot.workspaceRoot ?? undefined } as never} />
+      <ExcalidrawViewer {...{ document, content, canEdit, documentNavigation, markdownEnvironment,
+        htmlTrustMode: "safe", workspaceRoot: boot.workspaceRoot ?? undefined } as never} />
     </section>
   </EditableDocumentSourceProvider>;
 }
