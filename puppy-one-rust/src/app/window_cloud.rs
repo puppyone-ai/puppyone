@@ -452,7 +452,10 @@ impl WindowCloud {
                 .create_space
                 .as_ref()
                 .map(|state| self.create_space_dialog(state, cx).into_any_element()),
-            DialogKey::SignIn => self.sign_in.is_some().then(|| self.sign_in_dialog(window, cx)),
+            DialogKey::SignIn => self
+                .sign_in
+                .is_some()
+                .then(|| self.sign_in_dialog(window, cx)),
             _ => None,
         }
         .unwrap_or_else(|| Empty.into_any_element())

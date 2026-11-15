@@ -224,7 +224,16 @@ impl WindowCloud {
         let t = cx.palette();
         let rest = at_rest(cx);
         let now = Instant::now();
-        let (active_index, fill, shown, motion, primary_focus, needs_focus, submitted, submitted_epoch) = {
+        let (
+            active_index,
+            fill,
+            shown,
+            motion,
+            primary_focus,
+            needs_focus,
+            submitted,
+            submitted_epoch,
+        ) = {
             let Some(state) = self.sign_in.as_mut() else {
                 return Empty.into_any_element();
             };
@@ -236,7 +245,11 @@ impl WindowCloud {
             state.focused_initial = true;
             (
                 state.index,
-                if rest { 1. } else { state.progress.clamp(0., 1.) },
+                if rest {
+                    1.
+                } else {
+                    state.progress.clamp(0., 1.)
+                },
                 state.shown(now, rest),
                 (!rest).then(|| (now - state.since).as_secs_f32()),
                 state.primary_focus.clone(),
@@ -257,11 +270,8 @@ impl WindowCloud {
                 stage.child(div().absolute().inset_0().opacity(opacity).child(scene))
             },
         );
-        let dots = h_flex()
-            .flex_none()
-            .items_center()
-            .gap(px(2.))
-            .children(MOMENTS.iter().enumerate().map(|(index, moment)| {
+        let dots = h_flex().flex_none().items_center().gap(px(2.)).children(
+            MOMENTS.iter().enumerate().map(|(index, moment)| {
                 let id = moment.id;
                 let open = index == active_index;
                 let group = SharedString::from(format!("cloud-sign-in-dot-group-{id}"));
@@ -303,7 +313,8 @@ impl WindowCloud {
                             cx.notify();
                         }
                     }))
-            }));
+            }),
+        );
         let carousel = v_flex()
             .id("cloud-sign-in-carousel")
             .debug_selector(|| "cloud-sign-in-carousel".into())
@@ -337,12 +348,8 @@ impl WindowCloud {
             )
             .child(tr("cloud.productName"));
 
-        let moments_copy = div()
-            .w_full()
-            .grid()
-            .grid_cols(1)
-            .grid_rows(1)
-            .children(MOMENTS.iter().enumerate().map(|(index, moment)| {
+        let moments_copy = div().w_full().grid().grid_cols(1).grid_rows(1).children(
+            MOMENTS.iter().enumerate().map(|(index, moment)| {
                 let opacity = shown
                     .iter()
                     .find(|(shown_index, _, _)| *shown_index == index)
@@ -368,7 +375,8 @@ impl WindowCloud {
                             .line_height(relative(1.6))
                             .child(tr(moment.body)),
                     )
-            }));
+            }),
+        );
 
         let actions = v_flex()
             .w_full()

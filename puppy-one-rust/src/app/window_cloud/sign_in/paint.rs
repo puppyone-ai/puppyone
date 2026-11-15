@@ -42,7 +42,11 @@ pub(super) fn ring(color: Rgba, width: Pixels) -> BoxShadow {
 
 /// Paints into the element's own bounds.
 pub(super) fn paint(draw: impl Fn(Bounds<Pixels>, &mut Window) + 'static) -> impl IntoElement {
-    canvas(|_, _, _| (), move |bounds, _, window, _| draw(bounds, window)).size_full()
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| draw(bounds, window),
+    )
+    .size_full()
 }
 
 /// A dashed ring (`stroke-dasharray`), turned `turn` radians.
@@ -133,7 +137,10 @@ pub(super) fn qr_mark(
     let cell = side / (SIZE as f32 + 2.);
     let at = |x: f32, y: f32, w: f32, h: f32| {
         Bounds::new(
-            point(origin.x + px((x + 1.) * cell), origin.y + px((y + 1.) * cell)),
+            point(
+                origin.x + px((x + 1.) * cell),
+                origin.y + px((y + 1.) * cell),
+            ),
             size(px(w * cell), px(h * cell)),
         )
     };

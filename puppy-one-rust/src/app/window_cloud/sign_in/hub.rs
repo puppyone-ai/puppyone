@@ -17,13 +17,48 @@ struct Orbiting {
 }
 
 const AGENTS: [Orbiting; 7] = [
-    Orbiting { id: "chatgpt", angle: -90., radius: 44., size: 13. },
-    Orbiting { id: "claude", angle: -36., radius: 36., size: 12. },
-    Orbiting { id: "cursor", angle: 14., radius: 45., size: 10.5 },
-    Orbiting { id: "gemini", angle: 64., radius: 37., size: 11.5 },
-    Orbiting { id: "github-copilot", angle: 116., radius: 45., size: 10.5 },
-    Orbiting { id: "manus", angle: 166., radius: 36., size: 11.5 },
-    Orbiting { id: "devin", angle: 216., radius: 44., size: 10.5 },
+    Orbiting {
+        id: "chatgpt",
+        angle: -90.,
+        radius: 44.,
+        size: 13.,
+    },
+    Orbiting {
+        id: "claude",
+        angle: -36.,
+        radius: 36.,
+        size: 12.,
+    },
+    Orbiting {
+        id: "cursor",
+        angle: 14.,
+        radius: 45.,
+        size: 10.5,
+    },
+    Orbiting {
+        id: "gemini",
+        angle: 64.,
+        radius: 37.,
+        size: 11.5,
+    },
+    Orbiting {
+        id: "github-copilot",
+        angle: 116.,
+        radius: 45.,
+        size: 10.5,
+    },
+    Orbiting {
+        id: "manus",
+        angle: 166.,
+        radius: 36.,
+        size: 11.5,
+    },
+    Orbiting {
+        id: "devin",
+        angle: 216.,
+        radius: 44.,
+        size: 10.5,
+    },
 ];
 
 const ORBITS: [(f32, f32); 2] = [(0.365, 0.28), (0.445, 0.16)];
@@ -37,7 +72,8 @@ pub(super) fn scene(t: &Theme, clock: Clock) -> AnyElement {
     let turn = clock
         .motion
         .map_or(0., |s| (s / TURN_SECONDS).fract() * std::f32::consts::TAU);
-    let orbits = ORBITS.map(|(radius, accent)| (side * radius, theme::mix(t.accent, t.border, accent)));
+    let orbits =
+        ORBITS.map(|(radius, accent)| (side * radius, theme::mix(t.accent, t.border, accent)));
     let orbits = paint::paint(move |bounds, window| {
         for (radius, color) in orbits {
             paint::dashed_ring(
@@ -252,13 +288,15 @@ fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
                     .gap(u(5.))
                     .pl(u(2.))
                     .pr(u(30.))
-                    .children([(0.45, 0.55), (0.7, 0.75), (0.95, 1.)].map(|(height, weight)| {
-                        div()
-                            .flex_1()
-                            .h(relative(height))
-                            .rounded_t(u(2.))
-                            .bg(theme::alpha(t.accent, weight))
-                    })),
+                    .children(
+                        [(0.45, 0.55), (0.7, 0.75), (0.95, 1.)].map(|(height, weight)| {
+                            div()
+                                .flex_1()
+                                .h(relative(height))
+                                .rounded_t(u(2.))
+                                .bg(theme::alpha(t.accent, weight))
+                        }),
+                    ),
             ),
     }
 }

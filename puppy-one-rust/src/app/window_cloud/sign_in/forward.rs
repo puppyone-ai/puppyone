@@ -81,8 +81,9 @@ fn wire(t: &Theme, s: f32, time: Option<f32>) -> impl IntoElement {
     let color = theme::alpha(t.accent, 0.7 * shown);
     paint::paint(move |bounds, window| {
         if shown > 0. {
-            let point_at =
-                |(x, y): (f32, f32)| point(bounds.origin.x + px(x * s), bounds.origin.y + px(y * s));
+            let point_at = |(x, y): (f32, f32)| {
+                point(bounds.origin.x + px(x * s), bounds.origin.y + px(y * s))
+            };
             dashed_bezier(window, WIRE.map(point_at), 1.5 * s, color);
         }
     })
@@ -108,7 +109,10 @@ fn dashed_bezier(
         .collect();
     let mut lengths = vec![0f32];
     for pair in points.windows(2) {
-        let (dx, dy) = (f32::from(pair[1].x - pair[0].x), f32::from(pair[1].y - pair[0].y));
+        let (dx, dy) = (
+            f32::from(pair[1].x - pair[0].x),
+            f32::from(pair[1].y - pair[0].y),
+        );
         lengths.push(lengths.last().unwrap() + dx.hypot(dy));
     }
     let total = *lengths.last().unwrap();
@@ -265,9 +269,8 @@ fn line_chart(t: &Theme) -> impl IntoElement {
             f32::from(bounds.size.width) / 260.,
             f32::from(bounds.size.height) / 88.,
         );
-        let at = |(x, y): (f32, f32)| {
-            point(bounds.origin.x + px(x * sx), bounds.origin.y + px(y * sy))
-        };
+        let at =
+            |(x, y): (f32, f32)| point(bounds.origin.x + px(x * sx), bounds.origin.y + px(y * sy));
         paint::polyline(window, &[at((0., 86.)), at((260., 86.))], sy, 1., axis);
         let points: Vec<_> = MONTHLY_LINE.iter().copied().map(at).collect();
         let mut outline = vec![at((6., 86.))];
@@ -299,7 +302,12 @@ fn share(t: &Theme, s: f32) -> impl IntoElement {
                 .line_height(u(11.))
                 .font_weight(FontWeight::MEDIUM)
                 .whitespace_nowrap()
-                .child(Icon::new("link-2").stroke(2.).with_size(u(11.)).color(t.accent_text))
+                .child(
+                    Icon::new("link-2")
+                        .stroke(2.)
+                        .with_size(u(11.))
+                        .color(t.accent_text),
+                )
                 .child(tr("onboarding.value.scene.send")),
         )
         .child(qr(t, s))
@@ -396,11 +404,10 @@ fn phone(t: &Theme, s: f32, time: Option<f32>) -> impl IntoElement {
                 .bg(t.panel_raised)
                 .child(link_preview(t, s, name)),
         )
-        .child(
-            message(at::OPENED)
-                .self_start()
-                .child(tf("onboarding.value.scene.opened", &[("name", Arg::from(name))])),
-        )
+        .child(message(at::OPENED).self_start().child(tf(
+            "onboarding.value.scene.opened",
+            &[("name", Arg::from(name))],
+        )))
         .child(
             message(at::ASK)
                 .self_end()
@@ -427,13 +434,15 @@ fn link_preview(t: &Theme, s: f32, name: &'static str) -> impl IntoElement + use
         .gap(u(2.))
         .rounded(u(4.))
         .bg(theme::alpha(t.text, 0.06))
-        .children([(0.4, 0.55), (0.65, 0.75), (0.9, 1.)].map(|(height, opacity)| {
-            div()
-                .flex_1()
-                .h(relative(height))
-                .rounded(u(1.))
-                .bg(theme::alpha(t.accent, opacity))
-        }));
+        .children(
+            [(0.4, 0.55), (0.65, 0.75), (0.9, 1.)].map(|(height, opacity)| {
+                div()
+                    .flex_1()
+                    .h(relative(height))
+                    .rounded(u(1.))
+                    .bg(theme::alpha(t.accent, opacity))
+            }),
+        );
     let text = v_flex()
         .min_w_0()
         .child(
