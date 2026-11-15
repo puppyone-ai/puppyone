@@ -161,14 +161,6 @@ impl Workbench {
             .unwrap_or_default()
     }
 
-    /// Snapshot of the active tab in the active group if it has `kind`.
-    pub fn active_item_snapshot(&self, kind: ItemKind, cx: &App) -> Option<ItemSnapshot> {
-        let p = self.project()?;
-        let tab = p.layout.groups.get(&p.layout.active_group)?.active?;
-        let item = p.content.get(&tab)?.item()?;
-        (item.kind() == kind).then(|| item.snapshot(cx))
-    }
-
     /// View of the active tab in the active group if it has `kind`.
     pub fn active_item_view(&self, kind: ItemKind) -> Option<AnyView> {
         let p = self.project()?;
