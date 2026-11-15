@@ -1,13 +1,33 @@
 {
-  "comment": "Frame budgets enforced by tools/bench-editor.py --check. Milliseconds of CPU per frame (build, layout, prepaint, paint), release build, Apple Silicon. Means, not p95: the tail follows machine load. A 120Hz display leaves 8.3ms a frame for everything, the GPU included. Sections are ~24 source lines each (160 = 3845 lines).",
+  "comment": "Frame and edit-path budgets enforced by tools/bench-editor.py --check. Milliseconds of CPU per frame (input dispatch through Window::draw: build, layout, prepaint, paint), release build, Apple Silicon (local calibration: Apple M2 Pro, max of 3 consecutive runs * 1.5). Means, not p95: the tail follows machine load. A 120Hz display leaves 8.3ms a frame for everything, the GPU included. Sections are ~24 source lines each (160 = 3,845 lines, 1,600 = 38,405 lines).",
+  "ci": {
+    "env": "GITHUB_ACTIONS",
+    "calibrated": false,
+    "uncalibratedMultiplier": 2.0,
+    "comment": "Shared GitHub macos-15 runners are virtualized and slower/noisier than local Apple M2 Pro hardware. Scaling checks (maxRatio) are hardware-independent and always enforced strictly (entries with `pending` report KNOWN GAP until their target TA-* lands). Absolute maxMs ceilings use per-budget `ciMaxMs` calibrated from max(mean over 3 consecutive macos-15 runs) * 1.5 once runner calibration completes; while `calibrated` is false during initial runner calibration, `uncalibratedMultiplier` (x2.0) prevents shared-VM false failures while result.json is collected."
+  },
   "budgets": [
     {"surface": "editor", "sections": 160, "maxMs": {"scrollMeanMs": 2.5, "resizeMeanMs": 2.5}},
-    {"surface": "window", "sections": 160, "maxMs": {"scrollMeanMs": 6.0, "resizeMeanMs": 4.0}}
+    {"surface": "window", "sections": 160, "maxMs": {"scrollMeanMs": 6.0, "resizeMeanMs": 4.0}},
+    {
+      "surface": "edit",
+      "sections": 160,
+      "maxMs": {
+        "typeMeanMs": 14.57,
+        "arrowMeanMs": 6.1,
+        "imeMeanMs": 14.4,
+        "findTypeMeanMs": 28.06
+      }
+    }
   ],
   "scaling": [
-    {"comment": "A frame costs what is on screen: a document 16x longer may not cost twice as much.",
+    {"comment": "A frame costs what is on screen: a document 10x-16x longer may not cost twice as much.",
      "surface": "editor", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
     {"surface": "editor", "metric": "resizeMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
-    {"surface": "window", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0}
+    {"surface": "window", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
+    {"surface": "edit", "metric": "typeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0, "pending": "TA-31, TA-11"},
+    {"surface": "edit", "metric": "arrowMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0, "pending": "TA-11"},
+    {"surface": "edit", "metric": "imeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0, "pending": "TA-31, TA-11"},
+    {"surface": "edit", "metric": "findTypeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0, "pending": "TA-13, TA-31, TA-11"}
   ]
 }

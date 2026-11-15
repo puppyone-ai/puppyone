@@ -1,0 +1,143 @@
+name: Rust editor gates
+
+on:
+  pull_request:
+    paths:
+      - 'puppy-one-rust/src/editor/**'
+      - 'puppy-one-rust/src/bench.rs'
+      - 'puppy-one-rust/crates/po-editor/**'
+      - 'puppy-one-rust/tools/bench-editor.py'
+      - 'puppy-one-rust/tools/editor-frame-budgets.json'
+      - 'puppy-one-rust/tools/check-editor-architecture.py'
+      - 'puppy-one-rust/tools/editor-architecture-baseline.json'
+      - '.github/workflows/rust-editor-gates.yml'
+  push:
+    branches: [puppyone-rust, qubits, main, 'codex/rust-md-*']
+    paths:
+      - 'puppy-one-rust/src/editor/**'
+      - 'puppy-one-rust/src/bench.rs'
+      - 'puppy-one-rust/crates/po-editor/**'
+      - 'puppy-one-rust/tools/bench-editor.py'
+      - 'puppy-one-rust/tools/editor-frame-budgets.json'
+      - 'puppy-one-rust/tools/check-editor-architecture.py'
+      - 'puppy-one-rust/tools/editor-architecture-baseline.json'
+      - '.github/workflows/rust-editor-gates.yml'
+  workflow_dispatch:
+    inputs:
+      fuzz_iterations:
+        description: 'Iterations per dialect for random_markdown_and_edits_never_panic_the_pipeline'
+        required: false
+        default: '20000'
+      fuzz_seed:
+        description: 'Optional decimal u64 seed override (defaults to github.run_id-derived seed)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-editor-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frame-budgets:
+    name: Editor frame and scaling budgets
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: rust/puppy-one-rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: rust
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2
+          path: puppyone-qubits
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 5e87974efcfae0c9a83801ccc9add2f2deceb395
+          path: puppyone-baseline-5e87974ef
+      - name: Install reviewed Rust toolchain
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup override set 1.97.1
+          cargo fetch --locked
+      - name: Install the pinned native engines
+        run: |
+          python3 tools/fetch-pdfium.py
+          python3 tools/fetch-duckdb.py
+      - name: Enforce editor architecture and frame budgets
+        run: |
+          python3 -B tools/check-editor-architecture.py --self-test
+          python3 -B tools/check-editor-architecture.py
+          python3 -B tools/bench-editor.py --check
+      - name: Upload editor benchmark results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: editor-bench-result
+          path: rust/puppy-one-rust/artifacts/editor-bench/
+          retention-days: 14
+
+  pipeline-fuzz:
+    name: Markdown pipeline random-input fuzz
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       (github.ref_name == 'puppyone-rust' || startsWith(github.ref_name, 'codex/rust-md-')))
+    runs-on: macos-15
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: rust/puppy-one-rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: rust
+      - name: Install reviewed Rust toolchain
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup override set 1.97.1
+          cargo fetch --locked
+      - name: Install the pinned native engines
+        run: |
+          python3 tools/fetch-pdfium.py
+          python3 tools/fetch-duckdb.py
+      - name: Run long random-input pipeline fuzz
+        env:
+          INPUT_ITERATIONS: ${{ inputs.fuzz_iterations }}
+          INPUT_SEED: ${{ inputs.fuzz_seed }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/editor-fuzz
+          ITERATIONS="${INPUT_ITERATIONS:-20000}"
+          if [ -n "${INPUT_SEED}" ]; then
+            SEED="${INPUT_SEED}"
+          else
+            SEED="$(python3 -c 'import os; rid = int(os.environ["GH_RUN_ID"]); att = int(os.environ["GH_RUN_ATTEMPT"]); print(((rid * 6364136223846793005) + att) & ((1 << 64) - 1))')"
+          fi
+          REPRO="PUPPYONE_PIPELINE_FUZZ_ITERATIONS=${ITERATIONS} PUPPYONE_PIPELINE_FUZZ_SEED=${SEED} cargo test --release --locked -p po-editor --lib editor::markdown::tests::random_markdown_and_edits_never_panic_the_pipeline -- --exact --nocapture"
+          echo "=== Markdown pipeline fuzz configuration ===" | tee artifacts/editor-fuzz/fuzz.log
+          echo "Seed (u64 decimal): ${SEED}" | tee -a artifacts/editor-fuzz/fuzz.log
+          echo "Iterations per dialect: ${ITERATIONS}" | tee -a artifacts/editor-fuzz/fuzz.log
+          echo "Reproduce locally with:" | tee -a artifacts/editor-fuzz/fuzz.log
+          echo "  ${REPRO}" | tee -a artifacts/editor-fuzz/fuzz.log
+          SEED="${SEED}" ITERATIONS="${ITERATIONS}" REPRO="${REPRO}" \
+            python3 -c 'import json, os; open("artifacts/editor-fuzz/seed.json", "w").write(json.dumps({"seed": os.environ["SEED"], "iterations": int(os.environ["ITERATIONS"]), "reproduce": os.environ["REPRO"]}, indent=2) + "\n")'
+          PUPPYONE_PIPELINE_FUZZ_ITERATIONS="${ITERATIONS}" \
+          PUPPYONE_PIPELINE_FUZZ_SEED="${SEED}" \
+            cargo test --release --locked --offline -p po-editor --lib \
+              editor::markdown::tests::random_markdown_and_edits_never_panic_the_pipeline \
+              -- --exact --nocapture 2>&1 | tee -a artifacts/editor-fuzz/fuzz.log
+      - name: Upload pipeline fuzz seed and log on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: editor-pipeline-fuzz-failure
+          path: rust/puppy-one-rust/artifacts/editor-fuzz/
+          retention-days: 14

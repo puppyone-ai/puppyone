@@ -366,6 +366,27 @@ for path in view_files:
         large_views.append(f'{path.relative_to(root)} ({lines})')
 if large_views:
     print('Views over 500 lines: ' + ', '.join(sorted(large_views)))
+import subprocess  # noqa: E402
+editor_arch = subprocess.run(
+    [sys.executable, '-B', str(Path(__file__).resolve().parent / 'check-editor-architecture.py')],
+    cwd=root,
+    text=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+)
+if editor_arch.returncode:
+    errors.append(editor_arch.stdout.rstrip())
+else:
+    print(editor_arch.stdout.rstrip())
+editor_self_test = subprocess.run(
+    [sys.executable, '-B', str(Path(__file__).resolve().parent / 'check-editor-architecture.py'), '--self-test'],
+    cwd=root,
+    text=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+)
+if editor_self_test.returncode:
+    errors.append(editor_self_test.stdout.rstrip())
 if errors:
     raise SystemExit("\n".join(errors))
 print("Native UI boundary guard passed (GPUI primitives, Markdown layers and retired framework guard)")
