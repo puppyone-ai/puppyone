@@ -86,7 +86,13 @@
         "src/features/themes/builtinSubThemes.generated.ts",
         "src/features/themes/subThemeBootstrap.generated.ts",
         "src/features/themes/themeTypes.ts",
-        "src/features/themes/subThemePreferences.ts"
+        "src/features/themes/subThemePreferences.ts",
+        "src/shared-ui/core/controlGeometry.ts",
+        "src/features/themes/builtin/default-github/theme.css",
+        "src/features/themes/builtin/default-graphite/theme.css",
+        "src/features/themes/builtin/default-neutral/theme.css",
+        "src/features/themes/builtin/default-newspaper/theme.css",
+        "src/features/themes/builtin/default-warm/theme.css"
       ],
       "targets": [
         "assets/themes.json",
@@ -94,13 +100,20 @@
         "src/platform/themes/palette.rs",
         "src/theme.rs",
         "tools/css-tokens.mjs",
-        "tools/import-themes.mjs"
+        "tools/import-themes.mjs",
+        "src/typography/mod.rs",
+        "src/features/desktop_agent/ui/transcript/transcript_rows.rs",
+        "assets/themes/builtin/default-github.css",
+        "assets/themes/builtin/default-graphite.css",
+        "assets/themes/builtin/default-newspaper.css",
+        "assets/themes/builtin/default-warm.css",
+        "src/platform/themes/document.rs"
       ],
       "evidence": [
         "test:semantic_tokens_follow_the_web_formulas",
         "test:the_built_in_themes_project_exactly_as_the_importer_did"
       ],
-      "remaining": "The five built-in packs and the tokens.css semantic layer are projected into Theme; installed Sub Themes from the Themes Folder project their Application target over the Neutral fallback the same way (see Installed Sub Themes). Forced-colours mode does not occur on macOS (Chromium only enters it under Windows high contrast)."
+      "remaining": "The five built-in packs and the tokens.css semantic layer are projected into Theme; installed Sub Themes from the Themes Folder project their Application target over the Neutral fallback the same way (see Installed Sub Themes). Forced-colours mode does not occur on macOS (Chromium only enters it under Windows high contrast). STANDARD_CONTROL_SIZE (the numeric mirror of --po-control-size for virtual layout) is theme::control() for controls and transcript_rows::STANDARD_CONTROL_SIZE for the Agent timeline's row geometry."
     },
     {
       "name": "Installed Sub Themes",
@@ -132,7 +145,7 @@
         "test:installed_themes_resolve_per_mode_and_paint",
         "test:the_theme_menu_lists_the_mode_and_checks_the_effective_theme"
       ],
-      "remaining": "The Themes Folder (<data dir>/themes, guide installed once), single-file, theme.css-directory and theme.json packages, every contract and compiler check (oracle: the product's theme service over fixtures/themes/folder, all accepted themes and diagnostics identical), the starter custom-theme, catalog refresh on start-up/window activation/after Add, per-mode selection with Neutral fallback, and the menu bar Theme menu are ported. Only the Application target paints natively; Typography sizes are shadowed by the user's text-size preset in the product too, and the Markdown/CSV targets (built-in themes included) still render the Neutral profile in the native Markdown and CSV views. @media/@supports rules are validated but not evaluated."
+      "remaining": "The Themes Folder (<data dir>/themes, guide installed once), single-file, theme.css-directory and theme.json packages, every contract and compiler check (oracle: the product's theme service over fixtures/themes/folder, all accepted themes and diagnostics identical), the starter custom-theme, catalog refresh on start-up/window activation/after Add, per-mode selection with Neutral fallback, and the menu bar Theme menu are ported. The Application target paints the shell, and the Markdown and CSV targets (built-in themes included) reach the native Markdown and CSV views (MD-7: the product cascade with the viewer host rules of document-defaults.json; only tokens that differ from Neutral are evaluated natively, and lengths such as calc() keep the Neutral value). Typography sizes are shadowed by the user's text-size preset in the product too. @media/@supports rules are validated but not evaluated."
     },
     {
       "name": "Typography scale and roles",
@@ -142,7 +155,8 @@
         "src/features/typography/typographyRuntime.ts",
         "src/styles/typography/foundations.css",
         "src/styles/typography/locales.css",
-        "src/styles/typography/roles.css"
+        "src/styles/typography/roles.css",
+        "src/features/typography/TypographyCatalogContext.tsx"
       ],
       "targets": [
         "src/theme.rs",
@@ -157,7 +171,7 @@
         "test:the_terminal_takes_the_first_installed_system_mono",
         "test:the_active_stacks_follow_the_locale_and_selection"
       ],
-      "remaining": "TYPOGRAPHY_SCALE_METRICS and the UI role sizes follow the three scales. The font catalog (five built-in entries, role resolution with product fallbacks, id normalisation), the locales.css script stacks and their GPUI projection (the first installed family plus a cascade of the installed rest, as Chromium walks font-family) are native: the interface is Geist, code Geist Mono, the terminal the Terminal Mono stack (SF Mono where installed, else Menlo), each over the content language's CJK faces. Not ported: reading the stored puppyone.desktop.typography value with its legacy migrations (part of the Electron preference import, PL-3) and Sub Theme content fonts (S-14)."
+      "remaining": "TYPOGRAPHY_SCALE_METRICS and the UI role sizes follow the three scales. The font catalog (five built-in entries, role resolution with product fallbacks, id normalisation), the locales.css script stacks and their GPUI projection (the first installed family plus a cascade of the installed rest, as Chromium walks font-family) are native: the interface is Geist, code Geist Mono, the terminal the Terminal Mono stack (SF Mono where installed, else Menlo), each over the content language's CJK faces. Not ported: reading the stored puppyone.desktop.typography value with its legacy migrations (part of the Electron preference import, PL-3) and Sub Theme content fonts (S-14). TypographyCatalogContext's merge of additional catalog entries has no caller in the product (main.tsx mounts the provider without entries), so the catalog is the built-in one in both apps."
     },
     {
       "name": "Appearance preferences and runtime",
@@ -196,10 +210,12 @@
         "src/styles/interface-skin-contract.css",
         "src/features/appearance/interfaceStyles.ts",
         "src/features/appearance/interfaceStyles.generated.ts",
-        "src/features/appearance/interface-style-manifest.json"
+        "src/features/appearance/interface-style-manifest.json",
+        "src/features/app-shell/DesktopShellLocationBar.tsx",
+        "src/features/themes/builtin/windows-xp-luna-blue/theme.css"
       ],
       "targets": [],
-      "reason": "Out of scope for this round (PARITY_TODO.md §5): the native shell renders the default interface only and the Appearance page shows the interface-style row disabled."
+      "reason": "Out of scope for this round (PARITY_TODO.md §5): the native shell renders the default interface only and the Appearance page shows the interface-style row disabled. DesktopShellLocationBar (the address bar) appears only in the windows-xp composition (composition.locationBar workspace-path-v1). The Luna Blue Sub Theme (compatible-root-themes: windows-xp) belongs to the same interface; tools/import-themes.mjs skips packs not compatible with the default root theme, and assets/themes/builtin/windows-xp-luna-blue.css is not loaded by any Rust module."
     },
     {
       "name": "Localization runtime",
@@ -208,20 +224,30 @@
         "src/localization/bootstrap.ts",
         "src/localization/loadRendererCatalog.ts",
         "src/localization/localeClient.ts",
-        "src/localization/catalog-loaders/*.ts"
+        "src/localization/catalog-loaders/*.ts",
+        "src/lib/localization/core/bidi.ts",
+        "src/lib/localization/core/catalog.ts",
+        "src/lib/localization/core/formatters.ts",
+        "src/lib/localization/core/manifest.ts",
+        "src/lib/localization/core/message-formatter.ts",
+        "src/lib/localization/core/resolve-locale.ts",
+        "src/lib/localization/core/types.ts",
+        "src/lib/localization/react/LocalizationProvider.tsx"
       ],
       "targets": [
         "src/localization.rs",
         "assets/locales.json",
         "assets/native-locales.json",
-        "tools/import-localization.py"
+        "tools/import-localization.py",
+        "src/platform/locale_format.rs",
+        "src/text.rs"
       ],
       "evidence": [
         "test:icu_subset_matches_product_catalog_usage",
         "test:languages_come_from_product_and_invalid_updates_keep_previous_state",
         "test:workers_inherit_the_spawning_locale"
       ],
-      "remaining": "Catalogs are bundled rather than lazily loaded. The ICU subset covers what the catalogs use ({arg}, number, plural with =N and #); select and date/relative-time formats are not implemented."
+      "remaining": "Catalogs are bundled rather than lazily loaded. The ICU subset covers what the catalogs use ({arg}, number, plural with =N and #); select and date/relative-time formats are not implemented. The core (bidiIsolate, the locale manifest and system-language resolution, catalog merging, the message formatter with its English fallback, Intl number/percent/currency, relative-time, list and day formatting) is localization.rs, with platform::locale_format for regional dates and text.rs for the root collation; LocalizationProvider's document lang/dir attributes have no counterpart and message-format diagnostics are not reported."
     },
     {
       "name": "Settings composition and controls",
@@ -279,7 +305,8 @@
         "src/features/settings/gitDisplaySlice.ts",
         "src/features/settings/agentSlice.ts",
         "src/features/settings/useDesktopPreferenceEffects.ts",
-        "src/features/app-shell/preferences.ts"
+        "src/features/app-shell/preferences.ts",
+        "src/features/settings/shareSlice.ts"
       ],
       "targets": [
         "src/features/settings/preference_types.rs",
@@ -302,7 +329,7 @@
       "targets": [
         "src/features/settings/main/general_settings_view.rs"
       ],
-      "remaining": "Language and version rows are native. Update download/install needs the Electron updater; the row reports availability only."
+      "remaining": "Language and version rows are native, and the update row and the automatic-download preference run over the native update service (DS-5, see Automatic updates). There is no separate blocked state (the quit confirmation stands in) and no Squirrel fallback."
     },
     {
       "name": "Appearance settings page",
@@ -389,7 +416,7 @@
         "test:remote_labels_and_masking",
         "test:visibility_display_names_and_selection_follow_the_product"
       ],
-      "remaining": "Project info, repository facts (branch, upstream, sync, remotes) and Git Ignore (hidden files + exclude patterns applied to the tree) are native. Auto-commit and the workspace backup/source-service config (PuppyoneWorkspaceConfigSettings) are not ported."
+      "remaining": "Project info, repository facts (branch, upstream, sync, remotes) and Git Ignore (hidden files + exclude patterns applied to the tree) are native. The Host Server page's backup/source-service config (PuppyoneWorkspaceConfigSettings over .puppyone/config.json, see Project configuration file) and its Puppyone Cloud connection subsection (ST-2) are native. Auto-commit is not ported (experimental, out of scope)."
     },
     {
       "name": "Other App Imports settings page",
@@ -438,7 +465,7 @@
       "targets": [
         "src/features/settings/main/privacy_settings_view.rs"
       ],
-      "remaining": "There is no native telemetry service; the analytics row is shown disabled."
+      "remaining": "The Product Analytics switch runs over the native telemetry service (features::telemetry over platform::telemetry) with its loading, saving and failure copy; only packaged Stable builds send, after the one-time disclosure. Not pixel-compared."
     },
     {
       "name": "Account and plan settings pages",
@@ -685,7 +712,7 @@
         "test:git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench",
         "test:pane_widths_follow_the_product_policy"
       ],
-      "remaining": "Project button, place menu (address, brand-blue Cloud mark, who can open it), Agents marks, Changes status icons and Header coachmarks are native. Share and the Cloud Header tint were retired in qubits@6f896add1 and qubits@343998d0c. The update button is out of scope (PARITY_TODO §10)."
+      "remaining": "Project button, place menu (address, brand-blue Cloud mark, who can open it), Agents marks, Changes status icons and Header coachmarks are native. Share and the Cloud Header tint were retired in qubits@6f896add1 and qubits@343998d0c. The update button (DesktopUpdateTitlebarButton) is native, see Automatic updates."
     },
     {
       "name": "Project menu, location switcher and project rail",
@@ -701,7 +728,13 @@
         "src/components/DesktopMenu.tsx",
         "src/styles/menus.css",
         "src/components/useAnchoredOverlayPosition.ts",
-        "src/features/app-shell/projectMenuGroups.ts"
+        "src/features/app-shell/projectMenuGroups.ts",
+        "src/components/ProjectRowActions.tsx",
+        "src/components/desktopMenuKeyboard.ts",
+        "src/features/app-shell/ProjectContextAssetMark.tsx",
+        "src/features/app-shell/project-context-asset-mark.css",
+        "src/features/app-shell/projectRootDrag.ts",
+        "src/features/project-appearance/useProjectAppearanceCatalog.ts"
       ],
       "targets": [
         "src/app/chrome/project_menu.rs",
@@ -710,7 +743,9 @@
         "src/features/settings/preference_types.rs",
         "src/ui/components/popover.rs",
         "src/app/project_place.rs",
-        "src/app/project_actions.rs"
+        "src/app/project_actions.rs",
+        "src/app/home/folder.rs",
+        "src/app/chrome/rail.rs"
       ],
       "evidence": [
         "test:project_popup_toggle_outside_and_escape_restore_focus",
@@ -718,7 +753,7 @@
         "test:the_rail_offers_rename_and_unlink_for_a_remembered_project",
         "test:project_menu_home_shows_the_homepage_and_hides_the_editor"
       ],
-      "remaining": "v0.4.4: the title bar reads [place] / [folder]; the folder menu lists the current place's folders (projectMenuGroups) and Home only where no place menu is; the rail hides the folder segment only. Not pixel-compared at v0.4.4 5e87974ef."
+      "remaining": "v0.4.4: the title bar reads [place] / [folder]; the folder menu lists the current place's folders (projectMenuGroups) and Home only where no place menu is; the rail hides the folder segment only. Not pixel-compared at v0.4.4 5e87974ef. ProjectRowActions (a folder: Copy path, Rename, who can open it, Unlink; a Cloud entry: Rename and Delete, as permitted) is native in project_actions.rs for the Homepage, the rail and the menu. The menu's project mark reuses the Homepage list icon (brand-blue Cloud, linked badge) instead of ProjectContextAssetMark's accent mix with a 10% fill. Not ported: arrow, Home and End walking of menu items (desktopMenuKeyboard) and dragging a rail project out as a Finder folder (projectRootDrag). Custom project icons (useProjectAppearanceCatalog: an emoji or image per project from the project-appearance store) are not read; v0.4.4 has no control that sets one (projectAppearance.chooseIcon/setEmoji have no renderer caller), so the rail draws each project's default mark."
     },
     {
       "name": "Home page",
@@ -735,7 +770,14 @@
         "src/styles/onboarding.css",
         "src/components/OnboardingProjectEntryDialog.tsx",
         "src/styles/onboarding-entry-dialog.css",
-        "src/features/automation/styles/template-card.css"
+        "src/features/automation/styles/template-card.css",
+        "src/components/TemplateImportCard.tsx",
+        "src/components/useProjectTemplateImport.ts",
+        "src/components/onboarding/LinkedCloudProjectButton.tsx",
+        "src/components/onboarding/OnboardingEntryMenu.tsx",
+        "src/components/onboarding/OnboardingPrimarySection.tsx",
+        "src/components/onboarding/types.ts",
+        "src/styles/onboarding-empty-state-intro.css"
       ],
       "targets": [
         "src/app/home/mod.rs",
@@ -747,7 +789,10 @@
         "src/app/home/folder.rs",
         "src/app/home/template_import.rs",
         "src/platform/templates/mod.rs",
-        "src/platform/drag_out.rs"
+        "src/platform/drag_out.rs",
+        "src/app/home/projects/list.rs",
+        "src/app/home/projects/toolbar.rs",
+        "src/app/home/intro.rs"
       ],
       "evidence": [
         "test:project_menu_home_shows_the_homepage_and_hides_the_editor",
@@ -764,7 +809,7 @@
         "test:the_audience_decides_where_a_new_project_is_kept",
         "test:a_team_project_is_made_once_in_its_space_and_opens"
       ],
-      "remaining": "The Grid folder wall and List with their remembered switch, sort, row actions, the New project split button, template links (pasted on the page or opened) and dragging a project out as its path are native. The create dialog asks who can open the project first (qubits@686d41c49); All my devices waits for the other computers (DV). The place filter and Paste template link were retired. The homepage has not been pixel-compared at qubits@686d41c49."
+      "remaining": "The Grid folder wall and List with their remembered switch, sort, row actions, the New project split button, template links (pasted on the page or opened) and dragging a project out as its path are native. The create dialog asks who can open the project first (qubits@686d41c49); All my devices waits for the other computers (DV). The place filter and Paste template link were retired. The homepage has not been pixel-compared at qubits@686d41c49. TemplateImportCard (with useProjectTemplateImport), LinkedCloudProjectButton (opens the folder's own Cloud project), OnboardingEntryMenu (New project, the arrow holding Open a folder and Import with its marks) and the single OnboardingPrimarySection slot are native."
     },
     {
       "name": "Homepage place groups",
@@ -776,7 +821,9 @@
         "src/components/onboarding/OnboardingProjectLayoutSwitch.tsx",
         "src/components/onboarding/ProjectFolderGlyph.tsx",
         "src/components/onboarding/useProjectListNavigation.ts",
-        "src/components/onboarding/useProjectGroupFocus.ts"
+        "src/components/onboarding/useProjectGroupFocus.ts",
+        "src/components/onboarding/OnboardingToolbarMenu.tsx",
+        "src/components/onboarding/useOnboardingMenu.ts"
       ],
       "targets": [
         "src/app/home/groups.rs",
@@ -797,7 +844,7 @@
         "test:members_and_plan_open_settings_on_that_space",
         "test:keys_walk_rows_and_cells_like_the_product"
       ],
-      "remaining": "v0.4.4: This computer, then every space (even empty, with its mark, plan, Owner and Members & plan), then shared projects without a known space, then other computers (gated off). A place asked for from the title bar is scrolled to and lit (useProjectGroupFocus). Grid of 5×120px cells with 10px gutters; checked by offscreen capture, not pixel-compared at v0.4.4 5e87974ef."
+      "remaining": "v0.4.4: This computer, then every space (even empty, with its mark, plan, Owner and Members & plan), then shared projects without a known space, then other computers (gated off). A place asked for from the title bar is scrolled to and lit (useProjectGroupFocus). Grid of 5×120px cells with 10px gutters; checked by offscreen capture, not pixel-compared at v0.4.4 5e87974ef. The toolbar menus (OnboardingToolbarMenu, useOnboardingMenu) open centred under their control on PopoverMenu with outside-press and Escape dismissal and focus restore; arrow, Home and End walking of their items is not ported."
     },
     {
       "name": "Project folder availability and relocation",
@@ -876,7 +923,10 @@
         "src/shared-ui/primitives/useCollapsiblePaneResize.ts",
         "src/shared-ui/data/DataWorkspaceFrame.tsx",
         "src/features/app-shell/layout/useDesktopExplorerFrame.ts",
-        "src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx"
+        "src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx",
+        "src/shared-ui/primitives/usePaneResizeDrag.ts",
+        "src/components/auxiliarySidebarGeometry.ts",
+        "src/features/app-shell/layout/DesktopPaneLayoutContext.tsx"
       ],
       "targets": [
         "src/app/panes/mod.rs",
@@ -895,7 +945,7 @@
         "test:dragging_the_explorer_edge_past_half_its_minimum_collapses_it",
         "test:a_frame_timeline_starts_at_its_first_frame_and_absorbs_a_late_one"
       ],
-      "remaining": "One PaneLayout entity owns both panes (open state, widths, edge drag, keyboard resize, the 360ms frame motion and the window minimum); PaneStack paints each pane's content plane at its open width under the editor, which covers instead of clipping it, so the cached panes are reused through the motion. The frame motion runs on a FrameTimeline (a late frame advances it by at most 33ms). The focused edge shows its hover stroke instead of the product's 2px focus outline, and the collapsed right edge takes no keys."
+      "remaining": "One PaneLayout entity owns both panes (open state, widths, edge drag, keyboard resize, the 360ms frame motion and the window minimum); PaneStack paints each pane's content plane at its open width under the editor, which covers instead of clipping it, so the cached panes are reused through the motion. The frame motion runs on a FrameTimeline (a late frame advances it by at most 33ms). The focused edge shows its hover stroke instead of the product's 2px focus outline, and the collapsed right edge takes no keys. usePaneResizeDrag's pointer session (commit on release, roll back on cancel or when the controlled pane changes) is PaneLayout's edge drag; its other consumer, the Changes sidebar's section resizer (useGitSidebarPanelLayout), is drawn as a static divider and cannot be dragged. The resolved pane layout reaches the Explorer frame through the PaneLayout entity rather than a React context (DesktopPaneLayoutContext); right-to-left mirroring of the edges' pointer and arrow resizing (auxiliarySidebarGeometry) is not applied."
     },
     {
       "name": "Explorer tree and file actions",
@@ -919,7 +969,15 @@
         "src/styles/sidebar/patterns.css",
         "src/styles/file-actions.css",
         "src/components/DesktopSidebarActionMenu.tsx",
-        "src/components/useDesktopSidebarMenuInteraction.ts"
+        "src/components/useDesktopSidebarMenuInteraction.ts",
+        "src/shared-ui/data/explorer/useStickyListEnd.ts",
+        "src/shared-ui/data/explorer/stickyListEndMotion.ts",
+        "src/features/data-workspace/ExplorerPinnedFiles.tsx",
+        "src/features/data-workspace/explorerPins.ts",
+        "src/features/data-workspace/useProjectExplorerSession.ts",
+        "src/features/data-workspace/fileTransfer.ts",
+        "src/features/data-workspace/resourceDragExport.ts",
+        "src/features/data-workspace/useResourceDragExport.ts"
       ],
       "targets": [
         "src/app/explorer/mod.rs",
@@ -934,7 +992,10 @@
         "src/app/explorer/session.rs",
         "src/editor/workbench/resource_operations.rs",
         "src/editor/workbench/runtime/operations.rs",
-        "src/app/explorer/pins.rs"
+        "src/app/explorer/pins.rs",
+        "src/app/explorer/rows.rs",
+        "src/platform/drag_out.rs",
+        "src/app/explorer/clipboard_notice.rs"
       ],
       "evidence": [
         "test:visibility_display_names_and_selection_follow_the_product",
@@ -947,7 +1008,7 @@
         "test:project_return_restores_explorer_state_and_revalidates_loaded_folders",
         "test:moving_an_expanded_subtree_carries_state_into_the_destination_listing"
       ],
-      "remaining": "Local resource mutations now drain and rebind retained Working Copies; Explorer sessions retain trees, selection, scroll and clipboard across projects and revalidate loaded folders. Extension-changing viewer transitions, concurrent scoped mutation queues, directory subscriptions, reference drag into Agent, cross-app drag export and multi-root composition remain incomplete; strict visual and OS drag parity are unverified."
+      "remaining": "Local resource mutations now drain and rebind retained Working Copies; Explorer sessions retain trees, selection, scroll and clipboard across projects and revalidate loaded folders. Extension-changing viewer transitions (E-2), resource-scoped mutation queues (E-3), the root directory subscription and reference drags into the Agent composer and the terminal are native. Pinned files (ExplorerPinnedFiles, explorerPins) are app/explorer/pins.rs, kept per project in Preferences; the per-project Explorer session (useProjectExplorerSession) is app/explorer/session.rs, without the product's cap of 12 retained sessions. Paste and duplicate (fileTransfer) run entry by entry and report through the clipboard notice, but a cut leaves the clipboard when its paste starts, so failed cut entries are not kept. Entries drag out to other apps as files (resourceDragExport / useResourceDragExport; EX-4): an AppKit dragging session with one file URL per entry and the paths as text; Chromium's single-file DownloadURL projection is not mirrored. The list-end New row (list_end_row) rides after the last row inside the uniform_list and moves with the disclosure motion, but it does not pin to the scrollport bottom once the tree overflows: useStickyListEnd's sticky band (DesktopDataWorkspaceSurface passes explorerListEndPlacement=\"sticky\"), its hidden-content fade and the scroll-padding it publishes are not ported. Multi-root composition is not ported; strict visual and OS drag parity are unverified."
     },
     {
       "name": "Sidebar footer navigation and help",
@@ -965,7 +1026,7 @@
         "src/app/sidebar/footer.rs",
         "src/app/dialogs/builtin.rs"
       ],
-      "remaining": "Settings and Help (product FeedbackHelpIcon) are native in the footer with the product geometry, utility colour, no divider and the tree edge fade; like the product, Git is not in the footer (Changes lives in the Header). Plugins, the rail/top navigation variants and the Project Rail utilities are not ported; the busy pulse grid is a native stand-in for FloatingNoticeStack."
+      "remaining": "Settings and Help (product FeedbackHelpIcon) are native in the footer with the product geometry, utility colour, no divider and the tree edge fade; like the product, Git is not in the footer (Changes lives in the Header). Plugins (excluded with Viewer plugins) and the Project Rail utilities are not ported, and the rail/top navigation variants are unreachable (see Unused App Shell leftovers); the busy pulse grid is a native stand-in for FloatingNoticeStack."
     },
     {
       "name": "Workbench launcher",
@@ -978,20 +1039,25 @@
         "src/features/desktop-terminal/ui/LauncherDiscoveryFeedback.tsx",
         "src/components/brand/AgentLauncherIcon.tsx",
         "src/components/brand/AgentEntryIcon.tsx",
-        "src/components/brand/agent-launcher-icon.css"
+        "src/components/brand/agent-launcher-icon.css",
+        "src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes.ts",
+        "src/lib/terminalLaunchers.ts"
       ],
       "targets": [
         "src/features/workbench/auxiliary_workbench_launcher.rs",
         "src/assets.rs",
         "assets/agents",
         "src/features/desktop_agent/ui/agent_brand_mark.rs",
-        "tools/import-agent-marks.py"
+        "tools/import-agent-marks.py",
+        "src/features/local_agents/chat_recipes.rs",
+        "src/agent/connections/legacy_local_agent_inventory.rs",
+        "src/features/local_agents/settings.rs"
       ],
       "evidence": [
         "test:launchers_are_independent_and_last_close_is_empty",
         "test:referenced_icons_exist"
       ],
-      "remaining": "Detected agents, the Built-in Agent + Terminal group, rescan, History and discovery status are native and respect hidden agents; Codex uses the monochrome ChatGPT mark like AgentMonochromeBrandImage. Install guides and per-agent activation are not ported."
+      "remaining": "Detected agents, the Built-in Agent + Terminal group, rescan, History and discovery status are native and respect hidden agents; Codex uses the monochrome ChatGPT mark like AgentMonochromeBrandImage. Install guides and per-agent activation are not ported. The recipe catalog (agentChatCreationRecipes: English-label order with the bundled Built-in Agent last; a hidden local Agent hides its chat runtime, never the built-in) is native in local_agents::chat_recipes and the inventory."
     },
     {
       "name": "Workbench tabs, split layout and close flow",
@@ -1015,14 +1081,33 @@
         "src/lib/workbench/types.ts",
         "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchCloseDialog.tsx",
         "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbenchCloseCoordinator.ts",
-        "src/features/app-shell/auxiliary-workbench/auxiliary-workbench-close-dialog.css"
+        "src/features/app-shell/auxiliary-workbench/auxiliary-workbench-close-dialog.css",
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchHeader.types.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchItemHostSlot.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchStatus.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchViewport.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/WorkbenchLauncherIcon.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/interactions/useWorkbenchDerivedDragClickSuppression.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/interactions/useWorkbenchSplitResizeGesture.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/usePersistentWorkbenchItemHosts.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderController.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderLayout.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/workbenchSessionHeaderIds.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/workbenchSessionHeaderLayout.ts",
+        "src/features/app-shell/project-sessions/ProjectSessionManager.ts",
+        "src/features/app-shell/project-sessions/ProjectSessionStore.ts",
+        "src/features/app-shell/project-sessions/projectSessionClient.ts",
+        "src/features/app-shell/project-sessions/useProjectSession.ts"
       ],
       "targets": [
         "src/features/workbench/mod.rs",
         "src/features/workbench/layout.rs",
         "src/features/workbench/persistence.rs",
         "src/features/workbench/header.rs",
-        "src/features/workbench/header_layout.rs"
+        "src/features/workbench/header_layout.rs",
+        "src/features/workbench/item.rs",
+        "src/features/workbench/drag.rs",
+        "src/app/right_sidebar.rs"
       ],
       "evidence": [
         "test:move_split_preserves_identity_and_order",
@@ -1030,7 +1115,7 @@
         "test:layout_changes_animate_from_where_elements_are_drawn",
         "test:a_history_chat_that_cannot_resume_goes_back_to_the_launcher"
       ],
-      "remaining": "38px tab bar with compact/overflow modes, brand icons with the running-chat dot (AuxiliaryWorkbenchStatus), tab context menu, drag split and close confirmation are native. Session-header motion (200ms cubic-bezier(0.2,0,0,1) from the drawn position; new tabs grow from their neighbour, overflow from the create control; off while dragging, inserting or with reduced motion), the tab-move preview 18px before and 12px below the pointer, and the creation failure (a History conversation that cannot resume returns its tab to the launcher with a Retry/Dismiss notice) are native. Not ported: the preview's popover shadow (GPUI draws it under the transparent body)."
+      "remaining": "38px tab bar with compact/overflow modes, brand icons with the running-chat dot (AuxiliaryWorkbenchStatus), tab context menu, drag split and close confirmation are native. Session-header motion (200ms cubic-bezier(0.2,0,0,1) from the drawn position; new tabs grow from their neighbour, overflow from the create control; off while dragging, inserting or with reduced motion), the tab-move preview 18px before and 12px below the pointer, and the creation failure (a History conversation that cannot resume returns its tab to the launcher with a Retry/Dismiss notice) are native. Not ported: the preview's popover shadow (GPUI draws it under the transparent body). The viewport, item views retained across moves between groups (usePersistentWorkbenchItemHosts / AuxiliaryWorkbenchItemHostSlot: one view per item instead of reparented DOM hosts), the split resize gesture clamped to both sides' minimum sizes, roving tab focus (arrows, Home, End) and the session-header layout are native in the same files. The per-project workbench is Workbench.projects keyed by root, not the main process's project-session stream (generation, closing failures, 5s poll), which one process does not need; derived-click suppression, the header item type and DOM tab/panel ids are React plumbing with no counterpart. Right-to-left arrow mirroring is not applied."
     },
     {
       "name": "Workbench header motion, tab-move preview and creation failure",
@@ -1085,7 +1170,34 @@
         "src/features/source-control/diff/GitFileDiffSurface.tsx",
         "src/features/source-control/diff/FormatAwareDiff.tsx",
         "src/features/source-control/diff/core/registry.ts",
-        "src/features/source-control/diff/contributions/binary-summary/BinarySummaryDiff.tsx"
+        "src/features/source-control/diff/contributions/binary-summary/BinarySummaryDiff.tsx",
+        "src/components/DesktopEntryState.tsx",
+        "src/features/source-control/GitRepositorySetupAction.tsx",
+        "src/features/source-control/sidebar/GitIncomingUpdateNotice.tsx",
+        "src/features/source-control/sidebar/GitRemoteSections.tsx",
+        "src/features/source-control/sidebar/sourceControlSidebarTypes.ts",
+        "src/features/source-control/sidebar/useGitSidebarExpansionState.ts",
+        "src/features/source-control/sidebar/useGitSidebarPanelLayout.ts",
+        "src/features/source-control/types.ts",
+        "src/features/source-control/useGitViewNavigationFocus.ts",
+        "src/features/source-control/diff/contributions/binary-summary/contribution.ts",
+        "src/features/source-control/diff/contributions/text-unified/contribution.ts",
+        "src/features/source-control/diff/core/types.ts",
+        "src/features/source-control/diff/core/createAsyncDiffContribution.tsx",
+        "src/features/source-control/diff/core/WeightedTtlLruCache.ts",
+        "src/features/source-control/diff/core/cacheControl.ts",
+        "src/features/source-control/diff/contributions/docx-redline/DocxRedlineView.tsx",
+        "src/features/source-control/diff/contributions/docx-redline/budget.ts",
+        "src/features/source-control/diff/contributions/docx-redline/cache.ts",
+        "src/features/source-control/diff/contributions/docx-redline/contribution.tsx",
+        "src/features/source-control/diff/contributions/docx-redline/model.ts",
+        "src/features/source-control/diff/contributions/docx-redline/provider.ts",
+        "src/features/source-control/diff/contributions/docx-redline/worker/align.ts",
+        "src/features/source-control/diff/contributions/docx-redline/worker/client.ts",
+        "src/features/source-control/diff/contributions/docx-redline/worker/docxRedline.worker.ts",
+        "src/features/source-control/diff/contributions/docx-redline/worker/normalize.ts",
+        "src/features/source-control/diff/contributions/docx-redline/worker/package.ts",
+        "src/features/source-control/diff/contributions/docx-redline/worker/task.ts"
       ],
       "targets": [
         "src/features/source_control/mod.rs",
@@ -1095,7 +1207,10 @@
         "src/features/source_control/diff/binary_summary.rs",
         "src/platform/git.rs",
         "src/platform/git_diff.rs",
-        "src/platform/git_history.rs"
+        "src/platform/git_history.rs",
+        "src/features/source_control/diff/docx_redline.rs",
+        "src/platform/docx_redline.rs",
+        "src/features/source_control/backup_card.rs"
       ],
       "evidence": [
         "test:real_repository_stage_commit_diff_and_unborn_unstage",
@@ -1110,7 +1225,7 @@
         "test:changes_open_file_opens_it_in_the_editor",
         "test:a_subfolder_lists_its_repository_and_acts_only_inside_itself"
       ],
-      "remaining": "Collapsible Staged/Unstaged/Merge/Committed panels with Commit and Stage and Commit (product default message), Pull notice and Push are native and localized. A selected change opens WorkingFileDetail in place (Open file / Stage / Unstage / Discard) over the Diff Registry: the unified text diff (numbered lines, hunk separators, wrapping) and the binary summary (format, before/after sizes, open current file), framed by GitFileDiffSurface. History is the day-grouped timeline with change totals and a four-file preview; a commit opens its summary (HEAD, copyable id, totals) and file diffs. As in the Web (git rev-parse --is-inside-work-tree), a folder anywhere inside a work tree is managed and lists the whole repository with repository-relative paths; staging, discarding, diffs and Open file act only on changes inside the opened folder (the Web passes repository paths as folder-relative pathspecs, which fails from a subfolder). Pull/Push/Discard confirm inline rather than in the product's dialogs; the DOCX redline, remote management, incoming-change review and repository setup are not ported."
+      "remaining": "Collapsible Staged/Unstaged/Merge/Committed panels with Commit and Stage and Commit (product default message), Pull notice and Push are native and localized. A selected change opens WorkingFileDetail in place (Open file / Stage / Unstage / Discard) over the Diff Registry: the unified text diff (numbered lines, hunk separators, wrapping) and the binary summary (format, before/after sizes, open current file), framed by GitFileDiffSurface. History is the day-grouped timeline with change totals and a four-file preview; a commit opens its summary (HEAD, copyable id, totals) and file diffs. As in the Web (git rev-parse --is-inside-work-tree), a folder anywhere inside a work tree is managed and lists the whole repository with repository-relative paths; staging, discarding, diffs and Open file act only on changes inside the opened folder (the Web passes repository paths as folder-relative pathspecs, which fails from a subfolder). Discard and Abort ask first through the system confirmation (the product's window.confirm); Pull, Push and Publish run without one, as in the product, and a failed operation is the product's Git error dialog (GT-3). A branch that tracks nothing is published to the sync target (GT-1); a merge, rebase, cherry-pick or revert in progress offers Continue and Abort (GT-2). A Word document diffs as the product's body-text redline (docx-redline: word/document.xml read within DOCX_REDLINE_BUDGET, blocks aligned on unique anchors and a weighted edit distance, word-level segments; document state, totals, changed blocks, the limit and the fidelity note), built on the Git worker together with the patch instead of in a Web Worker, so it is not cached (WeightedTtlLruCache, clearFormatAwareDiffCaches), has no 20 s worker timeout and no loading state of its own. A folder outside a repository offers Enable version control (git init, GitRepositorySetupAction) without the product's pending label; the Cloud backup card (GitRemotePrompt) is native. Sections size by their rows (at most nine, never below 72px) but the drag and keyboard resize between sections is not ported, and focus does not move to the view header when the list and a detail swap (useGitViewNavigationFocus). The shared DesktopEntryState layout is not used: a folder that is not a repository shows a centred note with Enable. The incoming-change review belongs to Project Reach (excluded)."
     },
     {
       "name": "Terminal surface",
@@ -1156,7 +1271,11 @@
         "src/components/ScrollbarActivity.tsx",
         "src/styles/dialogs.css",
         "src/styles/scrollbars.css",
-        "src/styles/tooltip.css"
+        "src/styles/tooltip.css",
+        "src/shared-ui/primitives/Tooltip.tsx",
+        "src/components/DesktopOverlayPortal.tsx",
+        "src/lib/inertHold.ts",
+        "src/lib/pointerRest.ts"
       ],
       "targets": [
         "src/geometry.rs",
@@ -1166,27 +1285,30 @@
         "src/ui/components/dialog.rs",
         "src/ui/components/menu.rs",
         "src/ui/scrollbar.rs",
-        "vendor/gpui-base/src/scrollbar.rs"
+        "vendor/gpui-base/src/scrollbar.rs",
+        "src/ui/components/mod.rs"
       ],
       "evidence": [
         "test:kit_dialog_tab_order_keeps_focus_inside_feedback",
         "test:escape_answers_the_topmost_dialog",
         "test:the_product_scrollbar_reveals_on_hover_and_for_900ms_after_a_scroll"
       ],
-      "remaining": "Dialogs and tooltips use GPUI Kit with product tokens. The product scrollbar (scrollbars.css with ScrollbarActivity) is Kit's base scrollbar over each scroll owner: a 12px lane, the thumb transparent at rest and 8px / 2px inset while the owner is hovered (vendor patch) or for 900 ms after it scrolls, the hover colour over the thumb; Settings, Homepage, Explorer, Source Control, History, Agent transcript/history/picker/dock, launcher, menus, dialogs and the PDF/database viewers carry it. The classic-interface arrow buttons belong to the P3 interface styles; the light backdrop composites darker than Chromium (Settings light 86%, under investigation)."
+      "remaining": "Dialogs and tooltips use GPUI Kit with product tokens. The product scrollbar (scrollbars.css with ScrollbarActivity) is Kit's base scrollbar over each scroll owner: a 12px lane, the thumb transparent at rest and 8px / 2px inset while the owner is hovered (vendor patch) or for 900 ms after it scrolls, the hover colour over the thumb; Settings, Homepage, Explorer, Source Control, History, Agent transcript/history/picker/dock, launcher, menus, dialogs and the PDF/database viewers carry it. The classic-interface arrow buttons belong to the P3 interface styles; the light backdrop composites darker than Chromium (Settings light 86%, under investigation). Tooltip.tsx's explicit per-control wrap is the native `.tooltip(text)` (ui::components::tooltip over Kit's Tooltip); its placement hint, shortcut line, overflow-only labels, hover-only trigger and disableTooltipHints are not carried by the native helper. DesktopOverlayPortal's copy of the appearance, typography and theme presets onto the portal root has no native counterpart: dialogs and menus read the window's active appearance. A modal's inert surroundings (inertHold) are the dialog layer's backdrop, which takes every press and key; holdHoverUntilPointerUse (pointerRest: what a closing dialog uncovers does not light up until the pointer is used) is not ported."
     },
     {
       "name": "Markdown viewer (native editor)",
       "status": "partial",
       "sources": [
         "src/shared-ui/editor/markdown/**",
-        "src/shared-ui/editor/table/**"
+        "src/shared-ui/editor/table/**",
+        "src/lib/markdownFormatShortcutBridge.ts"
       ],
       "targets": [
         "src/editor/markdown",
         "src/editor/table",
         "src/editor/view",
-        "src/editor/host/mod.rs"
+        "src/editor/host/mod.rs",
+        "src/editor/view/mod.rs"
       ],
       "evidence": [
         "test:markers_hide_and_reveal_with_the_caret",
@@ -1194,7 +1316,7 @@
         "test:the_rails_and_menu_operations_rewrite_the_table",
         "test:supported_languages_highlight_and_others_stay_plain"
       ],
-      "remaining": "Native live preview and source mode: headings, emphasis, links and wiki links, lists, tasks, quotes, rules, highlighted code blocks, editable tables, front matter, callouts (with folding), footnotes, math (as Unicode text, not KaTeX), images in image lines, inline HTML of the inline-editable profile, HTML blocks with Markdown inside, and the block-drag experiment (PARITY_TODO §7). Not native: Mermaid, MDX, images beside text, media in inline HTML runs, AI edit review, document navigation, heading outline, table column resize."
+      "remaining": "Native live preview and source mode: headings, emphasis, links and wiki links, lists, tasks, quotes, rules, highlighted code blocks, editable tables, front matter, callouts (with folding), footnotes, math (as Unicode text, not KaTeX), images in image lines, inline HTML of the inline-editable profile, HTML blocks with Markdown inside, and the block-drag experiment (PARITY_TODO §7). Not native: Mermaid, MDX, images beside text, media in inline HTML runs, AI edit review, document navigation, heading outline, table column resize. The window-level format keys (markdownFormatShortcutBridge: Cmd+B/I/U/D and Cmd+Shift+X, which Chromium would otherwise take) are GPUI key bindings in the editor's key context, so no main-process bridge is needed."
     },
     {
       "name": "Text, JSON and code viewers and shared editor infrastructure",
@@ -1250,7 +1372,9 @@
       "name": "HTML viewer (Interact, Edit, Source)",
       "status": "partial",
       "sources": [
-        "src/shared-ui/editor/viewers/html/**"
+        "src/shared-ui/editor/viewers/html/**",
+        "src/components/HtmlFolderAccessDialog.tsx",
+        "src/lib/htmlFolderAccessConsent.ts"
       ],
       "targets": [
         "src/editor/viewers/html.rs",
@@ -1261,7 +1385,9 @@
         "src/editor/viewers/html_page.rs",
         "src/editor/viewers/html_preview.rs",
         "src/platform/html_page_store.rs",
-        "src/web_host.rs"
+        "src/web_host.rs",
+        "src/app/dialogs/question.rs",
+        "src/editor/question.rs"
       ],
       "evidence": [
         "test:html_edit_mode_applies_page_edits_to_the_source_and_its_history",
@@ -1275,7 +1401,7 @@
         "test:an_allowance_is_per_page_text_and_the_most_recent_200_are_kept",
         "test:page_storage_keeps_strings_within_its_limit"
       ],
-      "remaining": "Interact runs the page in the system WebView; Edit runs the product's HtmlVisualSurface (source index, edit compiler, projection, frame bridge, toolbar, block rail, text input) bundled from the product into the WebView, with the native code editor owning text, history and saves; Source is the native code editor. Not pixel-compared; the Edit page's toolbar uses the bundled Geist Sans and the active Sub Theme tokens. Cloud documents cannot import images (no provider write); the standalone options menu (HtmlViewMenu) is the pane menu instead. v0.4.4 folder access and links are native: a page naming the folder picker is asked about before it runs (a system prompt whose Return default is Don't allow; v0.4.4 uses a product dialog), the allowance is kept per page path and text digest (at most 200), and an allowed page runs offline, locked to itself, with the folder bridge over the workspace provider and a host-kept localStorage (256 K characters). The page is the web view's own document, so it posts through window.ipc. Clicked links resolve through document navigation (workspace documents open in the workbench, addresses in the browser) with the four failure notices. The host's scripts lead the page's head, ahead of its own policy, so the author's CSP is never loosened with a nonce. Listed files carry no modification time."
+      "remaining": "Interact runs the page in the system WebView; Edit runs the product's HtmlVisualSurface (source index, edit compiler, projection, frame bridge, toolbar, block rail, text input) bundled from the product into the WebView, with the native code editor owning text, history and saves; Source is the native code editor. Not pixel-compared; the Edit page's toolbar uses the bundled Geist Sans and the active Sub Theme tokens. Cloud documents cannot import images (no provider write); the standalone options menu (HtmlViewMenu) is the pane menu instead. v0.4.4 folder access and links are native: a page naming the folder picker is asked about before it runs (the product's HtmlFolderAccessDialog on the window's dialog layer through editor::question, VW-4: 420px, Don't allow holds the focus, closing declines), the allowance is kept per page path and text digest (at most 200), and an allowed page runs offline, locked to itself, with the folder bridge over the workspace provider and a host-kept localStorage (256 K characters). The page is the web view's own document, so it posts through window.ipc. Clicked links resolve through document navigation (workspace documents open in the workbench, addresses in the browser) with the four failure notices. The host's scripts lead the page's head, ahead of its own policy, so the author's CSP is never loosened with a nonce. Listed files carry no modification time. The consent queue (htmlFolderAccessConsent) is editor::question shown as the app's dialog (app/dialogs/question.rs); a second question replaces the open one instead of waiting its turn, and a page closed while it waits does not withdraw its question."
     },
     {
       "name": "Viewer registry",
@@ -1302,12 +1428,16 @@
         "src/components/EditorPaneActionsMenu.tsx",
         "src/features/editor-workbench/layout/desktop-editor-split-view.css",
         "src/features/editor-workbench/runtime/EditorPaneRuntime.tsx",
-        "src/components/useEditorPaneChromeReveal.ts"
+        "src/components/useEditorPaneChromeReveal.ts",
+        "src/features/external-apps/useExternalFileOpen.ts"
       ],
       "targets": [
         "src/editor/workbench/pane.rs",
         "src/editor/host/chrome.rs",
-        "src/app/mod.rs"
+        "src/app/mod.rs",
+        "src/platform/desktop.rs",
+        "src/app/command/route.rs",
+        "src/app/explorer/menus.rs"
       ],
       "evidence": [
         "test:entries_follow_the_menu_order_and_skip_disabled_commands",
@@ -1315,7 +1445,7 @@
         "test:csv_contributes_view_items_and_find",
         "test:markdown_contributes_its_mode_segments"
       ],
-      "remaining": "Native ⋯ handle, actions menu (live / source, CSV view items, find, open externally, close) and find bar for the single pane; multi-pane runtime is tracked under the editor workbench group."
+      "remaining": "Native ⋯ handle, actions menu (live / source, CSV view items, find, open externally, close) and find bar for the single pane; multi-pane runtime is tracked under the editor workbench group. Open in default app (useExternalFileOpen) is Command::OpenExternal and the Explorer's Open in Default App over platform::desktop::open (/usr/bin/open, files only); a failure shows as the window's error."
     },
     {
       "name": "Editor document session",
@@ -1350,7 +1480,8 @@
         "src/features/editor-workbench/runtime/EditorPaneRenderBoundary.tsx",
         "src/features/editor-workbench/runtime/editorNodeIndex.ts",
         "src/features/editor-workbench/runtime/useEditorPaneSource.ts",
-        "src/shared-ui/editor/workbench/*"
+        "src/shared-ui/editor/workbench/*",
+        "src/features/workbench-interactions/useInteractionTermination.ts"
       ],
       "targets": [
         "src/documents/mod.rs",
@@ -1359,7 +1490,7 @@
         "src/editor/workbench/runtime/drops.rs",
         "src/app/editor_workbench.rs"
       ],
-      "remaining": "Local tabs/MRU, recursive panes, retained documents/projects and layout persistence run in the real Shell. Same-workspace single-file Explorer drops focus existing views, fill empty panes or split at an edge, with a preview and target-lifetime fencing. Cloud navigation/drafts, full pane view state, cross-root/native external-drop authority, complete keyboard/accessibility and strict pixel parity remain incomplete.",
+      "remaining": "Local tabs/MRU, recursive panes, retained documents/projects and layout persistence run in the real Shell. Same-workspace single-file Explorer drops focus existing views, fill empty panes or split at an edge, with a preview and target-lifetime fencing. Cloud navigation/drafts, full pane view state, cross-root/native external-drop authority, complete keyboard/accessibility and strict pixel parity remain incomplete. useInteractionTermination: GPUI ends a drag or split resize on mouse-up; the product's Escape, window-blur, page-hide and HTML dragend/drop terminations of a pointer session are not ported.",
       "evidence": [
         "test:actual_typescript_pane_transition_oracle",
         "test:workbench_tabs_splits_and_project_switch_retain_the_same_native_history",
@@ -1388,7 +1519,7 @@
       "evidence": [
         "test:tokens_resolve_units_and_colours"
       ],
-      "remaining": "Token values are imported from the product CSS (tools/import-editor-theme.mjs → assets/editor); the rules are re-expressed per element in Rust styles. Floating notices, overflow dots and the shared-ui patterns have no native consumer yet."
+      "remaining": "Token values are imported from the product CSS (tools/import-editor-theme.mjs → assets/editor); the rules are re-expressed per element in Rust styles. Floating notices and overflow dots have native consumers (see Floating notices and Shared buttons and overflow dots); the remaining shared-ui patterns have none yet."
     },
     {
       "name": "Cloud Homepage catalog and opening choices",
@@ -1572,7 +1703,8 @@
         "src/features/cloud/components/CloudProjectActivation.tsx",
         "src/features/cloud/components/cloud-project-activation.css",
         "electron/main/cloud-initialization/**",
-        "electron/main/cloud-publish-*"
+        "electron/main/cloud-publish-*",
+        "electron/main/cloud-git-operation-lease.mjs"
       ],
       "targets": [
         "src/cloud/publication/mod.rs",
@@ -1592,7 +1724,7 @@
         "test:an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu",
         "test:a_folder_dropped_on_a_team_opens_its_publication_to_that_team"
       ],
-      "remaining": "The coordinator (an explicit organization target with no fallback, journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; the initialization telemetry is not ported; acceptance against a real Cloud Git host is pending."
+      "remaining": "The coordinator (an explicit organization target with no fallback, journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; the initialization telemetry is not ported; acceptance against a real Cloud Git host is pending. The cross-process Cloud Git operation lease (cloud-git-operation-lease.mjs: a heartbeat lease file in the repository's common dir, held through publication and while detaching the puppyone remote) is not ported; the native app is single-instance and a window's publication model runs one publication at a time."
     },
     {
       "name": "Terminal legacy session hosts (unreachable)",
@@ -1628,10 +1760,11 @@
         "src/features/desktop-terminal/workbench/TerminalWorkbenchItemHostSlot.tsx",
         "src/features/desktop-terminal/workbench/TerminalWorkbenchOverflowMenu.tsx",
         "src/features/desktop-terminal/workbench/TerminalWorkbenchTab.tsx",
-        "src/features/desktop-terminal/workbench/TerminalWorkbenchViewport.tsx"
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchViewport.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchPaneContentHandleReveal.ts"
       ],
       "targets": [],
-      "reason": "Not reachable from the product entry at v0.4.0 (import walk from every non-test, non-harness module): the terminal-owned session header, overflow, tab moves, split groups and session hosts survive only for the visual-smoke harnesses. Production terminals are Auxiliary Workbench items (TerminalWorkbenchContribution), so their tabs, overflow, moves and splits are the shared workbench ones (src/features/workbench)."
+      "reason": "Not reachable from the product entry at v0.4.0 (import walk from every non-test, non-harness module): the terminal-owned session header, overflow, tab moves, split groups and session hosts survive only for the visual-smoke harnesses. Production terminals are Auxiliary Workbench items (TerminalWorkbenchContribution), so their tabs, overflow, moves and splits are the shared workbench ones (src/features/workbench). useWorkbenchPaneContentHandleReveal is imported only by the unreachable useTerminalPaneContentHandleReveal re-export."
     },
     {
       "name": "Terminal workbench item",
@@ -1734,9 +1867,34 @@
       "sources": [
         "src/features/cloud/sections/AutomationRouteSection.tsx",
         "src/lib/cloud/automationApi.ts",
-        "src/lib/cloud/synchronizeApi.ts"
+        "src/lib/cloud/synchronizeApi.ts",
+        "src/features/automation/AutomationControls.tsx",
+        "src/features/automation/AutomationCreateDialog.tsx",
+        "src/features/automation/AutomationDialogs.tsx",
+        "src/features/automation/AutomationIcon.tsx",
+        "src/features/automation/AutomationManageDialog.tsx",
+        "src/features/automation/AutomationPage.tsx",
+        "src/features/automation/AutomationTemplateCard.tsx",
+        "src/features/automation/CloudProjectAutomationView.tsx",
+        "src/features/automation/automation-dialog.css",
+        "src/features/automation/automation.css",
+        "src/features/automation/automationDomain.ts",
+        "src/features/automation/automationPresentation.ts",
+        "src/features/automation/automationRequest.ts",
+        "src/features/automation/automationTemplates.ts",
+        "src/features/automation/styles/connections.css",
+        "src/features/automation/styles/dialog/builder-and-resources.css",
+        "src/features/automation/styles/dialog/creation-map.css",
+        "src/features/automation/styles/dialog/management.css",
+        "src/features/automation/styles/dialog/responsive.css",
+        "src/features/automation/styles/dialog/shell.css",
+        "src/features/automation/styles/existing-automations.css",
+        "src/features/automation/styles/provider-sidebar.css",
+        "src/features/automation/styles/responsive.css",
+        "src/features/automation/styles/shell-and-catalog.css",
+        "src/features/automation/useSynchronizeBindings.ts"
       ],
-      "reason": "Experimental enableCloudAutomation, off by default; not ported, awaiting a decision (C-14.1)."
+      "reason": "Experimental enableCloudAutomation, off by default; not ported, awaiting a decision (C-14.1). The Automation feature itself (src/features/automation: page, dialogs, templates, bindings and styles) is reachable only through AutomationRouteSection's lazy import, and nothing in v0.4.4 imports that section."
     },
     {
       "name": "Cloud Branches section",
@@ -1953,11 +2111,13 @@
         "src/features/cloud/auth/first-run-sign-in.css",
         "src/features/cloud/auth/resolveCloudAuthState.ts",
         "src/features/cloud/auth/useCloudSessionForEnvironment.ts",
-        "src/features/cloud/auth/useFirstRunSignIn.ts"
+        "src/features/cloud/auth/useFirstRunSignIn.ts",
+        "src/features/cloud/workbench/CloudAccountButton.tsx"
       ],
       "targets": [
         "src/features/cloud/account.rs",
-        "src/app/project_place.rs"
+        "src/app/project_place.rs",
+        "src/app/chrome/mod.rs"
       ],
       "evidence": [
         "test:put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it",
@@ -2028,19 +2188,21 @@
       "status": "partial",
       "sources": [
         "src/lib/cloudSession.ts",
-        "electron/main/auth/**"
+        "electron/main/auth/**",
+        "electron/main/cloud-runtime.mjs"
       ],
       "targets": [
         "src/cloud/auth/service.rs",
         "src/cloud/auth/store.rs",
         "src/cloud/auth/http.rs",
         "src/cloud/auth/callback.rs",
-        "src/features/cloud/account.rs"
+        "src/features/cloud/account.rs",
+        "src/platform/proxy.rs"
       ],
       "evidence": [
         "test:twenty_requests_share_refresh_and_initialization_without_exposing_secrets"
       ],
-      "remaining": "Browser OAuth, social sign-in, Keychain and several processes need real-environment acceptance (C-2.6)."
+      "remaining": "Browser OAuth, social sign-in, Keychain and several processes need real-environment acceptance (C-2.6). cloud-runtime.mjs's composition (auth and the Cloud API on Chromium's net stack) is the auth service's one reqwest client with the system proxy resolved the way Chromium does (platform::proxy, PAC included)."
     },
     {
       "name": "Cloud workspace streams and preview bytes (main process)",
@@ -2148,13 +2310,20 @@
         "src/app/useProjectOpeningSurfaces.tsx",
         "src/app/ProjectWindow.tsx",
         "src/app/useWindowProjectNavigation.ts",
-        "src/features/app-shell/window-project/**"
+        "src/features/app-shell/window-project/**",
+        "src/components/EditorViewModeMenu.tsx",
+        "src/features/app-shell/ProjectNavigationFailure.tsx",
+        "src/features/app-shell/RestoringWorkspaceScreen.tsx",
+        "src/styles/project-opening.css"
       ],
       "targets": [
         "src/app/file_mode.rs",
         "src/app/project/preparation.rs",
         "src/app/windows.rs",
-        "src/app/mod.rs"
+        "src/app/mod.rs",
+        "src/app/home/project_entry.rs",
+        "src/app/dialogs/builtin.rs",
+        "src/app/cloud_authority.rs"
       ],
       "evidence": [
         "test:markdown_csv_and_html_pages_open_on_their_own",
@@ -2162,7 +2331,7 @@
         "test:a_cloud_project_is_entered_at_once_and_escape_abandons_it",
         "test:a_newer_choice_replaces_a_project_still_opening"
       ],
-      "remaining": "File mode windows, the opening surface and newer-choice replacement are native; the window's project state is held by the Shell's fields rather than one store (windowProjectStore), with the same visible behaviour."
+      "remaining": "File mode windows, the opening surface and newer-choice replacement are native; the window's project state is held by the Shell's fields rather than one store (windowProjectStore), with the same visible behaviour. The file window's view menu (EditorViewModeMenu: 15px icons, a quiet trailing check, bounded height), the launch's restoring screen (RestoringWorkspaceScreen: the neutral area LoadingMark under a drag region) and ProjectNavigationFailure (420px, Close and Retry; a Cloud failure shows its code and request id with Copy details) are native."
     },
     {
       "name": "PDF viewer",
@@ -2308,7 +2477,8 @@
       "name": "App Preview viewer and runtime",
       "status": "partial",
       "sources": [
-        "src/shared-ui/editor/viewers/app/**"
+        "src/shared-ui/editor/viewers/app/**",
+        "src/features/data-workspace/appPreviewCreation.ts"
       ],
       "targets": [
         "src/editor/viewers/app_preview.rs",
@@ -2324,7 +2494,7 @@
         "artifact:app-preview-native/static-running-light.png",
         "artifact:app-preview-native/setup-light.png"
       ],
-      "remaining": "The product's AppPreviewViewer runs in WKWebView over the ported runtime. A manifest command named `node` runs the person's Node rather than the app's bundled runtime, HTTPS local servers count as ready once they accept a connection, and Cloud workspaces have no App Preview runtime (as in the product's Cloud data port)."
+      "remaining": "The product's AppPreviewViewer runs in WKWebView over the ported runtime. A manifest command named `node` runs the person's Node rather than the app's bundled runtime, HTTPS local servers count as ready once they accept a connection, and Cloud workspaces have no App Preview runtime (as in the product's Cloud data port). App setup detection and manifest writing (appPreviewCreation: candidate scripts, package manager, framework, command line) run inside the bundled product page, which tools/app-preview-entry.tsx wires to the host's listChildren/readFile."
     },
     {
       "name": "Editor document host",
@@ -2499,7 +2669,8 @@
         "electron/main/hosts/host-file-process.mjs",
         "electron/main/hosts/host-file-service.mjs",
         "electron/main/hosts/host-folder-registry.mjs",
-        "electron/main/hosts/host-git-service.mjs"
+        "electron/main/hosts/host-git-service.mjs",
+        "electron/host-service/git-operations.mjs"
       ],
       "targets": [
         "src/workspace/hosts/service.rs",
@@ -2582,6 +2753,874 @@
         "test:the_endpoint_falls_back_under_tmp_for_a_long_home",
         "test:a_half_closed_request_is_answered"
       ]
+    },
+    {
+      "name": "Project Reach (experimental)",
+      "status": "excluded",
+      "sources": [
+        "src/features/project-reach/useProjectReachExperience.ts",
+        "src/features/source-control/reach/reachHeaderChangesStatus.ts",
+        "src/features/source-control/reach/reachSidebarWording.ts",
+        "src/features/changes/IncomingChangesRegion.tsx",
+        "src/features/changes/incoming-changes.css",
+        "src/features/changes/incomingChangeReceipt.ts",
+        "src/features/changes/incomingReviewLedger.ts",
+        "src/features/changes/useIncomingChangeReview.ts"
+      ],
+      "targets": [],
+      "reason": "The decision point for the Project Reach experiment (experimentalSettings.enableProjectReach, default false), read by App.tsx and SourceControlSidebar.tsx to fork into Reach surfaces; Reach is out of scope, so the native app always takes the existing path. Project Reach is out of scope. These run only when useProjectReachExperience() is on: App.tsx applies reachHeaderChangesStatus under projectReachEnabled, and SourceControlSidebar swaps in getReachSyncWording / getReachSidebarModelWording and renders IncomingChangesRegion (useIncomingChangeReview with active: projectReach) instead of GitIncomingUpdateNotice; incoming-changes.css styles only IncomingChangesRegion."
+    },
+    {
+      "name": "AI edit review (dormant preference)",
+      "status": "excluded",
+      "sources": [
+        "src/shared-ui/editor/ai-edits/diff.ts",
+        "src/shared-ui/editor/ai-edits/types.ts",
+        "src/features/data-workspace/useAiEditReviewRequest.ts"
+      ],
+      "targets": [],
+      "reason": "AI edit review only runs when the aiEditAssistEnabled preference is true; it defaults to false and no Settings control sets it (only the legacy puppyone.desktop.aiEditAssist localStorage key), so in the product App passes activeAiEditRequest=null. The Rust port does not implement AI edit review (see Markdown viewer). useAiEditReviewRequest loads only under the same preference; the AI edit overlay is already noted as not passed to surfaces in the Editor document host group."
+    },
+    {
+      "name": "Agent brand catalog and marks",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/core/agentBrandCatalog.ts",
+        "src/shared-ui/core/rendererAssetCatalog.ts",
+        "src/shared-ui/brand/AgentBrandImage.tsx",
+        "src/shared-ui/brand/AgentMonochromeBrandImage.tsx",
+        "src/shared-ui/brand/agent-brand-image.css"
+      ],
+      "targets": [
+        "src/ui/agent_brands.rs",
+        "src/features/desktop_agent/ui/agent_brand_mark.rs",
+        "src/assets.rs",
+        "assets/agents",
+        "tools/import-agent-marks.py"
+      ],
+      "remaining": "AGENT_BRAND_CATALOG (ids, names, aliases, retired ids, optical scale, light/dark marks) and resolveAgentBrand's whole-word matching are ui::agent_brands; AgentBrandImage is agent_brands::image (theme mark at its optical scale) and the monochrome ChatGPT/Codex, Claude, Cursor and Pi marks are drawn in the surface's text colour. Marks are embedded by src/assets.rs rather than served from public/ paths, so RENDERER_ASSET_PATHS survives only as the importer's file list; the PuppyOne brand entries of that catalog (assets/brand/puppy-*.svg) are drawn by the Homepage and first-run screens."
+    },
+    {
+      "name": "Editor appearance and typography change signals",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/core/appearance/EditorAppearanceContext.tsx",
+        "src/shared-ui/core/appearance/textSelectionAppearance.ts",
+        "src/shared-ui/core/typography.ts"
+      ],
+      "targets": [
+        "src/ui/appearance.rs",
+        "src/typography/mod.rs",
+        "src/editor/view/decoration.rs",
+        "src/editor/markdown/style/surface.rs",
+        "src/editor/csv/theme.rs"
+      ],
+      "remaining": "The appearance revision and the typography change event are one Appearance global with a single writer (Appearance::apply), so every view re-renders with the new palette and type scale instead of subscribing to a revision or a DOM event. Native editors paint the inactive selection colour (--po-*-selection-inactive-bg) when they lose focus; the document-wide data-po-native-selection / data-po-window-active projection for plain DOM text has no counterpart because GPUI labels are not text-selectable."
+    },
+    {
+      "name": "Data port contracts, resource paths and workspace content changes",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/core/types.ts",
+        "src/shared-ui/core/dataResourcePath.ts",
+        "src/shared-ui/core/resourcePath.ts",
+        "src/shared-ui/core/resourceUri.ts",
+        "src/shared-ui/core/workspaceContentChange.ts",
+        "src/shared-ui/core/workbenchWorkspace.ts"
+      ],
+      "targets": [
+        "src/workspace/mod.rs",
+        "src/workspace/contracts.rs",
+        "src/workspace/ports.rs",
+        "src/model.rs",
+        "src/app/explorer/session.rs",
+        "src/editor/workbench/resource_operations.rs"
+      ],
+      "remaining": "The DataPort / Workspace contracts are the admitted Workspace handle (ResourceId, RelativePath validation, capabilities, leases, watches); rebasing paths after a rename or move is Tree::rebind and the editor's resource operations; content changes arrive as root watch events that the Explorer session turns into ContentChanged. There is no puppyone-local:// resource URI string identity or bounded 128-entry WorkspaceContentChange log, and WorkbenchWorkspaceContext's multi-folder events are out of scope (multi-root workspaces); one Workspace is one folder."
+    },
+    {
+      "name": "File format registry",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/core/fileFormats.ts"
+      ],
+      "targets": [
+        "src/formats/mod.rs",
+        "assets/formats/file-formats.json",
+        "tools/import-formats.py"
+      ],
+      "evidence": [
+        "test:names_resolve_like_the_product_registry",
+        "test:globs_and_matched_extensions_follow_the_product",
+        "test:semantic_kinds_and_extensions_follow_the_format",
+        "test:mime_types_fill_in_for_unregistered_names"
+      ],
+      "remaining": "Name and MIME resolution, filename globs, matched and resolved extensions, semantic kinds, text-likeness and preferred MIME types run over the imported product table. FilePreviewKind (getFilePreviewKind / getPreviewKindForFormat) is not projected: the editor registry picks the surface from defaultViewer directly."
+    },
+    {
+      "name": "Embedded frame scroll and pointer relay",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/editor/host/embeddedFrameRelay.ts"
+      ],
+      "targets": [
+        "src/editor/registry/surface.rs",
+        "src/editor/host/mod.rs",
+        "src/app/file_mode.rs"
+      ],
+      "remaining": "GPUI surfaces report their scroll through Surface::scroll_state and take the host's chrome inset through set_chrome_inset (text, Markdown, code and CSV), and the file window reads the pointer directly for its chrome reveal. WebView-hosted documents (HTML and other bundled product pages) keep the trait defaults: their scroll and pointer are not relayed to the host and they do not read --po-editor-chrome-inset-block-start."
+    },
+    {
+      "name": "Explorer disclosure motion",
+      "status": "ported",
+      "sources": [
+        "src/shared-ui/data/explorer/explorerMotionPlan.ts",
+        "src/shared-ui/data/explorer/explorerMotionAnimation.ts",
+        "src/shared-ui/data/explorer/useExplorerMotion.ts"
+      ],
+      "targets": [
+        "src/app/explorer/motion.rs",
+        "src/app/explorer/rows.rs",
+        "src/ui/motion.rs"
+      ],
+      "evidence": [
+        "test:the_curve_is_a_symmetric_jerk_limited_trapezoid",
+        "test:opening_a_folder_reveals_its_rows_in_order_and_pushes_the_rest_down",
+        "test:closing_a_folder_clips_its_rows_away_last_first",
+        "test:hydration_and_a_different_project_do_not_animate",
+        "test:a_new_revision_starts_a_plan_that_ends_after_its_duration",
+        "test:opening_a_folder_animates_its_rows_unless_motion_is_reduced"
+      ]
+    },
+    {
+      "name": "Explorer reference drag payload",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/data/explorer/explorerReferenceDrag.ts"
+      ],
+      "targets": [
+        "src/ui/resource_drag.rs",
+        "src/app/explorer/rows.rs",
+        "src/app/editor_workbench.rs",
+        "src/features/terminal/view/mod.rs",
+        "src/features/desktop_agent/ui/panel/mod.rs"
+      ],
+      "remaining": "Explorer entries drag as one in-process ResourceDrag (workspace-relative paths, the source workspace and a label) that editor panes, terminals and the Agent panel admit, and that leaves the window as files. The versioned JSON DataTransfer payload, its parsing limits and classifyReferenceDataTransfer's file / text-URI classification are DOM transport with no native counterpart; entries of a workspace without a local root (Cloud) give terminals and the Agent no paths."
+    },
+    {
+      "name": "File icon themes and glyphs",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/file/fileIcons.tsx",
+        "src/shared-ui/file/fileIconTypes.ts",
+        "src/shared-ui/file/icon-themes/iconThemeTypes.ts",
+        "src/shared-ui/file/icon-themes/registry.ts",
+        "src/shared-ui/file/icon-themes/themeFactory.tsx",
+        "src/shared-ui/file/icon-themes/default/glyphs.tsx",
+        "src/shared-ui/file/icon-themes/default/previews.tsx",
+        "src/shared-ui/file/icon-themes/shared/PreviewShell.tsx",
+        "src/shared-ui/file/icon-themes/shared/glyphLine.ts",
+        "src/shared-ui/file/icon-themes/shared/semanticGlyphs.tsx",
+        "src/shared-ui/styles/file-icons.css"
+      ],
+      "targets": [
+        "src/file_kind.rs",
+        "assets/file-icons.json",
+        "tools/import-file-icons.mjs",
+        "src/theme.rs",
+        "src/assets.rs",
+        "src/app/explorer/rows.rs"
+      ],
+      "evidence": [
+        "test:every_known_format_has_a_glyph_in_every_theme",
+        "test:every_kind_has_late_bound_ink_and_valid_geometry_at_each_size",
+        "test:every_file_icon_binding_uses_the_active_palette_and_inherited_ink"
+      ],
+      "remaining": "Every theme's FileGlyphIcon is compiled from the TS registry into parameterised SVG glyphs per semantic kind (stroke policy per size, late-bound ink), retired theme ids migrate, and the Explorer hides file glyphs while keeping their slot when Show file icons is off. FilePreviewIcon (previews.tsx / PreviewShell: the document shell with a text snippet, folder child count) is not ported; the audio card and other large icons draw the glyph at size."
+    },
+    {
+      "name": "Product icons",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/icons/productIcons.tsx",
+        "src/shared-ui/styles/product-icons.css"
+      ],
+      "targets": [
+        "src/asset_catalog.rs",
+        "assets/ui-assets.json",
+        "tools/import-ui-assets.mjs"
+      ],
+      "evidence": [
+        "test:product_registry_is_exhaustive_and_preserves_geometry"
+      ],
+      "remaining": "The seven product meanings (home, folder, local, cloud, cloud-upload, cloud-off, disclosure) are rendered from PRODUCT_ICONS into assets/ui-assets.json and requested as ProductIcon meanings with their optical stroke and CloudOff cutout. The disclosure's turn is drawn by each surface (the Explorer's follows its disclosure motion, not the 120ms CSS transition), and the mirrored collapsed disclosure of right-to-left layouts is not ported."
+    },
+    {
+      "name": "Loading mark and placeholder material",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/primitives/LoadingMark.tsx",
+        "src/shared-ui/primitives/LoadingPlaceholder.tsx",
+        "src/shared-ui/primitives/OrderedDither.tsx",
+        "src/shared-ui/primitives/orderedDitherField.ts",
+        "src/shared-ui/styles/loading-mark.css",
+        "src/shared-ui/styles/loading-placeholder.css"
+      ],
+      "targets": [
+        "src/ui/loading/mod.rs",
+        "src/ui/loading/model.rs",
+        "src/asset_catalog.rs",
+        "assets/ui-assets.json",
+        "tools/import-ui-assets.mjs",
+        "src/ui/asset_gallery.rs"
+      ],
+      "evidence": [
+        "test:real_typescript_dither_frames_match_byte_for_byte",
+        "test:rounded_keyframes_and_reduced_motion_keep_the_product_figures",
+        "test:loading_material_migrates_without_discarding_other_preferences"
+      ],
+      "remaining": "LoadingMark (rounded relay and Bayer dither, xs/sm/md, inline and area layouts, five tones) and placeholder skeleton layers run on one App clock with the imported geometry; dither frames match the TS oracle byte for byte and reduced motion holds the product's still figures. The loading style comes from the Appearance global instead of LoadingPlaceholderStyleProvider; InlineLoading's mark-plus-label is composed per surface; the asset gallery has no recorded pixel comparison against Chromium."
+    },
+    {
+      "name": "Floating notices",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/primitives/FloatingNotice.tsx"
+      ],
+      "targets": [
+        "src/ui/components/notice.rs",
+        "src/app/explorer/clipboard_notice.rs",
+        "src/app/project_place.rs",
+        "src/app/editor_area.rs"
+      ],
+      "evidence": [
+        "test:tones_carry_the_product_glyphs",
+        "test:notices_say_what_the_product_says_and_last_as_long"
+      ],
+      "remaining": "FloatingNotice with its tone glyphs, message, inline and emphasised actions, busy state and dismiss control, and FloatingNoticeStack placement are native and used by clipboard notices, project place, folder status, the editor area, terminals and the workbench creation failure. Escape-to-dismiss while focus is inside the notice and FloatingNoticePortal's fallback stack are not ported; useDismissibleNotice's per-key dismissal is owned by each surface."
+    },
+    {
+      "name": "Shared buttons and overflow dots",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/primitives/Button.tsx",
+        "src/shared-ui/primitives/OverflowDots.tsx"
+      ],
+      "targets": [
+        "src/ui/components/button.rs",
+        "src/ui/components/sidebar.rs",
+        "assets/icons/overflow-dots.svg",
+        "tools/import-icons.mjs"
+      ],
+      "remaining": "po-button's neutral / primary / danger commands are drawn by the native Button variants on the surfaces that use it (Agents dialog, workbench close dialog), with a leading icon; there is no one-to-one tone API and no pixel comparison. The vertical OverflowDots is the overflow-dots.svg glyph on RowActionButton::more (three 2px squares, 2px apart); the horizontal variant of the editor pane actions trigger is not drawn because the native pane chrome lays its actions out inline."
+    },
+    {
+      "name": "Scroll edge state",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/primitives/useScrollableClass.ts"
+      ],
+      "targets": [
+        "src/app/explorer/mod.rs",
+        "src/features/desktop_agent/ui/panel/transcript.rs"
+      ],
+      "evidence": [
+        "test:sidebar_tree_fade_follows_use_scroll_edge_state",
+        "test:sidebar_tree_fades_into_the_footer_only_while_rows_remain_below",
+        "test:the_top_fade_follows_the_first_24px_of_scroll"
+      ],
+      "remaining": "useScrollEdgeState's 24px edge fade over a list that overflows by more than 1px is computed from GPUI scroll handles where a surface draws a fade (the Explorer's bottom fade into the footer, the Agent transcript's top fade). The is-scrollable classes useScrollableDescendantClasses puts on Changes lists have no native styling consumer."
+    },
+    {
+      "name": "Sidebar primitives (rows, icon buttons, virtual lists)",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/sidebar/SidebarRow.tsx",
+        "src/shared-ui/sidebar/SidebarIconButton.tsx",
+        "src/shared-ui/sidebar/SidebarEmptyState.tsx",
+        "src/shared-ui/sidebar/SidebarRoot.tsx",
+        "src/shared-ui/sidebar/SidebarScrollArea.tsx",
+        "src/shared-ui/sidebar/VirtualSidebarList.tsx",
+        "src/shared-ui/sidebar/useVirtualSidebarWindow.ts",
+        "src/shared-ui/sidebar/virtualizationPolicy.ts",
+        "src/shared-ui/sidebar/classNames.ts"
+      ],
+      "targets": [
+        "src/ui/components/sidebar.rs",
+        "src/app/explorer/rows.rs",
+        "src/features/source_control/mod.rs",
+        "src/features/settings/sidebar/settings_sidebar.rs"
+      ],
+      "evidence": [
+        "test:large_tree_uses_gpui_virtual_rows",
+        "test:explorer_row_menus_light_their_trigger_and_dismiss"
+      ],
+      "remaining": "SidebarRow (tree, list and navigation variants, hover-revealed actions, selected backplates), the row icon buttons with their danger tint, section headers and groups are ui::components::sidebar. VirtualSidebarList / useVirtualSidebarWindow are GPUI uniform_list in the Explorer and Changes lists, which virtualise at any length rather than above SIDEBAR_VIRTUALIZATION_THRESHOLD. SidebarRoot, SidebarScrollArea and SidebarEmptyState are laid out by each surface (the Changes empty notes, Settings navigation) rather than as shared components."
+    },
+    {
+      "name": "Workbench split tree and item model",
+      "status": "partial",
+      "sources": [
+        "src/shared-ui/workbench/split-tree/splitTreeModel.ts",
+        "src/shared-ui/workbench/split-tree/splitTreeConstraints.ts",
+        "src/shared-ui/workbench/split-tree/splitDropGeometry.ts",
+        "src/shared-ui/workbench/auxiliary-workbench/auxiliaryWorkbenchModel.ts"
+      ],
+      "targets": [
+        "src/features/workbench/layout.rs",
+        "src/features/workbench/drag.rs",
+        "src/features/workbench/persistence.rs",
+        "src/editor/workbench/layout.rs"
+      ],
+      "evidence": [
+        "test:split_bounds_keep_both_sides_at_their_minimum",
+        "test:move_split_preserves_identity_and_order",
+        "test:edges_follow_the_closest_relative_distance",
+        "test:pane_move_preserves_leaf_ids_and_sibling_ratio_but_direction_change_resets_it"
+      ],
+      "remaining": "The shared split tree is re-expressed per owner: the right workbench's groups, tabs, splits, ratio bounds and minimum sizes (features::workbench::layout) and the editor's pane tree (editor::workbench::layout); closest-edge drops and split-fit checks are native. Moving or merging a whole group (move-group / merge-group, canMove/canMergeAuxiliaryWorkbenchGroup) is not ported, and stored layouts are checked by the Rust store instead of auxiliaryWorkbenchStateErrors."
+    },
+    {
+      "name": "Shared-ui React and Electron plumbing",
+      "status": "excluded",
+      "sources": [
+        "src/shared-ui/primitives/useStableEventCallback.ts",
+        "src/shared-ui/core/useCssPixelCustomProperty.ts",
+        "src/shared-ui/core/ipcErrorMessage.ts",
+        "src/shared-ui/core/rendererPublicAsset.ts"
+      ],
+      "targets": [],
+      "reason": "React/DOM/Electron plumbing with no native counterpart needed: a stable-identity React callback, a DOM probe that reads a CSS pixel custom property (native code reads the token from Theme), stripping Electron's \"Error invoking remote method\" IPC wrapper (Rust has no renderer IPC), and resolving public/ asset URLs against Vite's base (native assets are embedded by src/assets.rs)."
+    },
+    {
+      "name": "Unused shared-ui modules",
+      "status": "excluded",
+      "sources": [
+        "src/shared-ui/data/file-open/fileContentCache.ts",
+        "src/shared-ui/data/file-open/fileOpenRequestCoordinator.ts",
+        "src/shared-ui/file/fileIconThemeRegistry.tsx",
+        "src/shared-ui/primitives/EmptyState.tsx",
+        "src/shared-ui/primitives/IconButton.tsx",
+        "src/shared-ui/primitives/StatusBadge.tsx",
+        "src/shared-ui/sidebar/SidebarList.tsx",
+        "src/shared-ui/data/ProjectsHeader.tsx"
+      ],
+      "targets": [],
+      "reason": "Dead in the product: the file-open cache and request coordinator and the fileIconThemeRegistry compatibility re-export have no importers; EmptyState, IconButton, StatusBadge and SidebarList are exported from the shared-ui barrels but no product module renders them; ProjectsHeader (WorkspaceHeader) only renders when DataWorkspace's showHeader is true, and every product caller (DesktopDataWorkspaceSurface, FileModeApp, EditorPaneDocumentRuntime) passes showHeader={false}."
+    },
+    {
+      "name": "Shared-ui fixtures, notes and performance probes",
+      "status": "excluded",
+      "sources": [
+        "src/shared-ui/AGENTS.md",
+        "src/shared-ui/fixtures/editor.ts",
+        "src/shared-ui/fixtures/tree.ts",
+        "src/shared-ui/performance/rendererPerformance.ts"
+      ],
+      "targets": [],
+      "reason": "Contributor instructions, mock editor/tree fixtures with no importers, and the renderer performance tracker whose puppyone:renderer-performance events are consumed only by RendererPerformanceSmokeHarness; native timing uses Rust benches and frame budgets (tools/editor-frame-budgets.json)."
+    },
+    {
+      "name": "Window shell composition and workspace surfaces",
+      "status": "partial",
+      "sources": [
+        "src/components/ProjectShell.tsx",
+        "src/features/app-shell/DesktopWorkspaceContent.tsx",
+        "src/features/app-shell/DesktopDataWorkspaceSurface.tsx",
+        "src/features/app-shell/DesktopWorkspaceLocationSurface.tsx",
+        "src/features/app-shell/workspace-surfaces/WorkspaceSurfaceOutlet.tsx",
+        "src/features/app-shell/workspace-surfaces/useWorkspaceSurfaceContent.tsx",
+        "src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts",
+        "src/features/app-shell/workspace-surfaces/workspaceSurfaceTypes.ts"
+      ],
+      "targets": [
+        "src/app/mod.rs",
+        "src/app/panes/stack.rs",
+        "src/app/panes/layout.rs",
+        "src/app/chrome/rail.rs",
+        "src/app/sidebar/column.rs",
+        "src/app/editor_area.rs",
+        "src/app/right_sidebar.rs",
+        "src/app/explorer/clipboard_notice.rs",
+        "src/app/explorer/pins.rs"
+      ],
+      "evidence": [
+        "test:the_cached_panes_render_again_only_when_they_change",
+        "test:opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima",
+        "test:the_right_sidebar_keeps_and_restores_its_surface"
+      ],
+      "remaining": "ProjectShell's composition (Header, project rail, Explorer column over the footer, editor area, right sidebar, the native window minimum from the pane minima plus the rail) and DesktopDataWorkspaceSurface's parts (Explorer with pins and Agent presence, the editor split view, file clipboard notices) are native in the Shell. The project rail is the compact rail only: the product's resizable, collapsible expanded rail is not ported. There is no surface registry: Data is the only workspace surface (the product already resolves git and cloud to it), Settings opens as its dialog, and a Cloud project reuses the same Explorer and editor instead of a second kept-alive location surface. The Plugins dialog and the AI edit response card (aiEditAssistEnabled) are not ported. Not pixel-compared."
+    },
+    {
+      "name": "Workspace lifecycle and entry document",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/useWorkspaceLifecycle.ts",
+        "src/features/app-shell/useWorkspaceEntryBootstrap.ts",
+        "src/features/app-shell/workspaceEntryBootstrap.ts"
+      ],
+      "targets": [
+        "src/app/project/mod.rs",
+        "src/app/session.rs",
+        "src/app/windows.rs",
+        "src/app/command/pump.rs",
+        "src/app/home/create_project.rs"
+      ],
+      "evidence": [
+        "test:a_project_that_cannot_open_reports_why_and_retries",
+        "test:a_new_project_opens_on_its_getting_started_guide"
+      ],
+      "remaining": "Opening, creating, cloning, importing and switching projects, the launch's restore of the last one, the recent-project records and a nominated first document (a new project's Getting Started, a file window's file, initialOpenPath) are native in ProjectLifecycle. Not ported: the entry fallback for a folder entered without a nominated document or restored editors (resolveWorkspaceEntryDocument: Getting Started.md, then README, then index, then the first document by name), which opens nothing natively. Attaching and detaching extra folders (multiRootWorkspacesEnabled) is out of scope."
+    },
+    {
+      "name": "Project entry launcher and flow",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/ProjectEntryFlow.tsx",
+        "src/features/app-shell/ProjectEntryLauncherDialog.tsx",
+        "src/components/onboarding/ImportSourcePreview.tsx"
+      ],
+      "targets": [
+        "src/app/home/project_entry.rs",
+        "src/app/dialogs/mod.rs",
+        "src/app/home/template_import.rs"
+      ],
+      "evidence": [
+        "test:create_new_opens_the_project_entry_launcher_and_hands_off",
+        "test:a_template_link_gets_a_copy"
+      ],
+      "remaining": "The launcher (Create, Open a folder, Import) only routes, and the create, folder picker, template card and import dialogs follow one at a time on the window's dialog layer. ImportSourcePreview always shows GitHub and GitLab: the third mark the other-app-imports experiment adds (Obsidian) is not shown. The store link's read-failure dialog (templateLinkFailed with Retry) is not ported, since the link is handed over in process. Not pixel-compared."
+    },
+    {
+      "name": "Homepage intro, first paint and analytics disclosure",
+      "status": "partial",
+      "sources": [
+        "src/components/onboarding/OnboardingEmptyStateIntro.tsx",
+        "src/components/onboarding/emptyStateIntro.ts",
+        "src/components/onboarding/OnboardingTelemetryDisclosure.tsx",
+        "src/features/app-shell/useHomepageFirstPaint.ts"
+      ],
+      "targets": [
+        "src/app/home/intro.rs",
+        "src/app/home/mod.rs",
+        "src/features/telemetry.rs"
+      ],
+      "evidence": [
+        "test:an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure",
+        "test:the_aperture_breathes_then_opens_past_the_corners",
+        "test:a_level_change_and_the_disclosure_go_through_the_service"
+      ],
+      "remaining": "The empty Homepage's aperture intro (breathe 420ms, reveal 560ms, settle 120ms; the page inert until it ends), the one-time analytics disclosure after it (eligible, notice required, Basic; marked seen once shown) and the first-paint hold (the whole list in its final order, at most 4s, once per account, and the list hold after Home) are native. With reduced motion the intro is skipped rather than ending on the product's 220ms fallback; the dev-only notice preview (VITE_TELEMETRY_NOTICE_PREVIEW) is not ported. Not pixel-compared."
+    },
+    {
+      "name": "Project configuration file",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/usePuppyoneConfig.ts"
+      ],
+      "targets": [
+        "src/features/settings/workspace_config.rs",
+        "src/features/settings/repository_settings.rs"
+      ],
+      "evidence": [
+        "test:legacy_documents_normalize_like_the_product",
+        "test:writes_are_atomic_private_and_round_trip"
+      ],
+      "remaining": "<project>/.puppyone/config.json is read (normalized, unknown keys kept) when the repository settings load and written atomically on save, with the error kept beside the last good config. The 150ms reload after an outside edit (watchWorkspace) is not ported, and the config is held by the settings repository state rather than per window for every consumer."
+    },
+    {
+      "name": "Loading layouts (page, inline, project opening)",
+      "status": "partial",
+      "sources": [
+        "src/components/loading/index.tsx"
+      ],
+      "targets": [
+        "src/ui/loading/mod.rs",
+        "src/app/project/preparation.rs",
+        "src/app/file_mode.rs",
+        "src/app/home/project_entry.rs"
+      ],
+      "evidence": [
+        "test:rounded_keyframes_and_reduced_motion_keep_the_product_figures"
+      ],
+      "remaining": "The LoadingMark itself (area and inline figures, sizes, tones) is shared. PageLoading, ProjectOpeningLoading (the mark held in the region the document will fill, its detail below) and InlineLoading are composed at each owner rather than as shared layout components, so the gap and label size follow each call site; not pixel-compared."
+    },
+    {
+      "name": "Application render failure boundary",
+      "status": "excluded",
+      "sources": [
+        "src/components/ApplicationRenderBoundary.tsx"
+      ],
+      "targets": [],
+      "reason": "React error boundary that main.tsx wraps around the whole App to replace a render exception with a Refresh page. Native render functions return elements and cannot throw; failures are reported by their owners and process-level supervision is A-14/A-16 (as for the workbench render boundaries)."
+    },
+    {
+      "name": "Unused App Shell leftovers (unreachable)",
+      "status": "excluded",
+      "sources": [
+        "src/features/app-shell/projectBackupProviders.ts",
+        "src/features/app-shell/empty-workspace-onboarding.css",
+        "src/features/app-shell/DesktopShellAccessoryContext.tsx",
+        "src/features/app-shell/navigation/DesktopSidebarRailNavigation.tsx",
+        "src/features/app-shell/navigation/DesktopSidebarTopNavigation.tsx"
+      ],
+      "targets": [],
+      "reason": "Not reachable at v0.4.4 5e87974ef: projectBackupProviders.ts has no importer (only quality baselines list it); no element uses the .empty-workspace-starter-* classes of empty-workspace-onboarding.css (only styles.css imports it); DesktopShellAccessoryContext's provider is mounted by ProjectShell but its only consumer DesktopShellNavigationToolbarPortal is never rendered; DesktopSidebarRailNavigation and DesktopSidebarTopNavigation are only re-exported by navigation/index.ts and imported by a component test (the appearance resolves the sidebar navigation to bottom-horizontal only)."
+    },
+    {
+      "name": "Puppyone Git remote classification",
+      "status": "partial",
+      "sources": [
+        "src/features/source-control/remotes.ts"
+      ],
+      "targets": [
+        "src/features/settings/repository_settings.rs",
+        "src/workspace/cloud/locator.rs"
+      ],
+      "evidence": [
+        "test:remote_labels_and_masking",
+        "test:puppyone_remotes_follow_the_product_parser",
+        "test:the_puppyone_remote_is_one_target_or_none",
+        "test:remotes_parse_projects_scopes_and_ignore_access_points",
+        "test:exactly_one_canonical_identity_or_none"
+      ],
+      "remaining": "parsePuppyoneRemote, maskSecret / maskRemoteUrl and getPuppyoneRemote (one target; a remote whose fetch and push disagree, or two different targets, is a conflict) are repository_settings.rs; the canonical Project/Scope resolution that ignores access points (resolveCanonicalPuppyoneRemotes) is workspace::cloud::locator::canonical_locator, which counts identities over every remote URL but does not treat a canonical fetch paired with an access-point or foreign push as a conflict. describePuppyoneRemoteCandidates (the conflict diagnostic) and normalizeRemoteUrlForCompare are not ported."
+    },
+    {
+      "name": "Version Control icon",
+      "status": "partial",
+      "sources": [
+        "src/features/source-control/VersionControlIcon.tsx"
+      ],
+      "targets": [
+        "assets/icons/version-control.svg",
+        "src/app/chrome/mod.rs",
+        "src/app/coachmarks.rs",
+        "src/features/settings/main/appearance_settings_view.rs"
+      ],
+      "remaining": "The product's glyph (same circles and paths, 2px round strokes) is assets/icons/version-control.svg, drawn by the Header's Changes tool, the Changes coachmark and the Appearance header-tools list. Its use in the device-folder Header and the unreachable setup entry state is not mirrored, and the stroke at 18px is not pixel-compared."
+    },
+    {
+      "name": "Native web surface geometry, occlusion and pointer routing",
+      "status": "partial",
+      "sources": [
+        "src/features/native-surfaces/nativeSurfaceGeometry.ts",
+        "src/features/native-surfaces/nativeSurfaceOcclusion.ts",
+        "src/features/native-surfaces/nativeSurfacePaneChrome.ts",
+        "src/features/native-surfaces/nativeSurfacePointerPassthrough.ts",
+        "src/features/native-surfaces/nativeSurfacePointerRoutingRegions.ts",
+        "src/features/native-surfaces/nativeSurfaceResizeLease.ts",
+        "src/features/native-surfaces/useNativeSurfaceGeometry.ts",
+        "src/features/native-surfaces/useNativeSurfaceLayoutTransition.ts",
+        "src/features/native-surfaces/useNativeSurfacePointerPassthroughActivity.ts",
+        "src/features/native-surfaces/useNativeSurfacePointerRoutingRegion.ts"
+      ],
+      "targets": [
+        "src/web_host.rs",
+        "src/platform/webview.rs",
+        "src/app/mod.rs"
+      ],
+      "remaining": "Native child views draw above the app in both stacks. Each wry WebView is placed from its element's paint every frame (place / place_clipped to the content mask, with corner radius when whole) and shows only while it painted in the last frame and no Shell dialog or popover is open (web_host::set_overlay / frame_drawn), which stands in for the occlusion leases, the layout leases and the shared settling frame clock; OS file drags over a WebView reach the pane because the view registers no drag types. Not ported: pointer passthrough and pointer-routing regions (resize lanes and in-app tab, pane and split drags crossing a WebView are not routed to the Shell), and trimming the outer pane chrome from the view's bounds (nativeSurfacePaneChrome) beyond clipping. useNativeSurfaceGeometry has no product caller in v0.4.4."
+    },
+    {
+      "name": "Workbench data service and workspace content watch",
+      "status": "partial",
+      "sources": [
+        "src/features/data-workspace/workbenchDataPort.ts",
+        "src/features/data-workspace/useWorkbenchWorkspaceContentWatch.ts",
+        "src/features/data-workspace/workbenchWorkspaceContentChange.ts"
+      ],
+      "targets": [
+        "src/workspace/mod.rs",
+        "src/workspace/ports.rs",
+        "src/documents/mod.rs",
+        "src/app/explorer/session.rs"
+      ],
+      "remaining": "A window holds one admitted Workspace (local, Cloud or device folder) behind the provider facade: resources resolve against its root lease, documents hold their own watches and the Explorer session the root subscription, and a change invalidates documents and rereads loaded folders. The URI-routed multi-folder service (several Workspace Folders, cross-root copy, unavailable-folder stubs, per-composition watch ownership and retirement, folder-scoped change journal) belongs to multi-root composition and is not ported."
+    },
+    {
+      "name": "Session transport: scoped operations",
+      "status": "partial",
+      "sources": [
+        "src/features/session-transport/ManagedOperationScope.ts"
+      ],
+      "targets": [
+        "src/features/session_transport/managed_operation_scope.rs",
+        "src/features/session_transport/mod.rs"
+      ],
+      "remaining": "signal, cancel and waitForScopedOperation (scope cancellation, ScopedOperationTimeoutError with its timeout) are native over the Agent's Canceller and the UI runtime's timer, used by AgentSessionController and AgentSessionReplica; own() and size, which no product caller uses, are not ported, and there is no dedicated Rust test."
+    },
+    {
+      "name": "Session transport IPC plumbing (Electron)",
+      "status": "excluded",
+      "sources": [
+        "src/features/session-transport/itemLifecycleClient.ts",
+        "src/features/session-transport/sessionConnection.ts",
+        "src/features/session-transport/sessionPorts.ts"
+      ],
+      "targets": [],
+      "reason": "Electron cross-process plumbing: receiving transferred MessagePorts from the preload, unwrapping results serialized across two IPC boundaries, and validating an out-of-process item-host termination receipt with a 5 s uncertainty timeout. The GPUI app runs the Agent host in-process (AgentHostHandle) and terminals as direct PTYs (platform::terminal), so there is no port, serialized envelope or item-host receipt; the item-host execution ownership gap is tracked in tools/agent-migration-map.json (agentExecutionClient)."
+    },
+    {
+      "name": "Data workspace shell and browser stylesheets",
+      "status": "partial",
+      "sources": [
+        "src/features/data-workspace/browser.css",
+        "src/features/data-workspace/data-shell.css"
+      ],
+      "targets": [
+        "src/app/explorer/pins.rs",
+        "src/app/explorer/rows.rs",
+        "src/app/explorer/clipboard_notice.rs",
+        "src/app/project/notices.rs",
+        "src/app/sidebar/footer.rs",
+        "src/app/panes/layout.rs",
+        "src/editor/viewers/external.rs"
+      ],
+      "remaining": "Mixed feature stylesheets whose rules are re-expressed per element in Rust: the pin grid and files toggle, the list-end Create row, the Explorer column, the file-operation and workspace notice stacks, the footer bar and buttons and the external viewer chooser. Not ported: the rail and top navigation variants (see Sidebar footer navigation), viewer pack surface styles (Viewer Packs) and the remote update notice (unused in v0.4.4); file-list, inspector-column, risk-chip, mini-change-row, utility-workspace, changes-workspace and cloud-grid-host have no consumer in v0.4.4. Not pixel-compared."
+    },
+    {
+      "name": "Git auto-commit settings (experimental)",
+      "status": "excluded",
+      "sources": [
+        "src/features/source-control/useGitAutoCommitSettings.ts"
+      ],
+      "targets": [],
+      "reason": "Git auto-commit is out of scope; the hook only serves the auto-commit controls of RepositorySettingsViews (behind experimentalOptIn), which the Project, Git and Git Ignore settings group already lists as not ported."
+    },
+    {
+      "name": "Unreachable source-control and data-workspace surfaces",
+      "status": "excluded",
+      "sources": [
+        "src/features/source-control/SourceControlWorkspaceSurface.tsx",
+        "src/features/source-control/GitStatusView.tsx",
+        "src/features/source-control/VersionControlSetupState.tsx",
+        "src/features/data-workspace/RemoteUpdateNotice.tsx",
+        "src/features/changes/changes.css"
+      ],
+      "targets": [],
+      "reason": "Dead in v0.4.4. createSourceControlWorkspaceSurface and GitStatusView are only re-exported by source-control/index.ts and imported nowhere; VersionControlSetupState is used only by GitStatusView (the live setup action is GitRepositorySetupAction). RemoteUpdateNotice is imported by no module. changes.css is imported by styles.css but none of its selectors (change-dot, changes-content, diff-grid, diff-pane, review-row, review-list, section-kicker, browser-toolbar, ...) appear in any TS/TSX file."
+    },
+    {
+      "name": "Automatic updates",
+      "status": "partial",
+      "sources": [
+        "src/features/updates/DesktopUpdateSettingsRow.tsx",
+        "src/features/updates/DesktopUpdateTitlebarButton.tsx",
+        "src/features/updates/updateModel.ts",
+        "src/features/updates/updatePreview.ts",
+        "src/features/updates/useDesktopUpdates.ts"
+      ],
+      "targets": [
+        "src/features/updates.rs",
+        "src/platform/updates/mod.rs",
+        "src/platform/updates/feed.rs",
+        "src/platform/updates/policy.rs",
+        "src/platform/updates/state.rs",
+        "src/platform/updates/prepared.rs",
+        "src/app/header.rs",
+        "src/features/settings/main/general_settings_view.rs",
+        "src/app/dev/capture_scenario.rs"
+      ],
+      "evidence": [
+        "test:a_newer_version_is_offered_downloaded_and_checked",
+        "test:an_older_or_tampered_update_is_never_offered",
+        "test:the_titlebar_shows_only_what_it_can_act_on",
+        "test:the_download_preference_defaults_on_and_persists"
+      ],
+      "remaining": "One update service checks 15 s after launch and every 6 h on the build's channel, downloads (unless automatic download is off), prepares the update beside the installed app and installs it on quit; the Header button, the Settings › General rows and the menu check follow its state. The renderer preview (?desktop-update-preview) is the capture-mode updates-fixture step. macOS only (no Windows or Linux installer path); acceptance against a real signed release feed is pending."
+    },
+    {
+      "name": "Build identity",
+      "status": "partial",
+      "sources": [
+        "src/features/build-info/DesktopBuildIdentity.tsx",
+        "src/features/build-info/useDesktopBuildInfo.ts"
+      ],
+      "targets": [
+        "src/features/build_info.rs",
+        "src/platform/build_identity.rs",
+        "src/features/settings/main/general_settings_view.rs"
+      ],
+      "evidence": [
+        "test:channels_and_node_names_follow_the_product",
+        "test:diagnostics_name_every_coordinate"
+      ],
+      "remaining": "The Settings › General version row (channel · version) and its copy button with the 1.5 s Copied state are native; the copied diagnostics name the app \"PuppyOne GPUI\" rather than \"PuppyOne Desktop\"."
+    },
+    {
+      "name": "Telemetry public disclosure link",
+      "status": "partial",
+      "sources": [
+        "src/features/telemetry/publicDisclosure.ts"
+      ],
+      "targets": [
+        "src/platform/telemetry/contract.rs",
+        "src/features/settings/main/privacy_settings_view.rs",
+        "src/app/home/mod.rs"
+      ],
+      "remaining": "DISCLOSURE_URL is the same README#privacy address and opens from the Privacy row and the Homepage disclosure; no test pins the address."
+    },
+    {
+      "name": "Feature flags and release gates",
+      "status": "partial",
+      "sources": [
+        "src/features/flags/flags.json",
+        "src/features/flags/index.tsx",
+        "shared/host-contract/rollout.mjs",
+        "shared/host-contract/rollout.d.mts",
+        "src/features/payments/usePaymentsExperience.ts"
+      ],
+      "targets": [
+        "src/features/flags.rs",
+        "src/workspace/hosts/mod.rs",
+        "src/features/cloud/account.rs",
+        "src/cloud/auth/mod.rs",
+        "src/app/right_sidebar.rs",
+        "src/features/settings/main/plan/view.rs",
+        "src/features/settings/settings_workspace_surface.rs"
+      ],
+      "evidence": [
+        "test:a_saved_choice_cannot_open_other_computers_past_the_release_gate",
+        "test:the_plan_page_reads_billing_only_with_payments_on_and_keeps_readings_through_an_outage",
+        "test:without_payments_only_own_connections_are_routes"
+      ],
+      "remaining": "account_available, cloud_enabled, host_devices_available/enabled and the HOST_DEVICES_AVAILABLE release gate (closed, as in v0.4.4) are features::flags and workspace::hosts::AVAILABLE. The account is available when the Cloud account service is installed rather than from a bundled flags.json; the payments decision reads experimental.payments at each entry (Plan, Agent compute routes, the managed-compute broker) without usePaymentsExperience's account gate; the cloudBilling flag, which nothing in the product reads, is not represented."
+    },
+    {
+      "name": "File format catalog (shared/fileFormats.json)",
+      "status": "ported",
+      "sources": [
+        "shared/fileFormats.json"
+      ],
+      "targets": [
+        "assets/formats/file-formats.json",
+        "tools/import-formats.py",
+        "src/formats/mod.rs"
+      ],
+      "evidence": [
+        "test:names_resolve_like_the_product_registry",
+        "test:semantic_kinds_and_extensions_follow_the_format",
+        "test:every_default_viewer_is_declared_by_the_viewer_manifest"
+      ]
+    },
+    {
+      "name": "Other computers: Computer access settings",
+      "status": "partial",
+      "sources": [
+        "src/features/hosts/ui/OtherComputersSettings.tsx",
+        "src/features/hosts/ui/ComputerActionsMenu.tsx",
+        "src/features/hosts/ui/computer-access-settings.css"
+      ],
+      "targets": [
+        "src/features/settings/main/other_computers_settings_view.rs",
+        "src/features/hosts/computer_access.rs"
+      ],
+      "evidence": [
+        "test:the_host_says_what_is_shared_and_the_catalog_says_what_opens_settings",
+        "test:sharing_status_and_presence_follow_the_page"
+      ],
+      "remaining": "Settings › Computer access (behind the closed HOST_DEVICES_AVAILABLE gate) is native: this computer's sharing (pause, shared folders, start at login), the owner's other computers with presence, and the ⋯ menu whose Remove asks the system's warning first. Not compared against reference images."
+    },
+    {
+      "name": "Markdown presentation overrides",
+      "status": "partial",
+      "sources": [
+        "src/features/markdown/markdownPresentation.ts"
+      ],
+      "targets": [
+        "src/editor/markdown/style/inline.rs",
+        "src/editor/markdown/style/marks.rs"
+      ],
+      "remaining": "Only the default ('theme') presentation: headings and strong text take the active theme's --po-md-* values. The stored overrides (heading preset, strong weight and colour, the v1 migration) are neither imported from the appearance document's bySurface.markdown nor applied; v0.4.4 has no control that sets them (setMarkdownPresentation has no caller)."
+    },
+    {
+      "name": "Local workspace data port and main-process bridge",
+      "status": "partial",
+      "sources": [
+        "src/lib/localFiles.ts",
+        "src/lib/workspaceOpening.ts"
+      ],
+      "targets": [
+        "src/workspace/mod.rs",
+        "src/workspace/local.rs",
+        "src/workspace/ports.rs",
+        "src/app/windows.rs"
+      ],
+      "remaining": "The preload bridge itself has no native counterpart (one process, D-1): its calls are direct calls on the workspace provider, Git and window models, and createLocalDataPort's operations are the local workspace provider. connectWorkspaceCloudProject (Connect Existing Project) has no caller in the product and is not ported."
+    },
+    {
+      "name": "Shell layout and global stylesheets",
+      "status": "partial",
+      "sources": [
+        "src/styles/shell.css",
+        "src/styles/layout.css",
+        "src/styles/base.css",
+        "src/styles/animations.css",
+        "src/styles/entry-state.css"
+      ],
+      "targets": [
+        "src/app/mod.rs",
+        "src/app/right_sidebar.rs",
+        "src/app/chrome/project_menu.rs",
+        "src/app/panes/layout.rs",
+        "src/theme.rs",
+        "src/ui/components/switch.rs",
+        "src/ui/components/icon.rs",
+        "src/features/source_control/mod.rs",
+        "src/app/cloud_publish.rs"
+      ],
+      "remaining": "Rules are re-expressed per element in Rust: the shell columns below the Header (shell.css), the pane group, right-sidebar stack and project menu rules (layout.css), the settings switch (base.css), the spinner (animations.css; Icon::spinning turns once per 900 ms) and the entry-state layout used by the Changes setup state and the Cloud publish task. The CSS reset, the location bar and classic scrollbar buttons (P3 Windows XP interface), the Cloud frame/rail and identity-button rules (no product consumer) and the unused pulse/ping/fade keyframes have no counterpart; reduced motion follows the system setting. Not pixel-compared."
+    },
+    {
+      "name": "Viewer plugins (experimental)",
+      "status": "excluded",
+      "sources": [
+        "src/features/plugins/PluginsDialog.tsx",
+        "src/features/plugins/PluginsSidebar.tsx",
+        "src/features/plugins/PluginsView.tsx",
+        "src/features/plugins/pluginCatalog.ts",
+        "src/features/plugins/pluginFeature.ts",
+        "src/features/plugins/plugins.css"
+      ],
+      "targets": [],
+      "reason": "Behind enableViewerPlugins (preferences.ts default false): App.tsx opens the Plugins dialog and the sidebar entry only when it is on. Plugins are out of scope for this round; plugins.css is imported globally but styles only these components."
+    },
+    {
+      "name": "Cloud Connect Existing Project (unreachable)",
+      "status": "excluded",
+      "sources": [
+        "electron/main/cloud-git-connect-coordinator.mjs",
+        "electron/main/cloud-git-connect-journal.mjs"
+      ],
+      "targets": [],
+      "reason": "createCloudGitConnectCoordinator serves cloud-git:connect-project, but its only renderer client, connectWorkspaceCloudProject (src/lib/localFiles.ts), has no caller in v0.4.4. The journal is otherwise read only by the first-publication coordinator to refuse publishing over a pending connect record, which nothing can create."
+    },
+    {
+      "name": "Renderer DOM and build plumbing",
+      "status": "excluded",
+      "sources": [
+        "src/lib/clipboard.ts",
+        "src/lib/nativeTitleSuppression.ts",
+        "src/lib/workbench/panelContract.ts",
+        "src/styles/cascade.css",
+        "src/styles/viewer-surface-token-contract.json",
+        "src/styles/utility-screens.css"
+      ],
+      "targets": [],
+      "reason": "No native counterpart needed: clipboard.ts wraps navigator.clipboard (native callers write with cx.write_to_clipboard); nativeTitleSuppression.ts strips DOM title tooltips; panelContract.ts is a React component type injected into the workbench; cascade.css only declares the CSS @layer order; viewer-surface-token-contract.json is read only by scripts/check-renderer-style-architecture.mjs (a build-time lint); utility-screens.css's only live rule is .application-render-fallback for the React ApplicationRenderBoundary, the rest (recording strip, utility table, panic undo, monitor footer) has no consumer."
+    },
+    {
+      "name": "Test providers, smoke styles and mock data",
+      "status": "excluded",
+      "sources": [
+        "src/lib/localization/testing/TestLocalizationProvider.tsx",
+        "src/lib/localization/testing/pseudoCatalog.ts",
+        "src/features/appearance/auxiliary-appearance-smoke.css",
+        "src/lib/mockData.ts"
+      ],
+      "targets": [],
+      "reason": "Test and harness only: the localization testing providers and pseudo-locale catalog are imported only by tests; auxiliary-appearance-smoke.css serves the #auxiliary-appearance-smoke harness (AuxiliaryAppearanceSmokeHarness); mockData.ts is imported only by src/ai-edits/mockAiEdits.ts, which nothing imports."
     }
   ],
   "retired_sources": {
