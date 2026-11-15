@@ -2,6 +2,8 @@ pub mod claude;
 pub mod codex;
 pub mod cursor;
 pub mod hermes;
+#[cfg(test)]
+mod live_tests;
 pub mod opencode_native;
 pub mod opencode_protocol;
 pub mod pi;

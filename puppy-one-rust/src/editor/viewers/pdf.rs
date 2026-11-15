@@ -454,11 +454,13 @@ mod tests {
     use core::prelude::v1::test;
 
     #[gpui::test]
+    #[ignore = "requires PDFium; tools/verify-native-dependencies.py runs this explicitly"]
     fn a_pdf_opens_fits_the_pane_and_renders_its_page(cx: &mut TestAppContext) {
         cx.executor().allow_parking();
-        if pdf::library_path().is_none() {
-            return;
-        }
+        assert!(
+            pdf::library_path().is_some(),
+            "PDFium missing: run tools/fetch-pdfium.py"
+        );
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.pdf"), crate::platform::pdf::test_pdf()).unwrap();
         let ws = crate::workspace::Workspace::open(dir.path()).unwrap();

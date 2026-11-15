@@ -1,0 +1,342 @@
+{
+  "referenceCommit": "dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2",
+  "qualification": "Each row maps only its stated acceptance criteria. A referenced TS file can contain additional assertions; references are not whole-file equivalence or execution evidence. The inventory reports all other TS files for further review.",
+  "contracts": [
+    {
+      "id": "save-scheduling",
+      "acceptance": "800 ms idle, 2000 ms maximum wait, flush once, cancel future saves; exact TS scheduler oracle.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/autoSavePolicy.test.ts",
+          "sha256": "ca9f63b483521b9f385df322d95b3ac5b83ec4a95149d5c0ef7335f010f0cc47"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "documents::auto_save::tests::actual_typescript_scheduler_transition_oracle"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::auto_save::tests::saves_once_after_the_pause_and_restarts_the_pause_on_each_edit"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::auto_save::tests::continuous_typing_saves_within_two_seconds_and_the_next_burst_restarts"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::auto_save::tests::flushing_is_immediate_only_once_and_cancelling_never_saves_later"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "save-lifecycle",
+      "acceptance": "Blur flushes pending typing; close drains latest input; quick autosave is quiet, slow and manual save are announced.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/windowAutoSave.test.ts",
+          "sha256": "1817f44452f2f0f6328eef391555c7ba8e2478843a9e22fbd687f66646e3cf0f"
+        },
+        {
+          "path": "tests/component/editor/document-session/quietAutoSaveStatus.test.tsx",
+          "sha256": "f2d1a0326e862ab0a19efcd87e3e88cf1e0c79e4d89cdfa6afc1f4999eba121a"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "documents::tests::local_edit_waits_for_the_pause_then_snapshots_without_freezing_and_writes_real_file"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::leaving_the_window_flushes_pending_typing_once_without_freezing"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::closing_before_the_pause_drains_the_last_input_without_a_later_autosave"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::quick_background_saves_stay_quiet_slow_and_explicit_saves_are_announced"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "retained-documents",
+      "acceptance": "Changing projects retains working copies; blur flushes each retained project once without activation.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/document-session/editorDocumentLifetime.integration.test.tsx",
+          "sha256": "26eb6b7d5ca68b67b8fbcf1cee840ec534e81abda54ad96887e76ec6aee55c08"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::focus_and_workspace_switch_do_not_read_drain_or_revoke_retained_documents"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::background_copy_saves_and_close_waits_for_its_own_snapshot_without_changing_focus"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::window_blur_flushes_each_retained_project_once_without_activating_it"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "document-revalidation",
+      "acceptance": "Same bytes do not reset the shown editor; changed bytes replace it without a loading barrier; stale reads cannot restore old content.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/documentInputRevalidation.test.ts",
+          "sha256": "ef48e776ae25b951cd87b6a3cfc61fb0f4f37482a97343c45b50e93d5b78e698"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "documents::tests::revalidation_keeps_shown_content_and_only_changed_bytes_notify_the_editor"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::read_started_before_save_receipt_cannot_restore_old_content"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::superseded_observation_revalidates_without_needing_another_notification"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::a_hidden_document_releases_its_subscription_and_revalidates_when_shown"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "source-companion",
+      "acceptance": "Page and source edits propagate once, share undo/redo across focus, reject edits while gated, and take storage replacement.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/codeMirrorFollower.test.ts",
+          "sha256": "95eafa122119d8cf9439b4b185da46a1cc8af0933a2de18f9ca08a59942d891e"
+        },
+        {
+          "path": "tests/component/editor/document-session/documentSourcePanel.test.tsx",
+          "sha256": "a45f3212dda7ba6a0b5a45aed59d86ed756760fd9fd8d850c66fdb9b34a3b9cc"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::source_and_page_share_history_across_focus_changes_and_do_not_echo_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "cloud-event-shapes",
+      "acceptance": "Accept current path hints and legacy reset; invalid hints fail closed; Unicode byte fragmentation and bounded coalescing match TS.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudWorkspaceEvents.test.mjs",
+          "sha256": "82a31ee22399d070ef19a7a6df959462503a0a6e6461cfb484e53f59e31fe29a"
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudWorkspaceChanges.test.ts",
+          "sha256": "64d661d559cfad11aa53eca551cd8a2b39e65a07660cca49fc1f905e5be60771"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::actual_typescript_event_parser_oracle_including_fragmented_unicode"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::scoped_changes_accept_legacy_and_current_wire_shapes_and_deduplicate_paths"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::invalid_path_hints_reset_everything_only_with_the_legacy_reset_flag"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::only_matching_documents_wake_and_coalescing_never_loses_an_unknown_scope"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::too_many_coalesced_paths_fall_back_to_a_full_revalidation"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "cloud-write-scope",
+      "acceptance": "Unrelated mutations run concurrently; same resource, ancestor and move destination serialize; revoked waiters never dispatch.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/repositories/live-workspace-editing.test.ts",
+          "sha256": "f195800269d848c82d39dd054edae686ad5818e7c82b8ba84c6758f28a688dd9"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::mutations::tests::a_slow_save_does_not_block_creating_an_unrelated_file"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::mutations::tests::file_folder_and_move_destination_scopes_overlap_only_at_path_boundaries"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::mutations::tests::a_rename_waits_for_its_save_and_a_folder_delete_waits_for_its_child"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::mutations::tests::revoked_waiters_leave_the_queue_without_dispatching_or_blocking_followers"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "cloud-cache",
+      "acceptance": "Cache listings only while watching; bound retained entries; scope invalidation and stale flights; check authority on cache hits.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudDataPort.test.ts",
+          "sha256": "d04b5c141aa87263a07c4a4a7035a3a5558b9bee08df4f74fcdcddf76fc77439"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::listings_are_cached_only_while_watching_and_are_bounded"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::change_scope_drops_the_parent_and_subtree_but_preserves_other_listings"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::scoped_invalidation_fences_old_reads_without_discarding_unrelated_reads"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::errors_are_not_cached_and_authority_is_checked_even_on_cache_hits"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "cloud-http-integration",
+      "acceptance": "Actual HTTP provider preserves unrelated listings; create/move/delete/events invalidate precise scopes; unknown/failure clears caches; slow save does not block unrelated create. Database safety probes bypass Explorer caches and reject newly created WAL sidecars before their SSE hint arrives.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/repositories/live-workspace-editing.test.ts",
+          "sha256": "f195800269d848c82d39dd054edae686ad5818e7c82b8ba84c6758f28a688dd9"
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudDataPort.test.ts",
+          "sha256": "d04b5c141aa87263a07c4a4a7035a3a5558b9bee08df4f74fcdcddf76fc77439"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::saving_keeps_live_listings_and_creating_invalidates_only_its_parent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::scoped_events_drop_the_named_subtree_and_unknown_events_drop_every_listing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_move_invalidates_both_parents_and_a_delete_invalidates_the_subtree"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::failed_requests_and_stopped_watches_cannot_leave_authoritative_listings"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::database_previews_refuse_active_sidecars_and_keep_one_snapshot"
+        }
+      ],
+      "environment": "loopback TCP"
+    },
+    {
+      "id": "explorer-scope",
+      "acceptance": "Refresh only loaded directories affected by the change and nearest loaded ancestors; unknown scope refreshes all.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/explorer/explorerRefreshScope.test.ts",
+          "sha256": "c11905e8bc389ce1e4800be610d8327b010068b8931e9664ba01c4290a8106fa"
+        },
+        {
+          "path": "tests/component/workspace/explorer/explorerScopedRefresh.test.tsx",
+          "sha256": "3988ed44940fe2c5de0952a0bab6f6b201088c3827bb2aadfb1b4020004815e9"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::explorer::refresh_scope::tests::scoped_changes_refresh_the_nearest_loaded_ancestor_and_never_unopened_folders",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "GPUI synthetic"
+    },
+    {
+      "id": "explorer-reconciliation",
+      "acceptance": "Same listings preserve projection revision and selection; keep loaded descendants; folder-to-file drops old subtree; successful retry clears only its error.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/explorer/explorerTreeReconciliation.test.ts",
+          "sha256": "1ead88e4731d20f5e246c02adbcb56d0929bf80ecd63c0edac10137aac6c8651"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "model::tests::unchanged_relisting_preserves_projection_and_folder_replacement_drops_descendants"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::empty_refresh_loads_a_folder_and_success_clears_only_its_error"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::refreshing_folders_keeps_loaded_subtrees_and_drops_removed_entries"
+        }
+      ],
+      "environment": "local"
+    }
+  ],
+  "openAcceptance": [
+    "Full assertion-level review of the remaining TS inventory",
+    "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
+    "Installed CLI handshake and paid inference on all supported runtimes",
+    "Real Cloud and cross-device deployment acceptance",
+    "Reproducible production line/branch coverage baseline",
+    "Existing failing macOS platform tests and execution on an unrestricted runner"
+  ]
+}

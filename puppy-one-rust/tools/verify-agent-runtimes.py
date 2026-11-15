@@ -1,66 +1,38 @@
 #!/usr/bin/env python3
-"""Explicit native runtime checks. --live uses existing CLI login for small inference tests."""
+"""Run named native acceptance tests. --live permits small real CLI inference turns."""
 import argparse
-from datetime import datetime
-import hashlib
-import json
 import os
-from pathlib import Path
-import shutil
-import subprocess
 import tempfile
+from test_runner import run_gate
 
-parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--live', action='store_true')
-parser.add_argument('--only', action='append', choices=['puppyone-native','handshakes','pty','codex','claude','cursor','pi'], help='Run only selected checks; inference checks also require --live')
-args = parser.parse_args()
-root = Path(__file__).resolve().parents[1]
-out = root / 'artifacts/agent-runtime-verification'
-out.mkdir(parents=True, exist_ok=True)
-cargo = shutil.which('cargo') or str(Path.home() / '.cargo/bin/cargo')
-tests = [('puppyone-native', 'native_puppyone_http_approval_resume_fork_stop_and_binding'),
-         ('handshakes', 'live_installed_runtime_handshakes'),
-         ('pty', 'real_pty_input_resize_and_cleanup')]
-if args.live:
-    tests += [('codex', 'live_codex_roundtrip_resume_and_stop'),
-              ('claude', 'live_claude_stream_and_resume'),
-              ('cursor', 'live_cursor_stream_and_resume'),
-              ('pi', 'live_pi_stream_and_resume')]
-if args.only:
-    requested = set(args.only)
-    available = {name for name, _ in tests}
-    if not requested <= available:
+NATIVE = 'agent::runtimes::puppyone_agent::native_kernel::tests::'
+LIVE = 'agent::runtimes::live_tests::'
+CHECKS = {
+    'puppyone-native': ('po-agent', NATIVE + 'native_puppyone_http_approval_resume_stop_and_binding'),
+    'handshakes': ('po-agent', LIVE + 'live_installed_runtime_handshakes'),
+    'pty': ('po-platform', 'platform::terminal::tests::real_pty_input_resize_and_cleanup'),
+    'codex': ('po-agent', LIVE + 'live_codex_roundtrip_resume_and_stop'),
+    'claude': ('po-agent', LIVE + 'live_claude_stream_and_resume'),
+    'cursor': ('po-agent', LIVE + 'live_cursor_stream_and_resume'),
+    'pi': ('po-agent', LIVE + 'live_pi_stream_and_resume'),
+}
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--live', action='store_true')
+    parser.add_argument('--only', action='append', choices=CHECKS)
+    args = parser.parse_args()
+    scope = args.only or list(CHECKS)[:(7 if args.live else 3)]
+    if not args.live and any(name in ('codex', 'claude', 'cursor', 'pi') for name in scope):
         parser.error('Inference checks require --live')
-    tests = [(name, test) for name, test in tests if name in requested]
-
-
-def source_hashes():
-    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for folder in ['src/agent', 'src/features/desktop_agent', 'src/platform', 'crates']
-            for p in sorted((root / folder).rglob('*.rs'))}
-
-before = source_hashes()
-checks = []
-with tempfile.TemporaryDirectory(prefix='puppyone-runtime-verification-', dir='/private/tmp') as data:
-    env = dict(os.environ, PUPPYONE_RUST_DATA_DIR=data)
-    for name, test in tests:
-        print(f'Checking {name}…', flush=True)
-        command = [cargo, 'test', '--locked', '--features', 'dev-capture', test,
-                   '--', '--ignored', '--nocapture', '--test-threads=1']
-        try:
-            result = subprocess.run(command, cwd=root, env=env, text=True,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=240)
-            code, output = result.returncode, result.stdout
-        except subprocess.TimeoutExpired:
-            code, output = 124, 'Runtime verification exceeded its time budget.'
-        (out / f'{name}.log').write_text(output)
-        checks.append({'name': name, 'exit': code, 'test': test})
-        print(f'{name}: {"passed" if code == 0 else "failed (see log)"}', flush=True)
-report = {'capturedAt': datetime.now().astimezone().isoformat(), 'checks': checks,
-          'passed': all(c['exit'] == 0 for c in checks), 'liveInference': args.live, 'scope': [name for name, _ in tests], 'omittedChecks': sorted(available - {name for name, _ in tests}) if args.only else [],
-          'sourceHashes': before, 'sourceUnchangedDuringVerification': before == source_hashes(),
-          'qualification': 'OpenCode handshake uses an isolated config; runtime handshake is not inference or GUI validation.'}
-if not report['sourceUnchangedDuringVerification']:
-    report['passed'] = False
-(out / 'result.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
-raise SystemExit(0 if report['passed'] else 1)
+    with tempfile.TemporaryDirectory(prefix='puppyone-runtime-verification-') as data:
+        env = dict(os.environ, PUPPYONE_RUST_DATA_DIR=data,
+                   PUPPYONE_LIVE_INFERENCE='1' if args.live else '0')
+        report = run_gate('agent-runtime-verification', [
+            {'name': name, 'package': CHECKS[name][0], 'test': CHECKS[name][1]} for name in scope
+        ], env=env, metadata={
+            'liveInference': args.live, 'scope': scope,
+            'omittedChecks': sorted(set(CHECKS) - set(scope)),
+            'qualification': 'Built-in Agent uses real loopback HTTP with a scripted server. CLI inference uses installed runtimes and existing login. Neither is GUI acceptance. Fork is not advertised by the Built-in Agent adapter.',
+        })
+    raise SystemExit(0 if report['passed'] else 1)

@@ -62,7 +62,8 @@ for (const reset of [undefined, false, true]) for (const paths of hints) {
   catch(error) { if (error.message !== 'Cloud file connection closed.') valid=false; }
   eventCases.push({frame,valid,events});
 }
-const output = JSON.stringify({sourceCommit:receipt.commit,autoSave,eventCases},null,1)+'\n';
+// Keep each transition on one line so a reference update is reviewable.
+const output = `{\n "sourceCommit":${JSON.stringify(receipt.commit)},\n "autoSave":[\n${autoSave.map(step=>'  '+JSON.stringify(step)).join(',\n')}\n ],\n "eventCases":[\n${eventCases.map(step=>'  '+JSON.stringify(step)).join(',\n')}\n ]\n}\n`;
 const file = path.join(root,'fixtures/test-parity-oracle.json');
 if(process.argv.includes('--check')) { if(await readFile(file,'utf8') !== output) throw Error('Stale TS acceptance oracle'); }
 else await writeFile(file,output);

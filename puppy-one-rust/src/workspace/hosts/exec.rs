@@ -671,10 +671,9 @@ mod tests {
     /// writing outside it or reading a credential is refused.
     #[cfg(target_os = "macos")]
     #[test]
+    #[ignore = "requires macOS seatbelt; tools/verify-native-dependencies.py runs this explicitly"]
     fn a_command_in_the_seatbelt_stays_in_its_folder() {
-        let Some(mechanism) = Mechanism::detect() else {
-            return;
-        };
+        let mechanism = Mechanism::detect().expect("macOS seatbelt unavailable");
         let temp = tempfile::tempdir().unwrap();
         let home = temp.path().canonicalize().unwrap();
         let root = home.join("folder");

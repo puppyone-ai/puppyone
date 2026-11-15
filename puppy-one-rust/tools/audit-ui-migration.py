@@ -69,7 +69,7 @@ files = sorted(p for p in git('ls-files', '-z', '--cached', '--others', '--exclu
 head = git('rev-parse', 'HEAD').decode().strip()
 
 rust_sources = '\n'.join(p.read_text() for p in (root / 'src').rglob('*.rs'))
-test_names = set(re.findall(r'#\[(?:[\w:]+::)?test[^\]]*\]\s*(?:async\s+)?fn\s+(\w+)', rust_sources))
+test_names = set(re.findall(r'#\[(?:[\w:]+::)?test[^\]]*\]\s*(?:#\[[^\]]*\]\s*)*(?:async\s+)?fn\s+(\w+)', rust_sources))
 
 
 def check_evidence(group, item):

@@ -27,6 +27,9 @@ verified_sources = source_hashes()
 commands = [
     ('fmt', [cargo, 'fmt', '--check']),
     ('boundaries', ['python3', 'tools/check-ui-boundaries.py']),
+    ('test-runner', ['python3', '-B', '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_test_runner.py']),
+    ('test-parity-reference', ['node', 'tools/reference-test-parity.mjs', '--check']),
+    ('test-parity-contracts', ['python3', '-B', 'tools/verify-test-parity.py']),
     ('product-layers', ['python3', 'tools/audit-product-layers.py']),
     ('auth-reference', ['python3', 'tools/check-auth-reference.py']),
     ('cloud-reference', ['python3', 'tools/check-cloud-reference.py']),
@@ -56,6 +59,8 @@ commands = [
     ('terminal-glyphs', ['node', 'tools/import-xterm-glyphs.mjs', '--check']),
     ('ui-migration', ['python3', 'tools/audit-ui-migration.py']),
     ('test', [cargo, 'test', '--locked', '--features', 'dev-capture']),
+    ('native-dependencies', ['python3', '-B', 'tools/verify-native-dependencies.py']),
+    ('native-agent-http', ['python3', '-B', 'tools/verify-agent-runtimes.py', '--only', 'puppyone-native']),
     ('clippy', [cargo, 'clippy', '--locked', '--all-targets', '--features', 'dev-capture', '--', '-D', 'warnings']),
     ('release', [cargo, 'build', '--locked', '--release']),
     ('editor-frames', ['python3', 'tools/bench-editor.py', '--check']),

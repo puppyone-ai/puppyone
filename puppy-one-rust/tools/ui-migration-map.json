@@ -1,6 +1,6 @@
 {
   "source_repository": "puppyone-qubits",
-  "policy": "Component-boundary traceability for the shell, sidebar, Header, Settings and right workbench (PARITY_TODO.md §0.1). A group records which Rust files own the behaviour of its Web sources. `ported` requires verifiable evidence (an existing Rust test function or a file under artifacts/); `partial` must name what remains; `excluded` must give a reason. Unlisted sources are reported as pending. The Agent conversation layer is tracked separately in tools/agent-migration-map.json.",
+  "policy": "Component-boundary traceability for the shell, sidebar, Header, Settings and right workbench (PARITY_TODO.md §0.1). A group records which Rust files own the behaviour of its Web sources. `ported` requires verifiable evidence (an existing Rust test function or a file under artifacts/); `partial` must name what remains; `excluded` must give a reason. Unlisted sources are reported as pending. The Agent conversation layer is tracked separately in tools/agent-migration-map.json. Historical artifact references are retained separately and never count as reproducible acceptance evidence. Named tests establish traceability only; current execution receipts are required for verification.",
   "source_roots": [
     "src/features/app-shell",
     "src/features/settings",
@@ -569,10 +569,12 @@
       "evidence": [
         "test:a_hook_checkbox_installs_the_hook_and_turns_on_file_activity",
         "test:enabling_adds_only_owned_entries_and_disabling_restores_the_file",
-        "artifact:settings-native/local-agents-dark.png",
         "test:the_setup_directory_activates_an_agent_from_its_recipe",
         "test:only_a_missing_cli_beside_its_app_is_recommended",
-        "test:bundles_are_identified_by_metadata_and_gaps_stay_unknown",
+        "test:bundles_are_identified_by_metadata_and_gaps_stay_unknown"
+      ],
+      "historical_evidence": [
+        "artifact:settings-native/local-agents-dark.png",
         "artifact:settings-native/agent-hooks-dark.png"
       ]
     },
@@ -595,10 +597,12 @@
         "test:guided_agents_wait_for_their_official_setup_and_existing_clis_are_reused",
         "test:cancel_failure_and_interruption_are_reported",
         "test:a_verified_archive_becomes_the_current_installation",
-        "test:unsafe_archives_are_rejected_before_anything_is_written",
-        "artifact:settings-native/agent-activation-dark.png"
+        "test:unsafe_archives_are_rejected_before_anything_is_written"
       ],
-      "remaining": "The store (snapshots by epoch and revision), the dialog (consent or guided text, the three steps, the background note, Installation details with publisher and version, the Claude Chat note, step circles with checks, status, error and retained notes, the request-failed alert, Cancel/Install, Stop/Try again/Guide/Check/Continue in background/Close) and the service behind it (plans per window, three at once, journal v2, interrupted on restart, the reviewed codex/cursor recipes with digest, archive and lease checks shared with the Electron product's ~/.puppyone/agent-runtimes) are native. agent-activation 96.7% / 94.0%: the light backdrop blur (D-3) and 20.8px line heights rounded to device pixels. Not ported: the v1 journal migration (the native journal starts at v2), and pixel comparison of the progress states."
+      "remaining": "The store (snapshots by epoch and revision), the dialog (consent or guided text, the three steps, the background note, Installation details with publisher and version, the Claude Chat note, step circles with checks, status, error and retained notes, the request-failed alert, Cancel/Install, Stop/Try again/Guide/Check/Continue in background/Close) and the service behind it (plans per window, three at once, journal v2, interrupted on restart, the reviewed codex/cursor recipes with digest, archive and lease checks shared with the Electron product's ~/.puppyone/agent-runtimes) are native. agent-activation 96.7% / 94.0%: the light backdrop blur (D-3) and 20.8px line heights rounded to device pixels. Not ported: the v1 journal migration (the native journal starts at v2), and pixel comparison of the progress states.",
+      "historical_evidence": [
+        "artifact:settings-native/agent-activation-dark.png"
+      ]
     },
     {
       "name": "Local Agent installation discovery store",
@@ -651,7 +655,9 @@
       "evidence": [
         "test:claims_project_onto_their_window_and_file",
         "test:an_enabled_hook_reports_a_terminal_agents_file_reads_to_its_window",
-        "test:initials_and_easing_follow_the_product",
+        "test:initials_and_easing_follow_the_product"
+      ],
+      "historical_evidence": [
         "artifact:workbench-native/agent-presence-dark.png"
       ]
     },
@@ -744,7 +750,7 @@
         "src/ui/components/popover.rs",
         "src/app/project_place.rs",
         "src/app/project_actions.rs",
-        "src/app/home/folder.rs",
+        "src/app/home/folder/mod.rs",
         "src/app/chrome/rail.rs"
       ],
       "evidence": [
@@ -785,12 +791,12 @@
         "src/platform/project_activity.rs",
         "assets/brand",
         "assets/integrations",
-        "src/app/home/projects.rs",
-        "src/app/home/folder.rs",
+        "src/app/home/projects/mod.rs",
+        "src/app/home/folder/mod.rs",
         "src/app/home/template_import.rs",
         "src/platform/templates/mod.rs",
         "src/platform/drag_out.rs",
-        "src/app/home/projects/list.rs",
+        "src/app/home/projects/row.rs",
         "src/app/home/projects/toolbar.rs",
         "src/app/home/intro.rs"
       ],
@@ -827,10 +833,10 @@
       ],
       "targets": [
         "src/app/home/groups.rs",
-        "src/app/home/projects.rs",
-        "src/app/home/projects/list.rs",
+        "src/app/home/projects/mod.rs",
+        "src/app/home/projects/row.rs",
         "src/app/home/projects/toolbar.rs",
-        "src/app/home/folder.rs",
+        "src/app/home/folder/mod.rs",
         "src/app/home/mod.rs"
       ],
       "evidence": [
@@ -855,7 +861,7 @@
       "targets": [
         "src/app/home/folder_status.rs",
         "src/platform/folder_availability.rs",
-        "src/app/home/projects/list.rs",
+        "src/app/home/projects/row.rs",
         "src/app/project/notices.rs",
         "src/features/settings/preference_types.rs"
       ],
@@ -1347,10 +1353,12 @@
         "test:find_marks_and_selects_matches_in_text_editors",
         "test:typing_motion_deletion_and_history",
         "test:code_language_rebind_keeps_entity_selection_and_history",
-        "test:code_multicursor_edits_are_one_undo_transaction",
-        "artifact:code-native/typescript-light.png"
+        "test:code_multicursor_edits_are_one_undo_transaction"
       ],
-      "remaining": "Text, JSON and code files open in the native code editor: tree-sitter highlighting per the product's language resolution, indent guides, bracket matching, selection matches, trailing whitespace, folds, find, IME, multi-cursor, JSON formatting (normalizeContent) and the conflict banner. Like the product's CodeMirror viewer there is no JSON validation or language service; CodeMirror's exact token palette and metrics are not pixel-compared."
+      "remaining": "Text, JSON and code files open in the native code editor: tree-sitter highlighting per the product's language resolution, indent guides, bracket matching, selection matches, trailing whitespace, folds, find, IME, multi-cursor, JSON formatting (normalizeContent) and the conflict banner. Like the product's CodeMirror viewer there is no JSON validation or language service; CodeMirror's exact token palette and metrics are not pixel-compared.",
+      "historical_evidence": [
+        "artifact:code-native/typescript-light.png"
+      ]
     },
     {
       "name": "CSV table viewer",
@@ -1460,7 +1468,7 @@
         "src/documents/mod.rs",
         "src/editor/host/mod.rs"
       ],
-      "remaining": "Rust owns the save queue, disk epochs and drains; the native document editor reports dirty state, snapshots and saved receipts over the host protocol, one document per window. The multi-document working-copy registry and external-conflict notices are not ported.",
+      "remaining": "The retained working-copy registry, shared storage identity, late snapshots, external observation and close/resource-operation drains are implemented in src/editor/workbench and src/documents. Idle auto-save and window-blur flushing follow the reviewed qubits contract. Real OS input, WebView interaction and cross-platform acceptance still require native application execution; model and synthetic tests do not establish those results.",
       "evidence": [
         "test:one_active_write_coalesces_pending_input_and_closes_only_after_last_receipt",
         "test:a_snapshot_waits_for_the_composition_and_resumes_when_it_ends"
@@ -1653,10 +1661,12 @@
         "test:pages_merge_within_one_snapshot_and_restart_otherwise",
         "test:the_sidebar_pages_reads_detail_on_demand_and_shares_snapshots",
         "test:flights_are_shared_released_and_settled_once",
-        "test:cloud_history_closes_outside_a_hosted_project",
-        "artifact:cloud-native"
+        "test:cloud_history_closes_outside_a_hosted_project"
       ],
-      "remaining": "The hosted sidebar is native; the graph and the two-pane page are the services History group. No pixel comparison."
+      "remaining": "The hosted sidebar is native; the graph and the two-pane page are the services History group. No pixel comparison.",
+      "historical_evidence": [
+        "artifact:cloud-native"
+      ]
     },
     {
       "name": "Cloud file workspace",
@@ -1896,7 +1906,8 @@
         "src/features/automation/styles/shell-and-catalog.css",
         "src/features/automation/useSynchronizeBindings.ts"
       ],
-      "reason": "Experimental enableCloudAutomation, off by default; not ported, awaiting a decision (C-14.1). The Automation feature itself (src/features/automation: page, dialogs, templates, bindings and styles) is reachable only through AutomationRouteSection's lazy import, and nothing in v0.4.4 imports that section."
+      "reason": "Experimental enableCloudAutomation, off by default; not ported, awaiting a decision (C-14.1). The Automation feature itself (src/features/automation: page, dialogs, templates, bindings and styles) is reachable only through AutomationRouteSection's lazy import, and nothing in v0.4.4 imports that section.",
+      "targets": []
     },
     {
       "name": "Cloud Branches section",
@@ -1905,7 +1916,8 @@
         "src/features/cloud/sections/branches/BranchesSection.tsx",
         "src/features/cloud/sections/branches/branches.css"
       ],
-      "reason": "A route with no entry in the product: nothing navigates to it, so it has no native page."
+      "reason": "A route with no entry in the product: nothing navigates to it, so it has no native page.",
+      "targets": []
     },
     {
       "name": "Cloud Agent client",
@@ -2097,7 +2109,8 @@
         "src/features/cloud/project/cloudProjectAccessData.ts",
         "src/features/cloud/workspace/usePuppyoneCloudBackup.ts"
       ],
-      "reason": "qubits@6f896add1 retired the Cloud services Hub (Overview, Access, MCP, CLI, Team, Settings, History and Billing pages). These files are still in the tree at qubits@686d41c49 but nothing reaches them from src/main.tsx or electron/app-entry.mjs except their own barrels. The native dialog was removed in puppyone@4d817e857; workspace::cloud::billing stays for Settings › Plan."
+      "reason": "qubits@6f896add1 retired the Cloud services Hub (Overview, Access, MCP, CLI, Team, Settings, History and Billing pages). These files are still in the tree at qubits@686d41c49 but nothing reaches them from src/main.tsx or electron/app-entry.mjs except their own barrels. The native dialog was removed in puppyone@4d817e857; workspace::cloud::billing stays for Settings › Plan.",
+      "targets": []
     },
     {
       "name": "Cloud sign-in surfaces",
@@ -2235,7 +2248,8 @@
         "electron/main/ipc/cloud-ipc.mjs",
         "electron/main/ipc/cloud-publish-ipc.mjs"
       ],
-      "reason": "Electron's process boundary. The native app is one process (D-1), so these calls go directly to the models."
+      "reason": "Electron's process boundary. The native app is one process (D-1), so these calls go directly to the models.",
+      "targets": []
     },
     {
       "name": "Project place menu and local Cloud notice",
@@ -2363,10 +2377,12 @@
         "src/editor/viewers/web.rs"
       ],
       "evidence": [
-        "test:media_pages_reference_the_served_file_with_controls",
-        "artifact:media-native/video-failure-light.png"
+        "test:media_pages_reference_the_served_file_with_controls"
       ],
-      "remaining": "Images decode natively (AVIF through the platform codec) with the pending label and the unavailable state with Retry; audio and video play in the system web engine, which reports a media error so the surface shows the product's failure with Retry. Native controls are WebKit's, not Chromium's, and the audio card's icon uses the default file icon theme."
+      "remaining": "Images decode natively (AVIF through the platform codec) with the pending label and the unavailable state with Retry; audio and video play in the system web engine, which reports a media error so the surface shows the product's failure with Retry. Native controls are WebKit's, not Chromium's, and the audio card's icon uses the default file icon theme.",
+      "historical_evidence": [
+        "artifact:media-native/video-failure-light.png"
+      ]
     },
     {
       "name": "Database viewer",
@@ -2377,17 +2393,22 @@
       ],
       "targets": [
         "src/editor/viewers/database.rs",
-        "src/platform/database.rs"
+        "src/platform/database.rs",
+        "src/platform/duckdb.rs"
       ],
       "evidence": [
         "test:next_pages_continue_on_their_snapshot_and_restart_on_a_new_one",
         "test:a_sqlite_file_lists_tables_and_pages_rows",
         "test:long_values_wide_tables_and_generated_columns_follow_the_budget",
         "test:signatures_sidecars_and_budgets_are_checked",
+        "test:a_read_only_database_reads_and_refuses_writes",
+        "test:duckdb_tables_and_views_page_with_their_kinds"
+      ],
+      "remaining": "SQLite follows the product budget, object list, typed cells, recovery checks, idle sleep and snapshot restart, with the product toolbar, sticky grid and pager. DuckDB is implemented with a read-only native engine, verified explicitly by tools/verify-native-dependencies.py; queries run on the background executor rather than a killable host process with the SQL authorizer, object tabs have no arrow-key focus movement, and sidecar files are not watched as document dependencies.",
+      "historical_evidence": [
         "artifact:database-native/rows-light.png",
         "artifact:database-native/objects-light.png"
-      ],
-      "remaining": "SQLite follows the product budget, object list, typed cells, recovery checks, idle sleep and snapshot restart, with the product toolbar, sticky grid and pager. DuckDB files are reported unsupported (the product reads them through @duckdb/node-api), queries run on the background executor rather than a killable host process with the SQL authorizer, object tabs have no arrow-key focus movement, and sidecar files are not watched as document dependencies."
+      ]
     },
     {
       "name": "Office viewer",
@@ -2405,13 +2426,15 @@
       ],
       "evidence": [
         "test:the_page_boots_the_product_bundle_and_reads_only_typed_messages",
-        "test:rtf_converts_to_a_docx_package_and_other_inputs_are_refused",
+        "test:rtf_converts_to_a_docx_package_and_other_inputs_are_refused"
+      ],
+      "remaining": "The product's OfficeViewer (with its security preflight, validation and text-fallback workers) is bundled from the pinned sources and runs in WKWebView; .doc/.rtf conversion is the macOS textutil bridge. WebKit, not Chromium, renders the documents, and the bundle adapts TextDecoder on resizable buffers and DOMParser with a leading BOM. The editor task scheduler, host leases and worker host run inside the page rather than sharing the workbench's document barriers, and Office editor actions (unused by the product) are not offered.",
+      "historical_evidence": [
         "artifact:office-native/spreadsheet-light.png",
         "artifact:office-native/word-light.png",
         "artifact:office-native/presentation-light.png",
         "artifact:office-native/rtf-converted-light.png"
-      ],
-      "remaining": "The product's OfficeViewer (with its security preflight, validation and text-fallback workers) is bundled from the pinned sources and runs in WKWebView; .doc/.rtf conversion is the macOS textutil bridge. WebKit, not Chromium, renders the documents, and the bundle adapts TextDecoder on resizable buffers and DOMParser with a leading BOM. The editor task scheduler, host leases and worker host run inside the page rather than sharing the workbench's document barriers, and Office editor actions (unused by the product) are not offered."
+      ]
     },
     {
       "name": "PuppyFlow editor",
@@ -2427,10 +2450,12 @@
       ],
       "evidence": [
         "test:page_edits_become_the_document_text_and_read_only_refuses_them",
-        "test:the_page_carries_the_document_and_serves_the_agent_marks",
-        "artifact:structured-native/puppyflow-light.png"
+        "test:the_page_carries_the_document_and_serves_the_agent_marks"
       ],
-      "remaining": "The product's PuppyFlowViewer and StructuredDocumentModel are bundled from the pinned sources and run in WKWebView; the native surface owns the text, saves, reloads, menu undo/redo and read-only input. Run validates enabled steps only, as in the product. The theme switch rebuilds the page on the current text, which resets its history."
+      "remaining": "The product's PuppyFlowViewer and StructuredDocumentModel are bundled from the pinned sources and run in WKWebView; the native surface owns the text, saves, reloads, menu undo/redo and read-only input. Run validates enabled steps only, as in the product. The theme switch rebuilds the page on the current text, which resets its history.",
+      "historical_evidence": [
+        "artifact:structured-native/puppyflow-light.png"
+      ]
     },
     {
       "name": "Excalidraw whiteboard",
@@ -2470,10 +2495,12 @@
         "assets/web/structured-viewers.json"
       ],
       "evidence": [
-        "test:the_context_map_lists_the_workspace_and_drives_the_pane_menu",
-        "artifact:structured-native/context-map-light.png"
+        "test:the_context_map_lists_the_workspace_and_drives_the_pane_menu"
       ],
-      "remaining": "The product's ContextMapViewer (graph loading, radial/canvas/layered layouts, routing, wheel navigation, line filters) runs in WKWebView over native workspace reads, with its layout switch and filters in the native pane menu and workspace changes bumping its revision. Its retained view state (layout mode) lives for the page, not the document model owner, and document dependency tracking is the root watch rather than per-path."
+      "remaining": "The product's ContextMapViewer (graph loading, radial/canvas/layered layouts, routing, wheel navigation, line filters) runs in WKWebView over native workspace reads, with its layout switch and filters in the native pane menu and workspace changes bumping its revision. Its retained view state (layout mode) lives for the page, not the document model owner, and document dependency tracking is the root watch rather than per-path.",
+      "historical_evidence": [
+        "artifact:structured-native/context-map-light.png"
+      ]
     },
     {
       "name": "App Preview viewer and runtime",
@@ -2492,11 +2519,13 @@
       "evidence": [
         "test:static_files_and_local_servers_run_once_trusted",
         "test:manifests_follow_the_product_contract",
-        "test:requests_are_typed_and_the_frame_admits_only_the_running_app",
+        "test:requests_are_typed_and_the_frame_admits_only_the_running_app"
+      ],
+      "remaining": "The product's AppPreviewViewer runs in WKWebView over the ported runtime. A manifest command named `node` runs the person's Node rather than the app's bundled runtime, HTTPS local servers count as ready once they accept a connection, and Cloud workspaces have no App Preview runtime (as in the product's Cloud data port). App setup detection and manifest writing (appPreviewCreation: candidate scripts, package manager, framework, command line) run inside the bundled product page, which tools/app-preview-entry.tsx wires to the host's listChildren/readFile.",
+      "historical_evidence": [
         "artifact:app-preview-native/static-running-light.png",
         "artifact:app-preview-native/setup-light.png"
-      ],
-      "remaining": "The product's AppPreviewViewer runs in WKWebView over the ported runtime. A manifest command named `node` runs the person's Node rather than the app's bundled runtime, HTTPS local servers count as ready once they accept a connection, and Cloud workspaces have no App Preview runtime (as in the product's Cloud data port). App setup detection and manifest writing (appPreviewCreation: candidate scripts, package manager, framework, command line) run inside the bundled product page, which tools/app-preview-entry.tsx wires to the host's listChildren/readFile."
+      ]
     },
     {
       "name": "Editor document host",
@@ -2721,7 +2750,7 @@
         "src/app/host_sharing.rs",
         "src/features/hosts/tools.rs",
         "src/app/home/groups.rs",
-        "src/app/home/projects/list.rs",
+        "src/app/home/projects/row.rs",
         "src/app/project_place.rs",
         "src/app/chrome/mod.rs",
         "src/app/right_sidebar/mod.rs",

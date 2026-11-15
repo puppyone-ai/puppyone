@@ -286,11 +286,9 @@ mod tests {
     use core::prelude::v1::test;
 
     #[test]
+    #[ignore = "requires DuckDB; tools/verify-native-dependencies.py runs this explicitly"]
     fn a_read_only_database_reads_and_refuses_writes() {
-        if !available() {
-            eprintln!("libduckdb absent (tools/fetch-duckdb.py): skipped");
-            return;
-        }
+        assert!(available(), "DuckDB missing: run tools/fetch-duckdb.py");
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("app.duckdb");
         create(

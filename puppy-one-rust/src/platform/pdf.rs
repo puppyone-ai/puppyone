@@ -331,11 +331,12 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires PDFium; tools/verify-native-dependencies.py runs this explicitly"]
     fn a_document_opens_and_renders_pages_when_the_engine_is_installed() {
-        if library_path().is_none() {
-            eprintln!("PDFium library not installed; run tools/fetch-pdfium.py");
-            return;
-        }
+        assert!(
+            library_path().is_some(),
+            "PDFium missing: run tools/fetch-pdfium.py"
+        );
         let (tx, rx) = async_channel::unbounded();
         let document = Document::open(Source::Bytes(sample_pdf()), 1 << 20, owner(), tx);
         match rx.recv_blocking().unwrap() {

@@ -716,11 +716,12 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires DuckDB; tools/verify-native-dependencies.py runs this explicitly"]
     fn duckdb_tables_and_views_page_with_their_kinds() {
-        if !super::super::duckdb::available() {
-            eprintln!("libduckdb absent (tools/fetch-duckdb.py): skipped");
-            return;
-        }
+        assert!(
+            super::super::duckdb::available(),
+            "DuckDB missing: run tools/fetch-duckdb.py"
+        );
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("app.duckdb");
         super::super::duckdb::create(

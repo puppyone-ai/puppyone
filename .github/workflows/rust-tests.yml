@@ -1,0 +1,81 @@
+name: Rust desktop acceptance
+
+on:
+  pull_request:
+    paths: ['puppy-one-rust/**', '.github/workflows/rust-tests.yml']
+  push:
+    branches: [puppyone-rust, qubits, main]
+    paths: ['puppy-one-rust/**', '.github/workflows/rust-tests.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: rust/puppy-one-rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: rust
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2
+          path: puppyone-qubits
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 5e87974efcfae0c9a83801ccc9add2f2deceb395
+          path: puppyone-baseline-5e87974ef
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install reviewed toolchain and TS reference dependencies
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
+          rustup override set 1.97.1
+          npm ci --prefix ../../puppyone-qubits
+          cargo fetch --locked
+      - name: Install the pinned native engines
+        run: |
+          python3 tools/fetch-pdfium.py
+          python3 tools/fetch-duckdb.py
+      - name: Check source and oracle contracts
+        run: |
+          cargo fmt --all --check
+          python3 -B tools/check-ui-boundaries.py
+          python3 -B tools/audit-product-layers.py
+          python3 -B tools/audit-ui-migration.py --check
+          python3 -B -m unittest discover -s tools -p 'test_test_runner.py'
+          node tools/reference-test-parity.mjs --check
+      - name: Test the entire Rust workspace
+        run: |
+          mkdir -p artifacts
+          cargo test --locked --offline --workspace --features dev-capture --no-fail-fast 2>&1 | tee artifacts/full-workspace.log
+      - name: Verify reviewed TS acceptance criteria
+        if: ${{ !cancelled() }}
+        run: python3 -B tools/verify-test-parity.py
+      - name: Test actual native engines
+        if: ${{ !cancelled() }}
+        run: python3 -B tools/verify-native-dependencies.py
+      - name: Test native HTTP
+        if: ${{ !cancelled() }}
+        run: |
+          python3 -B tools/verify-agent-runtimes.py --only puppyone-native
+      - name: Check all production and test targets
+        if: ${{ !cancelled() }}
+        run: cargo clippy --locked --offline --workspace --all-targets --features dev-capture -- -D warnings
+      - name: Retain native verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rust-macos-acceptance
+          path: rust/puppy-one-rust/artifacts/
+          retention-days: 14

@@ -459,3 +459,185 @@ fn the_catalog_groups_compute_models_and_a_changed_connection_revokes_its_lease(
         assert!(changed.is("MODEL_BINDING_CHANGED"), "{changed:?}");
     });
 }
+
+#[test]
+#[ignore = "real loopback HTTP, native kernel and filesystem; explicit runtime gate"]
+fn native_puppyone_http_approval_resume_stop_and_binding() {
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        sync::{
+            Arc, Mutex,
+            atomic::{AtomicBool, Ordering},
+        },
+        time::{Duration, Instant},
+    };
+    struct Server {
+        stop: Arc<AtomicBool>,
+        thread: Option<std::thread::JoinHandle<()>>,
+    }
+    impl Drop for Server {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::Release);
+            self.thread.take().unwrap().join().unwrap();
+        }
+    }
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .expect("loopback HTTP required for native runtime acceptance");
+    let endpoint = format!("http://{}/v1", listener.local_addr().unwrap());
+    listener.set_nonblocking(true).unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let stopped = stop.clone();
+    let received = requests.clone();
+    let server = Server {
+        stop,
+        thread: Some(std::thread::spawn(move || {
+            while !stopped.load(Ordering::Acquire) {
+                let (mut socket, _) = match listener.accept() {
+                    Ok(socket) => socket,
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(5));
+                        continue;
+                    }
+                    Err(e) => panic!("{e}"),
+                };
+                socket.set_nonblocking(false).unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                socket
+                    .set_write_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                let mut bytes = Vec::new();
+                let (header, length) = loop {
+                    let mut byte = [0];
+                    socket.read_exact(&mut byte).unwrap();
+                    bytes.push(byte[0]);
+                    assert!(bytes.len() <= 32768);
+                    if bytes.ends_with(b"\r\n\r\n") {
+                        let header = String::from_utf8(bytes).unwrap();
+                        assert!(header.starts_with("POST /v1/chat/completions HTTP/1.1"));
+                        let length = header
+                            .lines()
+                            .find_map(|line| {
+                                line.to_ascii_lowercase()
+                                    .strip_prefix("content-length:")
+                                    .map(|s| s.trim().parse::<usize>().unwrap())
+                            })
+                            .unwrap();
+                        break (header, length);
+                    }
+                };
+                assert!(!header.to_ascii_lowercase().contains("authorization:"));
+                assert!(length < 1024 * 1024);
+                let mut body = vec![0; length];
+                socket.read_exact(&mut body).unwrap();
+                let body: Value = serde_json::from_slice(&body).unwrap();
+                assert_eq!(body["model"], "qwen3");
+                let index = {
+                    let mut requests = received.lock().unwrap();
+                    requests.push(body);
+                    requests.len()
+                };
+                if index == 3 {
+                    while !stopped.load(Ordering::Acquire) {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    break;
+                }
+                let delta = if index == 1 {
+                    json!({"tool_calls":[{"index":0,"id":"http-write","function":{"name":"write","arguments":json!({"path":"notes.md","content":"http saved\n"}).to_string()}}]})
+                } else {
+                    json!({"content":"Saved over HTTP"})
+                };
+                let body = format!(
+                    "data: {}\n\ndata: [DONE]\n\n",
+                    json!({"choices":[{"delta":delta}]})
+                );
+                write!(socket, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            }
+        })),
+    };
+    let (workspace, data) = directories();
+    let project = root(&workspace);
+    run_local(async {
+        let complete: Complete = Rc::new(move |request| {
+            let mut connection = connection("g1");
+            connection.endpoint = endpoint.clone();
+            Box::pin(async move {
+                super::super::model_client::complete(
+                    &connection,
+                    &crate::agent::model_connections::NoComputeAccount,
+                    &request.context,
+                    request.tools,
+                    |kind, text| (request.delta)(kind, text),
+                )
+                .await
+            })
+        });
+        let generation = Rc::new(RefCell::new("g1".to_string()));
+        let (first, events) = adapter(&project, data.path(), complete.clone(), generation.clone());
+        let session = first
+            .create_session(json!({"model":route()}))
+            .await
+            .unwrap();
+        let turn = first
+            .start_turn(json!({"prompt":"Write notes","model":route()}))
+            .await
+            .unwrap();
+        let approval = until(&events, "approval.requested").await;
+        assert!(!project.join("notes.md").exists());
+        first.resolve_approval(json!({"requestId":approval["payload"]["requestId"],"decision":"accept","turnId":turn["turnId"]})).await.unwrap();
+        until(&events, "turn.completed").await;
+        assert_eq!(
+            std::fs::read_to_string(project.join("notes.md")).unwrap(),
+            "http saved\n"
+        );
+        assert_eq!(requests.lock().unwrap()[1]["messages"][3]["role"], "tool");
+        first.dispose().await.unwrap();
+
+        let (second, events) = adapter(&project, data.path(), complete, generation.clone());
+        let resumed = second
+            .resume_session(json!({"threadId":session["providerSessionId"],"model":route()}))
+            .await
+            .unwrap();
+        assert_eq!(resumed["providerSessionId"], session["providerSessionId"]);
+        let history = second.read_history_result().await.unwrap();
+        assert!(
+            history["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|e| e["type"] == "assistant.completed"
+                    && e["payload"]["text"] == "Saved over HTTP")
+        );
+        let turn = second
+            .start_turn(json!({"prompt":"Wait","model":route()}))
+            .await
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while requests.lock().unwrap().len() < 3 {
+            assert!(Instant::now() < deadline);
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        second
+            .interrupt_turn(json!({"turnId":turn["turnId"]}))
+            .await
+            .unwrap();
+        assert_eq!(
+            until(&events, "turn.interrupted").await["turnId"],
+            turn["turnId"]
+        );
+        *generation.borrow_mut() = "g2".into();
+        assert!(
+            second
+                .start_turn(json!({"prompt":"Must not dispatch","model":route()}))
+                .await
+                .is_err()
+        );
+        assert_eq!(requests.lock().unwrap().len(), 3);
+        second.dispose().await.unwrap();
+    });
+    drop(server);
+}
