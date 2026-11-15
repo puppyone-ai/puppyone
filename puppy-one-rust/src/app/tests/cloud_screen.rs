@@ -203,8 +203,19 @@ fn open_cloud_project_window(
     (view, cx)
 }
 
+fn sync_sandbox(view: &Entity<Shell>, cx: &mut VisualTestContext, sandbox: &Value) {
+    let parsed = crate::workspace::cloud::sandbox::read_sandbox(sandbox);
+    view.update(cx, |s, cx| {
+        s.cloud
+            .update(cx, |c, cx| c.sync_sandbox("project-a", parsed, cx));
+    });
+    draw(cx);
+}
+
 #[gpui::test]
-fn experiment_flag_gates_sidebar_thumbnail_settings_tab_and_live_screen(cx: &mut TestAppContext) {
+fn experiment_flag_and_a_present_screen_gate_sidebar_thumbnail_settings_tab_and_live_screen(
+    cx: &mut TestAppContext,
+) {
     let sandbox = Arc::new(Mutex::new(sandbox_json(false, false, true)));
     let sandbox_api = sandbox.clone();
     let api: Responder = Arc::new(move |req| {
@@ -240,18 +251,24 @@ fn experiment_flag_gates_sidebar_thumbnail_settings_tab_and_live_screen(cx: &mut
         assert!(!settings.page_available(Page::CloudComputer, cx));
     });
 
-    // Turning the experiment on exposes both the companion icon and the settings page.
+    // Turning the experiment on exposes the settings page, but a computer
+    // without a desktop has no screen to offer.
     view.update(cx, |s, cx| {
         s.prefs.store.update(cx, |p, cx| {
             p.change(|st| st.experimental.cloud_computer_screen = true, cx);
         });
     });
     draw(cx);
-    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_some());
+    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_none());
     view.read_with(cx, |s, cx| {
         let settings = s.dialogs.read(cx).settings.read(cx);
         assert!(settings.page_available(Page::CloudComputer, cx));
     });
+
+    // A computer with a desktop offers the companion icon, even with its
+    // stream turned off (the screen then offers to turn it on).
+    sync_sandbox(&view, cx, &sandbox_json(true, true, false));
+    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_some());
 
     // Clicking the sidebar monitor icon opens the Cloud Computer screen in the main area
     // and gates the underlying editor area.
@@ -260,6 +277,42 @@ fn experiment_flag_gates_sidebar_thumbnail_settings_tab_and_live_screen(cx: &mut
         assert!(s.cloud.read(cx).screen_shown(cx));
         assert!(s.editor_gate(cx).modal);
     });
+    assert!(cx.debug_bounds("cloud-screen-stream-on").is_some());
+
+    // The screen goes away with the desktop: it closes, and the shell hears it.
+    let changes = Arc::new(AtomicUsize::new(0));
+    let heard = changes.clone();
+    let screen = view.read_with(cx, |s, cx| s.cloud.read(cx).screen.clone());
+    let _subscription = cx.update(|_, cx| {
+        cx.subscribe(&screen, move |_, event, _| {
+            if *event == crate::features::cloud::CloudScreenEvent::VisibilityChanged {
+                heard.fetch_add(1, Ordering::AcqRel);
+            }
+        })
+    });
+    sync_sandbox(&view, cx, &sandbox_json(true, false, true));
+    assert_eq!(changes.load(Ordering::Acquire), 1);
+    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_none());
+    view.read_with(cx, |s, cx| {
+        assert!(!s.cloud.read(cx).screen_shown(cx));
+        assert!(!s.editor_gate(cx).modal);
+    });
+
+    // A preview of the screen is offered too.
+    sync_sandbox(
+        &view,
+        cx,
+        &json!({
+            "profile": "base",
+            "next_profile": "base",
+            "features": [{
+                "id": "screen_stream", "installed": false, "enabled": true,
+                "preview": true, "transport": "vnc",
+            }]
+        }),
+    );
+    assert!(cx.debug_bounds("cloud-screen-thumbnail").is_some());
+    click_selector(cx, "cloud-screen-thumbnail");
     assert!(cx.debug_bounds("cloud-screen-notice").is_some());
 
     // Turning the experiment off immediately closes the screen and hides the thumbnail.
@@ -277,8 +330,8 @@ fn experiment_flag_gates_sidebar_thumbnail_settings_tab_and_live_screen(cx: &mut
 }
 
 #[gpui::test]
-fn screen_notices_drive_install_stream_toggle_and_asleep_wake(cx: &mut TestAppContext) {
-    let sandbox = Arc::new(Mutex::new(sandbox_json(false, false, true)));
+fn screen_notices_drive_stream_toggle_and_asleep_wake(cx: &mut TestAppContext) {
+    let sandbox = Arc::new(Mutex::new(sandbox_json(true, true, false)));
     let asleep = Arc::new(AtomicBool::new(true));
     let patches: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
     let workbench_opens = Arc::new(AtomicUsize::new(0));
@@ -347,29 +400,8 @@ fn screen_notices_drive_install_stream_toggle_and_asleep_wake(cx: &mut TestAppCo
     let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
     click_selector(cx, "cloud-screen-thumbnail");
 
-    // 1. Not installed -> clicking "Install desktop" sends {"desktop": true} -> pending.
-    assert!(cx.debug_bounds("cloud-screen-install").is_some());
-    click_selector(cx, "cloud-screen-install");
-    settle_screen(&view, cx, "desktop install pending", &|s, cx| {
-        s.cloud.read(cx).screen.read(cx).availability_for_test()
-            == ScreenAvailability::Install { pending: true }
-    });
-    assert_eq!(
-        patches.lock().unwrap().as_slice(),
-        &[json!({"desktop": true})]
-    );
-    assert!(cx.debug_bounds("cloud-screen-install").is_none());
-
-    // 2. Desktop finishes installing with stream off -> clicking "Show screen" sends {"screen_stream": true}
+    // 1. A desktop with its stream off -> clicking "Show screen" sends {"screen_stream": true}
     //    and hits 409 Asleep -> shows "Wake it".
-    let stream_off = sandbox_json(true, true, false);
-    *sandbox.lock().unwrap() = stream_off.clone();
-    let parsed_off = crate::workspace::cloud::sandbox::read_sandbox(&stream_off);
-    view.update(cx, |s, cx| {
-        s.cloud
-            .update(cx, |c, cx| c.sync_sandbox("project-a", parsed_off, cx));
-    });
-    draw(cx);
     assert!(cx.debug_bounds("cloud-screen-stream-on").is_some());
 
     click_selector(cx, "cloud-screen-stream-on");
@@ -382,7 +414,7 @@ fn screen_notices_drive_install_stream_toggle_and_asleep_wake(cx: &mut TestAppCo
     );
     assert!(cx.debug_bounds("cloud-screen-wake").is_some());
 
-    // 3. Clicking "Wake it" wakes/reopens the workspace and streams live RFB frames!
+    // 2. Clicking "Wake it" wakes/reopens the workspace and streams live RFB frames!
     let opens_before = workbench_opens.load(Ordering::Acquire);
     asleep.store(false, Ordering::Release);
     click_selector(cx, "cloud-screen-wake");

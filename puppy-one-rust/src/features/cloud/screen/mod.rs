@@ -111,8 +111,27 @@ impl CloudScreen {
         self.shown && self.entry_available(cx)
     }
 
+    /// The experiment is on and this project's computer has a screen. Unlike
+    /// `DesktopCloudFileWorkspace.tsx`, which offers the entry whenever the
+    /// experiment is on and explains a missing desktop inside the screen, a
+    /// computer without one offers no entry: its Profile is fixed when it is
+    /// created, so "Install desktop" there could never take effect.
     fn entry_available(&self, cx: &App) -> bool {
-        self.target.is_some() && flags::cloud_screen_enabled(&self.preferences, cx)
+        self.target.is_some()
+            && self.sandbox.screen_present()
+            && flags::cloud_screen_enabled(&self.preferences, cx)
+    }
+
+    /// After the sandbox changed: a screen that is no longer present closes,
+    /// and the shell hears when the screen's visibility changed.
+    fn settle_visibility(&mut self, was_shown: bool, cx: &mut Context<Self>) {
+        if !self.entry_available(cx) {
+            self.shown = false;
+        }
+        self.reconcile_stream(cx);
+        if was_shown != self.is_shown(cx) {
+            cx.emit(CloudScreenEvent::VisibilityChanged);
+        }
     }
 
     pub fn set_target(&mut self, target: Option<SandboxTarget>, cx: &mut Context<Self>) {
@@ -121,8 +140,9 @@ impl CloudScreen {
             (Some(prev), Some(next)) if prev.same_instance(next) => {
                 let latest = next.sandbox();
                 if self.sandbox != latest {
+                    let was_shown = self.is_shown(cx);
                     self.sandbox = latest;
-                    self.reconcile_stream(cx);
+                    self.settle_visibility(was_shown, cx);
                     cx.notify();
                 }
                 return;
@@ -144,10 +164,7 @@ impl CloudScreen {
         if !same_project {
             self.shown = false;
         }
-        self.reconcile_stream(cx);
-        if was_shown != self.is_shown(cx) {
-            cx.emit(CloudScreenEvent::VisibilityChanged);
-        }
+        self.settle_visibility(was_shown, cx);
         cx.notify();
     }
 
@@ -164,8 +181,9 @@ impl CloudScreen {
             return;
         }
         target.set_cached(sandbox.clone());
+        let was_shown = self.is_shown(cx);
         self.sandbox = sandbox;
-        self.reconcile_stream(cx);
+        self.settle_visibility(was_shown, cx);
         cx.notify();
     }
 

@@ -148,7 +148,10 @@
       "fileMode.html.promptPicked": "Please update element `{selector}`{lines}:\n```html\n{snippet}\n```\nRequested changes: ",
       "fileMode.html.promptAnnotated": "I marked {count} area(s) on this annotated screenshot. Please update this HTML file accordingly: ",
       "fileMode.html.promptScreenshot": "Referring to this screenshot of the page, please update the corresponding section in this HTML file: ",
-      "fileMode.html.promptFixErrors": "The page threw {count} runtime script error(s). Please diagnose and fix them in this HTML file:\n{errors}"
+      "fileMode.html.promptFixErrors": "The page threw {count} runtime script error(s). Please diagnose and fix them in this HTML file:\n{errors}",
+      "native.create.advanced": "Advanced settings",
+      "native.create.cloudDesktop": "Cloud Computer desktop",
+      "native.create.cloudDesktopHelp": "A desktop with a browser, and its screen in this app. The Cloud Computer is larger."
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -297,7 +300,10 @@
       "fileMode.html.promptPicked": "请修改元素 `{selector}`{lines}：\n```html\n{snippet}\n```\n修改要求：",
       "fileMode.html.promptAnnotated": "我在这张页面批注截图中标出了 {count} 处需要调整的位置，请结合源码直接修改该 HTML 文件：",
       "fileMode.html.promptScreenshot": "请参考这张页面局部截图，帮我调整该 HTML 文件的对应区域：",
-      "fileMode.html.promptFixErrors": "页面运行时捕获到以下 {count} 个脚本报错，请定位原因并修复该 HTML 文件：\n{errors}"
+      "fileMode.html.promptFixErrors": "页面运行时捕获到以下 {count} 个脚本报错，请定位原因并修复该 HTML 文件：\n{errors}",
+      "native.create.advanced": "高级设置",
+      "native.create.cloudDesktop": "云电脑桌面",
+      "native.create.cloudDesktopHelp": "带浏览器的桌面，可以在 App 里看到它的屏幕。云电脑的配置更高。"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -446,7 +452,10 @@
       "fileMode.html.promptPicked": "要素 `{selector}`{lines} を更新してください：\n```html\n{snippet}\n```\n変更内容：",
       "fileMode.html.promptAnnotated": "注釈付きスクリーンショットで {count} 箇所を示しました。この HTML ファイルを更新してください：",
       "fileMode.html.promptScreenshot": "このスクリーンショットを参照して、この HTML ファイルの該当箇所を更新してください：",
-      "fileMode.html.promptFixErrors": "ページで {count} 件のスクリプト実行エラーが発生しました。原因を特定してこの HTML ファイルを修正してください：\n{errors}"
+      "fileMode.html.promptFixErrors": "ページで {count} 件のスクリプト実行エラーが発生しました。原因を特定してこの HTML ファイルを修正してください：\n{errors}",
+      "native.create.advanced": "詳細設定",
+      "native.create.cloudDesktop": "Cloud Computer のデスクトップ",
+      "native.create.cloudDesktopHelp": "ブラウザ付きのデスクトップと、その画面をこのアプリで表示します。Cloud Computer の構成が大きくなります。"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -595,7 +604,10 @@
       "fileMode.html.promptPicked": "요소 `{selector}`{lines} 항목을 수정해 주세요:\n```html\n{snippet}\n```\n요청 사항: ",
       "fileMode.html.promptAnnotated": "주석 스크린샷에 {count}곳을 표시했습니다. 이 HTML 파일을 수정해 주세요: ",
       "fileMode.html.promptScreenshot": "이 페이지 스크린샷을 참고하여 이 HTML 파일의 해당 부분을 수정해 주세요: ",
-      "fileMode.html.promptFixErrors": "페이지에서 런타임 스크립트 오류 {count}개가 발생했습니다. 원인을 찾아 이 HTML 파일을 수정해 주세요:\n{errors}"
+      "fileMode.html.promptFixErrors": "페이지에서 런타임 스크립트 오류 {count}개가 발생했습니다. 원인을 찾아 이 HTML 파일을 수정해 주세요:\n{errors}",
+      "native.create.advanced": "고급 설정",
+      "native.create.cloudDesktop": "Cloud Computer 데스크톱",
+      "native.create.cloudDesktopHelp": "브라우저가 있는 데스크톱과 그 화면을 이 앱에서 보여 줍니다. Cloud Computer 사양이 더 커집니다."
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -744,7 +756,10 @@
       "fileMode.html.promptPicked": "Actualiza el elemento `{selector}`{lines}:\n```html\n{snippet}\n```\nCambios solicitados: ",
       "fileMode.html.promptAnnotated": "Marqué {count} área(s) en esta captura anotada. Actualiza este archivo HTML según corresponda: ",
       "fileMode.html.promptScreenshot": "Tomando como referencia esta captura de la página, actualiza la sección correspondiente en este archivo HTML: ",
-      "fileMode.html.promptFixErrors": "La página generó {count} error(es) de script en ejecución. Diagnostica y corrígelos en este archivo HTML:\n{errors}"
+      "fileMode.html.promptFixErrors": "La página generó {count} error(es) de script en ejecución. Diagnostica y corrígelos en este archivo HTML:\n{errors}",
+      "native.create.advanced": "Configuración avanzada",
+      "native.create.cloudDesktop": "Escritorio del Cloud Computer",
+      "native.create.cloudDesktopHelp": "Un escritorio con navegador y su pantalla en esta app. El Cloud Computer es más grande."
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -893,7 +908,10 @@
       "fileMode.html.promptPicked": "Atualize o elemento `{selector}`{lines}:\n```html\n{snippet}\n```\nAlterações solicitadas: ",
       "fileMode.html.promptAnnotated": "Marquei {count} área(s) nesta captura anotada. Atualize este arquivo HTML conforme indicado: ",
       "fileMode.html.promptScreenshot": "Com base nesta captura da página, atualize a seção correspondente neste arquivo HTML: ",
-      "fileMode.html.promptFixErrors": "A página apresentou {count} erro(s) de script em execução. Diagnostique e corrija-os neste arquivo HTML:\n{errors}"
+      "fileMode.html.promptFixErrors": "A página apresentou {count} erro(s) de script em execução. Diagnostique e corrija-os neste arquivo HTML:\n{errors}",
+      "native.create.advanced": "Configurações avançadas",
+      "native.create.cloudDesktop": "Desktop do Cloud Computer",
+      "native.create.cloudDesktopHelp": "Um desktop com navegador e a tela dele neste app. O Cloud Computer é maior."
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -1042,7 +1060,10 @@
       "fileMode.html.promptPicked": "Veuillez mettre à jour l’élément `{selector}`{lines} :\n```html\n{snippet}\n```\nModifications demandées : ",
       "fileMode.html.promptAnnotated": "J’ai entouré {count} zone(s) sur cette capture annotée. Veuillez mettre à jour ce fichier HTML en conséquence : ",
       "fileMode.html.promptScreenshot": "En vous référant à cette capture de la page, veuillez mettre à jour la section correspondante de ce fichier HTML : ",
-      "fileMode.html.promptFixErrors": "La page a généré {count} erreur(s) de script à l’exécution. Veuillez diagnostiquer et corriger ce fichier HTML :\n{errors}"
+      "fileMode.html.promptFixErrors": "La page a généré {count} erreur(s) de script à l’exécution. Veuillez diagnostiquer et corriger ce fichier HTML :\n{errors}",
+      "native.create.advanced": "Paramètres avancés",
+      "native.create.cloudDesktop": "Bureau du Cloud Computer",
+      "native.create.cloudDesktopHelp": "Un bureau avec navigateur, et son écran dans cette app. Le Cloud Computer est plus grand."
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1191,7 +1212,10 @@
       "fileMode.html.promptPicked": "Bitte aktualisiere das Element `{selector}`{lines}:\n```html\n{snippet}\n```\nGewünschte Änderungen: ",
       "fileMode.html.promptAnnotated": "Ich habe {count} Bereich(e) in diesem markierten Screenshot hervorgehoben. Bitte aktualisiere diese HTML-Datei entsprechend: ",
       "fileMode.html.promptScreenshot": "Bitte aktualisiere anhand dieses Seiten-Screenshots den entsprechenden Abschnitt in dieser HTML-Datei: ",
-      "fileMode.html.promptFixErrors": "Auf der Seite sind {count} Laufzeit-Skriptfehler aufgetreten. Bitte analysiere und behebe sie in dieser HTML-Datei:\n{errors}"
+      "fileMode.html.promptFixErrors": "Auf der Seite sind {count} Laufzeit-Skriptfehler aufgetreten. Bitte analysiere und behebe sie in dieser HTML-Datei:\n{errors}",
+      "native.create.advanced": "Erweiterte Einstellungen",
+      "native.create.cloudDesktop": "Cloud Computer-Desktop",
+      "native.create.cloudDesktopHelp": "Ein Desktop mit Browser und seinem Bildschirm in dieser App. Der Cloud Computer ist größer."
     }
   }
 }
