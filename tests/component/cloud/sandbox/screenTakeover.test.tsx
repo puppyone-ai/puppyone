@@ -55,6 +55,8 @@ import { readCloudSandbox } from "../../../../src/features/cloud/sandbox/cloudSa
 import {
   CloudScreenLiveViewport,
   CloudScreenView,
+  ComputerScreenSidebarEntry,
+  ComputerScreenStage,
 } from "../../../../src/features/cloud/sandbox/CloudComputerScreen";
 import { VncScreenViewer } from "../../../../src/features/cloud/sandbox/VncScreenViewer";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -192,6 +194,147 @@ describe("Computer screen explicit takeover gate", () => {
     expect(rfb.viewOnly).toBe(true);
     expect(stage?.getAttribute("data-interactive")).toBe("false");
     expect(getByRole(host, "button", { name: "Take control" })).toBeTruthy();
+
+    // Re-enter takeover, then press Escape to exit back to read-only mode
+    await act(async () => {
+      getByRole(host, "button", { name: "Take control" }).click();
+    });
+    expect(rfb.viewOnly).toBe(false);
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(rfb.viewOnly).toBe(true);
+    expect(stage?.getAttribute("data-interactive")).toBe("false");
+  });
+
+  it("renders ComputerScreenSidebarEntry with running status or inline Wake button when asleep", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    const onOpen = vi.fn();
+    const onWake = vi.fn();
+
+    await act(async () => {
+      root?.render(
+        withTestLocalization(
+          <ComputerScreenSidebarEntry
+            active={false}
+            power="running"
+            place="cloud"
+            onOpen={onOpen}
+            onWake={onWake}
+          />,
+        ),
+      );
+    });
+
+    expect(host.textContent).toContain("Screen");
+    expect(host.textContent).toContain("Running · Cloud");
+    expect(queryByRole(host, "button", { name: "Wake it" })).toBeNull();
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("[data-computer-screen-sidebar-entry]")!.click();
+    });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      root?.render(
+        withTestLocalization(
+          <ComputerScreenSidebarEntry
+            active={false}
+            power="asleep"
+            place="cloud"
+            onOpen={onOpen}
+            onWake={onWake}
+          />,
+        ),
+      );
+    });
+
+    expect(host.textContent).toContain("Asleep");
+    const wakeButton = getByRole(host, "button", { name: "Wake it" });
+    await act(async () => {
+      wakeButton.click();
+    });
+    expect(onWake).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("transitions persistently between Full-Pane and bottom-right PiP without disconnecting VNC", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+
+    const onExpand = vi.fn();
+    const onHidePip = vi.fn();
+    const connect = vi.fn(async () => ({
+      url: "ws://127.0.0.1:45125/vnc/persistent",
+      protocols: ["binary"],
+      transport: "vnc",
+    }));
+
+    const renderStage = async (mode: "full" | "pip", pipVisible = true) => {
+      await act(async () => {
+        root?.render(
+          withTestLocalization(
+            <ComputerScreenStage
+              mode={mode}
+              pipVisible={pipVisible}
+              onExpandFromPip={onExpand}
+              onHidePip={onHidePip}
+            >
+              <CloudScreenView
+                sandbox={createStreamingSandbox()}
+                connect={connect}
+                onSettings={async () => {}}
+                onWake={() => {}}
+                mode={mode}
+              />
+            </ComputerScreenStage>,
+          ),
+        );
+      });
+    };
+
+    await renderStage("full");
+    await flushEffects();
+
+    expect(rfbInstances).toHaveLength(1);
+    const rfb = rfbInstances[0]!;
+    await act(async () => {
+      rfb.dispatchEvent(new Event("connect"));
+    });
+
+    // Take control in Full-Pane mode
+    await act(async () => {
+      getByRole(host, "button", { name: "Take control" }).click();
+    });
+    expect(rfb.viewOnly).toBe(false);
+
+    // Switch to PiP when opening a file: VNC stays connected and exits takeover
+    await renderStage("pip", true);
+    expect(rfbInstances).toHaveLength(1);
+    expect(rfb.disconnect).not.toHaveBeenCalled();
+    expect(rfb.viewOnly).toBe(true);
+    expect(host.querySelector("[data-computer-screen-stage]")?.getAttribute("data-mode")).toBe("pip");
+    expect(queryByRole(host, "button", { name: "Take control" })).toBeNull();
+
+    // Clicking PiP expands back to Full-Pane; clicking × hides PiP while keeping VNC alive
+    await act(async () => {
+      getByRole(host, "button", { name: "Expand screen" }).click();
+    });
+    expect(onExpand).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      getByRole(host, "button", { name: "Hide picture-in-picture" }).click();
+    });
+    expect(onHidePip).toHaveBeenCalledTimes(1);
+
+    await renderStage("pip", false);
+    expect(host.querySelector("[data-computer-screen-stage]")?.getAttribute("data-pip-hidden")).toBe("true");
+    expect(rfb.disconnect).not.toHaveBeenCalled();
   });
 
   it("applies the same explicit takeover gate to CloudScreenLiveViewport with toolbar overlays", async () => {

@@ -10,6 +10,7 @@ import {
   CloudScreenLiveViewport,
   cloudScreenViewer,
   type CloudScreenViewerStatus,
+  type ComputerScreenStageMode,
 } from "../cloud";
 
 export type LocalComputerScreenViewProps = Readonly<{
@@ -19,6 +20,8 @@ export type LocalComputerScreenViewProps = Readonly<{
   onWake: (id: string) => Promise<unknown>;
   onSleep: (id: string) => Promise<unknown>;
   onProvisionDesktop: (id: string) => Promise<unknown>;
+  mode?: ComputerScreenStageMode;
+  onStreamActiveChange?: (active: boolean) => void;
 }>;
 
 type LiveStreamState =
@@ -34,6 +37,8 @@ export function LocalComputerScreenView({
   onWake,
   onSleep,
   onProvisionDesktop,
+  mode = "full",
+  onStreamActiveChange,
 }: LocalComputerScreenViewProps) {
   const { t } = useLocalization();
   const [busyAction, setBusyAction] = useState(false);
@@ -66,6 +71,15 @@ export function LocalComputerScreenView({
       active = false;
     };
   }, [attempt, computer.id, connect, shouldStreamVnc]);
+
+  const Viewer = shouldStreamVnc ? cloudScreenViewer("vnc") : null;
+  const isLiveStreamConnected = Boolean(
+    Viewer && stream.kind === "open" && stream.viewerStatus === "connected",
+  );
+
+  useEffect(() => {
+    onStreamActiveChange?.(isLiveStreamConnected);
+  }, [isLiveStreamConnected, onStreamActiveChange]);
 
   const onViewerStatus = useCallback((viewerStatus: CloudScreenViewerStatus) => {
     setStream((current) => {
@@ -132,7 +146,6 @@ export function LocalComputerScreenView({
     );
   }
 
-  const Viewer = shouldStreamVnc ? cloudScreenViewer("vnc") : null;
   if (Viewer && stream.kind === "open") {
     const connecting = stream.viewerStatus !== "connected";
     return (
@@ -145,25 +158,17 @@ export function LocalComputerScreenView({
         }}
         connecting={connecting}
         onStatus={onViewerStatus}
+        mode={mode}
+        onSleep={() => void runAction(() => onSleep(computer.id))}
+        sleepDisabled={busyAction}
         className="computer-mode-live-screen"
-      >
-        <div className="computer-mode-live-toolbar">
-          <span className="computer-mode-live-pill">
-            <i className="computer-mode-live-dot" aria-hidden="true" />
-            <span>{computer.name}</span>
-          </span>
-          <button
-            type="button"
-            className="computer-mode-live-sleep"
-            disabled={busyAction}
-            onClick={() => void runAction(() => onSleep(computer.id))}
-          >
-            {t("onboarding.computerMode.screen.sleepAction")}
-          </button>
-        </div>
-      </CloudScreenLiveViewport>
+      />
     );
   }
+
+  const runningNote = stream.kind === "failed"
+    ? t("cloud.sandbox.screen.disconnected")
+    : t("onboarding.computerMode.screen.workspaceReadyNote");
 
   return (
     <section className="computer-mode-screen-surface" aria-label={t("cloud.sandbox.screen.label")}>
@@ -189,11 +194,7 @@ export function LocalComputerScreenView({
           </span>
         </div>
         <h3 className="computer-mode-screen-title">{computer.name}</h3>
-        <p className="computer-mode-screen-note">
-          {stream.kind === "failed"
-            ? t("cloud.sandbox.screen.disconnected")
-            : t("onboarding.computerMode.screen.workspaceReadyNote")}
-        </p>
+        <p className="computer-mode-screen-note">{runningNote}</p>
         <div className="computer-mode-screen-actions">
           {stream.kind === "failed" && (
             <button

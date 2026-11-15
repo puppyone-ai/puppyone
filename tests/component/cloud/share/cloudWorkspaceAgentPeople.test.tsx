@@ -14,10 +14,11 @@ vi.mock("../../../../src/lib/cloudApi", async original => ({
   ...await original<typeof import("../../../../src/lib/cloudApi")>(), cloudApiRequest: vi.fn(),
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsDialog", () => ({
-  CloudWorkspaceAgentsDialog: ({ agents, requests, control, onClose }: {
-    agents: { name: string }[]; requests: { name: string }[];
+  CloudWorkspaceAgentsDialog: ({ agents, requests, inviteFirst, control, onClose }: {
+    agents: { name: string }[]; requests: { name: string }[]; inviteFirst?: boolean;
     control: { onInvited: () => void; onChanged: () => void }; onClose: () => void }) =>
-    <div role="dialog" data-panel="agents" data-agents={agents.map(agent => agent.name).join()}
+    <div role="dialog" data-panel="agents" data-invite-first={inviteFirst ? "true" : "false"}
+      data-agents={agents.map(agent => agent.name).join()}
       data-requests={requests.map(request => request.name).join()}>
       <button data-invited onClick={control.onInvited}>invited</button>
       <button data-answered onClick={control.onChanged}>answered</button>
@@ -71,13 +72,15 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("An Agent in the Header", () => {
-  it("shows only an empty seat while nobody has been let in, and it opens the Agents dialog straight away", async () => {
+  it("shows an Invite agent pill while nobody has been let in, and it opens the Agents dialog straight away", async () => {
     await render();
     expect(marks()).toEqual([]);
     expect(row()).toBeNull();
     expect(invite()!.getAttribute("aria-label")).toBe("Invite an agent");
+    expect(invite()!.querySelector(".desktop-titlebar-cloud-agent-invite-label")?.textContent).toBe("Invite agent");
     await act(async () => invite()!.click());
     expect(panel()?.dataset.panel).toBe("agents");
+    expect(panel()?.dataset.inviteFirst).toBe("true");
     expect(invite()!.getAttribute("aria-expanded")).toBe("true");
     await close();
     expect(panel()).toBeNull();
@@ -154,12 +157,22 @@ describe("An Agent in the Header", () => {
     await render(null as unknown as ProjectCloudContext);
     expect(row()).toBeNull();
   });
-  it("takes the empty seat's place as soon as it is allowed: once Agents are here, their list invites the next", async () => {
+  it("takes the empty seat's place as soon as it is allowed, appending a solid + button to invite the next Agent", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     expect(marks()).toHaveLength(1);
     expect(marks()[0].dataset.reachAudience).toBe("machine");
     expect(invite()).toBeNull();
+    const addButton = document.querySelector<HTMLButtonElement>("[data-cloud-workspace-agent-add]");
+    expect(addButton).not.toBeNull();
+    expect(addButton!.getAttribute("aria-label")).toBe("Invite an agent");
+    await act(async () => stack()!.click());
+    expect(panel()?.dataset.inviteFirst).toBe("false");
+    await close();
+    await act(async () => addButton!.click());
+    expect(panel()?.dataset.panel).toBe("agents");
+    expect(panel()?.dataset.inviteFirst).toBe("true");
+    expect(addButton!.getAttribute("aria-expanded")).toBe("true");
   });
   it("is lit only while it is active", async () => {
     connections = [connection("c1", "Quiet agent"), connection("c2", "Busy agent")];

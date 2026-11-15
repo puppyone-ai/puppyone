@@ -35,10 +35,11 @@ export type AgentsControl = Readonly<{
  * Agent in and then is spent, and one never used expires on its own, so there
  * are no links here to look after.
  */
-export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAgentMark, onClose }: {
+export function CloudWorkspaceAgentsDialog({ control, agents, requests, inviteFirst = false, renderAgentMark, onClose }: {
   control: AgentsControl;
   agents: readonly WorkspaceAgent[];
   requests: readonly AgentRequest[];
+  inviteFirst?: boolean;
   renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
   onClose: () => void;
 }) {
@@ -55,9 +56,9 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
   };
   const nobody = agents.length === 0 && requests.length === 0;
   const title = t("cloud.share.agent.title");
-  // Nobody here yet: the dialog opens on how to invite, with Copy as the first thing to press.
-  const [openedEmpty] = useState(nobody);
-  const invite = useAgentInvite({ session, apiBaseUrl, projectId, projectName, openFirst: openedEmpty,
+  // Nobody here yet, or the + button was pressed directly: open straight on how to invite.
+  const [openedToInvite] = useState(nobody || inviteFirst);
+  const invite = useAgentInvite({ session, apiBaseUrl, projectId, projectName, openFirst: openedToInvite,
     onInvited: control.onInvited });
   const { seatRef, stepsRef, sectionRef, arrowX } = useInviteSteps(invite, agents.length + requests.length);
   return <DesktopOverlayLayer>
@@ -85,7 +86,7 @@ export function CloudWorkspaceAgentsDialog({ control, agents, requests, renderAg
                     onRemove={() => change(() => removeConnectedAgent(session, projectId, agent.grant_id, apiBaseUrl))} />)}
                 <AgentInviteSeat invite={invite} seatRef={seatRef} />
               </ul>}
-            {invite.open && <AgentInviteSteps invite={invite} stepsRef={stepsRef} arrowX={arrowX} firstFocus={openedEmpty} />}
+            {invite.open && <AgentInviteSteps invite={invite} stepsRef={stepsRef} arrowX={arrowX} firstFocus={openedToInvite} />}
             <AgentInviteStatus invite={invite} />
             {failed && <p className="desktop-cloud-agents-alert" role="alert">{t("cloud.share.agent.changeFailed")}</p>}
           </section>

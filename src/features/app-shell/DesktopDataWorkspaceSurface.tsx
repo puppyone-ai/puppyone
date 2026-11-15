@@ -105,8 +105,10 @@ export type DesktopDataWorkspaceSurfaceProps = {
   onDismissCreateEntryMenu: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
   resolvedSurface: ResolvedWorkspaceSurface;
+  sidebarTopCompanion?: ReactNode;
   sidebarCompanion?: ReactNode;
   sidebarUtility?: ReactNode;
+  computerScreenOverlay?: ReactNode;
   viewerExtensionAdapter: DataWorkspaceProps["viewerExtensionAdapter"];
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
@@ -146,8 +148,10 @@ export function DesktopDataWorkspaceSurface({
   onDismissCreateEntryMenu,
   onNodeActionMenu,
   resolvedSurface,
+  sidebarTopCompanion,
   sidebarCompanion,
   sidebarUtility,
+  computerScreenOverlay,
   viewerExtensionAdapter,
   workspace,
   workspaceFolders,
@@ -227,6 +231,7 @@ export function DesktopDataWorkspaceSurface({
       data-cloud-native={documentSourceKind === "cloud" ? "true" : undefined}
       data-file-workbench="true"
       data-explorer-pins={hasPins ? "true" : undefined}
+      data-explorer-top-companion={sidebarTopCompanion ? "true" : undefined}
       data-sidebar-navigation-placement={navigation.showWorkspaceNavigation
         ? "bottom"
         : undefined}
@@ -314,22 +319,27 @@ export function DesktopDataWorkspaceSurface({
         onDuplicateNodes={fileClipboardController.canDuplicate ? fileClipboardController.duplicateNodes : undefined}
         explorerLoadingPresentation="skeleton"
         explorerTreeCollapsed={hasPins && pins.filesCollapsed}
-        explorerPinnedSlot={hasPins
+        explorerPinnedSlot={sidebarTopCompanion || hasPins
           ? (
-              <ExplorerPinnedFiles
-                files={pins.files}
-                activePath={activeDocumentPath ?? activeExplorerPath}
-                filesCollapsed={pins.filesCollapsed}
-                fileIconTheme={fileIconTheme}
-                onOpen={(file) => { void onActiveDataPathChange(file.path, file); }}
-                onContextMenu={(file, event) => {
-                  if (!canChangeNodes) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onNodeActionMenu(file, getContextMenuAnchorRect(event), [file]);
-                }}
-                onFilesCollapsedChange={(collapsed) => explorerPinsStore.setFilesCollapsed(pinsProjectKey, collapsed)}
-              />
+              <>
+                {sidebarTopCompanion}
+                {hasPins && (
+                  <ExplorerPinnedFiles
+                    files={pins.files}
+                    activePath={activeDocumentPath ?? activeExplorerPath}
+                    filesCollapsed={pins.filesCollapsed}
+                    fileIconTheme={fileIconTheme}
+                    onOpen={(file) => { void onActiveDataPathChange(file.path, file); }}
+                    onContextMenu={(file, event) => {
+                      if (!canChangeNodes) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onNodeActionMenu(file, getContextMenuAnchorRect(event), [file]);
+                    }}
+                    onFilesCollapsedChange={(collapsed) => explorerPinsStore.setFilesCollapsed(pinsProjectKey, collapsed)}
+                  />
+                )}
+              </>
             )
           : undefined}
         // The New command follows the last row in a short tree and pins to the
@@ -433,8 +443,8 @@ export function DesktopDataWorkspaceSurface({
             )
           : undefined}
         mainSlot={resolvedSurface.id === "data"
-          ? (state) => providerStateContent ?? (
-              <>
+          ? (state) => {
+              const editorBody = providerStateContent ?? (
                 <DesktopEditorSplitView
                   entering={workspaceEntering}
                   noticeStack={workspaceNoticeStack}
@@ -459,8 +469,15 @@ export function DesktopDataWorkspaceSurface({
                   onResizeSplit={editorWorkbench.resizeSplit}
                   onSplitPane={editorWorkbench.splitPane}
                 />
-              </>
-            )
+              );
+              if (!computerScreenOverlay) return editorBody;
+              return (
+                <div className="desktop-workbench-main-stage">
+                  {editorBody}
+                  {computerScreenOverlay}
+                </div>
+              );
+            }
           : resolvedSurface.content.main == null
             ? undefined
             : <WorkspaceSurfaceOutlet region="main" surface={resolvedSurface} />}

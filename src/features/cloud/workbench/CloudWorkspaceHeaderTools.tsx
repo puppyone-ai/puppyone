@@ -20,6 +20,10 @@ export type CloudWorkspacePeople = Readonly<{
   /** The mark that opened the dialog, so the Header shows which one is pressed. */
   pressedAgentId: string | null;
   onOpen: (agentId: string | null) => void;
+  /** Solid + trigger appended after connected Agent avatars when the viewer may invite more. */
+  canInvite?: boolean;
+  inviteOpen?: boolean;
+  onInvite?: () => void;
 }>;
 
 type Props = {
@@ -102,7 +106,10 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, agentOp
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
       {agentsShown && <div ref={agentsAnchor} className="desktop-titlebar-cloud-agents-anchor">
         {ready && listed && renderPeople?.({ agents, requests, open: agentsOpen && opener !== INVITE, pressedAgentId,
-          onOpen: agentId => openAgents(agentId ?? MORE) })}
+          onOpen: agentId => openAgents(agentId ?? MORE),
+          canInvite: manageable,
+          inviteOpen: agentsOpen && opener === INVITE,
+          onInvite: () => openAgents(INVITE) })}
         {seat && <InviteAgentTool checking={!manageable} open={agentsOpen && opener === INVITE}
           onOpen={() => openAgents(INVITE)} />}
       </div>}
@@ -115,7 +122,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, agentOp
       projectName={control.projectName} onChanged={refreshPeople} renderAgentMark={renderAgentMark} />}
     {context?.status === "resolved" && <Suspense fallback={null}>
       {agentsOpen && control && <AgentsDialog control={control} agents={agents} requests={requests}
-        renderAgentMark={renderAgentMark} onClose={closePanel} />}
+        inviteFirst={opener === INVITE} renderAgentMark={renderAgentMark} onClose={closePanel} />}
     </Suspense>}
   </>;
 }
@@ -130,9 +137,10 @@ function InviteAgentTool({ checking, open, onOpen }: { checking: boolean; open: 
       aria-label={label} aria-haspopup="dialog" aria-expanded={open} onClick={onOpen}>
       <span className="desktop-titlebar-cloud-agent-seat" aria-hidden="true">
         {checking
-          ? <LoaderCircle className="animate-spin" size={13} strokeWidth={2} />
-          : <Plus size={13} strokeWidth={2} />}
+          ? <LoaderCircle className="animate-spin" size={12} strokeWidth={2.1} />
+          : <Plus size={12} strokeWidth={2.1} />}
       </span>
+      <span className="desktop-titlebar-cloud-agent-invite-label">{t("cloud.share.agent.invite.seat")}</span>
     </button>
   </Tooltip>;
 }

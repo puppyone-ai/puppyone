@@ -514,11 +514,6 @@
       "count": 3
     }
   },
-  "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/cloud/workspace/workspaceCloudResolutionKey.ts": {
     "no-nested-ternary": {
       "count": 1

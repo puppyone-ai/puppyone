@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { Plus } from "lucide-react";
 import { disableTooltipHints } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { AgentAvatarMark } from "../components/brand/AgentAvatarMark";
@@ -33,10 +34,19 @@ type Hover = Readonly<{ mark: PersonMark; anchor: HTMLElement }>;
  * the pointer on any one of them shows its card; pressing one opens the Agents
  * dialog, or brings an unanswered request's persistent card into keyboard reach.
  */
-export function CloudWorkspaceAgentPeople({ agents, requests, open, pressedAgentId, onOpen }: CloudWorkspacePeople) {
+export function CloudWorkspaceAgentPeople({
+  agents,
+  requests,
+  open,
+  pressedAgentId,
+  onOpen,
+  canInvite,
+  inviteOpen,
+  onInvite,
+}: CloudWorkspacePeople) {
   const localization = useLocalization();
   const { t } = localization;
-  const card = useAgentCard(open || requests.length > 0);
+  const card = useAgentCard(open || Boolean(inviteOpen) || requests.length > 0);
   const asking: PersonMark[] = requests.map(request => ({ id: request.id, name: request.name, avatar: request.avatar,
     active: false, waiting: true, status: t("cloud.share.agent.request.status"), subject: { kind: "request", request } }));
   const toMark = (agent: (typeof agents)[number]): PersonMark => ({ id: agent.id, name: agent.name,
@@ -62,6 +72,15 @@ export function CloudWorkspaceAgentPeople({ agents, requests, open, pressedAgent
     })}
     {resting.length > 0 && <RestingAgents agents={resting} expanded={requests.length ? undefined : open && pressedAgentId === null}
       onHover={card.show} onLeave={card.hide} onOpen={() => press(null)} />}
+    {canInvite && onInvite && <button type="button"
+      className="desktop-titlebar-cloud-agent desktop-titlebar-cloud-agent-add"
+      data-cloud-workspace-agent-add=""
+      aria-label={t("cloud.share.agent.invite.title")}
+      aria-haspopup={requests.length ? undefined : "dialog"}
+      aria-expanded={requests.length ? undefined : Boolean(inviteOpen)}
+      onClick={() => { card.hide(); onInvite(); }}>
+      <Plus size={12} strokeWidth={2.1} aria-hidden="true" />
+    </button>}
     {card.hovered && <CloudWorkspaceAgentCard key={card.hovered.mark.id} subject={card.hovered.mark.subject}
       anchor={card.hovered.anchor}
       mark={<CloudWorkspaceAgentMark id={card.hovered.mark.id} name={card.hovered.mark.name}

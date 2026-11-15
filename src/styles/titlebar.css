@@ -741,33 +741,66 @@
   background: var(--po-accent);
 }
 
-/* An empty seat, shown only while nobody is here: the first Agent invited takes
-   it. Like a mark, it is the whole button. */
+/* Invite pill shown while nobody is here yet, plus solid circular + after
+   connected Agent avatars (replacing the retired dashed empty circle). */
+.desktop-titlebar-cloud-agent-invite {
+  height: var(--desktop-titlebar-control-height);
+  min-width: 0;
+  gap: 5px;
+  padding: 0 11px 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--desktop-titlebar-text) 7%, transparent);
+  color: var(--desktop-titlebar-text-muted);
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 500;
+  line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+
 .desktop-titlebar-cloud-agent-seat {
-  display: grid;
-  box-sizing: border-box;
-  width: var(--po-control-size-compact);
-  height: var(--po-control-size-compact);
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
   place-items: center;
-  border: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
-  border-radius: 50%;
-  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent-invite-label {
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]):not(:disabled) {
+  background: var(--desktop-titlebar-active);
   color: var(--desktop-titlebar-text);
 }
 
-.desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]):not(:disabled) .desktop-titlebar-cloud-agent-seat {
-  border-color: color-mix(in srgb, currentColor 70%, transparent);
-  background: color-mix(in srgb, currentColor 10%, transparent);
+/* Holding the pill's place while the server says whether this person may invite. */
+.desktop-titlebar-cloud-agent-invite:disabled {
+  cursor: default;
+  opacity: 0.65;
 }
 
-/* Holding the seat's place while the server says whether this person may invite. */
-.desktop-titlebar-cloud-agent-invite:disabled {
-  background: transparent;
-  cursor: default;
-  opacity: 0.7;
+.desktop-titlebar-cloud-agent-add {
+  display: grid;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
+  min-width: var(--po-control-size-compact);
+  margin-inline-start: -3px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--desktop-titlebar-text) 8%, var(--desktop-titlebar-bg));
+  box-shadow: 0 0 0 2px var(--desktop-titlebar-bg);
+  color: var(--desktop-titlebar-text-muted);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent-add:is(:hover, [aria-expanded="true"]) {
+  background: color-mix(in srgb, var(--desktop-titlebar-text) 16%, var(--desktop-titlebar-bg));
+  color: var(--desktop-titlebar-text);
 }
 
 .desktop-titlebar-cloud-agent:nth-child(2) .desktop-project-reach-mark[data-reach-activity] {

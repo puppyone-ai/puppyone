@@ -19,7 +19,7 @@ Experimental presentation that shifts PuppyOne's entity mental model from folder
 2. **Creation Dialog (`ProjectEntryFlow.tsx` -> `ComputerModeEntryDialog.tsx`)**:
    - Offers two cards: **Cloud Computer** vs **On this computer**.
 3. **Workbench Screen (`DesktopCloudFileWorkspace.tsx` & `DesktopLocalComputerWorkspace.tsx`)**:
-   - Reuses `<CloudScreenThumbnail />` in the Explorer footer (`sidebarCompanion`) and displays either `CloudScreenView` or `LocalComputerScreenView` in `providerStateContent` without altering Explorer, editors, or Git.
+   - Pins `<ComputerScreenSidebarEntry />` at a fixed height at the top of the Explorer sidebar (`sidebarTopCompanion`) and keeps a single `<ComputerScreenStage />` (`CloudScreenView` or `LocalComputerScreenView`) mounted in `computerScreenOverlay` so switching between the straight-edged Full-Pane screen and Files smoothly transitions to a bottom-right Picture-in-Picture window without dropping VNC.
 
 ## Retirement / Promotion Plan
 
