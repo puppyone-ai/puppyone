@@ -66,6 +66,8 @@ enum Step {
     Click(f32, f32),
     /// The Sub Theme for both colour modes.
     Pack(String),
+    /// The colour mode (`dark` or `light`), switched while the window runs.
+    Mode(bool),
     /// The pointer moved to a window point.
     Move(f32, f32),
     /// The left button pressed / released at a window point (a drag is
@@ -157,6 +159,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
                 "scroll" => Step::Scroll(arg.trim().parse().ok()?),
                 "pack" => Step::Pack(arg.trim().to_owned()),
+                "mode" => Step::Mode(arg.trim() == "dark"),
                 "click" | "move" | "press" | "release" => {
                     let n: Vec<f32> = arg
                         .split(',')
@@ -652,6 +655,16 @@ impl Shell {
                         cx,
                     )
                 });
+            }
+            Step::Mode(dark) => {
+                let mode = if *dark {
+                    crate::features::settings::ThemeMode::Dark
+                } else {
+                    crate::features::settings::ThemeMode::Light
+                };
+                self.prefs
+                    .store
+                    .update(cx, |p, cx| p.change(|p| p.theme_mode = mode, cx))
             }
             Step::Pack(id) => self.prefs.store.update(cx, |p, cx| {
                 p.change(

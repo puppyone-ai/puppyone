@@ -21,6 +21,7 @@ import { EditableDocumentSourceProvider } from "./src/shared-ui/editor/document-
 import type { EditableDocumentSource } from "./src/shared-ui/editor/document-session/types";
 import type { DocumentNavigationPort, DocumentReference } from "./src/shared-ui/editor/navigation/documentNavigation";
 import { ExcalidrawViewer } from "./src/shared-ui/editor/viewers/excalidraw/ExcalidrawViewer";
+import { EditorAppearanceProvider } from "./src/shared-ui/core/appearance/EditorAppearanceContext";
 import { DesktopTooltipLayer } from "./src/components/DesktopTooltipLayer";
 
 type Boot = Readonly<{
@@ -29,6 +30,7 @@ type Boot = Readonly<{
 }>;
 type Inbound = { type: "reset"; text: string }
   | { type: "enabled"; value: boolean }
+  | { type: "theme"; dark: boolean; css: string }
   | { type: "history"; direction: "undo" | "redo" };
 type Port = Parameters<EditableDocumentSource["attachSource"]>[0];
 
@@ -100,6 +102,9 @@ function history(redo: boolean) {
 function App() {
   const [canEdit, setCanEdit] = useState(boot.canEdit);
   const [content, setContent] = useState(boot.text);
+  // A theme change restyles the running board (its undo history stays):
+  // the viewer reads the new color-scheme when the revision moves.
+  const [appearance, setAppearance] = useState(0);
   useEffect(() => {
     window.__puppyoneWhiteboard = (message) => {
       if (message.type === "reset") {
@@ -111,6 +116,13 @@ function App() {
         setCanEdit(message.value);
       } else if (message.type === "history") {
         history(message.direction === "redo");
+      } else if (message.type === "theme") {
+        const style = window.document.getElementById("po-theme");
+        if (style) style.textContent = message.css;
+        window.document.documentElement.classList.toggle("dark", message.dark);
+        window.document.documentElement.dataset.initialTheme = message.dark ? "dark" : "light";
+        window.document.getElementById("desktop-overlay-root")?.classList.toggle("dark", message.dark);
+        setAppearance((revision) => revision + 1);
       }
     };
     post({ type: "ready" });
@@ -118,10 +130,12 @@ function App() {
   }, []);
   const document = useMemo(() => ({ name: boot.name, path: boot.path, type: "excalidraw" }) as never, []);
   return <EditableDocumentSourceProvider source={source}>
-    <section className="editor-host whiteboard-host">
-      <ExcalidrawViewer {...{ document, content, canEdit, documentNavigation, markdownEnvironment,
-        htmlTrustMode: "safe", workspaceRoot: boot.workspaceRoot ?? undefined } as never} />
-    </section>
+    <EditorAppearanceProvider revision={String(appearance)}>
+      <section className="editor-host whiteboard-host">
+        <ExcalidrawViewer {...{ document, content, canEdit, documentNavigation, markdownEnvironment,
+          htmlTrustMode: "safe", workspaceRoot: boot.workspaceRoot ?? undefined } as never} />
+      </section>
+    </EditorAppearanceProvider>
   </EditableDocumentSourceProvider>;
 }
 

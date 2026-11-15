@@ -248,11 +248,18 @@ impl WhiteboardView {
     fn apply(&mut self, read_only: bool, dark: bool, cx: &mut Context<Self>) {
         let enabled = !read_only;
         if dark != self.dark {
-            // The theme is part of the page: rebuild it on the current text.
             self.dark = dark;
-            self.enabled = enabled;
-            self.show(cx);
-        } else if enabled != self.enabled {
+            // The running board takes the new tokens, keeping its undo
+            // history; one not yet ready is rebuilt in them.
+            let message =
+                serde_json::json!({ "type": "theme", "dark": dark, "css": theme_css(dark) });
+            if !self.post(message, cx) {
+                self.enabled = enabled;
+                self.show(cx);
+                return;
+            }
+        }
+        if enabled != self.enabled {
             self.enabled = enabled;
             self.post_state(
                 serde_json::json!({ "type": "enabled", "value": enabled }),
@@ -262,9 +269,8 @@ impl WhiteboardView {
     }
 }
 
-/// The entry document: the product's tokens with the native theme's
-/// colours over them, the SDK's asset path, then the bundle.
-fn page(boot: &serde_json::Value, dark: bool) -> String {
+/// The product's tokens with the native theme's colours over them.
+fn theme_css(dark: bool) -> String {
     let tokens: String = crate::theme::pack_tokens(dark)
         .iter()
         .filter(|(name, value)| {
@@ -273,6 +279,13 @@ fn page(boot: &serde_json::Value, dark: bool) -> String {
         })
         .map(|(name, value)| format!("--po-{name}:{value};"))
         .collect();
+    let scheme = if dark { "dark" } else { "light" };
+    format!(":root:root:root{{{tokens}color-scheme:{scheme}}}")
+}
+
+/// The entry document: the theme's tokens, the SDK's asset path, then the
+/// bundle.
+fn page(boot: &serde_json::Value, dark: bool) -> String {
     let locale = crate::localization::current_code();
     let scheme = if dark { "dark" } else { "light" };
     // `.desktop-overlay-root` (dialogs.css): the SDK's dialogs and tooltips
@@ -281,7 +294,7 @@ fn page(boot: &serde_json::Value, dark: bool) -> String {
         "<!doctype html><html lang=\"{lang}\" class=\"{class}\" data-initial-theme=\"{scheme}\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width\">\
 <link rel=\"stylesheet\" href=\"__assets__/excalidraw.css\">\
-<style>:root:root:root{{{tokens}color-scheme:{scheme}}}html,body,#root{{height:100%;margin:0;overflow:hidden}}body{{background:var(--po-editor-bg,var(--po-canvas));color:var(--po-text);font-family:var(--po-font-ui)}}#root>.whiteboard-host{{height:100%}}.desktop-overlay-root{{position:relative;z-index:var(--po-overlay-root-z-index,1000);isolation:isolate;color:var(--po-text);font-family:var(--po-font-sans)}}.desktop-overlay-root:empty{{display:none}}</style>\
+<style id=\"po-theme\">{theme}</style><style>html,body,#root{{height:100%;margin:0;overflow:hidden}}body{{background:var(--po-editor-bg,var(--po-canvas));color:var(--po-text);font-family:var(--po-font-ui)}}#root>.whiteboard-host{{height:100%}}.desktop-overlay-root{{position:relative;z-index:var(--po-overlay-root-z-index,1000);isolation:isolate;color:var(--po-text);font-family:var(--po-font-sans)}}.desktop-overlay-root:empty{{display:none}}</style>\
 </head><body><div id=\"root\"></div><div id=\"desktop-overlay-root\" class=\"desktop-overlay-root{dark_class}\"></div>\
 <script>window.EXCALIDRAW_ASSET_PATH=new URL(\"__assets__/{FONT_PREFIX}/\",document.baseURI).href;window.__PUPPYONE_WHITEBOARD={boot}</script>\
 <script src=\"__assets__/excalidraw.js\"></script></body></html>",
@@ -289,6 +302,7 @@ fn page(boot: &serde_json::Value, dark: bool) -> String {
         class = if dark { "dark" } else { "" },
         dark_class = if dark { " dark" } else { "" },
         boot = script_json(boot),
+        theme = theme_css(dark),
     )
 }
 
