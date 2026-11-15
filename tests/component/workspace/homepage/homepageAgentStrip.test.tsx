@@ -138,8 +138,17 @@ describe("HomepageAgentStrip", () => {
 
     const claudeButton = localButtons.find((button) => button.dataset.agentRuntime === "claude")!;
     const codexButton = localButtons.find((button) => button.dataset.agentRuntime === "codex")!;
-    expect(claudeButton.querySelector(".onboarding-agent-name")?.textContent).toBe("Claude Code");
-    expect(codexButton.querySelector(".onboarding-agent-name")?.textContent).toBe("Codex");
+    // Logo-only strip: no inline Agent or group text labels on the bar; hover tooltips carry the names.
+    expect(container.querySelector(".onboarding-agent-name")).toBeNull();
+    expect(container.querySelector(".onboarding-agent-group-label")).toBeNull();
+    expect(claudeButton.textContent).toBe("");
+    expect(codexButton.textContent).toBe("");
+    expect(claudeButton.querySelector(".onboarding-agent-brand")).not.toBeNull();
+    expect(codexButton.querySelector(".onboarding-agent-brand")).not.toBeNull();
+    expect(stripBidiIsolation(claudeButton.dataset.tooltip ?? ""))
+      .toBe("Claude Code · Set up for puppyone");
+    expect(stripBidiIsolation(codexButton.dataset.tooltip ?? ""))
+      .toBe("Codex");
     expect(claudeButton.querySelector(".onboarding-agent-connected")).not.toBeNull();
     expect(codexButton.querySelector(".onboarding-agent-connected")).toBeNull();
 
@@ -147,9 +156,52 @@ describe("HomepageAgentStrip", () => {
     expect(container.querySelector("[data-agent-place='cloud']")).toBeNull();
 
     const connectButton = container.querySelector<HTMLButtonElement>(".onboarding-agent-connect");
-    expect(connectButton?.textContent).toBe("Add");
+    expect(connectButton?.textContent).toBe("");
+    expect(connectButton?.getAttribute("aria-label")).toBe("Add");
+    expect(connectButton?.dataset.tooltip).toBe("Add");
     await act(async () => connectButton?.click());
     expect(onOpenAgentSettings).toHaveBeenCalledOnce();
+  });
+
+  it("keeps five installed local Agents as logo-only marks with hover tooltips and zero inline text", async () => {
+    Object.defineProperty(window, "puppyoneDesktop", {
+      configurable: true,
+      value: {
+        discoverLocalAgentInstallations: vi.fn(async () => discoverySnapshot(
+          ["claude", "codex", "cursor", "pi", "workbuddy-china"],
+        )),
+        onLocalAgentInstallationProgress: vi.fn(() => () => undefined),
+        onLocalAgentInstallationsChanged: vi.fn(() => () => undefined),
+        getAgentActivityEnrollment: vi.fn(async () => enrollmentSnapshot(["claude", "codex"])),
+      },
+    });
+
+    const container = renderHome({
+      projectItems: [notesProject],
+      onDefaultProjectLocation: vi.fn(async () => ({ grantId: "grant-1", path: "/Users/example/Projects" })),
+      onChooseProjectLocation: vi.fn(async () => ({ grantId: "grant-1", path: "/Users/example/Projects" })),
+      onCreateProject: vi.fn(),
+      onOpenAgentSettings: vi.fn(),
+      cloudSession: null,
+      cloudSpaces: [],
+    });
+
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll("[data-agent-place='local'] .onboarding-agent")).toHaveLength(5);
+    });
+
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>("[data-agent-place='local'] .onboarding-agent")];
+    expect(buttons.every((button) => button.textContent === "")).toBe(true);
+    expect(buttons.every((button) => button.querySelector(".onboarding-agent-brand") !== null)).toBe(true);
+    expect(buttons.map((button) => stripBidiIsolation(button.dataset.tooltip ?? ""))).toEqual(
+      expect.arrayContaining([
+        "Have Claude Code start a project · Set up for puppyone",
+        "Have Codex start a project · Set up for puppyone",
+        "Have Cursor start a project",
+        "Have Pi start a project",
+        "Have WorkBuddy (China) start a project",
+      ]),
+    );
   });
 
   it("hides the Cloud Agent group when the personal space has no Cloud projects", async () => {

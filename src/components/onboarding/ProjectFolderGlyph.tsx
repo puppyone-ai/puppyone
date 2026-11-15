@@ -7,6 +7,12 @@ export type ProjectFolderGlyphProps = {
   size?: "md" | "sm";
 };
 
+const FOLDER_VIEWBOX = "0 0 104 78";
+const FOLDER_BACK_PATH =
+  "M6 12A6 6 0 0 1 12 6h23c2.1 0 4.1.9 5.5 2.5L45.2 14H92a6 6 0 0 1 6 6v50a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6Z";
+const FOLDER_FRONT_PATH =
+  "M6 34a6 6 0 0 1 6-6h80a6 6 0 0 1 6 6v36a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6Z";
+
 const BADGE_LABEL: Partial<Record<ProjectAssetPreviewKind, string>> = {
   html: "HTML",
   md: "MD",
@@ -70,9 +76,9 @@ function ProjectPreviewSheet({
 }
 
 /**
- * Every project's folder on Home and in the switcher rail. When `previews` are present,
- * up to three top-level assets peek out between the monochrome back and front; when empty
- * or omitted, it renders the calm empty folder without motion.
+ * Every project's folder on Home and in the switcher rail. Both empty and asset-bearing
+ * folders share one SVG silhouette and baseline so adjacent projects align identically;
+ * when `previews` exist, up to three calm preview sheets sit between the back and front.
  */
 export function ProjectFolderGlyph({
   previews,
@@ -87,7 +93,9 @@ export function ProjectFolderGlyph({
         data-preview-count={sheets.length}
         aria-hidden="true"
       >
-        <span className="project-folder-stage-back project-folder-back" />
+        <svg className="project-folder-stage-back" viewBox={FOLDER_VIEWBOX} aria-hidden="true" focusable="false">
+          <path className="project-folder-back" d={FOLDER_BACK_PATH} />
+        </svg>
         {sheets.map((preview, index) => (
           <ProjectPreviewSheet
             key={`${index}:${preview.name}`}
@@ -95,21 +103,17 @@ export function ProjectFolderGlyph({
             compact={compact}
           />
         ))}
-        <span className="project-folder-stage-front project-folder-front" />
+        <svg className="project-folder-stage-front" viewBox={FOLDER_VIEWBOX} aria-hidden="true" focusable="false">
+          <path className="project-folder-front" d={FOLDER_FRONT_PATH} />
+        </svg>
       </span>
     );
   }
 
   return (
-    <svg className="project-folder-glyph" viewBox="0 0 48 38" aria-hidden="true" focusable="false">
-      <path
-        className="project-folder-back"
-        d="M4 6.5A3.5 3.5 0 0 1 7.5 3h10.3c.9 0 1.8.4 2.4 1.1L22.7 7h17.8A3.5 3.5 0 0 1 44 10.5V15H4z"
-      />
-      <path
-        className="project-folder-front"
-        d="M4 14.5A3.5 3.5 0 0 1 7.5 11h33a3.5 3.5 0 0 1 3.5 3.5v17a3.5 3.5 0 0 1-3.5 3.5h-33A3.5 3.5 0 0 1 4 31.5z"
-      />
+    <svg className="project-folder-glyph" viewBox={FOLDER_VIEWBOX} aria-hidden="true" focusable="false">
+      <path className="project-folder-back" d={FOLDER_BACK_PATH} />
+      <path className="project-folder-front" d={FOLDER_FRONT_PATH} />
     </svg>
   );
 }

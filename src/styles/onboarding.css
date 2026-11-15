@@ -64,8 +64,8 @@
   /* A Grid cell, the gutter between cells, and the folder centred in a cell. A name
      may use its whole cell, so the gutter is what keeps two long names apart. */
   --onboarding-tile-width: 120px;
-  --onboarding-tile-gap: 18px;
-  --onboarding-folder-width: 132px;
+  --onboarding-tile-gap: 14px;
+  --onboarding-folder-width: 104px;
   --onboarding-preview-badge-size: 7px;
   display: grid;
   width: min(680px, 100%);
@@ -89,9 +89,9 @@
      sits evenly between the Header and the folders, whose cells carry their own inset.
      The list runs to the window's edge, so what is below shows there, cut by the
      window as in Finder, and says without a scrollbar that there is more. */
-  --onboarding-title-inset: 22px;
+  --onboarding-title-inset: 24px;
   padding-block-start: calc(var(--desktop-chrome-height) + var(--onboarding-title-inset));
-  padding-inline: 44px;
+  padding-inline: 40px;
   padding-block-end: 0;
 }
 
@@ -102,11 +102,12 @@
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-  /* Room for four asset-bearing folders across, and for start actions beside the Agents. */
+  /* Five calm Finder-proportioned folders across a focused column, with start actions
+     on the left and logo-only Agent marks on the right of one non-wrapping header row. */
   --onboarding-column-width: 100%;
   --onboarding-title-primary-gap: 20px;
   --onboarding-primary-actions-gap: 0;
-  width: min(912px, 100%);
+  width: min(760px, 100%);
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -115,9 +116,9 @@
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-brand-lockup {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: space-between;
-  gap: 8px 12px;
+  gap: 12px;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-launcher {
@@ -728,46 +729,41 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
-/* The head of a page with projects: left, the three place actions; right, the person's
-   own Agents on this computer and in their personal Cloud space. */
-.onboarding-shell[data-onboarding-state="projects"] .onboarding-brand-lockup {
-  flex-wrap: wrap;
-  row-gap: 10px;
-}
-
+/* The head of a page with projects: left, the three place actions in compact toolbar
+   geometry; right, compact logo-only Agent marks on one non-wrapping row. */
 .onboarding-start-actions {
   display: flex;
   flex: 0 0 auto;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .onboarding-start-actions .onboarding-entry-action {
   width: auto;
-  height: 34px;
-  min-height: 34px;
-  padding-inline: 13px;
-  border-radius: var(--po-card-radius);
-  background: color-mix(in srgb, var(--po-text) 8%, transparent);
-  color: var(--po-text);
+  height: var(--po-control-size-compact);
+  min-height: var(--po-control-size-compact);
+  padding-inline: 10px;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
   font-size: var(--po-type-ui-meta, 13px);
   font-weight: var(--po-text-weight-medium, 500);
 }
 
 .onboarding-start-actions .onboarding-entry-action:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--po-text) 13%, transparent);
+  background: var(--po-hover);
   color: var(--po-text);
 }
 
 .onboarding-start-actions .onboarding-entry-action[data-onboarding-action="create"] {
-  background: var(--po-text);
-  color: var(--po-canvas);
+  background: color-mix(in srgb, var(--po-text) 9%, transparent);
+  color: var(--po-text);
 }
 
 .onboarding-start-actions .onboarding-entry-action[data-onboarding-action="create"]:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--po-text) 86%, var(--po-canvas));
-  color: var(--po-canvas);
+  background: color-mix(in srgb, var(--po-text) 14%, transparent);
+  color: var(--po-text);
 }
 
 .onboarding-start-actions .onboarding-entry-action:disabled {
@@ -777,55 +773,54 @@ span.homepage-cloud-feedback {
 
 .onboarding-agent-strip {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
   margin-inline-start: auto;
 }
 
 .onboarding-agent-group {
   display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.onboarding-agent-group-label {
-  display: inline-flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
-  margin-inline-end: 2px;
+}
+
+.onboarding-agent-place-mark {
+  display: inline-grid;
+  width: 20px;
+  height: var(--po-control-size-compact);
+  flex: 0 0 20px;
+  place-items: center;
   color: var(--po-text-subtle);
-  font-size: var(--onboarding-caption-font-size);
-  font-weight: var(--onboarding-row-font-weight);
-  line-height: 16px;
-  white-space: nowrap;
 }
 
 .onboarding-agent {
   position: relative;
-  display: inline-flex;
-  height: 32px;
+  display: inline-grid;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
+  flex: 0 0 var(--po-control-size-compact);
   box-sizing: border-box;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px 0 6px;
-  border: 1px solid var(--po-border);
-  border-radius: 999px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: var(--desktop-control-radius);
   background: var(--po-panel-raised);
   color: var(--po-text);
   cursor: var(--po-clickable-cursor, default);
   font-family: var(--po-font-sans);
-  font-size: var(--po-type-ui-meta, 13px);
+  font-size: var(--onboarding-caption-font-size);
   font-weight: var(--onboarding-row-font-weight);
   line-height: 1;
-  white-space: nowrap;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 button.onboarding-agent:hover:not(:disabled) {
-  border-color: var(--po-border-strong);
+  border-color: var(--po-border);
   background: var(--po-hover);
 }
 
@@ -841,9 +836,6 @@ button.onboarding-agent:disabled {
 }
 
 .onboarding-agent.is-face {
-  width: 32px;
-  padding: 0;
-  justify-content: center;
   cursor: default;
 }
 
@@ -855,20 +847,20 @@ button.onboarding-agent:disabled {
 }
 
 .onboarding-agent.is-face .desktop-project-reach-mark > :is(img, svg) {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
   opacity: 1;
 }
 
 .onboarding-agent-brand {
   display: inline-grid;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
   place-items: center;
   overflow: hidden;
-  border-radius: var(--desktop-control-radius);
+  border-radius: 4px;
   color: currentColor;
   font-size: var(--onboarding-caption-font-size);
   font-weight: var(--po-text-weight-semibold, 600);
@@ -886,28 +878,32 @@ button.onboarding-agent:disabled {
 }
 
 .onboarding-agent-connected {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 7px;
+  position: absolute;
+  inset-inline-end: -1px;
+  bottom: -1px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--po-success);
+  box-shadow: 0 0 0 1.5px var(--po-canvas);
 }
 
 .onboarding-agent-sep {
   width: 1px;
-  height: 20px;
-  margin-inline: 4px;
+  height: 14px;
+  margin-inline: 3px;
   background: var(--po-divider);
 }
 
-.onboarding-agent-connect {
-  padding-inline: 11px;
-  border-color: var(--po-border-subtle);
+.onboarding-agent.onboarding-agent-connect {
+  border-color: transparent;
   background: transparent;
   color: var(--po-text-muted);
 }
 
-button.onboarding-agent-connect:hover:not(:disabled) {
+button.onboarding-agent.onboarding-agent-connect:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--po-hover);
   color: var(--po-text);
 }
 
@@ -925,8 +921,8 @@ button.onboarding-agent-connect:hover:not(:disabled) {
   margin: 0;
   color: var(--po-text);
   font-family: var(--po-font-sans);
-  font-size: var(--onboarding-row-font-size);
-  font-weight: var(--po-text-weight-semibold, 600);
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--po-text-weight-medium, 500);
   line-height: 20px;
 }
 
@@ -1018,80 +1014,61 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 }
 
 .project-folder-back {
-  fill: var(--po-project-folder-back);
-  transition: fill 130ms ease-out, background 130ms ease-out;
+  fill: color-mix(in srgb, var(--po-project-folder-back) 80%, var(--po-canvas));
+  transition: fill 130ms ease-out;
 }
 
 .project-folder-front {
-  fill: var(--po-project-folder-front);
-  transition: fill 130ms ease-out, background 130ms ease-out;
+  fill: color-mix(in srgb, var(--po-project-folder-front) 78%, var(--po-canvas));
+  transition: fill 130ms ease-out;
 }
 
 .onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) svg .project-folder-back {
-  fill: color-mix(in srgb, var(--po-project-folder-back) 90%, var(--po-text));
+  fill: color-mix(in srgb, var(--po-project-folder-back) 90%, var(--po-canvas));
 }
 
 .onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) svg .project-folder-front {
-  fill: color-mix(in srgb, var(--po-project-folder-front) 90%, var(--po-text));
+  fill: color-mix(in srgb, var(--po-project-folder-front) 88%, var(--po-canvas));
 }
 
 .project-folder-stage {
   position: relative;
   display: block;
-  width: 132px;
-  height: 100px;
+  width: 104px;
+  height: 78px;
 }
 
 .project-folder-stage-back {
   position: absolute;
-  inset-inline: 4px;
-  bottom: 0;
-  height: 80px;
-  border-radius: 8px;
-  background: var(--po-project-folder-back);
-}
-
-.project-folder-stage-back::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: 0;
-  top: -8px;
-  width: 46px;
-  height: 14px;
-  border-radius: 6px 6px 0 0;
-  background: inherit;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .project-folder-stage-front {
   position: absolute;
   z-index: 2;
-  inset-inline: 4px;
-  bottom: 0;
-  height: 56px;
-  border-radius: 6px 6px 8px 8px;
-  background: var(--po-project-folder-front);
-}
-
-.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .project-folder-stage-back {
-  background: color-mix(in srgb, var(--po-project-folder-back) 90%, var(--po-text));
-}
-
-.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .project-folder-stage-front {
-  background: color-mix(in srgb, var(--po-project-folder-front) 90%, var(--po-text));
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .project-folder-preview {
   --project-preview-accent: var(--po-file-accent-default);
   position: absolute;
   display: flex;
-  width: 62px;
-  height: 48px;
+  width: 44px;
+  height: 37px;
   box-sizing: border-box;
   flex-direction: column;
-  gap: 3px;
-  padding: 5px;
+  gap: 2.5px;
+  padding: 4px;
   overflow: hidden;
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--po-panel-raised, var(--po-project-folder-sheet));
   box-shadow: 0 0 0 1px var(--po-border-subtle), var(--po-elevation-low);
 }
@@ -1109,54 +1086,54 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 }
 
 .project-folder-stage > .project-folder-preview:nth-child(2) {
-  inset-inline-start: 12px;
-  top: 10px;
-  transform: rotate(-7deg);
+  inset-inline-start: 8px;
+  top: 8px;
+  transform: rotate(-6.5deg);
 }
 
 .project-folder-stage > .project-folder-preview:nth-child(3) {
   z-index: 1;
-  inset-inline-start: 36px;
-  top: 2px;
-  transform: rotate(2deg);
+  inset-inline-start: 30px;
+  top: 3px;
+  transform: rotate(1.5deg);
 }
 
 .project-folder-stage > .project-folder-preview:nth-child(4) {
-  inset-inline-start: 60px;
-  top: 9px;
-  transform: rotate(8deg);
+  inset-inline-start: 52px;
+  top: 8px;
+  transform: rotate(6.5deg);
 }
 
 .project-folder-stage[data-preview-count="1"] > .project-folder-preview:nth-child(2) {
-  inset-inline-start: 35px;
+  inset-inline-start: 30px;
   top: 4px;
-  transform: rotate(2deg);
+  transform: rotate(1.5deg);
 }
 
 .project-folder-stage[data-preview-count="2"] > .project-folder-preview:nth-child(2) {
-  inset-inline-start: 20px;
-  top: 7px;
-  transform: rotate(-5deg);
+  inset-inline-start: 16px;
+  top: 6px;
+  transform: rotate(-4.5deg);
 }
 
 .project-folder-stage[data-preview-count="2"] > .project-folder-preview:nth-child(3) {
-  inset-inline-start: 48px;
+  inset-inline-start: 44px;
   top: 4px;
-  transform: rotate(5deg);
+  transform: rotate(4.5deg);
 }
 
 .project-folder-preview-title,
 .project-folder-preview-line {
   display: block;
-  height: 3px;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--po-text) 14%, transparent);
+  height: 2.5px;
+  border-radius: 1.5px;
+  background: color-mix(in srgb, var(--po-text) 13%, transparent);
 }
 
 .project-folder-preview-title {
-  width: 44%;
-  height: 4px;
-  background: color-mix(in srgb, var(--po-text) 62%, transparent);
+  width: 42%;
+  height: 3px;
+  background: color-mix(in srgb, var(--po-text) 52%, transparent);
 }
 
 .project-folder-preview-title.is-short {
@@ -1171,8 +1148,8 @@ button.onboarding-agent-connect:hover:not(:disabled) {
   display: flex;
   flex: 1 1 auto;
   align-items: flex-end;
-  gap: 3px;
-  padding-inline: 2px;
+  gap: 2.5px;
+  padding-inline: 1.5px;
   padding-block-top: 2px;
   border-block-end: 1px solid var(--po-border-subtle);
 }
@@ -1181,7 +1158,7 @@ button.onboarding-agent-connect:hover:not(:disabled) {
   display: block;
   flex: 1 1 0;
   border-radius: 1px 1px 0 0;
-  background: var(--po-accent);
+  background: color-mix(in srgb, var(--project-preview-accent) 56%, transparent);
 }
 
 .project-folder-preview-bars > i.is-low {
@@ -1201,12 +1178,12 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 .project-folder-preview-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
+  gap: 1.5px;
 }
 
 .project-folder-preview-grid > i {
   display: block;
-  height: 4px;
+  height: 3.5px;
   border-radius: 1px;
   background: color-mix(in srgb, var(--project-preview-accent) 16%, transparent);
 }
@@ -1217,28 +1194,28 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 
 .project-folder-preview-badge {
   position: absolute;
-  inset-inline-end: 4px;
-  top: 4px;
-  padding: 2px 3px;
+  inset-inline-end: 2.5px;
+  top: 2.5px;
+  padding: 1px 2.5px;
   border-radius: 2px;
-  background: var(--project-preview-accent);
-  color: var(--po-text-inverse);
+  background: color-mix(in srgb, var(--project-preview-accent) 16%, var(--po-panel-raised));
+  color: color-mix(in srgb, var(--project-preview-accent) 88%, var(--po-text));
   font-family: var(--po-font-mono);
   font-size: var(--onboarding-preview-badge-size);
-  font-weight: var(--po-text-weight-bold, 700);
+  font-weight: var(--po-text-weight-semibold, 600);
   line-height: 1;
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
 }
 
 /* On a fanned stack, the left sheet exposes its outer-left shoulder while the middle sheet
    covers its right edge; place its badge on that exposed shoulder so every asset's type shows. */
 .project-folder-stage:not(.is-compact):is([data-preview-count="2"], [data-preview-count="3"]) > .project-folder-preview:nth-child(2) .project-folder-preview-badge {
-  inset-inline-start: 4px;
+  inset-inline-start: 2.5px;
   inset-inline-end: auto;
 }
 
 .project-folder-stage:not(.is-compact):is([data-preview-count="2"], [data-preview-count="3"]) > .project-folder-preview:nth-child(2) .project-folder-preview-title {
-  margin-block-start: 11px;
+  margin-block-start: 9px;
 }
 
 /* Compact folder with peeking assets for List rows (.fga.sm). */
@@ -1247,28 +1224,9 @@ button.onboarding-agent-connect:hover:not(:disabled) {
   height: 26px;
 }
 
-.project-folder-stage.is-compact .project-folder-stage-back {
-  inset-inline: 1px;
-  height: 21px;
-  border-radius: 3px;
-}
-
-.project-folder-stage.is-compact .project-folder-stage-back::before {
-  top: -3px;
-  width: 12px;
-  height: 5px;
-  border-radius: 2px 2px 0 0;
-}
-
-.project-folder-stage.is-compact .project-folder-stage-front {
-  inset-inline: 1px;
-  height: 15px;
-  border-radius: 2px 2px 3px 3px;
-}
-
 .project-folder-stage.is-compact > .project-folder-preview {
-  width: 16px;
-  height: 13px;
+  width: 15px;
+  height: 12px;
   gap: 1px;
   padding: 2px;
   border-radius: 2px;
@@ -1281,27 +1239,27 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 }
 
 .project-folder-stage.is-compact > .project-folder-preview:nth-child(3) {
-  inset-inline-start: 10px;
+  inset-inline-start: 9.5px;
   top: 1px;
 }
 
 .project-folder-stage.is-compact > .project-folder-preview:nth-child(4) {
-  inset-inline-start: 16px;
+  inset-inline-start: 15px;
   top: 3px;
 }
 
 .project-folder-stage.is-compact[data-preview-count="1"] > .project-folder-preview:nth-child(2) {
-  inset-inline-start: 9px;
-  top: 2px;
+  inset-inline-start: 9.5px;
+  top: 1.5px;
 }
 
 .project-folder-stage.is-compact[data-preview-count="2"] > .project-folder-preview:nth-child(2) {
-  inset-inline-start: 6px;
+  inset-inline-start: 6.5px;
   top: 2px;
 }
 
 .project-folder-stage.is-compact[data-preview-count="2"] > .project-folder-preview:nth-child(3) {
-  inset-inline-start: 13px;
+  inset-inline-start: 12.5px;
   top: 1px;
 }
 
@@ -1326,24 +1284,24 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 .onboarding-project-folder-agents {
   position: absolute;
   z-index: 4;
-  inset-inline-end: -4px;
-  bottom: -6px;
+  inset-inline-end: 0;
+  bottom: -3px;
   display: flex;
 }
 
 .onboarding-project-folder-agent {
   position: relative;
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   place-items: center;
   border-radius: var(--desktop-control-radius);
   background: var(--po-panel-raised);
-  box-shadow: 0 0 0 2px var(--po-canvas), var(--po-elevation-low);
+  box-shadow: 0 0 0 1.5px var(--po-canvas), var(--po-elevation-low);
 }
 
 .onboarding-project-folder-agent + .onboarding-project-folder-agent {
-  margin-inline-start: -6px;
+  margin-inline-start: -5px;
 }
 
 .onboarding-project-folder-agent .desktop-project-reach-mark {
@@ -1354,9 +1312,9 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 }
 
 .onboarding-project-folder-agent .desktop-project-reach-mark > :is(img, svg) {
-  width: 17px;
-  height: 17px;
-  border-radius: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
   opacity: 1;
 }
 
@@ -1435,16 +1393,16 @@ button.onboarding-agent-connect:hover:not(:disabled) {
   display: none;
 }
 
-/* Four asset-bearing folders across the page, sharing equal cells down to the smallest window. */
+/* Five Finder-proportioned folders across the page, sharing equal cells down to the smallest window. */
 .onboarding-project-list[data-project-layout="grid"] {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  column-gap: 18px;
-  row-gap: 16px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: var(--onboarding-tile-gap);
+  row-gap: 12px;
 }
 
 @media (max-width: 820px) {
   .onboarding-project-list[data-project-layout="grid"] {
-    column-gap: 12px;
+    column-gap: 10px;
   }
 }
 
@@ -1452,28 +1410,28 @@ button.onboarding-agent-connect:hover:not(:disabled) {
   align-content: start;
   justify-items: center;
   gap: 2px;
-  padding: 10px 6px 12px;
+  padding: 10px 6px 10px;
   text-align: center;
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder {
   width: var(--onboarding-folder-width);
-  height: 100px;
-  margin-block-end: 8px;
+  height: 78px;
+  margin-block-end: 6px;
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder > .project-folder-glyph {
-  width: 148px;
-  height: 98px;
-  margin: 2px -8px 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile-name {
   display: block;
   max-width: 100%;
-  font-size: var(--onboarding-row-font-size);
-  font-weight: var(--po-text-weight-medium, 500);
-  line-height: 20px;
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--onboarding-row-font-weight);
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1520,7 +1478,7 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 
 .onboarding-homepage-error {
   flex: 0 0 auto;
-  width: min(912px, 100%);
+  width: min(760px, 100%);
 }
 
 .onboarding-error {
@@ -1651,14 +1609,14 @@ button.onboarding-agent-connect:hover:not(:disabled) {
 
 .onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) {
   --onboarding-group-inset: 0px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   column-gap: var(--onboarding-tile-gap);
-  row-gap: 16px;
+  row-gap: 12px;
 }
 
 @media (max-width: 820px) {
   .onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) {
-    column-gap: 12px;
+    column-gap: 10px;
   }
 }
 

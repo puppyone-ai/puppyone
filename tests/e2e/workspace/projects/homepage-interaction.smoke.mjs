@@ -157,14 +157,20 @@ async function aClosedDialogLightsNothing() {
       const bounds = candidate.getBoundingClientRect();
       return ${cancel.x} >= bounds.left && ${cancel.x} <= bounds.right && ${cancel.y} >= bounds.top && ${cancel.y} <= bounds.bottom;
     });
-    return row?.textContent ?? null;
+    if (!row) return null;
+    const bounds = row.getBoundingClientRect();
+    return {
+      text: row.textContent ?? "",
+      dx: ${cancel.x} + 6 <= bounds.right ? 1 : -1,
+      dy: ${cancel.y} + 4 <= bounds.bottom ? 1 : -1,
+    };
   })()`);
   assert.ok(under, "the Cancel button did not sit over a project, so nothing was tested");
   const lit = await evaluate(`${litRows}.length`);
-  check("A closing dialog lights no project under a resting pointer", lit === 0, `over ${under}`);
+  check("A closing dialog lights no project under a resting pointer", lit === 0, `over ${under.text}`);
   // A real pointer moves in a stream: the first event wakes the rows, the next finds one.
-  await move({ x: cancel.x + 2, y: cancel.y + 1 });
-  await move({ x: cancel.x + 4, y: cancel.y + 2 });
+  await move({ x: cancel.x + 2 * under.dx, y: cancel.y + 1 * under.dy });
+  await move({ x: cancel.x + 4 * under.dx, y: cancel.y + 2 * under.dy });
   await wait(120);
   check("The project answers once the pointer really moves", await evaluate(`${litRows}.length`) === 1);
   await move(AWAY);

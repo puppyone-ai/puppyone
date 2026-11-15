@@ -4,7 +4,6 @@ import {
   CloudIcon,
   getAgentBrand,
   isMonochromeAgentBrandId,
-  LocalIcon,
   resolveAgentBrand,
   Tooltip,
 } from "@puppyone/shared-ui";
@@ -16,7 +15,7 @@ import type { HomepageCloudAgent } from "./useHomepageCloudAgents";
 
 export type { HomepageCloudAgent } from "./useHomepageCloudAgents";
 
-const MARK = { size: 13, strokeWidth: 1.85, "aria-hidden": true } as const;
+const MARK = { size: 14, strokeWidth: 1.85, "aria-hidden": true } as const;
 
 export function HomepageAgentBrandMark({
   iconKey,
@@ -57,10 +56,9 @@ function formatCloudAgentActivity(
 }
 
 /**
- * The person's own Agents, at the head of a page of projects: the ones installed on
- * this computer by name, then the ones that reach their personal Cloud space by face.
- * The Agents do the work and the projects keep it, so each one here is a way in, never
- * a prompt of puppyone's own: one on this computer starts a project when chosen.
+ * The person's own Agents, at the head of a page of projects: compact brand marks on
+ * one quiet row, revealing each Agent's name and role on hover so a machine with many
+ * Agents installed never wraps the header or crowds the projects below.
  */
 export function HomepageAgentStrip({
   local,
@@ -81,15 +79,20 @@ export function HomepageAgentStrip({
   const { t, formatRelativeTime } = useLocalization();
   if (local.length === 0 && cloud.length === 0 && !onConnect) return null;
   const localLabel = thisComputerLabel ?? t("onboarding.agents.thisComputer");
+  const cloudLabel = t("onboarding.agents.cloud");
+  const connectLabel = t("onboarding.agents.connect");
   return (
     <div className="onboarding-agent-strip" role="group" aria-label={t("onboarding.agents.label")}>
       {local.length > 0 && (
-        <div className="onboarding-agent-group" data-agent-place="local">
-          <span className="onboarding-agent-group-label"><LocalIcon {...MARK} />{localLabel}</span>
+        <div className="onboarding-agent-group" data-agent-place="local" role="group" aria-label={localLabel}>
           {local.map((agent) => {
             const start = t("onboarding.agents.start", { agent: bidiIsolate(agent.label) });
+            const headline = onStart ? start : agent.label;
+            const tooltip = agent.connected
+              ? `${headline} · ${t("onboarding.agents.connected")}`
+              : headline;
             return (
-              <Tooltip key={agent.runtimeId} content={agent.connected ? `${start} · ${t("onboarding.agents.connected")}` : start}>
+              <Tooltip key={agent.runtimeId} content={tooltip} placement="bottom">
                 <button
                   type="button"
                   className="onboarding-agent"
@@ -99,7 +102,6 @@ export function HomepageAgentStrip({
                   onClick={() => onStart?.(agent.runtimeId)}
                 >
                   <HomepageAgentBrandMark iconKey={agent.iconKey} label={agent.label} />
-                  <span className="onboarding-agent-name">{agent.label}</span>
                   {agent.connected && <span className="onboarding-agent-connected" aria-hidden="true" />}
                 </button>
               </Tooltip>
@@ -109,17 +111,21 @@ export function HomepageAgentStrip({
       )}
       {local.length > 0 && cloud.length > 0 && <span className="onboarding-agent-sep" aria-hidden="true" />}
       {cloud.length > 0 && (
-        <div className="onboarding-agent-group" data-agent-place="cloud">
-          <span className="onboarding-agent-group-label"><CloudIcon {...MARK} />{t("onboarding.agents.cloud")}</span>
+        <div className="onboarding-agent-group" data-agent-place="cloud" role="group" aria-label={cloudLabel}>
+          <Tooltip content={cloudLabel} placement="bottom">
+            <span className="onboarding-agent-place-mark" aria-hidden="true">
+              <CloudIcon size={13} strokeWidth={1.85} aria-hidden />
+            </span>
+          </Tooltip>
           {cloud.map((agent) => {
             const lastActive = formatCloudAgentActivity(agent.lastActiveAt, t, formatRelativeTime);
             const tooltip = lastActive
               ? t("onboarding.agents.lastActive", { agent: bidiIsolate(agent.name), time: lastActive })
               : agent.name;
             return (
-              <Tooltip key={agent.id} content={tooltip}>
+              <Tooltip key={agent.id} content={tooltip} placement="bottom">
                 <span className="onboarding-agent is-face" data-agent-id={agent.id} role="img" aria-label={tooltip} tabIndex={0}>
-                  <AgentAvatarMark name={agent.name} avatar={agent.avatar} active={false} size={20} />
+                  <AgentAvatarMark name={agent.name} avatar={agent.avatar} active={false} size={18} />
                 </span>
               </Tooltip>
             );
@@ -127,10 +133,17 @@ export function HomepageAgentStrip({
         </div>
       )}
       {onConnect && (
-        <button type="button" className="onboarding-agent onboarding-agent-connect" disabled={busy} onClick={onConnect}>
-          <Plus {...MARK} />
-          <span className="onboarding-agent-name">{t("onboarding.agents.connect")}</span>
-        </button>
+        <Tooltip content={connectLabel} placement="bottom">
+          <button
+            type="button"
+            className="onboarding-agent onboarding-agent-connect"
+            aria-label={connectLabel}
+            disabled={busy}
+            onClick={onConnect}
+          >
+            <Plus {...MARK} />
+          </button>
+        </Tooltip>
       )}
     </div>
   );

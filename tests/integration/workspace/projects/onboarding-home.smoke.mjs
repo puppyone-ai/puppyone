@@ -21,20 +21,20 @@ let server;
 /** The smallest window the app allows, and the column the page keeps down to it. */
 const MINIMUM_WIDTH = 720;
 const MINIMUM_HEIGHT = 520;
-const projectColumn = (width) => Math.min(912, width - 2 * (width <= 820 ? 28 : 44));
+const projectColumn = (width) => Math.min(760, width - 2 * (width <= 820 ? 28 : 40));
 /** First run's column beside its picture; below 860px it narrows so the picture still fits. */
 const emptyColumn = (width) => (width < 860 ? 340 : 400);
-const TITLE_INSET = 22;
+const TITLE_INSET = 24;
 /** From the top row to the Projects heading, and from Projects to the first group's label. */
 const PROJECTS_HEAD_GAP = 20;
 const GROUP_LABEL_GAP = 12;
 /** The projects run to the window's edge; what is below shows there. */
 const PAGE_END_INSET = 0;
-const GRID_COLUMNS = 4;
-// Group labels and row details in caption, start buttons in meta, Projects heading and names in body.
-const PROJECT_TYPE = ["12px/400", "12px/500", "13px/500", "14px/400", "14px/600"];
-/** On the Grid, tile names wear medium body type and location/time wear caption type. */
-const GRID_TYPE = ["12px/400", "12px/500", "13px/500", "14px/500", "14px/600"];
+const GRID_COLUMNS = 5;
+// Unified type matrix: caption (12px/400, 12px/500), UI meta (13px/500), and List row body (14px/400).
+const PROJECT_TYPE = ["12px/400", "12px/500", "13px/500", "14px/400"];
+/** On the Grid, only two sizes (12px caption, 13px UI meta) and two weights (400, 500) exist. */
+const GRID_TYPE = ["12px/400", "12px/500", "13px/400", "13px/500"];
 // Each moment's line and the keys in the body, its title in display.
 const EMPTY_TYPE = ["14px/400", "25px/600"];
 /** The default window: the picture at its full size. */
@@ -375,11 +375,12 @@ async function validateProjectsHead(theme, width, height) {
   assert.equal(page.fill, "rgba(0, 0, 0, 0)", `${context}: the projects sit on the page itself`);
   assert.equal(page.keys, false, `${context}: the entries live at the head`);
   assert.equal(page.more, null, `${context}: no split-button arrow menu`);
+  assert.equal(page.head.height, 28, `${context}: compact single-row header`);
   assert.equal(page.create.x, page.head.x, `${context}: New starts on the column's left edge`);
   assert.equal(page.create.y, page.open.y, `${context}: New and Open share one row`);
   assert.equal(page.open.y, page.import.y, `${context}: Open and Import share one row`);
-  assert.equal(page.open.x - page.create.right, 8, `${context}: 8px between New and Open`);
-  assert.equal(page.import.x - page.open.right, 8, `${context}: 8px between Open and Import`);
+  assert.equal(page.open.x - page.create.right, 6, `${context}: 6px between New and Open`);
+  assert.equal(page.import.x - page.open.right, 6, `${context}: 6px between Open and Import`);
   assert.equal(page.labelClip, "none", `${context}: New keeps its words down to the smallest window`);
   assert.ok(page.label.width > 60, `${context}: New keeps its words down to the smallest window`);
   await shot(`projects-${theme}-${width}`);
@@ -513,7 +514,7 @@ async function validateGrid(theme) {
     assert.deepEqual(snapshot.labelEdges, snapshot.gridEdges, `${context}: a group's label and rule start on the first folder's edge and run the column`);
     if (count >= GRID_COLUMNS) assert.equal(snapshot.lastColumn, snapshot.gridEdges[1], `${context}: a full row ends on the column's edge`);
     assert.deepEqual(snapshot.overrun, [], `${context}: no name runs past its folder's cell`);
-    assert.equal(snapshot.columns, Math.min(count, GRID_COLUMNS), `${context}: four folders across, down to the smallest window`);
+    assert.equal(snapshot.columns, Math.min(count, GRID_COLUMNS), `${context}: five folders across, down to the smallest window`);
     assert.equal(snapshot.sheets, 0, `${context}: no rising paper animation on empty folders`);
     assert.equal(await evaluate("document.querySelector('.onboarding-project-tile').dataset.tooltip"), "/example/Projects", `${context}: the tooltip adds only what the folder does not show`);
     await validateProjectActions(context);
