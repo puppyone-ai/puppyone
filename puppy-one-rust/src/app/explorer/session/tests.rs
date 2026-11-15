@@ -272,3 +272,5 @@ fn the_file_clipboard_says_what_it_holds_does_and_did(cx: &mut TestAppContext) {
         assert_eq!(e.notice(), None);
     });
 }
+
+mod scoped_refresh;

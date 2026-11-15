@@ -87,8 +87,7 @@ pub(in crate::app) struct ExplorerSession {
     /// Directory subscription of the shown workspace (dropped on switch).
     watch: Option<(crate::workspace::Subscription, Task<()>)>,
     retained: std::collections::BTreeMap<String, Retained>,
-    refresh: Option<Task<()>>,
-    refresh_paths: Vec<PathBuf>,
+    refresh: std::collections::HashMap<PathBuf, Task<()>>,
     references:
         std::collections::BTreeMap<String, (u64, Arc<crate::editor::navigation::ReferenceIndex>)>,
     /// What the file clipboard says (`FileOperationNotice`), its
@@ -138,8 +137,7 @@ impl ExplorerSession {
             operation_error: None,
             watch: None,
             retained: Default::default(),
-            refresh: None,
-            refresh_paths: Vec::new(),
+            refresh: Default::default(),
             references: Default::default(),
             notice: None,
             notice_generation: 0,
@@ -291,8 +289,7 @@ impl ExplorerSession {
         let cached = self.retained.remove(&next);
         let revalidate = cached.is_some();
         let restored = cached.unwrap_or(empty);
-        self.refresh = None;
-        self.refresh_paths.clear();
+        self.refresh.clear();
         let previous = Retained {
             tree: std::mem::replace(&mut self.tree, restored.tree),
             scroll: std::mem::replace(&mut self.scroll, restored.scroll),
@@ -392,58 +389,50 @@ impl ExplorerSession {
             return;
         };
         let tree_id = self.tree.id;
-        let mut paths = super::refresh_scope::folders(&self.tree.loaded_folders(), changed);
-        if paths.is_empty() {
-            return;
-        }
-        // Replacing a running refresh must carry its scope forward. Otherwise
-        // two disjoint notifications can cancel the first folder's refresh.
-        paths.extend(self.refresh_paths.iter().cloned());
-        paths.sort();
-        paths.dedup();
-        self.refresh_paths.clone_from(&paths);
-        let read = cx.background_executor().spawn(async move {
-            paths
-                .into_iter()
-                .map(|path| {
-                    let result = workspace.list(&path);
-                    (path, result)
-                })
-                .collect::<Vec<_>>()
-        });
-        self.refresh = Some(cx.spawn(async move |this, cx| {
-            let listings = read.await;
-            let _ = this.update(cx, |s, cx| {
-                crate::platform::watchdog::activity("explorer.refresh");
-                if s.tree.id != tree_id {
-                    return;
-                }
-                s.refresh_paths.clear();
-                // One projection for the whole reread, not one per folder.
-                let mut read = Vec::with_capacity(listings.len());
-                let mut failed = Vec::new();
-                for (path, listing) in listings {
+        let paths = super::refresh_scope::folders(&self.tree.loaded_folders(), changed);
+        for path in paths {
+            let workspace = workspace.clone();
+            let folder = path.clone();
+            let read = cx
+                .background_executor()
+                .spawn(async move { workspace.list(&folder) });
+            let folder = path.clone();
+            let task = cx.spawn(async move |this, cx| {
+                let listing = read.await;
+                let _ = this.update(cx, |s, cx| {
+                    crate::platform::watchdog::activity("explorer.refresh");
+                    if s.tree.id != tree_id {
+                        return;
+                    }
+                    let previous_revision = s.tree.revision;
                     match listing {
-                        Ok(nodes) => read.push((path, nodes)),
-                        // A lease that ended (its change stream failed) is
-                        // the workspace notice's to report, with its Retry.
+                        Ok(nodes) => s
+                            .tree
+                            .refresh_folders(vec![(folder.clone(), nodes)], vec![]),
                         Err(error)
-                            if path.as_os_str().is_empty()
+                            if folder.as_os_str().is_empty()
                                 && error.kind == crate::workspace::ErrorKind::StaleLease =>
                         {
                             cx.emit(SessionEvent::WatchFailed(error.to_string()))
                         }
-                        Err(error) if path.as_os_str().is_empty() => {
+                        Err(error) if folder.as_os_str().is_empty() => {
                             cx.emit(SessionEvent::Error(error.to_string()))
                         }
-                        Err(error) => failed.push((path, error.to_string())),
+                        Err(error) => s
+                            .tree
+                            .refresh_folders(vec![], vec![(folder.clone(), error.to_string())]),
                     }
-                }
-                s.tree.refresh_folders(read, failed);
-                cx.emit(SessionEvent::ReferencesChanged);
-                cx.notify();
+                    s.refresh.remove(&folder);
+                    if s.tree.revision != previous_revision {
+                        cx.emit(SessionEvent::ReferencesChanged);
+                        cx.notify();
+                    }
+                });
             });
-        }));
+            // Supersede only this folder's old result. Disjoint in-flight
+            // reads retain their original work and may finish independently.
+            self.refresh.insert(path, task);
+        }
     }
     /// A folder's listing came back ([`SessionEvent::LoadChildren`]).
     pub fn children_loaded(
@@ -613,8 +602,7 @@ impl ExplorerSession {
         if self.op || self.workspace.is_none() {
             return;
         }
-        self.refresh = None;
-        self.refresh_paths.clear();
+        self.refresh.clear();
         self.op = true;
         // `DataWorkspace`: import and move clear the previous operation error
         // and report their own failure above the tree.
