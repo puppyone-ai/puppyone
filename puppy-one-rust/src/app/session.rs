@@ -194,7 +194,7 @@ impl WindowSession {
         let (title, path, edited) = match file {
             Some((title, path, dirty)) => (title, Some(path), dirty),
             None => {
-                let app = super::windows::APP_NAME;
+                let app = super::windows::application_name();
                 let title = if root.is_some() && !name.is_empty() {
                     format!("{app} - {name}")
                 } else {

@@ -225,8 +225,12 @@ pub fn cancel_quit(cx: &mut App) {
     }
 }
 
-/// The product's application name (`application-identity.mjs`).
-pub const APP_NAME: &str = "PuppyOne";
+/// The running channel's application name (`application-identity.mjs`),
+/// disambiguated across local development worktrees and isolated data dirs.
+pub fn application_name() -> &'static str {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(crate::platform::application_identity::current_application_name)
+}
 /// `createWindow`: a project window is 1180 × 760, centred.
 pub const WINDOW_SIZE: (f32, f32) = (1180., 760.);
 /// `DEFAULT_MACOS_WINDOW_BUTTON_POSITION`: the leading inset, and the
@@ -239,7 +243,7 @@ pub fn window_options(bounds: Bounds<Pixels>, focus: bool) -> WindowOptions {
         focus,
         window_bounds: Some(WindowBounds::Windowed(bounds)),
         titlebar: Some(TitlebarOptions {
-            title: Some(APP_NAME.into()),
+            title: Some(application_name().into()),
             appears_transparent: true,
             traffic_light_position: Some(point(px(TRAFFIC_LIGHTS.0), px(TRAFFIC_LIGHTS.1))),
         }),

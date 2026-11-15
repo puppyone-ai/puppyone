@@ -25,7 +25,7 @@ fn serve_cli(outcome: async_channel::Sender<bool>, cx: &mut App) {
     use platform::cli_control::{self, Incoming, Request};
     let identity = platform::build_identity::current();
     let info = cli_control::AppInfo {
-        name: app::windows::APP_NAME.into(),
+        name: app::windows::application_name().into(),
         version: identity.version.clone(),
         channel: identity.channel.key().into(),
     };
@@ -88,12 +88,15 @@ fn main() {
             &platform::build_identity::current().version,
         ));
     }
+    let isolated = std::env::var_os("PUPPYONE_LAB").is_some()
+        || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
+    if !isolated {
+        platform::app_icon::reexec_in_development_bundle(app::windows::application_name());
+    }
     // `requestSingleInstanceLock`: a later launch hands its command line to
     // the running app and exits (captures and the lab run on their own).
     #[cfg(unix)]
     let instance = {
-        let isolated = std::env::var_os("PUPPYONE_LAB").is_some()
-            || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
         let args: Vec<_> = std::env::args_os().skip(1).collect();
         let cwd = std::env::current_dir().unwrap_or_default();
         if isolated {
@@ -221,6 +224,10 @@ fn main() {
         }
         features::cloud::account::install(!background, cx);
         if !background {
+            platform::app_icon::set_development_dock_icon(
+                app::windows::application_name(),
+                platform::build_identity::current().packaged,
+            );
             features::hosts::suspend_leftover(cx);
         }
         // Captures paint a development build's analytics state without files.

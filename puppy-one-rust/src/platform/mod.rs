@@ -1,7 +1,9 @@
 pub mod accessibility;
 pub mod agent_activity;
 pub mod app_folders;
+pub mod app_icon;
 pub mod app_preview;
+pub mod application_identity;
 pub mod build_identity;
 pub mod cli_control;
 pub mod database;

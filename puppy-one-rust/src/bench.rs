@@ -92,6 +92,16 @@ pub fn frames() -> usize {
         .unwrap_or(120)
 }
 
+/// Edit samples per operation (`PUPPYONE_BENCH_EDIT_STEPS`; multiple of 5 so
+/// progressive 5-step IME composition cycles complete cleanly).
+#[allow(dead_code)]
+pub fn edit_steps() -> usize {
+    std::env::var("PUPPYONE_BENCH_EDIT_STEPS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(25)
+}
+
 pub struct Samples(pub Vec<f64>);
 
 impl Samples {
@@ -120,6 +130,34 @@ pub fn report(surface: &str, lines: usize, first: f64, scroll: &Samples, resize:
             "scrollP95Ms": scroll.p95(),
             "resizeMeanMs": resize.mean(),
             "resizeP95Ms": resize.p95(),
+        })
+    );
+}
+
+/// One edit-path result line (`tools/bench-editor.py` `edit` surface).
+#[allow(dead_code)]
+pub fn report_edit(
+    surface: &str,
+    lines: usize,
+    typing: &Samples,
+    arrow: &Samples,
+    ime: &Samples,
+    find_typing: &Samples,
+) {
+    println!(
+        "BENCH {}",
+        serde_json::json!({
+            "surface": surface,
+            "sections": sections(),
+            "lines": lines,
+            "typeMeanMs": typing.mean(),
+            "typeP95Ms": typing.p95(),
+            "arrowMeanMs": arrow.mean(),
+            "arrowP95Ms": arrow.p95(),
+            "imeMeanMs": ime.mean(),
+            "imeP95Ms": ime.p95(),
+            "findTypeMeanMs": find_typing.mean(),
+            "findTypeP95Ms": find_typing.p95(),
         })
     );
 }

@@ -102,7 +102,16 @@ fn bundled(exe: &std::path::Path) -> bool {
     else {
         return false;
     };
-    macos.file_name().is_some_and(|n| n == "MacOS")
+    let in_cargo_target = app
+        .parent()
+        .and_then(|profile| {
+            let name = profile.file_name()?.to_str()?;
+            matches!(name, "debug" | "release").then_some(profile.parent()?)
+        })
+        .and_then(|target| target.file_name())
+        .is_some_and(|n| n == "target");
+    !in_cargo_target
+        && macos.file_name().is_some_and(|n| n == "MacOS")
         && contents.file_name().is_some_and(|n| n == "Contents")
         && app.extension().is_some_and(|e| e == "app")
 }
@@ -176,6 +185,9 @@ mod tests {
         )));
         assert!(!bundled(Path::new(
             "/Users/me/puppy-one-rust/target/release/puppy-one-rust"
+        )));
+        assert!(!bundled(Path::new(
+            "/Users/me/puppy-one-rust/target/debug/PuppyOne Rust Dev.app/Contents/MacOS/puppy-one-rust"
         )));
         assert!(!bundled(Path::new("/x/Contents/MacOS/puppy-one-rust")));
         assert!(!bundled(Path::new("puppy-one-rust")));

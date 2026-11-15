@@ -19,7 +19,7 @@ MINIMUM_SYSTEM_VERSION = '12.0'
 
 POLICIES = {
     'dev': {'id': 'ai.puppyone.desktop.gpui.dev', 'name': 'PuppyOne GPUI Development',
-            'scheme': 'puppyone-development', 'icon': 'puppy-app-image-dev.png'},
+            'scheme': 'puppyone-development', 'icon': 'puppy-app-image-gpui-dev.png'},
     'internal': {'id': 'ai.puppyone.desktop.gpui.internal', 'name': 'PuppyOne GPUI Internal',
                  'scheme': 'puppyone-internal', 'icon': 'puppy-app-image.png'},
     'stable': {'id': 'ai.puppyone.desktop.gpui', 'name': 'PuppyOne GPUI',

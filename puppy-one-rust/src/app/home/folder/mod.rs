@@ -2,11 +2,13 @@
 //! every project's folder on Home and in the switcher rail. Empty and
 //! file-bearing folders share one `104 × 78` SVG silhouette (`34 × 26` in List
 //! rows) so adjacent projects align identically; a folder whose root holds
-//! files shows up to three blank sheets between its back and front.
+//! files shows up to three sheets between its back and front, each printed
+//! with the layout of its kind (`sheet`).
 mod sheet;
 #[cfg(test)]
 mod tests;
 
+use super::previews::{PreviewKind, ProjectAssetPreview};
 use crate::{
     theme::{self, Theme},
     ui::{
@@ -20,8 +22,6 @@ use gpui_kit::component::Sizable as _;
 
 pub(super) const GRID_FOLDER_SIZE: (f32, f32) = (104., 78.);
 pub(super) const LIST_FOLDER_SIZE: (f32, f32) = (34., 26.);
-/// A folder shows at most this many sheets, however many files it holds.
-const MAX_SHEETS: usize = 3;
 
 /// A Cloud Agent connected to a Cloud project (named in its tile's tooltip).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -92,30 +92,30 @@ fn layer(path: &'static str, w: f32, h: f32, color: Rgba) -> Svg {
 }
 
 /// `ProjectFolderGlyph`: `104 × 78` Grid folder or `34 × 26` compact List
-/// folder, with a blank sheet peeking out for each of up to three files.
+/// folder, with a sheet peeking out for each of up to three root files.
 #[derive(IntoElement)]
 pub(in crate::app::home) struct ProjectFolderGlyph {
     compact: bool,
-    sheets: usize,
+    sheets: Vec<PreviewKind>,
     is_lit: bool,
     fade: Option<f32>,
 }
 
 impl ProjectFolderGlyph {
-    /// `files`: how many files the folder's root holds (as far as read).
-    pub fn grid(files: usize) -> Self {
+    /// `previews`: the root files read so far, in preview order.
+    pub fn grid(previews: &[ProjectAssetPreview]) -> Self {
         Self {
             compact: false,
-            sheets: files.min(MAX_SHEETS),
+            sheets: previews.iter().take(3).map(|p| p.kind).collect(),
             is_lit: false,
             fade: None,
         }
     }
 
-    pub fn compact(files: usize) -> Self {
+    pub fn compact(previews: &[ProjectAssetPreview]) -> Self {
         Self {
             compact: true,
-            ..Self::grid(files)
+            ..Self::grid(previews)
         }
     }
 
@@ -140,20 +140,21 @@ impl RenderOnce for ProjectFolderGlyph {
         };
         let folder = faded(if self.is_lit { lit(t) } else { tones(t) }, self.fade, t);
         let paper = sheet::Paper::new(self.fade, t);
-        let sheets: Vec<Div> = match self.sheets {
+        let count = self.sheets.len();
+        let sheets: Vec<Div> = match count {
             0 => vec![],
-            count if self.compact => {
+            _ if self.compact => {
                 let (placements, order) = sheet::compact_sheet_placements(count);
                 order
                     .iter()
-                    .map(|&idx| sheet::render_compact_sheet(placements[idx], &paper))
+                    .map(|&i| sheet::render_compact_sheet(placements[i], self.sheets[i], &paper))
                     .collect()
             }
-            count => {
+            _ => {
                 let (placements, order) = sheet::grid_sheet_placements(count);
                 order
                     .iter()
-                    .map(|&idx| sheet::render_grid_sheet(placements[idx], &paper))
+                    .map(|&i| sheet::render_grid_sheet(placements[i], self.sheets[i], &paper))
                     .collect()
             }
         };
