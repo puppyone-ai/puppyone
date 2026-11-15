@@ -12,7 +12,7 @@
 //!    [`SurfaceStyledExt::surface_corners`].
 use crate::{
     theme::{self, Theme, metric},
-    ui::appearance::ActiveAppearance,
+    ui::{appearance::ActiveAppearance, native_cover},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::StyledExt as _;
@@ -500,6 +500,9 @@ impl RenderOnce for SurfaceFrame {
             })
             .child(padding_box_fill(radius, fill))
             .children(self.children)
+            // A floating surface shows over native web content; its 1px
+            // border lies outside the padding box the reporter is placed in.
+            .when(occlude, |d| d.child(native_cover::reporter(-1., radius)))
             .refine_style(&self.style);
 
         #[cfg(any(test, all(debug_assertions, feature = "test-support")))]

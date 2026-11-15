@@ -53,6 +53,34 @@ pub use switch::Switch;
 pub fn tooltip(
     text: impl Into<gpui::SharedString>,
 ) -> impl Fn(&mut gpui::Window, &mut gpui::App) -> gpui::AnyView + 'static {
+    use gpui::AppContext as _;
     let text = text.into();
-    move |window, cx| gpui_kit::component::tooltip::Tooltip::new(text.clone()).build(window, cx)
+    move |window, cx| {
+        let tip = gpui_kit::component::tooltip::Tooltip::new(text.clone()).build(window, cx);
+        cx.new(|_| CoveringTooltip(tip)).into()
+    }
+}
+
+/// The Kit tooltip, reported to [`crate::ui::native_cover`] so a tooltip
+/// that drops over an HTML page shows above it.
+struct CoveringTooltip(gpui::AnyView);
+/// The Kit tooltip's popup sits `m_3` inside its view.
+const KIT_TOOLTIP_MARGIN: f32 = 12.;
+impl gpui::Render for CoveringTooltip {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{ParentElement as _, Styled as _};
+        use gpui_kit::component::ActiveTheme as _;
+        let radius = f32::from(cx.theme().radius);
+        gpui::div()
+            .relative()
+            .child(self.0.clone())
+            .child(crate::ui::native_cover::reporter(
+                KIT_TOOLTIP_MARGIN,
+                radius,
+            ))
+    }
 }

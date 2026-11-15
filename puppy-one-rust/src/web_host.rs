@@ -10,6 +10,13 @@ use std::{
     rc::{Rc, Weak},
 };
 
+/// Floating surfaces cut out of a view, in its own coordinates
+/// (`x, y, w, h, radius`), and the size they were cut from.
+#[derive(Default, PartialEq)]
+struct Cut {
+    holes: Vec<[f32; 5]>,
+    size: (f32, f32),
+}
 /// Shared visibility state of one host (main thread only).
 struct HostState {
     window: u64,
@@ -18,12 +25,124 @@ struct HostState {
     view: wry::WebView,
     visible: Cell<bool>,
     bounds: Cell<(f32, f32, f32, f32)>,
+    /// The floating surfaces cut out of the view.
+    cutouts: RefCell<Cut>,
     /// The clipping view a host inside scrolling content sits in
     /// (`place_clipped`); it, not the WebView, shows and hides.
     #[cfg(target_os = "macos")]
     clip: RefCell<Option<objc2::rc::Retained<objc2::runtime::AnyObject>>>,
+    /// The part of the view the clipping view shows (window coordinates).
+    #[cfg(target_os = "macos")]
+    shown: Cell<(f32, f32, f32, f32)>,
 }
 impl HostState {
+    /// The window rectangle the view shows in: the clipping view's when it
+    /// has one.
+    fn showing(&self) -> (f32, f32, f32, f32) {
+        #[cfg(target_os = "macos")]
+        if self.clip.borrow().is_some() {
+            return self.shown.get();
+        }
+        self.bounds.get()
+    }
+    /// Cuts `cutouts` (window coordinates) out of the view where they
+    /// cross it: floating surfaces over the page show through. `false`
+    /// where the platform cannot cut and one crosses it: the view hides.
+    fn cut(&self, cutouts: &[crate::ui::native_cover::Cutout]) -> bool {
+        let (x, y, w, h) = self.showing();
+        let local: Vec<[f32; 5]> = cutouts
+            .iter()
+            .filter_map(|c| {
+                let cx = f32::from(c.bounds.origin.x).max(x);
+                let cy = f32::from(c.bounds.origin.y).max(y);
+                let right = f32::from(c.bounds.origin.x + c.bounds.size.width).min(x + w);
+                let bottom = f32::from(c.bounds.origin.y + c.bounds.size.height).min(y + h);
+                (right - cx >= 1. && bottom - cy >= 1.).then(|| {
+                    // A shape the view's edge crops keeps its own corners.
+                    [
+                        f32::from(c.bounds.origin.x) - x,
+                        f32::from(c.bounds.origin.y) - y,
+                        f32::from(c.bounds.size.width),
+                        f32::from(c.bounds.size.height),
+                        c.radius,
+                    ]
+                })
+            })
+            .collect();
+        if !cfg!(target_os = "macos") {
+            return local.is_empty();
+        }
+        let mut applied = self.cutouts.borrow_mut();
+        if applied.holes == local && (local.is_empty() || applied.size == (w, h)) {
+            return true;
+        }
+        *applied = Cut {
+            holes: local,
+            size: (w, h),
+        };
+        #[cfg(target_os = "macos")]
+        self.mask(&applied.holes, applied.size);
+        true
+    }
+    /// The view's layer mask: its whole rectangle less `holes`
+    /// (top-left origin), or none.
+    #[cfg(target_os = "macos")]
+    fn mask(&self, holes: &[[f32; 5]], (w, h): (f32, f32)) {
+        use objc2::{class, msg_send, rc::Retained, runtime::AnyObject};
+        use wry::WebViewExtMacOS;
+        let web = self.view.webview();
+        let target: *mut AnyObject = match self.clip.borrow().as_ref() {
+            Some(clip) => Retained::as_ptr(clip).cast_mut(),
+            None => Retained::as_ptr(&web).cast_mut().cast(),
+        };
+        // SAFETY: a live, layer-backed AppKit view on the main thread; the
+        // path is released once the shape layer has copied it.
+        unsafe {
+            let _: () = msg_send![target, setWantsLayer: true];
+            let layer: *mut AnyObject = msg_send![target, layer];
+            if layer.is_null() {
+                return;
+            }
+            let _: () = msg_send![class!(CATransaction), begin];
+            let _: () = msg_send![class!(CATransaction), setDisableActions: true];
+            if holes.is_empty() {
+                let none: *mut AnyObject = std::ptr::null_mut();
+                let _: () = msg_send![layer, setMask: none];
+            } else {
+                let flipped: bool = msg_send![layer, contentsAreFlipped];
+                let path = cg::CGPathCreateMutable();
+                let whole = CgRect {
+                    x: 0.,
+                    y: 0.,
+                    width: w as f64,
+                    height: h as f64,
+                };
+                cg::CGPathAddRect(path, std::ptr::null(), whole);
+                for &[x, y, hw, hh, r] in holes {
+                    let top = if flipped { y } else { h - y - hh };
+                    let r = r.clamp(0., (hw.min(hh) / 2. - 0.5).max(0.)) as f64;
+                    let rect = CgRect {
+                        x: x as f64,
+                        y: top as f64,
+                        width: hw as f64,
+                        height: hh as f64,
+                    };
+                    cg::CGPathAddRoundedRect(path, std::ptr::null(), rect, r, r);
+                }
+                let mask: *mut AnyObject = msg_send![class!(CAShapeLayer), layer];
+                let _: () = msg_send![mask, setFrame: whole];
+                let _: () = msg_send![mask, setPath: path.cast_const()];
+                let rule: *mut AnyObject = msg_send![
+                    class!(NSString),
+                    stringWithUTF8String: c"even-odd".as_ptr()
+                ];
+                let _: () = msg_send![mask, setFillRule: rule];
+                let _: () = msg_send![layer, setMask: mask];
+                cg::CGPathRelease(path);
+            }
+            let _: () = msg_send![class!(CATransaction), commit];
+        }
+    }
     fn set_visible(&self, show: bool) {
         #[cfg(target_os = "macos")]
         if let Some(clip) = self.clip.borrow().as_ref() {
@@ -70,6 +189,34 @@ unsafe impl objc2::Encode for CgRect {
             objc2::Encoding::Struct("CGSize", &[f64::ENCODING, f64::ENCODING]),
         ],
     );
+}
+/// The CoreGraphics path calls a layer mask is drawn with.
+#[cfg(target_os = "macos")]
+mod cg {
+    use super::CgRect;
+    /// `CGPath`, opaque.
+    #[repr(C)]
+    pub struct CgPath {
+        _private: [u8; 0],
+    }
+    // SAFETY: `CGPathRef` is a pointer to the opaque `CGPath` struct.
+    unsafe impl objc2::RefEncode for CgPath {
+        const ENCODING_REF: objc2::Encoding =
+            objc2::Encoding::Pointer(&objc2::Encoding::Struct("CGPath", &[]));
+    }
+    #[link(name = "CoreGraphics", kind = "framework")]
+    unsafe extern "C" {
+        pub fn CGPathCreateMutable() -> *mut CgPath;
+        pub fn CGPathAddRect(path: *mut CgPath, transform: *const std::ffi::c_void, rect: CgRect);
+        pub fn CGPathAddRoundedRect(
+            path: *mut CgPath,
+            transform: *const std::ffi::c_void,
+            rect: CgRect,
+            corner_width: f64,
+            corner_height: f64,
+        );
+        pub fn CGPathRelease(path: *mut CgPath);
+    }
 }
 thread_local! {
     static HOSTS: RefCell<Vec<Weak<HostState>>> = const { RefCell::new(Vec::new()) };
@@ -217,8 +364,11 @@ impl WebHost {
             view,
             visible: Cell::new(false),
             bounds: Cell::new((0., 0., 0., 0.)),
+            cutouts: RefCell::new(Cut::default()),
             #[cfg(target_os = "macos")]
             clip: RefCell::new(None),
+            #[cfg(target_os = "macos")]
+            shown: Cell::new((0., 0., 0., 0.)),
         });
         HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
         Ok(Self { state })
@@ -285,6 +435,7 @@ impl WebHost {
         use objc2::{class, msg_send, rc::Retained, runtime::AnyObject};
         use wry::WebViewExtMacOS;
         self.state.bounds.set(view);
+        self.state.shown.set(shown);
         let web = self.state.view.webview();
         let web: *mut AnyObject = Retained::as_ptr(&web).cast_mut().cast();
         let mut slot = self.state.clip.borrow_mut();
@@ -506,6 +657,8 @@ pub fn frame_drawn(window: &mut gpui::Window) {
     }
     let first = SCHEDULED.with(|s| s.borrow_mut().insert(key));
     if first {
+        // A new frame: its floating surfaces report afresh.
+        crate::ui::native_cover::take(key);
         window.on_next_frame(move |_, _| {
             SCHEDULED.with(|s| s.borrow_mut().remove(&key));
             reconcile(key);
@@ -514,12 +667,13 @@ pub fn frame_drawn(window: &mut gpui::Window) {
 }
 fn reconcile(key: u64) {
     let overlay = OVERLAY.with(|o| o.borrow().get(&key).copied().unwrap_or(false));
+    let cutouts = crate::ui::native_cover::take(key);
     HOSTS.with(|h| {
         for state in h.borrow().iter().filter_map(Weak::upgrade) {
             if state.window != key {
                 continue;
             }
-            let show = state.painted.replace(false) && !overlay;
+            let show = state.painted.replace(false) && !overlay && state.cut(&cutouts);
             if state.visible.get() != show {
                 state.visible.set(show);
                 state.set_visible(show);
