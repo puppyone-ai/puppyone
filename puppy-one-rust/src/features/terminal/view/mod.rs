@@ -59,6 +59,7 @@ impl TerminalView {
         cx: &mut Context<Self>,
     ) -> Self {
         let agent = launcher != "shell";
+        let colors = queries::default_colors(&cx.palette());
         let owner = crate::features::agent_presence::owner(window);
         Self::start(
             move |wake| {
@@ -73,6 +74,7 @@ impl TerminalView {
                         )
                     };
                     crate::platform::terminal::shell::ShellHost::system(agent.as_ref())
+                        .map(|host| host.with_colors(colors))
                 })
             },
             agent,
@@ -96,6 +98,14 @@ impl TerminalView {
                         while let Ok(e) = s.terminal.events.try_recv() {
                             match e {
                                 Event::Data(bytes) => {
+                                    let handled = s.queries.colors(&bytes, &cx.palette());
+                                    // Replies enter this session's input queue before output
+                                    // reaches its screen or the next paint notification.
+                                    let answered = handled
+                                        .replies
+                                        .into_iter()
+                                        .all(|reply| s.terminal.input(reply).is_ok());
+                                    let bytes = if answered { handled.output } else { bytes };
                                     s.hover_link = None;
                                     s.restart_blink(cx);
                                     let screen = s.parser.screen().alternate_screen();
@@ -131,12 +141,14 @@ impl TerminalView {
                                     }
                                 }
                                 Event::Error(e) => {
+                                    s.parser.process(&s.queries.flush_colors());
                                     s.parser.process(&system_line(&e));
                                     s.failure = Some(e);
                                     s.running = false;
                                     s.activity.reset();
                                 }
                                 Event::Exit(code) => {
+                                    s.parser.process(&s.queries.flush_colors());
                                     s.activity.reset();
                                     let text = tf(
                                         "terminal.processExitedCode",
@@ -768,3 +780,6 @@ impl TerminalView {
 }
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod startup_tests;

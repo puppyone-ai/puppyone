@@ -19,18 +19,17 @@ pub struct ShellHost {
     pub bootstrap_input: Option<String>,
     pub display_shell: String,
     pub login_shell: bool,
+    pub default_colors: Option<super::environment::DefaultColors>,
 }
 impl ShellHost {
     pub fn system(agent: Option<&AgentCommand>) -> Result<Self, String> {
-        let platform = if cfg!(windows) {
-            "win32"
-        } else if cfg!(target_os = "macos") {
-            "darwin"
-        } else {
-            "linux"
-        };
-        Self::build(agent, &std::env::vars().collect(), platform)
+        Self::build(agent, &std::env::vars().collect(), current_platform())
     }
+    pub fn with_colors(mut self, colors: super::environment::DefaultColors) -> Self {
+        self.default_colors = Some(colors);
+        self
+    }
+
     pub fn build(
         agent: Option<&AgentCommand>,
         inherited: &Environment,
@@ -116,6 +115,7 @@ impl ShellHost {
             bootstrap_input,
             display_shell,
             login_shell,
+            default_colors: None,
         })
     }
 }
@@ -214,3 +214,13 @@ mod pty_tests;
 
 #[cfg(all(test, unix))]
 mod bootstrap_tests;
+
+pub(super) fn current_platform() -> &'static str {
+    if cfg!(windows) {
+        "win32"
+    } else if cfg!(target_os = "macos") {
+        "darwin"
+    } else {
+        "linux"
+    }
+}

@@ -7540,6 +7540,89 @@
           "test": "platform::terminal::shell::pty_tests::zsh_startup_read_preserves_arguments_and_shell_after_failed_agent_exit"
         }
       ]
+    },
+    {
+      "id": "terminal-environment-and-theme-boundary",
+      "acceptance": "The native PTY receives an owned environment snapshot: npm launcher metadata, inherited host control endpoints and stale color hints are removed case-insensitively; user proxy, npm configuration and credentials remain. Fresh login shells remove exactly their Conda activation state and PATH entries; resolved Agent environments preserve Conda and PATH. Current-host identity, terminal capabilities, app version and renderer luminance are injected. A real PTY entrypoint inspects the environment before system rc can rewrite it, verifies cwd and a requested resize, then exits and releases its lease. Streaming OSC color replies additionally follow the active theme, preserve chunk boundaries and unrelated bytes, and are sent only to their owning native terminal before screen output. The OSC tests are additional native regressions here; the TS Agent-startup color case is not counted until its startup-cover integration is verified.",
+      "typescript": [
+        {
+          "path": "tests/integration/terminal/startup/electron.terminal-environment.test.mjs",
+          "sha256": "b5708bdf133cacda3043ed412074501a7ca98693fecefd988b7e7dace8f2145a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Terminal environment boundary > removes npm launcher metadata and stale Conda activation state from a fresh login shell"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Terminal environment boundary > declares the renderer brightness for programs that cannot query OSC"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Terminal environment boundary > removes the npm_config_prefix spelling that nvm treats as npm_config_prefix"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Terminal environment boundary > removes the NPM_CONFIG_PREFIX spelling that nvm treats as npm_config_prefix"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Terminal environment boundary > removes the NpM_CoNfIg_PrEfIx spelling that nvm treats as npm_config_prefix"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Terminal environment boundary > names the PuppyOne that hosts the terminal, never an inherited one"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Terminal environment boundary > preserves Conda state for a non-login shell while still removing npm process metadata"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Terminal environment boundary > passes only the normalized environment to the PTY instead of rereading ambient process.env"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::environment::tests::fresh_login_removes_launcher_and_conda_activation_metadata_without_mutating_user_configuration"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::environment::tests::renderer_brightness_replaces_inherited_colorfgbg_and_preserves_explicit_clicolor"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::environment::tests::metadata_filtering_is_case_insensitive_and_only_the_current_host_can_supply_control_endpoints"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::environment::tests::resolved_agent_environments_preserve_conda_paths_but_not_npm_process_metadata"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::environment::tests::conda_path_removal_respects_platform_separators_case_and_exact_activation_roots"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::environment::pty_tests::the_real_shell_receives_only_its_normalized_environment_and_current_host_identity"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::colors::tests::every_query_encoding_survives_each_chunk_boundary_and_color_updates"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::colors::tests::partial_queries_flush_once_and_unrelated_output_is_preserved_byte_for_byte"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::native_color_queries_follow_the_current_theme_and_reply_only_to_the_owning_terminal"
+        }
+      ]
     }
   ],
   "openAcceptance": [

@@ -1,3 +1,5 @@
+pub mod colors;
+pub mod environment;
 pub mod shell;
 // Real PTY cases share the application-wide concurrent-start budget.
 #[cfg(test)]
@@ -161,7 +163,30 @@ impl Terminal {
         prepare: impl FnOnce() -> Result<shell::ShellHost, String> + Send + 'static,
     ) -> Self {
         Self::spawn_with_bootstrap(root, launcher, wake, owner, move || {
-            let host = prepare()?;
+            let mut host = prepare()?;
+            let mut host_environment = shell::Environment::new();
+            if let Some(endpoint) = super::cli_control::serving() {
+                host_environment.insert(
+                    "PUPPYONE_CLI_ENDPOINT".into(),
+                    endpoint.to_string_lossy().into_owned(),
+                );
+            }
+            if let Some(bundle) = super::cli_control::bundle_path() {
+                host_environment.insert(
+                    "PUPPYONE_APP_PATH".into(),
+                    bundle.to_string_lossy().into_owned(),
+                );
+            }
+            host.command.environment = environment::build(
+                &host.command.environment.into_iter().collect(),
+                env!("CARGO_PKG_VERSION"),
+                &host_environment,
+                host.default_colors,
+                host.login_shell,
+                shell::current_platform(),
+            )
+            .into_iter()
+            .collect();
             Ok(PreparedLaunch {
                 command: Some(host.command),
                 bootstrap: host.bootstrap_input,
@@ -257,7 +282,9 @@ impl Terminal {
                     command.arg("-l");
                 }
                 command.cwd(root);
-                command.env("PATH", super::environment::search_path());
+                if !prepared.replace_environment {
+                    command.env("PATH", super::environment::search_path());
+                }
                 if let Some(launch) = &launch {
                     command.args(&launch.arguments);
                     for (key, value) in &launch.environment {
