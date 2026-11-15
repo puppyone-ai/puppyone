@@ -478,11 +478,10 @@ impl AgentSessionRuntime {
             if active_turn_ended {
                 self.clear_interrupt_fallback(session);
                 session.state_mut().private_reference_paths.clear();
-                let attachments = self.0.attachments.clone();
-                let target = session.clone();
-                spawn_local(async move {
-                    revoke_active_agent_references(&target, attachments.as_ref()).await
-                });
+                spawn_local(revoke_active_agent_references(
+                    session,
+                    self.0.attachments.as_ref(),
+                ));
             }
         }
         let request_id = event["payload"]["requestId"].as_str().map(str::to_string);
@@ -652,13 +651,10 @@ impl AgentSessionRuntime {
         self.fail_pending_closed(session, "approvals", "provider-exited");
         self.fail_pending_closed(session, "questions", "provider-exited");
         let active_turn_id = session.active_turn_id();
-        {
-            let attachments = self.0.attachments.clone();
-            let target = session.clone();
-            spawn_local(async move {
-                revoke_active_agent_references(&target, attachments.as_ref()).await
-            });
-        }
+        spawn_local(revoke_active_agent_references(
+            session,
+            self.0.attachments.as_ref(),
+        ));
         // Process death proves that the connection ended, not that the native turn
         // failed. Only a correlated native terminal event may settle execution.
         if let Some(message) = provider_message {

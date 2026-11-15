@@ -11,6 +11,7 @@ use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::contract::js::Obj;
 use crate::agent::domain::agent_session_model::{AgentSession, ReferenceClaim};
 use crate::clock;
+use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 use serde_json::Value;
 use std::rc::Rc;
@@ -285,30 +286,33 @@ pub fn private_reference_lease_tokens(request: &Value) -> Vec<String> {
     tokens
 }
 
-async fn revoke_tokens(
+fn revoke_tokens(
     session: &AgentSession,
     tokens: Vec<String>,
     store: Option<&Rc<dyn AttachmentStore>>,
-) {
-    let Some(store) = store.filter(|s| s.supports("revokeLeased") || s.supports("revoke")) else {
-        return;
-    };
-    if tokens.is_empty() {
-        return;
-    }
+) -> LocalBoxFuture<'static, ()> {
+    let store = store
+        .filter(|s| !tokens.is_empty() && (s.supports("revokeLeased") || s.supports("revoke")))
+        .cloned();
     let request = Obj::new()
         .set("ownerId", session.owner_id)
         .set("workspaceRoot", session.workspace_root())
         .set("tokens", tokens)
         .build();
-    let _ = store.revoke(request).await;
+    Box::pin(async move {
+        if let Some(store) = store {
+            let _ = store.revoke(request).await;
+        }
+    })
 }
 
 /// `revokeActiveAgentReferences(session, attachmentStore)`.
-pub async fn revoke_active_agent_references(
+/// Detach the ended turn's claims synchronously, before another turn can
+/// acquire attachments. Only the storage operation is deferred.
+pub fn revoke_active_agent_references(
     session: &AgentSession,
     store: Option<&Rc<dyn AttachmentStore>>,
-) {
+) -> LocalBoxFuture<'static, ()> {
     let tokens = {
         let mut state = session.state_mut();
         let tokens = std::mem::take(&mut state.active_reference_tokens);
@@ -316,7 +320,7 @@ pub async fn revoke_active_agent_references(
         state.private_reference_paths.clear();
         tokens
     };
-    revoke_tokens(session, tokens, store).await;
+    revoke_tokens(session, tokens, store)
 }
 
 /// `revokeAgentOperationReferences(session, identity, attachmentStore)`.

@@ -916,3 +916,56 @@ fn keeps_native_coverage_independent_of_lost_live_execution_observation() {
     );
     assert_eq!(actor.control()["execution"]["status"], "outcome-unknown");
 }
+
+#[test]
+fn compacted_history_rebuilds_interleaved_replace_and_append_reasoning_exactly() {
+    use super::transcript::transcript_reducer::{apply_agent_events, create_agent_projection};
+    let actor = actor();
+    let mut all = vec![append(&actor, native_event("turn.started", "A", json!({})))];
+    for (text, mode) in [("OLD", "append"), ("NEW", "replace"), (" tail", "append")] {
+        let mut event = native_event(
+            "reasoning.summary.delta",
+            "A",
+            json!({"delta": text, "summaryIndex": 0, "updateMode": mode}),
+        );
+        event["itemId"] = json!("reason-A");
+        all.push(append(&actor, event));
+        if text == "OLD" {
+            let mut interleaved = native_event(
+                "provider.activity",
+                "A",
+                json!({"label": "interleaving", "status": "running"}),
+            );
+            interleaved["itemId"] = json!("other");
+            all.push(append(&actor, interleaved));
+        }
+    }
+    for _ in 0..1_001 {
+        let mut event = native_event(
+            "provider.activity",
+            "A",
+            json!({"label": "activity", "status": "running"}),
+        );
+        event["itemId"] = json!("activity");
+        all.push(append(&actor, event));
+    }
+    let live = apply_agent_events(&create_agent_projection(), &all, Default::default());
+    let saved = actor.snapshot();
+    assert_eq!(saved.timeline["partial"], true);
+    let mut history = saved.timeline["checkpointEvents"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert!(!history.is_empty());
+    history.extend_from_slice(saved.timeline["events"].as_array().unwrap());
+    let restored = apply_agent_events(&create_agent_projection(), &history, Default::default());
+    for projection in [&live, &saved.display, &restored] {
+        let reasoning: Vec<_> = projection
+            .activities
+            .iter()
+            .filter(|a| a["kind"] == "reasoning")
+            .collect();
+        assert_eq!(reasoning.len(), 1);
+        assert_eq!(reasoning[0]["detail"]["delta"], "NEW tail");
+    }
+}

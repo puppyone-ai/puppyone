@@ -1426,3 +1426,46 @@ fn live_codex_app_server_inspection() {
         assert_eq!(exits.borrow()[0]["expected"], true);
     });
 }
+
+#[test]
+fn late_interrupt_receipt_does_not_answer_the_next_turns_native_approval() {
+    run_local(async {
+        let connection = FakeConnection::new();
+        let (reply, wait) = tokio::sync::oneshot::channel();
+        let wait = RefCell::new(Some(wait));
+        connection.answer("turn/interrupt", move |_| {
+            let wait = wait.borrow_mut().take().unwrap();
+            Box::pin(async move { wait.await.unwrap() })
+        });
+        let adapter = Rc::new(adapter(&connection));
+        adapter.connect().await.unwrap();
+        adapter.set_thread_id(Some("thread-1"));
+        let target = adapter.clone();
+        let interrupt =
+            tokio::task::spawn_local(
+                async move { target.interrupt_turn(json!({"turnId": "A"})).await },
+            );
+        crate::agent::application::tests::harness::settle().await;
+        assert_eq!(
+            connection.requests_of("turn/interrupt"),
+            [json!({"threadId": "thread-1", "turnId": "A"})]
+        );
+        connection.emit(notification(json!({"method": "turn/completed", "params": {"threadId": "thread-1", "turn": {"id": "A", "status": "interrupted"}}})));
+        connection.emit(notification(json!({"method": "turn/started", "params": {"threadId": "thread-1", "turn": {"id": "B", "status": "inProgress"}}})));
+        connection.emit(request(json!({"method": "item/commandExecution/requestApproval", "id": 88, "params": {"threadId": "thread-1", "turnId": "B", "itemId": "tool-B", "command": "echo B"}})));
+        reply.send(Ok(json!({}))).unwrap();
+        interrupt.await.unwrap().unwrap();
+        assert!(connection.responses.borrow().is_empty());
+        assert!(connection.errors.borrow().is_empty());
+        assert_eq!(adapter.active_turn_id().as_deref(), Some("B"));
+        // Resolve B through the public adapter so a silently dropped blocker
+        // cannot satisfy the no-early-response assertion above.
+        adapter
+            .resolve_approval(json!({"requestId": "codex:88", "decision": "accept", "threadId": "thread-1", "turnId": "B"}))
+            .await
+            .unwrap();
+        assert_eq!(connection.responses.borrow().len(), 1);
+        assert_eq!(connection.responses.borrow()[0]["id"], 88);
+        adapter.dispose().await.unwrap();
+    });
+}

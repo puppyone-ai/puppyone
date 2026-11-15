@@ -11,3 +11,6 @@ mod service;
 
 #[cfg(test)]
 mod resolution;
+
+#[cfg(test)]
+mod concurrency;
