@@ -71,6 +71,9 @@ impl DocumentSession {
     pub fn poll(&mut self) {
         self.files.poll(&self.wake);
     }
+    pub fn flush_pending_auto_save(&mut self) {
+        self.files.flush_pending_auto_save(&self.wake);
+    }
     pub fn client_for(&mut self, slot: u64, message: ClientMessage) {
         self.files.client_for(slot, message, &self.wake);
     }

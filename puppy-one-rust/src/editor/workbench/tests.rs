@@ -238,6 +238,11 @@ fn background_copy_saves_and_close_waits_for_its_own_snapshot_without_changing_f
         &wake,
     );
     r.poll(&wake);
+    assert!(
+        r.take_outgoing().is_empty(),
+        "typing must wait for the idle period"
+    );
+    r.flush_pending_auto_save(&wake);
     let request = r
         .take_outgoing()
         .into_iter()
@@ -313,4 +318,47 @@ fn failed_open_keeps_previous_visible_workspace_and_folder_never_enters_catalog(
     wait(&mut r, &wake, |r| r.error.is_some());
     assert_eq!(r.active_slot(), a);
     assert_eq!(r.state().unwrap().catalog.editors.len(), 1);
+}
+
+#[test]
+fn window_blur_flushes_each_retained_project_once_without_activating_it() {
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    std::fs::write(a.path().join("a.md"), "a").unwrap();
+    std::fs::write(b.path().join("b.md"), "b").unwrap();
+    let wake = Wake::default();
+    let mut r = Runtime::default();
+    workspace(&mut r, &wake, a.path().into());
+    let first = open(&mut r, &wake, "a.md");
+    let first_id = r.document.as_ref().unwrap().id.clone();
+    workspace(&mut r, &wake, b.path().into());
+    let second = open(&mut r, &wake, "b.md");
+    let second_id = r.document.as_ref().unwrap().id.clone();
+    r.take_outgoing();
+    for (slot, id) in [(first, first_id), (second, second_id)] {
+        r.client_for(
+            slot,
+            ClientMessage::Dirty {
+                id,
+                revision: 1,
+                dirty: true,
+            },
+            &wake,
+        );
+    }
+    r.flush_pending_auto_save(&wake);
+    let messages = r.take_outgoing();
+    for slot in [first, second] {
+        assert_eq!(
+            messages
+                .iter()
+                .filter(|(id, m)| *id == slot
+                    && matches!(m, HostMessage::Snapshot { freeze: false, .. }))
+                .count(),
+            1
+        );
+    }
+    assert_eq!(r.active_slot(), second);
+    r.flush_pending_auto_save(&wake);
+    assert!(r.take_outgoing().is_empty());
 }

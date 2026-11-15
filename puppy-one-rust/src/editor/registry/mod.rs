@@ -26,9 +26,9 @@ pub use contribution::{
 };
 pub use manifest::{Source, ViewerManifest, manifest};
 pub use surface::{
-    PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceHtmlJsError, SurfaceHtmlToolAction,
-    SurfaceHtmlToolEvent, SurfaceHtmlToolMode, SurfaceHtmlToolSnapshot, SurfaceInput,
-    SurfaceRequest, ViewerSurface,
+    PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceHistory, SurfaceHtmlJsError,
+    SurfaceHtmlToolAction, SurfaceHtmlToolEvent, SurfaceHtmlToolMode, SurfaceHtmlToolSnapshot,
+    SurfaceInput, SurfaceRequest, ViewerSurface,
 };
 
 use crate::formats::{self, FileFormat};

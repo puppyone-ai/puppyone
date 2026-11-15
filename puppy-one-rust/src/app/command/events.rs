@@ -764,6 +764,10 @@ impl Shell {
         let source_control = self.sidebar.read(cx).source_control.clone();
         source_control.update(cx, |sc, cx| sc.set_focused(active, cx));
         if !active {
+            self.session
+                .docs
+                .update(cx, |docs, _| docs.flush_pending_auto_save());
+            self.receive(window, cx);
             // Leaving the window abandons an editor drag (`blur` cancels).
             self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
             return;

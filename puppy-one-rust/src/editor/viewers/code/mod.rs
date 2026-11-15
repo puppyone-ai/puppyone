@@ -13,7 +13,8 @@ use crate::{
     editor::{
         code::language::Language,
         registry::{
-            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceHistory, SurfaceInput, SurfaceRequest,
+            ViewerSurface,
         },
         workbench::find::FindEvent,
     },
@@ -33,6 +34,7 @@ pub struct CodeView {
     committed: String,
     composing: bool,
     read_only: bool,
+    history_owner: Option<SurfaceHistory>,
     find: find::CodeFind,
     dark: bool,
     scale: Scale,
@@ -114,6 +116,7 @@ impl CodeView {
             committed: text.into(),
             composing: false,
             read_only: false,
+            history_owner: None,
             find,
             dark: request.dark,
             scale: request.scale,
@@ -500,6 +503,12 @@ impl CodeView {
         if self.read_only {
             return;
         }
+        if let Some(history) = &self.history_owner {
+            if !self.composing {
+                history(redo, cx);
+            }
+            return;
+        }
         self.finish_composition(window, cx);
         self.field.focus_handle(cx).focus(window, cx);
         let action: Box<dyn Action> = if redo {
@@ -528,6 +537,18 @@ impl Render for CodeView {
         let banner = self.conflict_banner(cx);
         div()
             .relative()
+            .capture_action(cx.listener(|v, _: &gpui_kit::base::input::Undo, w, cx| {
+                if v.history_owner.is_some() {
+                    v.history(false, w, cx);
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|v, _: &gpui_kit::base::input::Redo, w, cx| {
+                if v.history_owner.is_some() {
+                    v.history(true, w, cx);
+                    cx.stop_propagation();
+                }
+            }))
             .size_full()
             .flex()
             .flex_col()
@@ -608,6 +629,9 @@ impl ViewerSurface for CodeSurface {
     }
     fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
         self.view.update(cx, |v, cx| v.history(redo, window, cx));
+    }
+    fn set_history_owner(&self, history: SurfaceHistory, cx: &mut App) {
+        self.view.update(cx, |v, _| v.history_owner = Some(history));
     }
     fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
         match name {

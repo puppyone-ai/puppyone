@@ -762,4 +762,15 @@ impl Runtime {
                     .all(|id| self.slot(id).is_some_and(|f| f.allow_quit));
         }
     }
+
+    /// `activeDocumentSessions`: flush every retained Working Copy, including
+    /// background projects, exactly once when its window loses focus.
+    pub fn flush_pending_auto_save(&mut self, wake: &Wake) {
+        self.scratch.flush_pending_auto_save(wake);
+        for host in self.hosts.values_mut() {
+            for slot in host.slots.values_mut() {
+                slot.files.flush_pending_auto_save(wake);
+            }
+        }
+    }
 }

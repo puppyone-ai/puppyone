@@ -1,0 +1,15 @@
+{
+  "commit": "dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2",
+  "checkout": "../../puppyone-qubits",
+  "inputs": {
+    "src/shared-ui/editor/document-session/autoSavePolicy.ts": "8bbb00452f24419301244df5e77f75e569c694f3f37ece9e77ab5da148dd6564",
+    "electron/main/cloud-workspace-events.mjs": "2620f73c18634382ab6daa42b304d1599039181c32555ea097514d8e005f5d0b",
+    "electron/main/security.mjs": "09390b2ff13de90ae4b818c8204d0dc6a8bba215ecb9866e5cd740d1bf473f6c",
+    "shared/cloudEndpoint.js": "b7676b210b309bdd05b296791d3b84cd8381df95f65a28164254cdd2a1da3a0c",
+    "tests/unit/editor/document-session/autoSavePolicy.test.ts": "ca9f63b483521b9f385df322d95b3ac5b83ec4a95149d5c0ef7335f010f0cc47",
+    "tests/unit/cloud/repositories/cloudWorkspaceEvents.test.mjs": "82a31ee22399d070ef19a7a6df959462503a0a6e6461cfb484e53f59e31fe29a",
+    "tests/unit/cloud/repositories/cloudWorkspaceChanges.test.ts": "64d661d559cfad11aa53eca551cd8a2b39e65a07660cca49fc1f905e5be60771",
+    "tests/component/editor/document-session/quietAutoSaveStatus.test.tsx": "f2d1a0326e862ab0a19efcd87e3e88cf1e0c79e4d89cdfa6afc1f4999eba121a",
+    "tests/unit/editor/document-session/windowAutoSave.test.ts": "1817f44452f2f0f6328eef391555c7ba8e2478843a9e22fbd687f66646e3cf0f"
+  }
+}

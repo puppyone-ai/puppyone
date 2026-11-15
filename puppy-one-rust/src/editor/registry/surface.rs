@@ -18,6 +18,9 @@ use gpui::SharedString;
 use gpui::{AnyElement, App, FocusHandle, Subscription, Window};
 use std::rc::Rc;
 
+/// A companion source view delegates undo/redo to its document's one history.
+pub type SurfaceHistory = Rc<dyn Fn(bool, &mut App)>;
+
 pub use crate::editor::viewers::html_tools::{
     HtmlJsError as SurfaceHtmlJsError, HtmlToolAction as SurfaceHtmlToolAction,
     HtmlToolEvent as SurfaceHtmlToolEvent, HtmlToolMode as SurfaceHtmlToolMode,
@@ -128,6 +131,7 @@ pub trait ViewerSurface {
     fn rebind_name(&self, _name: &str, _cx: &mut App) {}
     fn rebind_resource(&self, _resource: &crate::workspace::PreviewResource, _cx: &mut App) {}
     fn undo(&self, _redo: bool, _window: &mut Window, _cx: &mut App) {}
+    fn set_history_owner(&self, _history: SurfaceHistory, _cx: &mut App) {}
     /// Input is blocked (modal UI, a save barrier) and the app appearance.
     fn apply(
         &self,

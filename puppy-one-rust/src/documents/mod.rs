@@ -8,6 +8,7 @@ use crate::editor::document_session::{
     types::{Completion, StorageObservation},
 };
 use crate::wake::Wake;
+mod auto_save;
 use crate::{
     model::Node,
     workspace::{self, Document, MAX_TEXT_BYTES, Workspace},
@@ -181,6 +182,7 @@ pub type PresentationKey = (
     bool,
     String,
     Option<String>,
+    SaveStatus,
 );
 /// `SaveStatus` (without manual saving, which the desktop does not use).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -221,6 +223,9 @@ pub struct Documents {
     pub save_error: Option<String>,
     /// When the last write completed, for the transient "Saved" status.
     saved_at: Option<Instant>,
+    saving_since: Option<Instant>,
+    save_announced: bool,
+    auto_save: auto_save::Scheduler,
     pub status: String,
     pub allow_quit: bool,
     pub outgoing: Vec<HostMessage>,
@@ -255,6 +260,9 @@ impl Default for Documents {
             error: None,
             save_error: None,
             saved_at: None,
+            saving_since: None,
+            save_announced: false,
+            auto_save: Default::default(),
             status: "Open a folder to start".into(),
             allow_quit: false,
             outgoing: vec![],
@@ -304,7 +312,8 @@ impl Documents {
         let conflict = self.session.as_ref().is_some_and(|s| s.conflicted());
         if self.save_error.is_some() && !conflict {
             SaveStatus::Failed
-        } else if self.session.as_ref().is_some_and(|s| s.has_active_write()) {
+        } else if self.save_announced && self.session.as_ref().is_some_and(|s| s.has_active_write())
+        {
             SaveStatus::Saving
         } else if self
             .saved_at
@@ -319,7 +328,15 @@ impl Documents {
     pub fn retry_save(&mut self, ctx: &Wake) {
         if self.session.as_mut().is_some_and(|s| s.retry()) {
             self.save_error = None;
+            self.auto_save.cancel();
             ctx.notify();
+        }
+    }
+    /// Window blur/hidden: flush pending typing in place, without freezing
+    /// input or creating a duplicate write. Idle/retired copies do nothing.
+    pub fn flush_pending_auto_save(&mut self, ctx: &Wake) {
+        if self.auto_save.flush() {
+            self.poll(ctx);
         }
     }
     pub fn saving(&self) -> bool {
@@ -336,6 +353,10 @@ impl Documents {
                     .as_ref()
                     .is_some_and(|ws| ws.local_root().is_none());
                 self.session = Some(session);
+                self.auto_save.cancel();
+                self.saving_since = None;
+                self.save_announced = false;
+                self.saved_at = None;
                 self.autosave_request = None;
                 self.read_generation += 1;
                 self.observing = false;
@@ -345,6 +366,7 @@ impl Documents {
             }
         } else {
             self.session = None;
+            self.auto_save.cancel();
             self.autosave_request = None;
             self.watch = None;
             self.observation_pending = false;
@@ -519,6 +541,7 @@ impl Documents {
         }
         self.autosave_request = None;
         self.serial += 1;
+        self.auto_save.cancel();
         self.outgoing.push(HostMessage::Snapshot {
             request: self.serial,
             freeze: true,
@@ -592,6 +615,10 @@ impl Documents {
         self.outgoing.push(message);
     }
     fn show_storage_update(&mut self) {
+        self.auto_save.cancel();
+        self.saved_at = None;
+        self.saving_since = None;
+        self.save_announced = false;
         self.autosave_request = None;
         self.read_generation += 1;
         self.outgoing
@@ -614,6 +641,12 @@ impl Documents {
                     && revision >= s.revision
                 {
                     s.local_edit(revision, dirty);
+                    if s.needs_snapshot {
+                        self.auto_save.schedule(Instant::now());
+                        ctx.after(self.auto_save.delay(Instant::now()).unwrap_or_default());
+                    } else {
+                        self.auto_save.cancel();
+                    }
                     self.sync_state();
                     if let Phase::AwaitComposition { intent } = &self.phase {
                         let intent = intent.clone();
@@ -683,6 +716,7 @@ impl Documents {
                 }
                 let snapshot = Snapshot { revision, text };
                 self.session.as_mut().unwrap().enqueue(snapshot.clone());
+                self.auto_save.cancel();
                 self.sync_state();
                 if automatic {
                     self.autosave_request = None;
@@ -749,6 +783,17 @@ impl Documents {
             {
                 let (ws, doc, tx, wake) = (ws.clone(), doc.clone(), self.tx.clone(), ctx.clone());
                 self.status = "Saving…".into();
+                self.saving_since = Some(Instant::now());
+                self.saved_at = None;
+                self.save_announced = matches!(
+                    self.phase,
+                    Phase::Draining {
+                        intent: Intent::Save
+                    }
+                );
+                if !self.save_announced {
+                    ctx.after(auto_save::SLOW_SAVE);
+                }
                 crate::localization::spawn(move || {
                     let result = ws.save(&doc, &commit.snapshot.text);
                     let _ = tx.send(Completed::Save {
@@ -1034,7 +1079,17 @@ impl Documents {
     }
     /// Cheap retained-host invalidation; do not hash every background document
     /// on each input turn. Content replacements also advance id/revision.
-    pub fn status_key(&self) -> (Option<String>, u64, bool, bool, String, Option<String>) {
+    pub fn status_key(
+        &self,
+    ) -> (
+        Option<String>,
+        u64,
+        bool,
+        bool,
+        String,
+        Option<String>,
+        SaveStatus,
+    ) {
         (
             self.opened().map(|(id, _)| id.to_owned()),
             self.revision,
@@ -1042,6 +1097,7 @@ impl Documents {
             self.busy(),
             self.status.clone(),
             self.error.clone(),
+            self.save_status(),
         )
     }
     pub fn presentation_key(&self) -> PresentationKey {
@@ -1062,9 +1118,19 @@ impl Documents {
             self.busy(),
             self.status.clone(),
             self.error.clone(),
+            self.save_status(),
         )
     }
     pub fn poll(&mut self, ctx: &Wake) {
+        self.poll_at(ctx, Instant::now());
+    }
+    fn poll_at(&mut self, ctx: &Wake, now: Instant) {
+        if self
+            .saving_since
+            .is_some_and(|at| now.saturating_duration_since(at) >= auto_save::SLOW_SAVE)
+        {
+            self.save_announced = true;
+        }
         self.ensure_session(ctx);
         if matches!(&self.phase, Phase::Snapshot { since, .. } if since.elapsed() > Duration::from_secs(5))
         {
@@ -1133,7 +1199,8 @@ impl Documents {
                             self.document = Some(result.unwrap().document);
                             self.error = None;
                             self.save_error = None;
-                            self.saved_at = Some(Instant::now());
+                            self.saved_at = self.save_announced.then(Instant::now);
+                            self.saving_since = None;
                             self.status = "Saved".into();
                         }
                         Completion::Adopted => {
@@ -1144,6 +1211,7 @@ impl Documents {
                             self.show_storage_update();
                         }
                         Completion::Failed(error) => {
+                            self.saving_since = None;
                             self.save_error = Some(error);
                         }
                         Completion::Deferred => {
@@ -1274,7 +1342,8 @@ impl Documents {
         }
         if let Some(event) = self.watch.as_ref().and_then(workspace::Subscription::next) {
             match event {
-                workspace::ports::WatchEvent::Invalidated => self.observation_pending = true,
+                workspace::ports::WatchEvent::Invalidated
+                | workspace::ports::WatchEvent::Changed(_) => self.observation_pending = true,
                 workspace::ports::WatchEvent::Failed(error) => self.error = Some(error.to_string()),
             }
         }
@@ -1286,6 +1355,7 @@ impl Documents {
             if self.autosave_request.is_none()
                 && let Some(s) = &mut self.session
                 && s.needs_snapshot
+                && (self.auto_save.delay(now).is_none() || self.auto_save.take_due(now))
             {
                 self.serial += 1;
                 self.autosave_request = Some((self.serial, s.epoch, Instant::now()));
@@ -1325,6 +1395,9 @@ impl Documents {
                 || self.autosave_request.is_some())
         {
             ctx.after(Duration::from_millis(100));
+        }
+        if let Some(delay) = self.auto_save.delay(now) {
+            ctx.after(delay);
         }
     }
 }

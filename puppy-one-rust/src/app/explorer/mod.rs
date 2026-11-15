@@ -33,6 +33,7 @@ mod keyboard;
 mod menus;
 mod motion;
 mod pins;
+mod refresh_scope;
 mod rows;
 mod session;
 

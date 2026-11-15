@@ -88,6 +88,7 @@ pub(in crate::app) struct ExplorerSession {
     watch: Option<(crate::workspace::Subscription, Task<()>)>,
     retained: std::collections::BTreeMap<String, Retained>,
     refresh: Option<Task<()>>,
+    refresh_paths: Vec<PathBuf>,
     references:
         std::collections::BTreeMap<String, (u64, Arc<crate::editor::navigation::ReferenceIndex>)>,
     /// What the file clipboard says (`FileOperationNotice`), its
@@ -138,6 +139,7 @@ impl ExplorerSession {
             watch: None,
             retained: Default::default(),
             refresh: None,
+            refresh_paths: Vec::new(),
             references: Default::default(),
             notice: None,
             notice_generation: 0,
@@ -290,6 +292,7 @@ impl ExplorerSession {
         let revalidate = cached.is_some();
         let restored = cached.unwrap_or(empty);
         self.refresh = None;
+        self.refresh_paths.clear();
         let previous = Retained {
             tree: std::mem::replace(&mut self.tree, restored.tree),
             scroll: std::mem::replace(&mut self.scroll, restored.scroll),
@@ -343,6 +346,13 @@ impl ExplorerSession {
                                 s.refresh_loaded_folders(cx);
                             }
                         }
+                        Some(WatchEvent::Changed(paths)) => {
+                            cx.emit(SessionEvent::WatchRecovered);
+                            cx.emit(SessionEvent::ContentChanged);
+                            if !s.op {
+                                s.refresh_folders(Some(&paths), cx);
+                            }
+                        }
                         Some(WatchEvent::Failed(error)) => {
                             cx.emit(SessionEvent::WatchFailed(error.to_string()))
                         }
@@ -371,11 +381,27 @@ impl ExplorerSession {
         self.refresh_loaded_folders(cx);
     }
     fn refresh_loaded_folders(&mut self, cx: &mut Context<Self>) {
+        self.refresh_folders(None, cx);
+    }
+    fn refresh_folders(
+        &mut self,
+        changed: Option<&[crate::workspace::contracts::RelativePath]>,
+        cx: &mut Context<Self>,
+    ) {
         let Some(workspace) = self.workspace.clone() else {
             return;
         };
         let tree_id = self.tree.id;
-        let paths = self.tree.loaded_folders();
+        let mut paths = super::refresh_scope::folders(&self.tree.loaded_folders(), changed);
+        if paths.is_empty() {
+            return;
+        }
+        // Replacing a running refresh must carry its scope forward. Otherwise
+        // two disjoint notifications can cancel the first folder's refresh.
+        paths.extend(self.refresh_paths.iter().cloned());
+        paths.sort();
+        paths.dedup();
+        self.refresh_paths.clone_from(&paths);
         let read = cx.background_executor().spawn(async move {
             paths
                 .into_iter()
@@ -392,6 +418,7 @@ impl ExplorerSession {
                 if s.tree.id != tree_id {
                     return;
                 }
+                s.refresh_paths.clear();
                 // One projection for the whole reread, not one per folder.
                 let mut read = Vec::with_capacity(listings.len());
                 let mut failed = Vec::new();
@@ -587,6 +614,7 @@ impl ExplorerSession {
             return;
         }
         self.refresh = None;
+        self.refresh_paths.clear();
         self.op = true;
         // `DataWorkspace`: import and move clear the previous operation error
         // and report their own failure above the tree.

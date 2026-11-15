@@ -170,6 +170,9 @@ impl Tree {
         if let Some(anchor) = &mut self.anchor {
             path(anchor, from, to);
         }
+        // Rebinding changes the projection even if the following provider
+        // listings exactly match the already moved in-memory nodes.
+        self.rebuild();
     }
     pub fn remove_selection(&mut self, path: &Path) {
         self.selection.retain(|p| !p.starts_with(path));
@@ -330,8 +333,9 @@ impl Tree {
     /// Replace a folder's children after a mutation without changing its
     /// expansion; descendants that were loaded keep their own children.
     pub fn refresh_children(&mut self, path: &Path, children: Vec<Node>) {
-        self.replace_children(path, children);
-        self.rebuild();
+        if self.replace_children(path, children) {
+            self.rebuild();
+        }
     }
     /// Rereads of several folders (parent first) and the folders whose
     /// reread failed, projected once.
@@ -340,20 +344,29 @@ impl Tree {
         listings: Vec<(PathBuf, Vec<Node>)>,
         failed: Vec<(PathBuf, String)>,
     ) {
+        let mut changed = false;
         for (path, children) in listings {
-            self.replace_children(&path, children);
+            changed |= self.replace_children(&path, children);
         }
         for (path, error) in failed {
             if let Some(node) = self.find_mut(&path) {
+                changed |= node.error.as_ref() != Some(&error);
                 node.error = Some(error);
             }
         }
-        self.rebuild();
+        if changed {
+            self.rebuild();
+        }
     }
-    fn replace_children(&mut self, path: &Path, mut children: Vec<Node>) {
+    fn replace_children(&mut self, path: &Path, mut children: Vec<Node>) -> bool {
         // The old listing is dropped: its loaded subtrees move into the
         // entries that are still there instead of being copied.
-        fn carry(old: Vec<Node>, new: &mut [Node]) {
+        fn carry(old: Vec<Node>, new: &mut [Node]) -> bool {
+            let changed = old.len() != new.len()
+                || old
+                    .iter()
+                    .zip(new.iter())
+                    .any(|(o, n)| o.path != n.path || o.name != n.name || o.folder != n.folder);
             let mut old: HashMap<(PathBuf, bool), Node> = old
                 .into_iter()
                 .map(|o| ((o.path.clone(), o.folder), o))
@@ -363,16 +376,25 @@ impl Tree {
                     n.expanded = o.expanded;
                     n.loaded = o.loaded;
                     n.children = o.children;
+                    n.error = o.error;
                 }
             }
+            changed
         }
         if path.as_os_str().is_empty() {
-            carry(std::mem::take(&mut self.roots), &mut children);
+            let changed = carry(std::mem::take(&mut self.roots), &mut children);
             self.roots = children;
+            changed
         } else if let Some(node) = self.find_mut(path).filter(|n| n.folder) {
-            carry(std::mem::take(&mut node.children), &mut children);
+            let changed = carry(std::mem::take(&mut node.children), &mut children)
+                || !node.loaded
+                || node.error.is_some();
             node.children = children;
             node.loaded = true;
+            node.error = None;
+            changed
+        } else {
+            false
         }
     }
     pub fn toggle(&mut self, path: &Path) -> bool {
@@ -672,6 +694,92 @@ mod tests {
         let mut t = Tree::fixture();
         assert!(!t.toggle(Path::new("missing")));
         assert!(!t.toggle(Path::new("README.md")));
+    }
+    /// TS explorerTreeReconciliation: identity is the projection revision in
+    /// Rust, and loaded/expanded state survives only while the entry is a folder.
+    #[test]
+    fn unchanged_relisting_preserves_projection_and_folder_replacement_drops_descendants() {
+        let node = |path: &str, folder| Node {
+            name: path.rsplit('/').next().unwrap().into(),
+            path: path.into(),
+            folder,
+            ..Default::default()
+        };
+        let mut tree = Tree {
+            roots: vec![node("docs", true), node("other", true)],
+            ..Tree::new()
+        };
+        tree.attach_children(Path::new("docs"), vec![node("docs/a.md", false)]);
+        tree.attach_children(Path::new("other"), vec![]);
+        tree.select(Path::new("docs/a.md"), false, false);
+        let revision = tree.revision;
+        let anchor = tree.anchor.clone();
+        tree.refresh_folders(
+            vec![
+                (
+                    PathBuf::new(),
+                    vec![node("docs", true), node("other", true)],
+                ),
+                ("docs".into(), vec![node("docs/a.md", false)]),
+            ],
+            vec![],
+        );
+        assert_eq!(
+            tree.revision, revision,
+            "unchanged listings must not restart motion"
+        );
+        assert_eq!(tree.anchor, anchor);
+        assert!(tree.selection.contains(Path::new("docs/a.md")));
+        assert!(tree.find_mut(Path::new("other")).unwrap().expanded);
+        tree.refresh_children(
+            Path::new(""),
+            vec![node("docs", false), node("other", true)],
+        );
+        assert_ne!(tree.revision, revision);
+        assert!(
+            tree.find_mut(Path::new("docs"))
+                .unwrap()
+                .children
+                .is_empty()
+        );
+        assert!(!tree.rows.iter().any(|r| r.path == Path::new("docs/a.md")));
+        assert!(tree.selection.is_empty());
+        assert!(tree.find_mut(Path::new("other")).unwrap().expanded);
+    }
+    #[test]
+    fn empty_refresh_loads_a_folder_and_success_clears_only_its_error() {
+        let mut tree = Tree {
+            roots: vec![Node {
+                name: "empty".into(),
+                path: "empty".into(),
+                folder: true,
+                ..Default::default()
+            }],
+            ..Tree::new()
+        };
+        let revision = tree.revision;
+        tree.refresh_children(Path::new("empty"), vec![]);
+        assert!(tree.find_mut(Path::new("empty")).unwrap().loaded);
+        assert_ne!(tree.revision, revision);
+        tree.fail_children(Path::new("empty"), "denied".into());
+        let revision = tree.revision;
+        tree.refresh_children(
+            Path::new(""),
+            vec![Node {
+                name: "empty".into(),
+                path: "empty".into(),
+                folder: true,
+                ..Default::default()
+            }],
+        );
+        assert_eq!(tree.revision, revision);
+        assert_eq!(
+            tree.find_mut(Path::new("empty")).unwrap().error.as_deref(),
+            Some("denied")
+        );
+        tree.refresh_children(Path::new("empty"), vec![]);
+        assert!(tree.find_mut(Path::new("empty")).unwrap().error.is_none());
+        assert!(!tree.rows.iter().any(|r| r.status));
     }
     #[test]
     fn visibility_display_names_and_selection_follow_the_product() {

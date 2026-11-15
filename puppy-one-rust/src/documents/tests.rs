@@ -47,7 +47,7 @@ fn wait(d: &mut Documents, ctx: &Wake) {
     }
 }
 #[test]
-fn local_edit_automatically_snapshots_without_freezing_and_writes_real_file() {
+fn local_edit_waits_for_the_pause_then_snapshots_without_freezing_and_writes_real_file() {
     {
         let (temp, mut d, ctx) = setup();
         d.client(
@@ -59,6 +59,11 @@ fn local_edit_automatically_snapshots_without_freezing_and_writes_real_file() {
             &ctx,
         );
         d.poll(&ctx);
+        assert!(
+            d.autosave_request.is_none(),
+            "typing does not immediately save"
+        );
+        d.poll_at(&ctx, Instant::now() + auto_save::IDLE);
         assert!(!d.busy());
         let request = d.autosave_request.unwrap().0;
         assert!(
@@ -225,6 +230,53 @@ fn read_started_before_save_receipt_cannot_restore_old_content() {
     .unwrap();
     d.poll(&ctx);
     assert_eq!(d.document.as_ref().unwrap().text, "latest");
+}
+/// TS documentInputRevalidation: identical bytes are silent; changed bytes
+/// replace the shown content without putting a loading barrier over it.
+#[test]
+fn revalidation_keeps_shown_content_and_only_changed_bytes_notify_the_editor() {
+    let (temp, mut d, ctx) = setup();
+    d.ensure_session(&ctx);
+    d.watch = None;
+    d.outgoing.clear();
+    let shown = d.presentation_key();
+    for text in ["original", "agent edit"] {
+        d.observing = true;
+        assert!(!d.busy());
+        assert_eq!(d.presentation_key(), shown);
+        std::fs::write(temp.path().join("a.md"), text).unwrap();
+        let doc = d
+            .workspace
+            .as_ref()
+            .unwrap()
+            .observe(d.document.as_ref().unwrap())
+            .unwrap();
+        d.tx.send(Completed::Observed {
+            id: doc.id.clone(),
+            generation: d.read_generation,
+            result: Ok(doc),
+        })
+        .unwrap();
+        d.poll(&ctx);
+        assert!(!d.busy());
+        assert_eq!(d.document.as_ref().unwrap().text, text);
+        if text == "original" {
+            assert_eq!(d.presentation_key(), shown);
+            assert!(
+                d.outgoing.is_empty(),
+                "same bytes must not reset selection/history"
+            );
+        } else {
+            assert_ne!(d.presentation_key(), shown);
+            assert_eq!(
+                d.outgoing
+                    .iter()
+                    .filter(|m| matches!(m, HostMessage::Open { external: true, .. }))
+                    .count(),
+                1
+            );
+        }
+    }
 }
 #[test]
 fn switch_file_automatically_drains_then_ignores_previous_document_events() {
@@ -565,7 +617,7 @@ fn a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog() {
         }
     };
     let autosave = |d: &mut Documents, text: &str| {
-        d.poll(&ctx);
+        d.poll_at(&ctx, Instant::now() + auto_save::IDLE);
         let request = d.autosave_request.expect("autosave snapshot").0;
         reply(d, &ctx, request, 1, text);
     };
@@ -592,7 +644,11 @@ fn a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog() {
     autosave(&mut d, "kept input");
     settle(&mut d, &|d| !d.saving());
     assert_eq!(*memory.text.lock().unwrap(), "kept input");
-    assert_eq!(d.save_status(), SaveStatus::Saved);
+    assert_eq!(
+        d.save_status(),
+        SaveStatus::Clean,
+        "quick background saves stay quiet"
+    );
     assert!(!d.dirty);
 }
 
@@ -606,4 +662,108 @@ fn viewers_admit_the_smaller_of_their_own_budget_and_the_workspace_text_bound() 
         crate::editor::registry::source_budget("big.md").min(ws.text_limit() as u64)
     );
     assert_eq!(super::read_budget("page.html", &ws), 4 * 1024 * 1024);
+}
+
+#[test]
+fn leaving_the_window_flushes_pending_typing_once_without_freezing() {
+    let (temp, mut d, wake) = setup();
+    d.client(
+        ClientMessage::Dirty {
+            id: d.document.as_ref().unwrap().id.clone(),
+            revision: 1,
+            dirty: true,
+        },
+        &wake,
+    );
+    d.poll(&wake);
+    assert!(d.autosave_request.is_none());
+    d.flush_pending_auto_save(&wake);
+    let request = d.autosave_request.unwrap().0;
+    d.flush_pending_auto_save(&wake);
+    assert_eq!(
+        d.outgoing
+            .iter()
+            .filter(|m| matches!(m, HostMessage::Snapshot { .. }))
+            .count(),
+        1
+    );
+    assert!(
+        d.outgoing
+            .iter()
+            .any(|m| matches!(m, HostMessage::Snapshot { freeze: false, .. }))
+    );
+    reply(&mut d, &wake, request, 1, "saved on blur");
+    wait(&mut d, &wake);
+    d.poll_at(&wake, Instant::now() + auto_save::MAX_WAIT);
+    assert!(d.autosave_request.is_none());
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("a.md")).unwrap(),
+        "saved on blur"
+    );
+}
+
+#[test]
+fn closing_before_the_pause_drains_the_last_input_without_a_later_autosave() {
+    let (temp, mut d, wake) = setup();
+    d.client(
+        ClientMessage::Dirty {
+            id: d.document.as_ref().unwrap().id.clone(),
+            revision: 1,
+            dirty: true,
+        },
+        &wake,
+    );
+    d.begin(Intent::Quit, &wake);
+    snapshot(&mut d, &wake, "last typing");
+    wait(&mut d, &wake);
+    assert!(d.allow_quit);
+    d.poll_at(&wake, Instant::now() + auto_save::MAX_WAIT);
+    assert!(d.autosave_request.is_none());
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("a.md")).unwrap(),
+        "last typing"
+    );
+}
+
+#[test]
+fn quick_background_saves_stay_quiet_slow_and_explicit_saves_are_announced() {
+    for (slow, explicit) in [(false, false), (true, false), (false, true)] {
+        let (_temp, mut d, wake) = setup();
+        d.client(
+            ClientMessage::Dirty {
+                id: d.document.as_ref().unwrap().id.clone(),
+                revision: 1,
+                dirty: true,
+            },
+            &wake,
+        );
+        if explicit {
+            d.begin(Intent::Save, &wake);
+            snapshot(&mut d, &wake, "draft");
+        } else {
+            d.flush_pending_auto_save(&wake);
+            let request = d.autosave_request.unwrap().0;
+            reply(&mut d, &wake, request, 1, "draft");
+        }
+        assert_eq!(
+            d.save_status(),
+            if explicit {
+                SaveStatus::Saving
+            } else {
+                SaveStatus::Clean
+            }
+        );
+        if slow {
+            d.poll_at(&wake, Instant::now() + auto_save::SLOW_SAVE);
+        }
+        wait(&mut d, &wake);
+        assert_eq!(
+            d.save_status(),
+            if explicit || slow {
+                SaveStatus::Saved
+            } else {
+                SaveStatus::Clean
+            }
+        );
+    }
 }

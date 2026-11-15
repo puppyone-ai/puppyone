@@ -1,4 +1,7 @@
 //! Text surfaces on the editor view: Markdown live preview (`markdown`).
+#[cfg(test)]
+#[path = "text_tests.rs"]
+mod tests;
 use super::source_split::SourceSplit;
 use crate::{
     editor::{
@@ -67,6 +70,16 @@ pub fn open_markdown(
             window,
             cx,
         ));
+        let history_editor = editor.clone();
+        let history_gate = host_read_only.clone();
+        source.set_history_owner(
+            Rc::new(move |redo, cx| {
+                if !history_gate.get() {
+                    history_editor.update(cx, |e, cx| e.replay_history(redo, cx));
+                }
+            }),
+            cx,
+        );
         let source_for_editor = source.clone();
         let syncing_for_editor = syncing.clone();
         subscriptions.push(window.subscribe(
@@ -81,10 +94,7 @@ pub fn open_markdown(
                 if let Some(prev) = source_for_editor.text(cx)
                     && prev != text
                 {
-                    let whole = 0..prev.encode_utf16().count();
-                    if !source_for_editor.edit_utf16(&[(whole, text.clone())], window, cx) {
-                        source_for_editor.replace_text(&text, window, cx);
-                    }
+                    source_for_editor.replace_text(&text, window, cx);
                 }
                 syncing_for_editor.set(false);
             },
@@ -211,9 +221,7 @@ impl TextSurface {
         if let Some(split) = &self.split {
             split.update(cx, |_, cx| cx.notify());
         }
-        if next
-            && let Some(handle) = self.source.as_ref().and_then(|s| s.focus_handle(cx))
-        {
+        if next && let Some(handle) = self.source.as_ref().and_then(|s| s.focus_handle(cx)) {
             handle.focus(window, cx);
         }
     }
@@ -257,8 +265,7 @@ impl ViewerSurface for TextSurface {
         Some(self.editor.read(cx).text().to_owned())
     }
     fn composing(&self, cx: &App) -> bool {
-        self.editor.read(cx).composing()
-            || self.source.as_ref().is_some_and(|s| s.composing(cx))
+        self.editor.read(cx).composing() || self.source.as_ref().is_some_and(|s| s.composing(cx))
     }
     fn replace_text(&self, text: &str, window: &mut Window, cx: &mut App) {
         self.syncing.set(true);
@@ -268,21 +275,17 @@ impl ViewerSurface for TextSurface {
         }
         self.syncing.set(false);
     }
-    fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
-        if self.file_mode
-            && self.source_panel.get()
-            && (!self.editing.get()
-                || self
-                    .source
-                    .as_ref()
-                    .and_then(|s| s.focus_handle(cx))
-                    .is_some_and(|h| h.is_focused(window)))
-            && let Some(source) = &self.source
-        {
-            source.undo(redo, window, cx);
+    fn undo(&self, redo: bool, _window: &mut Window, cx: &mut App) {
+        if self.host_read_only.get() || self.composing(cx) {
             return;
         }
-        self.editor.update(cx, |e, cx| e.undo(redo, cx));
+        self.editor.update(cx, |e, cx| {
+            if self.file_mode {
+                e.replay_history(redo, cx);
+            } else {
+                e.undo(redo, cx);
+            }
+        });
     }
     fn set_chrome_inset(&self, top: f32, cx: &mut App) {
         self.editor.update(cx, |e, cx| e.set_chrome_inset(top, cx));

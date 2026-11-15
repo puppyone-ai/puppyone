@@ -330,6 +330,15 @@ impl EditorView {
         }
     }
 
+    /// A companion view shares this document history while the page can be in
+    /// reading mode. The owning surface must enforce the document input gate.
+    pub(crate) fn replay_history(&mut self, redo: bool, cx: &mut Context<Self>) {
+        let read_only = self.read_only;
+        self.read_only = false;
+        self.undo(redo, cx);
+        self.read_only = read_only;
+    }
+
     /// See `chrome_inset`.
     pub fn set_chrome_inset(&mut self, top: f32, cx: &mut Context<Self>) {
         if self.chrome_inset != top {
