@@ -61,11 +61,12 @@ pub(crate) struct WorkbenchLauncher {
     installations: Vec<Installation>,
     /// Local agent ids hidden in Settings → Local Agents.
     hidden_agents: Vec<String>,
+    observations: Vec<crate::platform::local_agent_setup::Observation>,
     scanning: bool,
     /// When the running discovery began (`useDelayedDiscoveryFeedback`).
     scan_started: Option<std::time::Instant>,
-    scan_rx: mpsc::Receiver<Vec<Installation>>,
-    scan_tx: mpsc::Sender<Vec<Installation>>,
+    scan_rx: mpsc::Receiver<agents::Inventory>,
+    scan_tx: mpsc::Sender<agents::Inventory>,
     /// Agents launch as chats; a row's menu runs its CLI in a terminal.
     chat_mode: bool,
     /// Launcher tabs showing the cross-runtime History browser.
@@ -99,7 +100,7 @@ impl WorkbenchLauncher {
         let tx = scan_tx.clone();
         let scan_wake = wake.clone();
         std::thread::spawn(move || {
-            let _ = tx.send(agents::discover());
+            let _ = tx.send(agents::discover_with_evidence());
             scan_wake.notify();
         });
         cx.spawn_in(window, async move |this, cx| {
@@ -123,6 +124,7 @@ impl WorkbenchLauncher {
             hosted: HostedChats::default(),
             installations: vec![],
             hidden_agents: vec![],
+            observations: vec![],
             scanning: true,
             scan_started: Some(std::time::Instant::now()),
             scan_rx,
@@ -145,7 +147,8 @@ impl WorkbenchLauncher {
             cx.emit(LauncherEvent::CloudPublished);
         }
         if let Ok(found) = self.scan_rx.try_recv() {
-            self.installations = found;
+            self.installations = found.installations;
+            self.observations = found.observations;
             self.scanning = false;
             cx.notify();
         } else if self.scanning {
@@ -334,7 +337,7 @@ impl WorkbenchLauncher {
         let tx = self.scan_tx.clone();
         let wake = self.wake.clone();
         std::thread::spawn(move || {
-            let _ = tx.send(agents::discover());
+            let _ = tx.send(agents::discover_with_evidence());
             wake.notify();
         });
         cx.notify();

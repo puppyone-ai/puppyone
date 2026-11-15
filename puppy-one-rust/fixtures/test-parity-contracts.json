@@ -6076,6 +6076,279 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "local-agent-installation-evidence",
+      "acceptance": "Explicit found/not-found/failed/unknown observations, shared environment failures versus isolated product failures, and companion evidence match actual TS advice. Missing or failed evidence never recommends installation; GPUI Launcher and Settings revoke and recover rendered actions across scans. Executable metadata errors remain failed evidence and never authorize automatic installation.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-installation/local-agent-catalog.test.mjs",
+          "sha256": "6a2b5f9a6ea5830490163e24e872c958e31857d1e83011c5f35ffd0df3c37240",
+          "cases": [
+            {
+              "index": 18,
+              "name": "trusted Local Agent capability catalog > 'codex'/'found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 19,
+              "name": "trusted Local Agent capability catalog > 'codex'/'not-found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 20,
+              "name": "trusted Local Agent capability catalog > 'codex'/'failed': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 21,
+              "name": "trusted Local Agent capability catalog > 'codex'/'unknown': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 22,
+              "name": "trusted Local Agent capability catalog > 'claude'/'found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 23,
+              "name": "trusted Local Agent capability catalog > 'claude'/'not-found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 24,
+              "name": "trusted Local Agent capability catalog > 'claude'/'failed': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 25,
+              "name": "trusted Local Agent capability catalog > 'claude'/'unknown': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 26,
+              "name": "trusted Local Agent capability catalog > 'cursor'/'found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 27,
+              "name": "trusted Local Agent capability catalog > 'cursor'/'not-found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 28,
+              "name": "trusted Local Agent capability catalog > 'cursor'/'failed': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 29,
+              "name": "trusted Local Agent capability catalog > 'cursor'/'unknown': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 30,
+              "name": "trusted Local Agent capability catalog > 'opencode'/'found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 31,
+              "name": "trusted Local Agent capability catalog > 'opencode'/'not-found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 32,
+              "name": "trusted Local Agent capability catalog > 'opencode'/'failed': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 33,
+              "name": "trusted Local Agent capability catalog > 'opencode'/'unknown': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 34,
+              "name": "trusted Local Agent capability catalog > 'pi'/'found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 35,
+              "name": "trusted Local Agent capability catalog > 'pi'/'not-found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 36,
+              "name": "trusted Local Agent capability catalog > 'pi'/'failed': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 37,
+              "name": "trusted Local Agent capability catalog > 'pi'/'unknown': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 38,
+              "name": "trusted Local Agent capability catalog > 'workbuddy-china'/'found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 39,
+              "name": "trusted Local Agent capability catalog > 'workbuddy-china'/'not-found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 40,
+              "name": "trusted Local Agent capability catalog > 'workbuddy-china'/'failed': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 41,
+              "name": "trusted Local Agent capability catalog > 'workbuddy-china'/'unknown': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 42,
+              "name": "trusted Local Agent capability catalog > 'workbuddy-international'/'found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 43,
+              "name": "trusted Local Agent capability catalog > 'workbuddy-international'/'not-found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 44,
+              "name": "trusted Local Agent capability catalog > 'workbuddy-international'/'failed': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 45,
+              "name": "trusted Local Agent capability catalog > 'workbuddy-international'/'unknown': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 46,
+              "name": "trusted Local Agent capability catalog > 'hermes'/'found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 47,
+              "name": "trusted Local Agent capability catalog > 'hermes'/'not-found': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 48,
+              "name": "trusted Local Agent capability catalog > 'hermes'/'failed': recommendation is evidence-based, never a runtime or brand shortcut"
+            },
+            {
+              "index": 49,
+              "name": "trusted Local Agent capability catalog > 'hermes'/'unknown': recommendation is evidence-based, never a runtime or brand shortcut"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/local-agent-installation/local-agent-setup.test.mjs",
+          "sha256": "6dcf097739b5c1648cd3832a00efb452fa34bd710dde63a266f4bd5126d44a3a",
+          "cases": [
+            {
+              "index": 2,
+              "name": "setup advisor and trusted guide broker > does not suggest installation for found observations"
+            },
+            {
+              "index": 3,
+              "name": "setup advisor and trusted guide broker > does not suggest installation for failed observations"
+            },
+            {
+              "index": 4,
+              "name": "setup advisor and trusted guide broker > fails closed for a shared environment failure but isolates another product's failure"
+            },
+            {
+              "index": 5,
+              "name": "setup advisor and trusted guide broker > does not infer presence from not-found"
+            },
+            {
+              "index": 6,
+              "name": "setup advisor and trusted guide broker > does not infer presence from unknown"
+            },
+            {
+              "index": 7,
+              "name": "setup advisor and trusted guide broker > does not infer presence from unsupported"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::tests::actual_typescript_setup_advice_preserves_every_evidence_state_and_suppression_policy"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::connections::legacy_local_agent_inventory::tests::installation_inventory_keeps_failed_probes_distinct_from_absence"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::connections::legacy_local_agent_inventory::tests::executable_probe_distinguishes_absence_permissions_and_metadata_errors"
+        },
+        {
+          "package": "po-app",
+          "test": "features::local_agents::setup::tests::an_unfinished_installation_scan_never_recommends_installing_an_agent",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "local-agent-platform-capabilities",
+      "acceptance": "All 16 TS platform/architecture combinations select the same routes, chat/terminal/companion capabilities and automatic versus guided setup; automatic recipe identity, version, relative paths, artifact URL, algorithm and digest match the actual TS oracle.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-installation/local-agent-catalog.test.mjs",
+          "sha256": "6a2b5f9a6ea5830490163e24e872c958e31857d1e83011c5f35ffd0df3c37240",
+          "cases": [
+            {
+              "index": 1,
+              "name": "trusted Local Agent capability catalog > selects the exact 'darwin'/'arm64' support matrix"
+            },
+            {
+              "index": 2,
+              "name": "trusted Local Agent capability catalog > selects the exact 'darwin'/'x64' support matrix"
+            },
+            {
+              "index": 3,
+              "name": "trusted Local Agent capability catalog > selects the exact 'darwin'/'ia32' support matrix"
+            },
+            {
+              "index": 4,
+              "name": "trusted Local Agent capability catalog > selects the exact 'darwin'/'riscv64' support matrix"
+            },
+            {
+              "index": 5,
+              "name": "trusted Local Agent capability catalog > selects the exact 'linux'/'arm64' support matrix"
+            },
+            {
+              "index": 6,
+              "name": "trusted Local Agent capability catalog > selects the exact 'linux'/'x64' support matrix"
+            },
+            {
+              "index": 7,
+              "name": "trusted Local Agent capability catalog > selects the exact 'linux'/'ia32' support matrix"
+            },
+            {
+              "index": 8,
+              "name": "trusted Local Agent capability catalog > selects the exact 'linux'/'riscv64' support matrix"
+            },
+            {
+              "index": 9,
+              "name": "trusted Local Agent capability catalog > selects the exact 'win32'/'arm64' support matrix"
+            },
+            {
+              "index": 10,
+              "name": "trusted Local Agent capability catalog > selects the exact 'win32'/'x64' support matrix"
+            },
+            {
+              "index": 11,
+              "name": "trusted Local Agent capability catalog > selects the exact 'win32'/'ia32' support matrix"
+            },
+            {
+              "index": 12,
+              "name": "trusted Local Agent capability catalog > selects the exact 'win32'/'riscv64' support matrix"
+            },
+            {
+              "index": 13,
+              "name": "trusted Local Agent capability catalog > selects the exact 'freebsd'/'arm64' support matrix"
+            },
+            {
+              "index": 14,
+              "name": "trusted Local Agent capability catalog > selects the exact 'freebsd'/'x64' support matrix"
+            },
+            {
+              "index": 15,
+              "name": "trusted Local Agent capability catalog > selects the exact 'freebsd'/'ia32' support matrix"
+            },
+            {
+              "index": 16,
+              "name": "trusted Local Agent capability catalog > selects the exact 'freebsd'/'riscv64' support matrix"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::tests::actual_typescript_platform_matrix_preserves_guided_and_automatic_capabilities"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

@@ -1,6 +1,7 @@
 //! Local CLI inventory; availability is not a claim of Chat adapter support.
 //! Identities and labels mirror `local-agents/setup/localAgentCatalog.ts`
 //! and `electron/main/local-agent-installation/definitions/*`.
+use crate::platform::local_agent_setup::{Observation, ObservationFailure, ObservationStatus};
 use crate::{
     agent::connections::legacy_runtime_registry::Runtime, platform::environment::search_dirs,
 };
@@ -111,21 +112,39 @@ pub const LOCAL_AGENTS: &[LocalAgent] = &[
 pub fn runtime_for(id: &str) -> Option<Runtime> {
     LOCAL_AGENTS.iter().find(|a| a.id == id).map(|a| a.runtime)
 }
-fn locate(agent: &LocalAgent, dirs: &[PathBuf]) -> Option<PathBuf> {
+fn locate(agent: &LocalAgent, dirs: &[PathBuf]) -> std::io::Result<Option<PathBuf>> {
+    let mut failed = None;
+    let mut probe = |path: &Path| match executable(path) {
+        Ok(found) => found,
+        Err(error) => {
+            failed = Some(error);
+            false
+        }
+    };
+    let found = locate_with(agent, dirs, &mut probe);
+    if found.is_some() {
+        Ok(found)
+    } else if let Some(error) = failed {
+        Err(error)
+    } else {
+        Ok(None)
+    }
+}
+fn locate_with(
+    agent: &LocalAgent,
+    dirs: &[PathBuf],
+    probe: &mut dyn FnMut(&Path) -> bool,
+) -> Option<PathBuf> {
     match &agent.locator {
         // The PATH and known directories, then the product's own managed
         // installation (`managedInstallationCandidate`, macOS only).
         Locator::Path(names) => names
             .iter()
-            .find_map(|name| {
-                dirs.iter()
-                    .map(|dir| dir.join(name))
-                    .find(|p| executable(p))
-            })
+            .find_map(|name| dirs.iter().map(|dir| dir.join(name)).find(|p| probe(p)))
             .or_else(|| {
                 let home = std::env::var_os("HOME").map(PathBuf::from)?;
                 crate::platform::local_agent_setup::installer::managed_entry(&home, agent.id)
-                    .filter(|p| cfg!(target_os = "macos") && executable(p))
+                    .filter(|p| cfg!(target_os = "macos") && probe(p))
             }),
         Locator::AppBundle {
             app,
@@ -133,7 +152,7 @@ fn locate(agent: &LocalAgent, dirs: &[PathBuf]) -> Option<PathBuf> {
             override_env,
         } => {
             if let Some(path) = std::env::var_os(override_env).map(PathBuf::from)
-                && executable(&path)
+                && probe(&path)
             {
                 return Some(path);
             }
@@ -145,7 +164,7 @@ fn locate(agent: &LocalAgent, dirs: &[PathBuf]) -> Option<PathBuf> {
             .into_iter()
             .flatten()
             .map(|root| cli.iter().fold(root.join(app), |p, part| p.join(part)))
-            .find(|p| executable(p))
+            .find(|p| probe(p))
         }
     }
 }
@@ -153,27 +172,53 @@ fn locate(agent: &LocalAgent, dirs: &[PathBuf]) -> Option<PathBuf> {
 /// Detected local agents in catalog order, followed by the bundled Built-in Agent
 /// (`compareAgentChatCreationRecipesForDisplay`).
 pub fn discover() -> Vec<Installation> {
+    discover_with_evidence().installations
+}
+#[derive(Clone, Debug)]
+pub struct Inventory {
+    pub installations: Vec<Installation>,
+    pub observations: Vec<Observation>,
+}
+pub fn discover_with_evidence() -> Inventory {
     let dirs = search_dirs();
-    let mut result: Vec<Installation> = LOCAL_AGENTS
+    discover_from(|agent| locate(agent, &dirs))
+}
+fn discover_from(
+    mut locate: impl FnMut(&LocalAgent) -> std::io::Result<Option<PathBuf>>,
+) -> Inventory {
+    let mut installations = Vec::new();
+    let observations = LOCAL_AGENTS
         .iter()
-        .filter_map(|agent| {
-            locate(agent, &dirs).map(|executable| Installation {
-                runtime: agent.runtime,
-                id: agent.id,
-                label: agent.label.into(),
-                executable,
-                chat: true,
-            })
+        .map(|agent| match locate(agent) {
+            Ok(Some(executable)) => {
+                installations.push(Installation {
+                    runtime: agent.runtime,
+                    id: agent.id,
+                    label: agent.label.into(),
+                    executable,
+                    chat: true,
+                });
+                Observation::new(agent.id, ObservationStatus::Found)
+            }
+            Ok(None) => Observation::new(agent.id, ObservationStatus::NotFound),
+            Err(_) => Observation {
+                id: agent.id.into(),
+                status: ObservationStatus::Failed,
+                failure: Some(ObservationFailure::Product),
+            },
         })
         .collect();
-    result.push(Installation {
+    installations.push(Installation {
         runtime: Runtime::PuppyOne,
         id: BUILT_IN_AGENT_ID,
         label: BUILT_IN_AGENT_LABEL.into(),
         executable: PathBuf::new(),
         chat: true,
     });
-    result
+    Inventory {
+        installations,
+        observations,
+    }
 }
 /// Deterministic installations for the dev-capture lab: the reference fixture's
 /// detected agents (`tools/reference-workbench-entry.tsx`) plus Built-in Agent.
@@ -207,16 +252,20 @@ pub fn lab_installations() -> Vec<Installation> {
     });
     result
 }
-fn executable(path: &Path) -> bool {
+fn executable(path: &Path) -> std::io::Result<bool> {
+    let metadata = match path.metadata() {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        path.metadata()
-            .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        Ok(metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
     }
     #[cfg(not(unix))]
     {
-        path.is_file()
+        Ok(metadata.is_file())
     }
 }
 #[cfg(test)]
@@ -228,8 +277,68 @@ mod tests {
         let mut sorted = labels.clone();
         sorted.sort_by_key(|l| l.to_lowercase());
         assert_eq!(labels, sorted);
-        let found = discover();
+        let found = discover_from(|_| Ok(None)).installations;
         assert_eq!(found.last().unwrap().id, BUILT_IN_AGENT_ID);
         assert_eq!(found.last().unwrap().label, "Built-in Agent");
+    }
+    #[test]
+    fn installation_inventory_keeps_failed_probes_distinct_from_absence() {
+        let result = discover_from(|agent| match agent.id {
+            "claude" => Ok(Some(PathBuf::from("/fixture/claude"))),
+            "codex" => Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
+            _ => Ok(None),
+        });
+        assert_eq!(
+            result
+                .installations
+                .iter()
+                .map(|a| a.id)
+                .collect::<Vec<_>>(),
+            vec!["claude", BUILT_IN_AGENT_ID]
+        );
+        assert_eq!(result.observations.len(), 8);
+        assert_eq!(
+            result.observations[0],
+            Observation::new("claude", ObservationStatus::Found)
+        );
+        assert_eq!(
+            result.observations[1],
+            Observation {
+                id: "codex".into(),
+                status: ObservationStatus::Failed,
+                failure: Some(ObservationFailure::Product)
+            }
+        );
+        assert!(
+            result.observations[2..]
+                .iter()
+                .all(|o| o.status == ObservationStatus::NotFound && o.failure.is_none())
+        );
+        assert!(
+            !result
+                .observations
+                .iter()
+                .any(|o| o.id == BUILT_IN_AGENT_ID)
+        );
+    }
+    #[cfg(unix)]
+    #[test]
+    fn executable_probe_distinguishes_absence_permissions_and_metadata_errors() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("agent");
+        assert!(!executable(&file).unwrap());
+        assert!(!executable(dir.path()).unwrap());
+        std::fs::write(&file, b"#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(!executable(&file).unwrap());
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(executable(&file).unwrap());
+        let cycle = dir.path().join("cycle");
+        symlink(&cycle, &cycle).unwrap();
+        assert!(
+            executable(&cycle).is_err(),
+            "a metadata error is not proof of absence"
+        );
     }
 }

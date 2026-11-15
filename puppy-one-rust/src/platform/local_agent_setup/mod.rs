@@ -256,12 +256,58 @@ pub const CHAT_IDS: [&str; 8] = [
 ];
 pub const TERMINAL_IDS: [&str; 6] = ["codex", "claude", "cursor", "opencode", "pi", "hermes"];
 
-/// Native discovery reports found or not found; it has no failed scans
-/// (the product's `unknown`).
+/// Installation observations preserve failures and missing evidence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ObservationStatus {
+    Found,
+    NotFound,
+    Failed,
+    Unknown,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ObservationFailure {
+    EnvironmentUnavailable,
+    ContextError,
+    Product,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Observation {
+    pub id: String,
+    pub status: ObservationStatus,
+    pub failure: Option<ObservationFailure>,
+}
+impl Observation {
+    pub fn new(id: &str, status: ObservationStatus) -> Self {
+        Self {
+            id: id.into(),
+            status,
+            failure: None,
+        }
+    }
+}
+/// A setup row never claims absence from failed or absent evidence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Found {
     Found,
     NotFound,
+    Unknown,
+}
+/// Completed fixture/legacy evidence; omitted IDs in an unfinished scan must
+/// use an empty observation list instead of this helper.
+pub fn completed_observations(found: &[&str]) -> Vec<Observation> {
+    ROUTES
+        .iter()
+        .map(|r| {
+            Observation::new(
+                r.id,
+                if found.contains(&r.id) {
+                    ObservationStatus::Found
+                } else {
+                    ObservationStatus::NotFound
+                },
+            )
+        })
+        .collect()
 }
 /// `LocalAgentSetupEntry`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -288,11 +334,17 @@ pub struct Request<'a> {
 pub fn advise(
     request: &Request,
     platform: &str,
-    found: &[&str],
+    observations: &[Observation],
     companions: &[(&'static str, companion::Presence)],
     now: u64,
     suppressed: &std::collections::HashSet<String>,
 ) -> Vec<Entry> {
+    let environment_healthy = !observations.iter().any(|o| {
+        matches!(
+            o.failure,
+            Some(ObservationFailure::EnvironmentUnavailable | ObservationFailure::ContextError)
+        )
+    });
     ROUTES
         .iter()
         .filter(|r| {
@@ -301,14 +353,15 @@ pub fn advise(
                 && request.eligible.contains(&r.id)
         })
         .map(|r| {
-            let status = if found.contains(&r.id) {
-                Found::Found
-            } else {
-                Found::NotFound
+            let status = match observations.iter().find(|o| o.id == r.id).map(|o| o.status) {
+                Some(ObservationStatus::Found) => Found::Found,
+                Some(ObservationStatus::NotFound) if environment_healthy => Found::NotFound,
+                _ => Found::Unknown,
             };
-            let companion_present = companions
-                .iter()
-                .any(|(id, p)| *id == r.id && *p == companion::Presence::Present);
+            let companion_present = r.companion.is_some()
+                && companions
+                    .iter()
+                    .any(|(id, p)| *id == r.id && *p == companion::Presence::Present);
             let recommended = status == Found::NotFound
                 && companion_present
                 && request.enabled
@@ -332,110 +385,4 @@ pub fn advise(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-    #[test]
-    fn routes_follow_the_catalog_and_recipes_are_platform_qualified() {
-        let names: Vec<_> = ROUTES.iter().map(|r| r.display_name).collect();
-        let mut sorted = names.clone();
-        sorted.sort();
-        assert_eq!(names, sorted);
-        let codex = route("codex").unwrap().recipe("darwin", "arm64").unwrap();
-        assert_eq!(codex.binary, "vendor/aarch64-apple-darwin/bin/codex");
-        assert!(route("codex").unwrap().recipe("linux", "x64").is_none());
-        assert!(route("claude").unwrap().recipe("darwin", "arm64").is_none());
-        // The product's hex digest, re-encoded.
-        use base64::Engine as _;
-        let cursor = route("cursor").unwrap().recipe("darwin", "arm64").unwrap();
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(cursor.digest)
-            .unwrap();
-        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-        assert_eq!(
-            hex,
-            "4e67b9ac80cc4a56e0a91b3b437894e0ba489ef7ec37f120d8084d2bfd02095d"
-        );
-        let x64 = route("cursor").unwrap().recipe("darwin", "x64").unwrap();
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(x64.digest)
-            .unwrap();
-        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-        assert_eq!(
-            hex,
-            "f4298af7114a57ce317ddc13a49c273e1113b027e3e6b7a0769b8ef3565e6897"
-        );
-        for digest in [
-            codex.digest,
-            route("codex")
-                .unwrap()
-                .recipe("darwin", "x64")
-                .unwrap()
-                .digest,
-        ] {
-            assert_eq!(
-                base64::engine::general_purpose::STANDARD
-                    .decode(digest)
-                    .unwrap()
-                    .len(),
-                64
-            );
-        }
-        assert!(
-            !route("workbuddy-china")
-                .unwrap()
-                .supports(Surface::Terminal)
-        );
-    }
-    #[test]
-    fn only_a_missing_cli_beside_its_app_is_recommended() {
-        let hidden = vec![];
-        let dismissed = vec![];
-        let snoozed = std::collections::BTreeMap::from([("cursor".to_owned(), 2_000)]);
-        let request = Request {
-            surface: Surface::Chat,
-            eligible: &CHAT_IDS,
-            hidden: &hidden,
-            enabled: true,
-            dismissed: &dismissed,
-            snoozed_until: &snoozed,
-        };
-        let companions = [
-            ("codex", companion::Presence::Present),
-            ("cursor", companion::Presence::Present),
-        ];
-        let entries = advise(
-            &request,
-            "darwin",
-            &["claude"],
-            &companions,
-            1_000,
-            &Default::default(),
-        );
-        assert_eq!(entries.len(), 8);
-        let get = |id: &str| entries.iter().find(|e| e.setup_id == id).unwrap();
-        assert_eq!(get("claude").status, Found::Found);
-        assert!(get("codex").recommended);
-        // Snoozed until later.
-        assert!(!get("cursor").recommended);
-        assert!(!get("opencode").recommended);
-        let linux = advise(
-            &request,
-            "linux",
-            &[],
-            &companions,
-            1_000,
-            &Default::default(),
-        );
-        assert!(linux.iter().all(|e| !e.setup_id.starts_with("workbuddy")));
-        let terminal = Request {
-            surface: Surface::Terminal,
-            eligible: &TERMINAL_IDS,
-            ..request
-        };
-        assert_eq!(
-            advise(&terminal, "darwin", &[], &[], 0, &Default::default()).len(),
-            6
-        );
-    }
-}
+mod tests;

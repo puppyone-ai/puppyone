@@ -38,7 +38,7 @@ enum HooksPhase {
 /// Work finished off the UI thread.
 enum Done {
     /// One scan generation's installations; a later scan wins.
-    Installations(u64, Vec<Installation>),
+    Installations(u64, local_agent_inventory::Inventory),
     /// `readEnrollment` of one generation; a later read or change wins.
     Enrollment(u64, Option<Vec<ProviderStatus>>),
     /// `setEnabled`: the snapshot after the change, or the failed provider.
@@ -87,7 +87,7 @@ impl AgentSettings {
         // An activation that installed a CLI refreshes the detected Agents.
         let activation = setup::store(cx);
         cx.subscribe(&activation, |s, _, _: &InstallationsChanged, cx| {
-            s.refresh();
+            s.refresh(cx);
             cx.notify();
         })
         .detach();
@@ -124,8 +124,8 @@ impl AgentSettings {
             rx,
             wake,
         };
-        s.refresh();
-        s.read_enrollment(false);
+        s.refresh(cx);
+        s.read_enrollment(false, cx);
         s
     }
     fn drain(&mut self, cx: &mut Context<Self>) {
@@ -134,13 +134,9 @@ impl AgentSettings {
                 Done::Installations(generation, _) if generation != self.scan_generation => {}
                 Done::Installations(_, found) => {
                     self.scanning = false;
-                    let ids = found
-                        .iter()
-                        .filter(|i| !i.bundled())
-                        .map(|i| i.id)
-                        .collect();
-                    self.setup.update(cx, |s, cx| s.set_found(Some(ids), cx));
-                    self.installations = Some(found);
+                    self.setup
+                        .update(cx, |s, cx| s.set_observations(found.observations, cx));
+                    self.installations = Some(found.installations);
                 }
                 Done::Enrollment(generation, _) if generation != self.hooks_generation => {}
                 Done::Enrollment(_, Some(providers)) => {
@@ -178,21 +174,25 @@ impl AgentSettings {
         });
     }
     /// Rescans this machine's Agents.
-    pub fn refresh(&mut self) {
+    pub fn refresh(&mut self, cx: &mut Context<Self>) {
         if self.scanning {
             return;
         }
         self.scanning = true;
+        self.setup
+            .update(cx, |s, cx| s.set_observations(vec![], cx));
         self.scan_generation += 1;
         let generation = self.scan_generation;
-        self.run(move || Done::Installations(generation, local_agent_inventory::discover()));
+        self.run(move || {
+            Done::Installations(generation, local_agent_inventory::discover_with_evidence())
+        });
     }
     /// `load` / `refresh`: the Hook enrollment, with a rescan when `rescan`.
-    fn read_enrollment(&mut self, rescan: bool) {
+    fn read_enrollment(&mut self, rescan: bool, cx: &mut Context<Self>) {
         self.hooks_phase = HooksPhase::Loading;
         self.hook_error = None;
         if rescan {
-            self.refresh();
+            self.refresh(cx);
         }
         self.hooks_generation += 1;
         let (read, generation) = (self.enrollments.clone(), self.hooks_generation);
@@ -264,9 +264,9 @@ impl AgentSettings {
             .update(cx, |s, cx| s.lab_open(activation, window, cx));
     }
     #[cfg(test)]
-    fn with_enrollments(&mut self, enrollments: Enrollments) {
+    fn with_enrollments(&mut self, enrollments: Enrollments, cx: &mut Context<Self>) {
         self.enrollments = enrollments;
-        self.read_enrollment(false);
+        self.read_enrollment(false, cx);
     }
     /// Category rows for the Settings page (rendered inside its section).
     fn categories(&self, t: Theme, cx: &mut Context<Self>) -> Vec<SettingsCategory> {
@@ -423,7 +423,7 @@ impl AgentSettings {
             false,
         )
         .on_click(cx.listener(|s, _, _, cx| {
-            s.refresh();
+            s.refresh(cx);
             cx.notify();
         }))
         .into_any_element();
@@ -502,7 +502,7 @@ impl AgentSettings {
                         Button::new("retry-agent-hooks")
                             .label(t_static("settings.localAgentHooks.retry"))
                             .on_click(cx.listener(|s, _, _, cx| {
-                                s.read_enrollment(true);
+                                s.read_enrollment(true, cx);
                                 cx.notify();
                             })),
                     )
@@ -518,7 +518,7 @@ impl AgentSettings {
         )
         .when(!busy, |d| {
             d.on_click(cx.listener(|s, _, _, cx| {
-                s.read_enrollment(true);
+                s.read_enrollment(true, cx);
                 cx.notify();
             }))
         })
@@ -591,7 +591,7 @@ mod tests {
         });
         let (view, cx) = cx.add_window_view(|window, cx| {
             let mut view = AgentSettings::new(preferences.clone(), window, cx);
-            view.with_enrollments(enrollments);
+            view.with_enrollments(enrollments, cx);
             view
         });
         let settle = |cx: &mut VisualTestContext| {

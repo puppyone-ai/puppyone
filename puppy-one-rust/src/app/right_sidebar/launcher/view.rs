@@ -48,16 +48,14 @@ impl WorkbenchLauncher {
             self.setup = Some(section);
         }
         let section = self.setup.clone()?;
-        let found = (!self.scanning).then(|| {
-            self.installations
-                .iter()
-                .filter(|i| !i.bundled())
-                .map(|i| i.id)
-                .collect()
-        });
+        let observations = if self.scanning {
+            vec![]
+        } else {
+            self.observations.clone()
+        };
         section.update(cx, |s, cx| {
             s.set_surface(surface, cx);
-            s.set_found(found, cx);
+            s.set_observations(observations, cx);
         });
         section.update(cx, |s, cx| s.visible(cx)).then_some(section)
     }

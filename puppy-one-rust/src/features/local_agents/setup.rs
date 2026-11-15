@@ -52,7 +52,17 @@ struct ProductPorts {
 #[cfg(not(test))]
 impl activation::Ports for ProductPorts {
     fn resolve(&self, id: &str) -> Result<bool, ErrorCode> {
-        Ok(local_agent_inventory::discover().iter().any(|i| i.id == id))
+        let inventory = local_agent_inventory::discover_with_evidence();
+        match inventory
+            .observations
+            .iter()
+            .find(|o| o.id == id)
+            .map(|o| o.status)
+        {
+            Some(setup::ObservationStatus::Found) => Ok(true),
+            Some(setup::ObservationStatus::NotFound) => Ok(false),
+            _ => Err(ErrorCode::InstallationCheck),
+        }
     }
     fn install(
         &self,
@@ -315,7 +325,7 @@ impl Activation {
     pub fn entries(
         &mut self,
         request: &setup::Request,
-        found: &[&str],
+        observations: &[setup::Observation],
         cx: &mut Context<Self>,
     ) -> Vec<Entry> {
         let companions = if request.enabled {
@@ -332,7 +342,7 @@ impl Activation {
         setup::advise(
             request,
             setup::platform(),
-            found,
+            observations,
             &companions,
             now,
             &self.suppressed,
@@ -367,8 +377,8 @@ pub struct SetupSection {
     preferences: Entity<PreferencesStore>,
     store: Entity<Activation>,
     owner: String,
-    /// Detected installation ids; `None` while the first scan runs.
-    found: Option<Vec<&'static str>>,
+    /// Completed per-installation observations; empty while the scan runs.
+    observations: Vec<setup::Observation>,
     selected: Option<(String, String)>,
     directory_open: bool,
     action_error: bool,
@@ -395,19 +405,32 @@ impl SetupSection {
             preferences,
             store,
             owner,
-            found: None,
+            observations: vec![],
             selected: None,
             directory_open: false,
             action_error: false,
             dialog: None,
         }
     }
-    /// The installations the section narrows by (`discovery.ids`).
-    pub fn set_found(&mut self, found: Option<Vec<&'static str>>, cx: &mut Context<Self>) {
-        if self.found != found {
-            self.found = found;
+    pub fn set_observations(
+        &mut self,
+        observations: Vec<setup::Observation>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.observations != observations {
+            self.observations = observations;
             cx.notify();
         }
+    }
+    /// Completed deterministic inventory for tests and pixel fixtures.
+    #[cfg(any(test, feature = "dev-capture"))]
+    pub fn set_found(&mut self, found: Option<Vec<&'static str>>, cx: &mut Context<Self>) {
+        self.set_observations(
+            found
+                .map(|ids| setup::completed_observations(&ids))
+                .unwrap_or_default(),
+            cx,
+        );
     }
     pub fn set_surface(&mut self, surface: Surface, cx: &mut Context<Self>) {
         if self.surface != surface {
@@ -445,7 +468,12 @@ impl SetupSection {
     fn model(&mut self, cx: &mut Context<Self>) -> (Vec<Entry>, Vec<Operation>, Vec<Entry>) {
         let prefs = self.preferences.read(cx).state.local_agents.clone();
         let suggestions = prefs.setup_suggestions.clone();
-        let found = self.found.clone().unwrap_or_default();
+        let observations = self.observations.clone();
+        let found: Vec<&str> = observations
+            .iter()
+            .filter(|o| o.status == setup::ObservationStatus::Found)
+            .map(|o| o.id.as_str())
+            .collect();
         let request = setup::Request {
             surface: self.surface,
             eligible: self.eligible,
@@ -456,7 +484,7 @@ impl SetupSection {
         };
         let entries = self
             .store
-            .update(cx, |s, cx| s.entries(&request, &found, cx));
+            .update(cx, |s, cx| s.entries(&request, &observations, cx));
         let operations: Vec<Operation> = self
             .store
             .read(cx)
@@ -734,6 +762,7 @@ impl Render for SetupSection {
                             t_static("settings.activation.activate").into(),
                             false,
                         )
+                        .debug_selector(move || format!("agent-setup-activate:{setup_id}"))
                         .ml_auto()
                         .on_click(cx.listener(move |s, _, w, cx| s.select(setup_id, name, w, cx))),
                     )
@@ -1274,6 +1303,93 @@ mod tests {
         }
         panic!("condition not reached");
     }
+    #[gpui::test]
+    fn an_unfinished_installation_scan_never_recommends_installing_an_agent(
+        cx: &mut TestAppContext,
+    ) {
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        let dir = tempfile::tempdir().unwrap();
+        let store = cx.update(|cx| {
+            install(
+                dir.path().join("activation.json"),
+                |_| Arc::new(Fake::default()),
+                cx,
+            )
+        });
+        store.update(cx, |s, _| {
+            s.companions = Some(vec![("codex", Presence::Present)])
+        });
+        let preferences = cx.new(|_| PreferencesStore::memory());
+        preferences.update(cx, |p, _| {
+            p.state.local_agents.setup_suggestions.enabled = true
+        });
+        let (section, cx) = cx.add_window_view(|_, cx| {
+            SetupSection::new(
+                Presentation::Launcher,
+                Surface::Chat,
+                preferences.clone(),
+                "fixture-window".into(),
+                cx,
+            )
+        });
+        let rendered = |cx: &mut VisualTestContext| {
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            cx.debug_bounds("agent-setup-activate:codex").is_some()
+        };
+        assert!(!rendered(cx));
+        let rows = section.update(cx, |s, cx| s.model(cx).2);
+        assert!(
+            rows.is_empty(),
+            "an installed companion alone cannot prove its CLI is absent"
+        );
+        assert!(!section.update(cx, |s, cx| s.visible(cx)));
+        section.update(cx, |s, cx| s.set_found(Some(vec![]), cx));
+        let rows = section.update(cx, |s, cx| s.model(cx).2);
+        assert_eq!(
+            rows.iter().map(|e| e.setup_id).collect::<Vec<_>>(),
+            vec!["codex"]
+        );
+        assert!(rendered(cx));
+        section.update(cx, |s, cx| s.set_found(None, cx));
+        assert!(!rendered(cx));
+        assert!(
+            section.update(cx, |s, cx| s.model(cx).2.is_empty()),
+            "a rescan revokes stale absence evidence"
+        );
+        for presentation in [Presentation::Launcher, Presentation::Settings] {
+            section.update(cx, |s, cx| {
+                s.presentation = presentation;
+                s.set_observations(
+                    vec![setup::Observation {
+                        id: "codex".into(),
+                        status: setup::ObservationStatus::Failed,
+                        failure: Some(setup::ObservationFailure::Product),
+                    }],
+                    cx,
+                );
+            });
+            assert!(
+                !rendered(cx),
+                "failed evidence does not render an install action"
+            );
+            section.update(cx, |s, cx| s.set_found(Some(vec![]), cx));
+            assert!(
+                rendered(cx),
+                "a completed absence observation restores the action"
+            );
+            section.update(cx, |s, cx| s.set_found(Some(vec!["codex"]), cx));
+            assert!(!rendered(cx), "a found CLI removes the action");
+        }
+        assert!(
+            store.read_with(cx, |s, _| s.snapshot.operations.is_empty()),
+            "inspection must not install anything"
+        );
+    }
+
     #[gpui::test]
     fn the_setup_directory_activates_an_agent_from_its_recipe(cx: &mut TestAppContext) {
         cx.executor().allow_parking();

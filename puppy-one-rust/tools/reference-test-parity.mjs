@@ -120,3 +120,47 @@ if (process.argv.includes('--check')) {
   if (await readFile(presetFile, 'utf8') !== presetOutput) throw Error('Stale TS preset manifest oracle');
 } else await writeFile(presetFile, presetOutput);
 console.log(`${cases.length} TS preset manifest cases verified in main and renderer modes`);
+
+
+// Real TS catalog/advisor behavior, including all 32 product/evidence cases.
+const {defaultLocalAgentCatalog: agentCatalog} = await import(pathToFileURL(`${reference}/electron/main/local-agent-catalog/catalog.mjs`));
+const {localAgentCapabilities} = await import(pathToFileURL(`${reference}/electron/main/local-agent-catalog/agent-definition.mjs`));
+const {setupRegistry} = await import(pathToFileURL(`${reference}/electron/main/local-agent-installation/setup/setup-registry.mjs`));
+const {createActivationRegistry} = await import(pathToFileURL(`${reference}/electron/main/local-agent-activation/activation-registry.mjs`));
+const {adviseSetup} = await import(pathToFileURL(`${reference}/electron/main/local-agent-installation/setup/setup-advisor.mjs`));
+const advice = [];
+const baseRequest = {surface:'chat',eligibleInstallationIds:setupRegistry.map(r=>r.id),hiddenAgentIds:[],preferences:{enabled:true,dismissedSetupIds:[],snoozedUntil:{}}};
+const allMissing = setupRegistry.map(r=>({agentId:r.id,status:'not-found'}));
+const present = setupRegistry.filter(r=>r.companionId).map(r=>({companionId:r.id,status:'present'}));
+function characterize(name, overrides={}) {
+  const input = {platform:'darwin',request:structuredClone(baseRequest),installations:structuredClone(allMissing),companions:present,now:1000,suppressed:[],...overrides};
+  advice.push({name,input:structuredClone(input),expected:adviseSetup({...input,registry:setupRegistry,installations:{results:input.installations},sessionSuppressed:new Set(input.suppressed)})});
+}
+for (const agent of agentCatalog) for (const status of ['found','not-found','failed','unknown']) {
+  const id=agent.installation.id;
+  characterize(`${id}/${status}`,{request:{...baseRequest,eligibleInstallationIds:[id]},installations:[{agentId:id,status}],companions:[{companionId:id,status:'present'}]});
+}
+characterize('completed absence');
+for (const status of ['found','failed']) characterize(`all/${status}`,{installations:allMissing.map(o=>({...o,status}))});
+characterize('no completed installation evidence',{installations:[]});
+for (const reasonCode of ['environment-unavailable','context-error','product-error']) {
+  const installations=structuredClone(allMissing);
+  Object.assign(installations.find(r=>r.agentId==='hermes'),{status:'failed',reasonCode});
+  characterize(reasonCode,{installations});
+  installations.find(r=>r.agentId==='codex').status='found';
+  characterize(`${reasonCode}/found`,{installations});
+}
+for (const status of ['not-found','unknown','unsupported']) characterize(`companion/${status}`,{companions:[{companionId:'codex',status}]});
+for (const [name,patch] of [['disabled',{preferences:{...baseRequest.preferences,enabled:false}}],['hidden',{hiddenAgentIds:['codex','cursor']}],['dismissed',{preferences:{...baseRequest.preferences,dismissedSetupIds:['codex','cursor']}}],['snoozed',{preferences:{...baseRequest.preferences,snoozedUntil:{codex:1001,cursor:1000}}}]]) characterize(name,{request:{...baseRequest,...patch}});
+characterize('session suppressed',{suppressed:['codex','cursor']});
+characterize('terminal rejects chat-only routes',{request:{...baseRequest,surface:'terminal'}});
+characterize('unknown platform',{platform:'freebsd'});
+const capabilities=[];
+for (const platform of ['darwin','linux','win32','freebsd']) for (const arch of ['arm64','x64','ia32','riscv64']) {
+  capabilities.push({platform,arch,registered:[...createActivationRegistry({platform,arch}).keys()].sort(),agents:agentCatalog.map(agent=>({id:agent.installation.id,...localAgentCapabilities(agent,{platform,arch})}))});
+}
+const setupOutput=JSON.stringify({sourceCommit:receipt.commit,advice,capabilities})+'\n';
+const setupFile=path.join(root,'fixtures/local-agent-setup-oracle.json');
+if(process.argv.includes('--check')) { if(await readFile(setupFile,'utf8')!==setupOutput) throw Error('Stale TS Local Agent setup oracle'); }
+else await writeFile(setupFile,setupOutput);
+console.log(`${advice.length} TS setup evidence cases and ${capabilities.length} platform/architecture combinations verified`);

@@ -16,6 +16,9 @@ impl WorkbenchLauncher {
         cx: &mut Context<Self>,
     ) {
         self.installations = agents::lab_installations();
+        self.observations = crate::platform::local_agent_setup::completed_observations(
+            &self.installations.iter().map(|i| i.id).collect::<Vec<_>>(),
+        );
         self.scanning = false;
         let Some(workbench) = self.workbench.upgrade() else {
             return;
