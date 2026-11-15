@@ -654,7 +654,7 @@
         "src/agent/model_connections/configuration.rs"
       ],
       "evidence": [
-        "test:endpoint_boundary_rejects_credentials_redirect_shapes_and_remote_http",
+        "test:base_urls_are_canonical_and_unsafe_endpoints_are_rejected",
         "test:concurrent_edit_and_delete_do_not_resurrect_or_retire_active_credentials"
       ],
       "remaining": "List, add/edit and detail flow with Keychain credentials. Local service discovery, tool-support verification and managed (cloud) connections are not ported."
@@ -1704,7 +1704,7 @@
       "evidence": [
         "test:reads_follow_invalidations_and_the_metadata_watch_not_a_clock",
         "test:ref_changes_invalidate_and_lock_files_do_not",
-        "test:remote_fetches_need_focus_a_gap_and_an_upstream",
+        "test:remote_fetches_need_focus_and_a_gap",
         "test:metadata_noise_is_filtered_like_the_product"
       ],
       "note": "No status polling: reads come from debounced invalidations (250 ms) of the working tree (the root watcher) and the repository metadata (an OS watcher on the Git, common and refs directories, lock files, objects and cookies filtered, 120 ms bursts), from focus once 5 s stale, and from mutations. The upstream's remote is fetched silently (--prune) while focused: on first status (15 s gap), every 180 s and on focus once 60 s stale; a local-only branch never touches the network. Not ported: the per-workspace snapshot cache and the watcher's re-arm backoff (notify re-subscribes itself)."
