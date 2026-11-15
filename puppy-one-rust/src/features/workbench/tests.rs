@@ -329,3 +329,51 @@ fn native_history_read_failure_renders_retry_but_confirmed_missing_history_does_
     }
     assert_eq!(retries.get(), 1);
 }
+
+#[gpui::test]
+fn a_new_launcher_cancels_pending_layout_restore_and_keeps_late_results_from_replacing_it(
+    cx: &mut TestAppContext,
+) {
+    cx.update(gpui_kit::init);
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    // Install a pending read without starting a disk worker. The result channel
+    // is the actual production path; no timing or user metadata is involved.
+    view.update(cx, |s, cx| {
+        let root = PathBuf::from("/fixture/late-layout");
+        s.root = Some(root.clone());
+        s.projects.insert(
+            root.clone(),
+            Project {
+                loading: true,
+                ..Project::default()
+            },
+        );
+        let saved = StoredProject {
+            version: 1,
+            layout: Layout::default(),
+            items: HashMap::new(),
+        }
+        .to_saved()
+        .unwrap();
+        let tab = s.new_launcher_tab(0, cx).unwrap();
+        let loading = s.project().unwrap().loading;
+        s.store_tx
+            .send(ResultEvent::Loaded(root.clone(), Ok(Some(saved))))
+            .unwrap();
+        s.restore_results(cx);
+        let retained = s.is_launcher(&root, tab);
+        let count = s.tab_count();
+        // The fixture owns no persisted project; deferred saving sees no data.
+        s.projects.clear();
+        s.root = None;
+        assert!(
+            !loading,
+            "explicit creation must remove the loading placeholder immediately"
+        );
+        assert!(
+            retained,
+            "the late saved layout cannot replace an explicit new tab"
+        );
+        assert_eq!(count, 1);
+    });
+}

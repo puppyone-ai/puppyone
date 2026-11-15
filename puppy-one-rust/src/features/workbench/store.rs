@@ -74,6 +74,8 @@ impl Workbench {
     /// A new launcher tab in `group` (`createLauncher`).
     pub fn new_launcher_tab(&mut self, group: Id, cx: &mut Context<Self>) -> Option<Id> {
         let p = self.project_mut()?;
+        // Explicit work takes precedence over an older asynchronous restore.
+        p.loading = false;
         let id = p.layout.add(group);
         p.content.insert(id, Content::Launcher);
         cx.notify();
