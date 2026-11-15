@@ -50,6 +50,28 @@ pub struct Snapshot {
     /// Where the current branch synchronizes (`syncTarget`); `None` on a
     /// detached HEAD or with no remote to go to.
     pub target: Option<SyncTarget>,
+    /// A merge, rebase, cherry-pick or revert waiting to be continued or
+    /// aborted (`sourceControl.operation`).
+    pub operation: Option<RepositoryOperation>,
+}
+/// `readGitRepositoryOperationKind`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RepositoryOperation {
+    Rebase,
+    Merge,
+    CherryPick,
+    Revert,
+}
+impl RepositoryOperation {
+    /// The Git command that continues or aborts it.
+    pub fn command(self) -> &'static str {
+        match self {
+            Self::Rebase => "rebase",
+            Self::Merge => "merge",
+            Self::CherryPick => "cherry-pick",
+            Self::Revert => "revert",
+        }
+    }
 }
 /// `readGitSyncTarget`: a remote branch and whether its remote-tracking ref
 /// exists. Without `exists` the branch has not been published there yet.
@@ -162,6 +184,7 @@ pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
         .map(|b| String::from_utf8_lossy(&b).trim().to_owned())
         .unwrap_or_default();
     snapshot.prefix = prefix;
+    snapshot.operation = repository_operation(root, cancel);
     snapshot.target = sync_target(root, &snapshot, cancel);
     // A branch that tracks nothing compares with the branch a first push
     // would create, once that exists (`readGitAheadBehindCounts`).
@@ -181,6 +204,27 @@ pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
         }
     }
     Ok(snapshot)
+}
+/// `readGitRepositoryOperationKind`: the first of the rebase directories and
+/// the merge, cherry-pick and revert heads that exists.
+fn repository_operation(root: &Path, cancel: &AtomicBool) -> Option<RepositoryOperation> {
+    use RepositoryOperation::*;
+    let candidates = [
+        ("rebase-merge", Rebase),
+        ("rebase-apply", Rebase),
+        ("MERGE_HEAD", Merge),
+        ("CHERRY_PICK_HEAD", CherryPick),
+        ("REVERT_HEAD", Revert),
+    ];
+    let mut args = vec!["rev-parse"];
+    for (name, _) in &candidates {
+        args.extend(["--git-path", name]);
+    }
+    let out = text(root, &args, cancel)?;
+    out.lines()
+        .zip(candidates)
+        .find(|(path, _)| root.join(path.trim()).exists())
+        .map(|(_, (_, kind))| kind)
 }
 fn sync_target(root: &Path, snapshot: &Snapshot, cancel: &AtomicBool) -> Option<SyncTarget> {
     let remotes = remotes(root, cancel);
@@ -337,13 +381,14 @@ impl Snapshot {
     /// `remote.canPublish`: a branch with a commit whose sync target does not
     /// exist yet (`publishWorkspaceGitBranch` creates and tracks it).
     pub fn can_publish(&self) -> bool {
-        self.current_branch().is_some()
+        self.operation.is_none()
+            && self.current_branch().is_some()
             && !self.head.is_empty()
             && self.target.as_ref().is_some_and(|t| !t.exists)
     }
     /// `remote.canPush`: commits to send and none to receive first.
     pub fn can_push(&self) -> bool {
-        self.remote_exists() && self.ahead > 0 && self.behind == 0
+        self.operation.is_none() && self.remote_exists() && self.ahead > 0 && self.behind == 0
     }
     /// The sync target exists: incoming and outgoing commits are counted.
     pub fn remote_exists(&self) -> bool {
@@ -386,6 +431,11 @@ pub enum Operation {
     /// `publishWorkspaceGitBranch`: push the branch to its sync target and
     /// track it.
     Publish,
+    /// `continueWorkspaceGitOperation`: once every conflict is resolved and
+    /// staged.
+    Continue,
+    /// `abortWorkspaceGitOperation`: back to the state before it began.
+    Abort,
     Init,
 }
 impl Operation {
@@ -400,6 +450,8 @@ impl Operation {
             Self::Pull => "pull",
             Self::Push => "push",
             Self::Publish => "publish",
+            Self::Continue => "continue",
+            Self::Abort => "abort",
             Self::Init => "init",
         }
     }
@@ -424,6 +476,9 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
     }
     if matches!(op, Operation::Pull | Operation::Push | Operation::Publish) {
         return synchronize(root, op, cancel);
+    }
+    if matches!(op, Operation::Continue | Operation::Abort) {
+        return resolve_operation(root, op, cancel);
     }
     let mut args = match op {
         Operation::Stage(_) => vec!["add", "--"],
@@ -453,7 +508,11 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
             git(root, &["add", "--all", "--", "."], None, cancel)?;
             vec!["commit", "-F", "-"]
         }
-        Operation::Pull | Operation::Push | Operation::Publish => unreachable!(),
+        Operation::Pull
+        | Operation::Push
+        | Operation::Publish
+        | Operation::Continue
+        | Operation::Abort => unreachable!(),
         Operation::Init => vec!["init"],
     };
     args.extend(paths.iter().copied());
@@ -479,6 +538,14 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
 /// `publishWorkspaceGitBranch`): refused while conflicts remain.
 fn synchronize(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
     let current = status(root, cancel)?;
+    // `assertNoInProgressGitOperation`.
+    if let Some(operation) = current.operation {
+        return Err(format!(
+            "Unable to {} changes while {} is in progress. Resolve and continue it, or abort it first.",
+            op.label(),
+            operation.command()
+        ));
+    }
     if current.changes.iter().any(Change::conflict) {
         return Err(format!(
             "Unable to {} changes while unresolved file conflicts remain. Resolve and stage them first.",
@@ -505,6 +572,31 @@ fn synchronize(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
         },
         _ => publish(root, cancel)?,
     }
+    status(root, cancel)
+}
+/// Continue (`-c core.editor=true <kind> --continue`, keeping Git's own
+/// message) or abort the operation in progress.
+fn resolve_operation(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
+    let current = status(root, cancel)?;
+    let verb = op.label();
+    let Some(operation) = current.operation else {
+        return Err(format!(
+            "Unable to {verb} Git operation: no merge, rebase, cherry-pick, or revert is in progress."
+        ));
+    };
+    let kind = operation.command();
+    let args = if matches!(op, Operation::Continue) {
+        if current.changes.iter().any(Change::conflict) {
+            return Err(
+                "Unable to continue Git operation: resolve and stage all conflicted files first."
+                    .into(),
+            );
+        }
+        vec!["-c", "core.editor=true", kind, "--continue"]
+    } else {
+        vec![kind, "--abort"]
+    };
+    git(root, &args, None, cancel).map_err(|e| format!("Unable to {verb} {kind}: {e}"))?;
     status(root, cancel)
 }
 fn missing_upstream(message: &str) -> bool {
@@ -992,6 +1084,75 @@ mod tests {
         let s = status(&root, &cancel).unwrap();
         assert!(s.current_branch().is_none() && s.target.is_none() && !s.can_publish());
         assert!(operate(&root, &Operation::Publish, &cancel).is_err());
+    }
+    #[test]
+    fn a_conflicted_merge_continues_once_resolved_or_aborts() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let cancel = AtomicBool::new(false);
+        let run = |args: &[&str]| git(root, args, None, &cancel);
+        run(&["init", "-q", "-b", "main"]).unwrap();
+        for (k, v) in [
+            ("user.name", "Merge fixture"),
+            ("user.email", "fixture@example.invalid"),
+            ("commit.gpgsign", "false"),
+        ] {
+            run(&["config", k, v]).unwrap();
+        }
+        let commit = |content: &str, message: &str| {
+            std::fs::write(root.join("a.md"), content).unwrap();
+            run(&["commit", "-q", "-am", message]).unwrap();
+        };
+        std::fs::write(root.join("a.md"), "base\n").unwrap();
+        run(&["add", "a.md"]).unwrap();
+        run(&["commit", "-q", "-m", "base"]).unwrap();
+        run(&["switch", "-q", "-c", "other"]).unwrap();
+        commit("theirs\n", "theirs");
+        run(&["switch", "-q", "main"]).unwrap();
+        commit("ours\n", "ours");
+        let merged = |cancel: &AtomicBool| {
+            assert!(git(root, &["merge", "other"], None, cancel).is_err());
+            status(root, cancel).unwrap()
+        };
+        let s = merged(&cancel);
+        assert_eq!(s.operation, Some(RepositoryOperation::Merge));
+        assert!(s.changes[0].conflict());
+        // Nothing else runs while it is in progress.
+        let refused = operate(root, &Operation::Continue, &cancel).unwrap_err();
+        assert!(refused.contains("resolve and stage"), "{refused}");
+        let refused = operate(root, &Operation::Pull, &cancel).unwrap_err();
+        assert!(refused.contains("while merge is in progress"), "{refused}");
+        // Abort restores the branch.
+        let s = operate(root, &Operation::Abort, &cancel).unwrap();
+        assert_eq!(s.operation, None);
+        assert!(s.changes.is_empty());
+        assert_eq!(
+            std::fs::read_to_string(root.join("a.md")).unwrap(),
+            "ours\n"
+        );
+        // Resolved and staged, Continue commits the merge without an editor.
+        merged(&cancel);
+        std::fs::write(root.join("a.md"), "both\n").unwrap();
+        run(&["add", "a.md"]).unwrap();
+        let s = operate(root, &Operation::Continue, &cancel).unwrap();
+        assert_eq!(s.operation, None);
+        let parents =
+            String::from_utf8(run(&["show", "-s", "--format=%P", "HEAD"]).unwrap()).unwrap();
+        assert_eq!(parents.split_whitespace().count(), 2);
+        let none = operate(root, &Operation::Abort, &cancel).unwrap_err();
+        assert!(none.contains("no merge, rebase"), "{none}");
+        // A stopped rebase is recognised too.
+        run(&["switch", "-q", "other"]).unwrap();
+        commit("again\n", "again");
+        assert!(run(&["rebase", "main"]).is_err());
+        assert_eq!(
+            status(root, &cancel).unwrap().operation,
+            Some(RepositoryOperation::Rebase)
+        );
+        assert_eq!(
+            operate(root, &Operation::Abort, &cancel).unwrap().operation,
+            None
+        );
     }
     #[test]
     fn empty_commits_take_the_product_default_message() {

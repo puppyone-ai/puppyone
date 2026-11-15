@@ -195,6 +195,7 @@ fn project_sections(snapshot: &Snapshot) -> Vec<Section> {
 /// `getSourceControlPrimaryActionSlot`: which action wears the primary colour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PrimarySlot {
+    Operation,
     Sync,
     Staged,
     Committed,
@@ -204,6 +205,7 @@ enum PrimarySlot {
 #[derive(Clone, Copy, Debug, Default)]
 struct SlotCandidates {
     conflicts: bool,
+    operation: bool,
     sync: bool,
     staged: bool,
     committed: bool,
@@ -212,6 +214,8 @@ struct SlotCandidates {
 fn primary_slot(c: SlotCandidates) -> Option<PrimarySlot> {
     if c.conflicts {
         None
+    } else if c.operation {
+        Some(PrimarySlot::Operation)
     } else if c.sync {
         Some(PrimarySlot::Sync)
     } else if c.staged {
@@ -240,7 +244,8 @@ impl CommittedAction {
     }
 }
 /// `getCommittedPrimaryAction`: the action and whether it is disabled; a
-/// blocked repository (unresolved conflicts) sends nothing.
+/// blocked repository (unresolved conflicts, an operation in progress)
+/// sends nothing.
 fn committed_action(snapshot: &Snapshot, blocked: bool) -> Option<(CommittedAction, bool)> {
     if snapshot.can_publish() {
         Some((CommittedAction::Publish, blocked))
@@ -946,6 +951,13 @@ impl SourceControl {
             SharedString::from(format!("git-section-{panel:?}")),
             tr(if panel == Panel::Unstaged && count == 0 {
                 "source-control.label.changes"
+            } else if panel == Panel::Merge
+                && self
+                    .snapshot
+                    .as_ref()
+                    .is_some_and(|s| s.operation.is_some())
+            {
+                "source-control.section.operation"
             } else {
                 panel.title()
             }),
@@ -1114,7 +1126,10 @@ impl SourceControl {
         let t = cx.palette();
         let has = |panel| self.sections.iter().any(|s: &Section| s.panel == panel);
         let conflicts = has(Panel::Merge);
-        let committed = committed_action(snapshot, conflicts);
+        let operation = snapshot.operation.is_some();
+        // `syncBlocked`.
+        let blocked = conflicts || operation;
+        let committed = committed_action(snapshot, blocked);
         // `remote.ahead` / `behind`: counted against an existing target only.
         let (ahead, behind) = if snapshot.remote_exists() {
             (snapshot.ahead, snapshot.behind)
@@ -1123,22 +1138,32 @@ impl SourceControl {
         };
         let primary = primary_slot(SlotCandidates {
             conflicts,
+            // `operationPrimaryAction`: Continue, once nothing conflicts.
+            operation,
             sync: behind > 0,
-            staged: has(Panel::Staged),
+            staged: has(Panel::Staged) && !blocked,
             committed: committed.is_some_and(|(_, disabled)| !disabled),
-            stage_and_commit: has(Panel::Unstaged),
+            stage_and_commit: has(Panel::Unstaged) && !blocked,
         });
         let mut stack = v_flex().flex_1().min_h_0().overflow_hidden();
         let mut panels: Vec<Div> = vec![];
-        if let Some(section) = self.sections.iter().find(|s| s.panel == Panel::Merge) {
-            let count = section.changes.len();
-            let header = self.section_header(Panel::Merge, count, true, None, cx);
-            panels.push(self.panel(
-                Panel::Merge,
-                count as f32,
-                header,
-                self.file_list(Panel::Merge, count, cx),
-            ));
+        if conflicts || operation {
+            let count = self
+                .sections
+                .iter()
+                .find(|s| s.panel == Panel::Merge)
+                .map_or(0, |s| s.changes.len());
+            let action = operation.then(|| {
+                self.operation_actions(conflicts, primary == Some(PrimarySlot::Operation), cx)
+                    .into_any_element()
+            });
+            let header = self.section_header(Panel::Merge, count, true, action, cx);
+            let body = if count > 0 {
+                self.file_list(Panel::Merge, count, cx)
+            } else {
+                div().into_any_element()
+            };
+            panels.push(self.panel(Panel::Merge, count as f32, header, body));
         }
         if ahead > 0 || committed.is_some() {
             let push = tr("source-control.sync.push");
@@ -1209,8 +1234,8 @@ impl SourceControl {
                     "source-control.sync.commit"
                 }),
                 primary == Some(PrimarySlot::Staged),
-                // `canCommit`: never over unresolved conflicts.
-                self.busy || conflicts,
+                // `canCommit`: never over conflicts or an operation.
+                self.busy || blocked,
             )
             .tooltip(tr("source-control.sync.commitStaged"))
             .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Commit(String::new()), cx)));
@@ -1239,7 +1264,7 @@ impl SourceControl {
                     "source-control.action.stageCommit"
                 }),
                 primary == Some(PrimarySlot::StageAndCommit),
-                self.busy || conflicts,
+                self.busy || blocked,
             )
             .tooltip(tr("source-control.action.stageCommitTitle"))
             .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::StageAndCommit, cx)));
@@ -1297,6 +1322,63 @@ impl SourceControl {
             );
         }
         list
+    }
+    /// The operation section's actions (`.desktop-git-section-actions`):
+    /// Abort after a confirmation, and Continue once nothing conflicts.
+    fn operation_actions(&self, conflicts: bool, primary: bool, cx: &mut Context<Self>) -> Div {
+        let t = cx.palette();
+        h_flex()
+            .flex_none()
+            .gap(px(2.))
+            .child(
+                // `.po-sidebar-icon-button.danger`: tinted at rest.
+                IconButton::new(
+                    "git-abort-operation",
+                    Icon::new("undo-2").with_size(px(13.)).stroke(2.),
+                )
+                .label(tr("source-control.sync.abort"))
+                .with_size(px(24.))
+                .danger()
+                .color(theme::mix(t.danger, t.muted, 0.72))
+                .rounded(px(5.))
+                .disabled(self.busy)
+                .on_click(cx.listener(|s, _, window, cx| {
+                    cx.stop_propagation();
+                    s.confirm_abort(window, cx);
+                })),
+            )
+            .when(!conflicts, |d| {
+                d.child(
+                    operation_button(
+                        "git-continue-operation",
+                        "check",
+                        tr(if self.running == Some("continue") {
+                            "source-control.sync.continuing"
+                        } else {
+                            "source-control.sync.continue"
+                        }),
+                        primary,
+                        self.busy,
+                    )
+                    .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Continue, cx))),
+                )
+            })
+    }
+    /// `window.confirm(source-control.dialog.abortOperation)` before Abort.
+    fn confirm_abort(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let answer = window.prompt(
+            PromptLevel::Warning,
+            tr("source-control.dialog.abortOperation"),
+            None,
+            &[tr("source-control.sync.abort"), tr("common.action.cancel")],
+            cx,
+        );
+        cx.spawn(async move |this, cx| {
+            if answer.await == Ok(0) {
+                let _ = this.update(cx, |s, cx| s.operation(Operation::Abort, cx));
+            }
+        })
+        .detach();
     }
     /// `.desktop-git-operation-error`.
     fn error_banner(&self, error: String, cx: &mut Context<Self>) -> Div {
@@ -1734,7 +1816,17 @@ mod tests {
             ),
             (
                 SlotCandidates {
+                    operation: true,
+                    sync: true,
+                    staged: true,
+                    ..c()
+                },
+                Some(PrimarySlot::Operation),
+            ),
+            (
+                SlotCandidates {
                     conflicts: true,
+                    operation: true,
                     sync: true,
                     staged: true,
                     committed: true,
