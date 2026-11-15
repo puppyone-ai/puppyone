@@ -28,6 +28,7 @@ use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
 
+pub(super) mod clipboard_notice;
 mod keyboard;
 mod menus;
 mod motion;
