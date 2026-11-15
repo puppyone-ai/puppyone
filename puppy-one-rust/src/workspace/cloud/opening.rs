@@ -486,11 +486,7 @@ mod tests {
                 }));
             }
             if req.path.ends_with("/workbench") && req.method == reqwest::Method::POST {
-                return Err(Error::Response(
-                    503,
-                    Some("workbench_preparing"),
-                    open_diag,
-                ));
+                return Err(Error::Response(503, Some("workbench_preparing"), open_diag));
             }
             panic!("unexpected request {} {}", req.method, req.path);
         }));

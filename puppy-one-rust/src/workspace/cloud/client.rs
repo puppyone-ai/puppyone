@@ -149,8 +149,8 @@ impl Shared {
         check_fenced()?;
         let root = RelativePath::new(std::path::Path::new("")).map_err(VerifyError::Contract)?;
         if let Some(entries) = opening_root {
-            let parsed =
-                model::entries(json!({ "entries": entries }), &root).map_err(VerifyError::Contract)?;
+            let parsed = model::entries(json!({ "entries": entries }), &root)
+                .map_err(VerifyError::Contract)?;
             check_fenced()?;
             return Ok(parsed);
         }
