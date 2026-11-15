@@ -96,8 +96,8 @@ impl Render for SourceSplit {
                     }
                     cx.notify();
                 }))
-                .on_key_down(cx.listener(|s, e: &KeyDownEvent, _, cx| {
-                    match e.keystroke.key.as_str() {
+                .on_key_down(cx.listener(
+                    |s, e: &KeyDownEvent, _, cx| match e.keystroke.key.as_str() {
                         "left" => {
                             cx.stop_propagation();
                             s.share = clamp_share(s.share + KEYBOARD_STEP);
@@ -116,8 +116,8 @@ impl Render for SourceSplit {
                             }
                         }
                         _ => {}
-                    }
-                }));
+                    },
+                ));
             root = root
                 .child(
                     div()

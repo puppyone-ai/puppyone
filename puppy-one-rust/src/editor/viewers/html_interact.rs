@@ -542,9 +542,12 @@ impl Interact {
         cx: &mut App,
     ) {
         let (tx, rx) = async_channel::bounded::<Option<Vec<u8>>>(1);
-        let started = self.frame.read(cx).capture_png(crop, viewport, move |bytes| {
-            let _ = tx.try_send(bytes);
-        });
+        let started = self
+            .frame
+            .read(cx)
+            .capture_png(crop, viewport, move |bytes| {
+                let _ = tx.try_send(bytes);
+            });
         if !started {
             return;
         }
@@ -701,7 +704,11 @@ impl Interact {
                     cx.update(|cx| {
                         if let Some(png) = bytes {
                             let mut st = this.state.borrow_mut();
-                            if st.fullpage_slices.as_ref().is_none_or(|(jid, _)| *jid != id) {
+                            if st
+                                .fullpage_slices
+                                .as_ref()
+                                .is_none_or(|(jid, _)| *jid != id)
+                            {
                                 st.fullpage_slices = Some((id, Vec::new()));
                             }
                             if let Some((_, list)) = &mut st.fullpage_slices {

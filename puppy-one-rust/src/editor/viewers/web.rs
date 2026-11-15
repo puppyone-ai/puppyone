@@ -65,7 +65,8 @@ impl WebFrame {
         {
             let img = image::RgbaImage::from_pixel(160, 120, image::Rgba([69, 153, 223, 255]));
             let mut buf = std::io::Cursor::new(Vec::new());
-            let _ = image::DynamicImage::ImageRgba8(img).write_to(&mut buf, image::ImageFormat::Png);
+            let _ =
+                image::DynamicImage::ImageRgba8(img).write_to(&mut buf, image::ImageFormat::Png);
             let mut png = buf.into_inner();
             if let Some(rect) = crop {
                 let vp = viewport.unwrap_or((160., 120.));

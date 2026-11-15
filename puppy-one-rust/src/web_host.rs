@@ -765,8 +765,7 @@ mod tests {
 
         let top = sample_png(400, 300, 20, 30, 40);
         let bottom = sample_png(400, 300, 200, 100, 50);
-        let stitched =
-            stitch_png_slices(&[(0., top), (150., bottom)], 450., 300.).unwrap();
+        let stitched = stitch_png_slices(&[(0., top), (150., bottom)], 450., 300.).unwrap();
         let full = image::load_from_memory(&stitched).unwrap().to_rgba8();
         assert_eq!((full.width(), full.height()), (400, 450));
         assert_eq!(full.get_pixel(10, 10).0, [20, 30, 40, 255]);

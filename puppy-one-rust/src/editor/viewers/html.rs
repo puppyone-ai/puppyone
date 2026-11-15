@@ -47,8 +47,13 @@ enum Mode {
 }
 
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
-    let source: Rc<dyn ViewerSurface> =
-        Rc::from(code::open_with(request, None, request.file_mode, window, cx));
+    let source: Rc<dyn ViewerSurface> = Rc::from(code::open_with(
+        request,
+        None,
+        request.file_mode,
+        window,
+        cx,
+    ));
     let interact = Interact::new(request, source.clone(), window, cx);
     interact.refresh(cx);
     let empty = cx.new(|_| EmptyPage);
@@ -273,9 +278,7 @@ impl HtmlSurface {
         }
         self.source_panel.set(open);
         self.notify_split(cx);
-        if open
-            && let Some(focus) = self.source.focus_handle(cx)
-        {
+        if open && let Some(focus) = self.source.focus_handle(cx) {
             focus.focus(window, cx);
         }
     }

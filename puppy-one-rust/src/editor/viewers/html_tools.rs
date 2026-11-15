@@ -88,15 +88,9 @@ pub enum HtmlToolEvent {
         html_snippet: String,
     },
     /// User captured a region, snapped element, annotated page, or full page to copy.
-    CopyScreenshot {
-        png: Vec<u8>,
-        label: String,
-    },
+    CopyScreenshot { png: Vec<u8>, label: String },
     /// User clicked "Send to Agent" from the annotation toolbar with drawn marks.
-    SendAnnotatedToAgent {
-        png: Vec<u8>,
-        stroke_count: usize,
-    },
+    SendAnnotatedToAgent { png: Vec<u8>, stroke_count: usize },
 }
 
 /// Escapes a string for safe interpolation as a JS string literal inside `<script>`.
@@ -836,13 +830,19 @@ pub fn locate_element_lines(
         }
         let dist = idx.abs_diff(occurrence) as i32;
         score += (30 - dist * 6).max(0);
-        if best.as_ref().is_none_or(|(best_score, _)| score > *best_score) {
+        if best
+            .as_ref()
+            .is_none_or(|(best_score, _)| score > *best_score)
+        {
             best = Some((score, cand));
         }
     }
     let (_, chosen) = best?;
     let start_line = byte_to_line(source, chosen.start_byte);
-    let end_line = byte_to_line(source, chosen.end_byte.saturating_sub(1).max(chosen.start_byte));
+    let end_line = byte_to_line(
+        source,
+        chosen.end_byte.saturating_sub(1).max(chosen.start_byte),
+    );
     Some((start_line, end_line.max(start_line)))
 }
 
