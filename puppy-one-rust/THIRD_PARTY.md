@@ -51,16 +51,6 @@ of Chromium's PDF viewer), loaded at runtime from the app bundle's
 (`chromium/8125`, pinned with its SHA-256 by `tools/fetch-pdfium.py`); the
 license ships as `PDFIUM_LICENSE.txt`. `pdfium-render` (MIT/Apache-2.0) binds it.
 
-## DuckDB
-
-The database viewer reads DuckDB files with DuckDB (MIT, the engine the
-product's `@duckdb/node-api` 1.5.5 embeds), loaded at runtime from the app
-bundle's `Frameworks/libduckdb.dylib` through its C API (`libloading`, MIT /
-ISC). The library comes from the DuckDB v1.5.5 release
-(`libduckdb-osx-universal.zip`, pinned with its SHA-256 by
-`tools/fetch-duckdb.py`, thinned to the build machine's architecture); the
-license ships as `DUCKDB_LICENSE.txt`.
-
 ## Office preview bundle
 
 `assets/web/office-viewer.js`, its CSS and its three workers are the

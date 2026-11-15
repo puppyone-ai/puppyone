@@ -2674,25 +2674,40 @@
     ".db",
     ".db3",
     ".sqlite",
-    ".sqlite3",
-    ".duckdb",
-    ".ddb"
+    ".sqlite3"
    ],
    "mimeTypes": [
     "application/vnd.sqlite3",
-    "application/x-sqlite3",
-    "application/vnd.duckdb"
+    "application/x-sqlite3"
    ],
    "mimeTypesByExtension": {
     ".db": "application/octet-stream",
     ".db3": "application/octet-stream",
     ".sqlite": "application/vnd.sqlite3",
-    ".sqlite3": "application/vnd.sqlite3",
+    ".sqlite3": "application/vnd.sqlite3"
+   },
+   "category": "binary",
+   "defaultViewer": "database-preview",
+   "editable": false,
+   "ingestStrategy": "raw"
+  },
+  {
+   "id": "duckdb",
+   "label": "DuckDB",
+   "semanticKind": "database",
+   "extensions": [
+    ".duckdb",
+    ".ddb"
+   ],
+   "mimeTypes": [
+    "application/vnd.duckdb"
+   ],
+   "mimeTypesByExtension": {
     ".duckdb": "application/vnd.duckdb",
     ".ddb": "application/vnd.duckdb"
    },
    "category": "binary",
-   "defaultViewer": "database-preview",
+   "defaultViewer": "binary-placeholder",
    "editable": false,
    "ingestStrategy": "raw"
   },

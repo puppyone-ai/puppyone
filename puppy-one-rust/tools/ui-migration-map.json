@@ -2389,18 +2389,16 @@
       ],
       "targets": [
         "src/editor/viewers/database.rs",
-        "src/platform/database.rs",
-        "src/platform/duckdb.rs"
+        "src/platform/database.rs"
       ],
       "evidence": [
         "test:next_pages_continue_on_their_snapshot_and_restart_on_a_new_one",
         "test:a_sqlite_file_lists_tables_and_pages_rows",
         "test:long_values_wide_tables_and_generated_columns_follow_the_budget",
         "test:signatures_sidecars_and_budgets_are_checked",
-        "test:a_read_only_database_reads_and_refuses_writes",
-        "test:duckdb_tables_and_views_page_with_their_kinds"
+        "test:duckdb_extensions_route_to_binary_placeholder"
       ],
-      "remaining": "SQLite follows the product budget, object list, typed cells, recovery checks, idle sleep and snapshot restart, with the product toolbar, sticky grid and pager. DuckDB is implemented with a read-only native engine, verified explicitly by tools/verify-native-dependencies.py; queries run on the background executor rather than a killable host process with the SQL authorizer, object tabs have no arrow-key focus movement, and sidecar files are not watched as document dependencies.",
+      "remaining": "SQLite follows the product budget, object list, typed cells, recovery checks, idle sleep and snapshot restart, with the product toolbar, sticky grid and pager; DuckDB files (.duckdb, .ddb) route to binary-placeholder rather than embedding libduckdb. Object tabs have no arrow-key focus movement, and sidecar files are not watched as document dependencies.",
       "historical_evidence": [
         "artifact:database-native/rows-light.png",
         "artifact:database-native/objects-light.png"

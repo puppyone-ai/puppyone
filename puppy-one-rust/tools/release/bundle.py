@@ -59,7 +59,7 @@ def cli_declaration():
 
 
 def assemble(app, binary, info, environment=None, resources=None):
-    """Writes `app` around `binary`: PDFium and DuckDB in Frameworks, the whiteboard's
+    """Writes `app` around `binary`: PDFium in Frameworks, the whiteboard's
     fonts and the licences in Resources, `resources` (name → bytes) beside
     them, and `info` as Info.plist."""
     contents = Path(app) / 'Contents'
@@ -75,15 +75,6 @@ def assemble(app, binary, info, environment=None, resources=None):
         frameworks.mkdir(parents=True, exist_ok=True)
         shutil.copy2(pdfium, frameworks / pdfium.name)
         shutil.copy2(ROOT / 'vendor/pdfium/LICENSE', resource_dir / 'PDFIUM_LICENSE.txt')
-    # DuckDB (tools/fetch-duckdb.py): the database viewer looks in ../Frameworks.
-    duckdb = ROOT / 'vendor/duckdb/lib/libduckdb.dylib'
-    if duckdb.is_file():
-        frameworks = contents / 'Frameworks'
-        frameworks.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(duckdb, frameworks / duckdb.name)
-        shutil.copy2(ROOT / 'vendor/duckdb/LICENSE', resource_dir / 'DUCKDB_LICENSE.txt')
-    else:
-        print('warning: no DuckDB; run tools/fetch-duckdb.py (DuckDB files show as unsupported)', file=sys.stderr)
     # The whiteboard's fonts (tools/fetch-excalidraw-fonts.py), served from
     # Resources/excalidraw; a bundle without them draws text in system fonts.
     fonts = ROOT / 'vendor/excalidraw/fonts'

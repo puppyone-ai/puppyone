@@ -68,7 +68,6 @@ jobs:
       - name: Install the pinned native engines
         run: |
           python3 tools/fetch-pdfium.py
-          python3 tools/fetch-duckdb.py
       - name: Enforce editor architecture and frame budgets
         run: |
           python3 -B tools/check-editor-architecture.py --self-test
@@ -105,7 +104,6 @@ jobs:
       - name: Install the pinned native engines
         run: |
           python3 tools/fetch-pdfium.py
-          python3 tools/fetch-duckdb.py
       - name: Run long random-input pipeline fuzz
         env:
           INPUT_ITERATIONS: ${{ inputs.fuzz_iterations }}
