@@ -161,6 +161,17 @@ pub(crate) fn install(
             let _ = published.try_send(s);
         }),
     );
+    // Closing one window releases only its unconsumed consent. On macOS the
+    // application and its activations can outlive every window.
+    let closing = service.clone();
+    cx.on_window_closed(move |_, id| closing.release(&format!("window:{id:?}")))
+        .detach();
+    let quitting = service.clone();
+    cx.on_app_quit(move |_| {
+        quitting.dispose();
+        std::future::ready(())
+    })
+    .detach();
     let entity = cx.new(|cx| Activation::new(service, cx));
     let weak = entity.downgrade();
     cx.spawn(async move |cx| {

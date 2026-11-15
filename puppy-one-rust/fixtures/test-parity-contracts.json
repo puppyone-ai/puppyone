@@ -3730,7 +3730,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -6674,6 +6674,171 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "local-agent-activation-consent-ownership",
+      "acceptance": "Read-only owner-bound plans; closing a native window revokes only its consent, while application quit cancels provider work. Concurrent/repeated consent installs once; 3 active tasks include guided waiting. Interrupted receipts require fresh consent; invalid staged executables cannot commit or retain vendor output. Rust typed requests exclude arbitrary renderer commands/actions. Exact catalog oracle checks architecture recipe metadata; stalled initial write failures never overwrite cancellation.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-activation/activation-service.test.mjs",
+          "sha256": "b10025a9715778d3f56c3cc753342e0f64d9b81166cff9d0086c24edced34b79",
+          "cases": [
+            {
+              "index": 0,
+              "name": "application-owned local Agent activation > planning is read-only, rejects renderer commands and binds consent to its owner"
+            },
+            {
+              "index": 1,
+              "name": "application-owned local Agent activation > installs once, completes without login, and treats duplicate consent as idempotent"
+            },
+            {
+              "index": 2,
+              "name": "application-owned local Agent activation > existing CLI is activated without executing anything (automatic=true)"
+            },
+            {
+              "index": 3,
+              "name": "application-owned local Agent activation > existing CLI is activated without executing anything (automatic=false)"
+            },
+            {
+              "index": 4,
+              "name": "application-owned local Agent activation > cancels during prepare without waiting behind work"
+            },
+            {
+              "index": 5,
+              "name": "application-owned local Agent activation > cancels during install without waiting behind work"
+            },
+            {
+              "index": 6,
+              "name": "application-owned local Agent activation > cancels during verify without waiting behind work"
+            },
+            {
+              "index": 7,
+              "name": "application-owned local Agent activation > keeps cancellation independent from a stalled initial journal write"
+            },
+            {
+              "index": 8,
+              "name": "application-owned local Agent activation > closing a renderer does not cancel; late post-commit discovery cannot resurrect cancelled work"
+            },
+            {
+              "index": 9,
+              "name": "application-owned local Agent activation > restores interrupted work without re-running anything, and permits a fresh confirmed retry"
+            },
+            {
+              "index": 10,
+              "name": "application-owned local Agent activation > guided providers use the same installed=activated rule"
+            },
+            {
+              "index": 11,
+              "name": "application-owned local Agent activation > failure exposes a typed error, never vendor output or login secrets"
+            },
+            {
+              "index": 12,
+              "name": "application-owned local Agent activation > discovery failure never authorizes installing over a possibly existing CLI"
+            },
+            {
+              "index": 13,
+              "name": "application-owned local Agent activation > does not commit an invalid staged executable"
+            },
+            {
+              "index": 14,
+              "name": "application-owned local Agent activation > does not commit an invalid staged executable"
+            },
+            {
+              "index": 15,
+              "name": "application-owned local Agent activation > supports reviewed arm64 recipes without runtime ports or update flags"
+            },
+            {
+              "index": 16,
+              "name": "application-owned local Agent activation > supports reviewed x64 recipes without runtime ports or update flags"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/local-agent-activation/activation-catalog-contract.test.mjs",
+          "sha256": "3d0dab75f145e40ece7c5734dffaddb28dfa02cc0ed43cacc7360ce164308d5b",
+          "cases": [
+            {
+              "index": 38,
+              "name": "every registered Agent obeys the same activation contract > a rejected initial journal write cannot overwrite an acknowledged cancellation"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::window_plans_are_read_only_owner_bound_bounded_and_revocable"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::simultaneous_and_repeated_consent_installs_once_even_after_completion"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::releasing_a_window_keeps_post_commit_work_and_another_window_can_cancel_it"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::disposal_revokes_all_consent_and_cancels_work_without_waiting_for_discovery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::three_active_operations_include_guided_waiting_and_reuse_does_not_take_a_slot"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::interrupted_receipts_need_fresh_consent_and_retry_replaces_only_that_agent"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::installation_failure_is_a_typed_receipt_and_never_marks_the_cli_installed"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::a_late_initial_journal_failure_cannot_overwrite_confirmed_cancellation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::every_registered_agent_reuses_an_existing_cli_without_installation_or_guides"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::every_missing_agent_follows_its_declared_automatic_or_guided_recipe"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::every_agent_refuses_installation_after_failed_discovery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::every_agent_cancels_independently_and_discards_a_late_discovered_cli"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::automatic_recipes_cancel_both_installation_and_post_commit_discovery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::cancellation_does_not_wait_behind_the_initial_journal_write"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::invalid_staged_executables_never_commit_or_leave_installation_residue"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::a_verified_archive_becomes_the_current_installation"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::closing_a_native_window_revokes_only_its_plans_and_keeps_application_work"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::tests::actual_typescript_platform_matrix_preserves_guided_and_automatic_capabilities"
+        }
+      ]
     }
   ],
   "openAcceptance": [

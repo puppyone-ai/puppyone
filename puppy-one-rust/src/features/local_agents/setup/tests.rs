@@ -658,3 +658,67 @@ fn pending_activation_requests_keep_stop_and_close_clickable(cx: &mut TestAppCon
         "a late request must not reopen a closed dialog"
     );
 }
+
+#[gpui::test]
+fn closing_a_native_window_revokes_only_its_plans_and_keeps_application_work(
+    cx: &mut TestAppContext,
+) {
+    struct Empty;
+    impl Render for Empty {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
+    }
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    let store = cx.update(|cx| {
+        install(
+            dir.path().join("activation.json"),
+            |_| Arc::new(Fake::default()),
+            cx,
+        )
+    });
+    let service = store.read_with(cx, |s, _| s.service.clone());
+    let first = cx.add_window(|_, _| Empty);
+    let second = cx.add_window(|_, _| Empty);
+    let owner = |window: WindowHandle<Empty>| format!("window:{:?}", window.window_id());
+    let first_plan = service
+        .plan(&owner(first), "claude", Surface::Chat)
+        .unwrap();
+    let second_plan = service
+        .plan(&owner(second), "hermes", Surface::Chat)
+        .unwrap();
+    service.start(&owner(first), &first_plan.plan_id).unwrap();
+    service.settle_for_test();
+    first
+        .update(cx, |_, window, _| window.remove_window())
+        .unwrap();
+    cx.run_until_parked();
+    assert_eq!(
+        service.start(&owner(first), &first_plan.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    assert_eq!(
+        service.read().unwrap().operations[0].status,
+        activation::Status::SetupRequired
+    );
+    service.start(&owner(second), &second_plan.plan_id).unwrap();
+    service.settle_for_test();
+    assert_eq!(service.read().unwrap().operations.len(), 2);
+    second
+        .update(cx, |_, window, _| window.remove_window())
+        .unwrap();
+    cx.run_until_parked();
+    assert_eq!(
+        service.start(&owner(second), &second_plan.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    // Closing even the last native window is not application disposal.
+    assert!(service.plan("next-window", "codex", Surface::Chat).is_ok());
+    cx.update(App::shutdown);
+    assert_eq!(
+        service.plan("after-quit", "codex", Surface::Chat),
+        Err(ErrorCode::Interrupted)
+    );
+    service.settle_for_test();
+}

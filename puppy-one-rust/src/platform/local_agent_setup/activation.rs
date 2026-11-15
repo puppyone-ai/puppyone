@@ -211,6 +211,7 @@ struct State {
     tasks: Vec<Task>,
     plans: Vec<(String, PlanRecord)>,
     loaded: Option<Result<(), String>>,
+    disposed: bool,
 }
 #[derive(Clone)]
 pub struct Service {
@@ -240,6 +241,7 @@ impl Service {
                 tasks: vec![],
                 plans: vec![],
                 loaded: None,
+                disposed: false,
             })),
             ports,
             publish,
@@ -310,6 +312,9 @@ impl Service {
     }
     pub fn plan(&self, owner: &str, setup_id: &str, surface: Surface) -> Result<Plan, ErrorCode> {
         let mut state = self.loaded()?;
+        if state.disposed {
+            return Err(ErrorCode::Interrupted);
+        }
         let (route, recipe) = self
             .registered(setup_id)
             .filter(|(r, _)| r.supports(surface))
@@ -335,8 +340,43 @@ impl Service {
         state.plans.drain(..excess);
         Ok(plan)
     }
+    /// Window retirement revokes consent, never application-owned work.
+    pub fn release(&self, owner: &str) {
+        self.state
+            .lock()
+            .unwrap()
+            .plans
+            .retain(|(_, p)| p.owner != owner);
+    }
+    /// A plan authorizes only its registered official URL, bound to its owner.
+    pub fn open_guide(&self, owner: &str, plan_id: &str) -> Result<(), ErrorCode> {
+        let state = self.state.lock().unwrap();
+        let url = state
+            .plans
+            .iter()
+            .find(|(id, p)| id == plan_id && p.owner == owner && !state.disposed)
+            .map(|(_, p)| p.route.guide_url)
+            .ok_or(ErrorCode::Unsupported)?;
+        drop(state);
+        self.ports.open_guide(url).map_err(|_| ErrorCode::Process)
+    }
+    /// Application shutdown revokes all plans and signals running work. It
+    /// never waits for provider I/O; unfinished receipts recover as Interrupted.
+    pub fn dispose(&self) {
+        let mut state = self.state.lock().unwrap();
+        state.disposed = true;
+        state.plans.clear();
+        for task in &state.tasks {
+            if op(&state, &task.operation_id).is_some_and(|o| o.status.active()) {
+                task.cancel.store(true, Ordering::Relaxed);
+            }
+        }
+    }
     pub fn start(&self, owner: &str, plan_id: &str) -> Result<Snapshot, ErrorCode> {
         let mut state = self.loaded()?;
+        if state.disposed {
+            return Err(ErrorCode::Unsupported);
+        }
         let index = state
             .plans
             .iter()
@@ -467,7 +507,7 @@ impl Service {
                 return self.read();
             }
             Action::Check => {
-                if !running && entry.status == Status::SetupRequired {
+                if !state.disposed && !running && entry.status == Status::SetupRequired {
                     self.launch(&mut state, operation_id);
                 }
             }

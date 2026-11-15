@@ -55,6 +55,17 @@ impl Ports for Fake {
         self.refreshes.fetch_add(1, Ordering::SeqCst);
     }
 }
+fn wait_for_refresh(ports: &Fake, expected: usize) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    while ports.refreshes.load(Ordering::SeqCst) < expected {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "installation refresh did not arrive"
+        );
+        std::thread::yield_now();
+    }
+    assert_eq!(ports.refreshes.load(Ordering::SeqCst), expected);
+}
 fn new_service(dir: &std::path::Path, ports: Arc<Fake>) -> (Service, mpsc::Receiver<Snapshot>) {
     let (tx, rx) = mpsc::channel();
     let tx = Mutex::new(tx);
@@ -538,4 +549,321 @@ fn an_acknowledged_cancel_wins_over_a_prepared_terminal_result() {
         );
         assert_eq!(op.steps[VERIFY], StepState::Pending);
     }
+}
+
+#[test]
+fn window_plans_are_read_only_owner_bound_bounded_and_revocable() {
+    let dir = tempfile::tempdir().unwrap();
+    let ports = Arc::new(Fake::default());
+    let (service, _) = new_service(dir.path(), ports.clone());
+    let first = service.plan("closed", "codex", Surface::Chat).unwrap();
+    assert_eq!(
+        service.plan("closed", "../codex", Surface::Chat),
+        Err(ErrorCode::Unsupported)
+    );
+    assert_eq!(
+        service.start("other", &first.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    assert_eq!(
+        service.open_guide("other", &first.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    service.open_guide("closed", &first.plan_id).unwrap();
+    assert_eq!(
+        *ports.guides.lock().unwrap(),
+        [super::super::route("codex").unwrap().guide_url]
+    );
+    let other = service.plan("other", "claude", Surface::Chat).unwrap();
+    service.release("closed");
+    assert_eq!(
+        service.start("closed", &first.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    assert_eq!(
+        service.open_guide("closed", &first.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    // Filling the bounded consent cache evicts its oldest, across owners.
+    let mut newest = None;
+    for _ in 0..128 {
+        newest = Some(service.plan("live", "codex", Surface::Chat).unwrap());
+    }
+    assert_eq!(
+        service.start("other", &other.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    assert_eq!(ports.resolves.load(Ordering::SeqCst), 0);
+    assert_eq!(ports.install_attempts.load(Ordering::SeqCst), 0);
+    assert!(service.read().unwrap().operations.is_empty());
+    service.start("live", &newest.unwrap().plan_id).unwrap();
+    assert_eq!(settle(&service, "codex").status, Status::Ready);
+}
+
+#[test]
+fn simultaneous_and_repeated_consent_installs_once_even_after_completion() {
+    let dir = tempfile::tempdir().unwrap();
+    let ports = Arc::new(Fake::default());
+    let (service, published) = new_service(dir.path(), ports.clone());
+    let plan = service.plan("w", "codex", Surface::Chat).unwrap();
+    let barrier = Arc::new(std::sync::Barrier::new(3));
+    let threads: Vec<_> = (0..2)
+        .map(|_| {
+            let (service, barrier, plan) = (service.clone(), barrier.clone(), plan.clone());
+            std::thread::spawn(move || {
+                barrier.wait();
+                service.start("w", &plan.plan_id).unwrap()
+            })
+        })
+        .collect();
+    barrier.wait();
+    for thread in threads {
+        assert_eq!(thread.join().unwrap().operations.len(), 1);
+    }
+    let ready = settle(&service, "codex");
+    assert_eq!(ready.status, Status::Ready);
+    assert_eq!(
+        service.start("w", &plan.plan_id).unwrap().operations,
+        [ready]
+    );
+    assert_eq!(ports.install_attempts.load(Ordering::SeqCst), 1);
+    wait_for_refresh(&ports, 1);
+    let revisions: Vec<_> = published.try_iter().map(|s| s.revision).collect();
+    assert!(!revisions.is_empty() && revisions.windows(2).all(|w| w[0] < w[1]));
+}
+
+#[test]
+fn releasing_a_window_keeps_post_commit_work_and_another_window_can_cancel_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let (entered, waiting) = mpsc::channel();
+    let (finish, released) = mpsc::channel();
+    let released = Mutex::new(released);
+    let count = AtomicUsize::new(0);
+    let ports = Arc::new(Fake {
+        resolver: Some(Arc::new(move || {
+            if count.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Ok(false);
+            }
+            entered.send(()).unwrap();
+            released
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(3))
+                .unwrap();
+            Ok(true)
+        })),
+        ..Fake::default()
+    });
+    let (service, published) = new_service(dir.path(), ports.clone());
+    let plan = service.plan("closed", "codex", Surface::Chat).unwrap();
+    let id = service.start("closed", &plan.plan_id).unwrap().operations[0]
+        .operation_id
+        .clone();
+    waiting.recv_timeout(Duration::from_secs(2)).unwrap();
+    service.release("closed");
+    assert_eq!(
+        service.read().unwrap().operations[0].status,
+        Status::Verifying
+    );
+    assert_eq!(
+        service.start("closed", &plan.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    // Actions belong to the application, not the retired consent owner.
+    assert_eq!(
+        service.act(&id, Action::Cancel).unwrap().operations[0].status,
+        Status::Cancelling
+    );
+    finish.send(()).unwrap();
+    let cancelled = settle(&service, "codex");
+    assert_eq!(
+        (cancelled.status, cancelled.installed),
+        (Status::Cancelled, true)
+    );
+    assert!(
+        published
+            .try_iter()
+            .all(|s| s.operations[0].status != Status::Ready)
+    );
+    wait_for_refresh(&ports, 1);
+}
+
+#[test]
+fn disposal_revokes_all_consent_and_cancels_work_without_waiting_for_discovery() {
+    let dir = tempfile::tempdir().unwrap();
+    let (entered, waiting) = mpsc::channel();
+    let (finish, released) = mpsc::channel();
+    let released = Mutex::new(released);
+    let ports = Arc::new(Fake {
+        resolver: Some(Arc::new(move || {
+            entered.send(()).unwrap();
+            released
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(3))
+                .unwrap();
+            Ok(true)
+        })),
+        ..Fake::default()
+    });
+    let (service, _) = new_service(dir.path(), ports.clone());
+    let plan = service.plan("w", "codex", Surface::Chat).unwrap();
+    service.start("w", &plan.plan_id).unwrap();
+    waiting.recv_timeout(Duration::from_secs(2)).unwrap();
+    service.dispose();
+    service.dispose();
+    assert_eq!(
+        service.plan("w", "claude", Surface::Chat),
+        Err(ErrorCode::Interrupted)
+    );
+    assert_eq!(
+        service.start("w", &plan.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    assert_eq!(
+        service.open_guide("w", &plan.plan_id),
+        Err(ErrorCode::Unsupported)
+    );
+    finish.send(()).unwrap();
+    let cancelled = settle(&service, "codex");
+    assert_eq!(
+        (cancelled.status, cancelled.installed),
+        (Status::Cancelled, false)
+    );
+    assert_eq!(ports.install_attempts.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn three_active_operations_include_guided_waiting_and_reuse_does_not_take_a_slot() {
+    let dir = tempfile::tempdir().unwrap();
+    let (service, _) = service_with_journal(dir.path());
+    for id in ["claude", "opencode", "pi"] {
+        let plan = service.plan("w", id, Surface::Chat).unwrap();
+        service.start("w", &plan.plan_id).unwrap();
+        assert_eq!(settle(&service, id).status, Status::SetupRequired);
+    }
+    let other_window = service
+        .plan("another", "claude", Surface::Terminal)
+        .unwrap();
+    assert_eq!(
+        service
+            .start("another", &other_window.plan_id)
+            .unwrap()
+            .operations
+            .len(),
+        3
+    );
+    let fourth = service.plan("w", "hermes", Surface::Chat).unwrap();
+    assert_eq!(
+        service.start("w", &fourth.plan_id),
+        Err(ErrorCode::InstallationBusy)
+    );
+    let first = service.read().unwrap().operations[0].operation_id.clone();
+    assert_eq!(
+        service.act(&first, Action::Dismiss),
+        Err(ErrorCode::Unsupported)
+    );
+    service.act(&first, Action::Cancel).unwrap();
+    service.start("w", &fourth.plan_id).unwrap();
+    assert_eq!(settle(&service, "hermes").status, Status::SetupRequired);
+    assert_eq!(
+        service
+            .read()
+            .unwrap()
+            .operations
+            .iter()
+            .filter(|o| o.status.active())
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn interrupted_receipts_need_fresh_consent_and_retry_replaces_only_that_agent() {
+    let dir = tempfile::tempdir().unwrap();
+    let (before, _) = service_with_journal(dir.path());
+    for id in ["claude", "hermes"] {
+        let plan = before.plan("old", id, Surface::Chat).unwrap();
+        before.start("old", &plan.plan_id).unwrap();
+        settle(&before, id);
+    }
+    let ports = Arc::new(Fake::default());
+    ports.found.lock().unwrap().push("claude".into());
+    let (after, _) = new_service(dir.path(), ports.clone());
+    let recovered = after.read().unwrap();
+    assert!(
+        recovered
+            .operations
+            .iter()
+            .all(|o| o.status == Status::Interrupted && !o.steps.contains(&StepState::Running))
+    );
+    assert_eq!(ports.resolves.load(Ordering::SeqCst), 0);
+    let plan = after.plan("new", "claude", Surface::Chat).unwrap();
+    after.start("new", &plan.plan_id).unwrap();
+    let ready = settle(&after, "claude");
+    assert_eq!(ready.status, Status::Ready);
+    assert_ne!(ready.operation_id, recovered.operations[0].operation_id);
+    assert_eq!(after.read().unwrap().operations[1], recovered.operations[1]);
+    assert_eq!(ports.install_attempts.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn installation_failure_is_a_typed_receipt_and_never_marks_the_cli_installed() {
+    let dir = tempfile::tempdir().unwrap();
+    let ports = Arc::new(Fake {
+        fail_install: Some(ErrorCode::Installation),
+        ..Fake::default()
+    });
+    let (service, _) = new_service(dir.path(), ports.clone());
+    let plan = service.plan("w", "codex", Surface::Chat).unwrap();
+    service.start("w", &plan.plan_id).unwrap();
+    let failed = settle(&service, "codex");
+    assert_eq!(
+        (failed.status, failed.error, failed.installed),
+        (Status::Failed, Some(ErrorCode::Installation), false)
+    );
+    assert_eq!(
+        failed.steps,
+        [StepState::Complete, StepState::Failed, StepState::Pending]
+    );
+    assert_eq!(ports.refreshes.load(Ordering::SeqCst), 0);
+    let serialized = snapshot_json(&service.read().unwrap());
+    assert_eq!(serialized["operations"][0]["errorCode"], "installation");
+    assert_eq!(serialized["operations"][0].as_object().unwrap().len(), 8);
+}
+
+#[test]
+fn a_late_initial_journal_failure_cannot_overwrite_confirmed_cancellation() {
+    let dir = tempfile::tempdir().unwrap();
+    let ports = Arc::new(Fake::default());
+    let (service, _) = new_service(dir.path(), ports.clone());
+    let plan = service.plan("w", "codex", Surface::Chat).unwrap();
+    // A directory at the destination makes atomic replacement fail, without
+    // invalidating the already completed journal read.
+    std::fs::create_dir(&service.journal.path).unwrap();
+    let blocked_write = service.journal.written.lock().unwrap();
+    let starting = service.clone();
+    let thread = std::thread::spawn(move || starting.start("w", &plan.plan_id));
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let id = loop {
+        if let Some(op) = service.read().unwrap().operations.first() {
+            break op.operation_id.clone();
+        }
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::yield_now();
+    };
+    assert_eq!(
+        service.act(&id, Action::Cancel).unwrap().operations[0].status,
+        Status::Cancelled
+    );
+    drop(blocked_write);
+    let result = thread.join().unwrap().unwrap();
+    assert_eq!(
+        (result.operations[0].status, result.operations[0].error),
+        (Status::Cancelled, None)
+    );
+    service.settle_for_test();
+    assert_eq!(ports.resolves.load(Ordering::SeqCst), 0);
+    assert_eq!(ports.install_attempts.load(Ordering::SeqCst), 0);
+    assert!(service.journal.path.is_dir());
 }

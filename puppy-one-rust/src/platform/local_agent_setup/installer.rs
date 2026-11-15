@@ -755,6 +755,40 @@ mod tests {
         );
     }
     #[test]
+    fn invalid_staged_executables_never_commit_or_leave_installation_residue() {
+        for script in [
+            "#!/bin/sh\necho token=fixture-secret >&2\nexit 1\n",
+            "#!/bin/sh\nexit 0\n",
+        ] {
+            let home = tempfile::tempdir().unwrap();
+            let fixture = tempfile::tempdir().unwrap();
+            let source = fixture.path().join("fixture.tgz");
+            archive(
+                &source,
+                &[("package/vendor/bin/codex", Some(script), 0o755)],
+            );
+            let recipe = recipe(&source);
+            let installer = installer(home.path(), source);
+            let commits = std::cell::Cell::new(0);
+            let cancelled = AtomicBool::new(false);
+            assert_eq!(
+                installer.install(
+                    &recipe,
+                    &cancelled,
+                    &|file| verify_version(file, home.path(), &cancelled),
+                    &|| commits.set(commits.get() + 1)
+                ),
+                Err(ErrorCode::Installation)
+            );
+            assert_eq!(commits.get(), 0);
+            let root = home.path().join(".puppyone/agent-runtimes/codex");
+            assert_eq!(std::fs::read_dir(root).unwrap().count(), 0);
+            assert!(
+                std::fs::symlink_metadata(managed_entry(home.path(), "codex").unwrap()).is_err()
+            );
+        }
+    }
+    #[test]
     fn unsafe_archives_are_rejected_before_anything_is_written() {
         let dir = tempfile::tempdir().unwrap();
         let cases: [&[(&str, Option<&str>, u32)]; 4] = [
