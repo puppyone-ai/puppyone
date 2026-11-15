@@ -487,6 +487,26 @@ fn a_folder_a_typescript_host_shares_opens_here() {
             .unwrap(),
         b"written by the Rust access side\n"
     );
+    let conflict = request(Request::Write {
+        path: "note.md".into(),
+        content_base64: STANDARD.encode("stale Rust access write\n"),
+        expected_revision: Some(Some(read["revision"].as_str().unwrap().into())),
+    })
+    .unwrap_err();
+    assert_eq!(conflict.status, 409);
+    assert!(
+        request(Request::Read {
+            path: "../outside".into()
+        })
+        .is_err()
+    );
+    assert_eq!(
+        request(Request::Read {
+            path: "note.md".into()
+        })
+        .unwrap()["content_base64"],
+        saved["content_base64"]
+    );
     let git = request(Request::Git(GitRequest {
         op: "status".into(),
         ..Default::default()
