@@ -15,4 +15,5 @@ pub mod runtime_discovery_supervisor;
 mod tests;
 
 #[cfg(test)]
+#[path = "tests/history_discovery.rs"]
 mod history_discovery_tests;
