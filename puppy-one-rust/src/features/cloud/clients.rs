@@ -27,3 +27,15 @@ pub fn billing_client(cx: &App) -> Option<crate::workspace::cloud::billing::Clie
         },
     )))
 }
+
+/// The signed-in account's Project Agent requests (`agent-links` & `access/sessions`).
+pub fn agents_client(cx: &App) -> Option<crate::workspace::cloud::agents::Client> {
+    let (broker, binding) = account::broker_and_binding(cx)?;
+    Some(crate::workspace::cloud::agents::Client::new(Arc::new(
+        services::BrokerTransport {
+            broker,
+            binding,
+            cancel: Default::default(),
+        },
+    )))
+}

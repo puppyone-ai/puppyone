@@ -157,6 +157,55 @@ pub(super) fn agent_mark(name: &str, avatar: Option<&str>, look: Look, t: Theme)
         mark.into_any_element()
     }
 }
+
+/// Compact `AgentAvatarMark` inside a Homepage Agent tile (`18 × 18`, `4px`
+/// radius) or a Cloud folder's corner stack (`14 × 14`, `3px` radius):
+/// `.onboarding-agent.is-face .desktop-project-reach-mark` and
+/// `.onboarding-project-folder-agent .desktop-project-reach-mark`.
+pub(in crate::app) fn compact_agent_face(
+    name: &str,
+    avatar: Option<&str>,
+    size: f32,
+    radius: f32,
+    ground: Rgba,
+    t: Theme,
+) -> AnyElement {
+    let brand = if avatar == Some("other") {
+        None
+    } else {
+        avatar
+            .and_then(agent_brands::get)
+            .or_else(|| agent_brands::resolve(None, None, Some(name)))
+    };
+    let inner: AnyElement = match brand {
+        None => img(agent_creature::image(name, false, ground))
+            .size(px(size))
+            .rounded(px(radius))
+            .flex_none()
+            .into_any_element(),
+        Some(brand) => match agent_brands::monochrome(brand) {
+            Some(path) => svg()
+                .path(path)
+                .size(px(size))
+                .text_color(t.text)
+                .into_any_element(),
+            None => agent_brands::artwork(brand, t.dark, size)
+                .rounded(px(radius))
+                .into_any_element(),
+        },
+    };
+    div()
+        .size(px(size))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .overflow_hidden()
+        .rounded(px(radius))
+        .text_color(t.text)
+        .child(inner)
+        .into_any_element()
+}
 /// `desktop-project-reach-hop`: a mark at work hops now and then; a person
 /// who asked for less motion sees it still.
 fn hop(mark: Div, name: &str) -> AnyElement {

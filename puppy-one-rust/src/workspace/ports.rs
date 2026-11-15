@@ -15,6 +15,10 @@ pub trait DataPort: Send + Sync {
     fn agent_target(&self) -> Option<super::cloud::agent::AgentTarget> {
         None
     }
+    /// The Cloud Computer sandbox and screen-stream target; local folders have none.
+    fn sandbox_target(&self) -> Option<super::cloud::sandbox::SandboxTarget> {
+        None
+    }
     /// Local admission is checked by the facade. Remote authority additionally
     /// expires on account, service, permission or runtime-generation changes.
     fn check_authority(&self) -> Result<()> {

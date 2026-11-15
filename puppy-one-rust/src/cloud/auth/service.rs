@@ -741,6 +741,53 @@ impl Broker {
         fence.check()?;
         result
     }
+    /// `VncScreenViewer`: opens `/projects/{project}/workbench/screen/stream`
+    /// with a single-use ticket subprotocol (`puppyone.screen.v1`,
+    /// `puppyone.screen.ticket.<ticket>`). No bearer token is sent.
+    pub fn screen_stream(
+        &self,
+        binding: &Binding,
+        project: &str,
+        protocols: (&str, &str),
+        cancel: &super::Cancellation,
+    ) -> Result<super::ScreenSocket> {
+        if project.is_empty()
+            || project.len() > 100
+            || !project
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        {
+            return Err(Error::Configuration);
+        }
+        if protocols.0 != "puppyone.screen.v1"
+            || !protocols
+                .1
+                .strip_prefix("puppyone.screen.ticket.")
+                .is_some_and(|t| {
+                    !t.is_empty()
+                        && t.len() <= 512
+                        && t.bytes().all(|b| b.is_ascii_graphic() && b != b',')
+                })
+        {
+            return Err(Error::Configuration);
+        }
+        let mut fence = self.authorized(binding)?;
+        fence.cancel = Some(cancel.clone());
+        fence.check()?;
+        let http_url = binding
+            .environment
+            .api_url(&format!("/projects/{project}/workbench/screen/stream"), &[])?;
+        let scheme = match http_url.scheme() {
+            "https" => "wss",
+            "http" => "ws",
+            _ => return Err(Error::Configuration),
+        };
+        let ws_raw = format!("{scheme}{}", &http_url.as_str()[http_url.scheme().len()..]);
+        let url = url::Url::parse(&ws_raw).map_err(|_| Error::Configuration)?;
+        let socket = self.remote.screen_stream(&url, protocols, &fence)?;
+        fence.check()?;
+        Ok(socket)
+    }
     /// `requestPublic`: a read of the paired Cloud that needs no account
     /// (the managed compute price list).
     pub fn public(&self, path: &str) -> Result<serde_json::Value> {

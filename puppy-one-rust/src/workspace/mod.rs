@@ -165,6 +165,10 @@ impl Workspace {
     pub fn agent_target(&self) -> Option<cloud::agent::AgentTarget> {
         self.provider.agent_target()
     }
+    /// The Cloud Computer sandbox and screen target (`CloudComputerScreen`): Cloud only.
+    pub fn sandbox_target(&self) -> Option<cloud::sandbox::SandboxTarget> {
+        self.provider.sandbox_target()
+    }
     pub fn local_root(&self) -> Option<&Path> {
         self.descriptor.local_root.as_deref()
     }

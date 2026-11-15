@@ -1855,3 +1855,31 @@ fn removes_electron_ipc_transport_boilerplate_from_reference_diagnostics() {
         );
     });
 }
+
+#[test]
+fn seeds_initial_prompt_survives_echo_and_disarms_on_manual_edit() {
+    run(async {
+        let f = bridge_fixture(json!({}));
+        let controller = f.controller();
+        controller.seed_initial_prompt("Summarize Q4 metrics");
+        assert_eq!(controller.get_snapshot().draft, "Summarize Q4 metrics");
+        assert!(controller.has_pending_initial_auto_submit());
+
+        // Synchronous composer echo of identical text preserves armed state.
+        controller.set_draft("Summarize Q4 metrics");
+        assert!(controller.has_pending_initial_auto_submit());
+        assert_eq!(
+            controller.consume_initial_auto_submit().as_deref(),
+            Some("Summarize Q4 metrics")
+        );
+        assert!(!controller.has_pending_initial_auto_submit());
+
+        // Manual edit before initialization disarms auto-submit.
+        controller.seed_initial_prompt("Initial brief");
+        assert!(controller.has_pending_initial_auto_submit());
+        controller.set_draft("Initial brief — edited by user");
+        assert!(!controller.has_pending_initial_auto_submit());
+        assert_eq!(controller.consume_initial_auto_submit(), None);
+        controller.dispose(false);
+    });
+}

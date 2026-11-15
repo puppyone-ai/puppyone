@@ -16,6 +16,7 @@ impl Homepage {
         note: Option<AnyElement>,
         held: bool,
         width: f32,
+        viewport_w: f32,
         narrow: bool,
         busy: bool,
         window: &mut Window,
@@ -49,7 +50,9 @@ impl Homepage {
         let t = cx.palette();
         let layout = self.preferences.read(cx).state.homepage_project_layout;
         let grid = layout == HomepageLayout::Grid;
-        let columns = if grid { grid_columns(width) } else { 1 };
+        let columns = if grid { GRID_COLUMNS } else { 1 };
+        let col_gap = grid_column_gap(viewport_w);
+        let cell_w = grid_cell_width(width, col_gap);
         // On the Grid a group's edges are its cells' outer edges, so the
         // rules end where the toolbar does; an empty space keeps them too.
         let inset = if grid { 0. } else { 8. };
@@ -61,7 +64,8 @@ impl Homepage {
         for (index, group) in groups.into_iter().enumerate() {
             let lit = focused.as_ref() == Some(&group.id);
             let view = self.project_group(
-                index, group, columns, inset, dragging, lit, narrow, busy, window, cx,
+                index, group, columns, col_gap, cell_w, inset, dragging, lit, narrow, busy, window,
+                cx,
             );
             views.push(view);
         }
@@ -126,6 +130,8 @@ impl Homepage {
         index: usize,
         group: super::super::groups::Group,
         columns: usize,
+        col_gap: f32,
+        cell_w: f32,
         inset: f32,
         dragging: bool,
         lit: bool,
@@ -151,11 +157,6 @@ impl Homepage {
             self.action_bounds.entry(item.id.clone()).or_default();
             let focus = self.project_focus(&item.id, cx);
             let lit = self.project_lit(item, window, cx);
-            let rise = if grid {
-                self.sheet_rise(&item.id, lit, window, cx)
-            } else {
-                0.
-            };
             let is_stop = stop.as_deref() == Some(item.id.as_str());
             focus.clone().tab_stop(is_stop);
             let keys = {
@@ -191,7 +192,7 @@ impl Homepage {
             };
             cells.push(if grid {
                 self.project_tile(
-                    index, item, focus, rise, lit, is_stop, marks, busy, keys, cx,
+                    index, item, focus, cell_w, lit, is_stop, marks, busy, keys, cx,
                 )
             } else {
                 self.project_row(
@@ -216,15 +217,18 @@ impl Homepage {
             let mut rows = Vec::new();
             while cells.peek().is_some() {
                 rows.push(
-                    h_flex().items_start().gap(px(TILE_GAP)).children(
+                    h_flex().items_start().gap(px(col_gap)).children(
                         cells
                             .by_ref()
                             .take(columns)
-                            .map(|cell| div().w(px(TILE_WIDTH)).flex_none().child(cell)),
+                            .map(|cell| div().w(px(cell_w)).flex_none().child(cell)),
                     ),
                 );
             }
-            v_flex().gap(px(CELL_GAP)).children(rows).into_any_element()
+            v_flex()
+                .gap(px(CELL_ROW_GAP))
+                .children(rows)
+                .into_any_element()
         } else {
             div()
                 .flex()
@@ -520,6 +524,34 @@ impl Homepage {
         .detach();
         cx.notify();
     }
+    fn item_previews<'a>(&'a self, item: &Item) -> &'a [super::previews::ProjectAssetPreview] {
+        if let Some(path) = &item.local_path {
+            return self
+                .local_previews
+                .get(Path::new(path))
+                .map_or(&[], Vec::as_slice);
+        }
+        if let Some(id) = &item.cloud_project {
+            return self.cloud_previews.get(id).map_or(&[], Vec::as_slice);
+        }
+        &[]
+    }
+
+    fn item_cloud_agents<'a>(&'a self, item: &Item) -> &'a [super::folder::FolderAgentBadge] {
+        if item.local_path.is_none()
+            && let Some(id) = &item.cloud_project
+        {
+            return self.cloud_project_agents.get(id).map_or(&[], Vec::as_slice);
+        }
+        &[]
+    }
+
+    fn item_shared(&self, item: &Item) -> bool {
+        item.host_folder
+            .as_ref()
+            .is_some_and(|id| self.shared_ids.as_ref().is_none_or(|ids| ids.contains(id)))
+    }
+
     /// One project as a row (`DesktopMenuItem.onboarding-project-row`).
     #[allow(clippy::too_many_arguments)]
     pub(in crate::app::home) fn project_row(
@@ -590,10 +622,10 @@ impl Homepage {
             .open_control(("home-project", index), item, focus, busy, keys, cx)
             .w_full()
             .min_w_0()
-            .h(px(theme::control()))
+            .h(px(44.))
             .flex()
             .items_center()
-            .gap(px(metric::MENU_ITEM_GAP))
+            .gap(px(12.))
             .pl(px(metric::MENU_ITEM_PADDING_INLINE))
             .pr(px(metric::MENU_ITEM_PADDING_INLINE.max(reserve)))
             .rounded(px(metric::CONTROL_RADIUS))
@@ -605,12 +637,18 @@ impl Homepage {
             .when(dragging, |d| d.bg(t.hover).opacity(0.62))
             .child(
                 div()
-                    .size(px(metric::MENU_ICON_SLOT))
+                    .w(px(34.))
+                    .h(px(26.))
                     .flex_none()
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(super::folder::list_folder(lit, fade, t)),
+                    .child(super::folder::list_folder(
+                        self.item_previews(item),
+                        lit,
+                        fade,
+                        t,
+                    )),
             )
             .child(
                 div()
@@ -686,16 +724,16 @@ impl Homepage {
             }))
             .into_any_element()
     }
-    /// One project on the Grid: a folder and one line of name. The tooltip
-    /// adds where it lives and when it last changed (and the name when the
-    /// line cuts it).
+    /// One project on the Grid: a `104×78` folder (with asset preview sheets
+    /// and Cloud Agent badges), its `13px` name, and its `12px` caption meta
+    /// (`compactDisplayPath(place, 1) · modified`) or unavailable status.
     #[allow(clippy::too_many_arguments)]
     pub(in crate::app::home) fn project_tile(
         &self,
         index: usize,
         item: &Item,
         focus: FocusHandle,
-        rise: f32,
+        cell_w: f32,
         lit: bool,
         is_stop: bool,
         marks: bool,
@@ -704,10 +742,16 @@ impl Homepage {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let t = cx.palette();
+        let ty = theme::ty().ui;
         let name = item_name(item);
         let place = match &item.local_path {
             Some(path) => parent_for_display(Path::new(path)),
             None => item_caption(item),
+        };
+        let tile_place = if item.local_path.is_some() {
+            super::compact_display_path(&place, 1)
+        } else {
+            place.clone()
         };
         let modified = item.modified.filter(|m| *m > 0).map(|ms| {
             modification_time(
@@ -715,12 +759,19 @@ impl Homepage {
                 SystemTime::now(),
             )
         });
+        let meta = [Some(tile_place), modified.clone()]
+            .into_iter()
+            .flatten()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" · ");
         let linked = item.linked.is_some();
-        // A cut name joins the tooltip; the tile is about 112px, so the
-        // estimate uses the caption's average advance.
-        let cut = name.chars().count() as f32 * theme::ty().ui.caption * 0.56
-            > TILE_WIDTH - 8. - if marks { 16. } else { 0. };
-        let tooltip = [cut.then(|| name.clone()), Some(place), modified]
+        let cut = name.chars().count() as f32 * ty.meta * 0.56
+            > (cell_w - 12. - if marks { 16. } else { 0. }).max(0.);
+        let shared = self
+            .item_shared(item)
+            .then(|| tr("hosts.home.shared").to_owned());
+        let tooltip = [cut.then(|| name.clone()), Some(place), shared, modified]
             .into_iter()
             .flatten()
             .filter(|s| !s.is_empty())
@@ -746,22 +797,22 @@ impl Homepage {
             .flex()
             .flex_col()
             .items_center()
-            .gap(px(8.))
-            .pt(px(12.))
-            .px(px(4.))
-            .pb(px(8.))
-            .rounded(px(metric::CONTROL_RADIUS))
+            .gap(px(2.))
+            .py(px(10.))
+            .px(px(6.))
+            .rounded(px(metric::CARD_RADIUS))
             .text_color(t.text)
             .when(lit && !busy, |d| d.bg(t.hover))
             .when(busy, |d| d.opacity(0.58))
             .when(self.dragging_item(item, cx), |d| d.opacity(0.62))
             .tooltip(crate::ui::components::tooltip(tooltip))
-            .child(super::folder::grid_folder(
-                rise,
+            .child(div().mb(px(6.)).child(super::folder::grid_folder(
+                self.item_previews(item),
+                self.item_cloud_agents(item),
                 lit,
                 fade.or(status.map(|_| 0.4)),
                 t,
-            ))
+            )))
             .child(
                 // `.onboarding-project-tile-label`: the name, and in a shared
                 // group the small mark of where it lives.
@@ -776,8 +827,9 @@ impl Homepage {
                         div()
                             .min_w_0()
                             .truncate()
-                            .text_size(px(theme::ty().ui.caption))
-                            .line_height(px(16.))
+                            .text_size(px(ty.meta))
+                            .font_weight(FontWeight::NORMAL)
+                            .line_height(px(18.))
                             .text_color(if linked && !lit { t.subtle } else { t.text })
                             .child(name),
                     )
@@ -785,14 +837,25 @@ impl Homepage {
             )
             .children(status.map(|key| {
                 div()
-                    .mt(px(-6.))
                     .max_w_full()
                     .truncate()
-                    .text_size(px(theme::ty().ui.caption))
+                    .text_size(px(ty.caption))
                     .line_height(px(16.))
                     .text_color(t.muted)
                     .child(tr(key))
-            }));
+            }))
+            .when(status.is_none() && !meta.is_empty(), |d| {
+                d.child(
+                    div()
+                        .when_some(fade, |d, fade| d.opacity(fade))
+                        .max_w_full()
+                        .truncate()
+                        .text_size(px(ty.caption))
+                        .line_height(px(16.))
+                        .text_color(t.subtle)
+                        .child(meta),
+                )
+            });
         let actions = self.project_actions_trigger(index, item, is_stop, busy, cx);
         let cloud_link = item
             .linked

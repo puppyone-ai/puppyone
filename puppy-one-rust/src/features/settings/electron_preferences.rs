@@ -347,6 +347,7 @@ fn experimental_settings(v: &Value) -> (Experimental, bool) {
     let experimental = Experimental {
         always_show_onboarding_coachmarks: on("enableAlwaysShowOnboardingCoachmarks"),
         cloud_workspace: on("enableCloudWorkspace"),
+        cloud_computer_screen: on("enableCloudComputerScreen"),
         editor_tabs_in_header: on("enableEditorTabsInHeader"),
         project_reach: on("enableProjectReach"),
         host_devices: on("enableHostDevices"),
@@ -474,7 +475,7 @@ mod tests {
             (keys::POINTER_CURSORS, "true"),
             (
                 keys::EXPERIMENTAL,
-                r#"{"enableCloudWorkspace":true,"enablePayments":false,"enableGitAutoCommit":true,
+                r#"{"enableCloudWorkspace":true,"enableCloudComputerScreen":true,"enablePayments":false,"enableGitAutoCommit":true,
                     "enableNotionImport":true,"enableProjectSwitcherRail":true}"#,
             ),
             (
@@ -494,7 +495,11 @@ mod tests {
         assert_eq!(p.theme_mode, ThemeMode::Light);
         assert_eq!(p.text_scale, crate::typography::Scale::Small);
         assert!(p.pointer_cursors);
-        assert!(p.experimental.cloud_workspace && p.experimental.other_app_imports);
+        assert!(
+            p.experimental.cloud_workspace
+                && p.experimental.cloud_computer_screen
+                && p.experimental.other_app_imports
+        );
         assert!(!p.experimental.payments);
         assert!(!p.experimental.git_auto_commit, "main-owned consent");
         assert!(p.project_switcher_rail);

@@ -20,6 +20,7 @@ pub(super) struct Shared {
     pub binding: Binding,
     pub cancel: Cancellation,
     pub runtime: Runtime,
+    pub sandbox: Arc<Mutex<super::sandbox::CloudSandbox>>,
     pub descriptor: Descriptor,
     pub epoch: AtomicU64,
     pub mutations: Mutex<()>,
@@ -34,11 +35,13 @@ impl Shared {
         runtime: Runtime,
         descriptor: Descriptor,
     ) -> Arc<Self> {
+        let sandbox = Arc::new(Mutex::new(super::sandbox::read_sandbox(&runtime.sandbox)));
         Arc::new(Self {
             broker,
             binding,
             cancel,
             runtime,
+            sandbox,
             descriptor,
             epoch: AtomicU64::new(0),
             mutations: Mutex::new(()),

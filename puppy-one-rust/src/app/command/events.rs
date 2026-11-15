@@ -62,6 +62,11 @@ impl Shell {
                     .update(cx, |spaces, cx| spaces.ensure(true, true, true, cx));
                 return self.open_space_settings(space.clone(), true, window, cx);
             }
+            CloudEvent::WakeWorkspace => self.retry_workspace_surface(cx),
+            CloudEvent::ScreenVisibilityChanged => {
+                self.gate_editors(window, cx);
+                return cx.notify();
+            }
         }
         self.receive(window, cx);
         cx.notify();
@@ -98,6 +103,8 @@ impl Shell {
             return;
         };
         if hosted {
+            self.dialogs
+                .update(cx, |d, cx| d.set_cloud_project(None, cx));
             self.close_workspace_sidebars(window, cx);
             self.receive(window, cx);
         }
@@ -140,6 +147,25 @@ impl Shell {
                 self.session
                     .project
                     .update(cx, |p, cx| p.open_created(path, open, cx));
+            }
+            home::HomeEvent::OpenAgentCreated {
+                path,
+                runtime_id,
+                prompt,
+            } => {
+                let (path, runtime_id, prompt) = (path.clone(), runtime_id.clone(), prompt.clone());
+                self.set_popover(None, cx);
+                self.session.project.update(cx, |p, cx| {
+                    p.record.pending_agent_start = Some(project::PendingAgentStart {
+                        root: path.clone(),
+                        runtime_id,
+                        prompt,
+                    });
+                    p.open_created(path, None, cx);
+                });
+            }
+            home::HomeEvent::OpenSettings(page) => {
+                return self.open_settings(*page, window, cx);
             }
             home::HomeEvent::PublishToSpace { path, space } => {
                 let (path, space) = (path.clone(), space.clone());
@@ -312,6 +338,11 @@ impl Shell {
                 let sidebar = self.sidebar.clone();
                 sidebar.update(cx, |s, cx| s.reload_agent_configuration(cx));
             }
+            DialogEvent::CloudSandboxChanged { project, sandbox } => {
+                let (project, sandbox) = (project.clone(), sandbox.clone());
+                self.cloud
+                    .update(cx, |c, cx| c.sync_sandbox(&project, sandbox, cx));
+            }
             DialogEvent::ForgetProject(path) => {
                 let path = path.clone();
                 self.prefs
@@ -359,6 +390,7 @@ impl Shell {
                     .session
                     .update(cx, |e, cx| e.entry_created(&parent, listing, &path, cx));
                 if !folder && !self.files(cx).allow_quit {
+                    self.cloud.update(cx, |c, cx| c.close_screen(cx));
                     self.session
                         .docs
                         .update(cx, |d, _| d.begin(Intent::OpenFile(path)))
@@ -396,6 +428,7 @@ impl Shell {
         match event {
             SidebarEvent::OpenFile(path) => {
                 let path = path.clone();
+                self.cloud.update(cx, |c, cx| c.close_screen(cx));
                 self.session
                     .docs
                     .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
@@ -406,6 +439,7 @@ impl Shell {
                 use crate::features::desktop_agent::resolve_agent_workspace_provider_path as resolve;
                 if let Some(path) = resolve(&root.to_string_lossy(), path) {
                     let path = root.join(path);
+                    self.cloud.update(cx, |c, cx| c.close_screen(cx));
                     self.session
                         .docs
                         .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
@@ -681,6 +715,7 @@ impl Shell {
         match event {
             ExplorerEvent::Open(path) => {
                 let path = path.clone();
+                self.cloud.update(cx, |c, cx| c.close_screen(cx));
                 self.session
                     .docs
                     .update(cx, |d, _| d.begin(Intent::OpenFile(path)))

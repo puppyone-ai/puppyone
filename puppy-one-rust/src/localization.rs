@@ -23,11 +23,15 @@ fn data() -> &'static Value {
         }
         // Copy ahead of the v0.4.4 pin, each projected from one qubits commit
         // with per-file SHA-256 hashes: CloudSignInDialog
-        // (`tools/import-sign-in-explainer.py`) and first run's moments
-        // (`tools/import-onboarding-value.py`).
+        // (`tools/import-sign-in-explainer.py`), first run's moments
+        // (`tools/import-onboarding-value.py`), Projects Home
+        // (`tools/import-onboarding-home.py`) and Cloud Computer Screen
+        // (`tools/import-cloud-computer-screen.py`).
         let ahead = [
             include_str!("../assets/sign-in-explainer.json"),
             include_str!("../assets/onboarding-value.json"),
+            include_str!("../assets/onboarding-home.json"),
+            include_str!("../assets/cloud-computer-screen.json"),
         ]
         .map(|source| serde_json::from_str::<Value>(source).expect("catalog ahead of the pin"));
         for (locale, messages) in ahead.iter().flat_map(|a| a["locales"].as_object().unwrap()) {
@@ -898,6 +902,67 @@ mod tests {
             "onboarding.value.folder",
             "onboarding.value.scene.dashboard",
             "onboarding.value.scene.changedBy",
+        ];
+        for (code, _) in Locale::choices() {
+            let locale = Locale { code: code.into() };
+            for key in keys {
+                let value = locale.text(key);
+                assert_ne!(value, key, "{code} lacks {key}");
+                assert!(!value.trim().is_empty(), "{code} has empty {key}");
+            }
+        }
+    }
+    #[test]
+    fn onboarding_home_messages_resolve_in_every_product_locale() {
+        let keys = [
+            "onboarding.agents.cloud",
+            "onboarding.agents.connect",
+            "onboarding.agents.connected",
+            "onboarding.agents.lastActive",
+            "onboarding.agents.start",
+            "onboarding.agentStart.promptLabel",
+            "onboarding.agentStart.promptPlaceholder",
+            "onboarding.agentStart.note",
+            "onboarding.agentStart.submit",
+            "onboarding.sharing.thisMac",
+        ];
+        for (code, _) in Locale::choices() {
+            let locale = Locale { code: code.into() };
+            for key in keys {
+                let value = locale.text(key);
+                assert_ne!(value, key, "{code} lacks {key}");
+                assert!(!value.trim().is_empty(), "{code} has empty {key}");
+            }
+        }
+    }
+    #[test]
+    fn cloud_computer_screen_messages_resolve_in_every_product_locale() {
+        let keys = [
+            "cloud.sandbox.screen.label",
+            "cloud.sandbox.screen.open",
+            "cloud.sandbox.screen.preview-note",
+            "cloud.sandbox.screen.not-installed",
+            "cloud.sandbox.screen.install",
+            "cloud.sandbox.screen.install-pending",
+            "cloud.sandbox.screen.stream-off",
+            "cloud.sandbox.screen.stream-on",
+            "cloud.sandbox.screen.unavailable",
+            "cloud.sandbox.screen.asleep",
+            "cloud.sandbox.screen.wake",
+            "cloud.sandbox.screen.connecting",
+            "cloud.sandbox.screen.disconnected",
+            "cloud.sandbox.screen.retry",
+            "cloud.settings.tab.computer",
+            "cloud.settings.computer.title",
+            "cloud.settings.computer.detail",
+            "cloud.settings.computer.desktop",
+            "cloud.settings.computer.desktopHelp",
+            "cloud.settings.computer.desktopPending",
+            "cloud.settings.computer.stream",
+            "cloud.settings.computer.streamHelp",
+            "cloud.settings.computer.failed",
+            "settings.experimental.cloudComputerScreen.title",
+            "settings.experimental.cloudComputerScreen.detail",
         ];
         for (code, _) in Locale::choices() {
             let locale = Locale { code: code.into() };

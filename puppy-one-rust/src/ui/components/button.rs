@@ -231,13 +231,20 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
             hover_bg: if selected { t.selected } else { t.hover },
             hover_fg: t.text,
         },
-        // `.onboarding-entry-action:disabled`.
+        // `.onboarding-start-actions [data-onboarding-action="create"]`.
+        ButtonVariant::PatternDeep if disabled => Paint {
+            border: None,
+            bg: t.control,
+            fg: t.text_disabled,
+            hover_bg: t.control,
+            hover_fg: t.text_disabled,
+        },
         ButtonVariant::PatternDeep => Paint {
             border: None,
-            bg: theme::alpha(t.text, 0.10),
-            fg: if disabled { t.text_disabled } else { t.text },
-            hover_bg: theme::alpha(t.text, if disabled { 0.10 } else { 0.15 }),
-            hover_fg: if disabled { t.text_disabled } else { t.text },
+            bg: theme::alpha(t.text, 0.09),
+            fg: t.text,
+            hover_bg: theme::alpha(t.text, 0.14),
+            hover_fg: t.text,
         },
         ButtonVariant::Pattern | ButtonVariant::PatternPrimary if disabled => Paint {
             border: None,
@@ -356,6 +363,7 @@ pub struct Button {
     size: Size,
     label: Option<SharedString>,
     accessible: Option<SharedString>,
+    leading: Option<AnyElement>,
     icon: Option<Icon>,
     trailing: Option<AnyElement>,
     selected: bool,
@@ -376,6 +384,7 @@ impl Button {
             size: Size::Medium,
             label: None,
             accessible: None,
+            leading: None,
             icon: None,
             trailing: None,
             selected: false,
@@ -391,6 +400,11 @@ impl Button {
     }
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+    /// Leading custom element (e.g. a brand mark or inline spinner).
+    pub fn leading(mut self, element: impl IntoElement) -> Self {
+        self.leading = Some(element.into_any_element());
         self
     }
     /// Leading icon. A bare name gets the variant's size and stroke.
@@ -583,10 +597,10 @@ impl RenderOnce for Button {
                 b.text_size(px(theme::ty().ui.body))
                     .font_weight(FontWeight::SEMIBOLD)
             })
-            // `.po-button`: meta type at 650.
+            // `.po-button`: meta type at 650; `.onboarding-start-actions`: 500.
             .when(pattern, |b| {
                 b.text_size(px(theme::ty().ui.meta)).font_weight(if deep {
-                    FontWeight::SEMIBOLD
+                    FontWeight::MEDIUM
                 } else {
                     FontWeight(650.)
                 })
@@ -636,6 +650,7 @@ impl RenderOnce for Button {
             .when_some(self.on_click.filter(|_| !disabled), |b, handler| {
                 b.on_click(move |event, window, cx| handler(event, window, cx))
             })
+            .children(self.leading)
             .children(icon)
             .when_some(label, |b, label| {
                 b.child(div().min_w_0().truncate().child(label))

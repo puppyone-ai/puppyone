@@ -44,11 +44,14 @@ fn groups(
     account_available: bool,
     host_devices_available: bool,
 ) -> Vec<(&'static str, Vec<Setting>)> {
-    let mut cloud = vec![setting!(
-        "cloudWorkspace",
-        experimental.cloud_workspace,
-        true
-    )];
+    let mut cloud = vec![
+        setting!("cloudWorkspace", experimental.cloud_workspace, true),
+        setting!(
+            "cloudComputerScreen",
+            experimental.cloud_computer_screen,
+            true
+        ),
+    ];
     if host_devices_available {
         // `useHostDevicesAvailable`: the owner's other computers.
         cloud.push(setting!("hostDevices", experimental.host_devices, true));
@@ -213,12 +216,26 @@ mod tests {
     fn the_other_computers_switch_shows_only_past_the_release_gate() {
         assert_eq!(
             cloud_keys(true, false),
-            ["cloudWorkspace", "payments", "flowFiles"]
+            [
+                "cloudWorkspace",
+                "cloudComputerScreen",
+                "payments",
+                "flowFiles"
+            ]
         );
         assert_eq!(
             cloud_keys(true, true),
-            ["cloudWorkspace", "hostDevices", "payments", "flowFiles"]
+            [
+                "cloudWorkspace",
+                "cloudComputerScreen",
+                "hostDevices",
+                "payments",
+                "flowFiles"
+            ]
         );
-        assert_eq!(cloud_keys(false, false), ["cloudWorkspace", "flowFiles"]);
+        assert_eq!(
+            cloud_keys(false, false),
+            ["cloudWorkspace", "cloudComputerScreen", "flowFiles"]
+        );
     }
 }

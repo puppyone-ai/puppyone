@@ -244,8 +244,6 @@ embedded! {
     "home" / "folder-back.svg",
     "home" / "folder-cloud.svg",
     "home" / "folder-front.svg",
-    "home" / "folder-sheet-ink.svg",
-    "home" / "folder-sheet.svg",
     "integrations" / "airtable.png",
     "integrations" / "github-inverse.svg",
     "integrations" / "github.svg",

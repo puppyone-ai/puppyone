@@ -32,6 +32,11 @@ pub enum SettingsEvent {
         folder: String,
         name: String,
     },
+    /// `CloudComputerSettings`: updated sandbox choices for an open Cloud project.
+    CloudSandboxChanged {
+        project: String,
+        sandbox: crate::workspace::cloud::sandbox::CloudSandbox,
+    },
 }
 pub struct SettingsWorkspaceSurface {
     pub preferences: Entity<PreferencesStore>,
@@ -42,6 +47,7 @@ pub struct SettingsWorkspaceSurface {
     pub(super) cloud: Option<Entity<crate::features::cloud::account::CloudAccount>>,
     pub(super) plan_page: super::main::PlanPage,
     pub(super) space_page: super::main::SpacePage,
+    pub(super) computer_page: super::main::ComputerPage,
     /// The hosted Project this window shows, whose space Settings manages
     /// unless its opener named another (`resolveSettingsSpace`).
     pub(super) cloud_project: Option<String>,
@@ -94,7 +100,20 @@ impl SettingsWorkspaceSurface {
         if page == Page::OtherComputers {
             self.read_computers(cx);
         }
+        if page == Page::CloudComputer {
+            self.load_cloud_computer(cx);
+        }
         cx.notify();
+    }
+    /// Keep Settings' open Cloud project aligned with the window's session.
+    pub fn set_cloud_project(&mut self, cloud_project: Option<String>, cx: &mut Context<Self>) {
+        if self.cloud_project != cloud_project {
+            self.cloud_project = cloud_project;
+            if self.page == Page::CloudComputer {
+                self.load_cloud_computer(cx);
+            }
+            cx.notify();
+        }
     }
     /// What the window opening Settings shows and which space, if any, the
     /// control that opened it named; `invite` (a space just made) puts the
@@ -241,6 +260,7 @@ impl SettingsWorkspaceSurface {
         let mut s = Self {
             plan_page: Default::default(),
             space_page,
+            computer_page: Default::default(),
             cloud_project: None,
             requested_space: None,
             cloud,
@@ -280,6 +300,7 @@ impl SettingsWorkspaceSurface {
                 cloud_enabled: true,
                 account_available: true,
                 current_space_available: true,
+                cloud_computer_available: true,
             };
             if let Some(item) = groups(all)
                 .into_iter()
@@ -365,6 +386,11 @@ impl SettingsWorkspaceSurface {
             cloud_enabled: crate::features::flags::cloud_enabled(&self.preferences, cx),
             account_available: crate::features::flags::account_available(cx),
             current_space_available: self.settings_space(cx).is_some(),
+            cloud_computer_available: crate::features::flags::cloud_screen_enabled(
+                &self.preferences,
+                cx,
+            ) && self.cloud_project.is_some()
+                && crate::features::cloud::account::broker_and_binding(cx).is_some(),
         }
     }
     /// Copy text and show transient feedback on the triggering control.

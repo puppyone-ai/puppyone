@@ -76,6 +76,59 @@ pub enum ServiceCode {
 /// A folder's byte tunnel (`openHostTunnelSocket`).
 pub type HostTunnel =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+/// Binary WebSocket channel for a Cloud Computer screen session (`VncScreenViewer`).
+/// Bridged inside the transport runtime so callers never depend on a specific async reactor.
+pub struct ScreenSocket {
+    tx: async_channel::Sender<Vec<u8>>,
+    rx: async_channel::Receiver<Vec<u8>>,
+}
+#[derive(Clone)]
+pub struct ScreenSender(async_channel::Sender<Vec<u8>>);
+pub struct ScreenReceiver(async_channel::Receiver<Vec<u8>>);
+
+impl ScreenSocket {
+    pub(super) fn from_channels(
+        tx: async_channel::Sender<Vec<u8>>,
+        rx: async_channel::Receiver<Vec<u8>>,
+    ) -> Self {
+        Self { tx, rx }
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn pair() -> (Self, Self) {
+        let (a_tx, a_rx) = async_channel::bounded(128);
+        let (b_tx, b_rx) = async_channel::bounded(128);
+        (
+            Self::from_channels(a_tx, b_rx),
+            Self::from_channels(b_tx, a_rx),
+        )
+    }
+    pub async fn send(&self, bytes: Vec<u8>) -> Result<()> {
+        self.tx.send(bytes).await.map_err(|_| Error::Unavailable)
+    }
+    pub async fn recv(&self) -> Option<Vec<u8>> {
+        self.rx.recv().await.ok()
+    }
+    pub fn into_split(self) -> (ScreenSender, ScreenReceiver) {
+        (ScreenSender(self.tx), ScreenReceiver(self.rx))
+    }
+}
+impl ScreenSender {
+    pub async fn send(&self, bytes: Vec<u8>) -> Result<()> {
+        self.0.send(bytes).await.map_err(|_| Error::Unavailable)
+    }
+    pub fn close(&self) {
+        self.0.close();
+    }
+}
+impl ScreenReceiver {
+    pub async fn recv(&self) -> Option<Vec<u8>> {
+        self.0.recv().await.ok()
+    }
+    pub fn close(&self) {
+        self.0.close();
+    }
+}
 pub(super) fn response_error(status: u16, value: &serde_json::Value) -> Error {
     grant_error(status, value, true)
 }

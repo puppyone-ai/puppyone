@@ -63,6 +63,16 @@ pub(super) trait Remote: Send + Sync {
     ) -> Result<super::HostTunnel> {
         Err(Error::Unsupported)
     }
+    /// `VncScreenViewer`: the WebSocket of a Cloud Computer's screen stream,
+    /// admitted by a single-use ticket subprotocol without an access token.
+    fn screen_stream(
+        &self,
+        _url: &url::Url,
+        _protocols: (&str, &str),
+        _fence: &Fence,
+    ) -> Result<super::ScreenSocket> {
+        Err(Error::Unsupported)
+    }
     /// `openAgentStream`: one managed inference POST, streamed back.
     fn completion(
         &self,
@@ -446,6 +456,96 @@ impl Remote for Http {
                 Err(_) => Err(Error::Unavailable),
             }
         })
+    }
+    fn screen_stream(
+        &self,
+        url: &url::Url,
+        protocols: (&str, &str),
+        fence: &Fence,
+    ) -> Result<super::ScreenSocket> {
+        use futures_util::SinkExt;
+        use tokio_tungstenite::tungstenite::{
+            Error as Socket, Message, client::IntoClientRequest, http::HeaderValue,
+        };
+        let mut request = url
+            .as_str()
+            .into_client_request()
+            .map_err(|_| Error::Configuration)?;
+        let header = HeaderValue::from_str(&format!("{}, {}", protocols.0, protocols.1))
+            .map_err(|_| Error::Configuration)?;
+        request
+            .headers_mut()
+            .insert("Sec-WebSocket-Protocol", header);
+        let socket = runtime().block_on(async {
+            fence.check()?;
+            let connected = tokio::time::timeout(
+                Duration::from_secs(20),
+                tokio_tungstenite::connect_async(request),
+            )
+            .await
+            .map_err(|_| Error::Unavailable)?;
+            fence.check()?;
+            match connected {
+                Ok((socket, _)) => Ok(socket),
+                Err(Socket::Http(response)) => {
+                    let body = response
+                        .body()
+                        .as_deref()
+                        .and_then(|b| serde_json::from_slice(b).ok())
+                        .unwrap_or(Value::Null);
+                    Err(response_error(response.status().as_u16(), &body))
+                }
+                Err(_) => Err(Error::Unavailable),
+            }
+        })?;
+        let (out_tx, out_rx) = async_channel::bounded::<Vec<u8>>(128);
+        let (in_tx, in_rx) = async_channel::bounded::<Vec<u8>>(128);
+        let fence = fence.clone();
+        runtime().spawn(async move {
+            let (mut ws_sink, mut ws_source) = socket.split();
+            let mut changed = fence.control.changes.subscribe();
+            loop {
+                if fence.check().is_err() {
+                    break;
+                }
+                tokio::select! {
+                    _ = changed.changed() => break,
+                    _ = async {
+                        if let Some(cancel) = &fence.cancel {
+                            cancel.cancelled().await;
+                        } else {
+                            std::future::pending::<()>().await;
+                        }
+                    } => break,
+                    outbound = out_rx.recv() => match outbound {
+                        Ok(bytes) => {
+                            if ws_sink.send(Message::Binary(bytes.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    },
+                    inbound = ws_source.next() => match inbound {
+                        Some(Ok(Message::Binary(data))) => {
+                            if in_tx.send(data.to_vec()).await.is_err() {
+                                break;
+                            }
+                        }
+                        Some(Ok(Message::Ping(payload))) => {
+                            if ws_sink.send(Message::Pong(payload)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
+                        Some(Ok(_)) => {}
+                    },
+                }
+            }
+            in_tx.close();
+            out_rx.close();
+            let _ = tokio::time::timeout(Duration::from_secs(2), ws_sink.close()).await;
+        });
+        Ok(super::ScreenSocket::from_channels(out_tx, in_rx))
     }
     fn completion(
         &self,

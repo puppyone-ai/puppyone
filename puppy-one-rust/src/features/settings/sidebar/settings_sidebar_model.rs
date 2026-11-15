@@ -18,6 +18,7 @@ pub enum Page {
     Experimental,
     LocalAgents,
     ModelConnections,
+    CloudComputer,
     Project,
     Host,
     Git,
@@ -45,6 +46,8 @@ pub struct Visibility {
     pub account_available: bool,
     /// Settings manages a space (`currentSpaceAvailable`): Members.
     pub current_space_available: bool,
+    /// Open Cloud project with Cloud Computer Screen enabled (`CloudComputerSettings`).
+    pub cloud_computer_available: bool,
 }
 impl Page {
     /// `SettingsSectionHeader` title of the page.
@@ -63,6 +66,7 @@ impl Page {
             Self::Experimental => "settings.experimental.title",
             Self::LocalAgents => "settings.localAgents.title",
             Self::ModelConnections => "settings.modelConnections.title",
+            Self::CloudComputer => "cloud.settings.computer.title",
             Self::Project => "settings.localProject.title",
             Self::Host => "settings.cloud.title",
             Self::Git => "settings.git.title",
@@ -136,6 +140,16 @@ pub fn groups(visibility: Visibility) -> Vec<Group> {
             ],
         },
     ];
+    if visibility.cloud_computer_available {
+        groups.push(Group {
+            key: "settings.sidebar.cloud",
+            items: vec![item(
+                CloudComputer,
+                "cloud.settings.tab.computer",
+                "monitor",
+            )],
+        });
+    }
     if visibility.local_workspace {
         groups.push(Group {
             key: "settings.sidebar.localProject",
@@ -206,8 +220,13 @@ mod tests {
             cloud_enabled: true,
             account_available: true,
             current_space_available: true,
+            cloud_computer_available: true,
         };
-        assert!(available(Page::Git, all) && available(Page::OtherAppImports, all));
+        assert!(
+            available(Page::Git, all)
+                && available(Page::OtherAppImports, all)
+                && available(Page::CloudComputer, all)
+        );
         let desktop: Vec<_> = groups(all)
             .into_iter()
             .find(|g| g.key == "settings.sidebar.desktopApp")

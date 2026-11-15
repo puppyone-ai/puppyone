@@ -205,7 +205,14 @@ impl WorkbenchLauncher {
     }
     fn show(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         if let Some(workbench) = self.workbench.upgrade() {
-            workbench.update(cx, |w, cx| w.show(root, cx));
+            let roots = workbench.update(cx, |w, cx| {
+                w.show(root, cx);
+                w.open_roots()
+            });
+            if self.shown.roots != roots {
+                self.shown.roots = roots.clone();
+                self.chats.set_roots(roots);
+            }
         }
         cx.notify();
     }
@@ -265,6 +272,57 @@ impl WorkbenchLauncher {
             });
         self.chat_mode = true;
         self.launch(group, tab, Some(installation), window, cx);
+    }
+    /// Launches a fresh local Agent chat tab on `runtime_id` with `initial_prompt`
+    /// seeded and armed for one-shot auto-submit once the controller initializes.
+    pub(crate) fn launch_seeded_runtime_chat(
+        &mut self,
+        group: Id,
+        tab: Option<Id>,
+        runtime_id: &str,
+        initial_prompt: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.hosted.is_open() {
+            return;
+        }
+        let Some(workbench) = self.workbench.upgrade() else {
+            return;
+        };
+        let (root, roots, can_chat) = {
+            let w = workbench.read(cx);
+            let Some(root) = w.root().cloned() else {
+                return;
+            };
+            if let Some(tab) = tab
+                && !w.is_launcher(&root, tab)
+            {
+                return;
+            }
+            (root, w.open_roots(), w.can_create(ItemKind::Chat))
+        };
+        if !can_chat {
+            return;
+        }
+        if self.shown.roots != roots {
+            self.shown.roots = roots.clone();
+            self.chats.set_roots(roots);
+        }
+        self.chat_mode = true;
+        self.launch_errors.remove(&group);
+        match self
+            .chats
+            .prepare_seeded(&root, runtime_id, initial_prompt, window, cx)
+        {
+            Ok(item) => {
+                workbench.update(cx, |w, cx| w.place(group, tab, Rc::new(item), cx));
+            }
+            Err(error) => {
+                self.launch_errors.insert(group, error);
+            }
+        }
+        cx.notify();
     }
     /// `discovery.refresh`: rescan local agent installations.
     fn rescan(&mut self, cx: &mut Context<Self>) {

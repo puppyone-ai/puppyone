@@ -139,6 +139,21 @@ pub struct Organization {
     pub seat_limit: u64,
 }
 
+/// `DesktopCloudTreeEntry`: one top-level entry returned by `/content/{id}/ls`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+pub struct TreeEntry {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default, rename = "type")]
+    pub kind: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct TreeListing {
+    #[serde(default)]
+    entries: Vec<TreeEntry>,
+}
+
 /// `CreateTeamDialog`'s and `SpaceSettings`' name limit.
 pub const SPACE_NAME_MAX: usize = 80;
 /// `DesktopCloudOrgMember`.
@@ -357,6 +372,22 @@ impl Client {
         )
         .map(|_| ())
     }
+    /// `listCloudRoot`: top-level entries of a Cloud project (`/content/{id}/ls?path=`)
+    /// without reading file contents.
+    pub fn list_root_entries(&self, id: &str) -> Result<Vec<TreeEntry>> {
+        let listing: TreeListing = decode(
+            self.transport.request(ApiRequest {
+                method: Method::GET,
+                path: format!("/content/{}/ls", segment(id)?),
+                query: vec![("path".into(), String::new())],
+                body: None,
+                idempotency_key: None,
+            })?,
+            "cloud tree",
+        )?;
+        Ok(listing.entries)
+    }
+
     /// `listCloudOrganizations`: the spaces this account belongs to.
     pub fn organizations(&self) -> Result<Vec<Organization>> {
         decode(self.get("/organizations/".into())?, "organizations")

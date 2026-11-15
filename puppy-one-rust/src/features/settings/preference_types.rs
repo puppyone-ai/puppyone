@@ -139,6 +139,7 @@ pub struct Experimental {
     pub other_app_imports: bool,
     pub viewer_plugins: bool,
     pub cloud_workspace: bool,
+    pub cloud_computer_screen: bool,
     pub payments: bool,
     pub puppy_flow_files: bool,
     pub git_auto_commit: bool,
@@ -157,6 +158,7 @@ impl Default for Experimental {
             other_app_imports: false,
             viewer_plugins: false,
             cloud_workspace: false,
+            cloud_computer_screen: false,
             // `DEFAULT_EXPERIMENTAL_SETTINGS.enablePayments`.
             payments: true,
             puppy_flow_files: false,

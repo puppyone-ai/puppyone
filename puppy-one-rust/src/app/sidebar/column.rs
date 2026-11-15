@@ -12,14 +12,21 @@ use gpui::{prelude::*, *};
 #[derive(IntoElement)]
 pub(in crate::app) struct ExplorerColumn {
     explorer: Entity<Explorer>,
+    companion: Option<AnyElement>,
     footer: Option<SidebarFooter>,
 }
 impl ExplorerColumn {
     pub fn new(explorer: Entity<Explorer>) -> Self {
         Self {
             explorer,
+            companion: None,
             footer: None,
         }
+    }
+    /// Optional companion control anchored above the footer (e.g. Cloud Computer Screen).
+    pub fn companion(mut self, companion: Option<AnyElement>) -> Self {
+        self.companion = companion;
+        self
     }
     /// The navigation below the tree. macOS has none: Settings and Help are
     /// in the app menu.
@@ -36,6 +43,9 @@ impl RenderOnce for ExplorerColumn {
             .flex()
             .flex_col()
             .child(div().flex_1().min_h_0().child(self.explorer.cached(fill())))
+            .when_some(self.companion, |d, companion| {
+                d.child(div().flex_shrink_0().child(companion))
+            })
             .when(footer > 0., |d| {
                 d.child(div().flex_shrink_0().h(px(footer)).children(self.footer))
             })

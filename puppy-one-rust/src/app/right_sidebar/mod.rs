@@ -285,6 +285,26 @@ impl RightSidebar {
             .ok()
     }
 
+    /// Opens the Agent workbench surface and launches a seeded local Agent chat
+    /// tab on `runtime_id` for a project started from `AgentProjectStartDialog`.
+    pub fn launch_agent_start(
+        &mut self,
+        runtime_id: &str,
+        prompt: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.surface = Surface::Agent;
+        self.store(cx);
+        self.set_open(true, cx);
+        if let Some((group, tab)) = self.workbench.update(cx, |w, cx| w.prepare_launch_slot(cx)) {
+            self.launcher.update(cx, |l, cx| {
+                l.launch_seeded_runtime_chat(group, tab, runtime_id, prompt, window, cx)
+            });
+        }
+        cx.notify();
+    }
+
     // ------------------------------------------------------- Header entries
     /// ⌘J and the Agent entry (`handleToggleAgentWorkbench`): close the
     /// Agent when it shows, else show it.

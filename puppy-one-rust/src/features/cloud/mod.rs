@@ -14,6 +14,7 @@ mod clients;
 mod managed_compute;
 mod publish;
 mod repository;
+mod screen;
 mod spaces;
 mod workspace_agents;
 
@@ -25,12 +26,13 @@ pub use billing::{
     settle as settle_billing,
 };
 pub use catalog::{CloudCatalog, State as CatalogState, global as global_catalog, owner_of};
-pub use clients::{billing_client, services_client};
+pub use clients::{agents_client, billing_client, services_client};
 pub use managed_compute::{Reason as ComputeReason, global as global_compute, money};
 #[cfg(test)]
 pub use publish::install_factory;
 pub use publish::{CloudPublish, HeaderStatus, Organizations};
 pub use repository::RepositoryCloud;
+pub use screen::{CloudScreen, CloudScreenEvent};
 pub use spaces::{
     CloudSpaces, Status as SpacesStatus, global as global_spaces, mark as space_mark,
     name as space_name, plan_badge as space_plan_badge, read as global_spaces_read,

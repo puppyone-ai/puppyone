@@ -1,0 +1,425 @@
+//! Session lifecycle, 3× auto-reconnect, GPU frame swapping, and input
+//! forwarding for [`super::CloudScreen`].
+use super::{
+    CloudScreen, StreamPhase,
+    keys::button_bit,
+    rfb::{self, Frame, FrameSlot, RfbCommand},
+};
+use crate::{
+    cloud::auth::Cancellation,
+    workspace::cloud::sandbox::{CLOUD_SCREEN_RECONNECTS, SandboxSettings, ScreenConnectError},
+};
+use gpui::{
+    Bounds, Context, KeyDownEvent, KeyUpEvent, ModifiersChangedEvent, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, Pixels, RenderImage, ScrollWheelEvent, Window, px,
+};
+use image::{Frame as ImageFrame, RgbaImage};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
+
+impl CloudScreen {
+    pub(super) fn apply_setting(&mut self, patch: SandboxSettings, cx: &mut Context<Self>) {
+        let Some(target) = self.target.clone() else {
+            return;
+        };
+        if self.saving {
+            return;
+        }
+        self.saving = true;
+        cx.notify();
+        let project = target.project_id().to_owned();
+        let cancel = Cancellation::default();
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move { target.update(patch, &cancel) })
+                .await;
+            let _ = this.update(cx, |s, cx| {
+                s.saving = false;
+                if let Ok(updated) = result {
+                    s.sync_sandbox(&project, updated, cx);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub(super) fn start_stream(&mut self, cx: &mut Context<Self>) {
+        let Some(target) = self.target.clone() else {
+            return;
+        };
+        self.teardown_session(cx);
+        self.generation = self.generation.wrapping_add(1);
+        let generation = self.generation;
+        self.phase = StreamPhase::Connecting;
+        let delay = self.reconnect_delay;
+
+        self.session_task = Some(cx.spawn(async move |this, cx| {
+            let mut drops: u32 = 0;
+            loop {
+                let stream_cancel = Cancellation::default();
+                let current = this
+                    .update(cx, |s, _| {
+                        if s.generation != generation {
+                            return false;
+                        }
+                        if let Some(prev) = s.stream_cancel.replace(stream_cancel.clone()) {
+                            prev.cancel();
+                        }
+                        true
+                    })
+                    .unwrap_or(false);
+                if !current {
+                    return;
+                }
+                let connect_target = target.clone();
+                let connect_cancel = stream_cancel.clone();
+                let opened = cx
+                    .background_executor()
+                    .spawn(async move { connect_target.connect_screen(&connect_cancel) })
+                    .await;
+                let socket = match opened {
+                    Ok(socket) => socket,
+                    Err(ScreenConnectError::Asleep) => {
+                        let _ = this.update(cx, |s, cx| {
+                            if s.generation == generation {
+                                s.teardown_active_handles(cx);
+                                s.phase = StreamPhase::Asleep;
+                                cx.notify();
+                            }
+                        });
+                        return;
+                    }
+                    Err(ScreenConnectError::Failed) => {
+                        let _ = this.update(cx, |s, cx| {
+                            if s.generation == generation {
+                                s.teardown_active_handles(cx);
+                                s.phase = StreamPhase::Failed;
+                                cx.notify();
+                            }
+                        });
+                        return;
+                    }
+                };
+
+                let (cmd_tx, cmd_rx) = async_channel::bounded::<RfbCommand>(256);
+                let (slot, wake_rx) = FrameSlot::pair();
+                let initial_size = this
+                    .update(cx, |s, _| {
+                        if s.generation != generation {
+                            return None;
+                        }
+                        s.command_tx = Some(cmd_tx.clone());
+                        s.phase = StreamPhase::Connecting;
+                        s.last_sent_size = None;
+                        s.viewport_pixel_size()
+                    })
+                    .ok()
+                    .flatten();
+                if let Some((w, h)) = initial_size {
+                    let _ = cmd_tx.try_send(RfbCommand::Resize {
+                        width: w,
+                        height: h,
+                    });
+                }
+
+                let connected_flag = Arc::new(AtomicBool::new(false));
+                let connected_mark = connected_flag.clone();
+                let rfb_slot = slot.clone();
+                let rfb_job = cx.background_executor().spawn(async move {
+                    rfb::run_session(
+                        socket,
+                        cmd_rx,
+                        move || connected_mark.store(true, Ordering::Release),
+                        rfb_slot,
+                    )
+                    .await
+                });
+
+                let ui_this = this.clone();
+                let ui_flag = connected_flag.clone();
+                let pump = cx.spawn(async move |cx| {
+                    while wake_rx.recv().await.is_ok() {
+                        let Some(frame) = slot.take() else {
+                            continue;
+                        };
+                        let ok = ui_this.update(cx, |s, cx| {
+                            if s.generation == generation {
+                                if ui_flag.load(Ordering::Acquire) {
+                                    s.phase = StreamPhase::Connected;
+                                }
+                                s.present_frame(frame, cx);
+                            }
+                        });
+                        if ok.is_err() {
+                            break;
+                        }
+                    }
+                });
+
+                let _ = rfb_job.await;
+                drop(pump);
+
+                let still_current = this
+                    .update(cx, |s, _| s.generation == generation)
+                    .unwrap_or(false);
+                if !still_current {
+                    return;
+                }
+                if connected_flag.load(Ordering::Acquire) {
+                    drops = 0;
+                }
+                if drops < CLOUD_SCREEN_RECONNECTS {
+                    drops += 1;
+                    let _ = this.update(cx, |s, cx| {
+                        if s.generation == generation {
+                            s.command_tx = None;
+                            s.phase = StreamPhase::Connecting;
+                            cx.notify();
+                        }
+                    });
+                    cx.background_executor().timer(delay).await;
+                    let alive = this
+                        .update(cx, |s, _| s.generation == generation)
+                        .unwrap_or(false);
+                    if !alive {
+                        return;
+                    }
+                    continue;
+                }
+
+                let _ = this.update(cx, |s, cx| {
+                    if s.generation == generation {
+                        s.teardown_active_handles(cx);
+                        s.phase = StreamPhase::Failed;
+                        cx.notify();
+                    }
+                });
+                return;
+            }
+        }));
+    }
+
+    pub(super) fn present_frame(&mut self, frame: Frame, cx: &mut Context<Self>) {
+        let Some(rgba) = RgbaImage::from_raw(frame.width, frame.height, frame.bgra) else {
+            return;
+        };
+        let image = Arc::new(RenderImage::new(vec![ImageFrame::new(rgba)]));
+        let old = self.frame_image.replace(image);
+        self.frame_dims = Some((frame.width, frame.height));
+        if let Some(old) = old {
+            cx.drop_image(old, None);
+        }
+        cx.notify();
+    }
+
+    pub(super) fn teardown_active_handles(&mut self, cx: &mut Context<Self>) {
+        self.release_inputs();
+        self.command_tx = None;
+        self.resize_task = None;
+        self.last_sent_size = None;
+        if let Some(cancel) = self.stream_cancel.take() {
+            cancel.cancel();
+        }
+        self.frame_dims = None;
+        if let Some(old) = self.frame_image.take() {
+            cx.drop_image(old, None);
+        }
+    }
+
+    pub(super) fn teardown_session(&mut self, cx: &mut Context<Self>) {
+        self.generation = self.generation.wrapping_add(1);
+        self.session_task = None;
+        self.phase = StreamPhase::Idle;
+        self.teardown_active_handles(cx);
+    }
+
+    pub(super) fn send_cmd(&self, cmd: RfbCommand) {
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.try_send(cmd);
+        }
+    }
+
+    pub(super) fn release_inputs(&mut self) {
+        for cmd in self.input.release_all() {
+            self.send_cmd(cmd);
+        }
+    }
+
+    pub(super) fn viewport_pixel_size(&self) -> Option<(u16, u16)> {
+        let bounds = self.viewport_bounds?;
+        let w = (f32::from(bounds.size.width).round() as u16) & !1;
+        let h = (f32::from(bounds.size.height).round() as u16) & !1;
+        (w >= 320 && h >= 240).then_some((w.min(4096), h.min(4096)))
+    }
+
+    pub(super) fn update_viewport_bounds(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.viewport_bounds == Some(bounds) {
+            return;
+        }
+        self.viewport_bounds = Some(bounds);
+        let Some(size) = self.viewport_pixel_size() else {
+            return;
+        };
+        if self.last_sent_size == Some(size) || self.command_tx.is_none() {
+            return;
+        }
+        self.resize_task = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(120))
+                .await;
+            let _ = this.update(cx, |s, _| {
+                if let Some(next) = s.viewport_pixel_size()
+                    && s.last_sent_size != Some(next)
+                {
+                    s.last_sent_size = Some(next);
+                    s.send_cmd(RfbCommand::Resize {
+                        width: next.0,
+                        height: next.1,
+                    });
+                }
+            });
+        }));
+    }
+
+    pub(super) fn on_mouse_down(
+        &mut self,
+        e: &MouseDownEvent,
+        w: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.focus.focus(w, cx);
+        if let Some((x, y)) = self.pointer_at(e.position)
+            && let Some(bit) = button_bit(e.button)
+        {
+            self.input.buttons |= bit;
+            self.input.last_pos = (x, y);
+            self.send_cmd(RfbCommand::Pointer {
+                mask: self.input.buttons,
+                x,
+                y,
+            });
+        }
+        cx.stop_propagation();
+    }
+
+    pub(super) fn on_mouse_up(&mut self, e: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(bit) = button_bit(e.button) {
+            self.input.buttons &= !bit;
+            let (x, y) = self.pointer_at(e.position).unwrap_or(self.input.last_pos);
+            self.input.last_pos = (x, y);
+            self.send_cmd(RfbCommand::Pointer {
+                mask: self.input.buttons,
+                x,
+                y,
+            });
+        }
+        cx.stop_propagation();
+    }
+
+    pub(super) fn on_mouse_move(
+        &mut self,
+        e: &MouseMoveEvent,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) {
+        if let Some((x, y)) = self.pointer_at(e.position)
+            && self.input.last_pos != (x, y)
+        {
+            self.input.last_pos = (x, y);
+            self.send_cmd(RfbCommand::Pointer {
+                mask: self.input.buttons,
+                x,
+                y,
+            });
+        }
+    }
+
+    pub(super) fn on_scroll(
+        &mut self,
+        e: &ScrollWheelEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some((x, y)) = self.pointer_at(e.position) {
+            self.input.last_pos = (x, y);
+            let delta = e.delta.pixel_delta(px(24.));
+            self.input.scroll_accum_y += f32::from(delta.y);
+            self.input.scroll_accum_x += f32::from(delta.x);
+            let steps_y = (self.input.scroll_accum_y / 24.).trunc().clamp(-16., 16.) as i32;
+            self.input.scroll_accum_y -= (steps_y as f32) * 24.;
+            let bit_y = if steps_y > 0 { 1 << 3 } else { 1 << 4 };
+            for _ in 0..steps_y.unsigned_abs() {
+                self.send_cmd(RfbCommand::Pointer {
+                    mask: self.input.buttons | bit_y,
+                    x,
+                    y,
+                });
+                self.send_cmd(RfbCommand::Pointer {
+                    mask: self.input.buttons,
+                    x,
+                    y,
+                });
+            }
+            let steps_x = (self.input.scroll_accum_x / 24.).trunc().clamp(-16., 16.) as i32;
+            self.input.scroll_accum_x -= (steps_x as f32) * 24.;
+            let bit_x = if steps_x > 0 { 1 << 5 } else { 1 << 6 };
+            for _ in 0..steps_x.unsigned_abs() {
+                self.send_cmd(RfbCommand::Pointer {
+                    mask: self.input.buttons | bit_x,
+                    x,
+                    y,
+                });
+                self.send_cmd(RfbCommand::Pointer {
+                    mask: self.input.buttons,
+                    x,
+                    y,
+                });
+            }
+        }
+        cx.stop_propagation();
+    }
+
+    pub(super) fn on_key_down(&mut self, e: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if e.keystroke.modifiers.platform {
+            return;
+        }
+        for cmd in self.input.key_down(&e.keystroke) {
+            self.send_cmd(cmd);
+        }
+        cx.stop_propagation();
+    }
+
+    pub(super) fn on_key_up(&mut self, e: &KeyUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if e.keystroke.modifiers.platform {
+            return;
+        }
+        for cmd in self.input.key_up(&e.keystroke) {
+            self.send_cmd(cmd);
+        }
+        cx.stop_propagation();
+    }
+
+    pub(super) fn on_modifiers(
+        &mut self,
+        e: &ModifiersChangedEvent,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) {
+        let mut cmds = Vec::new();
+        self.input.sync_modifiers(e.modifiers, &mut cmds);
+        for cmd in cmds {
+            self.send_cmd(cmd);
+        }
+    }
+}

@@ -29,7 +29,7 @@ impl Target {
         Ok(project_id)
     }
 }
-fn identifier(value: &str) -> bool {
+pub(super) fn identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 100
         && value
@@ -93,6 +93,8 @@ pub(super) struct Runtime {
     pub generation: String,
     pub state: String,
     pub operation: Option<Operation>,
+    #[serde(default)]
+    pub sandbox: serde_json::Value,
 }
 #[derive(Clone, Deserialize)]
 pub(super) struct Operation {
