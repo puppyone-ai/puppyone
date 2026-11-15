@@ -7093,6 +7093,138 @@
           "test": "platform::local_agent_setup::installer::tests::the_product_installer_refuses_unreviewed_sources_without_a_request"
         }
       ]
+    },
+    {
+      "id": "companion-evidence-generation-capacity-and-native-lifetime",
+      "acceptance": "Only verified bundle metadata and executable presence authorize companion evidence. Unsupported platforms do no filesystem work; unreadable, incomplete, timed-out and cancelled scans remain Unknown. At most two underlying IO calls exist; timed-out/cancelled calls keep capacity until they actually finish. Application evidence has no TTL: views share active work and completed results, refresh retires old recommendations immediately and coalesces one newest generation, last enabled view release cancels active/queued work but preserves completed cache. Late cancelled results cannot overwrite it; app shutdown revokes all evidence. Native window and preference hooks are exercised. Installation-discovery lifetime and trusted-guide receipt acceptance remain separately unreviewed.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-installation/companion-apps.test.mjs",
+          "sha256": "d71da37440ac4a451bac74e1608829270c7ac00ae94a99d736a0c4f20dd9875c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "bounded macOS companion presence > recognizes a renamed app by bundle identity and actual executable, returning no path"
+            },
+            {
+              "index": 1,
+              "name": "bounded macOS companion presence > rejects unrelated identity, missing executable and traversal: {\"metadata\":{\"CFBundleIdentifier\":\"com.openai.chat\",\"CFBundleExecutable\":\"ChatGPT\"}}"
+            },
+            {
+              "index": 2,
+              "name": "bounded macOS companion presence > rejects unrelated identity, missing executable and traversal: {\"executable\":false}"
+            },
+            {
+              "index": 3,
+              "name": "bounded macOS companion presence > rejects unrelated identity, missing executable and traversal: {\"metadata\":{\"CFBundleIdentifier\":\"com.openai.codex\",\"CFBundleExecutable\":\"../../bin/sh\"}}"
+            },
+            {
+              "index": 4,
+              "name": "bounded macOS companion presence > reports unsupported platforms without touching the filesystem"
+            },
+            {
+              "index": 5,
+              "name": "bounded macOS companion presence > turns denied reads into unknown, never an installation recommendation"
+            },
+            {
+              "index": 6,
+              "name": "bounded macOS companion presence > retains timed-out IO capacity until the underlying operation finishes"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/local-agent-installation/local-agent-setup.test.mjs",
+          "sha256": "6dcf097739b5c1648cd3832a00efb452fa34bd710dde63a266f4bd5126d44a3a",
+          "cases": [
+            {
+              "index": 20,
+              "name": "companion presence lifecycle > invalidates the previous presence revision as soon as another window refreshes"
+            },
+            {
+              "index": 21,
+              "name": "companion presence lifecycle > coalesces windows and queues only the newest installation generation"
+            },
+            {
+              "index": 22,
+              "name": "companion presence lifecycle > retains unknown as unknown until explicit discovery advances the generation"
+            },
+            {
+              "index": 23,
+              "name": "companion presence lifecycle > preserves completed evidence on release and rejects late canceled results and queued work"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::session::tests::a_new_generation_immediately_retires_old_recommendations_and_coalesces_only_the_latest_scan"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::session::tests::unknown_is_cached_without_time_or_view_expiration_until_explicit_discovery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::session::tests::release_preserves_completed_evidence_and_rejects_late_cancelled_results_and_queued_work"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::session::tests::disposal_cancels_active_and_queued_work_and_permanently_revokes_cached_revisions"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::io::tests::unsupported_and_precancelled_scans_never_start_filesystem_work"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::io::tests::timed_out_io_retains_both_slots_until_underlying_calls_finish"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::io::tests::cancelling_an_active_call_returns_unknown_without_releasing_its_io_slot_early"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::tests::bundles_are_identified_by_metadata_and_gaps_stay_unknown"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::tests::unrelated_missing_and_invalid_executables_never_prove_companion_presence"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::tests::unreadable_roots_and_metadata_are_unknown_while_missing_roots_are_absence"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::tests::entry_budget_deadline_and_cancellation_never_turn_partial_metadata_into_absence"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::tests::plutil_reads_a_real_property_list"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::explicit_companion_refresh_during_a_scan_runs_one_latest_follow_up"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::closing_the_last_native_setup_window_cancels_pending_evidence_but_preserves_completed_cache"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::disabling_the_last_enabled_view_cancels_scanning_and_unknown_is_not_retried_on_render"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::companion_cache_survives_view_replacement_and_application_shutdown_revokes_it"
+        }
+      ]
     }
   ],
   "openAcceptance": [

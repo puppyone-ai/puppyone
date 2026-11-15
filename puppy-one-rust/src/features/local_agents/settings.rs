@@ -87,7 +87,7 @@ impl AgentSettings {
         // An activation that installed a CLI refreshes the detected Agents.
         let activation = setup::store(cx);
         cx.subscribe(&activation, |s, _, _: &InstallationsChanged, cx| {
-            s.refresh(cx);
+            s.refresh_inventory(cx);
             cx.notify();
         })
         .detach();
@@ -124,7 +124,7 @@ impl AgentSettings {
             rx,
             wake,
         };
-        s.refresh(cx);
+        s.refresh_inventory(cx);
         s.read_enrollment(false, cx);
         s
     }
@@ -175,6 +175,10 @@ impl AgentSettings {
     }
     /// Rescans this machine's Agents.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
+        setup::store(cx).update(cx, |s, cx| s.rescan_companions(cx));
+        self.refresh_inventory(cx);
+    }
+    fn refresh_inventory(&mut self, cx: &mut Context<Self>) {
         if self.scanning {
             return;
         }

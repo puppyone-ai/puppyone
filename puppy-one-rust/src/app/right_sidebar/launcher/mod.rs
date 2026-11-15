@@ -115,7 +115,9 @@ impl WorkbenchLauncher {
         let activation = crate::features::local_agents::activation_store(cx);
         cx.subscribe(
             &activation,
-            |s, _, _: &crate::features::local_agents::InstallationsChanged, cx| s.rescan(cx),
+            |s, _, _: &crate::features::local_agents::InstallationsChanged, cx| {
+                s.rescan_inventory(cx)
+            },
         )
         .detach();
         Self {
@@ -329,6 +331,11 @@ impl WorkbenchLauncher {
     }
     /// `discovery.refresh`: rescan local agent installations.
     fn rescan(&mut self, cx: &mut Context<Self>) {
+        crate::features::local_agents::activation_store(cx)
+            .update(cx, |s, cx| s.rescan_companions(cx));
+        self.rescan_inventory(cx);
+    }
+    fn rescan_inventory(&mut self, cx: &mut Context<Self>) {
         if self.scanning {
             return;
         }

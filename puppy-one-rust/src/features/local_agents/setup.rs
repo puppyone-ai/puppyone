@@ -37,7 +37,7 @@ use crate::ui::components::native_checkbox;
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{Arc, atomic::AtomicBool},
 };
@@ -106,16 +106,24 @@ impl activation::Ports for NoPorts {
 pub struct InstallationsChanged;
 /// `LocalAgentActivationStore`: the operations of this app, the
 /// companion-app evidence and the session's suppressed suggestions.
+type CompanionScanner = Arc<
+    dyn Fn(
+            Arc<AtomicBool>,
+        ) -> futures_util::future::BoxFuture<'static, Vec<(&'static str, Presence)>>
+        + Send
+        + Sync,
+>;
 pub struct Activation {
     service: activation::Service,
     pub snapshot: Snapshot,
     retired_epochs: HashSet<String>,
     /// `error`: the last read or update failed.
     pub error: bool,
-    companions: Option<Vec<(&'static str, Presence)>>,
-    scanning: bool,
+    presence: companion::session::Session,
+    companion_generation: u64,
+    presence_clients: HashMap<EntityId, (String, bool)>,
     /// Reads the companion apps (this machine's, except in tests).
-    scanner: fn() -> Vec<(&'static str, Presence)>,
+    scanner: CompanionScanner,
     /// `sessionSuppressed`: suggestions snoozed during this session.
     suppressed: HashSet<String>,
 }
@@ -163,18 +171,23 @@ pub(crate) fn install(
             let _ = published.try_send(s);
         }),
     );
-    // Closing one window releases only its unconsumed consent. On macOS the
-    // application and its activations can outlive every window.
+    let entity = cx.new(|cx| Activation::new(service.clone(), cx));
+    // Window lifetime owns only consent and pending evidence, not installations.
     let closing = service.clone();
-    cx.on_window_closed(move |_, id| closing.release(&format!("window:{id:?}")))
-        .detach();
-    let quitting = service.clone();
-    cx.on_app_quit(move |_| {
-        quitting.dispose();
+    let weak = entity.downgrade();
+    cx.on_window_closed(move |cx, id| {
+        let owner = format!("window:{id:?}");
+        closing.release(&owner);
+        let _ = weak.update(cx, |s, _| s.release_presence_owner(&owner));
+    })
+    .detach();
+    let weak = entity.downgrade();
+    cx.on_app_quit(move |cx| {
+        service.dispose();
+        let _ = weak.update(cx, |s, _| s.presence.dispose());
         std::future::ready(())
     })
     .detach();
-    let entity = cx.new(|cx| Activation::new(service, cx));
     let weak = entity.downgrade();
     cx.spawn(async move |cx| {
         while let Ok(snapshot) = snapshots.recv().await {
@@ -213,17 +226,24 @@ impl Activation {
             },
             retired_epochs: HashSet::new(),
             error: false,
-            companions: None,
-            scanning: false,
+            presence: companion::session::Session::default(),
+            companion_generation: 1,
+            presence_clients: HashMap::new(),
             #[cfg(not(test))]
-            scanner: || companion::inspect(&companion::identities()),
+            scanner: Arc::new(|cancel| {
+                Box::pin(async move {
+                    companion::inspect_with_cancel(&companion::identities(), &cancel)
+                })
+            }),
             #[cfg(test)]
-            scanner: || {
-                companion::identities()
-                    .into_iter()
-                    .map(|(id, _)| (id, Presence::NotFound))
-                    .collect()
-            },
+            scanner: Arc::new(|_| {
+                Box::pin(async {
+                    companion::identities()
+                        .into_iter()
+                        .map(|(id, _)| (id, Presence::NotFound))
+                        .collect()
+                })
+            }),
             suppressed: HashSet::new(),
         };
         store.refresh(cx);
@@ -305,28 +325,56 @@ impl Activation {
             Ok(())
         })
     }
-    /// Companion apps, scanned once until an explicit rescan.
+    /// Completed evidence is shared across views; a fresh generation revokes
+    /// old recommendations immediately, while at most one scan runs at a time.
     fn companions(&mut self, cx: &mut Context<Self>) -> Vec<(&'static str, Presence)> {
-        if self.companions.is_none() && !self.scanning {
-            self.scanning = true;
-            let scanner = self.scanner;
-            let scan = cx.background_spawn(async move { scanner() });
-            cx.spawn(async move |this, cx| {
-                let found = scan.await;
-                let _ = this.update(cx, |s, cx| {
-                    s.scanning = false;
-                    s.companions = Some(found);
-                    cx.notify();
-                });
-            })
-            .detach();
+        if let Some(scan) = self.presence.discover(self.companion_generation) {
+            self.scan_companions(scan, cx);
         }
-        self.companions.clone().unwrap_or_default()
+        self.presence
+            .current()
+            .map(|(_, values)| values.clone())
+            .unwrap_or_default()
+    }
+    fn scan_companions(&mut self, scan: companion::session::Scan, cx: &mut Context<Self>) {
+        let work = cx.background_spawn((self.scanner)(scan.cancel.clone()));
+        cx.spawn(async move |this, cx| {
+            let values = work.await;
+            let _ = this.update(cx, |s, cx| {
+                if let Some(next) = s.presence.complete(&scan, values) {
+                    s.scan_companions(next, cx);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+    fn set_presence_client(&mut self, client: EntityId, owner: String, enabled: bool) {
+        self.presence_clients.insert(client, (owner, enabled));
+        self.cancel_unused_presence();
+    }
+    fn release_presence_client(&mut self, client: EntityId) {
+        self.presence_clients.remove(&client);
+        self.cancel_unused_presence();
+    }
+    fn release_presence_owner(&mut self, owner: &str) {
+        self.presence_clients
+            .retain(|_, (candidate, _)| candidate != owner);
+        self.cancel_unused_presence();
+    }
+    fn cancel_unused_presence(&mut self) {
+        if !self.presence_clients.values().any(|(_, enabled)| *enabled) {
+            self.presence.cancel();
+        }
     }
     /// Dev-capture: no companion apps instead of this machine's.
     #[cfg(feature = "dev-capture")]
     pub fn lab_fixture(&mut self, cx: &mut Context<Self>) {
-        self.companions = Some(
+        self.presence.cancel();
+        self.presence = companion::session::Session::default();
+        let scan = self.presence.discover(self.companion_generation).unwrap();
+        self.presence.complete(
+            &scan,
             companion::identities()
                 .into_iter()
                 .map(|(id, _)| (id, Presence::NotFound))
@@ -334,12 +382,13 @@ impl Activation {
         );
         cx.notify();
     }
-    /// After an explicit CLI scan the app evidence is read again.
+    /// Explicit CLI refresh advances the generation even while discovery runs.
     pub fn rescan_companions(&mut self, cx: &mut Context<Self>) {
-        if !self.scanning {
-            self.companions = None;
-            cx.notify();
+        self.companion_generation += 1;
+        if self.presence_clients.values().any(|(_, enabled)| *enabled) {
+            self.companions(cx);
         }
+        cx.notify();
     }
     /// The setup entries of one surface (`inspect` → `adviseSetup`).
     pub fn entries(
@@ -414,7 +463,25 @@ impl SetupSection {
     ) -> Self {
         let store = store(cx);
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
-        cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
+        cx.observe(&preferences, |s, _, cx| {
+            s.sync_presence_client(cx);
+            cx.notify();
+        })
+        .detach();
+        let client = cx.entity_id();
+        let enabled = preferences
+            .read(cx)
+            .state
+            .local_agents
+            .setup_suggestions
+            .enabled;
+        store.update(cx, |s, _| {
+            s.set_presence_client(client, owner.clone(), enabled)
+        });
+        cx.on_release(move |s, cx| {
+            s.store.update(cx, |s, _| s.release_presence_client(client));
+        })
+        .detach();
         Self {
             presentation,
             surface,
@@ -431,6 +498,19 @@ impl SetupSection {
             action_error: false,
             dialog: None,
         }
+    }
+    fn sync_presence_client(&mut self, cx: &mut Context<Self>) {
+        let enabled = self
+            .preferences
+            .read(cx)
+            .state
+            .local_agents
+            .setup_suggestions
+            .enabled;
+        let client = cx.entity_id();
+        self.store.update(cx, |s, _| {
+            s.set_presence_client(client, self.owner.clone(), enabled)
+        });
     }
     pub fn set_observations(
         &mut self,

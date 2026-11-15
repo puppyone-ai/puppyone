@@ -174,7 +174,8 @@ fn actual_typescript_setup_advice_preserves_every_evidence_state_and_suppression
                     match c["status"].as_str().unwrap() {
                         "present" => companion::Presence::Present,
                         "not-found" => companion::Presence::NotFound,
-                        "unknown" | "unsupported" => companion::Presence::Unknown,
+                        "unknown" => companion::Presence::Unknown,
+                        "unsupported" => companion::Presence::Unsupported,
                         _ => panic!("invalid companion evidence"),
                     },
                 )

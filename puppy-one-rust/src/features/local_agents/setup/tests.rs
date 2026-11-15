@@ -60,7 +60,7 @@ fn an_unfinished_installation_scan_never_recommends_installing_an_agent(cx: &mut
         )
     });
     store.update(cx, |s, _| {
-        s.companions = Some(vec![("codex", Presence::Present)])
+        fixture_companions(s, vec![("codex", Presence::Present)])
     });
     let preferences = cx.new(|_| PreferencesStore::memory());
     preferences.update(cx, |p, _| {
@@ -274,13 +274,15 @@ fn ui(cx: &mut TestAppContext) -> (UiFixture, &mut VisualTestContext) {
         )
     });
     until(cx, |cx| {
-        store.read_with(cx, |s, _| s.snapshot.epoch != "initial" && !s.scanning)
+        store.read_with(cx, |s, _| {
+            s.snapshot.epoch != "initial" && !s.presence.is_scanning()
+        })
     });
     store.update(cx, |s, cx| {
-        s.companions = Some(vec![
-            ("codex", Presence::Present),
-            ("cursor", Presence::Present),
-        ]);
+        fixture_companions(
+            s,
+            vec![("codex", Presence::Present), ("cursor", Presence::Present)],
+        );
         cx.notify();
     });
     section.update(cx, |s, cx| s.set_found(Some(vec![]), cx));
@@ -430,10 +432,10 @@ fn discovered_clis_override_every_stale_activation_receipt_in_the_rendered_launc
 fn missing_companions_do_not_render_activation_suggestions(cx: &mut TestAppContext) {
     let (f, cx) = ui(cx);
     f.store.update(cx, |s, cx| {
-        s.companions = Some(vec![
-            ("codex", Presence::NotFound),
-            ("cursor", Presence::Unknown),
-        ]);
+        fixture_companions(
+            s,
+            vec![("codex", Presence::NotFound), ("cursor", Presence::Unknown)],
+        );
         cx.notify();
     });
     assert!(!has(cx, "agent-setup-activate:codex"));
@@ -721,4 +723,248 @@ fn closing_a_native_window_revokes_only_its_plans_and_keeps_application_work(
         Err(ErrorCode::Interrupted)
     );
     service.settle_for_test();
+}
+
+#[gpui::test]
+fn explicit_companion_refresh_during_a_scan_runs_one_latest_follow_up(cx: &mut TestAppContext) {
+    let (f, cx) = ui(cx);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (first_tx, first_rx) = async_channel::bounded(1);
+    let (second_tx, second_rx) = async_channel::bounded(1);
+    let reads = [first_rx, second_rx];
+    let count = calls.clone();
+    f.store.update(cx, |s, cx| {
+        s.presence = companion::session::Session::default();
+        s.scanner = Arc::new(move |_| {
+            let index = count.fetch_add(1, Ordering::SeqCst);
+            let receive = reads[index].clone();
+            Box::pin(async move { receive.recv().await.unwrap() })
+        });
+        s.companions(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    f.store.update(cx, |s, cx| {
+        s.rescan_companions(cx);
+        s.rescan_companions(cx);
+        assert!(s.companions(cx).is_empty());
+    });
+    first_tx
+        .try_send(vec![("codex", Presence::Present)])
+        .unwrap();
+    cx.run_until_parked();
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        2,
+        "refresh must survive the in-flight scan"
+    );
+    assert!(
+        f.store.update(cx, |s, cx| s.companions(cx)).is_empty(),
+        "first generation cannot revive stale recommendations"
+    );
+    second_tx
+        .try_send(vec![("codex", Presence::NotFound)])
+        .unwrap();
+    cx.run_until_parked();
+    assert_eq!(
+        f.store.update(cx, |s, cx| s.companions(cx)),
+        vec![("codex", Presence::NotFound)]
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+}
+
+fn fixture_companions(store: &mut Activation, values: Vec<(&'static str, Presence)>) {
+    store.presence.cancel();
+    store.presence = companion::session::Session::default();
+    let scan = store.presence.discover(store.companion_generation).unwrap();
+    store.presence.complete(&scan, values);
+}
+
+#[gpui::test]
+fn closing_the_last_native_setup_window_cancels_pending_evidence_but_preserves_completed_cache(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let dir = tempfile::tempdir().unwrap();
+    let store = cx.update(|cx| {
+        install(
+            dir.path().join("activation.json"),
+            |_| Arc::new(Fake::default()),
+            cx,
+        )
+    });
+    let preferences = cx.new(|_| PreferencesStore::memory());
+    preferences.update(cx, |p, _| {
+        p.state.local_agents.setup_suggestions.enabled = true
+    });
+    let first = cx.add_window(|window, cx| {
+        SetupSection::new(
+            Presentation::Settings,
+            Surface::Chat,
+            preferences.clone(),
+            crate::features::agent_presence::owner(window),
+            cx,
+        )
+    });
+    let second = cx.add_window(|window, cx| {
+        SetupSection::new(
+            Presentation::Settings,
+            Surface::Chat,
+            preferences.clone(),
+            crate::features::agent_presence::owner(window),
+            cx,
+        )
+    });
+    // Keep entities alive: the native close hook, not final Rust Drop, must release
+    // their ownership. Two views must share one application-scoped scan.
+    let held_first = first.update(cx, |_, _, cx| cx.entity()).unwrap();
+    let held_second = second.update(cx, |_, _, cx| cx.entity()).unwrap();
+    let (release, gate) = async_channel::bounded(1);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let signals = Arc::new(Mutex::new(Vec::new()));
+    let count = calls.clone();
+    let captured = signals.clone();
+    store.update(cx, |s, cx| {
+        fixture_companions(s, vec![("codex", Presence::Present)]);
+        s.scanner = Arc::new(move |cancel| {
+            count.fetch_add(1, Ordering::SeqCst);
+            captured.lock().unwrap().push(cancel);
+            let gate = gate.clone();
+            Box::pin(async move { gate.recv().await.unwrap() })
+        });
+        s.rescan_companions(cx);
+        s.rescan_companions(cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    first
+        .update(cx, |_, window, _| window.remove_window())
+        .unwrap();
+    cx.run_until_parked();
+    assert!(!signals.lock().unwrap()[0].load(Ordering::Relaxed));
+    second
+        .update(cx, |_, window, _| window.remove_window())
+        .unwrap();
+    cx.run_until_parked();
+    assert!(signals.lock().unwrap()[0].load(Ordering::Relaxed));
+    release
+        .try_send(vec![("codex", Presence::NotFound)])
+        .unwrap();
+    cx.run_until_parked();
+    store.read_with(cx, |s, _| {
+        assert!(s.presence_clients.is_empty());
+        assert_eq!(
+            s.presence.current().unwrap().1,
+            &vec![("codex", Presence::Present)]
+        );
+    });
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "closing last window cancels the queued scan too"
+    );
+    drop((held_first, held_second));
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn disabling_the_last_enabled_view_cancels_scanning_and_unknown_is_not_retried_on_render(
+    cx: &mut TestAppContext,
+) {
+    let (f, cx) = ui(cx);
+    let (release, gate) = async_channel::bounded(1);
+    let signals = Arc::new(Mutex::new(Vec::new()));
+    let captured = signals.clone();
+    f.store.update(cx, |s, cx| {
+        s.scanner = Arc::new(move |cancel| {
+            let mut signals = captured.lock().unwrap();
+            let index = signals.len();
+            signals.push(cancel);
+            let gate = gate.clone();
+            Box::pin(async move {
+                if index == 0 {
+                    gate.recv().await.unwrap()
+                } else {
+                    vec![("codex", Presence::Unknown), ("cursor", Presence::Unknown)]
+                }
+            })
+        });
+        s.rescan_companions(cx);
+    });
+    cx.run_until_parked();
+    f.preferences.update(cx, |p, cx| {
+        p.change(|p| p.local_agents.setup_suggestions.enabled = false, cx)
+    });
+    cx.run_until_parked();
+    assert!(signals.lock().unwrap()[0].load(Ordering::Relaxed));
+    release
+        .try_send(vec![("codex", Presence::NotFound)])
+        .unwrap();
+    cx.run_until_parked();
+    assert_eq!(signals.lock().unwrap().len(), 1);
+    f.preferences.update(cx, |p, cx| {
+        p.change(|p| p.local_agents.setup_suggestions.enabled = true, cx)
+    });
+    for _ in 0..4 {
+        draw(cx);
+    }
+    assert_eq!(signals.lock().unwrap().len(), 2);
+    assert!(f.section.update(cx, |s, cx| s.model(cx).2).is_empty());
+    assert!(f.store.read_with(cx, |s, _| {
+        s.presence
+            .current()
+            .unwrap()
+            .1
+            .iter()
+            .all(|(_, p)| *p == Presence::Unknown)
+    }));
+}
+
+#[gpui::test]
+fn companion_cache_survives_view_replacement_and_application_shutdown_revokes_it(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let dir = tempfile::tempdir().unwrap();
+    let store = cx.update(|cx| {
+        install(
+            dir.path().join("activation.json"),
+            |_| Arc::new(Fake::default()),
+            cx,
+        )
+    });
+    let preferences = cx.new(|_| PreferencesStore::memory());
+    preferences.update(cx, |p, _| {
+        p.state.local_agents.setup_suggestions.enabled = true
+    });
+    store.update(cx, |s, _| {
+        fixture_companions(s, vec![("codex", Presence::Present)]);
+        s.scanner = Arc::new(|_| panic!("mounting a view must not rescan completed evidence"));
+    });
+    for _ in 0..3 {
+        let window = cx.add_window(|window, cx| {
+            SetupSection::new(
+                Presentation::Settings,
+                Surface::Chat,
+                preferences.clone(),
+                crate::features::agent_presence::owner(window),
+                cx,
+            )
+        });
+        window
+            .update(cx, |s, _, cx| {
+                s.set_found(Some(vec![]), cx);
+                assert_eq!(s.model(cx).2[0].setup_id, "codex");
+            })
+            .unwrap();
+        window
+            .update(cx, |_, window, _| window.remove_window())
+            .unwrap();
+        cx.run_until_parked();
+        assert!(store.read_with(cx, |s, _| s.presence.current().is_some()));
+    }
+    cx.update(App::shutdown);
+    assert!(store.read_with(cx, |s, _| s.presence.current().is_none()));
 }
