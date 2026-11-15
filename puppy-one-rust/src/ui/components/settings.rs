@@ -341,6 +341,7 @@ pub struct ValueRow {
     label: SharedString,
     value: SharedString,
     monospace: bool,
+    success: bool,
     action: Option<AnyElement>,
 }
 impl ValueRow {
@@ -349,12 +350,18 @@ impl ValueRow {
             label: label.into(),
             value: value.into(),
             monospace: false,
+            success: false,
             action: None,
             style: StyleRefinement::default(),
         }
     }
     pub fn monospace(mut self, monospace: bool) -> Self {
         self.monospace = monospace;
+        self
+    }
+    /// `tone="success"`: the value in the success colour.
+    pub fn success(mut self, success: bool) -> Self {
+        self.success = success;
         self
     }
     pub fn action(mut self, action: impl IntoElement) -> Self {
@@ -395,7 +402,7 @@ impl RenderOnce for ValueRow {
                             .min_w_0()
                             .truncate()
                             .text_right()
-                            .text_color(t.text)
+                            .text_color(if self.success { t.success } else { t.text })
                             .when(monospace, |d| {
                                 d.font_family(theme::MONO)
                                     .text_size(px(theme::ty().ui.meta))

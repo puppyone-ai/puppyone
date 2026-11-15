@@ -2,7 +2,9 @@
 //! Server page (`CloudHostingSettingsView` with
 //! `PuppyoneWorkspaceConfigSettings` over `.puppyone/config.json`).
 use super::super::{
-    repository_settings::{is_puppyone_remote, mask_remote_url, remote_kind_label},
+    repository_settings::{
+        PuppyoneRemoteKind, is_puppyone_remote, mask_remote_url, puppyone_remote, remote_kind_label,
+    },
     settings_workspace_surface::SettingsWorkspaceSurface,
     workspace_config,
 };
@@ -17,6 +19,8 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex};
+/// `cloudEnabled` for the Host Server page.
+const CLOUD_ENABLED: bool = true;
 impl SettingsWorkspaceSurface {
     fn refresh_action(&self, cx: &mut Context<Self>) -> Button {
         let loading = self.repository.read(cx).loading;
@@ -48,13 +52,86 @@ impl SettingsWorkspaceSurface {
         let content = SettingsSection::new(tr(Page::Host.title())).action(self.refresh_action(cx));
         match self.repository_state(cx) {
             Some(state) => content.child(state),
-            None => content.child(self.workspace_config(t, cx)),
+            None => content
+                .child(self.workspace_config(t, cx))
+                .children(self.cloud_connection(cx)),
         }
         .into_any_element()
     }
     /// `PuppyoneWorkspaceConfigSettings` (`.desktop-puppyone-config-*`).
+    /// `CloudHostingSettingsView`'s connection subsection, while the saved
+    /// configuration hosts or backs up on PuppyOne Cloud: the one PuppyOne
+    /// remote's name, host, target and masked URL with Copy.
+    fn cloud_connection(&self, cx: &mut Context<Self>) -> Option<SettingsSubsection> {
+        use workspace_config::Service::Puppyone;
+        let repo = self.repository.read(cx);
+        let config = repo.config.as_ref()?;
+        if !CLOUD_ENABLED
+            || !(config.source_service == Puppyone
+                || (config.backup_enabled && config.backup_service == Puppyone))
+        {
+            return None;
+        }
+        let info = repo.info.clone().unwrap_or_default();
+        let remote = puppyone_remote(&info.remotes)
+            .map(|(remote, url, info)| (remote.name.clone(), url.to_owned(), info));
+        let mut rows = vec![
+            ValueRow::new(
+                tr("settings.cloud.status"),
+                tr(if remote.is_some() {
+                    "settings.cloud.connected"
+                } else {
+                    "settings.shared.notConfigured"
+                }),
+            )
+            .success(remote.is_some())
+            .into_any_element(),
+        ];
+        let Some((name, url, info)) = remote else {
+            rows.push(MutedRow::new(tr("settings.shared.notConfigured")).into_any_element());
+            return Some(
+                SettingsSubsection::new()
+                    .title(tr("settings.cloud.connectionTitle"))
+                    .children(rows),
+            );
+        };
+        let key: SharedString = format!("{name}:{url}").into();
+        let copied = self.is_copied(&key);
+        let target = match info.kind {
+            PuppyoneRemoteKind::AccessPoint => "settings.cloud.accessKey",
+            PuppyoneRemoteKind::Scope => "settings.cloud.projectScope",
+            PuppyoneRemoteKind::Project => "settings.cloud.project",
+        };
+        rows.extend([
+            ValueRow::new(tr("settings.cloud.remote"), name).into_any_element(),
+            ValueRow::new(tr("settings.cloud.host"), info.host).into_any_element(),
+            ValueRow::new(tr(target), info.display_id)
+                .monospace(true)
+                .into_any_element(),
+            ValueRow::new(tr("settings.cloud.connectionUrl"), mask_remote_url(&url))
+                .monospace(true)
+                // `CopyAction`: always the Copy glyph; only the label changes.
+                .action(
+                    Button::new("copy-cloud-url")
+                        .icon("copy")
+                        .label(tr(if copied {
+                            "common.action.copied"
+                        } else {
+                            "common.action.copy"
+                        }))
+                        .on_click(
+                            cx.listener(move |s, _, _, cx| s.copy(key.clone(), url.clone(), cx)),
+                        ),
+                )
+                .into_any_element(),
+        ]);
+        Some(
+            SettingsSubsection::new()
+                .title(tr("settings.cloud.connectionTitle"))
+                .children(rows),
+        )
+    }
     fn workspace_config(&mut self, t: Theme, cx: &mut Context<Self>) -> SettingsSubsection {
-        const CLOUD_ENABLED: bool = true;
         let repo = self.repository.read(cx);
         let Some(saved) = repo.config.clone() else {
             return SettingsSubsection::new()
