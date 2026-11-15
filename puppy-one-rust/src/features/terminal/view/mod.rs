@@ -84,16 +84,25 @@ impl TerminalView {
                         while let Ok(e) = s.terminal.events.try_recv() {
                             match e {
                                 Event::Data(bytes) => {
-                                    s.selection = None;
-                                    s.selecting = false;
                                     s.hover_link = None;
                                     s.restart_blink(cx);
                                     let screen = s.parser.screen().alternate_screen();
                                     s.parser.process(&bytes);
                                     if s.parser.screen().alternate_screen() != screen {
                                         s.cursor_initialized = true;
+                                        // The other buffer has none of it.
+                                        s.selection = None;
+                                        s.selecting = false;
                                     }
                                     let history = history(&mut s.parser);
+                                    // A selection follows its rows as output
+                                    // scrolls, until they leave the scrollback.
+                                    if s.selection
+                                        .is_some_and(|sel| !sel.alive(s.parser.screen(), history))
+                                    {
+                                        s.selection = None;
+                                        s.selecting = false;
+                                    }
                                     if history != s.history {
                                         s.history = history;
                                         s.mark_scrolled(cx);
@@ -284,7 +293,6 @@ impl TerminalView {
         let position = ((top - lane_top) / travel).clamp(0., 1.);
         let offset = ((1. - position) * self.history as f32).round() as usize;
         self.parser.set_scrollback(offset);
-        self.selection = None;
         self.hover_link = None;
     }
     /// `resolveTerminalDropPaths` + `quoteTerminalPaths`: dropped files and

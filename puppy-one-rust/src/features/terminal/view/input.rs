@@ -13,21 +13,35 @@ impl TerminalView {
         }
         cx.notify();
     }
-    pub(super) fn copy(&self, cx: &mut Context<Self>) {
-        let selected = self.selection.map(|s| s.text(self.parser.screen()));
+    pub(super) fn copy(&mut self, cx: &mut Context<Self>) {
+        let selected = self.selection.map(|s| s.text(&mut self.parser));
         let text = selected
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| self.parser.screen().contents());
         cx.write_to_clipboard(ClipboardItem::new_string(text));
     }
     pub(super) fn select_all(&mut self, cx: &mut Context<Self>) {
-        let (rows, cols) = self.parser.screen().size();
-        self.selection = Some(Selection {
-            anchor: CellPoint::default(),
-            head: CellPoint {
+        // The whole buffer: what is left of the scrollback, then the screen.
+        let screen = self.parser.screen();
+        let (rows, cols) = screen.size();
+        let first = screen.scrolled_rows() as i64 - self.history as i64;
+        let last = Place::of(
+            screen,
+            CellPoint {
                 row: rows - 1,
                 col: cols,
             },
+        );
+        let last = Place {
+            line: last.line + screen.scrollback() as i64,
+            ..last
+        };
+        self.selection = Some(Selection {
+            anchor: Place {
+                line: first,
+                col: 0,
+            },
+            head: last,
         });
         cx.notify();
     }
@@ -112,22 +126,21 @@ impl TerminalView {
             }
         } else if e.button == MouseButton::Left {
             let point = self.cell_at(e.position, true);
+            let screen = self.parser.screen();
             self.selection = Some(match e.click_count {
-                2 => Selection::word(self.parser.screen(), cell),
-                3.. => Selection {
-                    anchor: CellPoint {
+                2 => Selection::word(screen, cell),
+                3.. => Selection::at(
+                    screen,
+                    CellPoint {
                         row: cell.row,
                         col: 0,
                     },
-                    head: CellPoint {
+                    CellPoint {
                         row: cell.row,
-                        col: self.parser.screen().size().1,
+                        col: screen.size().1,
                     },
-                },
-                _ => Selection {
-                    anchor: point,
-                    head: point,
-                },
+                ),
+                _ => Selection::at(screen, point, point),
             });
             self.selecting = e.click_count < 2;
         }
@@ -148,7 +161,7 @@ impl TerminalView {
             let cell = self.cell_at(e.position, false);
             let selected = self
                 .selection
-                .is_some_and(|s| !s.text(self.parser.screen()).is_empty());
+                .is_some_and(|s| !s.text(&mut self.parser).is_empty());
             if link.contains(cell.row, cell.col) && !selected {
                 self.selection = None;
                 self.selecting = false;
@@ -193,7 +206,18 @@ impl TerminalView {
             cx.notify();
         }
         if self.selecting && e.dragging() {
-            let head = self.cell_at(e.position, true);
+            // Past the top or bottom edge, the view scrolls a row a move
+            // and the selection runs on through the scrollback.
+            let y = f32::from((e.position - self.bounds.origin).y);
+            let offset = self.parser.screen().scrollback();
+            if y < PAD_TOP && offset < self.history {
+                self.parser.set_scrollback(offset + 1);
+                self.mark_scrolled(cx);
+            } else if y > f32::from(self.bounds.size.height) - PAD_BOTTOM && offset > 0 {
+                self.parser.set_scrollback(offset - 1);
+                self.mark_scrolled(cx);
+            }
+            let head = Place::of(self.parser.screen(), self.cell_at(e.position, true));
             if let Some(selection) = self.selection.as_mut() {
                 selection.head = head;
             }
@@ -219,8 +243,6 @@ impl TerminalView {
         let steps = (self.scroll_pixels / cell_h).trunc().clamp(-50., 50.) as i32;
         self.scroll_pixels -= steps as f32 * cell_h;
         if steps != 0 {
-            self.selection = None;
-            self.selecting = false;
             self.hover_link = None;
             self.last_mouse = None;
             if !e.modifiers.shift

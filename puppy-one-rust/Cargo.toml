@@ -157,3 +157,5 @@ codegen-units = 1
 gpui-base = { path = "vendor/gpui-base" }
 # A TypeScript App's certificate signature; see vendor/russh/PUPPYONE_PATCH.md.
 russh = { path = "vendor/russh" }
+# OSC 8 hyperlinks and row places; see vendor/vt100/PUPPYONE_PATCH.md.
+vt100 = { path = "vendor/vt100" }

@@ -4,3 +4,4 @@
 /vendor/*
 !/vendor/gpui-base/
 !/vendor/russh/
+!/vendor/vt100/
