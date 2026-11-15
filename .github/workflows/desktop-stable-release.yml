@@ -136,7 +136,6 @@ jobs:
           npm --prefix "${BASELINE_DIR}" ci
           echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
           python3 puppy-one-rust/tools/fetch-pdfium.py
-          python3 puppy-one-rust/tools/fetch-duckdb.py
           python3 puppy-one-rust/tools/fetch-excalidraw-fonts.py
           (cd puppy-one-rust && python3 tools/verify.py)
           python3 puppy-one-rust/tools/release/verify-electron-to-gpui-ota.py

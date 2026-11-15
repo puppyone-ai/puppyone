@@ -241,24 +241,6 @@ impl RightSidebar {
         cx.notify();
     }
 
-    /// Brand mark for the active chat tab or preferred local Agent installation.
-    pub fn active_agent_brand(&self, cx: &App) -> Option<&'static crate::ui::agent_brands::Brand> {
-        use crate::features::workbench::ItemKind;
-        if let Some(snap) = self
-            .workbench
-            .read(cx)
-            .active_item_snapshot(ItemKind::Chat, cx)
-            && let Some(brand) = crate::ui::agent_brands::resolve(
-                None,
-                snap.icon_key.as_deref(),
-                Some(snap.title.as_str()),
-            )
-        {
-            return Some(brand);
-        }
-        self.launcher.read(cx).preferred_chat_brand()
-    }
-
     /// Ensures an active `ItemKind::Chat` tab is open in the current project
     /// and returns its [`crate::features::desktop_agent::AgentChatTabPanel`].
     pub fn ensure_active_chat(

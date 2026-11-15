@@ -624,15 +624,11 @@ impl Shell {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::platform::watchdog::activity("shell.render");
-        // Native web content draws above GPUI: overlays hide it, and only
-        // surfaces painted in this frame stay visible.
-        let overlay = !self.dialogs.read(cx).is_empty()
-            || self.chrome.read(cx).popover.is_some()
-            || self.cloud.read(cx).screen_shown(cx)
-            || self
-                .file
-                .as_ref()
-                .is_some_and(|f| f.read(cx).menu.is_some());
+        // Native web content draws above GPUI: a dialog or the Cloud screen
+        // hides it, and only surfaces painted in this frame stay visible. A
+        // menu, popover or tooltip is cut out of it instead, so the page
+        // around it stays (`ui::native_cover`).
+        let overlay = !self.dialogs.read(cx).is_empty() || self.cloud.read(cx).screen_shown(cx);
         crate::web_host::set_overlay(window, overlay);
         crate::web_host::frame_drawn(window);
         #[cfg(test)]

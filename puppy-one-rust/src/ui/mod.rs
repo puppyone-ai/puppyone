@@ -16,6 +16,7 @@ pub mod input;
 pub mod loading;
 pub mod moments;
 pub mod motion;
+pub mod native_cover;
 pub mod resource_drag;
 pub mod scrollbar;
 pub use fractional_text::fractional_text;

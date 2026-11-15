@@ -109,15 +109,14 @@ pub fn injected_head_bundle() -> String {
     let pen_draw = js_str(t("fileMode.html.penDraw"));
     let pen_highlight = js_str(t("fileMode.html.penHighlight"));
     let pen_rect = js_str(t("fileMode.html.penRect"));
-    let pen_laser = js_str(t("fileMode.html.penLaser"));
     let pen_undo = js_str(t("fileMode.html.penUndo"));
     let pen_clear = js_str(t("fileMode.html.penClear"));
-    let pen_copy = js_str(t("fileMode.html.penCopy"));
     let pen_send = js_str(t("fileMode.html.penSendAgent"));
     let shot_region = js_str(t("fileMode.html.shotRegion"));
     let shot_snap = js_str(t("fileMode.html.shotSnap"));
     let shot_viewport = js_str(t("fileMode.html.shotViewport"));
     let shot_hint = js_str(t("fileMode.html.shotHint"));
+    let close = js_str(t("shared-ui.notice.dismiss"));
 
     format!(
         r#"<style id="puppyone-html-file-tools-style" data-po-tool-ui="1">{TOOLS_CSS}</style>
@@ -131,15 +130,14 @@ pub fn injected_head_bundle() -> String {
     penDraw: {pen_draw},
     penHighlight: {pen_highlight},
     penRect: {pen_rect},
-    penLaser: {pen_laser},
     penUndo: {pen_undo},
     penClear: {pen_clear},
-    penCopy: {pen_copy},
     penSend: {pen_send},
     shotRegion: {shot_region},
     shotSnap: {shot_snap},
     shotViewport: {shot_viewport},
-    shotHint: {shot_hint}
+    shotHint: {shot_hint},
+    close: {close}
   }};
 
   let errCount = 0;
@@ -167,6 +165,8 @@ pub fn injected_head_bundle() -> String {
   }});
 
   let mode = 'none';
+  // The window's theme, not the page's: the tool chrome is the app's.
+  let dark = false;
   let penKind = 'pen';
   let penColor = '#ef4444';
   let shotKind = 'region';
@@ -569,33 +569,38 @@ pub fn injected_head_bundle() -> String {
     if (bottomBar) {{ bottomBar.remove(); bottomBar = null; }}
   }};
 
+  const X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+  const mkBar = (where) => {{
+    const bar = mk('div', {{ className: '__po_bar __po_bar_' + where + (dark ? ' __po_dark' : ''), 'data-po-chrome': '1' }});
+    (document.body || document.documentElement).appendChild(bar);
+    return bar;
+  }};
+  const mkClose = () => {{
+    const b = mk('button', {{ className: '__po_btn __po_btn_icon', 'aria-label': LABELS.close, title: LABELS.close }});
+    b.innerHTML = X_ICON;
+    b.onclick = () => setMode('none');
+    return b;
+  }};
+  const mkChoice = (label, active, pick) => {{
+    const b = mk('button', {{ className: '__po_btn', 'data-active': active ? '1' : '0' }}, label);
+    b.onclick = () => {{ pick(); renderBars(); }};
+    return b;
+  }};
+  const sep = () => mk('div', {{ className: '__po_sep' }});
+
   const renderBars = () => {{
     clearBars();
-    const host = document.body || document.documentElement;
-    if (!host) return;
+    if (!(document.body || document.documentElement)) return;
     if (mode === 'pick') {{
-      topBar = mk('div', {{ className: '__po_bar __po_bar_top', 'data-po-chrome': '1' }});
-      topBar.appendChild(mk('span', null, '🎯 ' + LABELS.pickBanner));
-      const close = mk('button', {{ className: '__po_btn' }}, '✕');
-      close.onclick = () => setMode('none');
-      topBar.appendChild(close);
-      host.appendChild(topBar);
+      topBar = mkBar('top');
+      topBar.appendChild(mk('span', {{ className: '__po_hint' }}, LABELS.pickBanner));
+      topBar.appendChild(mkClose());
     }} else if (mode === 'screenshot') {{
-      topBar = mk('div', {{ className: '__po_bar __po_bar_top', 'data-po-chrome': '1' }});
-      const mkShotBtn = (id, text) => {{
-        const b = mk('button', {{ className: '__po_btn', 'data-active': shotKind === id ? '1' : '0' }}, text);
-        b.onclick = () => {{
-          shotKind = id;
-          placeHover(null);
-          renderBars();
-        }};
-        return b;
-      }};
-      topBar.appendChild(mkShotBtn('region', LABELS.shotRegion));
-      topBar.appendChild(mkShotBtn('snap', LABELS.shotSnap));
-      topBar.appendChild(mk('div', {{ className: '__po_sep' }}));
-      const fullVp = mk('button', {{ className: '__po_btn __po_btn_primary' }}, LABELS.shotViewport);
-      fullVp.onclick = () => {{
+      topBar = mkBar('top');
+      topBar.appendChild(mkChoice(LABELS.shotRegion, shotKind === 'region', () => {{ shotKind = 'region'; placeHover(null); }}));
+      topBar.appendChild(mkChoice(LABELS.shotSnap, shotKind === 'snap', () => {{ shotKind = 'snap'; placeHover(null); }}));
+      const viewport = mk('button', {{ className: '__po_btn __po_btn_primary' }}, LABELS.shotViewport);
+      viewport.onclick = () => {{
         setMode('none');
         hideChromeAndCapture({{
           type: 'po-tool',
@@ -606,49 +611,28 @@ pub fn injected_head_bundle() -> String {
           label: (window.innerWidth || 1) + '×' + (window.innerHeight || 1)
         }});
       }};
-      topBar.appendChild(fullVp);
-      const close = mk('button', {{ className: '__po_btn' }}, '✕');
-      close.onclick = () => setMode('none');
-      topBar.appendChild(close);
-      host.appendChild(topBar);
+      topBar.appendChild(viewport);
+      topBar.appendChild(mkClose());
     }} else if (mode === 'annotate') {{
-      bottomBar = mk('div', {{ className: '__po_bar __po_bar_bottom', 'data-po-chrome': '1' }});
-      const mkTool = (id, label) => {{
-        const b = mk('button', {{ className: '__po_btn', 'data-active': penKind === id ? '1' : '0' }}, label);
-        b.onclick = () => {{ penKind = id; renderBars(); }};
-        return b;
-      }};
-      bottomBar.appendChild(mkTool('pen', LABELS.penDraw));
-      bottomBar.appendChild(mkTool('highlighter', LABELS.penHighlight));
-      bottomBar.appendChild(mkTool('rect', LABELS.penRect));
-      bottomBar.appendChild(mkTool('laser', LABELS.penLaser));
-      bottomBar.appendChild(mk('div', {{ className: '__po_sep' }}));
-      for (const c of ['#ef4444', '#f59e0b', '#4599df', '#10b981']) {{
-        const sw = mk('button', {{ className: '__po_swatch', 'data-active': penColor === c ? '1' : '0' }});
+      bottomBar = mkBar('bottom');
+      for (const [id, label] of [['pen', LABELS.penDraw], ['highlighter', LABELS.penHighlight], ['rect', LABELS.penRect]]) {{
+        bottomBar.appendChild(mkChoice(label, penKind === id, () => {{ penKind = id; }}));
+      }}
+      bottomBar.appendChild(sep());
+      for (const c of ['#ef4444', '#f59e0b', '#4599df']) {{
+        const sw = mk('button', {{ className: '__po_swatch', 'data-active': penColor === c ? '1' : '0', 'aria-label': c }});
         sw.style.setProperty('background', c, 'important');
+        sw.style.setProperty('color', c, 'important');
         sw.onclick = () => {{ penColor = c; renderBars(); }};
         bottomBar.appendChild(sw);
       }}
-      bottomBar.appendChild(mk('div', {{ className: '__po_sep' }}));
+      bottomBar.appendChild(sep());
       const undo = mk('button', {{ className: '__po_btn' }}, LABELS.penUndo);
       undo.onclick = () => {{ strokes.pop(); redrawCanvas(); renderBars(); syncState(); }};
       bottomBar.appendChild(undo);
       const clr = mk('button', {{ className: '__po_btn' }}, LABELS.penClear);
       clr.onclick = () => {{ strokes.length = 0; redrawCanvas(); renderBars(); syncState(); }};
       bottomBar.appendChild(clr);
-      bottomBar.appendChild(mk('div', {{ className: '__po_sep' }}));
-      const copyBtn = mk('button', {{ className: '__po_btn' }}, LABELS.penCopy);
-      copyBtn.onclick = () => {{
-        hideChromeAndCapture({{
-          type: 'po-tool',
-          kind: 'snapshot',
-          purpose: 'copy-annotated',
-          crop: null,
-          viewport: [window.innerWidth || 1, window.innerHeight || 1],
-          strokeCount: strokes.length
-        }});
-      }};
-      bottomBar.appendChild(copyBtn);
       const sendBtn = mk('button', {{ className: '__po_btn __po_btn_primary' }}, LABELS.penSend);
       sendBtn.onclick = () => {{
         const count = strokes.length;
@@ -663,14 +647,12 @@ pub fn injected_head_bundle() -> String {
         }});
       }};
       bottomBar.appendChild(sendBtn);
-      const close = mk('button', {{ className: '__po_btn' }}, '✕');
-      close.onclick = () => setMode('none');
-      bottomBar.appendChild(close);
-      host.appendChild(bottomBar);
+      bottomBar.appendChild(mkClose());
     }}
   }};
 
-  const setMode = (next) => {{
+  const setMode = (next, isDark) => {{
+    if (typeof isDark === 'boolean') dark = isDark;
     if (!ensureDom()) {{
       window.addEventListener('DOMContentLoaded', () => setMode(next), {{ once: true }});
       return;

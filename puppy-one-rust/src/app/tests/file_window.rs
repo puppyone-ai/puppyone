@@ -223,8 +223,8 @@ fn file_window_html_page_asks_for_folder_access(cx: &mut TestAppContext) {
     });
 }
 
-/// HTML File Mode records initial `v1` snapshot, toggles the 380px Local Agent
-/// Chat drawer without leaking into PreferencesStore, and resets cleanly.
+/// HTML File Mode toggles the 380px Local Agent Chat drawer without leaking
+/// into PreferencesStore, and resets cleanly.
 #[gpui::test]
 fn file_window_html_chat_drawer_splits_without_affecting_project_panes(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
@@ -250,17 +250,21 @@ fn file_window_html_chat_drawer_splits_without_affecting_project_panes(cx: &mut 
     let fw = view.read_with(cx, |s, _| s.file.clone().unwrap());
     view.read_with(cx, |s, cx| {
         assert!(fw.read(cx).is_html());
-        assert_eq!(fw.read(cx).snapshots().len(), 1);
-        assert_eq!(fw.read(cx).active_snapshot_version(), Some(1));
         assert_eq!(s.frame.layout.explorer.w, 0.);
         assert_eq!(s.frame.layout.auxiliary.w, 0.);
         assert!(!s.panes.read(cx).right().open);
     });
 
-    // Open Local Agent Chat drawer -> 380px split on the right, no Explorer.
+    // The Header is quiet: pointing the Agent at the page belongs to Chat.
+    assert!(cx.debug_bounds("html-tool-chat").is_some());
+    assert!(cx.debug_bounds("html-tool-pick").is_none());
+
+    // Open Local Agent Chat drawer -> 380px split on the right, no Explorer,
+    // and the page tools beside Chat.
     fw.update_in(cx, |f, w, cx| f.toggle_chat(w, cx));
     cx.run_until_parked();
     draw(cx);
+    assert!(cx.debug_bounds("html-tool-pick").is_some());
     view.read_with(cx, |s, cx| {
         assert!(s.panes.read(cx).right().open);
         assert_eq!(s.frame.layout.explorer.w, 0.);
@@ -357,9 +361,13 @@ fn file_window_html_dom_picker_and_js_error_self_heal_stage_into_local_agent_cha
         let sb = s.sidebar.clone();
         sb.update(cx, |sb, cx| sb.ensure_active_chat(w, cx).unwrap())
     });
-    settle_cloud(&view, cx, "the picked HTML context in Chat", &|_, cx| {
-        let (draft, refs) = panel.read(cx).debug_staged_summary();
+    // The page is staged once its workspace reference resolves, off the
+    // main thread.
+    let staged = panel.clone();
+    settle_cloud(&view, cx, "the picked element staged", &move |_, cx| {
+        let (draft, refs) = staged.read(cx).debug_staged_summary();
         refs.iter().any(|r| r == "report.html")
+            && draft.contains("L5–L8")
             && draft.contains("section#revenue-chart.chart-card")
     });
     view.read_with(cx, |_, cx| {
@@ -476,13 +484,11 @@ fn file_window_html_screenshot_and_annotations_copy_png_and_stage_to_chat(cx: &m
         let sb = s.sidebar.clone();
         sb.update(cx, |sb, cx| sb.ensure_active_chat(w, cx).unwrap())
     });
-    settle_cloud(&view, cx, "the screenshot attachment in Chat", &|_, cx| {
-        panel
-            .read(cx)
-            .debug_staged_summary()
-            .1
-            .iter()
-            .any(|r| r == "html-screenshot.png")
+    // Attachments stage off the main thread.
+    let staged = panel.clone();
+    settle_cloud(&view, cx, "the screenshot staged", &move |_, cx| {
+        let (_, refs) = staged.read(cx).debug_staged_summary();
+        refs.iter().any(|r| r == "html-screenshot.png")
     });
     view.read_with(cx, |_, cx| {
         assert!(!fw.read(cx).has_screenshot_toast());
@@ -492,6 +498,15 @@ fn file_window_html_screenshot_and_annotations_copy_png_and_stage_to_chat(cx: &m
             "expected html-screenshot.png staged in Chat, got {refs:?}"
         );
     });
+
+    // A copy left alone is offered for a moment, then goes.
+    editor.update(cx, |e, cx| e.lab_deliver_html_ipc(&snap_msg, cx));
+    cx.run_until_parked();
+    view.read_with(cx, |_, cx| assert!(fw.read(cx).has_screenshot_toast()));
+    cx.executor()
+        .advance_clock(std::time::Duration::from_secs(7));
+    cx.run_until_parked();
+    view.read_with(cx, |_, cx| assert!(!fw.read(cx).has_screenshot_toast()));
 
     // 2. Trigger `send-annotated` from the pen toolbar -> stages `annotated-page.png`.
     let ann_msg = serde_json::json!({
@@ -503,10 +518,9 @@ fn file_window_html_screenshot_and_annotations_copy_png_and_stage_to_chat(cx: &m
     })
     .to_string();
     editor.update(cx, |e, cx| e.lab_deliver_html_ipc(&ann_msg, cx));
-    cx.run_until_parked();
-    draw(cx);
-    settle_cloud(&view, cx, "the annotated screenshot in Chat", &|_, cx| {
-        let (draft, refs) = panel.read(cx).debug_staged_summary();
+    let staged = panel.clone();
+    settle_cloud(&view, cx, "the annotated page staged", &move |_, cx| {
+        let (draft, refs) = staged.read(cx).debug_staged_summary();
         refs.iter().any(|r| r == "annotated-page.png") && !draft.is_empty()
     });
     view.read_with(cx, |_, cx| {
@@ -516,64 +530,5 @@ fn file_window_html_screenshot_and_annotations_copy_png_and_stage_to_chat(cx: &m
             "expected annotated-page.png staged in Chat, got {refs:?}"
         );
         assert!(!draft.is_empty());
-    });
-}
-
-/// Auto-Snapshot history captures `v1` on open, `v2` when an Agent or external
-/// process modifies the HTML file on disk, and 1-click restores `v1` back to disk.
-#[gpui::test]
-fn file_window_html_auto_snapshots_record_edits_and_restore_previous_version(
-    cx: &mut TestAppContext,
-) {
-    let temp = tempfile::tempdir().unwrap();
-    let root = temp.path().canonicalize().unwrap();
-    let v1_html = "<!doctype html><html><body><h1>Version 1</h1></body></html>\n";
-    let v2_html = "<!doctype html><html><body><h1>Version 2 (Agent Edit)</h1></body></html>\n";
-    std::fs::write(root.join("page.html"), v1_html).unwrap();
-
-    let (view, cx) = setup(cx);
-    view.update_in(cx, |s, w, cx| {
-        let file = file_mode::FileTarget::of(root.join("page.html")).unwrap();
-        s.session
-            .project
-            .update(cx, |p, _| p.record.fixture = false);
-        s.bind_file(file, false, w, cx);
-    });
-    settle_cloud(&view, cx, "initial html load", &|s, cx| {
-        s.files(cx).opened().is_some() && !s.files(cx).busy()
-    });
-    draw(cx);
-    let fw = view.read_with(cx, |s, _| s.file.clone().unwrap());
-    view.read_with(cx, |_, cx| {
-        assert_eq!(fw.read(cx).snapshots().len(), 1);
-        assert_eq!(fw.read(cx).active_snapshot_version(), Some(1));
-    });
-
-    // External local Agent modifies `page.html` on disk -> `v2` snapshot recorded.
-    std::fs::write(root.join("page.html"), v2_html).unwrap();
-    settle_cloud(&view, cx, "agent edit reread", &|s, cx| {
-        s.files(cx)
-            .document
-            .as_ref()
-            .is_some_and(|d| d.text == v2_html)
-    });
-    draw(cx);
-    view.read_with(cx, |_, cx| {
-        assert_eq!(fw.read(cx).snapshots().len(), 2);
-        assert_eq!(fw.read(cx).active_snapshot_version(), Some(2));
-    });
-
-    // 1-click restore `v1` -> autosaves `v1` back to disk without adding a duplicate `v3`.
-    fw.update_in(cx, |f, w, cx| f.restore_snapshot(1, w, cx));
-    settle_cloud(&view, cx, "snapshot v1 autosave", &|s, cx| {
-        !s.files(cx).busy()
-            && !s.files(cx).saving()
-            && !s.files(cx).dirty
-            && std::fs::read_to_string(root.join("page.html")).is_ok_and(|text| text == v1_html)
-    });
-    draw(cx);
-    view.read_with(cx, |_, cx| {
-        assert_eq!(fw.read(cx).snapshots().len(), 2);
-        assert_eq!(fw.read(cx).active_snapshot_version(), Some(1));
     });
 }

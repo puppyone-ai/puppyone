@@ -395,6 +395,20 @@ mod tests {
     }
 
     #[test]
+    fn duckdb_extensions_route_to_binary_placeholder() {
+        for name in ["warehouse.duckdb", "warehouse.ddb", "WAREHOUSE.DUCKDB"] {
+            let fmt = of(name);
+            assert_eq!(fmt.id, "duckdb");
+            assert_eq!(fmt.category, Category::Binary);
+            assert_eq!(fmt.default_viewer, "binary-placeholder");
+            assert!(!fmt.editable);
+        }
+        for name in ["app.db", "app.db3", "app.sqlite", "app.sqlite3"] {
+            assert_eq!(of(name).default_viewer, "database-preview");
+        }
+    }
+
+    #[test]
     fn globs_and_matched_extensions_follow_the_product() {
         assert!(glob("**/.github/agents/*.md", ".github/agents/a.md"));
         assert!(glob("**/.github/agents/*.md", "repo/.github/agents/a.md"));

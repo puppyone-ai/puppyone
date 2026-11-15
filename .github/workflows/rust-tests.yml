@@ -51,7 +51,6 @@ jobs:
       - name: Install the pinned native engines
         run: |
           python3 tools/fetch-pdfium.py
-          python3 tools/fetch-duckdb.py
       - name: Check source and oracle contracts
         run: |
           cargo fmt --all --check

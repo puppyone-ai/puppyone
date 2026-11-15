@@ -233,20 +233,6 @@ impl WorkbenchLauncher {
             .cloned()
             .collect()
     }
-    /// Brand mark for the preferred/detected local Agent installation, or Built-in Agent.
-    pub(crate) fn preferred_chat_brand(&self) -> Option<&'static crate::ui::agent_brands::Brand> {
-        let visible = self.visible_installations();
-        if let Some(inst) = visible
-            .iter()
-            .find(|i| i.chat && !i.bundled())
-            .or_else(|| visible.iter().find(|i| i.chat))
-            && let Some(brand) =
-                crate::ui::agent_brands::resolve(Some(inst.id), None, Some(inst.label.as_str()))
-        {
-            return Some(brand);
-        }
-        crate::ui::agent_brands::get("built-in-agent")
-    }
     /// Launches a fresh preferred/detected local Agent chat tab in `(group, tab)`.
     pub(crate) fn launch_preferred_chat(
         &mut self,

@@ -3,16 +3,14 @@
 //! launch.
 //!
 //! Markdown and CSV keep a focused reading/editing Header (`Edit`, `Source`).
-//! Standalone HTML pages (`*.html` / `*.htm`) upgrade the 40px Header into an
-//! instant interactive workspace:
-//! - Leading file pill with Auto-Snapshot history (`v1 → v2 → …`) & folder actions
-//! - Dynamic JS runtime error self-heal pill (hidden when 0 errors)
-//! - Instant HTML actions: Reload/Reset (`↻`), Visual Edit (`✎`), Pick Element
-//!   for Agent (`🎯`), Retina `<canvas>` Pen/Annotate (`🖊`), Screenshot (`✂`)
-//! - Code & Local Agent split: Source Split (`</>`) + Local Agent `Chat` (`⌘L`)
-//! - Cloud conversion: Brand Blue `Share` popover (live link + QR matrix / 1-click
-//!   Cloud publish) + `⋯` More menu (Fullscreen presentation with laser pointer,
-//!   Full-page stitched screenshot, Open in Browser, Reveal in Finder, Open Folder)
+//! A standalone HTML page (`*.html` / `*.htm`) keeps the same quiet Header:
+//! the file's name, and at the end only what a page is for:
+//! - `Edit` (visual editing), `Chat` (the Agent on this Mac, `⌘L`), `Share`
+//!   (put it in Cloud for a link) and `⋯` (reload, source, presentation,
+//!   full-page screenshot, the file's place on disk)
+//! - while Chat is open, the tools that point the Agent at the page: pick an
+//!   element, annotate, screenshot
+//! - a script error pill, only while the page has thrown
 
 use super::{
     editor_area::EditorArea,
@@ -32,7 +30,7 @@ use crate::{
             },
             text::{DOCUMENT_EDITING_TOGGLE_ID, DOCUMENT_SOURCE_PANEL_TOGGLE_ID},
         },
-        workbench::pane::{Action, ItemKind},
+        workbench::pane::{Action, Item, ItemKind},
     },
     features::{cloud::account as cloud_account, settings::PreferencesStore},
     geometry::Rect,
@@ -40,11 +38,11 @@ use crate::{
     platform::desktop,
     theme::{self, metric},
     ui::{
-        agent_brands,
         appearance::ActiveAppearance,
         components::{
-            Button, ButtonVariant, FileIcon, Icon, Menu, MenuItem, MenuVariant, PopoverMenu,
-            ProductIcon, SurfaceFrame,
+            Button, ButtonVariant, FileIcon, FloatingNotice, Icon, Menu, MenuItem, MenuVariant,
+            NoticeAction, NoticePlacement, NoticeStack, NoticeTone, PopoverMenu, ProductIcon,
+            SurfaceFrame,
         },
         loading::{LoaderSize, LoadingMark, Tone},
     },
@@ -99,8 +97,6 @@ const NOTICE_PADDING: (f32, f32) = (8., 16.);
 const STATE_GAP: f32 = 7.;
 const STATE_PADDING: f32 = 24.;
 const STATE_LINE_MAX: f32 = 520.;
-/// Maximum retained in-memory auto-snapshots for standalone HTML files.
-const MAX_HTML_SNAPSHOTS: usize = 8;
 
 /// What the bound file was when the window opened (`openBoundFile`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -145,30 +141,26 @@ impl FileTarget {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HtmlSnapshot {
-    pub version: usize,
-    pub text: String,
-    pub initial: bool,
-}
-
+/// A screenshot just copied, offered to the Agent for a moment.
 #[derive(Clone, Debug)]
 struct ScreenshotToast {
     png: Vec<u8>,
-    label: String,
+    /// Which copy this is: a later one keeps its own lifetime.
+    generation: usize,
 }
+/// How long the copied screenshot is offered.
+const TOAST_LIFETIME: std::time::Duration = std::time::Duration::from_secs(6);
 
 /// Which Header menu is open.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum FileMenu {
-    File,
     View,
     Share,
     Settings,
 }
 
-/// A file window's own state: the bound file, Header popovers, HTML snapshots
-/// and screenshot clipboard banner.
+/// A file window's own state: the bound file, Header popovers and the
+/// screenshot clipboard banner.
 pub struct FileWindow {
     pub target: FileTarget,
     pub(super) menu: Option<FileMenu>,
@@ -181,9 +173,6 @@ pub struct FileWindow {
     focus: FocusHandle,
     weak: WeakEntity<Self>,
     observed_host: Option<(EntityId, Subscription)>,
-    snapshots: Vec<HtmlSnapshot>,
-    next_snapshot_version: usize,
-    active_snapshot: Option<usize>,
     toast: Option<ScreenshotToast>,
     share_copied: bool,
 }
@@ -202,7 +191,6 @@ impl FileWindow {
         cx: &mut Context<Self>,
     ) -> Self {
         cx.observe_in(&editor, window, |this, _, window, cx| {
-            this.record_snapshot_if_needed(cx);
             this.ensure_host_observed(window, cx);
             cx.notify();
         })
@@ -212,7 +200,6 @@ impl FileWindow {
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
         cx.observe(&cloud, |_, _, cx| cx.notify()).detach();
         cx.observe_in(&docs, window, |this, _, window, cx| {
-            this.record_snapshot_if_needed(cx);
             this.ensure_host_observed(window, cx);
             cx.notify();
         })
@@ -229,13 +216,9 @@ impl FileWindow {
             focus: cx.focus_handle(),
             weak: cx.weak_entity(),
             observed_host: None,
-            snapshots: Vec::new(),
-            next_snapshot_version: 1,
-            active_snapshot: None,
             toast: None,
             share_copied: false,
         };
-        this.record_snapshot_if_needed(cx);
         this.ensure_host_observed(window, cx);
         this
     }
@@ -265,16 +248,6 @@ impl FileWindow {
     }
 
     #[cfg(test)]
-    pub fn snapshots(&self) -> &[HtmlSnapshot] {
-        &self.snapshots
-    }
-
-    #[cfg(test)]
-    pub fn active_snapshot_version(&self) -> Option<usize> {
-        self.active_snapshot
-    }
-
-    #[cfg(test)]
     pub fn has_screenshot_toast(&self) -> bool {
         self.toast.is_some()
     }
@@ -291,63 +264,6 @@ impl FileWindow {
             );
             cx.notify();
         }
-    }
-
-    fn record_snapshot_if_needed(&mut self, cx: &App) {
-        if !self.is_html() {
-            return;
-        }
-        let docs = self.docs.read(cx);
-        if docs.dirty || docs.saving() {
-            return;
-        }
-        let Some(doc) = &docs.document else {
-            return;
-        };
-        if self.snapshots.last().is_some_and(|s| s.text == doc.text) {
-            return;
-        }
-        // If user restored an earlier snapshot whose text equals `doc.text`, keep its version.
-        if let Some(active_ver) = self.active_snapshot
-            && let Some(existing) = self.snapshots.iter().find(|s| s.version == active_ver)
-            && existing.text == doc.text
-        {
-            return;
-        }
-        let version = self.next_snapshot_version;
-        self.next_snapshot_version += 1;
-        let initial = self.snapshots.is_empty();
-        self.snapshots.push(HtmlSnapshot {
-            version,
-            text: doc.text.clone(),
-            initial,
-        });
-        if self.snapshots.len() > MAX_HTML_SNAPSHOTS {
-            self.snapshots.remove(0);
-        }
-        self.active_snapshot = Some(version);
-    }
-
-    pub fn restore_snapshot(
-        &mut self,
-        version: usize,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(text) = self
-            .snapshots
-            .iter()
-            .find(|s| s.version == version)
-            .map(|s| s.text.clone())
-        else {
-            return;
-        };
-        self.active_snapshot = Some(version);
-        self.menu = None;
-        if let Some(editor) = self.file_editor(cx) {
-            editor.update(cx, |e, cx| e.replace_document_text(&text, window, cx));
-        }
-        cx.notify();
     }
 
     fn ensure_host_observed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -406,10 +322,10 @@ impl FileWindow {
                     );
                     self.open_and_stage_chat(None, &prompt, window, cx);
                 }
-                HtmlToolEvent::CopyScreenshot { png, label } => {
+                HtmlToolEvent::CopyScreenshot { png, .. } => {
                     let image = gpui::Image::from_bytes(gpui::ImageFormat::Png, png.clone());
                     cx.write_to_clipboard(ClipboardItem::new_image(&image));
-                    self.toast = Some(ScreenshotToast { png, label });
+                    self.show_toast(png, cx);
                 }
                 HtmlToolEvent::SendAnnotatedToAgent { png, stroke_count } => {
                     let image = gpui::Image::from_bytes(gpui::ImageFormat::Png, png.clone());
@@ -428,6 +344,23 @@ impl FileWindow {
                 }
             }
         }
+    }
+
+    /// Offers a copied screenshot to the Agent until it is used, dismissed
+    /// or [`TOAST_LIFETIME`] passes.
+    fn show_toast(&mut self, png: Vec<u8>, cx: &mut Context<Self>) {
+        let generation = self.toast.as_ref().map_or(0, |t| t.generation) + 1;
+        self.toast = Some(ScreenshotToast { png, generation });
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(TOAST_LIFETIME).await;
+            let _ = this.update(cx, |s, cx| {
+                if s.toast.as_ref().is_some_and(|t| t.generation == generation) {
+                    s.toast = None;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     pub fn toggle_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -612,53 +545,31 @@ fn header_action(id: &'static str, icon: Icon, label: SharedString) -> Button {
         .px_0()
 }
 
-/// Renders a crisp deterministic 21×21 QR-style visual code matrix for a live
-/// Cloud URL using pure GPUI primitives (zero external crate overhead).
-fn render_qr_matrix(url: &str, t: &theme::Theme) -> Div {
-    const N: usize = 21;
-    let digest = blake3::hash(url.as_bytes());
-    let bytes = digest.as_bytes();
-    let finder = |r: usize, c: usize, r0: usize, c0: usize| -> Option<bool> {
-        if r >= r0 && r < r0 + 7 && c >= c0 && c < c0 + 7 {
-            let dr = r - r0;
-            let dc = c - c0;
-            let border = dr == 0 || dr == 6 || dc == 0 || dc == 6;
-            let core = (2..=4).contains(&dr) && (2..=4).contains(&dc);
-            return Some(border || core);
-        }
-        if r + 1 >= r0 && r < r0 + 8 && c + 1 >= c0 && c < c0 + 8 {
-            return Some(false);
-        }
-        None
-    };
-    let cell_px = 5.;
-    let ink = t.text;
-    let mut grid = v_flex()
-        .p(px(8.))
-        .rounded(px(8.))
-        .bg(t.canvas)
-        .border_1()
-        .border_color(t.border)
-        .gap_0();
-    for r in 0..N {
-        let mut row = h_flex().gap_0();
-        for c in 0..N {
-            let on = finder(r, c, 0, 0)
-                .or_else(|| finder(r, c, 0, N - 7))
-                .or_else(|| finder(r, c, N - 7, 0))
-                .unwrap_or_else(|| {
-                    if r == 6 || c == 6 {
-                        (r + c) % 2 == 0
-                    } else {
-                        let bit_idx = (r * N + c) % (bytes.len() * 8);
-                        (bytes[bit_idx / 8] >> (bit_idx % 8)) & 1 == 1
-                    }
-                });
-            row = row.child(div().size(px(cell_px)).when(on, |d| d.bg(ink)));
-        }
-        grid = grid.child(row);
-    }
-    grid
+/// The viewer's own settings (`Contribution::items`) as menu rows; a
+/// toggle keeps its menu open.
+fn setting_rows<F: Fn(&mut Window, &mut App) + 'static>(
+    items: &[Item],
+    action: impl Fn(Action) -> F,
+) -> Vec<MenuItem> {
+    items
+        .iter()
+        .map(|item| {
+            let row = MenuItem::new(item.label.clone()).on_click(action(Action::Item(item.id)));
+            match item.kind {
+                ItemKind::Toggle(on) => row
+                    .icon_element(
+                        div()
+                            .size(px(metric::MENU_ICON_SLOT))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .children(on.then(|| Icon::new("check").with_size(px(14.)).stroke(2.))),
+                    )
+                    .stay_open(),
+                ItemKind::Command { disabled } => row.disabled(disabled),
+            }
+        })
+        .collect()
 }
 
 impl FileWindow {
@@ -689,7 +600,6 @@ impl FileWindow {
         let open = self.menu == Some(menu);
         let host = self.weak.clone();
         PopoverMenu::new(match menu {
-            FileMenu::File => "file-context-menu",
             FileMenu::View => "file-view-menu",
             FileMenu::Share => "file-share-menu",
             FileMenu::Settings => "file-settings-menu",
@@ -751,239 +661,142 @@ impl FileWindow {
             .content(move |dismiss, _, cx| {
                 let t = cx.palette();
                 let ty = theme::ty().ui;
-                let benefit = |icon_name: &'static str, text: SharedString| {
-                    h_flex()
-                        .items_start()
-                        .gap(px(8.))
-                        .child(
-                            div().mt(px(2.)).flex_none().child(
-                                Icon::new(icon_name)
-                                    .with_size(px(14.))
-                                    .stroke(1.85)
-                                    .color(t.brand_blue),
-                            ),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .text_size(px(ty.meta))
-                                .text_color(t.muted)
-                                .child(text),
-                        )
-                };
-
-                let mut card = SurfaceFrame::popover_card("html-share-card")
-                    .radius(10.)
+                let card = SurfaceFrame::popover_card("html-share-card")
                     .stroke(t.border)
-                    .w(px(316.))
+                    .w(px(300.))
                     .p(px(14.))
                     .gap(px(12.))
                     .child(
                         v_flex()
                             .gap(px(4.))
                             .child(
-                                h_flex()
-                                    .items_center()
-                                    .gap(px(6.))
-                                    .child(
-                                        Icon::product(ProductIcon::Cloud)
-                                            .with_size(px(15.))
-                                            .stroke(1.9)
-                                            .color(t.brand_blue),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_size(px(ty.body))
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .text_color(t.text)
-                                            .child(tr("fileMode.html.shareTitle")),
-                                    ),
+                                div()
+                                    .text_size(px(ty.body))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(t.text)
+                                    .child(tr("fileMode.html.shareTitle")),
                             )
                             .child(
                                 div()
                                     .text_size(px(ty.meta))
-                                    .text_color(t.subtle)
+                                    .text_color(t.muted)
                                     .child(tr("fileMode.html.shareSubtitle")),
                             ),
                     );
-
+                let cloud_cta = |id: &'static str, label: &str| {
+                    Button::new(id)
+                        .w_full()
+                        .variant(ButtonVariant::FilledPrimary)
+                        .icon(
+                            Icon::product(ProductIcon::Cloud)
+                                .with_size(px(14.))
+                                .stroke(1.9),
+                        )
+                        .label(tr(label))
+                };
                 if let Some(url) = live_url.clone() {
                     let copy_url = url.clone();
-                    let open_url = url.clone();
                     let host_copy = host_body.clone();
-                    card = card
-                        .child(
-                            h_flex()
-                                .items_center()
-                                .gap(px(6.))
-                                .px(px(8.))
-                                .py(px(6.))
-                                .rounded(px(6.))
-                                .bg(t.inset)
-                                .border_1()
-                                .border_color(t.divider)
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .truncate()
-                                        .text_size(px(ty.meta))
-                                        .text_color(t.text)
-                                        .child(url.clone()),
-                                )
-                                .child(
-                                    Button::new("html-share-copy-link")
-                                        .small()
-                                        .variant(ButtonVariant::FilledPrimary)
-                                        .icon(if copied_now { "check" } else { "copy" })
-                                        .label(tr(if copied_now {
-                                            "fileMode.html.shareCopied"
-                                        } else {
-                                            "fileMode.html.shareCopyLink"
-                                        }))
-                                        .on_click(move |_, _, cx| {
-                                            cx.write_to_clipboard(ClipboardItem::new_string(
-                                                copy_url.clone(),
-                                            ));
-                                            let _ = host_copy.update(cx, |s, cx| {
-                                                s.share_copied = true;
-                                                cx.notify();
-                                            });
-                                        }),
-                                )
-                                .child(
-                                    Button::new("html-share-open-link")
-                                        .small()
-                                        .variant(ButtonVariant::Outline)
-                                        .icon("external-link")
-                                        .accessibility_label(tr("fileMode.html.openInBrowser"))
-                                        .on_click(move |_, _, cx| {
-                                            cx.open_url(&open_url);
-                                        }),
-                                ),
-                        )
-                        .child(
-                            v_flex()
-                                .items_center()
-                                .gap(px(6.))
-                                .py(px(4.))
-                                .child(render_qr_matrix(&url, &t))
-                                .child(
-                                    div()
-                                        .text_size(px(ty.meta))
-                                        .text_color(t.subtle)
-                                        .child(tr("fileMode.html.shareQrHint")),
-                                ),
-                        );
-                } else {
-                    card = card.child(
-                        v_flex()
-                            .gap(px(8.))
-                            .p(px(10.))
-                            .rounded(px(8.))
-                            .bg(theme::alpha(t.inset, 0.65))
-                            .child(benefit(
-                                "link-2",
-                                tr("fileMode.html.shareBenefitLink").into(),
-                            ))
-                            .child(benefit(
-                                "sparkles",
-                                tr("fileMode.html.shareBenefitQr").into(),
-                            ))
-                            .child(benefit("bot", tr("fileMode.html.shareBenefitAgent").into())),
-                    );
-                    if let Some(email) = signed_in {
-                        let cloud_for_click = cloud_entity.clone();
-                        let root_for_click = file_root.clone();
-                        let name_for_click = file_name.clone();
-                        let dismiss_click = dismiss.clone();
-                        card = card
+                    return card.child(
+                        h_flex()
+                            .items_center()
+                            .gap(px(6.))
                             .child(
                                 div()
-                                    .text_size(px(ty.meta))
-                                    .text_color(t.subtle)
+                                    .flex_1()
+                                    .min_w_0()
+                                    .px(px(8.))
+                                    .py(px(5.))
+                                    .rounded(px(6.))
+                                    .bg(t.inset)
+                                    .border_1()
+                                    .border_color(t.divider)
                                     .truncate()
-                                    .child(email),
+                                    .text_size(px(ty.meta))
+                                    .text_color(t.text)
+                                    .child(url.clone()),
                             )
                             .child(
-                                Button::new("html-share-publish-cta")
-                                    .w_full()
-                                    .variant(ButtonVariant::FilledPrimary)
-                                    .icon(
-                                        Icon::product(ProductIcon::Cloud)
-                                            .with_size(px(14.))
-                                            .stroke(1.9),
-                                    )
-                                    .label(tr("fileMode.html.sharePublishCta"))
-                                    .on_click(move |_, w, cx| {
-                                        dismiss_click(w, cx);
-                                        cloud_for_click.update(cx, |c, cx| {
-                                            c.open_file_mode_publish(
-                                                root_for_click.clone(),
-                                                name_for_click.clone(),
-                                                cx,
-                                            );
+                                Button::new("html-share-copy-link")
+                                    .small()
+                                    .variant(ButtonVariant::Outline)
+                                    .icon(if copied_now { "check" } else { "copy" })
+                                    .label(tr(if copied_now {
+                                        "fileMode.html.shareCopied"
+                                    } else {
+                                        "fileMode.html.shareCopyLink"
+                                    }))
+                                    .on_click(move |_, _, cx| {
+                                        cx.write_to_clipboard(ClipboardItem::new_string(
+                                            copy_url.clone(),
+                                        ));
+                                        let _ = host_copy.update(cx, |s, cx| {
+                                            s.share_copied = true;
+                                            cx.notify();
                                         });
                                     }),
-                            );
-                    } else {
-                        let dismiss_click = dismiss.clone();
-                        card = card.child(
-                            Button::new("html-share-signin-cta")
-                                .w_full()
-                                .variant(ButtonVariant::FilledPrimary)
-                                .icon(
-                                    Icon::product(ProductIcon::Cloud)
-                                        .with_size(px(14.))
-                                        .stroke(1.9),
-                                )
-                                .label(tr("fileMode.html.shareSignInCta"))
-                                .on_click(move |_, w, cx| {
-                                    dismiss_click(w, cx);
-                                    if cloud_account::available(cx) {
-                                        cloud_account::sign_in(cx);
-                                    } else {
-                                        cx.open_url("https://www.puppyone.ai");
-                                    }
-                                }),
-                        );
-                    }
+                            )
+                            .child(
+                                Button::new("html-share-open-link")
+                                    .small()
+                                    .variant(ButtonVariant::Outline)
+                                    .icon("external-link")
+                                    .accessibility_label(tr("fileMode.html.openInBrowser"))
+                                    .tooltip(tr("fileMode.html.openInBrowser"))
+                                    .on_click(move |_, _, cx| cx.open_url(&url)),
+                            ),
+                    );
                 }
-                card
+                let dismiss_click = dismiss.clone();
+                if let Some(email) = signed_in.clone() {
+                    let cloud = cloud_entity.clone();
+                    let root = file_root.clone();
+                    let name = file_name.clone();
+                    card.child(
+                        div()
+                            .text_size(px(ty.meta))
+                            .text_color(t.subtle)
+                            .truncate()
+                            .child(email),
+                    )
+                    .child(
+                        cloud_cta("html-share-publish-cta", "fileMode.html.sharePublishCta")
+                            .on_click(move |_, w, cx| {
+                                dismiss_click(w, cx);
+                                cloud.update(cx, |c, cx| {
+                                    c.open_file_mode_publish(root.clone(), name.clone(), cx);
+                                });
+                            }),
+                    )
+                } else {
+                    card.child(
+                        cloud_cta("html-share-signin-cta", "fileMode.html.shareSignInCta")
+                            .on_click(move |_, w, cx| {
+                                dismiss_click(w, cx);
+                                if cloud_account::available(cx) {
+                                    cloud_account::sign_in(cx);
+                                } else {
+                                    cx.open_url("https://www.puppyone.ai");
+                                }
+                            }),
+                    )
+                }
             })
     }
 
-    fn html_file_header(
-        &self,
-        editor: Entity<DocumentEditor>,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> TitleBar {
+    /// The file's icon and name at the Header's start.
+    fn file_title(&self, cx: &App) -> Stateful<Div> {
         let t = cx.palette();
         let ty = theme::ty().header;
         let icon_theme = self.prefs.read(cx).state.file_icon_theme.clone();
-        let tool_state: HtmlToolSnapshot = editor.read(cx).html_tool_state().unwrap_or_default();
-        let controls = editor.read(cx).title_controls(cx);
-
-        // -------------------- Leading Zone: File Pill + Snapshots + JS Error Self-Heal Pill
-        let ver_badge = self.active_snapshot.map(|v| {
-            div()
-                .px(px(5.))
-                .py(px(1.))
-                .rounded(px(4.))
-                .bg(theme::alpha(t.brand_blue, 0.14))
-                .text_size(px(11.))
-                .text_color(t.brand_blue)
-                .child(format!("v{v}"))
-        });
-        let pill_content = h_flex()
+        h_flex()
             .id("file-mode-title")
             .debug_selector(|| "file-mode-title".into())
-            .items_center()
             .min_w_0()
-            .max_w(px(220.))
+            .max_w_full()
+            .px(px(6.))
             .gap(px(metric::MENU_ITEM_GAP))
-            .text_color(t.text)
+            .text_color(t.muted)
             .text_size(px(ty.content))
             .line_height(px(ty.line_height))
             .child(FileIcon::file(self.target.name.clone(), icon_theme).size_px(15.))
@@ -995,143 +808,58 @@ impl FileWindow {
                     .truncate()
                     .child(self.target.name.clone()),
             )
-            .children(ver_badge)
-            .child(
-                Icon::new("chevron-down")
-                    .with_size(px(12.))
-                    .stroke(1.9)
-                    .color(t.subtle),
-            );
-        let file_trigger = Button::new("file-mode-context-btn")
-            .variant(ButtonVariant::Titlebar)
-            .accessibility_label(self.target.name.clone())
-            .trailing(pill_content);
+    }
 
-        let snapshots = self.snapshots.clone();
-        let active_ver = self.active_snapshot;
-        let host_for_snap = self.weak.clone();
-        let file_path_reveal = self.target.path.clone();
-        let proj_root = self.target.root.clone();
-        let proj_file = self.target.name.clone();
-        let subtle = t.subtle;
+    /// An HTML page's Header: its name (and a pill while the page has
+    /// thrown), then `Edit`, the Agent's page tools while Chat is open,
+    /// `Chat`, `Share` and `⋯`.
+    fn html_file_header(
+        &self,
+        editor: Entity<DocumentEditor>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> TitleBar {
+        let t = cx.palette();
+        let tool_state: HtmlToolSnapshot = editor.read(cx).html_tool_state().unwrap_or_default();
+        let controls = editor.read(cx).title_controls(cx);
+        let chat_open = self.sidebar.read(cx).shows(SidebarSurface::Agent, cx);
+        let mut bar = TitleBar::new().leading(self.file_title(cx));
 
-        let leading_menu = self.file_menu(
-            FileMenu::File,
-            Anchor::TopLeft,
-            file_trigger,
-            move |mut menu| {
-                if !snapshots.is_empty() {
-                    let mut snap_items = Vec::new();
-                    for snap in snapshots.iter().rev() {
-                        let ver = snap.version;
-                        let is_cur = active_ver == Some(ver);
-                        let desc = if is_cur {
-                            tr("fileMode.html.snapshotCurrent")
-                        } else if snap.initial {
-                            tr("fileMode.html.snapshotInitial")
-                        } else {
-                            tr("fileMode.html.snapshotSaved")
-                        };
-                        let host = host_for_snap.clone();
-                        let row = MenuItem::new(format!("v{ver} · {desc}"))
-                            .icon_sized(Icon::new("history").with_size(px(14.)).stroke(1.8))
-                            .on_click(move |w, cx| {
-                                let _ = host.update(cx, |s, cx| s.restore_snapshot(ver, w, cx));
-                            });
-                        let row = if is_cur {
-                            row.trailing(
-                                Icon::new("check")
-                                    .with_size(px(14.))
-                                    .stroke(1.85)
-                                    .color(subtle),
-                            )
-                        } else {
-                            row
-                        };
-                        snap_items.push(row);
-                    }
-                    menu = menu.list(2., snap_items).separator();
-                }
-                let reveal_path = file_path_reveal.clone();
-                let open_root = proj_root.clone();
-                let open_name = proj_file.clone();
-                menu.list(
-                    2.,
-                    vec![
-                        MenuItem::new(tr("fileMode.html.revealInFinder"))
-                            .icon_sized(
-                                Icon::product(ProductIcon::Folder)
-                                    .with_size(px(14.))
-                                    .stroke(1.8),
-                            )
-                            .on_click(move |_, _| {
-                                let _ = desktop::reveal(&reveal_path);
-                            }),
-                        MenuItem::new(tr("fileMode.html.openFolderAsProject"))
-                            .icon_sized(Icon::new("external-link").with_size(px(14.)).stroke(1.8))
-                            .on_click(move |_, cx| {
-                                let _ = windows::open_created(
-                                    open_root.clone(),
-                                    Some(PathBuf::from(&open_name)),
-                                    cx,
-                                );
-                            }),
-                    ],
-                )
-            },
-        );
-
-        let mut bar = TitleBar::new().leading(leading_menu);
-
-        // Quick 1-click snapshot undo when >= 2 snapshots exist
-        if self.snapshots.len() >= 2 {
-            let cur_idx = self
-                .active_snapshot
-                .and_then(|v| self.snapshots.iter().position(|s| s.version == v))
-                .unwrap_or(self.snapshots.len() - 1);
-            if cur_idx > 0 {
-                let prev_ver = self.snapshots[cur_idx - 1].version;
-                let tip: SharedString = tf(
-                    "fileMode.html.quickRestore",
-                    &[("version", format!("v{prev_ver}").into())],
-                )
-                .into();
-                let host = self.weak.clone();
-                bar = bar.leading(
-                    header_action(
-                        "file-mode-quick-restore",
-                        Icon::new("undo-2").with_size(px(14.)).stroke(1.85),
-                        tip,
-                    )
-                    .on_click(move |_, w, cx| {
-                        let _ = host.update(cx, |s, cx| s.restore_snapshot(prev_ver, w, cx));
-                    }),
-                );
-            }
-        }
-
-        // Dynamic JS Error Self-Heal Pill (completely hidden when 0 errors!)
+        // The page threw: a quiet count beside its name hands the errors
+        // to the Agent.
         if !tool_state.js_errors.is_empty() {
-            let err_label: SharedString = tf(
-                "fileMode.html.jsErrorPill",
-                &[("count", tool_state.js_errors.len().to_string().into())],
-            )
-            .into();
+            let ty = theme::ty().header;
+            let tip: SharedString = tr("fileMode.html.jsErrorTooltip").into();
+            let count = h_flex()
+                .items_center()
+                .gap(px(5.))
+                .px(px(2.))
+                .text_color(t.danger)
+                .text_size(px(ty.content))
+                .line_height(px(ty.line_height))
+                .child(
+                    Icon::new("triangle-alert")
+                        .with_size(px(13.))
+                        .stroke(1.9)
+                        .color(t.danger),
+                )
+                .child(tf(
+                    "fileMode.html.jsErrorPill",
+                    &[("count", tool_state.js_errors.len().to_string().into())],
+                ));
             let host = self.weak.clone();
             bar = bar.leading(
                 Button::new("file-mode-js-error")
-                    .small()
-                    .variant(ButtonVariant::OutlineDanger)
-                    .icon(Icon::new("triangle-alert").with_size(px(13.)).stroke(1.9))
-                    .label(err_label.clone())
-                    .tooltip(err_label)
+                    .variant(ButtonVariant::Titlebar)
+                    .accessibility_label(tip.clone())
+                    .tooltip(tip)
+                    .trailing(count)
                     .on_click(move |_, w, cx| {
                         let _ = host.update(cx, |s, cx| s.stage_js_errors_to_chat(w, cx));
                     }),
             );
         }
 
-        // -------------------- Trailing Group 1: Instant HTML Actions (NO mobile viewport preview!)
         let icon = |name: &'static str| Icon::new(name).with_size(px(15.)).stroke(1.8);
         let pane_action = |action: Action| {
             let editor = editor.downgrade();
@@ -1144,288 +872,189 @@ impl FileWindow {
                 let _ = editor.update(cx, |e, cx| e.run_title_action(action.clone(), w, cx));
             }
         };
+        let toggle = |id: &'static str| controls.toggles.iter().find(|sw| sw.id == id);
 
-        // 1. Reload / Reset State (`↻`)
-        {
-            let host = self.weak.clone();
+        if let Some(edit) = toggle(DOCUMENT_EDITING_TOGGLE_ID) {
+            let run = pane_action(Action::Item(edit.id));
             bar = bar.action(
-                header_action(
-                    "html-tool-reload",
-                    icon("refresh-cw"),
-                    tr("fileMode.html.reload").into(),
-                )
-                .on_click(move |_, w, cx| {
-                    let _ = host.update(cx, |s, cx| {
-                        s.run_html_action(HtmlToolAction::ReloadAndReset, w, cx);
-                    });
-                }),
+                header_action(edit.id, icon(edit.icon), edit.label.clone())
+                    .selected(edit.checked)
+                    .on_click(move |_, w, cx| run(w, cx)),
             );
         }
 
-        // 2. Visual Edit (`✎`)
-        if let Some(edit_toggle) = controls
-            .toggles
-            .iter()
-            .find(|sw| sw.id == DOCUMENT_EDITING_TOGGLE_ID)
-        {
-            let run = pane_action(Action::Item(edit_toggle.id));
-            bar = bar.action(
-                header_action(
-                    edit_toggle.id,
-                    icon(edit_toggle.icon),
-                    edit_toggle.label.clone(),
-                )
-                .selected(edit_toggle.checked)
-                .on_click(move |_, w, cx| run(w, cx)),
-            );
-        }
-
-        // 3. Pick Element (`🎯`)
-        {
-            let host = self.weak.clone();
-            bar = bar.action(
-                header_action(
-                    "html-tool-pick",
-                    icon("mouse-pointer-2"),
-                    tr("fileMode.html.pick").into(),
-                )
-                .selected(tool_state.mode == HtmlToolMode::PickElement)
-                .on_click(move |_, w, cx| {
-                    let _ = host.update(cx, |s, cx| {
-                        s.toggle_html_tool(HtmlToolMode::PickElement, w, cx);
-                    });
-                }),
-            );
-        }
-
-        // 4. Pen / Annotate (`🖊`)
-        {
-            let host = self.weak.clone();
-            let mut btn = header_action(
-                "html-tool-annotate",
-                icon("agent-glyph-pen"),
-                tr("fileMode.html.annotate").into(),
-            )
-            .selected(tool_state.mode == HtmlToolMode::Annotate)
-            .on_click(move |_, w, cx| {
-                let _ = host.update(cx, |s, cx| {
-                    s.toggle_html_tool(HtmlToolMode::Annotate, w, cx);
-                });
-            });
-            if tool_state.has_annotations {
-                btn = btn.trailing(div().size(px(5.)).rounded_full().bg(t.brand_blue));
-            }
-            bar = bar.action(btn);
-        }
-
-        // 5. Screenshot (`✂`)
-        {
-            let host = self.weak.clone();
-            bar = bar.action(
-                header_action(
-                    "html-tool-screenshot",
-                    icon("scissors"),
-                    tr("fileMode.html.screenshot").into(),
-                )
-                .selected(tool_state.mode == HtmlToolMode::Screenshot)
-                .on_click(move |_, w, cx| {
-                    let _ = host.update(cx, |s, cx| {
-                        s.toggle_html_tool(HtmlToolMode::Screenshot, w, cx);
-                    });
-                }),
-            );
-        }
-
-        bar = bar.divider(cx);
-
-        // -------------------- Trailing Group 2: Code Split (`</>`) + Local Agent `Chat`
-        if let Some(src_toggle) = controls
-            .toggles
-            .iter()
-            .find(|sw| sw.id == DOCUMENT_SOURCE_PANEL_TOGGLE_ID)
-        {
-            let run = pane_action(Action::Item(src_toggle.id));
-            bar = bar.action(
-                header_action(
-                    src_toggle.id,
-                    icon(src_toggle.icon),
-                    src_toggle.label.clone(),
-                )
-                .selected(src_toggle.checked)
-                .on_click(move |_, w, cx| run(w, cx)),
-            );
-        }
-
-        {
-            let chat_open = self.sidebar.read(cx).shows(SidebarSurface::Agent, cx);
-            let brand = self.sidebar.read(cx).active_agent_brand(cx);
-            let chat_inner = h_flex()
-                .items_center()
-                .gap(px(5.))
-                .px(px(2.))
-                .child(match brand {
-                    Some(b) => agent_brands::image(b, t.dark, 14.).into_any_element(),
-                    None => icon("agent-entry").into_any_element(),
-                })
-                .child(
-                    div()
-                        .text_size(px(ty.content))
-                        .line_height(px(ty.line_height))
-                        .child(tr("fileMode.html.chat")),
-                );
-            let host = self.weak.clone();
-            let chat_tip: SharedString = tr("fileMode.html.chatTooltip").into();
-            bar = bar.action(
-                Button::new("html-tool-chat")
-                    .variant(ButtonVariant::Titlebar)
-                    .accessibility_label(chat_tip.clone())
-                    .tooltip(chat_tip)
-                    .selected(chat_open)
-                    .trailing(chat_inner)
+        // Pointing the Agent at the page belongs to Chat: these show while
+        // it is open, or while one of them is still on.
+        let pointing = matches!(
+            tool_state.mode,
+            HtmlToolMode::PickElement | HtmlToolMode::Annotate | HtmlToolMode::Screenshot
+        );
+        if chat_open || pointing {
+            let tool = |id: &'static str, glyph: &'static str, label: &str, mode: HtmlToolMode| {
+                let host = self.weak.clone();
+                header_action(id, icon(glyph), tr(label).into())
+                    .debug_selector(|| id.into())
+                    .selected(tool_state.mode == mode)
                     .on_click(move |_, w, cx| {
-                        let _ = host.update(cx, |s, cx| s.toggle_chat(w, cx));
-                    }),
+                        let _ = host.update(cx, |s, cx| s.toggle_html_tool(mode, w, cx));
+                    })
+            };
+            let mut annotate = tool(
+                "html-tool-annotate",
+                "highlighter",
+                "fileMode.html.annotate",
+                HtmlToolMode::Annotate,
+            );
+            if tool_state.has_annotations {
+                annotate = annotate.trailing(div().size(px(5.)).rounded_full().bg(t.brand_blue));
+            }
+            bar = bar
+                .divider(cx)
+                .action(tool(
+                    "html-tool-pick",
+                    "mouse-pointer-2",
+                    "fileMode.html.pick",
+                    HtmlToolMode::PickElement,
+                ))
+                .action(annotate)
+                .action(tool(
+                    "html-tool-screenshot",
+                    "scissors",
+                    "fileMode.html.screenshot",
+                    HtmlToolMode::Screenshot,
+                ));
+        }
+
+        {
+            let host = self.weak.clone();
+            bar = bar.action(
+                header_action(
+                    "html-tool-chat",
+                    icon("agent-entry"),
+                    tr("fileMode.html.chatTooltip").into(),
+                )
+                .debug_selector(|| "html-tool-chat".into())
+                .selected(chat_open)
+                .on_click(move |_, w, cx| {
+                    let _ = host.update(cx, |s, cx| s.toggle_chat(w, cx));
+                }),
             );
         }
 
-        bar = bar.divider(cx);
-
-        // -------------------- Trailing Group 3: Brand Blue `Share` CTA + `⋯` More Menu
         {
             let share_tip: SharedString = tr("fileMode.html.shareTooltip").into();
-            let share_btn = Button::new("html-tool-share")
-                .small()
-                .variant(ButtonVariant::FilledPrimary)
-                .icon(
-                    Icon::product(ProductIcon::Cloud)
-                        .with_size(px(13.))
-                        .stroke(1.9),
-                )
+            let share = Button::new("html-tool-share")
+                .variant(ButtonVariant::Titlebar)
                 .label(tr("fileMode.html.share"))
                 .accessibility_label(share_tip.clone())
                 .tooltip(share_tip);
-            bar = bar.action(self.share_popover(share_btn, cx));
+            bar = bar.action(self.share_popover(share, cx));
         }
 
-        {
-            let more_label: SharedString = tf(
-                "editor.panes.actionsFor",
-                &[("name", self.target.name.clone().into())],
-            )
-            .into();
-            let more_trigger = header_action("file-settings", icon("ellipsis"), more_label);
-            let is_fullscreen = window.is_fullscreen();
-            let has_annotations = tool_state.has_annotations;
-            let host_fs = self.weak.clone();
-            let host_fp = self.weak.clone();
-            let host_clr = self.weak.clone();
-            let browser_path = self.target.path.clone();
-            let finder_path = self.target.path.clone();
-            let proj_root = self.target.root.clone();
-            let proj_name = self.target.name.clone();
-            let extra_items: Vec<MenuItem> =
-                controls
-                    .items
-                    .iter()
-                    .map(|item| {
-                        let row = MenuItem::new(item.label.clone())
-                            .on_click(pane_action(Action::Item(item.id)));
-                        match item.kind {
-                            ItemKind::Toggle(on) => row
-                                .icon_element(
-                                    div()
-                                        .size(px(metric::MENU_ICON_SLOT))
-                                        .flex()
-                                        .items_center()
-                                        .justify_center()
-                                        .children(on.then(|| {
-                                            Icon::new("check").with_size(px(14.)).stroke(2.)
-                                        })),
-                                )
-                                .stay_open(),
-                            ItemKind::Command { disabled } => row.disabled(disabled),
-                        }
-                    })
-                    .collect();
-
-            bar = bar.action(self.file_menu(
-                FileMenu::Settings,
-                Anchor::TopRight,
-                more_trigger,
-                move |mut menu| {
-                    let mut top_group = vec![
-                        MenuItem::new(tr(if is_fullscreen {
-                            "fileMode.html.exitFullscreen"
-                        } else {
-                            "fileMode.html.presentFullscreen"
-                        }))
-                        .icon_sized(Icon::new("monitor").with_size(px(14.)).stroke(1.8))
-                        .on_click(move |w, cx| {
-                            let _ = host_fs.update(cx, |s, cx| {
-                                s.menu = None;
-                                s.toggle_fullscreen_presentation(w, cx);
-                            });
-                        }),
-                        MenuItem::new(tr("fileMode.html.captureFullPage"))
-                            .icon_sized(Icon::new("scissors").with_size(px(14.)).stroke(1.8))
-                            .on_click(move |w, cx| {
-                                let _ = host_fp.update(cx, |s, cx| {
-                                    s.menu = None;
-                                    s.run_html_action(HtmlToolAction::CaptureFullPage, w, cx);
-                                });
-                            }),
-                    ];
-                    if has_annotations {
-                        top_group.push(
-                            MenuItem::new(tr("fileMode.html.clearAnnotations"))
-                                .icon_sized(Icon::new("trash-2").with_size(px(14.)).stroke(1.8))
-                                .on_click(move |w, cx| {
-                                    let _ = host_clr.update(cx, |s, cx| {
-                                        s.menu = None;
-                                        s.run_html_action(HtmlToolAction::ClearAnnotations, w, cx);
-                                    });
-                                }),
-                        );
-                    }
-                    menu = menu.list(2., top_group).separator().list(
-                        2.,
-                        vec![
-                            MenuItem::new(tr("fileMode.html.openInBrowser"))
-                                .icon_sized(Icon::new("globe-2").with_size(px(14.)).stroke(1.8))
-                                .on_click(move |_, _| {
-                                    let _ = desktop::open(&browser_path);
-                                }),
-                            MenuItem::new(tr("fileMode.html.revealInFinder"))
-                                .icon_sized(
-                                    Icon::product(ProductIcon::Folder)
-                                        .with_size(px(14.))
-                                        .stroke(1.8),
-                                )
-                                .on_click(move |_, _| {
-                                    let _ = desktop::reveal(&finder_path);
-                                }),
-                            MenuItem::new(tr("fileMode.html.openFolderAsProject"))
-                                .icon_sized(
-                                    Icon::new("external-link").with_size(px(14.)).stroke(1.8),
-                                )
-                                .on_click(move |_, cx| {
-                                    let _ = windows::open_created(
-                                        proj_root.clone(),
-                                        Some(PathBuf::from(&proj_name)),
-                                        cx,
-                                    );
-                                }),
-                        ],
-                    );
-                    if !extra_items.is_empty() {
-                        menu = menu.separator().list(2., extra_items);
-                    }
+        let more_label: SharedString = tf(
+            "editor.panes.actionsFor",
+            &[("name", self.target.name.clone().into())],
+        )
+        .into();
+        let more_trigger = header_action("file-settings", icon("ellipsis"), more_label);
+        let host_reload = self.weak.clone();
+        let host_present = self.weak.clone();
+        let host_capture = self.weak.clone();
+        let host_clear = self.weak.clone();
+        let mut page = vec![
+            MenuItem::new(tr("fileMode.html.reload"))
+                .icon("refresh-cw")
+                .shortcut("⌘R")
+                .on_click(move |w, cx| {
+                    let _ = host_reload.update(cx, |s, cx| {
+                        s.menu = None;
+                        s.run_html_action(HtmlToolAction::ReloadAndReset, w, cx);
+                    });
+                }),
+        ];
+        if let Some(source) = toggle(DOCUMENT_SOURCE_PANEL_TOGGLE_ID) {
+            page.push(
+                MenuItem::new(source.label.clone())
+                    .icon(source.icon)
+                    .checked(source.checked)
+                    .on_click(pane_action(Action::Item(source.id))),
+            );
+        }
+        let mut show = vec![
+            MenuItem::new(tr(if window.is_fullscreen() {
+                "fileMode.html.exitFullscreen"
+            } else {
+                "fileMode.html.presentFullscreen"
+            }))
+            .icon("monitor")
+            .shortcut("⇧⌘F")
+            .on_click(move |w, cx| {
+                let _ = host_present.update(cx, |s, cx| {
+                    s.menu = None;
+                    s.toggle_fullscreen_presentation(w, cx);
+                });
+            }),
+            MenuItem::new(tr("fileMode.html.captureFullPage"))
+                .icon("image")
+                .on_click(move |w, cx| {
+                    let _ = host_capture.update(cx, |s, cx| {
+                        s.menu = None;
+                        s.run_html_action(HtmlToolAction::CaptureFullPage, w, cx);
+                    });
+                }),
+        ];
+        if tool_state.has_annotations {
+            show.push(
+                MenuItem::new(tr("fileMode.html.clearAnnotations"))
+                    .icon("trash-2")
+                    .on_click(move |w, cx| {
+                        let _ = host_clear.update(cx, |s, cx| {
+                            s.menu = None;
+                            s.run_html_action(HtmlToolAction::ClearAnnotations, w, cx);
+                        });
+                    }),
+            );
+        }
+        let browser_path = self.target.path.clone();
+        let finder_path = self.target.path.clone();
+        let folder = self.target.root.clone();
+        let name = self.target.name.clone();
+        let place = vec![
+            MenuItem::new(tr("fileMode.html.openInBrowser"))
+                .icon("globe-2")
+                .on_click(move |_, _| {
+                    let _ = desktop::open(&browser_path);
+                }),
+            MenuItem::new(tr("fileMode.html.revealInFinder"))
+                .product_icon(ProductIcon::Folder)
+                .on_click(move |_, _| {
+                    let _ = desktop::reveal(&finder_path);
+                }),
+            MenuItem::new(tr("fileMode.html.openFolderAsProject"))
+                .icon("external-link")
+                .on_click(move |_, cx| {
+                    let _ = windows::open_created(folder.clone(), Some(PathBuf::from(&name)), cx);
+                }),
+        ];
+        let extra = setting_rows(&controls.items, pane_action);
+        bar.action(self.file_menu(
+            FileMenu::Settings,
+            Anchor::TopRight,
+            more_trigger,
+            move |menu| {
+                let menu = menu
+                    .list(2., page)
+                    .separator()
+                    .list(2., show)
+                    .separator()
+                    .list(2., place);
+                if extra.is_empty() {
                     menu
-                },
-            ));
-        }
-
-        bar
+                } else {
+                    menu.separator().list(2., extra)
+                }
+            },
+        ))
     }
 
     /// `FileHeaderContext` + `FileControls` inside the product `Header`.
@@ -1545,30 +1174,7 @@ impl FileWindow {
             let label: SharedString =
                 tf("editor.panes.actionsFor", &[("name", name.into())]).into();
             let trigger = header_action("file-settings", icon("ellipsis"), label);
-            let items: Vec<MenuItem> =
-                controls
-                    .items
-                    .iter()
-                    .map(|item| {
-                        let row = MenuItem::new(item.label.clone())
-                            .on_click(action(Action::Item(item.id)));
-                        match item.kind {
-                            ItemKind::Toggle(on) => row
-                                .icon_element(
-                                    div()
-                                        .size(px(metric::MENU_ICON_SLOT))
-                                        .flex()
-                                        .items_center()
-                                        .justify_center()
-                                        .children(on.then(|| {
-                                            Icon::new("check").with_size(px(14.)).stroke(2.)
-                                        })),
-                                )
-                                .stay_open(),
-                            ItemKind::Command { disabled } => row.disabled(disabled),
-                        }
-                    })
-                    .collect();
+            let items = setting_rows(&controls.items, action);
             bar = bar.action(self.file_menu(
                 FileMenu::Settings,
                 Anchor::TopRight,
@@ -1652,88 +1258,42 @@ impl FileWindow {
                         .line_height(px(ty.line_height))
                         .child(tr("editor.fileMode.readOnlyEncoding"))
                 });
-                let toast_bar = self.toast.as_ref().map(|toast| {
-                    let msg = tf(
-                        "fileMode.html.toastCopied",
-                        &[("label", toast.label.clone().into())],
-                    );
+                // The copied screenshot floats at the document's end corner
+                // (over the page, `ui::native_cover`) and offers itself to
+                // the Agent.
+                let toast = self.toast.as_ref().map(|toast| {
                     let png = toast.png.clone();
-                    let host_paste = self.weak.clone();
+                    let host_send = self.weak.clone();
                     let host_close = self.weak.clone();
-                    h_flex()
-                        .id("file-mode-toast")
-                        .flex_none()
-                        .items_center()
-                        .justify_between()
-                        .gap(px(8.))
-                        .py(px(6.))
-                        .px(px(12.))
-                        .bg(theme::alpha(t.brand_blue, 0.10))
-                        .border_b_1()
-                        .border_color(t.divider)
+                    NoticeStack::new(NoticePlacement::BottomEnd, 16., 16., (r.w - 32.).min(400.))
                         .child(
-                            h_flex()
-                                .items_center()
-                                .gap(px(6.))
-                                .min_w_0()
-                                .child(
-                                    Icon::new("check")
-                                        .with_size(px(14.))
-                                        .stroke(2.)
-                                        .color(t.success),
-                                )
-                                .child(
-                                    div()
-                                        .text_size(px(ty.content))
-                                        .line_height(px(ty.line_height))
-                                        .text_color(t.text)
-                                        .truncate()
-                                        .child(msg),
-                                ),
-                        )
-                        .child(
-                            h_flex()
-                                .items_center()
-                                .gap(px(4.))
-                                .child(
-                                    Button::new("file-mode-toast-paste")
-                                        .small()
-                                        .variant(ButtonVariant::FilledPrimary)
-                                        .icon(
-                                            Icon::new("clipboard-paste")
-                                                .with_size(px(13.))
-                                                .stroke(1.9),
-                                        )
-                                        .label(tr("fileMode.html.toastPasteChat"))
-                                        .on_click(move |_, w, cx| {
-                                            let bytes = png.clone();
-                                            let _ = host_paste.update(cx, |s, cx| {
-                                                s.toast = None;
-                                                let prompt =
-                                                    tr("fileMode.html.promptScreenshot").to_owned();
-                                                s.open_and_stage_chat(
-                                                    Some(("html-screenshot.png".into(), bytes)),
-                                                    &prompt,
-                                                    w,
-                                                    cx,
-                                                );
-                                                cx.notify();
-                                            });
-                                        }),
-                                )
-                                .child(
-                                    Button::new("file-mode-toast-dismiss")
-                                        .small()
-                                        .variant(ButtonVariant::Titlebar)
-                                        .icon(Icon::new("x").with_size(px(13.)).stroke(1.9))
-                                        .accessibility_label("Dismiss")
-                                        .on_click(move |_, _, cx| {
-                                            let _ = host_close.update(cx, |s, cx| {
-                                                s.toast = None;
-                                                cx.notify();
-                                            });
-                                        }),
-                                ),
+                            FloatingNotice::new("file-mode-toast", tr("fileMode.html.toastCopied"))
+                                .tone(NoticeTone::Success)
+                                .action(NoticeAction::new(
+                                    "file-mode-toast-send",
+                                    tr("fileMode.html.toastPasteChat"),
+                                    move |w, cx| {
+                                        let bytes = png.clone();
+                                        let _ = host_send.update(cx, |s, cx| {
+                                            s.toast = None;
+                                            let prompt =
+                                                tr("fileMode.html.promptScreenshot").to_owned();
+                                            s.open_and_stage_chat(
+                                                Some(("html-screenshot.png".into(), bytes)),
+                                                &prompt,
+                                                w,
+                                                cx,
+                                            );
+                                            cx.notify();
+                                        });
+                                    },
+                                ))
+                                .on_dismiss(move |_, cx| {
+                                    let _ = host_close.update(cx, |s, cx| {
+                                        s.toast = None;
+                                        cx.notify();
+                                    });
+                                }),
                         )
                 });
                 let slot = self.docs.read(cx).active_slot();
@@ -1746,7 +1306,7 @@ impl FileWindow {
                         .child(editor.clone())
                         .children(editor_area.save_chip(slot, cx))
                 });
-                area.children(notice).children(toast_bar).children(document)
+                area.children(notice).children(document).children(toast)
             }
         }
     }
@@ -1755,7 +1315,6 @@ impl FileWindow {
 impl Render for FileWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::web_host::frame_drawn(window);
-        self.record_snapshot_if_needed(cx);
         self.ensure_host_observed(window, cx);
         let size = window.viewport_size();
         let (w, h) = (f32::from(size.width), f32::from(size.height));

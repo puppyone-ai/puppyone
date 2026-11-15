@@ -117,6 +117,7 @@ embedded! {
     "icons" / "grip-vertical.svg",
     "icons" / "hand.svg",
     "icons" / "hard-drive.svg",
+    "icons" / "highlighter.svg",
     "icons" / "history.svg",
     "icons" / "house.svg",
     "icons" / "house-compact.svg",

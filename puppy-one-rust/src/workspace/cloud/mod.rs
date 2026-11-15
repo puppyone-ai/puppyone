@@ -441,8 +441,8 @@ impl ResourcePort for Cloud {
         })
     }
 }
-/// `database-candidate` extensions (`fileFormats.json`).
-const DATABASE_EXTENSIONS: [&str; 6] = [".db", ".db3", ".sqlite", ".sqlite3", ".duckdb", ".ddb"];
+/// `database-candidate` extensions (`file-formats.json`).
+const DATABASE_EXTENSIONS: [&str; 4] = [".db", ".db3", ".sqlite", ".sqlite3"];
 impl Cloud {
     /// `workspaceSidecars`: `-wal`, `-shm`, `-journal` or `.wal` beside the
     /// database means it needs recovery, never a partial snapshot.

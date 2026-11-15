@@ -26,7 +26,6 @@ notify = { version = "=8.2.0", default-features = false, features = ["macos_fsev
 pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdfium_latest", "thread_safe", "image_025"] }
 portable-pty = "0.9"
 raw-window-handle = { version = "0.6", features = ["std"] }
-libloading = "=0.8.9"
 regex = "1.13.1"
 roxmltree = "=0.21.1"
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls", "macos-system-configuration"] }
