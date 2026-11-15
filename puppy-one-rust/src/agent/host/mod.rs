@@ -2,3 +2,13 @@
 pub mod agent_host;
 #[cfg(test)]
 mod tests;
+
+mod installation_host;
+pub use crate::agent::installation::executable_resolver::{
+    Observation as InstallationObservation, ResolvedCandidate as InstallationCandidate,
+};
+pub use crate::agent::installation::installation_service::{
+    ProductResult as InstallationResult, Progress as InstallationProgress,
+    Snapshot as InstallationSnapshot, Status as InstallationStatus,
+};
+pub use installation_host::{InstallationEvent, InstallationHost, resolve_installation_now};

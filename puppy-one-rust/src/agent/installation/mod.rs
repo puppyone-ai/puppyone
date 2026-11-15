@@ -6,6 +6,7 @@ pub mod definitions;
 pub mod executable_resolver;
 pub mod installation_definition;
 pub mod installation_registry;
+pub mod installation_service;
 pub mod managed_installation_layout;
 #[cfg(all(test, unix))]
 mod tests;
