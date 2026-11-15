@@ -268,18 +268,23 @@ impl Shell {
         let size = window.viewport_size();
         let (w, h) = (f32::from(size.width), f32::from(size.height));
         let rail = self.chrome.read(cx).rail_width();
+        let screen_active = self.cloud.read(cx).screen_shown(cx);
         let panes = self.panes.read(cx);
         let host = Host {
             frame: panes.open_plane(Side::Start, w, h, rail),
             open: panes.explorer().open,
-            opened: self
-                .files(cx)
-                .opened()
-                .map(|(_, relative)| relative.to_path_buf()),
+            opened: (!screen_active)
+                .then(|| {
+                    self.files(cx)
+                        .opened()
+                        .map(|(_, relative)| relative.to_path_buf())
+                })
+                .flatten(),
             open_resources: self.files(cx).open_paths(),
             documents_busy: self.files(cx).busy(),
             folder_busy: self.files(cx).folder_busy,
             picking: self.session.project.read(cx).picking,
+            screen_active,
         };
         self.explorer
             .view

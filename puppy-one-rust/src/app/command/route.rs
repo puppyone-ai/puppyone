@@ -298,6 +298,8 @@ impl Shell {
                         self.set_popover(None, cx);
                         let focus = self.chrome.read(cx).project_focus.clone();
                         focus.focus(window, cx);
+                    } else if !closed && self.cloud.read(cx).screen_interactive(cx) {
+                        self.cloud.update(cx, |c, cx| c.release_screen_control(cx));
                     }
                 }
             }

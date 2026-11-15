@@ -94,6 +94,42 @@ pub fn agent_creature_eyes() -> Rgba {
 pub fn history_tag() -> Rgba {
     rgb(0xffd21f)
 }
+/// `.cloud-screen-sidebar-thumb.is-live` (`src/styles/cloud-computer-screen.css`):
+/// warm twilight desktop gradient inside the miniature sidebar screen preview.
+pub fn screen_thumb_wallpaper() -> (Rgba, Rgba) {
+    (rgb(0x47528c), rgb(0xac715c))
+}
+/// `.cloud-screen-sidebar-thumb-window` (`src/styles/cloud-computer-screen.css`).
+pub fn screen_thumb_window(live: bool) -> Rgba {
+    if live {
+        rgba(0xffffffeb)
+    } else {
+        rgba(0xffffff2e)
+    }
+}
+/// `.cloud-screen-stage-pill` & `.cloud-screen-pip-badge` (`src/styles/cloud-computer-screen.css`):
+/// dark translucent glass controls over live desktop video regardless of shell theme.
+pub fn screen_overlay_surface() -> Rgba {
+    rgba(0x161618de)
+}
+pub fn screen_overlay_hover() -> Rgba {
+    rgba(0x222226f5)
+}
+pub fn screen_overlay_ink() -> Rgba {
+    rgba(0xfffffffa)
+}
+pub fn screen_overlay_muted() -> Rgba {
+    rgba(0xffffff99)
+}
+pub fn screen_overlay_border() -> Rgba {
+    rgba(0xffffff24)
+}
+pub fn screen_pip_surface() -> Rgba {
+    rgb(0x101012)
+}
+pub fn screen_pip_shadow() -> Rgba {
+    rgba(0x00000085)
+}
 /// `--po-control-size-large`.
 pub fn control_large() -> f32 {
     control() + 2.

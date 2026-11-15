@@ -364,7 +364,8 @@ impl CloudAgents {
         self.confirming = None;
         self.change_failed = false;
         self.decision_failed = false;
-        self.invite_open = self.agents.is_empty() && self.requests.is_empty();
+        self.invite_open = matches!(self.opener, Opener::Invite)
+            || (self.agents.is_empty() && self.requests.is_empty());
         cx.notify();
     }
     /// The seat shows or folds the invite's steps.

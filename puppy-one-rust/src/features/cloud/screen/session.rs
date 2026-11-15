@@ -118,7 +118,7 @@ impl CloudScreen {
                         s.command_tx = Some(cmd_tx.clone());
                         s.phase = StreamPhase::Connecting;
                         s.last_sent_size = None;
-                        s.viewport_pixel_size()
+                        s.shown.then(|| s.viewport_pixel_size()).flatten()
                     })
                     .ok()
                     .flatten();
@@ -221,6 +221,7 @@ impl CloudScreen {
 
     pub(super) fn teardown_active_handles(&mut self, cx: &mut Context<Self>) {
         self.release_inputs();
+        self.interactive = false;
         self.command_tx = None;
         self.resize_task = None;
         self.last_sent_size = None;
@@ -264,7 +265,10 @@ impl CloudScreen {
         bounds: Bounds<Pixels>,
         cx: &mut Context<Self>,
     ) {
-        if self.viewport_bounds == Some(bounds) {
+        if !self.shown {
+            return;
+        }
+        if self.viewport_bounds == Some(bounds) && self.last_sent_size.is_some() {
             return;
         }
         self.viewport_bounds = Some(bounds);
@@ -279,6 +283,9 @@ impl CloudScreen {
                 .timer(Duration::from_millis(120))
                 .await;
             let _ = this.update(cx, |s, _| {
+                if !s.shown {
+                    return;
+                }
                 if let Some(next) = s.viewport_pixel_size()
                     && s.last_sent_size != Some(next)
                 {
@@ -298,6 +305,9 @@ impl CloudScreen {
         w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !self.interactive || !self.shown {
+            return;
+        }
         self.focus.focus(w, cx);
         if let Some((x, y)) = self.pointer_at(e.position)
             && let Some(bit) = button_bit(e.button)
@@ -314,6 +324,9 @@ impl CloudScreen {
     }
 
     pub(super) fn on_mouse_up(&mut self, e: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.interactive || !self.shown {
+            return;
+        }
         if let Some(bit) = button_bit(e.button) {
             self.input.buttons &= !bit;
             let (x, y) = self.pointer_at(e.position).unwrap_or(self.input.last_pos);
@@ -333,6 +346,9 @@ impl CloudScreen {
         _: &mut Window,
         _: &mut Context<Self>,
     ) {
+        if !self.interactive || !self.shown {
+            return;
+        }
         if let Some((x, y)) = self.pointer_at(e.position)
             && self.input.last_pos != (x, y)
         {
@@ -351,6 +367,9 @@ impl CloudScreen {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !self.interactive || !self.shown {
+            return;
+        }
         if let Some((x, y)) = self.pointer_at(e.position) {
             self.input.last_pos = (x, y);
             let delta = e.delta.pixel_delta(px(24.));
@@ -391,7 +410,19 @@ impl CloudScreen {
     }
 
     pub(super) fn on_key_down(&mut self, e: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.interactive || !self.shown {
+            return;
+        }
         if e.keystroke.modifiers.platform {
+            return;
+        }
+        if e.keystroke.key.eq_ignore_ascii_case("escape")
+            && !e.keystroke.modifiers.control
+            && !e.keystroke.modifiers.alt
+            && !e.keystroke.modifiers.shift
+        {
+            self.release_control(cx);
+            cx.stop_propagation();
             return;
         }
         for cmd in self.input.key_down(&e.keystroke) {
@@ -401,6 +432,9 @@ impl CloudScreen {
     }
 
     pub(super) fn on_key_up(&mut self, e: &KeyUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.interactive || !self.shown {
+            return;
+        }
         if e.keystroke.modifiers.platform {
             return;
         }
@@ -416,6 +450,9 @@ impl CloudScreen {
         _: &mut Window,
         _: &mut Context<Self>,
     ) {
+        if !self.interactive || !self.shown {
+            return;
+        }
         let mut cmds = Vec::new();
         self.input.sync_modifiers(e.modifiers, &mut cmds);
         for cmd in cmds {
