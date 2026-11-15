@@ -715,6 +715,7 @@ impl CsvEditor {
             color: self.theme.text_muted,
             tabular: false,
             line_height: LineHeight::Factor(1.68),
+            face: Default::default(),
         }
     }
 

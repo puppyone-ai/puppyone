@@ -40,6 +40,7 @@ fn extension(format: Format) -> Box<dyn EditorExtension> {
                 color: rgba(0xfafafaff),
                 tabular: false,
                 line_height: LineHeight::Factor(1.75),
+                face: Default::default(),
             };
             Box::new(PlainText {
                 line: Rc::new(LineStyle::new(text)),

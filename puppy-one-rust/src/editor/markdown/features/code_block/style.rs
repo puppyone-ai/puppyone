@@ -70,6 +70,7 @@ impl CodeBlockStyle {
             color: self.color,
             tabular: false,
             line_height: LineHeight::Px(self.line_height),
+            face: Default::default(),
         }
     }
 }

@@ -16,6 +16,7 @@ fn plain() -> Box<PlainText> {
         color: rgba(0xfafafaff),
         tabular: false,
         line_height: LineHeight::Factor(1.75),
+        face: Default::default(),
     };
     let line = LineStyle {
         padding: Edges::new(0., 0., 3.75, 0.),

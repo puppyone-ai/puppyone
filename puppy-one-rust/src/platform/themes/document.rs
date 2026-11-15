@@ -238,11 +238,17 @@ fn variables(host: Host, document: &Document, dark: bool, scale: &str) -> HashMa
     vars
 }
 
-/// `var(name)` substituted through `vars`, as CSS text.
+/// `var(name)` substituted through `vars`, as CSS text. Where a variable
+/// no stylesheet here declares has no fallback (the typography runtime's
+/// `--po-font-locale-sans`), it stays as its name: it is the same under
+/// every theme, and a font list still names its faces around it.
 fn resolve(vars: &HashMap<String, String>, name: &str) -> Option<String> {
     let reference = value::tokenize(&format!("var({name})"))?;
-    let lookup = |var: &str| vars.get(var).cloned();
-    value::substitute(&reference, &lookup, 0).map(|t| value::to_css(&t))
+    let strict = |var: &str| vars.get(var).cloned();
+    let lenient = |var: &str| vars.get(var).cloned().or_else(|| Some(var.to_owned()));
+    value::substitute(&reference, &strict, 0)
+        .or_else(|| value::substitute(&reference, &lenient, 0))
+        .map(|t| value::to_css(&t))
 }
 
 /// The tokens among `names` whose value under `document` differs from

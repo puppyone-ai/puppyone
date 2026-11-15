@@ -475,6 +475,9 @@ mod tests {
             "{cream:?}"
         );
         assert_eq!(paper.len("--po-md-block-gap", 15.), 20.);
+        use crate::editor::view::style::Face;
+        assert_eq!(Face::of(paper.raw("--po-md-content-font")), Face::PtSerif);
+        assert_eq!(Face::of(neutral.raw("--po-md-content-font")), Face::Geist);
         // What the theme leaves alone stays Chromium's.
         assert_eq!(
             paper.number("--po-md-h1-weight"),
