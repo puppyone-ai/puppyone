@@ -99,6 +99,8 @@ pub struct AgentChatTabPanel {
     transcript_width: f32,
     /// Standalone shell disclosures (`rowId:partId`).
     expanded: HashSet<String>,
+    /// Long answers shown in full (`AgentMarkdownDocument`'s `expanded`).
+    full_answers: HashSet<String>,
     /// `AgentToolActivityGroup`'s single open step, per row.
     group_selected: HashMap<String, String>,
     open_folds: HashSet<String>,
@@ -293,6 +295,7 @@ impl AgentChatTabPanel {
             unread: 0,
             transcript_width: 0.,
             expanded: HashSet::new(),
+            full_answers: HashSet::new(),
             group_selected: HashMap::new(),
             open_folds: HashSet::new(),
             run_summary_open: false,

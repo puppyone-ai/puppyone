@@ -7,6 +7,7 @@ use super::super::activity::agent_activity_views::{
 use super::super::activity::agent_tool_steps::{AgentToolStepSegment, agent_tool_step_segments};
 use super::super::agent_chat_view_model::AgentChatViewModel;
 use super::super::agent_history_presentation::agent_history_notice;
+use super::super::agent_markdown_policy::initial_window;
 use super::super::agent_theme::AgentTheme;
 use super::super::agent_tool_group_presentation::group_agent_tool_rows;
 use super::super::transcript::transcript_layout::{
@@ -636,7 +637,9 @@ impl AgentChatTabPanel {
         let a = AgentTheme::new(&palette);
         match part.kind.as_str() {
             "user" => self.render_user_message(part, &a),
-            "assistant" => self.render_assistant_message(part, view, content_width, window, cx),
+            "assistant" => {
+                self.render_assistant_message(row_id, part, view, content_width, window, cx)
+            }
             "turn-summary" => {
                 let duration = format_agent_duration(part.duration_ms.unwrap_or(0.));
                 let label = if part.completion_quality.as_deref() == Some("degraded") {
@@ -772,6 +775,7 @@ impl AgentChatTabPanel {
     /// flow; incomplete Markdown streams as a plain tail.
     fn render_assistant_message(
         &self,
+        row_id: &str,
         part: &Part,
         _view: &AgentChatViewModel,
         content_width: f32,
@@ -785,10 +789,18 @@ impl AgentChatTabPanel {
         let id = part.id.clone();
         let text = self.presented_text(&id, &part.text, streaming);
         let order = part.sequence.max(0) as u64 * 10;
-        let (stable, tail) = if streaming {
-            split_streaming_markdown(&text)
+        // `createInitialAgentMarkdownWindow`: a long answer shows its first
+        // window until it is opened in full.
+        let full = self.full_answers.contains(&id);
+        let (shown, truncated) = if full {
+            (text.clone(), false)
         } else {
-            (text.clone(), String::new())
+            initial_window(&text)
+        };
+        let (stable, tail) = if streaming {
+            split_streaming_markdown(&shown)
+        } else {
+            (shown, String::new())
         };
         let body = if text.is_empty() && streaming {
             "…".to_string()
@@ -846,6 +858,47 @@ impl AgentChatTabPanel {
                     })
                     .child(label)
             }))
+            .when(full || truncated, |d| {
+                // `.desktop-agent-markdown-disclosure`.
+                let row = row_id.to_owned();
+                let answer = id.clone();
+                d.child(
+                    div().px(px(12.)).flex().child(
+                        div()
+                            .id(SharedString::from(format!("agent-md-disclosure-{id}")))
+                            .mt(px(8.))
+                            .h(px(theme::control()))
+                            .px(px(9.))
+                            .flex()
+                            .items_center()
+                            .flex_none()
+                            .border_1()
+                            .border_color(a.border_subtle)
+                            .rounded(px(9.))
+                            .bg(a.control_surface)
+                            .text_size(px(m.left.content))
+                            .text_color(a.text_muted)
+                            .cursor(theme::clickable_cursor())
+                            .hover(move |s| {
+                                s.border_color(palette.border_strong)
+                                    .bg(palette.hover)
+                                    .text_color(palette.text)
+                            })
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                if !s.full_answers.remove(&answer) {
+                                    s.full_answers.insert(answer.clone());
+                                }
+                                s.splice_row(&row);
+                                cx.notify();
+                            }))
+                            .child(t(if full {
+                                "agent.markdown.collapse"
+                            } else {
+                                "agent.markdown.showFull"
+                            })),
+                    ),
+                )
+            })
             .when(part.truncated == Some(true), |d| {
                 d.child(
                     div()
