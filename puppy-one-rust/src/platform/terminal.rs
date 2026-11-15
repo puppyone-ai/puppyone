@@ -30,6 +30,7 @@ struct PreparedLaunch {
     replace_environment: bool,
 }
 pub enum Event {
+    Started { input_shell: String },
     Data(Vec<u8>),
     Error(String),
     Exit(u32),
@@ -177,16 +178,11 @@ impl Terminal {
                     bundle.to_string_lossy().into_owned(),
                 );
             }
-            host.command.environment = environment::build(
-                &host.command.environment.into_iter().collect(),
+            host.prepare_environment(
                 env!("CARGO_PKG_VERSION"),
                 &host_environment,
-                host.default_colors,
-                host.login_shell,
                 shell::current_platform(),
-            )
-            .into_iter()
-            .collect();
+            );
             Ok(PreparedLaunch {
                 command: Some(host.command),
                 bootstrap: host.bootstrap_input,
@@ -274,6 +270,7 @@ impl Terminal {
                             .filter(|p| p.is_absolute())
                             .unwrap_or_else(|| PathBuf::from("/bin/zsh"))
                     });
+                let input_shell = executable.to_string_lossy().into_owned();
                 let mut command = CommandBuilder::new(executable);
                 if prepared.replace_environment {
                     command.env_clear();
@@ -322,6 +319,8 @@ impl Terminal {
                 drop(pair.slave);
                 let mut reader = pair.master.try_clone_reader()?;
                 let mut writer = pair.master.take_writer()?;
+                let _ = out.send(Event::Started { input_shell });
+                wake.notify();
                 let output = out.clone();
                 let notifier = wake.clone();
                 std::thread::spawn(move || {
@@ -564,6 +563,7 @@ mod tests {
                 .recv_timeout(remaining)
                 .expect("PTY recipe did not finish")
             {
+                Event::Started { .. } => (),
                 Event::Data(bytes) => output.push_str(&String::from_utf8_lossy(&bytes)),
                 Event::Error(error) => panic!("{error}"),
                 Event::Exit(code) => {
@@ -599,6 +599,7 @@ mod tests {
                 .recv_timeout(Duration::from_secs(2))
                 .unwrap()
             {
+                Event::Started { .. } => (),
                 Event::Data(bytes) => output.push_str(&String::from_utf8_lossy(&bytes)),
                 Event::Error(e) => panic!("{e}"),
                 Event::Exit(code) => panic!("early exit {code}"),

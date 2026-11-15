@@ -58,6 +58,7 @@ impl Session {
                 .map(Into::into)
                 .collect(),
             display_name: Some("Fixture Agent".into()),
+            path_entries: vec![],
             environment: initialized.then(|| environment.clone()),
         };
         let host = ShellHost::build(Some(&agent), &environment, "darwin").unwrap();
@@ -89,6 +90,7 @@ impl Session {
                 .recv_timeout(deadline.saturating_duration_since(Instant::now()))
                 .unwrap_or_else(|e| panic!("Waiting for {marker}: {e:?}; output: {}", self.output));
             match event {
+                Event::Started { .. } => (),
                 Event::Data(bytes) => self.output.push_str(&String::from_utf8_lossy(&bytes)),
                 Event::Error(error) => panic!("{error}; output: {}", self.output),
                 Event::Exit(code) => panic!("Shell exited early: {code}; output: {}", self.output),
@@ -112,6 +114,7 @@ impl Session {
             .recv_timeout(deadline.saturating_duration_since(Instant::now()))
         {
             match event {
+                Event::Started { .. } => (),
                 Event::Data(bytes) => self.output.push_str(&String::from_utf8_lossy(&bytes)),
                 _ => panic!(
                     "Shell stopped while waiting for startup input: {}",
@@ -138,6 +141,7 @@ impl Session {
                 .recv_timeout(deadline.saturating_duration_since(Instant::now()))
                 .expect("Shell never exited")
             {
+                Event::Started { .. } => (),
                 Event::Data(bytes) => self.output.push_str(&String::from_utf8_lossy(&bytes)),
                 Event::Error(error) => panic!("{error}"),
                 Event::Exit(code) => {

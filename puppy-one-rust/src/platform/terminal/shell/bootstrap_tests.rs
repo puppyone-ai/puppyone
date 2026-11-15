@@ -73,6 +73,7 @@ fn a_failed_bootstrap_write_or_flush_waits_for_the_real_shell_and_releases_its_s
                 .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
                 .unwrap()
             {
+                Event::Started { .. } => (),
                 Event::Data(_) => (),
                 Event::Exit(_) => panic!("bootstrap failure must be reported"),
                 Event::Error(error) => {

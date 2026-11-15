@@ -3,6 +3,7 @@ use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SessionStatus {
+    Starting,
     Running,
     Exited,
     Error,
@@ -10,6 +11,7 @@ pub enum SessionStatus {
 impl SessionStatus {
     pub fn label_key(self) -> &'static str {
         match self {
+            Self::Starting => "terminal.status.starting",
             Self::Running => "terminal.status.running",
             Self::Exited => "terminal.status.exited",
             Self::Error => "terminal.status.error",

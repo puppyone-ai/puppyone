@@ -7543,7 +7543,7 @@
     },
     {
       "id": "terminal-environment-and-theme-boundary",
-      "acceptance": "The native PTY receives an owned environment snapshot: npm launcher metadata, inherited host control endpoints and stale color hints are removed case-insensitively; user proxy, npm configuration and credentials remain. Fresh login shells remove exactly their Conda activation state and PATH entries; resolved Agent environments preserve Conda and PATH. Current-host identity, terminal capabilities, app version and renderer luminance are injected. A real PTY entrypoint inspects the environment before system rc can rewrite it, verifies cwd and a requested resize, then exits and releases its lease. Streaming OSC color replies additionally follow the active theme, preserve chunk boundaries and unrelated bytes, and are sent only to their owning native terminal before screen output. The OSC tests are additional native regressions here; the TS Agent-startup color case is not counted until its startup-cover integration is verified.",
+      "acceptance": "The native PTY receives an owned environment snapshot: npm launcher metadata, inherited host control endpoints and stale color hints are removed case-insensitively; user proxy, npm configuration and credentials remain. Fresh login shells remove exactly their Conda activation state and PATH entries; resolved Agent environments preserve Conda and PATH. Current-host identity, terminal capabilities, app version and renderer luminance are injected. A real PTY entrypoint inspects the environment before system rc can rewrite it, verifies cwd and a requested resize, then exits and releases its lease. Streaming OSC color replies additionally follow the active theme, preserve chunk boundaries and unrelated bytes, and are sent only to their owning native terminal before screen output. The TS Agent-startup color case is counted separately under terminal-first-paint after verification of its startup-cover integration.",
       "typescript": [
         {
           "path": "tests/integration/terminal/startup/electron.terminal-environment.test.mjs",
@@ -7621,6 +7621,70 @@
           "package": "po-app",
           "target": "puppy-one-rust",
           "test": "features::terminal::view::startup_tests::native_color_queries_follow_the_current_theme_and_reply_only_to_the_owning_terminal"
+        }
+      ]
+    },
+    {
+      "id": "terminal-first-paint",
+      "acceptance": "Trusted host path additions are filtered, deduplicated and applied without changing existing PATH order when none are supplied; zsh initialization and argv bootstrap retain the trusted launch recipe without writing it to stdin. Native Agent terminal output remains under a startup cover while its PTY initializes. An explicit Started event supplies the real input shell and begins one bounded timer (default 2400 ms); prompts alone do not reveal the terminal. Split TUI control sequences or 384 UTF-16 code units reveal it, with correct incremental UTF-8 handling. Error, exit or timeout settle the gate, and early settlement or view destruction cancels its timer. Keyboard and IME input are blocked while covered, automatic color replies continue through the owning session, and workbench status distinguishes Starting from Running. A real PTY waits for both color replies before its first TUI output; the native view completes that handshake under the cover and closes without retaining its actual process lease. This validates startup mechanics; the native cover presentation is not counted as full visual parity with the TS launcher-card overlay or as Windows PTY acceptance.",
+      "typescript": [
+        {
+          "path": "tests/integration/terminal/startup/electron.terminal-agent-launch.test.mjs",
+          "sha256": "a301d81855eb304e720439aed6cdeb53af5bc17012ce805833f3daafda7a516e",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Terminal Agent launch boundary > starts the trusted Agent after shell initialization without writing launch text to stdin"
+            },
+            {
+              "index": 6,
+              "name": "Terminal Agent launch boundary > keeps the startup cover until the Agent begins drawing its TUI"
+            },
+            {
+              "index": 7,
+              "name": "Terminal Agent launch boundary > answers startup default-color probes before forwarding Agent output"
+            },
+            {
+              "index": 10,
+              "name": "Terminal Agent command serialization > recognizes both TUI control sequences and substantial first paint output"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::startup::tests::prompts_stay_covered_until_split_tui_sequences_or_384_utf16_units"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::startup::tests::timeout_is_bounded_begins_once_and_exit_or_failure_settles_pending_work"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::native_agent_cover_blocks_user_input_but_reveals_on_first_tui_and_cancels_its_timer"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::native_startup_timeout_begins_at_pty_start_and_exit_or_error_removes_the_cover"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::native_color_queries_follow_the_current_theme_and_reply_only_to_the_owning_terminal"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::real_agent_color_handshake_completes_under_the_native_startup_cover"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::tests::trusted_path_additions_reach_shell_preparation_without_stdin_bootstrap_or_reordering_existing_entries"
         }
       ]
     }

@@ -10,6 +10,7 @@ pub struct AgentCommand {
     pub executable_path: String,
     pub args: Vec<String>,
     pub display_name: Option<String>,
+    pub path_entries: Vec<String>,
     /// Some means discovery has initialized this environment already.
     pub environment: Option<Environment>,
 }
@@ -19,6 +20,7 @@ pub struct ShellHost {
     pub bootstrap_input: Option<String>,
     pub display_shell: String,
     pub login_shell: bool,
+    pub path_entries: Vec<String>,
     pub default_colors: Option<super::environment::DefaultColors>,
 }
 impl ShellHost {
@@ -30,6 +32,21 @@ impl ShellHost {
         self
     }
 
+    pub fn prepare_environment(&mut self, app_version: &str, host: &Environment, platform: &str) {
+        let source = std::mem::take(&mut self.command.environment)
+            .into_iter()
+            .collect();
+        let mut environment = super::environment::build(
+            &source,
+            app_version,
+            host,
+            self.default_colors,
+            self.login_shell,
+            platform,
+        );
+        super::environment::prepend_paths(&mut environment, &self.path_entries, platform);
+        self.command.environment = environment.into_iter().collect();
+    }
     pub fn build(
         agent: Option<&AgentCommand>,
         inherited: &Environment,
@@ -115,6 +132,7 @@ impl ShellHost {
             bootstrap_input,
             display_shell,
             login_shell,
+            path_entries: agent.map_or_else(Vec::new, |a| a.path_entries.clone()),
             default_colors: None,
         })
     }

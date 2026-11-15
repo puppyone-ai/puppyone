@@ -4,6 +4,9 @@ use super::*;
 
 impl TerminalView {
     pub(super) fn input(&mut self, bytes: Vec<u8>, cx: &mut Context<Self>) {
+        if self.startup.covered() {
+            return;
+        }
         self.selection = None;
         self.selecting = false;
         self.restart_blink(cx);
@@ -277,6 +280,9 @@ impl TerminalView {
         }
     }
     pub(super) fn key(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.startup.covered() {
+            return;
+        }
         let key = &event.keystroke.key;
         let m = event.keystroke.modifiers;
         if m.platform {

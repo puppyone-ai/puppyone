@@ -165,6 +165,37 @@ fn remove_conda_paths(path: &str, prefixes: &[&str], platform: &str) -> String {
         .join(&separator.to_string())
 }
 
+/// Trusted host-only additions; the production installation resolver supplies
+/// none, so its already-resolved PATH remains unchanged.
+pub(super) fn prepend_paths(environment: &mut Environment, entries: &[String], platform: &str) {
+    let valid: Vec<_> = entries
+        .iter()
+        .filter(|entry| {
+            let absolute = if platform == "win32" {
+                crate::platform::paths::flavor::win32_is_absolute(entry)
+            } else {
+                entry.starts_with('/')
+            };
+            absolute && entry.encode_utf16().count() <= 4096 && !entry.contains(['\r', '\n', '\0'])
+        })
+        .cloned()
+        .collect();
+    if valid.is_empty() {
+        return;
+    }
+    let separator = if platform == "win32" { ';' } else { ':' };
+    let mut seen = BTreeSet::new();
+    let previous = environment.get("PATH").map_or("", String::as_str);
+    let entries: Vec<_> = valid
+        .iter()
+        .map(String::as_str)
+        .chain(previous.split(separator).filter(|v| !v.is_empty()))
+        .filter(|value| seen.insert(*value))
+        .collect();
+    let path = entries.join(&separator.to_string());
+    environment.insert("PATH".into(), path);
+}
+
 #[cfg(test)]
 mod tests;
 

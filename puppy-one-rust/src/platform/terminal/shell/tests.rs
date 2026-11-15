@@ -5,6 +5,7 @@ fn agent(file: &str, args: &[&str]) -> AgentCommand {
         executable_path: file.into(),
         args: args.iter().map(|s| (*s).into()).collect(),
         display_name: None,
+        path_entries: vec![],
         environment: None,
     }
 }
@@ -130,5 +131,49 @@ fn uncaptured_zsh_uses_login_initialization_and_argv_instead_of_stdin_bootstrap(
         host.command
             .environment
             .contains(&("DISABLE_AUTO_UPDATE".into(), "true".into()))
+    );
+}
+
+#[test]
+fn trusted_path_additions_reach_shell_preparation_without_stdin_bootstrap_or_reordering_existing_entries()
+ {
+    let mut command = agent("/verified/cursor", &["agent"]);
+    command.display_name = Some("Cursor Agent".into());
+    command.path_entries = vec![
+        "/verified".into(),
+        "relative".into(),
+        "/unsafe\nentry".into(),
+        "/verified".into(),
+    ];
+    let inherited = [
+        ("SHELL".into(), "/bin/zsh".into()),
+        ("PATH".into(), "/usr/bin:/verified:/bin::".into()),
+    ]
+    .into();
+    let mut host = ShellHost::build(Some(&command), &inherited, "darwin").unwrap();
+    host.prepare_environment("test", &Environment::new(), "darwin");
+    assert_eq!(host.command.executable.to_str(), Some("/bin/zsh"));
+    assert_eq!(
+        host.command.arguments,
+        [
+            "-l",
+            "-i",
+            "-c",
+            "if '/verified/cursor' 'agent'; then :; fi; exec '/bin/zsh' -l"
+        ]
+    );
+    assert!(host.bootstrap_input.is_none());
+    assert_eq!(host.display_shell, "Cursor Agent");
+    let environment: Environment = host.command.environment.into_iter().collect();
+    assert_eq!(environment["PATH"], "/verified:/usr/bin:/bin");
+    assert_eq!(environment["DISABLE_AUTO_UPDATE"], "true");
+    command.path_entries.clear();
+    command.environment = Some(inherited);
+    let mut host = ShellHost::build(Some(&command), &Environment::new(), "darwin").unwrap();
+    host.prepare_environment("test", &Environment::new(), "darwin");
+    let environment: Environment = host.command.environment.into_iter().collect();
+    assert_eq!(
+        environment["PATH"], "/usr/bin:/verified:/bin::",
+        "empty trusted additions must preserve the discovery snapshot verbatim"
     );
 }

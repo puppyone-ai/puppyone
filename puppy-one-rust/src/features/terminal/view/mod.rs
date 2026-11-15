@@ -6,6 +6,8 @@ pub struct TerminalView {
     terminal: Terminal,
     parser: vt100::Parser,
     queries: queries::Queries,
+    startup: startup::Startup,
+    startup_timer: Option<Task<()>>,
     focus: FocusHandle,
     pub running: bool,
     /// A launch or write failure, shown as a dismissible notice
@@ -97,7 +99,15 @@ impl TerminalView {
                     .update_in(cx, |s, _, cx| {
                         while let Ok(e) = s.terminal.events.try_recv() {
                             match e {
+                                Event::Started { input_shell } => {
+                                    s.shell = input_shell;
+                                    s.begin_startup(cx);
+                                }
                                 Event::Data(bytes) => {
+                                    s.startup.observe(&bytes);
+                                    if !s.startup.covered() {
+                                        s.startup_timer.take();
+                                    }
                                     let handled = s.queries.colors(&bytes, &cx.palette());
                                     // Replies enter this session's input queue before output
                                     // reaches its screen or the next paint notification.
@@ -141,6 +151,8 @@ impl TerminalView {
                                     }
                                 }
                                 Event::Error(e) => {
+                                    s.startup.settle();
+                                    s.startup_timer.take();
                                     s.parser.process(&s.queries.flush_colors());
                                     s.parser.process(&system_line(&e));
                                     s.failure = Some(e);
@@ -148,6 +160,8 @@ impl TerminalView {
                                     s.activity.reset();
                                 }
                                 Event::Exit(code) => {
+                                    s.startup.settle();
+                                    s.startup_timer.take();
                                     s.parser.process(&s.queries.flush_colors());
                                     s.activity.reset();
                                     let text = tf(
@@ -170,7 +184,10 @@ impl TerminalView {
         })
         .detach();
         let terminal = begin(wake);
-        let view = Self::assemble(terminal, agent, true, cx);
+        let mut view = Self::assemble(terminal, agent, true, cx);
+        if agent {
+            view.startup = startup::Startup::agent();
+        }
         cx.on_focus(&view.focus, window, |s, _, cx| {
             s.focused = true;
             s.cursor_initialized = true;
@@ -189,6 +206,8 @@ impl TerminalView {
             terminal,
             parser: vt100::Parser::new(24, 80, SCROLLBACK),
             queries: queries::Queries::default(),
+            startup: startup::Startup::default(),
+            startup_timer: None,
             focus: cx.focus_handle(),
             #[cfg(feature = "dev-capture")]
             lab_output: None,
@@ -220,6 +239,18 @@ impl TerminalView {
             // Agent CLIs run inside the same login shell host.
             shell: std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into()),
             drop_failed: false,
+        }
+    }
+    fn begin_startup(&mut self, cx: &mut Context<Self>) {
+        if let Some(timeout) = self.startup.begin() {
+            self.startup_timer = Some(cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(timeout).await;
+                let _ = this.update(cx, |s, cx| {
+                    s.startup.settle();
+                    s.startup_timer.take();
+                    cx.notify();
+                });
+            }));
         }
     }
     /// Show the cursor and blink from now while focused.
@@ -358,8 +389,11 @@ impl TerminalView {
         self.activity.note_title("⠋ claude");
         self.running = true;
     }
-    /// The session status (`DesktopTerminalSessionStatus` past `starting`).
+    /// The session status, including the Agent's first-paint wait.
     pub fn status(&self) -> SessionStatus {
+        if self.startup.covered() {
+            return SessionStatus::Starting;
+        }
         match (self.running, self.failure.is_some()) {
             (true, _) => SessionStatus::Running,
             (false, true) => SessionStatus::Error,
@@ -368,6 +402,9 @@ impl TerminalView {
     }
     /// `TerminalSessionHeaderStatus`: an Agent CLI that is running and busy.
     pub fn agent_active(&self) -> bool {
+        if self.startup.covered() {
+            return true;
+        }
         self.running && self.activity.active(Instant::now())
     }
     /// Re-render once the output signal lapses (`OUTPUT_IDLE_MS`).
@@ -670,6 +707,27 @@ impl Render for TerminalView {
                         .size_full(),
                     ),
             )
+            .when(self.startup.covered(), |d| {
+                d.child(
+                    div()
+                        .id("terminal-startup-cover")
+                        .occlude()
+                        .debug_selector(|| "terminal-startup-cover".into())
+                        .absolute()
+                        .inset_0()
+                        .bg(t.terminal_bg)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .gap(px(8.))
+                        .child(crate::ui::components::Spinner::new(
+                            "terminal-startup-spinner",
+                            t.border,
+                            t.muted,
+                        ))
+                        .child(tr("terminal.launcher.launching")),
+                )
+            })
             .child(self.notices(cx))
     }
 }
@@ -735,6 +793,9 @@ impl EntityInputHandler for TerminalView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.startup.covered() {
+            return;
+        }
         if crate::ui::ime::intercept_function_key(text, window, cx) {
             return;
         }

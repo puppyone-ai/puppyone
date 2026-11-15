@@ -33,6 +33,7 @@ impl TerminalAgentLaunch {
             executable_path: self.executable_path,
             args: self.args,
             display_name: Some(self.display_name),
+            path_entries: vec![],
             environment: Some(self.environment),
         }
     }

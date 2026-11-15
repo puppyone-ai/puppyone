@@ -30,6 +30,7 @@ mod interaction;
 mod model;
 mod paint;
 mod queries;
+mod startup;
 mod view;
 mod workbench;
 

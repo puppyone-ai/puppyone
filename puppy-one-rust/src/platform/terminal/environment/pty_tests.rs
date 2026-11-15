@@ -88,6 +88,7 @@ exec /bin/bash --noprofile --norc -i
             .recv_timeout(deadline.saturating_duration_since(Instant::now()))
             .unwrap()
         {
+            Event::Started { .. } => (),
             Event::Data(_) => (),
             Event::Exit(code) => {
                 assert_eq!(code, 0);
@@ -115,6 +116,7 @@ fn read(terminal: &Terminal, deadline: Instant, output: &mut String) {
         .recv_timeout(deadline.saturating_duration_since(Instant::now()))
         .unwrap_or_else(|e| panic!("{e:?}: {output}"))
     {
+        Event::Started { .. } => (),
         Event::Data(bytes) => output.push_str(&String::from_utf8_lossy(&bytes)),
         Event::Exit(code) => panic!("early shell exit {code}: {output}"),
         Event::Error(error) => panic!("{error}"),

@@ -63,6 +63,7 @@ impl WorkbenchItem for TerminalItem {
             detail: Some(format!("{} — {}", self.title, tr(status.label_key()))),
             icon_key: None,
             status: match status {
+                SessionStatus::Starting => ItemStatus::Starting,
                 SessionStatus::Running => ItemStatus::Running,
                 SessionStatus::Error => ItemStatus::Error,
                 _ => ItemStatus::Exited,

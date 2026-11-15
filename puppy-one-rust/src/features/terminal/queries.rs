@@ -78,6 +78,18 @@ impl vte::Perform for Replies<'_> {
         }
     }
 }
+pub(super) fn default_colors(
+    theme: &crate::theme::Theme,
+) -> crate::platform::terminal::environment::DefaultColors {
+    fn channels(color: gpui::Rgba) -> [u8; 3] {
+        [color.r, color.g, color.b].map(|v| (v * 255.).round().clamp(0., 255.) as u8)
+    }
+    crate::platform::terminal::environment::DefaultColors {
+        foreground: channels(theme.terminal_fg),
+        background: channels(theme.terminal_bg),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,17 +108,5 @@ mod tests {
             vec![b"\x1b[8;24;80t".to_vec()]
         );
         assert!(q.process(b"\x1b]52;c;?\x07", screen.screen()).is_empty());
-    }
-}
-
-pub(super) fn default_colors(
-    theme: &crate::theme::Theme,
-) -> crate::platform::terminal::environment::DefaultColors {
-    fn channels(color: gpui::Rgba) -> [u8; 3] {
-        [color.r, color.g, color.b].map(|v| (v * 255.).round().clamp(0., 255.) as u8)
-    }
-    crate::platform::terminal::environment::DefaultColors {
-        foreground: channels(theme.terminal_fg),
-        background: channels(theme.terminal_bg),
     }
 }
