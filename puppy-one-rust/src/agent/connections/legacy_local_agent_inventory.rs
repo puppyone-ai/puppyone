@@ -13,9 +13,6 @@ pub struct Installation {
     pub id: &'static str,
     pub label: String,
     pub executable: PathBuf,
-    /// Host-owned verified launch recipe; never serialized into UI projections.
-    pub launch:
-        Option<std::sync::Arc<crate::agent::installation::executable_resolver::ResolvedCandidate>>,
     pub chat: bool,
 }
 impl Installation {
@@ -199,7 +196,6 @@ fn discover_from(
                     id: agent.id,
                     label: agent.label.into(),
                     executable,
-                    launch: None,
                     chat: true,
                 });
                 Observation::new(agent.id, ObservationStatus::Found)
@@ -217,7 +213,6 @@ fn discover_from(
         id: BUILT_IN_AGENT_ID,
         label: BUILT_IN_AGENT_LABEL.into(),
         executable: PathBuf::new(),
-        launch: None,
         chat: true,
     });
     Inventory {
@@ -245,7 +240,6 @@ pub fn lab_installations() -> Vec<Installation> {
             id: agent.id,
             label: agent.label.into(),
             executable: PathBuf::new(),
-            launch: None,
             chat: true,
         })
         .collect();
@@ -254,7 +248,6 @@ pub fn lab_installations() -> Vec<Installation> {
         id: BUILT_IN_AGENT_ID,
         label: BUILT_IN_AGENT_LABEL.into(),
         executable: PathBuf::new(),
-        launch: None,
         chat: true,
     });
     result

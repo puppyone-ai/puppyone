@@ -35,8 +35,7 @@ impl TerminalItem {
         let title = path_label(&root);
         let runtime = installation.as_ref().map(|i| i.runtime);
         let launcher = installation.as_ref().map_or("shell", |i| i.id);
-        let command = installation.as_ref().map(launch_command);
-        let view = cx.new(|cx| TerminalView::new(root, command, launcher, window, cx));
+        let view = cx.new(|cx| TerminalView::new(root, launcher, window, cx));
         Self::of(view, title, runtime)
     }
 
@@ -166,67 +165,82 @@ fn activity_grid(tab: u64, color: Rgba) -> AnyElement {
         .into_any_element()
 }
 
-/// The resolver already applied vendor environment overrides. Keep its PATH
-/// and put the verified entry's directory first for sibling executables.
-fn launch_command(installation: &Installation) -> crate::platform::terminal::LaunchCommand {
-    let mut command = crate::platform::terminal::LaunchCommand {
-        executable: installation.executable.clone(),
-        ..Default::default()
-    };
-    if let Some(candidate) = &installation.launch {
-        command.arguments = candidate.args_prefix.clone();
-        let mut environment = candidate.environment.clone().unwrap_or_default();
-        for (key, value) in candidate.environment_overrides.iter().flatten() {
-            environment.insert(key.clone(), value.clone());
-        }
-        if !candidate.launch_path_entry.is_empty() {
-            let existing = environment.get("PATH").cloned().unwrap_or_default();
-            let paths = std::iter::once(PathBuf::from(&candidate.launch_path_entry)).chain(
-                std::env::split_paths(&existing)
-                    .filter(|p| p != &PathBuf::from(&candidate.launch_path_entry)),
-            );
-            if let Ok(path) = std::env::join_paths(paths) {
-                environment.insert("PATH".into(), path.to_string_lossy().into_owned());
-            }
-        }
-        command.environment = environment.into_iter().collect();
-    }
-    command
-}
-
 #[cfg(test)]
 mod launch_tests {
     use super::*;
-    use crate::agent::installation::executable_resolver::ResolvedCandidate;
     use core::prelude::v1::test;
+    struct FixtureWindow;
+    impl Render for FixtureWindow {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
+    }
+    #[gpui::test]
+    fn a_native_terminal_rejects_an_unregistered_inventory_entry_before_executing_its_cached_path(
+        cx: &mut TestAppContext,
+    ) {
+        use std::os::unix::fs::PermissionsExt;
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        let directory = tempfile::tempdir().unwrap();
+        let binary = directory.path().join("fake-cli");
+        std::fs::write(&binary, "#!/bin/sh\n: > \"${0}.ran\"\n").unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let window = cx.add_window(|_, _| FixtureWindow);
+        let terminal = window
+            .update(cx, |_, window, cx| {
+                TerminalItem::launch(
+                    directory.path().into(),
+                    Some(Installation {
+                        runtime: Runtime::Codex,
+                        id: "unregistered-inventory-entry",
+                        label: "Stale fixture".into(),
+                        executable: binary.clone(),
+                        chat: true,
+                    }),
+                    window,
+                    cx,
+                )
+            })
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            cx.run_until_parked();
+            let status = terminal.view.read_with(cx, |v, _| v.status());
+            if matches!(status, SessionStatus::Error | SessionStatus::Exited) {
+                assert_eq!(status, SessionStatus::Error);
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "terminal did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert!(
+            !directory.path().join("fake-cli.ran").exists(),
+            "a cached UI path must never become a process authority"
+        );
+    }
     #[test]
-    fn terminal_launch_keeps_verified_prefix_environment_and_sibling_path() {
-        let installation = Installation {
-            runtime: Runtime::Cursor,
-            id: "cursor",
-            label: "Cursor".into(),
-            executable: "/fixture/cursor".into(),
-            chat: true,
-            launch: Some(std::sync::Arc::new(ResolvedCandidate {
-                args_prefix: vec!["agent".into(), "literal $(touch ignored)".into()],
-                environment: Some(
-                    [
-                        ("PATH".into(), "/bin:/fixture:/usr/bin".into()),
-                        ("VENDOR_MODE".into(), "old".into()),
-                    ]
-                    .into(),
-                ),
-                environment_overrides: Some(vec![("VENDOR_MODE".into(), "managed".into())]),
-                launch_path_entry: "/fixture".into(),
-                ..Default::default()
-            })),
+    fn terminal_launch_preserves_verified_prefix_and_discovery_environment_without_reordering_path()
+    {
+        let launch = crate::agent::host::TerminalAgentLaunch {
+            executable_path: "/fixture/cursor".into(),
+            display_name: "Cursor Agent".into(),
+            args: vec!["agent".into(), "literal $(touch ignored)".into()],
+            environment: [
+                ("PATH".into(), "/bin:/fixture:/usr/bin".into()),
+                ("VENDOR_MODE".into(), "managed".into()),
+            ]
+            .into(),
         };
-        let command = launch_command(&installation);
+        let command = launch.into_command();
         assert_eq!(command.executable, PathBuf::from("/fixture/cursor"));
         assert_eq!(command.arguments, ["agent", "literal $(touch ignored)"]);
         let environment: std::collections::BTreeMap<_, _> =
             command.environment.into_iter().collect();
         assert_eq!(environment["VENDOR_MODE"], "managed");
-        assert_eq!(environment["PATH"], "/fixture:/bin:/usr/bin");
+        assert_eq!(environment["PATH"], "/bin:/fixture:/usr/bin");
     }
 }

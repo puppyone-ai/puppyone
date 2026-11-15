@@ -123,6 +123,17 @@ impl Terminal {
         wake: Wake,
         owner: String,
     ) -> Self {
+        Self::spawn_prepared(root, launcher, wake, owner, move || Ok(launch))
+    }
+    /// Preparation is authoritative and completes before allocating a PTY or
+    /// starting a process. Closing the view while it runs prevents late launch.
+    pub fn spawn_prepared(
+        root: PathBuf,
+        launcher: &'static str,
+        wake: Wake,
+        owner: String,
+        prepare: impl FnOnce() -> Result<Option<LaunchCommand>, String> + Send + 'static,
+    ) -> Self {
         let (tx, rx) = mpsc::sync_channel(64);
         let (out, events) = mpsc::sync_channel(128);
         let stop = Arc::new(AtomicBool::new(false));
@@ -154,13 +165,21 @@ impl Terminal {
             // `prepareTerminalSession`, off the UI thread (it reads the
             // Agents' Hook configuration).
             let activity_session = uuid::Uuid::new_v4().to_string();
-            let activity = super::agent_activity::host::Host::global().prepare_terminal_session(
-                &activity_session,
-                launcher,
-                &root,
-                &activity_owner,
-            );
+            let mut activity = Vec::new();
             let result = (|| -> anyhow::Result<()> {
+                if stopping.load(Ordering::Acquire) {
+                    return Ok(());
+                }
+                let launch = prepare().map_err(anyhow::Error::msg)?;
+                if stopping.load(Ordering::Acquire) {
+                    return Ok(());
+                }
+                activity = super::agent_activity::host::Host::global().prepare_terminal_session(
+                    &activity_session,
+                    launcher,
+                    &root,
+                    &activity_owner,
+                );
                 let pair = native_pty_system().openpty(PtySize {
                     rows: 24,
                     cols: 80,
@@ -363,6 +382,61 @@ impl Drop for Terminal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn closing_a_terminal_during_preparation_releases_its_lease_without_starting_the_late_command()
+    {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("must-not-start");
+        let command_marker = marker.clone();
+        let owner = format!("prepare-close-{}", uuid::Uuid::new_v4());
+        let (entered, started) = mpsc::channel();
+        let (release, gate) = mpsc::channel();
+        let terminal = Terminal::spawn_prepared(
+            dir.path().into(),
+            "shell",
+            Wake::default(),
+            owner.clone(),
+            move || {
+                entered.send(()).unwrap();
+                gate.recv().unwrap();
+                Ok(Some(LaunchCommand {
+                    executable: "/bin/sh".into(),
+                    arguments: vec![
+                        "-c".into(),
+                        ": > \"$1\"".into(),
+                        "fixture".into(),
+                        command_marker.to_string_lossy().into(),
+                    ],
+                    environment: vec![],
+                }))
+            },
+        );
+        started.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(
+            super::super::host_budget::Budget::global()
+                .snapshot()
+                .iter()
+                .any(|r| r.owner == owner)
+        );
+        drop(terminal);
+        release.send(()).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while super::super::host_budget::Budget::global()
+            .snapshot()
+            .iter()
+            .any(|r| r.owner == owner)
+        {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "preparation retained the process lease"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            !marker.exists(),
+            "a late resolution started a command after its terminal closed"
+        );
+    }
     #[test]
     fn verified_cli_arguments_and_environment_reach_the_real_pty_without_shell_interpolation() {
         let dir = tempfile::tempdir().unwrap();

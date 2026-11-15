@@ -174,7 +174,6 @@ impl Installations {
             id: legacy::BUILT_IN_AGENT_ID,
             label: legacy::BUILT_IN_AGENT_LABEL.into(),
             executable: Default::default(),
-            launch: None,
             chat: true,
         });
         // Incomplete discovery never authorizes an absence-based setup offer.
@@ -195,7 +194,6 @@ fn installation(product: &legacy::LocalAgent, candidate: &ResolvedCandidate) -> 
         id: product.id,
         label: product.label.into(),
         executable: candidate.executable_path.clone().into(),
-        launch: Some(Arc::new(candidate.clone())),
         chat: true,
     }
 }

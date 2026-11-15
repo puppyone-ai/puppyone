@@ -23,7 +23,6 @@ pub fn hosted_installation() -> Installation {
         id: INSTALLATION_ID,
         label: LABEL.into(),
         executable: PathBuf::new(),
-        launch: None,
         chat: true,
     }
 }

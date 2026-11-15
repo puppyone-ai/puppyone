@@ -12,3 +12,8 @@ pub use crate::agent::installation::installation_service::{
     Snapshot as InstallationSnapshot, Status as InstallationStatus,
 };
 pub use installation_host::{InstallationEvent, InstallationHost, resolve_installation_now};
+
+mod terminal_launch;
+pub use terminal_launch::{
+    TerminalAgentLaunch, TerminalLaunchResolver, resolve_terminal_launch_now,
+};

@@ -267,7 +267,6 @@ impl WorkbenchLauncher {
                 id: agents::BUILT_IN_AGENT_ID,
                 label: agents::BUILT_IN_AGENT_LABEL.into(),
                 executable: PathBuf::new(),
-                launch: None,
                 chat: true,
             });
         self.chat_mode = true;

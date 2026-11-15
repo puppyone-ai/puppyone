@@ -57,8 +57,7 @@ impl WorkbenchLauncher {
             }
             "terminal-activity" => {
                 let view = cx.new(|cx| {
-                    let mut view =
-                        TerminalView::new(std::env::temp_dir(), None, "shell", window, cx);
+                    let mut view = TerminalView::new(std::env::temp_dir(), "shell", window, cx);
                     view.lab_busy_agent();
                     view
                 });
@@ -102,7 +101,7 @@ impl WorkbenchLauncher {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Rc<dyn WorkbenchItem> {
-        let view = cx.new(|cx| TerminalView::new(std::env::temp_dir(), None, "shell", window, cx));
+        let view = cx.new(|cx| TerminalView::new(std::env::temp_dir(), "shell", window, cx));
         Rc::new(TerminalItem::of(
             view,
             crate::localization::t("terminal.title").into(),

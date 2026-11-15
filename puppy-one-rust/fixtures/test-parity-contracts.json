@@ -7370,11 +7370,66 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::terminal::workbench::launch_tests::terminal_launch_keeps_verified_prefix_environment_and_sibling_path"
+          "test": "features::terminal::workbench::launch_tests::terminal_launch_preserves_verified_prefix_and_discovery_environment_without_reordering_path"
         },
         {
           "package": "po-platform",
           "test": "platform::terminal::tests::verified_cli_arguments_and_environment_reach_the_real_pty_without_shell_interpolation"
+        }
+      ]
+    },
+    {
+      "id": "terminal-launch-authority",
+      "acceptance": "Every native Agent terminal passes only a trusted installation ID to the Agent host. The host reads a new resolution context, resolves and checks executable identity again, preserves prefix arguments and the exact resolved environment/PATH, and rejects unknown, absent, failed, malformed, or replaced candidates before allocating a PTY. A native GPUI regression proves an unregistered cached executable is never run; real temporary executable files prove environment changes, deletion and replacement are observed. Closing a terminal during blocked preparation prevents late execution and releases its actual host lease. This row does not yet claim interactive-shell bootstrap, startup cover, color-probe ordering, or Windows shell execution equivalence.",
+      "typescript": [
+        {
+          "path": "tests/integration/terminal/startup/electron.terminal-agent-launch.test.mjs",
+          "sha256": "a301d81855eb304e720439aed6cdeb53af5bc17012ce805833f3daafda7a516e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal Agent launch boundary > maps renderer launcher ids through the trusted tool registry"
+            },
+            {
+              "index": 1,
+              "name": "Terminal Agent launch boundary > resolves the pi catalog entry without product-specific launch code"
+            },
+            {
+              "index": 2,
+              "name": "Terminal Agent launch boundary > resolves the hermes catalog entry without product-specific launch code"
+            },
+            {
+              "index": 3,
+              "name": "Terminal Agent launch boundary > rejects a stale inventory selection before creating a PTY"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::host::terminal_launch::tests::trusted_ids_are_resolved_fresh_and_preserve_prefix_display_name_and_environment_order"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::host::terminal_launch::tests::candidate_environment_is_authoritative_and_unsafe_candidates_never_reach_identity_verification"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::host::terminal_launch::tests::missing_failed_or_replaced_installations_cannot_be_launched_from_cached_visibility"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::host::terminal_launch::tests::launch_rereads_environment_and_real_files_then_rejects_deletion_or_identity_replacement"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::workbench::launch_tests::a_native_terminal_rejects_an_unregistered_inventory_entry_before_executing_its_cached_path"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::closing_a_terminal_during_preparation_releases_its_lease_without_starting_the_late_command"
         }
       ]
     }

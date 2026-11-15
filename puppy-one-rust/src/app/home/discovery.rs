@@ -483,7 +483,6 @@ mod tests {
             id,
             label: label.into(),
             executable: PathBuf::from(format!("/usr/bin/{id}")),
-            launch: None,
             chat: true,
         }
     }
@@ -498,7 +497,6 @@ mod tests {
                     crate::agent::connections::legacy_local_agent_inventory::BUILT_IN_AGENT_LABEL
                         .into(),
                 executable: PathBuf::new(),
-                launch: None,
                 chat: true,
             },
             inst(Runtime::Cursor, "cursor", "Cursor"),
