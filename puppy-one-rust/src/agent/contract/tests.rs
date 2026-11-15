@@ -490,3 +490,25 @@ fn fails_unknown_legacy_reference_transports_into_the_semantic_attachment_contra
             .is_none()
     );
 }
+
+#[test]
+fn preserves_opaque_history_cursor_bytes_in_both_ipc_directions() {
+    let cursor = "  native cursor  ";
+    let request = parse_agent_ipc_request(
+        "agent:sessions-list",
+        &json!({
+            "rootPath": "/workspace", "runtimeId": "codex", "cursor": cursor, "scanId": "scan-a",
+        }),
+    )
+    .unwrap();
+    assert_eq!(request["cursor"], cursor);
+    let response = assert_agent_ipc_response(
+        "agent:sessions-list",
+        &json!({
+            "sessions": [], "discovery": {"runtimeId": "codex", "status": "partial", "indexed": 0,
+            "nextCursor": cursor, "scanId": "scan-a", "warnings": []}, "warnings": [],
+        }),
+    )
+    .unwrap();
+    assert_eq!(response["discovery"]["nextCursor"], cursor);
+}

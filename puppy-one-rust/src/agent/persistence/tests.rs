@@ -235,6 +235,7 @@ fn keeps_legacy_unverified_locators_internal_until_a_turn_or_native_scan_confirm
             .list(Some("/workspace"), &json!({ "includeUnverified": true }))
             .await
             .unwrap();
+        assert_eq!(unverified.len(), 1);
         assert_eq!(unverified[0]["sessionId"], "legacy-empty-session");
         assert_eq!(unverified[0]["availability"], "unverified");
         catalog
@@ -242,6 +243,8 @@ fn keeps_legacy_unverified_locators_internal_until_a_turn_or_native_scan_confirm
             .await
             .unwrap();
         let listed = catalog.list(Some("/workspace"), &json!({})).await.unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0]["sessionId"], "legacy-empty-session");
         assert_eq!(listed[0]["availability"], "available");
     });
 }
@@ -286,6 +289,7 @@ fn upserts_one_stable_product_locator_for_a_native_conversation_discovered_more_
             .unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0]["sessionId"], first["sessionId"]);
+        assert_eq!(listed[0]["providerSessionId"], "native-thread");
         assert_eq!(listed[0]["title"], "Updated title");
         assert_eq!(listed[0]["origin"], "native-discovery");
         assert!(
@@ -570,9 +574,31 @@ fn does_not_hide_records_created_or_confirmed_after_the_scan_began() {
         let Fixture { catalog, .. } = fixture();
         let existing = catalog.upsert_native(&record("confirmed")).await.unwrap();
         let stale = catalog.upsert_native(&record("stale")).await.unwrap();
+        // Pin the stored observation timestamps on both sides of the scan.
+        // Reconciliation must use committed revisions even when dates tie.
+        let same_date = "2026-09-01T00:00:00.000Z";
+        for entry in [&existing, &stale] {
+            catalog
+                .save(&js::with(entry, "lastSeenAt", same_date))
+                .await
+                .unwrap();
+        }
         let started = catalog.get_revision().await.unwrap();
-        catalog.upsert_native(&record("confirmed")).await.unwrap();
+        let confirmed = catalog.upsert_native(&record("confirmed")).await.unwrap();
         let created = catalog.upsert_native(&record("created")).await.unwrap();
+        for entry in [&confirmed, &created] {
+            catalog
+                .save(&js::with(entry, "lastSeenAt", same_date))
+                .await
+                .unwrap();
+        }
+        let before_scan = catalog.list(None, &json!({})).await.unwrap();
+        assert_eq!(before_scan.len(), 3);
+        assert!(
+            before_scan
+                .iter()
+                .all(|entry| entry["lastSeenAt"] == same_date)
+        );
         let mut page_scope = scope("/workspace", "codex", &[]);
         page_scope.started_revision = Some(started);
         catalog
@@ -723,8 +749,66 @@ fn uses_the_same_native_id_rules_through_persistence_and_the_event_envelope() {
         let Fixture { catalog, .. } = fixture();
         let native_id = format!("profile/{}", "a".repeat(500));
         catalog.upsert_native(&record(&native_id)).await.unwrap();
-        let listed = catalog.list(Some("/workspace"), &json!({})).await.unwrap();
-        assert_eq!(listed[0]["providerSessionId"], native_id.as_str());
+        use crate::agent::agent_error::AgentResult;
+        use crate::agent::application::history::agent_history_queries::AgentHistoryQueries;
+        use crate::agent::application::history::native_conversation_indexer::NativeConversationIndexer;
+        use crate::agent::application::processes::agent_process_supervisor::AgentProcessSupervisor;
+        use crate::agent::application::runtime_resolution::runtime_resolution_coordinator::RuntimeResolutionCoordinator;
+        use crate::agent::runtime::agent_runtime_registry::{
+            AgentRuntimeRegistry, RuntimeDefinition, RuntimeDiscovery,
+        };
+        use crate::agent::tasks::CancelSignal;
+        struct NoDiscovery;
+        impl RuntimeDiscovery for NoDiscovery {
+            fn discover(
+                &self,
+                _: bool,
+                _: CancelSignal,
+            ) -> LocalBoxFuture<'static, AgentResult<Value>> {
+                panic!("a catalog-only query must not probe native runtimes");
+            }
+        }
+        let registry = AgentRuntimeRegistry::new(
+            vec![RuntimeDefinition {
+                manifest: serde_json::from_str(
+                    crate::agent::application::tests::harness::CODEX_MANIFEST,
+                )
+                .unwrap(),
+                discovery: Rc::new(NoDiscovery),
+                create_adapter: Rc::new(|_| {
+                    panic!("a catalog-only query must not start an adapter")
+                }),
+                dispose: None,
+            }],
+            None,
+            None,
+        )
+        .unwrap();
+        let supervisor = AgentProcessSupervisor::new(None);
+        let coordinator =
+            RuntimeResolutionCoordinator::new(registry.clone(), supervisor.clone(), None);
+        let indexer = NativeConversationIndexer::new(
+            registry,
+            coordinator,
+            Rc::new(catalog.clone()),
+            supervisor,
+        );
+        let queries = AgentHistoryQueries::new(Rc::new(catalog), indexer);
+        let (sender, _) = crate::agent::application::tests::harness::create_sender(71);
+        let listed = queries
+            .list_sessions(&sender, &json!({}), "/workspace")
+            .await
+            .unwrap();
+        let public = crate::agent::contract::schema::assert_agent_ipc_response(
+            "agent:sessions-list",
+            &listed,
+        )
+        .unwrap();
+        assert_eq!(public["sessions"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            public["sessions"][0]["providerSessionId"],
+            native_id.as_str()
+        );
         let envelope = crate::agent::agent_events::create_agent_event_envelope(
             crate::agent::agent_events::EnvelopeInput {
                 sequence: 1,

@@ -3801,6 +3801,176 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "agent-native-catalog",
+      "acceptance": "Metadata-only durable history survives restart; WorkBuddy identities migrate; unverified sessions stay hidden; repeated discovery retains stable IDs; reconciliation tombstones only missing entries in the scanned root/runtime and reactivation retains identity.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/history/electron.agent-conversation-catalog.test.mjs",
+          "sha256": "7ee7f6869af4dc4b5979515b32a4057ddaf9d20504ba120e1c42618e23d4beb5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent conversation catalog > persists only bounded routing metadata and native session pointers across restarts"
+            },
+            {
+              "index": 1,
+              "name": "Agent conversation catalog > migrates the former WorkBuddy runtime id at the durable catalog boundary"
+            },
+            {
+              "index": 2,
+              "name": "Agent conversation catalog > keeps legacy unverified locators internal until a turn or native scan confirms them"
+            },
+            {
+              "index": 3,
+              "name": "Agent conversation catalog > upserts one stable product locator for a native conversation discovered more than once"
+            },
+            {
+              "index": 4,
+              "name": "Agent conversation catalog > tombstones only missing locators in the fully-scanned workspace and runtime"
+            },
+            {
+              "index": 5,
+              "name": "Agent conversation catalog > reactivates a tombstone without changing its stable product id"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::persists_only_bounded_routing_metadata_and_native_session_pointers_across_restarts"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::migrates_the_former_workbuddy_runtime_id_at_the_durable_catalog_boundary"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::keeps_legacy_unverified_locators_internal_until_a_turn_or_native_scan_confirms_them"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::upserts_one_stable_product_locator_for_a_native_conversation_discovered_more_than_once"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::tombstones_only_missing_locators_in_the_fully_scanned_workspace_and_runtime"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::reactivates_a_tombstone_without_changing_its_stable_product_id"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-native-catalog-transactions",
+      "acceptance": "Concurrent discovery allocates one ID across restart; readers and writers share initial load; discovery preserves product selections/archive/live observations; committed revisions fence scans even with tied stored timestamps; a page is atomic across validation and rename failures; readers see the last committed state; corrupt files remain untouched; source identities partition reconciliation; long native IDs survive actual history query, IPC and events; opaque cursor bytes survive both IPC directions; identity retention is independent of page capacity.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/history/electron.agent-history-catalog-concurrency.test.mjs",
+          "sha256": "ba173cec5bb8cc84a80a468e91f5b549474f8588a1d18d2a21581bfb187083ed",
+          "cases": [
+            {
+              "index": 0,
+              "name": "History catalog transaction and identity > allocates one product id under concurrent discovery and after restart"
+            },
+            {
+              "index": 1,
+              "name": "History catalog transaction and identity > shares first load between all readers and writers instead of observing a temporary empty catalog"
+            },
+            {
+              "index": 2,
+              "name": "History catalog transaction and identity > preserves archive, selections and live observations while refreshing native metadata"
+            },
+            {
+              "index": 3,
+              "name": "History catalog transaction and identity > does not hide records created or confirmed after the scan began, even with identical timestamps"
+            },
+            {
+              "index": 4,
+              "name": "History catalog transaction and identity > rolls back the whole page on validation or disk replacement failure"
+            },
+            {
+              "index": 5,
+              "name": "History catalog transaction and identity > serves the last committed catalog while a disk write is still settling"
+            },
+            {
+              "index": 6,
+              "name": "History catalog transaction and identity > preserves malformed stored data rather than overwriting it (invalid JSON)"
+            },
+            {
+              "index": 7,
+              "name": "History catalog transaction and identity > preserves malformed stored data rather than overwriting it ({\"version\":1,\"records\":[{}]})"
+            },
+            {
+              "index": 8,
+              "name": "History catalog transaction and identity > partitions native identity and reconciliation by source as well as workspace and runtime"
+            },
+            {
+              "index": 9,
+              "name": "History catalog transaction and identity > uses the same native ID rules through query, persistence and IPC"
+            },
+            {
+              "index": 10,
+              "name": "History catalog transaction and identity > preserves opaque cursor bytes across both IPC directions"
+            },
+            {
+              "index": 11,
+              "name": "History catalog transaction and identity > retains identity metadata independently of catalog page capacity"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::allocates_one_product_id_under_concurrent_discovery_and_after_restart"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::shares_first_load_between_all_readers_and_writers_instead_of_observing_a_temporary_empty_catalog"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::preserves_archive_selections_and_live_observations_while_refreshing_native_metadata"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::does_not_hide_records_created_or_confirmed_after_the_scan_began"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::rolls_back_the_whole_page_on_validation_or_disk_replacement_failure"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::serves_the_last_committed_catalog_while_a_disk_write_is_still_settling"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::preserves_malformed_stored_data_rather_than_overwriting_it"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::partitions_native_identity_and_reconciliation_by_source_as_well_as_workspace_and_runtime"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::uses_the_same_native_id_rules_through_persistence_and_the_event_envelope"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::retains_identity_metadata_independently_of_catalog_page_capacity"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::tests::preserves_opaque_history_cursor_bytes_in_both_ipc_directions"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
