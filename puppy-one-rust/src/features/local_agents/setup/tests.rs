@@ -189,6 +189,7 @@ fn the_setup_directory_activates_an_agent_from_its_recipe(cx: &mut TestAppContex
     });
     until(cx, |cx| section.read_with(cx, |s, _| s.dialog.is_none()));
     assert!(store.read_with(cx, |s, _| s.snapshot.operations.is_empty()));
+    store.read_with(cx, |s, _| s.service.settle_for_test());
 }
 
 #[gpui::test]
@@ -245,11 +246,15 @@ struct UiFixture {
     section: Entity<SetupSection>,
     store: Entity<Activation>,
     ports: Arc<Fake>,
+    service: activation::Service,
     preferences: Entity<PreferencesStore>,
 }
 impl Drop for UiFixture {
     fn drop(&mut self) {
         self.ports.hold_install.store(false, Ordering::SeqCst);
+        if !std::thread::panicking() {
+            self.service.settle_for_test();
+        }
     }
 }
 fn ui(cx: &mut TestAppContext) -> (UiFixture, &mut VisualTestContext) {
@@ -281,12 +286,14 @@ fn ui(cx: &mut TestAppContext) -> (UiFixture, &mut VisualTestContext) {
     section.update(cx, |s, cx| s.set_found(Some(vec![]), cx));
     until(cx, |cx| preferences.read_with(cx, |p, _| p.loaded));
     draw(cx);
+    let service = store.read_with(cx, |s, _| s.service.clone());
     (
         UiFixture {
             _dir: dir,
             section,
             store,
             ports,
+            service,
             preferences,
         },
         cx,

@@ -246,6 +246,8 @@ impl Service {
             journal: Arc::new(Journal {
                 path: journal,
                 written: Mutex::new(0),
+                queued: Mutex::new(QueuedWrite::default()),
+                idle: std::sync::Condvar::new(),
             }),
             platform,
             arch,
@@ -283,6 +285,20 @@ impl Service {
             Some(Ok(())) => Ok(state),
             _ => Err(ErrorCode::Storage),
         }
+    }
+    /// Tests own temporary journals; let native work and queued writes finish
+    /// before those directories are removed. This is not a UI-thread wait API.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn settle_for_test(&self) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while self.state.lock().unwrap().tasks.iter().any(|t| t.running) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "activation task did not finish"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        self.journal.flush();
     }
     /// `createActivationRegistry`: the platform's routes with their recipes.
     fn registered(&self, id: &str) -> Option<(&'static Route, Option<Recipe>)> {
@@ -410,7 +426,7 @@ impl Service {
             let value = snapshot(&state);
             drop(state);
             (self.publish)(value.clone());
-            let _ = self.journal.write(&value);
+            self.journal.enqueue(value.clone());
             return Ok(value);
         }
         let Some(task) = task(&state, operation_id) else {
@@ -563,10 +579,19 @@ impl Service {
             check()?;
             Ok(Status::Ready)
         })();
+        self.complete(id, cancel, result);
+    }
+    /// The final result and an acknowledged cancellation share the same lock.
+    fn complete(&self, id: &str, cancel: &AtomicBool, result: Result<Status, ErrorCode>) {
         let mut state = self.state.lock().unwrap();
         if let Some(task) = state.tasks.iter_mut().find(|t| t.operation_id == id) {
             task.running = false;
         }
+        let result = if cancel.load(Ordering::Relaxed) {
+            Err(ErrorCode::Interrupted)
+        } else {
+            result
+        };
         match result {
             Ok(Status::SetupRequired) => self.emit(&mut state, id, |op| {
                 op.steps[INSTALL] = StepState::Pending;
@@ -607,7 +632,7 @@ impl Service {
         let value = snapshot(state);
         // A closed view cannot affect the work.
         (self.publish)(value.clone());
-        let _ = self.journal.write(&value);
+        self.journal.enqueue(value);
     }
 }
 fn reset_running(op: &mut Operation, to: StepState) {
@@ -636,8 +661,70 @@ fn snapshot(state: &State) -> Snapshot {
 struct Journal {
     path: PathBuf,
     written: Mutex<u64>,
+    queued: Mutex<QueuedWrite>,
+    idle: std::sync::Condvar,
+}
+#[derive(Default)]
+struct QueuedWrite {
+    latest: Option<Snapshot>,
+    running: bool,
 }
 impl Journal {
+    /// Notifications never wait for disk I/O while holding the operation lock.
+    /// One writer drains the newest pending revision; obsolete intermediate
+    /// snapshots coalesce without creating one thread per progress event.
+    fn enqueue(self: &Arc<Self>, snapshot: Snapshot) {
+        let mut queued = self.queued.lock().unwrap();
+        if queued
+            .latest
+            .as_ref()
+            .is_none_or(|s| snapshot.revision >= s.revision)
+        {
+            queued.latest = Some(snapshot);
+        }
+        if queued.running {
+            return;
+        }
+        queued.running = true;
+        let journal = self.clone();
+        if std::thread::Builder::new()
+            .name("activation-journal".into())
+            .spawn(move || {
+                loop {
+                    let snapshot = {
+                        let mut queued = journal.queued.lock().unwrap();
+                        match queued.latest.take() {
+                            Some(snapshot) => snapshot,
+                            None => {
+                                queued.running = false;
+                                journal.idle.notify_all();
+                                return;
+                            }
+                        }
+                    };
+                    // Progress persistence is best effort, as in the TS journal.
+                    // The initial start still requires a successful synchronous write.
+                    let _ = journal.write(&snapshot);
+                }
+            })
+            .is_err()
+        {
+            queued.running = false;
+            self.idle.notify_all();
+        }
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    fn flush(&self) {
+        let queued = self.queued.lock().unwrap();
+        let (queued, timeout) = self
+            .idle
+            .wait_timeout_while(queued, std::time::Duration::from_secs(3), |q| q.running)
+            .unwrap();
+        assert!(
+            !timeout.timed_out() && queued.latest.is_none(),
+            "journal did not drain"
+        );
+    }
     fn read(&self) -> Result<Vec<Operation>, String> {
         let meta = match std::fs::symlink_metadata(&self.path) {
             Ok(meta) => meta,
@@ -762,214 +849,4 @@ fn parse_journal(value: &Value) -> Option<Vec<Operation>> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-    use std::{sync::mpsc, time::Duration};
-    #[derive(Default)]
-    struct Fake {
-        found: Mutex<Vec<String>>,
-        installs: Mutex<Vec<String>>,
-        guides: Mutex<Vec<String>>,
-        fail_install: Option<ErrorCode>,
-        /// Blocks installs until cancelled.
-        hold: bool,
-    }
-    impl Ports for Fake {
-        fn resolve(&self, id: &str) -> Result<bool, ErrorCode> {
-            Ok(self.found.lock().unwrap().iter().any(|f| f == id))
-        }
-        fn install(
-            &self,
-            recipe: &Recipe,
-            cancel: &AtomicBool,
-            committed: &dyn Fn(),
-        ) -> Result<(), ErrorCode> {
-            while self.hold && !cancel.load(Ordering::Relaxed) {
-                std::thread::sleep(Duration::from_millis(5));
-            }
-            if cancel.load(Ordering::Relaxed) {
-                return Err(ErrorCode::Interrupted);
-            }
-            if let Some(code) = self.fail_install {
-                return Err(code);
-            }
-            self.installs.lock().unwrap().push(recipe.setup_id.into());
-            self.found.lock().unwrap().push(recipe.setup_id.into());
-            committed();
-            Ok(())
-        }
-        fn open_guide(&self, url: &str) -> Result<(), String> {
-            self.guides.lock().unwrap().push(url.into());
-            Ok(())
-        }
-        fn refresh(&self) {}
-    }
-    fn new_service(dir: &std::path::Path, ports: Arc<Fake>) -> (Service, mpsc::Receiver<Snapshot>) {
-        let (tx, rx) = mpsc::channel();
-        let tx = Mutex::new(tx);
-        let service = Service::for_platform(
-            dir.join("local-agent-activation.json"),
-            ports,
-            Arc::new(move |s| {
-                let _ = tx.lock().unwrap().send(s);
-            }),
-            "darwin",
-            "arm64",
-        );
-        (service, rx)
-    }
-    fn settle(service: &Service, id: &str) -> Operation {
-        for _ in 0..400 {
-            let snapshot = service.read().unwrap();
-            let op = snapshot
-                .operations
-                .into_iter()
-                .find(|o| o.setup_id == id)
-                .unwrap();
-            if !op.status.active() || op.status == Status::SetupRequired {
-                return op;
-            }
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        panic!("activation of {id} did not settle");
-    }
-    #[test]
-    fn a_recipe_installs_and_discovery_confirms_it() {
-        let dir = tempfile::tempdir().unwrap();
-        let ports = Arc::new(Fake::default());
-        let (service, published) = new_service(dir.path(), ports.clone());
-        let plan = service.plan("w1", "codex", Surface::Chat).unwrap();
-        assert!(plan.automatic);
-        assert_eq!((plan.version, plan.publisher), (Some("0.155.1"), "OpenAI"));
-        // Plans belong to their window.
-        assert_eq!(
-            service.start("w2", &plan.plan_id),
-            Err(ErrorCode::Unsupported)
-        );
-        service.start("w1", &plan.plan_id).unwrap();
-        let op = settle(&service, "codex");
-        assert_eq!(op.status, Status::Ready);
-        assert_eq!(op.steps, [StepState::Complete; 3]);
-        assert!(op.installed);
-        assert_eq!(*ports.installs.lock().unwrap(), ["codex"]);
-        let revisions: Vec<u64> = published.try_iter().map(|s| s.revision).collect();
-        assert!(revisions.windows(2).all(|w| w[0] < w[1]) && !revisions.is_empty());
-        // The journal survives a restart; a finished operation can be dismissed.
-        let (again, _) = service_with_journal(dir.path());
-        let restored = again.read().unwrap();
-        assert_eq!(restored.operations, vec![op.clone()]);
-        let dismissed = again.act(&op.operation_id, Action::Dismiss).unwrap();
-        assert!(dismissed.operations.is_empty());
-    }
-    fn service_with_journal(dir: &std::path::Path) -> (Service, mpsc::Receiver<Snapshot>) {
-        new_service(dir, Arc::new(Fake::default()))
-    }
-    #[test]
-    fn guided_agents_wait_for_their_official_setup_and_existing_clis_are_reused() {
-        let dir = tempfile::tempdir().unwrap();
-        let ports = Arc::new(Fake::default());
-        let (service, _) = new_service(dir.path(), ports.clone());
-        let plan = service.plan("w", "claude", Surface::Chat).unwrap();
-        assert!(!plan.automatic && plan.version.is_none());
-        service.start("w", &plan.plan_id).unwrap();
-        let op = settle(&service, "claude");
-        assert_eq!(op.status, Status::SetupRequired);
-        assert_eq!(
-            op.steps,
-            [StepState::Complete, StepState::Pending, StepState::Pending]
-        );
-        service.act(&op.operation_id, Action::Guide).unwrap();
-        assert_eq!(
-            *ports.guides.lock().unwrap(),
-            ["https://code.claude.com/docs/en/setup"]
-        );
-        // After the guide, Check finds the CLI.
-        ports.found.lock().unwrap().push("claude".into());
-        service.act(&op.operation_id, Action::Check).unwrap();
-        let op = settle(&service, "claude");
-        assert_eq!(op.status, Status::Ready);
-        assert_eq!(op.steps[1], StepState::Skipped);
-        // An installed CLI is never reinstalled.
-        ports.found.lock().unwrap().push("codex".into());
-        let plan = service.plan("w", "codex", Surface::Terminal).unwrap();
-        service.start("w", &plan.plan_id).unwrap();
-        assert_eq!(settle(&service, "codex").steps[1], StepState::Skipped);
-        assert!(ports.installs.lock().unwrap().is_empty());
-        // Terminal-less and other-platform routes are unsupported.
-        assert_eq!(
-            service.plan("w", "workbuddy-china", Surface::Terminal),
-            Err(ErrorCode::Unsupported)
-        );
-        assert_eq!(
-            service.plan("w", "nope", Surface::Chat),
-            Err(ErrorCode::Unsupported)
-        );
-    }
-    #[test]
-    fn cancel_failure_and_interruption_are_reported() {
-        let dir = tempfile::tempdir().unwrap();
-        let ports = Arc::new(Fake {
-            hold: true,
-            ..Fake::default()
-        });
-        let (service, _) = new_service(dir.path(), ports.clone());
-        let plan = service.plan("w", "cursor", Surface::Chat).unwrap();
-        let started = service.start("w", &plan.plan_id).unwrap();
-        let id = started.operations[0].operation_id.clone();
-        // Starting the same plan or Agent again joins the running operation.
-        assert_eq!(
-            service.start("w", &plan.plan_id).unwrap().operations.len(),
-            1
-        );
-        while service.read().unwrap().operations[0].status != Status::Installing {
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        // An interrupted journal entry: a "restart" while it runs.
-        let (restarted, _) = service_with_journal(dir.path());
-        let op = restarted.read().unwrap().operations.remove(0);
-        assert_eq!(
-            (op.status, op.error),
-            (Status::Interrupted, Some(ErrorCode::Interrupted))
-        );
-        assert_eq!(op.steps[1], StepState::Failed);
-        service.act(&id, Action::Cancel).unwrap();
-        let op = settle(&service, "cursor");
-        assert_eq!((op.status, op.error), (Status::Cancelled, None));
-        assert_eq!(
-            op.steps,
-            [StepState::Complete, StepState::Pending, StepState::Pending]
-        );
-        let failing = Arc::new(Fake {
-            fail_install: Some(ErrorCode::Integrity),
-            ..Fake::default()
-        });
-        let dir2 = tempfile::tempdir().unwrap();
-        let (service, _) = new_service(dir2.path(), failing);
-        let plan = service.plan("w", "codex", Surface::Chat).unwrap();
-        service.start("w", &plan.plan_id).unwrap();
-        let op = settle(&service, "codex");
-        assert_eq!(
-            (op.status, op.error),
-            (Status::Failed, Some(ErrorCode::Integrity))
-        );
-        assert_eq!(op.steps[1], StepState::Failed);
-        assert!(service.act(&op.operation_id, Action::Guide).is_err());
-    }
-    #[test]
-    fn a_corrupt_journal_is_kept_and_reported() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("local-agent-activation.json");
-        std::fs::write(&path, r#"{"schemaVersion":3,"snapshot":{}}"#).unwrap();
-        let (service, _) = service_with_journal(dir.path());
-        assert_eq!(service.read(), Err(ErrorCode::Storage));
-        assert_eq!(
-            service.plan("w", "codex", Surface::Chat),
-            Err(ErrorCode::Storage)
-        );
-        assert_eq!(
-            std::fs::read_to_string(&path).unwrap(),
-            r#"{"schemaVersion":3,"snapshot":{}}"#
-        );
-    }
-}
+mod tests;

@@ -684,7 +684,9 @@ mod tests {
                 ("package/vendor/bin/", None, 0o755),
                 (
                     "package/vendor/bin/codex",
-                    Some("#!/bin/sh\necho codex 1.2.3\n"),
+                    Some(
+                        "#!/bin/sh\n[ \"$#\" -eq 1 ] && [ \"$1\" = --version ] || exit 7\necho codex 1.2.3\n",
+                    ),
                     0o644,
                 ),
                 ("package/README.md", Some("readme"), 0o644),
@@ -720,6 +722,7 @@ mod tests {
                 .unwrap();
         assert_eq!(receipt["digest"], recipe.digest);
         assert_eq!(commits.get(), 1);
+        assert_eq!(verified.borrow().len(), 1);
         assert!(!root.join("install.lock").exists());
         // No staging is left behind; a second run reuses the version.
         let names: Vec<_> = std::fs::read_dir(&root)

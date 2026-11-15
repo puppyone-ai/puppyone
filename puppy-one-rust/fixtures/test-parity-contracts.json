@@ -6469,6 +6469,211 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "local-agent-activation-shared-engine",
+      "acceptance": "Every registered Agent reuses existing CLI installations, follows only its declared automatic/guided route when missing, and refuses installation after failed discovery. Cancellation is independent of pending discovery, both automatic installation stages and a stalled initial journal write; late discovery and already computed terminal results cannot revive acknowledged cancellation. Progress persistence coalesces to one pending snapshot with revision fencing; a real staged executable accepts exactly one --version argument before commit. Tests use disposable journals and await queued writes before cleanup.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-activation/activation-catalog-contract.test.mjs",
+          "sha256": "3d0dab75f145e40ece7c5734dffaddb28dfa02cc0ed43cacc7360ce164308d5b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "every registered Agent obeys the same activation contract > claude: existing installation never installs, probes, or authenticates"
+            },
+            {
+              "index": 1,
+              "name": "every registered Agent obeys the same activation contract > codex: existing installation never installs, probes, or authenticates"
+            },
+            {
+              "index": 2,
+              "name": "every registered Agent obeys the same activation contract > cursor: existing installation never installs, probes, or authenticates"
+            },
+            {
+              "index": 3,
+              "name": "every registered Agent obeys the same activation contract > hermes: existing installation never installs, probes, or authenticates"
+            },
+            {
+              "index": 4,
+              "name": "every registered Agent obeys the same activation contract > opencode: existing installation never installs, probes, or authenticates"
+            },
+            {
+              "index": 5,
+              "name": "every registered Agent obeys the same activation contract > pi: existing installation never installs, probes, or authenticates"
+            },
+            {
+              "index": 6,
+              "name": "every registered Agent obeys the same activation contract > workbuddy-china: existing installation never installs, probes, or authenticates"
+            },
+            {
+              "index": 7,
+              "name": "every registered Agent obeys the same activation contract > workbuddy-international: existing installation never installs, probes, or authenticates"
+            },
+            {
+              "index": 8,
+              "name": "every registered Agent obeys the same activation contract > claude: missing installation follows only its declared capability"
+            },
+            {
+              "index": 9,
+              "name": "every registered Agent obeys the same activation contract > codex: missing installation follows only its declared capability"
+            },
+            {
+              "index": 10,
+              "name": "every registered Agent obeys the same activation contract > cursor: missing installation follows only its declared capability"
+            },
+            {
+              "index": 11,
+              "name": "every registered Agent obeys the same activation contract > hermes: missing installation follows only its declared capability"
+            },
+            {
+              "index": 12,
+              "name": "every registered Agent obeys the same activation contract > opencode: missing installation follows only its declared capability"
+            },
+            {
+              "index": 13,
+              "name": "every registered Agent obeys the same activation contract > pi: missing installation follows only its declared capability"
+            },
+            {
+              "index": 14,
+              "name": "every registered Agent obeys the same activation contract > workbuddy-china: missing installation follows only its declared capability"
+            },
+            {
+              "index": 15,
+              "name": "every registered Agent obeys the same activation contract > workbuddy-international: missing installation follows only its declared capability"
+            },
+            {
+              "index": 16,
+              "name": "every registered Agent obeys the same activation contract > claude: failed discovery does not authorize installation"
+            },
+            {
+              "index": 17,
+              "name": "every registered Agent obeys the same activation contract > codex: failed discovery does not authorize installation"
+            },
+            {
+              "index": 18,
+              "name": "every registered Agent obeys the same activation contract > cursor: failed discovery does not authorize installation"
+            },
+            {
+              "index": 19,
+              "name": "every registered Agent obeys the same activation contract > hermes: failed discovery does not authorize installation"
+            },
+            {
+              "index": 20,
+              "name": "every registered Agent obeys the same activation contract > opencode: failed discovery does not authorize installation"
+            },
+            {
+              "index": 21,
+              "name": "every registered Agent obeys the same activation contract > pi: failed discovery does not authorize installation"
+            },
+            {
+              "index": 22,
+              "name": "every registered Agent obeys the same activation contract > workbuddy-china: failed discovery does not authorize installation"
+            },
+            {
+              "index": 23,
+              "name": "every registered Agent obeys the same activation contract > workbuddy-international: failed discovery does not authorize installation"
+            },
+            {
+              "index": 24,
+              "name": "every registered Agent obeys the same activation contract > claude: independent cancellation fences a late discovered entry"
+            },
+            {
+              "index": 25,
+              "name": "every registered Agent obeys the same activation contract > codex: independent cancellation fences a late discovered entry"
+            },
+            {
+              "index": 26,
+              "name": "every registered Agent obeys the same activation contract > cursor: independent cancellation fences a late discovered entry"
+            },
+            {
+              "index": 27,
+              "name": "every registered Agent obeys the same activation contract > hermes: independent cancellation fences a late discovered entry"
+            },
+            {
+              "index": 28,
+              "name": "every registered Agent obeys the same activation contract > opencode: independent cancellation fences a late discovered entry"
+            },
+            {
+              "index": 29,
+              "name": "every registered Agent obeys the same activation contract > pi: independent cancellation fences a late discovered entry"
+            },
+            {
+              "index": 30,
+              "name": "every registered Agent obeys the same activation contract > workbuddy-china: independent cancellation fences a late discovered entry"
+            },
+            {
+              "index": 31,
+              "name": "every registered Agent obeys the same activation contract > workbuddy-international: independent cancellation fences a late discovered entry"
+            },
+            {
+              "index": 32,
+              "name": "every registered Agent obeys the same activation contract > 'codex': cancels 'install' with the shared engine"
+            },
+            {
+              "index": 33,
+              "name": "every registered Agent obeys the same activation contract > 'codex': cancels 'verify' with the shared engine"
+            },
+            {
+              "index": 34,
+              "name": "every registered Agent obeys the same activation contract > 'cursor': cancels 'install' with the shared engine"
+            },
+            {
+              "index": 35,
+              "name": "every registered Agent obeys the same activation contract > 'cursor': cancels 'verify' with the shared engine"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/local-agent-activation/activation-service.test.mjs",
+          "sha256": "b10025a9715778d3f56c3cc753342e0f64d9b81166cff9d0086c24edced34b79",
+          "cases": [
+            {
+              "index": 7,
+              "name": "application-owned local Agent activation > keeps cancellation independent from a stalled initial journal write"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::every_registered_agent_reuses_an_existing_cli_without_installation_or_guides"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::every_missing_agent_follows_its_declared_automatic_or_guided_recipe"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::every_agent_refuses_installation_after_failed_discovery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::every_agent_cancels_independently_and_discards_a_late_discovered_cli"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::automatic_recipes_cancel_both_installation_and_post_commit_discovery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::cancellation_does_not_wait_behind_the_initial_journal_write"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::queued_journal_progress_is_bounded_and_keeps_the_newest_revision"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::an_acknowledged_cancel_wins_over_a_prepared_terminal_result"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::a_verified_archive_becomes_the_current_installation"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
