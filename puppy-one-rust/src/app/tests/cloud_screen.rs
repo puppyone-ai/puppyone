@@ -569,11 +569,13 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     // and clicking PiP expands back to Full-Pane without minting another ticket.
     click_selector(cx, "cloud-screen-pip-close");
     assert!(cx.debug_bounds("cloud-screen-pip").is_none());
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| d.error = None);
+    });
+    draw(cx);
     click_selector(cx, "cloud-screen-thumbnail");
     view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
-    view.update_in(cx, |s, w, cx| {
-        s.explorer_event(&ExplorerEvent::Open(PathBuf::from("cloud.md")), w, cx);
-    });
+    view.update(cx, |s, cx| s.cloud.update(cx, |c, cx| c.close_screen(cx)));
     draw(cx);
     assert!(cx.debug_bounds("cloud-screen-pip").is_some());
     click_selector(cx, "cloud-screen-pip-expand");
