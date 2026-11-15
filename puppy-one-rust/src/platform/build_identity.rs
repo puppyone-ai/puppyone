@@ -28,14 +28,6 @@ impl Channel {
             _ => None,
         }
     }
-    /// Base human-readable application name per channel (`application-identity.mjs`).
-    pub fn application_name(self) -> &'static str {
-        match self {
-            Self::Dev => "PuppyOne Rust Dev",
-            Self::Internal => "PuppyOne Internal",
-            Self::Stable => "PuppyOne",
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -124,101 +116,6 @@ fn bundled(exe: &std::path::Path) -> bool {
         && app.extension().is_some_and(|e| e == "app")
 }
 
-/// Resolves the runtime application display name. Published channels keep their
-/// canonical product names (`PuppyOne`, `PuppyOne Internal`), whereas `Dev`
-/// appends any secondary git worktree (`puppyone-rust-<slug>`) or isolated
-/// `PUPPYONE_RUST_DATA_DIR` tag so concurrent local builds stay distinguishable.
-pub fn resolve_application_name(
-    channel: Channel,
-    exe: Option<&std::path::Path>,
-    custom_data_dir: Option<&std::path::Path>,
-) -> String {
-    let base = channel.application_name();
-    if channel != Channel::Dev {
-        return base.to_owned();
-    }
-    let mut tags: Vec<String> = Vec::new();
-    if let Some(exe) = exe {
-        for ancestor in exe.ancestors() {
-            let Some(name) = ancestor.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-            if let Some(rest) = name.strip_prefix("puppyone-rust-")
-                && let Some(clean) = sanitize_tag(rest)
-            {
-                tags.push(clean);
-                break;
-            }
-        }
-    }
-    if let Some(dir) = custom_data_dir
-        && let Some(tag) = extract_data_dir_tag(dir)
-        && !tags
-            .iter()
-            .any(|existing| existing.eq_ignore_ascii_case(&tag))
-    {
-        tags.push(tag);
-    }
-    if tags.is_empty() {
-        base.to_owned()
-    } else {
-        format!("{base} [{}]", tags.join(" - "))
-    }
-}
-
-fn extract_data_dir_tag(dir: &std::path::Path) -> Option<String> {
-    let mut raw = dir.file_name()?.to_str()?;
-    // Ignore ephemeral `tempfile::tempdir()` folders (`.tmpXXXXXX`) used in tests.
-    if raw.starts_with(".tmp") {
-        return None;
-    }
-    if raw.starts_with('.') {
-        let parent = dir.parent()?.file_name()?.to_str()?;
-        if matches!(parent, "tmp" | "var" | "private") || parent.starts_with(".tmp") {
-            return None;
-        }
-        raw = parent;
-    }
-    if raw.eq_ignore_ascii_case("PuppyOne GPUI") {
-        return None;
-    }
-    let trimmed = raw
-        .strip_prefix("PuppyOne GPUI ")
-        .or_else(|| raw.strip_prefix("PuppyOne "))
-        .unwrap_or(raw);
-    sanitize_tag(trimmed)
-}
-
-fn sanitize_tag(input: &str) -> Option<String> {
-    let mut out = String::with_capacity(input.len());
-    for ch in input.trim().chars() {
-        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | ' ' | '.') {
-            out.push(ch);
-        }
-        if out.len() >= 28 {
-            break;
-        }
-    }
-    let trimmed = out.trim().to_owned();
-    (!trimmed.is_empty()).then_some(trimmed)
-}
-
-/// Runtime display name for menus, window titles, and the macOS dev bundle.
-pub fn application_name() -> String {
-    if std::env::var_os("PUPPYONE_SCREENSHOT").is_some()
-        || std::env::var_os("PUPPYONE_LAB").is_some()
-    {
-        return Channel::Stable.application_name().to_owned();
-    }
-    let identity = current();
-    let custom_data = std::env::var_os("PUPPYONE_RUST_DATA_DIR").map(std::path::PathBuf::from);
-    resolve_application_name(
-        identity.channel,
-        std::env::current_exe().ok().as_deref(),
-        custom_data.as_deref(),
-    )
-}
-
 /// Node's `process.platform` for this operating system.
 pub fn node_platform() -> &'static str {
     match std::env::consts::OS {
@@ -294,42 +191,6 @@ mod tests {
         )));
         assert!(!bundled(Path::new("/x/Contents/MacOS/puppy-one-rust")));
         assert!(!bundled(Path::new("puppy-one-rust")));
-    }
-
-    #[test]
-    fn application_names_distinguish_channels_worktrees_and_isolated_data() {
-        let main_exe =
-            Path::new("/Users/me/project/puppyone-rust/puppy-one-rust/target/debug/puppy-one-rust");
-        let wt_exe = Path::new(
-            "/Users/me/project/puppyone-rust-cloud-desktop/puppy-one-rust/target/debug/puppy-one-rust",
-        );
-        let e2e_data = Path::new("/Users/me/Library/Application Support/PuppyOne GPUI E2E");
-        let tmp_data = Path::new("/var/folders/xx/.tmpAbCd12");
-
-        assert_eq!(
-            resolve_application_name(Channel::Stable, Some(wt_exe), Some(e2e_data)),
-            "PuppyOne"
-        );
-        assert_eq!(
-            resolve_application_name(Channel::Internal, Some(wt_exe), None),
-            "PuppyOne Internal"
-        );
-        assert_eq!(
-            resolve_application_name(Channel::Dev, Some(main_exe), None),
-            "PuppyOne Rust Dev"
-        );
-        assert_eq!(
-            resolve_application_name(Channel::Dev, Some(main_exe), Some(tmp_data)),
-            "PuppyOne Rust Dev"
-        );
-        assert_eq!(
-            resolve_application_name(Channel::Dev, Some(wt_exe), None),
-            "PuppyOne Rust Dev [cloud-desktop]"
-        );
-        assert_eq!(
-            resolve_application_name(Channel::Dev, Some(wt_exe), Some(e2e_data)),
-            "PuppyOne Rust Dev [cloud-desktop - E2E]"
-        );
     }
 
     #[test]

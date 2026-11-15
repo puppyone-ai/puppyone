@@ -104,6 +104,15 @@ for manifest in [root / "Cargo.toml", root / "native-editor-probe/Cargo.toml"]:
 for path in (root / 'src/platform').rglob('*.rs'):
     if re.search(r'\b(?:gpui|wry|egui)\s*::|crate::features', path.read_text()):
         errors.append(f'{path.relative_to(root)}: platform worker depends on presentation')
+# Application identity policy (`application-identity.mjs`) stays pure of OS/UI
+# adapters, while Dock icon / dev-bundle assembly lives in `app_icon.rs` rather
+# than Finder/desktop launch helpers (`desktop.rs`).
+app_identity_src = (root / 'src/platform/application_identity.rs').read_text().split('#[cfg(test)]')[0]
+if re.search(r'\b(?:gpui|objc2|objc2_app_kit|objc2_foundation)\s*::|\bstd\s*::\s*(?:fs|process|net|thread)\b', app_identity_src):
+    errors.append('src/platform/application_identity.rs: application identity contract owns OS/UI side effects')
+desktop_src = (root / 'src/platform/desktop.rs').read_text().split('#[cfg(test)]')[0]
+if re.search(r'\b(?:NSImage|setApplicationIconImage|CFBundleIconFile)\b', desktop_src):
+    errors.append('src/platform/desktop.rs: Dock icon or bundle assembly belongs in src/platform/app_icon.rs')
 for path in (root / 'src/features/workbench').rglob('*.rs'):
     if re.search(r'\bstd\s*::\s*(?:fs|process)|platform::git|source_control::', path.read_text()):
         errors.append(f'{path.relative_to(root)}: workbench topology owns a feature operation')

@@ -229,7 +229,7 @@ pub fn cancel_quit(cx: &mut App) {
 /// disambiguated across local development worktrees and isolated data dirs.
 pub fn application_name() -> &'static str {
     static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    NAME.get_or_init(crate::platform::build_identity::application_name)
+    NAME.get_or_init(crate::platform::application_identity::current_application_name)
 }
 /// `createWindow`: a project window is 1180 × 760, centred.
 pub const WINDOW_SIZE: (f32, f32) = (1180., 760.);

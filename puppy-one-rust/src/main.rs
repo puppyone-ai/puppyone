@@ -91,7 +91,7 @@ fn main() {
     let isolated = std::env::var_os("PUPPYONE_LAB").is_some()
         || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
     if !isolated {
-        platform::desktop::reexec_in_development_bundle(app::windows::application_name());
+        platform::app_icon::reexec_in_development_bundle(app::windows::application_name());
     }
     // `requestSingleInstanceLock`: a later launch hands its command line to
     // the running app and exits (captures and the lab run on their own).
@@ -224,7 +224,7 @@ fn main() {
         }
         features::cloud::account::install(!background, cx);
         if !background {
-            platform::desktop::configure_development_identity(
+            platform::app_icon::set_development_dock_icon(
                 app::windows::application_name(),
                 platform::build_identity::current().packaged,
             );
