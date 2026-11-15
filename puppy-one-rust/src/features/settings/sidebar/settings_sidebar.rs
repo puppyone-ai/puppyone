@@ -6,7 +6,7 @@ use crate::{
     theme::metric,
     ui::{
         appearance::ActiveAppearance,
-        components::{RowVariant, SidebarGroup, SidebarRow},
+        components::{RowVariant, SidebarGroup, SidebarRow, SurfaceCorners, SurfaceStyledExt},
     },
 };
 use gpui::{prelude::*, *};
@@ -25,6 +25,7 @@ impl SettingsWorkspaceSurface {
             .h_full()
             .flex_shrink_0()
             .bg(t.sidebar)
+            .surface_corners(metric::TASK_DIALOG_RADIUS, SurfaceCorners::bottom_left())
             .border_r_1()
             .border_color(t.border_subtle)
             .py(px(metric::SIDEBAR_LIST_PADDING_BLOCK))

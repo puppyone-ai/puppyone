@@ -122,47 +122,35 @@ impl SetupSuggestions {
     }
 }
 
-/// `ExperimentalSettings` except `enableProjectSwitcherRail`, which keeps its
-/// earlier top-level field for stored-preference compatibility.
+/// `ExperimentalSettings` backed by native consumers (`project_switcher_rail`
+/// keeps its earlier top-level field for stored-preference compatibility).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Experimental {
-    pub project_reach: bool,
-    pub workbench_tabs_in_header: bool,
     /// `enableHostDevices`: the owner's other computers (`VITE_HOST_DEVICES_ENABLED`).
     pub host_devices: bool,
-    pub multi_root_workspaces: bool,
     pub always_show_onboarding_coachmarks: bool,
     pub editor_tabs_in_header: bool,
     pub markdown_block_drag: bool,
-    pub markdown_heading_outline: bool,
     pub other_app_imports: bool,
-    pub viewer_plugins: bool,
     pub cloud_workspace: bool,
     pub cloud_computer_screen: bool,
     pub payments: bool,
     pub puppy_flow_files: bool,
-    pub git_auto_commit: bool,
 }
 impl Default for Experimental {
     fn default() -> Self {
         Self {
-            project_reach: false,
-            workbench_tabs_in_header: false,
             host_devices: crate::features::flags::HOST_DEVICES_BUILD,
-            multi_root_workspaces: false,
             always_show_onboarding_coachmarks: false,
             editor_tabs_in_header: false,
             markdown_block_drag: false,
-            markdown_heading_outline: false,
             other_app_imports: false,
-            viewer_plugins: false,
             cloud_workspace: false,
             cloud_computer_screen: false,
             // `DEFAULT_EXPERIMENTAL_SETTINGS.enablePayments`.
             payments: true,
             puppy_flow_files: false,
-            git_auto_commit: false,
         }
     }
 }
@@ -722,5 +710,37 @@ mod tests {
             ),
             (320., false, 560.)
         );
+    }
+
+    #[test]
+    fn retired_experimental_fields_in_stored_preferences_are_ignored() {
+        let p = Preferences::from_stored(serde_json::json!({
+            "version": 2,
+            "experimental": {
+                "cloud_workspace": true,
+                "git_auto_commit": true,
+                "viewer_plugins": true,
+                "markdown_heading_outline": true,
+                "multi_root_workspaces": true,
+                "workbench_tabs_in_header": true,
+                "project_reach": true
+            }
+        }))
+        .unwrap();
+        assert!(p.experimental.cloud_workspace);
+        let serialized = serde_json::to_value(&p.experimental).unwrap();
+        for retired in [
+            "git_auto_commit",
+            "viewer_plugins",
+            "markdown_heading_outline",
+            "multi_root_workspaces",
+            "workbench_tabs_in_header",
+            "project_reach",
+        ] {
+            assert!(
+                serialized.get(retired).is_none(),
+                "{retired} should be omitted"
+            );
+        }
     }
 }

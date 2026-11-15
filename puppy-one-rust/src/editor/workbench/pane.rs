@@ -7,10 +7,9 @@
 use crate::{
     localization::t,
     theme::{self, Theme, metric},
-    ui::components::{Icon, tooltip},
+    ui::components::{Icon, Menu, MenuItem, SurfaceElevation, tooltip},
 };
 use gpui::{prelude::*, *};
-use gpui_kit::component::Sizable as _;
 use std::rc::Rc;
 
 /// `PANE_HANDLE_REVEAL_RATIO`.
@@ -393,89 +392,36 @@ pub fn menu(
         on_action.clone(),
     ));
     primary = primary.child(end);
-    let items = contribution.items.iter();
-    let mut secondary = div().flex().flex_col().gap(px(2.));
-    let mut any = false;
-    for item in items {
-        any = true;
+    let mut rows = Vec::with_capacity(contribution.items.len());
+    for item in &contribution.items {
         let disabled = matches!(item.kind, ItemKind::Command { disabled: true });
         let focused = !disabled && selected == Some(next());
-        let fg = if disabled {
-            t_.text_disabled
-        } else if focused {
-            t_.text
-        } else {
-            t_.muted
-        };
-        let hover = (t_.hover, t_.text);
         let action = Action::Item(item.id);
         let on_action = on_action.clone();
-        let icon = match item.kind {
-            ItemKind::Toggle(checked) => Some(
-                div()
-                    .size(px(metric::MENU_ICON_SLOT))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .children(checked.then(|| Icon::new("check").small().color(fg))),
-            ),
-            ItemKind::Command { .. } => None,
+        let mut row = MenuItem::new(item.label.clone())
+            .id(SharedString::from(format!(
+                "desktop-editor-pane-menu-item-{}",
+                item.id
+            )))
+            .selected(focused)
+            .disabled(disabled)
+            .on_click(move |window, cx| on_action(action.clone(), window, cx));
+        row = match item.kind {
+            ItemKind::Toggle(true) => row.icon("check"),
+            ItemKind::Toggle(false) => row.icon_element(div().size(px(metric::MENU_ICON_SLOT))),
+            ItemKind::Command { .. } => row,
         };
-        secondary = secondary.child(
-            div()
-                .id(SharedString::from(format!(
-                    "desktop-editor-pane-menu-item-{}",
-                    item.id
-                )))
-                .flex()
-                .items_center()
-                .gap(px(metric::MENU_ITEM_GAP))
-                .h(px(theme::control()))
-                .px(px(metric::MENU_ITEM_PADDING_INLINE))
-                .rounded(px(metric::CONTROL_RADIUS))
-                .text_size(px(theme::ty().ui.control))
-                .line_height(px(18.))
-                .text_color(fg)
-                .whitespace_nowrap()
-                .when(focused, |d| d.bg(hover.0))
-                .when(!disabled, |d| {
-                    d.cursor(theme::clickable_cursor())
-                        .hover(move |s| s.bg(hover.0).text_color(hover.1))
-                        .on_click(move |_, window, cx| on_action(action.clone(), window, cx))
-                })
-                .children(icon)
-                .child(item.label.clone()),
-        );
+        rows.push(row);
     }
     let dismiss = on_dismiss.clone();
-    let shadow = BoxShadow {
-        color: theme::alpha(t_.shadow, 0.28).into(),
-        offset: point(px(0.), px(2.)),
-        blur_radius: px(4.),
-        spread_radius: px(-2.),
-        inset: false,
-    };
     let top = px(4. + 13. + 4.);
-    let surface = div()
-        .id("desktop-editor-pane-menu")
-        .track_focus(&chrome.focus)
-        .occlude()
-        .flex()
-        .flex_col()
-        .relative()
+    let mut surface = Menu::new("desktop-editor-pane-menu")
+        .palette(t_)
+        .elevation(SurfaceElevation::Low)
         .max_w(pane.size.width - px(16.))
         .max_h(px(MENU_MAX_HEIGHT))
-        .border_1()
-        .border_color(t_.border)
-        .rounded(px(metric::MENU_RADIUS))
-        // `background-clip: padding-box`; the rows scroll in an inner layer.
-        .child(crate::ui::components::menu::padding_box_fill(
-            metric::MENU_RADIUS,
-            t_.menu_bg,
-        ))
-        .shadow(vec![shadow])
-        .text_color(t_.text)
+        .scroll_handle(chrome.scroll.clone())
+        .track_focus(&chrome.focus)
         .on_key_down(move |e: &KeyDownEvent, window, cx| on_key(e, window, cx))
         .on_mouse_down_out(move |e: &MouseDownEvent, window, cx| {
             // A press on the handle toggles instead (it is "inside").
@@ -487,31 +433,10 @@ pub fn menu(
                 dismiss(false, window, cx);
             }
         })
-        .child(
-            div()
-                .id("desktop-editor-pane-menu-rows")
-                .flex()
-                .flex_col()
-                .min_h_0()
-                .p(px(metric::MENU_PADDING))
-                .overflow_y_scroll()
-                .track_scroll(&chrome.scroll)
-                .child(primary)
-                .when(any, |d| {
-                    d.child(
-                        div()
-                            .mt(px(4.))
-                            .pt(px(4.))
-                            .border_t_1()
-                            .border_color(t_.divider)
-                            .child(secondary),
-                    )
-                }),
-        )
-        .child(crate::ui::scrollbar::vertical(
-            "desktop-editor-pane-menu-scrollbar",
-            &chrome.scroll,
-        ));
+        .child_element(primary);
+    if !rows.is_empty() {
+        surface = surface.separator().list(2., rows);
+    }
     Some(
         deferred(
             div()

@@ -16,6 +16,7 @@ use crate::{
     localization::t as tr,
     platform::git_diff::{FileDiff, Status},
     theme::{self, Theme},
+    ui::components::{SurfaceCorners, SurfaceStyledExt},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::h_flex;
@@ -234,11 +235,12 @@ fn card_row(row: &Row, cx: &RowContext) -> AnyElement {
         Row::Space(height) => div().h(px(*height)).into_any_element(),
         Row::Header { file } => header(&cx.files[*file], p).into_any_element(),
         Row::Line { file, line, last } => frame(p, false, *last)
-            .child(text_unified::line(
-                &cx.files[*file].lines[*line],
-                p,
-                cx.density,
-            ))
+            .child(
+                text_unified::line(&cx.files[*file].lines[*line], p, cx.density).surface_corners(
+                    6.,
+                    SurfaceCorners::none().when(*last, SurfaceCorners::bottom()),
+                ),
+            )
             .into_any_element(),
         Row::Separator { .. } => frame(p, false, false)
             .child(
@@ -347,6 +349,10 @@ fn header_card(file: &FileDiff, p: &DiffPalette, closed: bool) -> Div {
         .child(
             h_flex()
                 .bg(p.header_bg)
+                .surface_corners(
+                    6.,
+                    SurfaceCorners::top().when(closed, SurfaceCorners::bottom()),
+                )
                 .min_h(px(32.))
                 .px(px(10.))
                 .gap(px(8.))

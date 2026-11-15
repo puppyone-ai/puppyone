@@ -4,9 +4,13 @@
 //! a product surface. The stack owns the position and never takes input
 //! itself; each notice carries its tone glyph, the message, inline commands
 //! and an optional dismiss control.
-use super::{Icon, tooltip};
+use super::{
+    Icon,
+    surface::{SurfaceFrame, child_id},
+    tooltip,
+};
 use crate::{
-    theme::{self, Theme, metric},
+    theme::{self, Theme},
     ui::appearance::ActiveAppearance,
 };
 use gpui::{prelude::*, *};
@@ -154,8 +158,10 @@ impl RenderOnce for FloatingNotice {
         let dismissible = self.on_dismiss.is_some();
         let mini = theme::control_mini();
         let id = self.id.clone();
-        h_flex()
-            .id(self.id)
+        SurfaceFrame::menu(self.id)
+            .fill(surface)
+            .stroke(border)
+            .flex_row()
             .max_w_full()
             .min_w_0()
             .items_start()
@@ -164,16 +170,9 @@ impl RenderOnce for FloatingNotice {
             .pb(px(8.))
             .pl(px(12.))
             .pr(px(if dismissible { 6. } else { 12. }))
-            .border_1()
-            .border_color(border)
-            .rounded(px(metric::MENU_RADIUS))
-            .bg(surface)
-            .shadow(crate::ui::components::MenuVariant::Default.shadow(t))
-            .text_color(t.text)
             .text_size(px(size))
             .line_height(px(line))
             .font_weight(FontWeight::NORMAL)
-            .occlude()
             .when(self.busy, |d| {
                 d.child(
                     div()
@@ -182,10 +181,8 @@ impl RenderOnce for FloatingNotice {
                         .h(px(line))
                         .items_center()
                         .child(
-                            crate::ui::loading::LoadingMark::new(
-                                crate::ui::components::menu::child_id(&id, "busy"),
-                            )
-                            .size(crate::ui::loading::LoaderSize::Xs),
+                            crate::ui::loading::LoadingMark::new(child_id(&id, "busy"))
+                                .size(crate::ui::loading::LoaderSize::Xs),
                         ),
                 )
             })
@@ -252,7 +249,7 @@ impl RenderOnce for FloatingNotice {
                     .unwrap_or_else(|| crate::localization::t("shared-ui.notice.dismiss").into());
                 d.child(
                     div()
-                        .id(crate::ui::components::menu::child_id(&id, "dismiss"))
+                        .id(child_id(&id, "dismiss"))
                         .flex()
                         .flex_shrink_0()
                         .items_center()

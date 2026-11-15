@@ -44,7 +44,7 @@ use crate::{
         appearance::ActiveAppearance,
         components::{
             Button, ButtonVariant, FileIcon, Icon, Menu, MenuItem, MenuVariant, PopoverMenu,
-            ProductIcon,
+            ProductIcon, SurfaceFrame,
         },
         loading::{LoaderSize, LoadingMark, Tone},
     },
@@ -772,16 +772,12 @@ impl FileWindow {
                         )
                 };
 
-                let mut card = v_flex()
-                    .id("html-share-card")
+                let mut card = SurfaceFrame::popover_card("html-share-card")
+                    .radius(10.)
+                    .stroke(t.border)
                     .w(px(316.))
                     .p(px(14.))
                     .gap(px(12.))
-                    .rounded(px(10.))
-                    .bg(t.menu_bg)
-                    .border_1()
-                    .border_color(t.border)
-                    .shadow_lg()
                     .child(
                         v_flex()
                             .gap(px(4.))

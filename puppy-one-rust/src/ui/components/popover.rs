@@ -74,7 +74,7 @@ impl PopoverMenu {
     pub fn menu(self, build: impl FnOnce(Menu, &mut Window, &mut App) -> Menu + 'static) -> Self {
         let id = self.id.clone();
         self.content(move |dismiss, window, cx| {
-            let menu = Menu::new(super::menu::child_id(&id, "menu"))
+            let menu = Menu::new(super::surface::child_id(&id, "menu"))
                 .on_dismiss(move |window, cx| dismiss(window, cx));
             build(menu, window, cx).into_any_element()
         })

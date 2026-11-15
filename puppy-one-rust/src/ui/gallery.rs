@@ -4,8 +4,8 @@
 use super::components::{
     Button, ButtonVariant, Dialog, Icon, IconButton, Menu, MenuItem, MenuVariant, MutedRow,
     ResizeHandle, RowActionButton, RowVariant, SectionHeader, Segment, SegmentedControl, Select,
-    SelectOption, SettingRow, SettingsSubsection, SidebarGroup, SidebarRow, Spinner, Switch,
-    ValueRow,
+    SelectOption, SettingRow, SettingsSubsection, SidebarGroup, SidebarRow, Spinner,
+    SurfaceCorners, SurfaceFrame, SurfaceStyledExt, Switch, ValueRow,
 };
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
@@ -328,20 +328,75 @@ impl Render for Gallery {
                             )),
                     ),
             )
-            .child(section(
-                "Settings",
-                div().w(px(640.)).child(
-                    SettingsSubsection::new()
-                        .title("Subsection")
-                        .child(
-                            SettingRow::new("Setting row")
-                                .control(Switch::new("set-sw", "On").checked(true)),
-                        )
-                        .child(ValueRow::new("Value row", "/Users/example/project").monospace(true))
-                        .child(MutedRow::new("Muted row"))
-                        .child(MutedRow::new("Danger row").danger()),
-                ),
-            ));
+            .child(
+                div()
+                    .flex()
+                    .gap(px(24.))
+                    .items_start()
+                    .child(section(
+                        "Settings",
+                        div().w(px(640.)).child(
+                            SettingsSubsection::new()
+                                .title("Subsection")
+                                .child(
+                                    SettingRow::new("Setting row")
+                                        .control(Switch::new("set-sw", "On").checked(true)),
+                                )
+                                .child(
+                                    ValueRow::new("Value row", "/Users/example/project")
+                                        .monospace(true),
+                                )
+                                .child(MutedRow::new("Muted row"))
+                                .child(MutedRow::new("Danger row").danger()),
+                        ),
+                    ))
+                    .child(section(
+                        "SurfaceFrame · concentric corners",
+                        SurfaceFrame::card("gallery-surface-card")
+                            .radius(14.)
+                            .w(px(240.))
+                            .child(
+                                div()
+                                    .h(px(28.))
+                                    .px(px(10.))
+                                    .flex()
+                                    .items_center()
+                                    .bg(t.header)
+                                    .surface_corners(14., SurfaceCorners::top())
+                                    .border_b_1()
+                                    .border_color(t.divider)
+                                    .text_size(px(12.))
+                                    .text_color(t.muted)
+                                    .child("Header"),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .h(px(64.))
+                                    .child(
+                                        div()
+                                            .w(px(72.))
+                                            .px(px(10.))
+                                            .py(px(8.))
+                                            .bg(t.sidebar)
+                                            .surface_corners(14., SurfaceCorners::bottom_left())
+                                            .border_r_1()
+                                            .border_color(t.border_subtle)
+                                            .text_size(px(12.))
+                                            .text_color(t.muted)
+                                            .child("Nav"),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .px(px(10.))
+                                            .py(px(8.))
+                                            .text_size(px(12.))
+                                            .child("Canvas"),
+                                    ),
+                            ),
+                    )),
+            );
         let dialog = self.dialog.then(|| {
             Dialog::new("gallery-dialog")
                 .title("Rename")

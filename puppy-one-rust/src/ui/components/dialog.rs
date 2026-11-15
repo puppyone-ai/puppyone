@@ -1,6 +1,9 @@
 //! `DesktopDialog` (`.desktop-dialog-surface`) on GPUI Kit's headless dialog,
 //! which owns centring, the focus trap, Escape, backdrop presses and layering.
-use super::{Icon, IconButton, menu::child_id};
+use super::{
+    Icon, IconButton,
+    surface::{SurfaceFrame, child_id},
+};
 use crate::{theme, ui::appearance::ActiveAppearance};
 use gpui::{prelude::*, *};
 use gpui_kit::{
@@ -211,28 +214,9 @@ impl RenderOnce for Dialog {
                         .on_click(move |_, window, cx| close(window, cx))
                 }))
         });
-        let surface = div()
-            .id(self.id.clone())
-            // A press on the dialog must not reach the backdrop behind it,
-            // which dismisses (`DialogPopup`'s occlusion).
-            .occlude()
-            .flex()
-            .flex_col()
+        let surface = SurfaceFrame::dialog(self.id.clone())
             .w(self.width.min(viewport.width - px(32.)))
             .max_h(viewport.height - px(32.))
-            .overflow_hidden()
-            .border_1()
-            .border_color(t.border)
-            .rounded(px(theme::metric::DIALOG_RADIUS))
-            .bg(t.overlay)
-            .text_color(t.text)
-            .shadow(vec![BoxShadow {
-                inset: false,
-                color: t.shadow.into(),
-                offset: point(px(0.), px(24.)),
-                blur_radius: px(48.),
-                spread_radius: px(0.),
-            }])
             .children(header)
             .child(
                 div()

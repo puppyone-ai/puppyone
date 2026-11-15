@@ -96,7 +96,7 @@ impl Disableable for Select {
 impl RenderOnce for Select {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let trigger = SelectTrigger {
-            id: super::menu::child_id(&self.id, "trigger"),
+            id: super::surface::child_id(&self.id, "trigger"),
             value: self.value,
             disabled: self.disabled,
             open: false,

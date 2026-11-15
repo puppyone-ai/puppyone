@@ -4,8 +4,8 @@
 use super::*;
 use crate::localization::{t as tr, tf};
 use crate::ui::appearance::ActiveAppearance;
-use crate::ui::components::{Icon, tooltip};
-use gpui_kit::base::{h_flex, v_flex};
+use crate::ui::components::{Icon, SurfaceFrame, tooltip};
+use gpui_kit::base::h_flex;
 use gpui_kit::component::Sizable as _;
 
 /// `DesktopDialogSurface width={380}`.
@@ -198,27 +198,11 @@ impl Workbench {
             // repainted here.
             .child(cancel)
             .when(!copy.blocked, |f| f.child(confirm));
-        let surface = v_flex()
-            .id("workbench-close-dialog")
+        let surface = SurfaceFrame::dialog("workbench-close-dialog")
+            .radius(10.)
+            .stroke(t.border_subtle)
+            .absorb_mouse_down()
             .w(px(width))
-            .overflow_hidden()
-            .border_1()
-            .border_color(t.border_subtle)
-            .rounded(px(10.))
-            .bg(t.overlay)
-            .shadow(vec![BoxShadow {
-                inset: false,
-                color: Rgba {
-                    a: t.shadow.a * 0.82,
-                    ..t.shadow
-                }
-                .into(),
-                offset: point(px(0.), px(18.)),
-                blur_radius: px(42.),
-                spread_radius: px(0.),
-            }])
-            .text_color(t.text)
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(header)
             .child(body)
             .child(footer);

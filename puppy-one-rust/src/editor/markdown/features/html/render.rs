@@ -6,14 +6,17 @@
 //! colours. `audio` and `video` play through the engine (as the video
 //! block does); one that cannot shows a placeholder naming its source.
 use super::dom::{Element, Node};
-use crate::editor::{
-    markdown::{
-        features::image::{cache, source},
-        style::MarkdownTheme,
+use crate::{
+    editor::{
+        markdown::{
+            features::image::{cache, source},
+            style::MarkdownTheme,
+        },
+        registry::DocumentAssets,
+        tokens::{Tokens, parse_css_color},
+        view::{editor::EditorView, render::RenderCx, style::TextStyle},
     },
-    registry::DocumentAssets,
-    tokens::{Tokens, parse_css_color},
-    view::{editor::EditorView, render::RenderCx, style::TextStyle},
+    ui::components::{SurfaceCorners, SurfaceStyledExt},
 };
 use gpui::{prelude::*, *};
 use std::{cell::RefCell, collections::HashSet, path::Path};
@@ -471,7 +474,15 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
                     td = td.border_b_1();
                 }
                 if cell.tag == "th" {
-                    td = td.bg(s.header_background);
+                    td = td.bg(s.header_background).surface_corners(
+                        s.radius,
+                        SurfaceCorners {
+                            top_left: r == 0 && i == 0,
+                            top_right: r == 0 && i + 1 == row_cells.len(),
+                            bottom_left: r == last && i == 0,
+                            bottom_right: r == last && i + 1 == row_cells.len(),
+                        },
+                    );
                 }
                 cell_inherit.text.apply(td.style());
                 td.style().text.text_align = Some(cell_inherit.align);

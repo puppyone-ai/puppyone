@@ -8,7 +8,7 @@ use super::operation::Alignment;
 use crate::{
     localization::t,
     theme::{self, Theme, metric},
-    ui::components::{MenuVariant, tooltip},
+    ui::components::{SurfaceFrame, tooltip},
 };
 use gpui::{prelude::*, *};
 
@@ -174,32 +174,19 @@ impl Render for TableMenu {
         let t = Theme::new(self.dark);
         let selected = self.selected.filter(|_| self.keyboard);
         let mut index = 0;
-        let mut surface = div()
-            .id("po-editable-table-context-menu")
+        let mut surface = SurfaceFrame::menu("po-editable-table-context-menu")
+            .palette(t)
             .track_focus(&self.focus)
-            .occlude()
-            .flex()
-            .flex_col()
-            .w(px(WIDTH))
-            .p(px(metric::MENU_PADDING))
-            .border_1()
-            .border_color(t.border)
-            .rounded(px(metric::MENU_RADIUS))
-            .relative()
-            .child(crate::ui::components::menu::padding_box_fill(
-                metric::MENU_RADIUS,
-                t.menu_bg,
-            ))
-            .shadow(MenuVariant::Default.shadow(t))
+            // Presses inside never reach the table beneath.
+            .absorb_mouse_down()
             .on_key_down(cx.listener(|this, e: &KeyDownEvent, _, cx| this.key(e, cx)))
             .on_mouse_down_out(cx.listener(|_, _, _, cx| {
                 cx.emit(MenuEvent::Dismiss {
                     restore_focus: false,
                 })
             }))
-            // Presses inside never reach the table beneath.
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation());
+            .w(px(WIDTH))
+            .p(px(metric::MENU_PADDING));
         for (s, section) in self.sections.iter().enumerate() {
             let mut list = div().flex().gap(px(4.));
             for item in section {

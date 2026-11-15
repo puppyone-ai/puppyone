@@ -1,22 +1,17 @@
-//! Port of `ExperimentalSettingsView.tsx`: the same groups, rows and choice
-//! segments. Rows whose behaviour has a native consumer are live; the others
-//! look exactly like the product's but are inert, and their tooltip carries
-//! the product's "not available yet" message instead of silently doing
-//! nothing. `gitAutoCommit` appears only when the platform exposes it (never
-//! natively), like the Web view.
+//! Native `ExperimentalSettingsView`: the groups, switches and choice segments
+//! backed by native consumers.
 use super::super::{
     preference_types::Preferences, settings_workspace_surface::SettingsWorkspaceSurface,
 };
 use super::Page;
 use crate::{
-    localization::{t as tr, tf},
+    localization::t as tr,
     theme::Theme,
     ui::components::{
         Segment, SegmentedControl, SettingRow, SettingsSection, SettingsSubsection, Switch,
     },
 };
 use gpui::{prelude::*, *};
-use gpui_kit::base::Disableable as _;
 
 type Get = fn(&Preferences) -> bool;
 type Set = fn(&mut Preferences, bool);
@@ -26,75 +21,53 @@ struct Setting {
     set: Set,
     /// `(false label, true label)` for segment rows.
     choices: Option<(&'static str, &'static str)>,
-    native: bool,
 }
 macro_rules! setting {
-    ($key:literal, $($field:ident).+, $native:expr) => {
-        Setting { key: $key, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: None, native: $native }
+    ($key:literal, $($field:ident).+) => {
+        Setting { key: $key, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: None }
     };
-    ($key:literal, $($field:ident).+, $native:expr, $off:literal, $on:literal) => {
-        Setting { key: $key, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: Some(($off, $on)), native: $native }
+    ($key:literal, $($field:ident).+, $off:literal, $on:literal) => {
+        Setting { key: $key, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: Some(($off, $on)) }
     };
 }
-/// `ExperimentalSettingsView`'s groups at the pinned product. `hostDevices`
-/// shows only while Other computers passes its release gate, `payments`
-/// only while accounts are available; `gitAutoCommit` only where the
-/// platform exposes it, which the native build never does.
+/// Supported experimental groups. `hostDevices` shows only while Other
+/// computers passes its release gate; `payments` only while accounts are
+/// available.
 fn groups(
     account_available: bool,
     host_devices_available: bool,
 ) -> Vec<(&'static str, Vec<Setting>)> {
     let mut cloud = vec![
-        setting!("cloudWorkspace", experimental.cloud_workspace, true),
-        setting!(
-            "cloudComputerScreen",
-            experimental.cloud_computer_screen,
-            true
-        ),
+        setting!("cloudWorkspace", experimental.cloud_workspace),
+        setting!("cloudComputerScreen", experimental.cloud_computer_screen),
     ];
     if host_devices_available {
         // `useHostDevicesAvailable`: the owner's other computers.
-        cloud.push(setting!("hostDevices", experimental.host_devices, true));
+        cloud.push(setting!("hostDevices", experimental.host_devices));
     }
     if account_available {
-        cloud.push(setting!("payments", experimental.payments, true));
+        cloud.push(setting!("payments", experimental.payments));
     }
-    cloud.push(setting!("flowFiles", experimental.puppy_flow_files, true));
+    cloud.push(setting!("flowFiles", experimental.puppy_flow_files));
     vec![
         (
             "header",
             vec![
-                setting!("projectReach", experimental.project_reach, false),
-                setting!(
-                    "workbenchTabsInHeader",
-                    experimental.workbench_tabs_in_header,
-                    false,
-                    "sidebar",
-                    "header"
-                ),
                 setting!(
                     "projectSwitcherRail",
                     project_switcher_rail,
-                    true,
                     "menu",
                     "sidebar"
                 ),
                 setting!(
-                    "multiRootWorkspaces",
-                    experimental.multi_root_workspaces,
-                    false
-                ),
-                setting!(
                     "alwaysShowOnboardingCoachmarks",
                     experimental.always_show_onboarding_coachmarks,
-                    true,
                     "once",
                     "repeat"
                 ),
                 setting!(
                     "editorTabsInHeader",
                     experimental.editor_tabs_in_header,
-                    true,
                     "panes",
                     "header"
                 ),
@@ -102,22 +75,14 @@ fn groups(
         ),
         (
             "markdown",
-            vec![
-                setting!("markdownBlockDrag", experimental.markdown_block_drag, true),
-                // The native Markdown editor has no heading outline yet.
-                setting!(
-                    "markdownHeadingOutline",
-                    experimental.markdown_heading_outline,
-                    false
-                ),
-            ],
+            vec![setting!(
+                "markdownBlockDrag",
+                experimental.markdown_block_drag
+            )],
         ),
         (
             "imports",
-            vec![
-                setting!("otherAppImports", experimental.other_app_imports, true),
-                setting!("viewerPlugins", experimental.viewer_plugins, false),
-            ],
+            vec![setting!("otherAppImports", experimental.other_app_imports)],
         ),
         ("cloud", cloud),
     ]
@@ -133,15 +98,9 @@ impl SettingsWorkspaceSurface {
                 .into_iter()
                 .map(|setting| {
                     let label = tr(&format!("settings.experimental.{}.title", setting.key));
-                    let detail = tr(&format!("settings.experimental.{}.detail", setting.key));
+                    let detail: SharedString =
+                        tr(&format!("settings.experimental.{}.detail", setting.key)).into();
                     let value = (setting.get)(&state);
-                    let disabled = !setting.native;
-                    let reason = disabled.then(|| {
-                        tf(
-                            "settings.sidebar.notAvailable",
-                            &[("section", label.into())],
-                        )
-                    });
                     let control: AnyElement = match setting.choices {
                         Some((off, on)) => {
                             let segments =
@@ -155,19 +114,15 @@ impl SettingsWorkspaceSurface {
                                     .selected(value == choice)
                                     .on_select(
                                         move |_, cx| {
-                                            if !disabled {
-                                                prefs.update(cx, |p, cx| {
-                                                    p.change(|p| set(p, choice), cx)
-                                                })
-                                            }
+                                            prefs.update(cx, |p, cx| {
+                                                p.change(|p| set(p, choice), cx)
+                                            })
                                         },
                                     )
                                 });
                             SegmentedControl::new(setting.key)
                                 .segments(segments)
-                                .when_some(reason.clone().or(Some(detail.into())), |s, text| {
-                                    s.tooltip(text)
-                                })
+                                .tooltip(detail)
                                 .into_any_element()
                         }
                         None => {
@@ -175,8 +130,7 @@ impl SettingsWorkspaceSurface {
                             let set = setting.set;
                             Switch::new(SharedString::from(setting.key), label)
                                 .checked(value)
-                                .disabled(disabled)
-                                .tooltip(reason.clone().unwrap_or_else(|| detail.into()))
+                                .tooltip(detail)
                                 .on_change(move |on, _, cx| {
                                     prefs.update(cx, |p, cx| p.change(|p| set(p, on), cx))
                                 })
@@ -202,12 +156,26 @@ mod tests {
     use super::groups;
     use core::prelude::v1::test;
 
-    fn cloud_keys(account: bool, hosts: bool) -> Vec<&'static str> {
+    fn keys_in(group_id: &str, account: bool, hosts: bool) -> Vec<&'static str> {
         groups(account, hosts)
             .into_iter()
-            .find(|(id, _)| *id == "cloud")
+            .find(|(id, _)| *id == group_id)
             .map(|(_, rows)| rows.into_iter().map(|row| row.key).collect())
             .unwrap()
+    }
+
+    #[test]
+    fn experimental_groups_list_only_supported_native_settings() {
+        assert_eq!(
+            keys_in("header", true, true),
+            [
+                "projectSwitcherRail",
+                "alwaysShowOnboardingCoachmarks",
+                "editorTabsInHeader",
+            ]
+        );
+        assert_eq!(keys_in("markdown", true, true), ["markdownBlockDrag"]);
+        assert_eq!(keys_in("imports", true, true), ["otherAppImports"]);
     }
 
     /// HX-1: the Other computers switch follows the release gate, not the
@@ -215,7 +183,7 @@ mod tests {
     #[test]
     fn the_other_computers_switch_shows_only_past_the_release_gate() {
         assert_eq!(
-            cloud_keys(true, false),
+            keys_in("cloud", true, false),
             [
                 "cloudWorkspace",
                 "cloudComputerScreen",
@@ -224,7 +192,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            cloud_keys(true, true),
+            keys_in("cloud", true, true),
             [
                 "cloudWorkspace",
                 "cloudComputerScreen",
@@ -234,7 +202,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            cloud_keys(false, false),
+            keys_in("cloud", false, false),
             ["cloudWorkspace", "cloudComputerScreen", "flowFiles"]
         );
     }

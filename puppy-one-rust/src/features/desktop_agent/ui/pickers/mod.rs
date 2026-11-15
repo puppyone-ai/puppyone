@@ -9,7 +9,7 @@ use crate::features::desktop_agent::domain::agent_session_controls::{
 use crate::localization::{Arg, t, tf};
 use crate::theme;
 use crate::ui::appearance::ActiveAppearance;
-use crate::ui::components::Icon;
+use crate::ui::components::{Icon, Menu, MenuItem, MenuVariant};
 use crate::ui::form_input::TextInput;
 use gpui::{prelude::*, *};
 use gpui_kit::base::h_flex;
@@ -161,7 +161,7 @@ impl SessionPickers {
         root.into_any_element()
     }
 
-    fn popover(&self, control: &AgentSessionControl, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn popover(&self, control: &AgentSessionControl, cx: &mut Context<Self>) -> Menu {
         let t_ = cx.palette();
         let m = theme::ty();
         let id = control.id;
@@ -202,81 +202,15 @@ impl SessionPickers {
             .active
             .or_else(|| shown.iter().position(|(_, _, selected)| *selected))
             .unwrap_or(0);
-        let mut list = div()
-            .id("agent-panel-picker-list")
-            .min_h_0()
-            .flex_shrink(1.)
-            .overflow_y_scroll()
-            .track_scroll(&self.scroll)
-            .p(px(theme::metric::MENU_PADDING));
-        for (index, (label, value, selected)) in shown.iter().cloned().enumerate() {
-            let highlighted = selected || self.active == Some(index);
-            list = list.child(
-                div()
-                    .id(("agent-panel-picker-option", index))
-                    .h(px(theme::control()))
-                    .px(px(8.))
-                    .flex()
-                    .items_center()
-                    .gap(px(8.))
-                    .rounded(px(theme::metric::CONTROL_RADIUS))
-                    .text_size(px(m.right.content))
-                    .line_height(px(m.right.control_line_height))
-                    .text_color(if highlighted { t_.text } else { t_.muted })
-                    .when(highlighted, |d| d.bg(t_.hover))
-                    .hover(move |s| s.bg(t_.hover).text_color(t_.text))
-                    .cursor(theme::clickable_cursor())
-                    .on_click(cx.listener(move |s, _, _, cx| {
-                        cx.emit(PickerEvent::Select {
-                            id,
-                            value: value.clone(),
-                        });
-                        s.close(cx);
-                    }))
-                    .child(div().flex_1().min_w_0().truncate().child(label))
-                    .when(selected, |d| {
-                        d.child(
-                            Icon::new("check")
-                                .with_size(px(14.))
-                                .stroke(2.)
-                                .color(t_.muted),
-                        )
-                    }),
-            );
-        }
-        if shown.is_empty() {
-            list = list.child(
-                div()
-                    .px(px(12.))
-                    .py(px(22.))
-                    .text_center()
-                    .text_color(t_.muted)
-                    .text_size(px(m.right.meta))
-                    .child(t("agent.picker.noMatches")),
-            );
-        }
         let count = shown.len();
         let keyed = shown.clone();
-        div()
-            .id(SharedString::from(format!("agent-picker-{id:?}-popover")))
-            .track_focus(&self.focus)
+        let host = cx.weak_entity();
+        let mut menu = Menu::new(SharedString::from(format!("agent-picker-{id:?}-popover")))
+            .variant(MenuVariant::RightRail)
             .w(px(width))
             .max_h(px(PICKER_MAX_HEIGHT))
-            .flex()
-            .flex_col()
-            .overflow_hidden()
-            .rounded(px(theme::metric::MENU_RADIUS))
-            .border_1()
-            .border_color(t_.border)
-            .bg(t_.menu_bg)
-            .shadow(vec![BoxShadow {
-                inset: false,
-                color: theme::alpha(t_.shadow, if t_.dark { 0.28 } else { 0.32 }).into(),
-                offset: point(px(0.), px(2.)),
-                blur_radius: px(4.),
-                spread_radius: px(-2.),
-            }])
-            .occlude()
+            .scroll_handle(self.scroll.clone())
+            .track_focus(&self.focus)
             .on_mouse_down_out(cx.listener(|s, _, _, cx| s.close(cx)))
             .on_key_down(cx.listener(move |s, event: &KeyDownEvent, _, cx| {
                 let next = match event.keystroke.key.as_str() {
@@ -305,56 +239,80 @@ impl SessionPickers {
                 s.active = Some(next);
                 cx.stop_propagation();
                 cx.notify();
-            }))
-            .when(searchable, |d| {
-                d.child(
-                    h_flex()
-                        .min_h(px(36.))
-                        .px(px(8.))
-                        .gap(px(7.))
-                        .border_b_1()
-                        .border_color(t_.divider)
-                        .child(
-                            Icon::new("search")
-                                .with_size(px(13.))
-                                .stroke(2.)
-                                .color(t_.subtle),
-                        )
-                        .child(div().flex_1().min_w_0().child(self.query.clone())),
-                )
-            })
-            .child(
+            }));
+        if searchable {
+            menu = menu.header(
+                h_flex()
+                    .min_h(px(36.))
+                    .px(px(8.))
+                    .gap(px(7.))
+                    .border_b_1()
+                    .border_color(t_.divider)
+                    .child(
+                        Icon::new("search")
+                            .with_size(px(13.))
+                            .stroke(2.)
+                            .color(t_.subtle),
+                    )
+                    .child(div().flex_1().min_w_0().child(self.query.clone())),
+            );
+        }
+        for (index, (label, value, selected)) in shown.into_iter().enumerate() {
+            let highlighted = selected || self.active == Some(index);
+            let host = host.clone();
+            let mut item = MenuItem::new(label)
+                .id(("agent-panel-picker-option", index))
+                .selected(highlighted)
+                .on_click(move |_, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        cx.emit(PickerEvent::Select {
+                            id,
+                            value: value.clone(),
+                        });
+                        s.close(cx);
+                    });
+                });
+            if selected {
+                item = item.trailing(
+                    Icon::new("check")
+                        .with_size(px(14.))
+                        .stroke(2.)
+                        .color(t_.muted),
+                );
+            }
+            menu = menu.item(item);
+        }
+        if count == 0 {
+            menu = menu.child_element(
                 div()
-                    .relative()
+                    .px(px(12.))
+                    .py(px(22.))
+                    .text_center()
+                    .text_color(t_.muted)
+                    .text_size(px(m.right.meta))
+                    .child(t("agent.picker.noMatches")),
+            );
+        }
+        if total > count {
+            menu = menu.footer(
+                div()
+                    .min_h(px(theme::control()))
+                    .px(px(8.))
                     .flex()
-                    .flex_col()
-                    .min_h_0()
-                    .flex_shrink(1.)
-                    .child(list)
-                    .child(crate::ui::scrollbar::vertical(
-                        "agent-panel-picker-scrollbar",
-                        &self.scroll,
+                    .items_center()
+                    .border_t_1()
+                    .border_color(t_.divider)
+                    .text_color(t_.muted)
+                    .text_size(px(m.right.meta))
+                    .child(tf(
+                        "agent.picker.showing",
+                        &[
+                            ("visible", Arg::Number(count as i64)),
+                            ("total", Arg::Number(total as i64)),
+                        ],
                     )),
-            )
-            .when(total > count, |d| {
-                d.child(
-                    div()
-                        .min_h(px(theme::control()))
-                        .px(px(8.))
-                        .flex()
-                        .items_center()
-                        .border_t_1()
-                        .border_color(t_.divider)
-                        .text_color(t_.muted)
-                        .text_size(px(m.right.meta))
-                        .child(tf(
-                            "agent.picker.showing",
-                            &[
-                                ("visible", Arg::Number(count as i64)),
-                                ("total", Arg::Number(total as i64)),
-                            ],
-                        )),
-                )
-            })
+            );
+        }
+        menu
     }
 }

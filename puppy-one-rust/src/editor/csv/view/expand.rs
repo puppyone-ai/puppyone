@@ -7,8 +7,8 @@ use super::*;
 use crate::{
     editor::csv::operations::{MAX_COLUMNS, MAX_DATA_ROWS},
     localization::{Arg, tf},
-    theme::{Theme, metric},
-    ui::components::MenuVariant,
+    theme::Theme,
+    ui::components::SurfaceFrame,
 };
 use std::time::Instant;
 
@@ -443,26 +443,10 @@ impl CsvEditor {
                     .left(px(right - width))
                     .top(px(bottom))
                     .child(
-                        div()
-                            .id("csv-resize-picker")
+                        SurfaceFrame::menu("csv-resize-picker")
+                            .palette(t)
                             .track_focus(&picker.focus)
-                            .occlude()
-                            .absolute()
-                            .bottom_0()
-                            .left_0()
-                            .w(px(width))
-                            .flex()
-                            .flex_col()
-                            .gap(px(8.))
-                            .p(px(9.))
-                            .border_1()
-                            .border_color(t.border)
-                            .rounded(px(metric::MENU_RADIUS))
-                            .child(crate::ui::components::menu::padding_box_fill(
-                                metric::MENU_RADIUS,
-                                t.menu_bg,
-                            ))
-                            .shadow(MenuVariant::Default.shadow(t))
+                            .absorb_mouse_down()
                             .on_key_down(cx.listener(|this, e: &KeyDownEvent, window, cx| {
                                 this.picker_key(e, window, cx)
                             }))
@@ -471,7 +455,12 @@ impl CsvEditor {
                                     cx.notify();
                                 }
                             }))
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .absolute()
+                            .bottom_0()
+                            .left_0()
+                            .w(px(width))
+                            .gap(px(8.))
+                            .p(px(9.))
                             .child(summary)
                             .child(grid),
                     ),
@@ -505,29 +494,20 @@ impl CsvEditor {
             style.apply(d.style());
             d
         };
-        // `--po-elevation-low`.
-        let shadow = BoxShadow {
-            color: crate::theme::alpha(t.shadow, 0.28).into(),
-            offset: point(px(0.), px(2.)),
-            blur_radius: px(4.),
-            spread_radius: px(-2.),
-            inset: false,
-        };
         Some(
-            div()
+            SurfaceFrame::compact_menu("csv-resize-status")
+                .palette(t)
+                .radius(7.)
+                .fill(crate::theme::mix(t.panel_raised, Rgba::default(), 0.96))
+                .occlude(false)
                 .absolute()
                 .right(px(6.))
                 .bottom(px(7.))
-                .flex()
+                .flex_row()
                 .items_baseline()
                 .gap(px(8.))
                 .px(px(8.))
                 .py(px(5.))
-                .border_1()
-                .border_color(t.border)
-                .rounded(px(7.))
-                .bg(crate::theme::mix(t.panel_raised, Rgba::default(), 0.96))
-                .shadow(vec![shadow])
                 .child(text(650., t.text).child(dimensions(
                     drag.base_rows + preview.rows,
                     drag.base_columns + preview.columns,

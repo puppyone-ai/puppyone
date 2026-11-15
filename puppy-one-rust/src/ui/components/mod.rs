@@ -11,7 +11,7 @@ mod button;
 mod checkbox;
 mod dialog;
 mod icon;
-pub mod menu;
+mod menu;
 mod notice;
 mod popover;
 mod resize_handle;
@@ -21,6 +21,7 @@ mod settings;
 mod sidebar;
 mod space_mark;
 mod spinner;
+mod surface;
 mod switch;
 
 pub use agent_presence::{FilePresence, PresenceVariant};
@@ -43,6 +44,9 @@ pub use sidebar::{
 };
 pub use space_mark::{SpaceMark, SpaceMarkSize, SpacePlanBadge};
 pub use spinner::Spinner;
+pub use surface::{
+    SurfaceCorners, SurfaceElevation, SurfaceFrame, SurfaceStyledExt, SurfaceVariant, inner_radius,
+};
 pub use switch::Switch;
 
 /// Attach a product tooltip (Kit tooltip on the shared overlay layer).

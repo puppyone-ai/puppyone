@@ -11,7 +11,8 @@ use crate::{
     ui::{
         components::{
             FileIcon, Icon, Segment, SegmentLayout, SegmentedControl, Select, SelectOption,
-            SettingRow, SettingsList, SettingsSection, Switch, tooltip,
+            SettingRow, SettingsList, SettingsSection, SurfaceCorners, SurfaceStyledExt, Switch,
+            tooltip,
         },
         loading::{self, LoadingMark, LoadingStyle, model::Shape},
     },
@@ -26,7 +27,9 @@ use gpui_kit::{
 /// `(left, right)` round the outer corners: GPUI clips children to the
 /// preview's rectangle, not its 5px corners, so each edge owns its 4px radius.
 fn preview_surface(pack: &str, dark: bool, (left, right): (bool, bool)) -> Div {
-    const R: f32 = 4.;
+    const OUTER_RADIUS: f32 = 5.;
+    let left_corners = SurfaceCorners::none().when(left, SurfaceCorners::left());
+    let right_corners = SurfaceCorners::none().when(right, SurfaceCorners::right());
     let p = theme::pack_theme(pack, dark);
     let bar = move |width: f32, accent: bool| {
         div()
@@ -45,11 +48,10 @@ fn preview_surface(pack: &str, dark: bool, (left, right): (bool, bool)) -> Div {
         .h_full()
         .items_stretch()
         .bg(p.canvas)
-        .when(left, |d| d.rounded_l(px(R)))
-        .when(right, |d| d.rounded_r(px(R)))
+        .surface_corners(OUTER_RADIUS, left_corners.or(right_corners))
         .child(
             v_flex()
-                .when(left, |d| d.rounded_l(px(R)))
+                .surface_corners(OUTER_RADIUS, left_corners)
                 .w(relative(0.31))
                 .gap(px(3.))
                 .px(px(4.))
@@ -63,7 +65,7 @@ fn preview_surface(pack: &str, dark: bool, (left, right): (bool, bool)) -> Div {
         )
         .child(
             v_flex()
-                .when(right, |d| d.rounded_r(px(R)))
+                .surface_corners(OUTER_RADIUS, right_corners)
                 .flex_1()
                 .gap(px(3.))
                 .px(px(4.))
