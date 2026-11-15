@@ -215,3 +215,60 @@ fn copied_items_of_a_local_folder_also_go_to_the_system_file_clipboard(cx: &mut 
     fixture.update(cx, |e, cx| e.copy(vec!["a.md".into()], cx));
     assert_eq!(take_written(), None);
 }
+#[gpui::test]
+fn the_file_clipboard_says_what_it_holds_does_and_did(cx: &mut TestAppContext) {
+    use crate::editor::workbench::resource_operations::Outcome;
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("docs")).unwrap();
+    std::fs::write(dir.path().join("a.md"), "a").unwrap();
+    let ws = Workspace::open(dir.path()).unwrap();
+    let preferences = cx.new(|_| PreferencesStore::memory());
+    let explorer = cx.new(|cx| ExplorerSession::new(false, preferences, cx));
+    let owner = explorer.update(cx, |e, cx| {
+        e.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx);
+        crate::editor::workbench::catalog::resource_key(&ws.resource_id(Path::new("")).unwrap())
+    });
+    explorer.update(cx, |e, cx| {
+        e.set_clipboard(FileClipboard::Cut(vec!["a.md".into()]), cx);
+        assert_eq!(
+            e.notice(),
+            Some(&Notice::Selected {
+                cut: true,
+                count: 1
+            })
+        );
+        e.paste_into("docs".into(), cx);
+        assert_eq!(
+            e.notice(),
+            Some(&Notice::Working {
+                mode: Mode::Move,
+                count: 1
+            })
+        );
+        e.finish_op(&owner, Outcome::default(), cx);
+        assert_eq!(
+            e.notice(),
+            Some(&Notice::Done {
+                mode: Mode::Move,
+                count: 1,
+                target: Some("docs".into())
+            })
+        );
+        // A duplicate that fails says why in its notice.
+        e.duplicate(vec!["docs".into()], cx);
+        let outcome = Outcome {
+            error: Some("denied".into()),
+            ..Default::default()
+        };
+        e.finish_op(&owner, outcome, cx);
+        assert_eq!(
+            e.notice(),
+            Some(&Notice::Failed {
+                detail: "denied".into()
+            })
+        );
+        e.dismiss_notice(cx);
+        assert_eq!(e.notice(), None);
+    });
+}

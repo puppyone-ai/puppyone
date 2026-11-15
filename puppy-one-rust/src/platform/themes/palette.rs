@@ -86,7 +86,7 @@ pub const PALETTE_TOKENS: [&str; 75] = [
 ];
 
 /// tokens.css semantic aliases feature CSS reads instead of primitives.
-const SEMANTIC_ALIASES: [(&str, &str); 7] = [
+pub(super) const SEMANTIC_ALIASES: [(&str, &str); 7] = [
     ("--po-panel", "var(--po-surface-panel)"),
     ("--po-panel-raised", "var(--po-surface-panel-raised)"),
     ("--po-overlay", "var(--po-surface-overlay)"),
@@ -135,7 +135,7 @@ pub fn application_blocks(text: &str) -> (Declarations, Declarations) {
     (block(":root"), block(".dark .theme-root"))
 }
 
-fn neutral() -> &'static (Declarations, Declarations) {
+pub(super) fn neutral() -> &'static (Declarations, Declarations) {
     static BLOCKS: OnceLock<(Declarations, Declarations)> = OnceLock::new();
     BLOCKS.get_or_init(|| application_blocks(NEUTRAL_CSS))
 }

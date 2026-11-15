@@ -231,6 +231,10 @@ impl SettingsWorkspaceSurface {
             }
         })
         .detach();
+        // `useDesktopUpdates`: General shows the update service's state.
+        if let Some(updates) = crate::features::updates::global(cx) {
+            cx.observe(&updates, |_, _, cx| cx.notify()).detach();
+        }
         let spaces = crate::features::cloud::global_spaces(cx);
         cx.observe(&spaces, |s, _, cx| s.follow_space(cx)).detach();
         let space_page = super::main::SpacePage::new(window, cx);

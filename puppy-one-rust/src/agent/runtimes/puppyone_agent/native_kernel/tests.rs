@@ -30,11 +30,8 @@ fn connection(generation: &str) -> ModelConnection {
         name: "Local".into(),
         endpoint: "http://localhost:11434/v1".into(),
         model: "qwen3".into(),
-        images: false,
-        authenticated: false,
-        credential_id: None,
         generation: generation.into(),
-        managed: false,
+        ..Default::default()
     }
 }
 
@@ -438,11 +435,9 @@ fn the_catalog_groups_compute_models_and_a_changed_connection_revokes_its_lease(
         name: "PuppyOne".into(),
         endpoint: "https://api.example/ai".into(),
         model: model.into(),
-        images: false,
-        authenticated: false,
-        credential_id: None,
         generation: "managed-1".into(),
         managed: true,
+        ..Default::default()
     };
     let catalog = connection_catalog(&[connection("g1"), compute("a/one"), compute("b/two")]);
     assert_eq!(catalog["connections"].as_array().unwrap().len(), 2);

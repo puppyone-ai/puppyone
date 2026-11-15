@@ -16,6 +16,8 @@ fn theme(id: &str, modes: Vec<Mode>, targets: Vec<Target>) -> Theme {
             vec![("--po-accent".into(), "#123456".into())],
             vec![("--po-accent".into(), "#abcdef".into())],
         ]),
+        markdown: None,
+        csv: None,
     }
 }
 

@@ -60,6 +60,9 @@ pub struct Theme {
     /// `[light, dark]` (dark also carries the shared rules). Conditional
     /// (`@media`, `@supports`) rules are not evaluated natively.
     pub application: Option<[Vec<(String, String)>; 2]>,
+    /// The Markdown and CSV targets' declarations, the same way.
+    pub markdown: Option<[Vec<(String, String)>; 2]>,
+    pub csv: Option<[Vec<(String, String)>; 2]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -464,7 +467,26 @@ fn compile_target(
     Ok(compiled.blocks)
 }
 
-/// The Application declarations per mode, in cascade order.
+/// The declarations a theme's targets compiled to.
+#[derive(Default)]
+struct Targets {
+    application: Option<[Vec<(String, String)>; 2]>,
+    markdown: Option<[Vec<(String, String)>; 2]>,
+    csv: Option<[Vec<(String, String)>; 2]>,
+}
+impl Targets {
+    fn keep(&mut self, target: Target, blocks: &[compiler::Block]) {
+        let slot = match target {
+            Target::Application => &mut self.application,
+            Target::Markdown => &mut self.markdown,
+            Target::Csv => &mut self.csv,
+            Target::Typography => return,
+        };
+        *slot = Some(application(blocks));
+    }
+}
+
+/// A target's declarations per mode, in cascade order.
 fn application(blocks: &[compiler::Block]) -> [Vec<(String, String)>; 2] {
     let mut light = Vec::new();
     let mut dark = Vec::new();
@@ -504,12 +526,23 @@ fn load_standalone(
     source: Source,
 ) -> Result<Theme, String> {
     let text = read_bounded(&root.join(filename), MAX_CSS_BYTES, "Theme CSS")?;
+    from_text(&text, root, filename, require_metadata, source)
+}
+
+fn from_text(
+    text: &str,
+    root: &Path,
+    filename: &str,
+    require_metadata: bool,
+    source: Source,
+) -> Result<Theme, String> {
+    let text = text.to_owned();
     let mut budget = Budget::default();
     if let Some(single) = contract::parse_single_file(&text, filename)? {
         let manifest = single.manifest;
         reserved(&manifest.id)?;
         budget.reserve_css(&text)?;
-        let mut application_blocks = None;
+        let mut targets = Targets::default();
         for (target, nodes) in single.stylesheets {
             let blocks = compile_target(
                 nodes,
@@ -520,9 +553,7 @@ fn load_standalone(
                 &mut budget,
                 0,
             )?;
-            if target == Target::Application {
-                application_blocks = Some(application(&blocks));
-            }
+            targets.keep(target, &blocks);
         }
         return Ok(Theme {
             id: manifest.id,
@@ -533,7 +564,9 @@ fn load_standalone(
             targets: manifest.targets,
             compatible_root_theme_ids: manifest.compatible_root_theme_ids,
             source,
-            application: application_blocks,
+            application: targets.application,
+            markdown: targets.markdown,
+            csv: targets.csv,
         });
     }
     if require_metadata {
@@ -546,7 +579,7 @@ fn load_standalone(
     budget.reserve_css(&text)?;
     let nodes =
         css::parse(&text, filename).map_err(|e| format!("Theme CSS could not be parsed: {e}"))?;
-    compile_target(
+    let markdown = compile_target(
         nodes,
         filename,
         root,
@@ -565,6 +598,8 @@ fn load_standalone(
         compatible_root_theme_ids: vec!["default".into()],
         source: Source::LocalCss,
         application: None,
+        markdown: Some(application(&markdown)),
+        csv: None,
     })
 }
 
@@ -576,7 +611,7 @@ fn load_package(package: &Path) -> Result<Theme, String> {
     let manifest = contract::parse_manifest(&value)?;
     reserved(&manifest.id)?;
     let mut budget = Budget::default();
-    let mut application_blocks = None;
+    let mut targets = Targets::default();
     for (target, entrypoint) in &manifest.entrypoints {
         let (path, relative) = resolve_package_file(package, ".", entrypoint)?;
         let text = read_bounded(&path, MAX_CSS_BYTES, "Theme CSS")?;
@@ -592,9 +627,7 @@ fn load_package(package: &Path) -> Result<Theme, String> {
             &mut budget,
             text.len(),
         )?;
-        if *target == Target::Application {
-            application_blocks = Some(application(&blocks));
-        }
+        targets.keep(*target, &blocks);
     }
     Ok(Theme {
         id: manifest.id,
@@ -605,7 +638,9 @@ fn load_package(package: &Path) -> Result<Theme, String> {
         targets: manifest.targets,
         compatible_root_theme_ids: manifest.compatible_root_theme_ids,
         source: Source::LocalPackage,
-        application: application_blocks,
+        application: targets.application,
+        markdown: targets.markdown,
+        csv: targets.csv,
     })
 }
 

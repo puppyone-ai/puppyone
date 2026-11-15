@@ -318,6 +318,7 @@ impl CsvEditor {
             color: t.text_muted,
             tabular: false,
             line_height: LineHeight::Factor(1.2),
+            face: Default::default(),
         };
         let source_style = TextStyle {
             size: 11.,
@@ -327,6 +328,7 @@ impl CsvEditor {
             color: app.text,
             tabular: false,
             line_height: LineHeight::Factor(1.35),
+            face: Default::default(),
         };
         let text = |style: &TextStyle| {
             let mut d = div().whitespace_nowrap().overflow_hidden().text_ellipsis();

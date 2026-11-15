@@ -2,7 +2,7 @@
 //! `.cm-line` gaps in markdown-content.css).
 use crate::editor::{
     tokens::Tokens,
-    view::style::{LineHeight, TextStyle},
+    view::style::{Face, LineHeight, TextStyle},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -28,6 +28,7 @@ impl BodyStyle {
                 color: t.color("--po-md-content-color"),
                 tabular: false,
                 line_height: LineHeight::Factor(t.number("--po-md-content-line-height")),
+                face: Face::of(t.raw("--po-md-content-font")),
             },
             source_line_gap: len("--po-md-source-line-gap"),
             paragraph_gap_before: len("--po-md-paragraph-gap-before"),

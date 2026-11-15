@@ -7,29 +7,70 @@ pub struct CellPoint {
     pub row: u16,
     pub col: u16,
 }
+/// A cell's place in the whole output: its row counted from the first row
+/// the main screen ever showed (`Screen::scrolled_rows`), so it stays put
+/// while output scrolls and while the view scrolls back (xterm's buffer
+/// coordinates).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Place {
+    pub line: i64,
+    pub col: u16,
+}
+impl Place {
+    pub fn of(screen: &Screen, point: CellPoint) -> Self {
+        Self {
+            line: top_line(screen) + i64::from(point.row),
+            col: point.col,
+        }
+    }
+}
+/// The place of the view's first row.
+fn top_line(screen: &Screen) -> i64 {
+    screen.scrolled_rows() as i64 - screen.scrollback() as i64
+}
+/// Where `line` shows in the view, if it does.
+fn visible_row(screen: &Screen, line: i64) -> Option<u16> {
+    let row = line - top_line(screen);
+    (0..i64::from(screen.size().0))
+        .contains(&row)
+        .then_some(row as u16)
+}
+
+/// A selection between two places; it keeps them while the view or the
+/// output scrolls, and may run through the scrollback.
 #[derive(Clone, Copy, Debug)]
 pub struct Selection {
-    pub anchor: CellPoint,
-    pub head: CellPoint,
+    pub anchor: Place,
+    pub head: Place,
 }
 impl Selection {
-    pub fn range(self, screen: &Screen) -> (CellPoint, CellPoint) {
+    /// From `anchor` to `head` as the view shows them now.
+    pub fn at(screen: &Screen, anchor: CellPoint, head: CellPoint) -> Self {
+        Self {
+            anchor: Place::of(screen, anchor),
+            head: Place::of(screen, head),
+        }
+    }
+    /// The ordered ends, widened over a wide character the view shows at
+    /// either end.
+    pub fn range(self, screen: &Screen) -> (Place, Place) {
         let (mut start, mut end) = if self.anchor <= self.head {
             (self.anchor, self.head)
         } else {
             (self.head, self.anchor)
         };
         if start != end {
-            if screen
-                .cell(start.row, start.col)
-                .is_some_and(|c| c.is_wide_continuation())
-            {
+            let continuation = |p: Place| {
+                visible_row(screen, p.line).is_some_and(|row| {
+                    screen
+                        .cell(row, p.col)
+                        .is_some_and(|c| c.is_wide_continuation())
+                })
+            };
+            if continuation(start) {
                 start.col = start.col.saturating_sub(1);
             }
-            if screen
-                .cell(end.row, end.col)
-                .is_some_and(|c| c.is_wide_continuation())
-            {
+            if continuation(end) {
                 end.col += 1;
             }
         }
@@ -37,12 +78,42 @@ impl Selection {
     }
     pub fn contains(self, screen: &Screen, row: u16, col: u16) -> bool {
         let (start, end) = self.range(screen);
-        let p = CellPoint { row, col };
+        let p = Place::of(screen, CellPoint { row, col });
         start <= p && p < end
     }
-    pub fn text(self, screen: &Screen) -> String {
-        let (start, end) = self.range(screen);
-        screen.contents_between(start.row, start.col, end.row, end.col)
+    /// The selected text, the scrollback's part included (what is left of
+    /// it). The view's scroll position is kept.
+    pub fn text(self, parser: &mut vt100::Parser) -> String {
+        let (start, end) = self.range(parser.screen());
+        let at = parser.screen().scrollback();
+        let scrolled = parser.screen().scrolled_rows() as i64;
+        let cols = parser.screen().size().1;
+        let mut text = String::new();
+        for line in start.line..=end.line {
+            // The scrollback offset that shows `line` first (the live
+            // screen's lines show at offset 0).
+            parser.set_scrollback((scrolled - line).max(0) as usize);
+            let screen = parser.screen();
+            let Some(row) = visible_row(screen, line) else {
+                // Dropped from the scrollback.
+                continue;
+            };
+            let from = if line == start.line { start.col } else { 0 };
+            let to = if line == end.line { end.col } else { cols };
+            if from < to {
+                text.push_str(
+                    &screen
+                        .rows(from, to - from)
+                        .nth(usize::from(row))
+                        .unwrap_or_default(),
+                );
+            }
+            if line < end.line && !screen.row_wrapped(row) {
+                text.push('\n');
+            }
+        }
+        parser.set_scrollback(at);
+        text
     }
     pub fn word(screen: &Screen, mut point: CellPoint) -> Self {
         let (_, cols) = screen.size();
@@ -67,16 +138,23 @@ impl Selection {
         while end < cols && whitespace(end) == class {
             end += 1;
         }
-        Self {
-            anchor: CellPoint {
+        Self::at(
+            screen,
+            CellPoint {
                 row: point.row,
                 col: start,
             },
-            head: CellPoint {
+            CellPoint {
                 row: point.row,
                 col: end,
             },
-        }
+        )
+    }
+    /// Whether any of it is still in the output (`history` rows of
+    /// scrollback are kept).
+    pub fn alive(self, screen: &Screen, history: usize) -> bool {
+        let (_, end) = self.range(screen);
+        end.line >= screen.scrolled_rows() as i64 - history as i64
     }
 }
 
@@ -254,9 +332,64 @@ impl Link {
     }
 }
 
+/// `linkHandler` with `allowNonHttpProtocols: false`: an http(s) URL with a
+/// host and no credentials.
+fn web_url(candidate: &str) -> bool {
+    reqwest::Url::parse(candidate).is_ok_and(|url| {
+        matches!(url.scheme(), "http" | "https")
+            && url.host_str().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+    })
+}
+
+/// The OSC 8 hyperlink under a cell, when it points at the web: the run of
+/// cells written under it around the point.
+fn hyperlink_at(screen: &Screen, point: CellPoint) -> Option<Link> {
+    let (_, cols) = screen.size();
+    let id = |p: CellPoint| screen.cell(p.row, p.col).map_or(0, |c| c.hyperlink_id());
+    let target = id(point);
+    if target == 0 {
+        return None;
+    }
+    let url = screen.hyperlink(point.row, point.col)?;
+    if !web_url(url) {
+        return None;
+    }
+    let step = |p: CellPoint, forward: bool| -> Option<CellPoint> {
+        let index = u32::from(p.row) * u32::from(cols) + u32::from(p.col);
+        let next = if forward {
+            index + 1
+        } else {
+            index.checked_sub(1)?
+        };
+        let p = CellPoint {
+            row: u16::try_from(next / u32::from(cols)).ok()?,
+            col: (next % u32::from(cols)) as u16,
+        };
+        (id(p) == target).then_some(p)
+    };
+    let (mut start, mut end) = (point, point);
+    while let Some(p) = step(start, false) {
+        start = p;
+    }
+    while let Some(p) = step(end, true) {
+        end = p;
+    }
+    Some(Link {
+        url: url.to_owned(),
+        start,
+        end,
+    })
+}
+
 /// The http(s) link under a cell: activated by the user only, never by
-/// output, and never a local file.
+/// output, and never a local file. An OSC 8 hyperlink comes first; plain
+/// text that reads as a URL (`WebLinksAddon`) otherwise.
 pub fn link_at(screen: &Screen, point: CellPoint) -> Option<Link> {
+    if let Some(link) = hyperlink_at(screen, point) {
+        return Some(link);
+    }
     let (rows, cols) = screen.size();
     let mut start = point.row;
     while start > 0 && screen.row_wrapped(start - 1) {
@@ -309,12 +442,7 @@ pub fn link_at(screen: &Screen, point: CellPoint) -> Option<Link> {
             candidate.pop();
         }
     }
-    let url = reqwest::Url::parse(&candidate).ok()?;
-    if !(matches!(url.scheme(), "http" | "https")
-        && url.host_str().is_some()
-        && url.username().is_empty()
-        && url.password().is_none())
-    {
+    if !web_url(&candidate) {
         return None;
     }
     let cell_of = |byte: usize| {
@@ -398,14 +526,53 @@ mod tests {
     fn selection_preserves_wide_characters_reverse_drag_and_soft_wrap() {
         let mut parser = vt100::Parser::new(4, 8, 10);
         parser.process("abc你好XYZ\r\nnext".as_bytes());
-        let selection = Selection {
-            anchor: CellPoint { row: 1, col: 2 },
-            head: CellPoint { row: 0, col: 4 },
-        };
-        assert_eq!(selection.text(parser.screen()), "你好XYZ");
+        let selection = Selection::at(
+            parser.screen(),
+            CellPoint { row: 1, col: 2 },
+            CellPoint { row: 0, col: 4 },
+        );
+        assert_eq!(selection.text(&mut parser), "你好XYZ");
         assert!(selection.contains(parser.screen(), 0, 3));
         let word = Selection::word(parser.screen(), CellPoint { row: 0, col: 4 });
-        assert_eq!(word.text(parser.screen()), "abc你好X");
+        assert_eq!(word.text(&mut parser), "abc你好X");
+    }
+    #[test]
+    fn a_selection_keeps_its_text_as_output_and_the_view_scroll() {
+        let mut parser = vt100::Parser::new(3, 10, 100);
+        parser.process(b"one\r\ntwo\r\nthree");
+        // "two" to "three"; three more lines push them into the scrollback.
+        let selection = Selection::at(
+            parser.screen(),
+            CellPoint { row: 1, col: 0 },
+            CellPoint { row: 2, col: 5 },
+        );
+        parser.process(b"\r\nfour\r\nfive\r\nsix");
+        assert_eq!(selection.text(&mut parser), "two\nthree");
+        assert_eq!(parser.screen().scrollback(), 0, "the view stays live");
+        assert!(!selection.contains(parser.screen(), 0, 0));
+        // Scrolled back, the view shows it where it now is.
+        parser.set_scrollback(3);
+        assert!(selection.contains(parser.screen(), 1, 0));
+        assert!(selection.contains(parser.screen(), 2, 4));
+        assert!(!selection.contains(parser.screen(), 0, 0));
+        // Begun in the scrollback, a selection runs on into the live screen.
+        let anchor = Place::of(parser.screen(), CellPoint { row: 2, col: 0 });
+        parser.set_scrollback(0);
+        let head = Place::of(parser.screen(), CellPoint { row: 2, col: 3 });
+        let across = Selection { anchor, head };
+        assert_eq!(across.text(&mut parser), "three\nfour\nfive\nsix");
+        assert!(across.alive(parser.screen(), 3));
+        // Once its rows leave the scrollback, nothing of it is left.
+        let mut small = vt100::Parser::new(2, 10, 1);
+        small.process(b"a\r\nb");
+        let gone = Selection::at(
+            small.screen(),
+            CellPoint { row: 0, col: 0 },
+            CellPoint { row: 0, col: 1 },
+        );
+        small.process(b"\r\nc\r\nd\r\ne");
+        assert!(!gone.alive(small.screen(), 1));
+        assert_eq!(gone.text(&mut small), "");
     }
     #[test]
     fn negotiated_mouse_modes_encode_release_modifiers_and_large_coordinates() {
@@ -469,6 +636,26 @@ mod tests {
             .is_ok()
         );
     }
+    #[test]
+    fn osc8_hyperlinks_open_their_web_targets_only() {
+        let mut parser = vt100::Parser::new(4, 20, 0);
+        parser.process(
+            b"go \x1b]8;id=1;https://example.com/a;b\x1b\\\x1b[1mhere\x1b[0m\x1b]8;;\x1b\\ x\r\n\
+              \x1b]8;;file:///etc/passwd\x07local\x1b]8;;\x07",
+        );
+        let screen = parser.screen();
+        let link = link_at(screen, CellPoint { row: 0, col: 4 }).unwrap();
+        assert_eq!(link.url, "https://example.com/a;b");
+        assert_eq!(
+            (link.start, link.end),
+            (CellPoint { row: 0, col: 3 }, CellPoint { row: 0, col: 6 })
+        );
+        // The SGR reset inside the link kept it open; the space after it
+        // is plain text.
+        assert!(link_at(screen, CellPoint { row: 0, col: 7 }).is_none());
+        assert!(link_at(screen, CellPoint { row: 1, col: 1 }).is_none());
+    }
+
     #[test]
     fn only_explicit_web_urls_are_detected_across_wrapped_rows() {
         let mut parser = vt100::Parser::new(6, 20, 0);

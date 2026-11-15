@@ -524,6 +524,7 @@ impl Explorer {
                         cx.emit(ExplorerEvent::Rename {
                             path: path.clone(),
                             change_type: false,
+                            folder,
                         })
                     }))),
             ));
@@ -538,6 +539,7 @@ impl Explorer {
                         cx.emit(ExplorerEvent::Rename {
                             path: path.clone(),
                             change_type: true,
+                            folder: false,
                         })
                     }))),
             ));

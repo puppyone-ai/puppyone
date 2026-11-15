@@ -150,6 +150,7 @@ impl EditorElement {
             scale: window.scale_factor(),
             keys: Default::default(),
             text_end: (1, 0.),
+            rooms: Vec::new(),
             window,
             app: cx,
         };
@@ -566,6 +567,7 @@ impl Element for EditorElement {
             return;
         };
         let surface = view.decorations.surface.clone();
+        let underlines = view.decorations.underlines.clone();
         let selection = view.state.selection;
         let composition = view.composition_range();
         let clause = view.composition_clause();
@@ -596,6 +598,19 @@ impl Element for EditorElement {
             if clause.is_none() {
                 for b in layout.line_break_boxes(selection.as_range(), space) {
                     window.paint_quad(fill(b, color));
+                }
+            }
+            // Decoration underlines on every row their text covers: the
+            // baseline sits about 0.35em below the row's middle.
+            for u in &underlines {
+                for b in layout.range_boxes(u.range.clone()) {
+                    let y = b.top() + b.size.height / 2. + px(0.35 * u.size + 2.);
+                    let mut x = b.left();
+                    while x < b.right() {
+                        let w = px(u.dash).min(b.right() - x);
+                        window.paint_quad(fill(Bounds::new(point(x, y), size(w, px(1.))), u.color));
+                        x += px(u.dash + u.gap);
+                    }
                 }
             }
             // Marked text: a thin underline on every row it covers; the

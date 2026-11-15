@@ -264,6 +264,7 @@ mod tests {
                     channel: build_identity::Channel::Stable,
                     version: "0.4.0".into(),
                     packaged: true,
+                    ..build_identity::current()
                 },
                 platform: "darwin".into(),
                 architecture: "arm64".into(),

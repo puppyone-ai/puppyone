@@ -34,7 +34,7 @@ mod view;
 mod workbench;
 
 use activity::TerminalActivity;
-use interaction::{CellPoint, Link, MouseAction, MouseModifiers, Selection};
+use interaction::{CellPoint, Link, MouseAction, MouseModifiers, Place, Selection};
 use model::*;
 pub use model::{SessionStatus, path_label};
 use paint::*;

@@ -4,9 +4,11 @@
 //! that opens a tag a later HTML block closes, across Markdown between
 //! them, is one flow as GitHub reads it (`createMarkdownCrossingBlock`):
 //! the Markdown inside renders too, so `<details>` holds Markdown. Blocks
-//! a browser would repair, comments and declarations stay source.
+//! a browser would repair, comments and declarations stay source. A block
+//! that is only an `https:` `<iframe>` is a web embed (`embed`).
 pub mod dom;
-mod render;
+mod embed;
+pub(crate) mod render;
 mod widget;
 
 use crate::editor::{
@@ -37,6 +39,8 @@ pub struct HtmlBlock {
     pub range: Range<usize>,
     /// The HTML the surface renders.
     pub html: String,
+    /// The page a lone `<iframe>` asks for.
+    pub embed: Option<String>,
 }
 
 /// Reveal the block's source (the toolbar toggle).
@@ -56,6 +60,15 @@ fn markdown_html(source: &str) -> String {
     out
 }
 
+/// Markdown as the surface's nodes (`renderMarkdownInlineFromSharedPolicy`:
+/// a tab's or a cell's Markdown, HTML in it as authored).
+pub(crate) fn markdown_nodes(source: &str) -> Vec<dom::Node> {
+    match dom::parse(&markdown_html(source)) {
+        dom::Parsed::Complete(nodes) => nodes,
+        _ => Vec::new(),
+    }
+}
+
 /// The HTML blocks of the document as the surface shows them.
 fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
     let doc = cx.doc;
@@ -70,10 +83,20 @@ fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
     let mut i = 0;
     while i < spans.len() {
         let range = lines(&spans[i]);
+        if let Some(href) = embed::external_href(doc.slice(range.clone())) {
+            out.push(HtmlBlock {
+                html: String::new(),
+                range,
+                embed: Some(href),
+            });
+            i += 1;
+            continue;
+        }
         match dom::parse(doc.slice(range.clone())) {
             dom::Parsed::Complete(_) => out.push(HtmlBlock {
                 html: doc.slice(range.clone()).to_owned(),
                 range,
+                embed: None,
             }),
             dom::Parsed::Incomplete(open) => {
                 // The balancing sibling, once Markdown has been crossed.
@@ -92,7 +115,11 @@ fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
                         let flow = range.start..next.end;
                         let html = markdown_html(doc.slice(flow.clone()));
                         if crossed && matches!(dom::parse(&html), dom::Parsed::Complete(_)) {
-                            out.push(HtmlBlock { range: flow, html });
+                            out.push(HtmlBlock {
+                                range: flow,
+                                html,
+                                embed: None,
+                            });
                             i = j;
                         }
                         break;
@@ -128,12 +155,17 @@ impl MarkdownFeature for HtmlFeature {
         cx: &WidgetFactoryCx,
     ) -> Option<Rc<dyn BlockWidget>> {
         let block = embed.model::<HtmlBlock>()?;
-        let dom::Parsed::Complete(nodes) = dom::parse(&block.html) else {
-            return None;
+        let nodes = match &block.embed {
+            Some(_) => Vec::new(),
+            None => match dom::parse(&block.html) {
+                dom::Parsed::Complete(nodes) => nodes,
+                _ => return None,
+            },
         };
         Some(Rc::new(HtmlBlockWidget {
             range: block.range.clone(),
             nodes,
+            embed: block.embed.clone(),
             theme: cx.theme.clone(),
             assets: cx.assets.cloned(),
         }))
@@ -187,5 +219,23 @@ mod tests {
             found[1].html
         );
         assert!(doc.slice(found[1].range.clone()).ends_with("</details>"));
+    }
+
+    #[test]
+    fn a_lone_iframe_block_is_a_web_embed() {
+        let text = "<iframe src=\"https://example.com/v\"></iframe>\n\n<div><iframe src=\"https://example.com/v\"></iframe></div>\n";
+        let doc = Buffer::new(text);
+        let syntax = Syntax::parse(&doc);
+        let folds = Default::default();
+        let found = blocks(&CompileCx {
+            doc: &doc,
+            syntax: &syntax,
+            folds: &folds,
+        });
+        assert_eq!(
+            found.first().and_then(|b| b.embed.as_deref()),
+            Some("https://example.com/v")
+        );
+        assert!(found.iter().skip(1).all(|b| b.embed.is_none()));
     }
 }

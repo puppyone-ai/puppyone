@@ -1,4 +1,5 @@
 pub mod agent_presence;
+pub mod build_info;
 pub mod cloud;
 pub mod create_new;
 pub mod desktop_agent;
@@ -14,5 +15,6 @@ pub mod source_control;
 pub mod sub_theme_catalog;
 pub mod telemetry;
 pub mod terminal;
+pub mod updates;
 
 pub mod workbench;

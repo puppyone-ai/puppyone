@@ -140,7 +140,7 @@ fn native_pointer_selection_copy_and_shift_override(cx: &mut TestAppContext) {
     cx.simulate_mouse_move(start, MouseButton::Left, shift);
     cx.simulate_mouse_up(start, MouseButton::Left, shift);
     view.update(cx, |s, _| {
-        assert_eq!(s.selection.unwrap().text(s.parser.screen()), "hello");
+        assert_eq!(s.selection.unwrap().text(&mut s.parser), "hello");
         assert_eq!(s.mouse_button, None);
         assert!(!s.selecting);
         assert!(

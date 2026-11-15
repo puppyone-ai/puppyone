@@ -1,16 +1,16 @@
 //! Port of `model-connections/ModelConnectionsSettings.tsx` (list → detail →
-//! add/edit) on the native configuration client. Storage and Keychain access
-//! stay behind `infrastructure`; API keys are taken from the clipboard and are
-//! never rendered.
-use super::infrastructure::{self as client, ModelConnection};
+//! add/edit with `ModelConnectionSetup.tsx`) on the native configuration
+//! client. Storage and Keychain access stay behind `infrastructure`; an API
+//! key is typed into a password field, sent once and never rendered.
+use super::infrastructure::{self as client, Auth, Driver, ModelConnection, SourceKind};
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
     ui::{
         appearance::ActiveAppearance,
         components::{
-            Button, ButtonVariant, Icon, MutedRow, SettingRow, SettingsCategory,
-            SettingsCategoryList, SettingsSection, Switch, ValueRow, tooltip,
+            Button, ButtonVariant, Icon, MutedRow, Select, SelectOption, SettingsCategory,
+            SettingsCategoryList, SettingsSection, ValueRow, native_checkbox, tooltip,
         },
         form_input::TextInput,
     },
@@ -22,40 +22,25 @@ use gpui_kit::{
     component::Sizable as _,
 };
 pub struct Saved;
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum SourceKind {
-    Api,
-    Local,
-}
-impl SourceKind {
-    fn of(endpoint: &str) -> Self {
-        let host = endpoint
-            .split("://")
-            .nth(1)
-            .unwrap_or(endpoint)
-            .split(['/', ':'])
-            .next()
-            .unwrap_or_default()
-            .to_lowercase();
-        if host == "localhost" || host.starts_with("127.") || host == "[" || host == "0.0.0.0" {
-            Self::Local
-        } else {
-            Self::Api
-        }
-    }
-    fn key(self) -> &'static str {
-        match self {
-            Self::Api => "api",
-            Self::Local => "local",
-        }
-    }
-}
 #[derive(Clone, PartialEq)]
 enum PageState {
     List,
     Detail(String),
     Edit(String),
-    Add(SourceKind),
+    /// A new connection of a category, from a discovered service or not.
+    Add(SourceKind, Option<client::Candidate>),
+}
+/// The `ModelConnectionSetup` form's state.
+struct Form {
+    /// The connection being edited, as saved.
+    editing: Option<ModelConnection>,
+    source: SourceKind,
+    driver: Driver,
+    auth: Auth,
+    server_tools_disabled: bool,
+    /// The `<details>` disclosures: Advanced settings and Key storage.
+    advanced: bool,
+    key_storage: bool,
 }
 pub struct ModelConnections {
     items: Vec<ModelConnection>,
@@ -64,12 +49,14 @@ pub struct ModelConnections {
     id: String,
     name: Entity<TextInput>,
     endpoint: Entity<TextInput>,
-    model: Entity<TextInput>,
-    images: bool,
-    authenticated: bool,
+    /// Write-only: cleared on save and cancel.
+    key: Entity<TextInput>,
+    manual_model: Entity<TextInput>,
+    default_model: Entity<TextInput>,
+    context: Entity<TextInput>,
+    form: Form,
     generation: String,
     confirm_remove: bool,
-    secret: Option<String>,
     error: Option<String>,
     busy: bool,
     rx: std::sync::mpsc::Receiver<Result<Vec<ModelConnection>, String>>,
@@ -104,12 +91,21 @@ impl ModelConnections {
             id: uuid::Uuid::new_v4().to_string(),
             name: cx.new(|cx| TextInput::new("", false, 120, window, cx)),
             endpoint: cx.new(|cx| TextInput::new("https://…", false, 2048, window, cx)),
-            model: cx.new(|cx| TextInput::new("", false, 300, window, cx)),
-            images: false,
-            authenticated: false,
+            key: cx.new(|cx| TextInput::new("", false, 8192, window, cx).masked(window, cx)),
+            manual_model: cx.new(|cx| TextInput::new("", false, 300, window, cx)),
+            default_model: cx.new(|cx| TextInput::new("", false, 300, window, cx)),
+            context: cx.new(|cx| TextInput::new("", false, 8, window, cx)),
+            form: Form {
+                editing: None,
+                source: SourceKind::Api,
+                driver: Driver::OpenaiCompatible,
+                auth: Auth::Bearer,
+                server_tools_disabled: false,
+                advanced: false,
+                key_storage: false,
+            },
             generation: String::new(),
             confirm_remove: false,
-            secret: None,
             error: None,
             busy: true,
             rx: result,
@@ -151,12 +147,17 @@ impl ModelConnections {
         self.loaded = true;
         match result {
             Ok(items) => {
-                let saved_form = matches!(self.page, PageState::Edit(_) | PageState::Add(_));
                 self.items = items;
                 self.error = None;
-                self.secret = None;
-                if saved_form && self.items.iter().any(|c| c.id == self.id) {
-                    self.page = PageState::Detail(self.id.clone());
+                // A saved form returns where it was opened from; an edited
+                // connection's catalog is read again.
+                match self.page.clone() {
+                    PageState::Edit(id) => {
+                        self.page = PageState::Detail(id.clone());
+                        self.read_catalog(id);
+                    }
+                    PageState::Add(..) => self.page = PageState::List,
+                    _ => {}
                 }
                 if let PageState::Detail(id) = &self.page
                     && !self.items.iter().any(|c| &c.id == id)
@@ -178,38 +179,109 @@ impl ModelConnections {
         match &page {
             PageState::Edit(id) => {
                 let c = self.items.iter().find(|c| &c.id == id).cloned();
-                self.load_form(c, cx)
+                let source = c.as_ref().map(|c| c.source_kind).unwrap_or_default();
+                self.load_form(c, source, None, cx)
             }
-            PageState::Add(_) => self.load_form(None, cx),
+            PageState::Add(source, candidate) => {
+                self.load_form(None, *source, candidate.clone(), cx)
+            }
             PageState::Detail(id) => self.read_catalog(id.clone()),
             _ => {}
         }
         self.page = page;
         cx.notify();
     }
-    fn load_form(&mut self, c: Option<ModelConnection>, cx: &mut Context<Self>) {
+    /// `initialConnectionFields`: the connection's fields, else the
+    /// discovered service's, else its category's default service.
+    fn load_form(
+        &mut self,
+        c: Option<ModelConnection>,
+        source: SourceKind,
+        candidate: Option<client::Candidate>,
+        cx: &mut Context<Self>,
+    ) {
+        let driver = c
+            .as_ref()
+            .map(|c| c.driver)
+            .or(candidate.as_ref().map(|c| c.driver))
+            .unwrap_or(match source {
+                SourceKind::Api => Driver::OpenaiCompatible,
+                SourceKind::Local => Driver::Ollama,
+            });
+        let (name, endpoint) = driver.defaults();
         self.id = c
             .as_ref()
             .map(|c| c.id.clone())
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        self.images = c.as_ref().is_some_and(|c| c.images);
-        self.authenticated = c.as_ref().is_some_and(|c| c.authenticated);
-        self.secret = None;
         self.generation = c.as_ref().map(|c| c.generation.clone()).unwrap_or_default();
         let fields = [
             (
                 &self.name,
-                c.as_ref().map(|c| c.name.clone()).unwrap_or_default(),
+                c.as_ref()
+                    .map(|c| c.name.clone())
+                    .or(candidate.as_ref().map(|c| c.name.into()))
+                    .unwrap_or(name.into()),
             ),
             (
                 &self.endpoint,
-                c.as_ref().map(|c| c.endpoint.clone()).unwrap_or_default(),
+                c.as_ref()
+                    .map(|c| c.endpoint.clone())
+                    .or(candidate.as_ref().map(|c| c.endpoint.into()))
+                    .unwrap_or(endpoint.into()),
             ),
-            (&self.model, c.map(|c| c.model).unwrap_or_default()),
+            (&self.key, String::new()),
+            (
+                &self.manual_model,
+                c.as_ref()
+                    .and_then(|c| c.manual_model_id.clone())
+                    .unwrap_or_default(),
+            ),
+            (
+                &self.default_model,
+                c.as_ref()
+                    .and_then(|c| c.default_model_id.clone())
+                    .unwrap_or_default(),
+            ),
+            (
+                &self.context,
+                c.as_ref()
+                    .and_then(|c| c.manual_context_window)
+                    .unwrap_or(4096)
+                    .to_string(),
+            ),
         ];
         for (input, text) in fields {
             input.update(cx, |i, cx| i.set_text(text, cx));
         }
+        self.form = Form {
+            auth: c.as_ref().map(|c| c.auth).unwrap_or(driver.default_auth()),
+            server_tools_disabled: c.as_ref().is_some_and(|c| c.server_tools_disabled),
+            editing: c,
+            source,
+            driver,
+            advanced: false,
+            key_storage: false,
+        };
+    }
+    /// `selectDriver`: a service starts from its name, URL and
+    /// authentication, without a key.
+    fn select_driver(&mut self, driver: Driver, cx: &mut Context<Self>) {
+        let (name, endpoint) = driver.defaults();
+        self.name.update(cx, |i, cx| i.set_text(name, cx));
+        self.endpoint.update(cx, |i, cx| i.set_text(endpoint, cx));
+        self.key.update(cx, |i, cx| i.clear(cx));
+        self.form.driver = driver;
+        self.form.auth = driver.default_auth();
+        self.form.server_tools_disabled = false;
+        cx.notify();
+    }
+    /// `keyRequired`: a saved key does not follow the connection to another
+    /// endpoint or authentication method.
+    fn key_required(&self, cx: &App) -> bool {
+        self.form.editing.as_ref().is_some_and(|c| {
+            c.credential_id.is_some()
+                && (self.endpoint.read(cx).text() != c.endpoint || self.form.auth != c.auth)
+        })
     }
     fn reload(&mut self, cx: &mut Context<Self>) {
         if !self.busy {
@@ -218,29 +290,47 @@ impl ModelConnections {
             cx.notify();
         }
     }
+    /// The form's `onSubmit`: the key travels with this one request and the
+    /// field is cleared at once.
     fn save(&mut self, cx: &mut Context<Self>) {
         if self.busy {
             return;
         }
-        let connection = ModelConnection {
+        let text = |input: &Entity<TextInput>| input.read(cx).text().to_owned();
+        let optional = |input: &Entity<TextInput>| Some(text(input)).filter(|t| !t.is_empty());
+        let key = optional(&self.key).filter(|_| self.form.auth == Auth::Bearer);
+        let context = optional(&self.context);
+        let mut connection = ModelConnection {
             id: self.id.clone(),
-            name: self.name.read(cx).text().into(),
-            endpoint: self.endpoint.read(cx).text().into(),
-            model: self.model.read(cx).text().into(),
-            images: self.images,
-            authenticated: self.authenticated || self.secret.is_some(),
-            credential_id: None,
+            name: text(&self.name),
+            endpoint: text(&self.endpoint),
+            source_kind: self.form.source,
+            driver: self.form.driver,
+            auth: self.form.auth,
             generation: self.generation.clone(),
-            managed: false,
+            default_model_id: optional(&self.default_model),
+            manual_model_id: optional(&self.manual_model),
+            server_tools_disabled: self.form.server_tools_disabled,
+            ..Default::default()
         };
-        self.rx = client::save(connection, self.secret.take(), self.wake.clone());
+        self.key.update(cx, |i, cx| i.clear(cx));
+        if let Some(context) = context {
+            let Ok(context) = context.trim().parse() else {
+                self.error = Some("INVALID_CONTEXT".into());
+                cx.notify();
+                return;
+            };
+            connection.manual_context_window = Some(context);
+        }
+        self.error = None;
+        self.rx = client::save(connection, key, self.wake.clone());
         self.busy = true;
         cx.notify();
     }
     fn title(&self) -> String {
         match &self.page {
             PageState::Edit(_) => tr("settings.modelConnections.edit").into(),
-            PageState::Add(_) => tr("settings.modelConnections.add").into(),
+            PageState::Add(..) => tr("settings.modelConnections.add").into(),
             PageState::Detail(id) => self
                 .items
                 .iter()
@@ -320,7 +410,7 @@ impl ModelConnections {
             for (index, item) in self
                 .items
                 .iter()
-                .filter(|c| SourceKind::of(&c.endpoint) == kind)
+                .filter(|c| c.source_kind == kind)
                 .enumerate()
             {
                 let id = item.id.clone();
@@ -351,11 +441,10 @@ impl ModelConnections {
                                 .max_w(relative(0.32))
                                 .text_size(px(m.ui.caption))
                                 .text_color(t.muted)
-                                .child(tr(if item.model.is_empty() {
-                                    "settings.modelConnections.status.unread"
-                                } else {
-                                    "settings.modelConnections.status.ready"
-                                })),
+                                .child(tr(&format!(
+                                    "settings.modelConnections.status.{}",
+                                    self.catalog_key(&item.id)
+                                ))),
                         )
                         .child(Icon::new("chevron-right").small().stroke(2.).color(t.muted))
                         .on_click(cx.listener(move |s, _, _, cx| {
@@ -397,10 +486,13 @@ impl ModelConnections {
                                     .label(tr("settings.modelConnections.connect"))
                                     .disabled(self.busy)
                                     .on_click(cx.listener(move |s, _, _, cx| {
-                                        s.navigate(PageState::Add(SourceKind::Local), cx);
-                                        s.name.update(cx, |i, cx| i.set_text(candidate.name, cx));
-                                        s.endpoint
-                                            .update(cx, |i, cx| i.set_text(candidate.endpoint, cx));
+                                        s.navigate(
+                                            PageState::Add(
+                                                SourceKind::Local,
+                                                Some(candidate.clone()),
+                                            ),
+                                            cx,
+                                        )
                                     })),
                             )
                             .into_any_element(),
@@ -440,7 +532,9 @@ impl ModelConnections {
                     "settings.modelConnections.add.{}",
                     kind.key()
                 ))))
-                .on_click(cx.listener(move |s, _, _, cx| s.navigate(PageState::Add(kind), cx))),
+                .on_click(
+                    cx.listener(move |s, _, _, cx| s.navigate(PageState::Add(kind, None), cx)),
+                ),
             );
             categories.push(
                 SettingsCategory::new(tr(&format!(
@@ -471,20 +565,20 @@ impl ModelConnections {
             self.catalog_rx = Some(client::catalog(connection, self.wake.clone()));
         }
     }
-    /// The models to list: the service catalog when it was read, else the
-    /// configured model so it can still be verified.
+    /// The models of the connection's catalog, once read.
     fn listed_models(&self, item: &ModelConnection) -> Vec<client::CatalogModel> {
         match &self.catalog {
-            Some((id, Ok(models))) if *id == item.id && !models.is_empty() => models.clone(),
-            _ if item.model.is_empty() => vec![],
-            _ => vec![client::CatalogModel {
-                id: item.model.clone(),
-                name: item.model.clone(),
-                loaded: None,
-                tools: None,
-                images: None,
-                context: None,
-            }],
+            Some((id, Ok(models))) if *id == item.id => models.clone(),
+            _ => vec![],
+        }
+    }
+    /// `catalog?.status ?? "unread"` of connection `id`.
+    fn catalog_key(&self, id: &str) -> &'static str {
+        match &self.catalog {
+            Some((shown, _)) if shown == id && self.catalog_rx.is_some() => "refreshing",
+            Some((shown, Ok(_))) if shown == id => "ready",
+            Some((shown, Err(_))) if shown == id => "failed",
+            _ => "unread",
         }
     }
     /// `catalog.status` of the shown connection, when not ready.
@@ -567,7 +661,13 @@ impl ModelConnections {
                     } else {
                         "settings.modelConnections.verify"
                     }))
-                    .disabled(self.busy || self.verify_rx.is_some())
+                    // `findModel`: a known window, and Unsloth's own tools off.
+                    .disabled(
+                        self.busy
+                            || self.verify_rx.is_some()
+                            || model.context.is_none()
+                            || (item.driver == Driver::Unsloth && !item.server_tools_disabled),
+                    )
                     .on_click(cx.listener(move |s, _, _, cx| {
                         if s.verify_rx.is_none() {
                             s.verify_rx = Some((
@@ -584,7 +684,7 @@ impl ModelConnections {
         let Some(item) = self.items.iter().find(|c| c.id == id).cloned() else {
             return div();
         };
-        let kind = SourceKind::of(&item.endpoint);
+        let kind = item.source_kind;
         let edit_id = item.id.clone();
         let edit = Button::new("edit-connection")
             .label(tr("settings.modelConnections.edit"))
@@ -708,7 +808,7 @@ impl ModelConnections {
                     .child(
                         ValueRow::new(
                             tr("settings.modelConnections.apiKey"),
-                            tr(if item.authenticated {
+                            tr(if item.credential_id.is_some() {
                                 "settings.modelConnections.keyConfigured"
                             } else {
                                 "settings.modelConnections.noKey"
@@ -732,128 +832,285 @@ impl ModelConnections {
             .children(verify)
             .child(remove)
     }
-    fn form(&self, t: Theme, cx: &mut Context<Self>) -> Div {
-        let field = |label: &'static str, input: AnyElement| {
-            v_flex()
-                .gap(px(6.))
-                .px(px(10.))
-                .child(
-                    div()
-                        .text_size(px(theme::ty().ui.meta))
-                        .text_color(t.subtle)
-                        .child(tr(label)),
-                )
-                .child(input)
+    /// `ModelConnectionSetup` (`.model-connection-setup`): fields on a
+    /// `minmax(120px, .7fr) minmax(0, 1fr)` grid (one column at 800px and
+    /// under), the Advanced settings disclosure, then the actions.
+    fn form(&self, narrow: bool, t: Theme, cx: &mut Context<Self>) -> Div {
+        let m = theme::ty();
+        let busy = self.busy;
+        let form = &self.form;
+        let track = |grow: f32| {
+            let mut d = div().flex_basis(px(0.));
+            d.style().flex_grow = Some(grow);
+            d
         };
-        let key_status = if self.secret.is_some() || self.authenticated {
-            tr("settings.modelConnections.keyConfigured")
-        } else {
-            tr("settings.modelConnections.noKey")
+        // One grid row: the label cell and the control cell.
+        let row = |label: Option<AnyElement>, control: Option<AnyElement>| -> AnyElement {
+            if narrow {
+                v_flex()
+                    .gap(px(6.))
+                    .children(label)
+                    .children(control)
+                    .into_any_element()
+            } else {
+                h_flex()
+                    .items_center()
+                    .gap(px(18.))
+                    .child(track(0.7).min_w(px(120.)).children(label))
+                    .child(track(1.).min_w_0().children(control))
+                    .into_any_element()
+            }
         };
-        let paste_label = tf("workspace.node.pasteItems", &[("count", 0usize.into())]);
-        let key_row = h_flex()
-            .gap(px(8.))
-            .px(px(10.))
-            .child(
-                div()
-                    .flex_1()
-                    .text_size(px(theme::ty().ui.label))
-                    .text_color(t.text)
-                    .child(key_status),
-            )
-            .child(
-                Button::new("paste-key")
-                    .icon("clipboard-paste")
-                    .label(paste_label)
-                    .tooltip(tr("settings.modelConnections.keyHelp"))
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.secret = cx.read_from_clipboard().and_then(|c| c.text());
-                        cx.notify();
-                    })),
-            )
-            .child(
-                Button::new("no-key")
-                    .label(tr("settings.modelConnections.noKey"))
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.authenticated = false;
-                        s.secret = None;
-                        cx.notify();
-                    })),
-            );
-        let images = self.images;
+        let label = |key: &str| {
+            div()
+                .text_size(px(m.ui.label))
+                .line_height(px(m.ui.label * 1.45))
+                .text_color(t.subtle)
+                .child(tr(key))
+                .into_any_element()
+        };
+        // `.model-connection-field small`.
+        let small = |key: &str| {
+            div()
+                .text_size(px(m.ui.caption))
+                .line_height(px(m.ui.caption * 1.5))
+                .text_color(t.subtle)
+                .child(tr(key))
+                .into_any_element()
+        };
+        let field = |rows: Vec<AnyElement>| v_flex().gap(px(6.)).children(rows).into_any_element();
+        let fields = |items: Vec<AnyElement>| v_flex().gap(px(16.)).children(items);
+        // `.desktop-settings-text-input` at `width: 100%`.
+        let input = |entity: &Entity<TextInput>, cx: &mut Context<Self>| {
+            entity.update(cx, |i, _| {
+                i.appearance = false;
+                i.prompt_text = Some((m.ui.meta, 17.));
+                i.placeholder_color = Some(|t| t.subtle);
+                i.min_height = 17.;
+            });
+            div()
+                .w_full()
+                .h(px(theme::control_compact()))
+                .px(px(5.))
+                .flex()
+                .items_center()
+                .border_1()
+                .border_color(t.divider)
+                .rounded(px(6.))
+                .bg(t.input)
+                .when(busy, |d| d.opacity(0.62))
+                .child(div().w_full().child(entity.clone()))
+                .into_any_element()
+        };
+        // A `<details>` summary: the disclosure triangle and its text.
+        let summary = |id: &'static str, key: &str, open: bool, color: Rgba| {
+            h_flex()
+                .id(id)
+                .gap(px(4.))
+                .text_size(px(m.ui.label))
+                .line_height(px(m.ui.label * 1.45))
+                .text_color(color)
+                .cursor(theme::clickable_cursor())
+                .child(if open { "▾" } else { "▸" })
+                .child(tr(key))
+        };
         let host = cx.weak_entity();
-        v_flex()
-            .gap(px(14.))
-            .child(field(
-                "settings.modelConnections.name",
-                self.name.clone().into_any_element(),
-            ))
-            .child(field(
-                "settings.modelConnections.url",
-                self.endpoint.clone().into_any_element(),
-            ))
-            .child(field(
-                if self.authenticated {
+        let mut basic: Vec<AnyElement> = vec![];
+        if form.source == SourceKind::Local {
+            let (current, host) = (form.driver, host.clone());
+            let select = Select::new("model-connection-driver", current.defaults().0, move |_| {
+                Driver::ALL
+                    .into_iter()
+                    .map(|driver| {
+                        let host = host.clone();
+                        SelectOption::new(driver.defaults().0)
+                            .selected(driver == current)
+                            .on_select(move |_, cx| {
+                                let _ = host.update(cx, |s, cx| s.select_driver(driver, cx));
+                            })
+                    })
+                    .collect()
+            })
+            .full_width()
+            .disabled(busy);
+            basic.push(field(vec![row(
+                Some(label("settings.modelConnections.service")),
+                Some(select.into_any_element()),
+            )]));
+        }
+        basic.push(field(vec![row(
+            Some(label("settings.modelConnections.name")),
+            Some(input(&self.name, cx)),
+        )]));
+        basic.push(field(vec![row(
+            Some(label("settings.modelConnections.url")),
+            Some(input(&self.endpoint, cx)),
+        )]));
+        if form.auth == Auth::Bearer {
+            let configured = form
+                .editing
+                .as_ref()
+                .is_some_and(|c| c.credential_id.is_some());
+            let mut rows = vec![row(
+                Some(label(if configured {
                     "settings.modelConnections.replaceKey"
                 } else {
                     "settings.modelConnections.apiKey"
-                },
-                key_row.into_any_element(),
-            ))
-            .child(
-                div()
-                    .px(px(10.))
-                    .text_size(px(theme::ty().ui.caption))
+                })),
+                Some(input(&self.key, cx)),
+            )];
+            if self.key_required(cx) {
+                rows.push(row(
+                    None,
+                    Some(small("settings.modelConnections.keyRequired")),
+                ));
+            }
+            let open = form.key_storage;
+            let details = v_flex()
+                .child(
+                    summary(
+                        "model-connection-key-storage",
+                        "settings.modelConnections.keyStorage",
+                        open,
+                        t.text,
+                    )
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        s.form.key_storage = !s.form.key_storage;
+                        cx.notify();
+                    })),
+                )
+                .when(open, |d| {
+                    d.child(small("settings.modelConnections.keyHelp"))
+                });
+            rows.push(row(Some(details.into_any_element()), None));
+            basic.push(field(rows));
+        }
+        if form.driver == Driver::Unsloth {
+            let on = form.server_tools_disabled;
+            basic.push(
+                h_flex()
+                    .id("model-connection-unsloth-tools")
+                    .items_start()
+                    .gap(px(8.))
+                    .text_size(px(m.ui.label))
+                    .line_height(px(m.ui.label * 1.45))
                     .text_color(t.subtle)
-                    .child(tr("settings.modelConnections.keyHelp")),
-            )
-            .child(
-                v_flex()
-                    .gap(px(10.))
+                    .when(!busy, |d| d.cursor(theme::clickable_cursor()))
+                    // The box's default margins: 3px 3px 3px 4px.
                     .child(
                         div()
-                            .px(px(10.))
-                            .text_size(px(theme::ty().ui.meta))
-                            .text_color(t.muted)
-                            .child(tr("settings.modelConnections.advanced")),
+                            .my(px(3.))
+                            .ml(px(4.))
+                            .mr(px(3.))
+                            .child(native_checkbox(on, false, cx)),
                     )
-                    .child(field(
-                        "settings.modelConnections.defaultModel",
-                        self.model.clone().into_any_element(),
-                    ))
                     .child(
-                        SettingRow::new(tr("settings.modelConnections.advertised")).control(
-                            Switch::new("model-images", tr("settings.modelConnections.advertised"))
-                                .checked(images)
-                                .on_change(move |on, _, cx| {
+                        div()
+                            .min_w_0()
+                            .child(tr("settings.modelConnections.unslothTools")),
+                    )
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        if !s.busy {
+                            s.form.server_tools_disabled = !on;
+                            cx.notify();
+                        }
+                    }))
+                    .into_any_element(),
+            );
+        }
+        let advanced_open = form.advanced;
+        let mut advanced = v_flex()
+            .pt(px(16.))
+            .border_t_1()
+            .border_color(t.border_subtle)
+            .child(
+                summary(
+                    "model-connection-advanced",
+                    "settings.modelConnections.advanced",
+                    advanced_open,
+                    t.muted,
+                )
+                .when(advanced_open, |d| d.mb(px(16.)))
+                .on_click(cx.listener(|s, _, _, cx| {
+                    s.form.advanced = !s.form.advanced;
+                    cx.notify();
+                })),
+            );
+        if advanced_open {
+            let (current, host) = (form.auth, host.clone());
+            let auth = Select::new(
+                "model-connection-auth",
+                tr(auth_label(current)),
+                move |_| {
+                    [Auth::None, Auth::Bearer]
+                        .into_iter()
+                        .map(|auth| {
+                            let host = host.clone();
+                            SelectOption::new(tr(auth_label(auth)))
+                                .selected(auth == current)
+                                .on_select(move |_, cx| {
                                     let _ = host.update(cx, |s, cx| {
-                                        s.images = on;
-                                        cx.notify()
+                                        s.form.auth = auth;
+                                        s.key.update(cx, |i, cx| i.clear(cx));
+                                        cx.notify();
                                     });
-                                }),
-                        ),
-                    ),
+                                })
+                        })
+                        .collect()
+                },
             )
+            .full_width()
+            .disabled(busy);
+            advanced = advanced.child(fields(vec![
+                field(vec![row(
+                    Some(label("settings.modelConnections.authentication")),
+                    Some(auth.into_any_element()),
+                )]),
+                field(vec![row(
+                    Some(label("settings.modelConnections.manualModel")),
+                    Some(input(&self.manual_model, cx)),
+                )]),
+                field(vec![row(
+                    Some(label("settings.modelConnections.defaultModel")),
+                    Some(input(&self.default_model, cx)),
+                )]),
+                field(vec![
+                    row(
+                        Some(label("settings.modelConnections.context")),
+                        Some(input(&self.context, cx)),
+                    ),
+                    row(None, Some(small("settings.modelConnections.contextHelp"))),
+                ]),
+            ]));
+        }
+        v_flex()
+            .px(px(10.))
+            .min_w_0()
+            .gap(px(20.))
+            .child(fields(basic))
+            .child(advanced)
             .child(
                 h_flex()
-                    .gap(px(6.))
-                    .px(px(10.))
+                    .justify_end()
+                    .flex_wrap()
+                    .gap(px(8.))
                     .child(
                         Button::new("save-connection")
                             .variant(ButtonVariant::OutlinePrimary)
-                            .label(tr(if self.busy {
+                            .label(tr(if busy {
                                 "settings.modelConnections.saving"
                             } else {
                                 "settings.modelConnections.save"
                             }))
-                            .disabled(self.busy)
+                            .disabled(busy)
                             .on_click(cx.listener(|s, _, _, cx| s.save(cx))),
                     )
                     .child(
                         Button::new("cancel-connection")
                             .label(tr("common.action.cancel"))
+                            .disabled(busy)
                             .on_click(cx.listener(|s, _, _, cx| {
-                                s.secret = None;
+                                s.key.update(cx, |i, cx| i.clear(cx));
                                 let back = match &s.page {
                                     PageState::Edit(id) => PageState::Detail(id.clone()),
                                     _ => PageState::List,
@@ -864,8 +1121,15 @@ impl ModelConnections {
             )
     }
 }
+/// The Authentication option labels.
+fn auth_label(auth: Auth) -> &'static str {
+    match auth {
+        Auth::None => "settings.modelConnections.noKey",
+        Auth::Bearer => "settings.modelConnections.apiKey",
+    }
+}
 impl Render for ModelConnections {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
         let back = match &self.page {
             PageState::List => None,
@@ -899,8 +1163,101 @@ impl Render for ModelConnections {
         let content = match self.page.clone() {
             PageState::List => self.list(t, cx).into_any_element(),
             PageState::Detail(id) => self.detail(&id, t, cx).into_any_element(),
-            PageState::Edit(_) | PageState::Add(_) => self.form(t, cx).into_any_element(),
+            PageState::Edit(_) | PageState::Add(..) => self
+                .form(window.viewport_size().width <= px(800.), t, cx)
+                .into_any_element(),
         };
         view.child(content)
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    use gpui::{TestAppContext, VisualTestContext};
+
+    /// The page with no connections read and nothing pending.
+    fn page(cx: &mut TestAppContext) -> (Entity<ModelConnections>, &mut VisualTestContext) {
+        cx.update(gpui_kit::init);
+        let (view, cx) = cx.add_window_view(ModelConnections::new);
+        view.update(cx, |s, _| {
+            s.rx = std::sync::mpsc::sync_channel(1).1;
+            s.busy = false;
+            s.loaded = true;
+        });
+        (view, cx)
+    }
+
+    /// `modelConnectionsSettings.test.tsx`: "starts an API connection with
+    /// URL and write-only Key" and the local service defaults.
+    #[gpui::test]
+    fn a_new_connection_starts_from_its_category_and_service(cx: &mut TestAppContext) {
+        let (view, cx) = page(cx);
+        view.update(cx, |s, cx| {
+            s.navigate(PageState::Add(SourceKind::Api, None), cx);
+            assert_eq!(
+                (s.form.driver, s.form.auth),
+                (Driver::OpenaiCompatible, Auth::Bearer)
+            );
+            assert_eq!(s.endpoint.read(cx).text(), "");
+            assert!(!s.form.advanced && !s.form.key_storage);
+            s.navigate(PageState::Add(SourceKind::Local, None), cx);
+            assert_eq!((s.form.driver, s.form.auth), (Driver::Ollama, Auth::None));
+            assert_eq!(s.endpoint.read(cx).text(), "http://127.0.0.1:11434/v1");
+            assert_eq!(s.context.read(cx).text(), "4096");
+            s.key.update(cx, |i, cx| i.set_text("typed-key", cx));
+            s.select_driver(Driver::Unsloth, cx);
+            assert_eq!(s.form.auth, Auth::Bearer);
+            assert_eq!(
+                (s.name.read(cx).text(), s.endpoint.read(cx).text()),
+                ("Unsloth", "http://127.0.0.1:8000/v1")
+            );
+            assert_eq!(s.key.read(cx).text(), "");
+            s.form.advanced = true;
+            s.form.key_storage = true;
+        });
+        cx.run_until_parked();
+        let candidate = client::Candidate {
+            driver: Driver::LmStudio,
+            name: "LM Studio",
+            endpoint: "http://127.0.0.1:1234/v1",
+        };
+        view.update(cx, |s, cx| {
+            s.navigate(PageState::Add(SourceKind::Local, Some(candidate)), cx);
+            assert_eq!((s.form.driver, s.form.auth), (Driver::LmStudio, Auth::None));
+            assert_eq!(s.name.read(cx).text(), "LM Studio");
+        });
+    }
+
+    /// "preserves the saved Key on edit": the key field starts empty, and a
+    /// new endpoint or authentication asks for the key again.
+    #[gpui::test]
+    fn an_edit_keeps_the_saved_key_until_its_endpoint_changes(cx: &mut TestAppContext) {
+        let (view, cx) = page(cx);
+        let id = uuid::Uuid::new_v4().to_string();
+        view.update(cx, |s, cx| {
+            s.items = vec![ModelConnection {
+                id: id.clone(),
+                name: "Work API".into(),
+                endpoint: "https://example.test/v1".into(),
+                auth: Auth::Bearer,
+                credential_id: Some("stored".into()),
+                generation: "g1".into(),
+                manual_context_window: Some(8192),
+                ..Default::default()
+            }];
+            s.navigate(PageState::Edit(id.clone()), cx);
+            assert_eq!(s.key.read(cx).text(), "");
+            assert_eq!(s.context.read(cx).text(), "8192");
+            assert!(!s.key_required(cx));
+            s.endpoint
+                .update(cx, |i, cx| i.set_text("https://other.test/v1", cx));
+            assert!(s.key_required(cx));
+            s.endpoint
+                .update(cx, |i, cx| i.set_text("https://example.test/v1", cx));
+            s.form.auth = Auth::None;
+            assert!(s.key_required(cx));
+        });
+        cx.run_until_parked();
     }
 }

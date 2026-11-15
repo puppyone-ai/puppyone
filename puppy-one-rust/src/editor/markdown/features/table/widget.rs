@@ -19,7 +19,7 @@ use super::{
 use crate::editor::{
     markdown::shared::ring,
     table::{
-        controls::{self, GripHandlers},
+        controls::{self, GripHandlers, ResizeHandlers},
         interaction::{self as gestures, Tracks},
         menu::Scope,
         operation::{Axis, Operation},
@@ -99,16 +99,20 @@ fn text_align(a: Alignment) -> TextAlign {
 }
 
 impl TableWidget {
-    /// Rails, grips, menu, indicator and outline over the table `block`.
-    fn controls(&self, block: Div, geometry: Geometry, cx: &mut WidgetCx) -> AnyElement {
+    /// Rails, grips, the resize rail, menu, indicator and outline over the
+    /// table `block`, whose column tracks are `widths` (`natural`: each
+    /// column's auto-fit width).
+    fn controls(
+        &self,
+        block: Div,
+        geometry: Geometry,
+        ui: Entity<TableUi>,
+        widths: Rc<Vec<f32>>,
+        natural: Rc<dyn Fn(usize) -> f32>,
+        cx: &mut WidgetCx,
+    ) -> AnyElement {
         let style = self.style.editable.clone();
         let table_start = self.table.range.start;
-        let ui = cx
-            .render
-            .window
-            .use_keyed_state(cx.id("md-table-ui"), cx.render.app, |_, _| {
-                TableUi::default()
-            });
         let frame = Frame {
             geometry: geometry.clone(),
             table: table_start,
@@ -121,6 +125,11 @@ impl TableWidget {
         let state = ui.read(cx.render.app);
         let (hover, drag, outline_target) =
             (state.gestures.hover, state.gestures.drag, state.outline());
+        let resizing = state.gestures.resizing;
+        let rail_column = resizing
+            .map(|r| r.column)
+            .or(state.gestures.resize_hover)
+            .filter(|_| drag.is_none());
         let menu = state
             .menu
             .as_ref()
@@ -275,6 +284,33 @@ impl TableWidget {
                 handlers,
             ));
         }
+        // The resize rail on the hovered column's end edge
+        // (`.cm-md-table-column-resize-handle`); a double-click auto-fits.
+        let rail = rail_column.filter(|c| *c < columns).map(|column| {
+            let (left, width) = geometry.columns[column];
+            let (press, fit) = (ui.clone(), ui.clone());
+            let (press_widths, fit_widths) = (widths.clone(), widths.clone());
+            let natural = natural.clone();
+            controls::resize_rail(
+                &style,
+                SharedString::from(format!("{id}-resize")),
+                left + width - 0.5,
+                t.origin.y,
+                t.size.height,
+                resizing.is_some(),
+                ResizeHandlers {
+                    press: Rc::new(move |x, _, cx| {
+                        press.update(cx, |u, cx| u.start_resize(column, x, &press_widths, cx))
+                    }),
+                    auto_fit: Rc::new(move |_, cx| {
+                        fit.update(cx, |u, cx| {
+                            u.set_width(column, natural(column), &fit_widths);
+                            cx.notify();
+                        })
+                    }),
+                },
+            )
+        });
         // The drop indicator and the structural selection perimeter.
         let draws: Vec<Draw> = drag
             .and_then(|d| d.indicator(&geometry, &style))
@@ -286,11 +322,33 @@ impl TableWidget {
             .collect();
         // The block origin in window coordinates, and pointer capture while a
         // grip is held (`setPointerCapture`).
-        let (origin_ui, capture) = (ui.clone(), ui.clone());
+        let (origin_ui, capture, resize) = (ui.clone(), ui.clone(), ui.clone());
         let held = drag.map(|d| (d.axis, d.source));
         let measure = canvas(
             move |bounds, _, cx| origin_ui.update(cx, |u, _| u.origin = Some(bounds.origin)),
             move |_, _, window, _| {
+                // The rail holds the pointer while a column is resized.
+                if resizing.is_some() {
+                    let (moving, release, escape) = (resize.clone(), resize.clone(), resize);
+                    let (up_widths, escape_widths) = (widths.clone(), widths);
+                    window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
+                        if phase == DispatchPhase::Capture {
+                            moving.update(cx, |u, cx| u.resize_to(f32::from(e.position.x), cx));
+                        }
+                    });
+                    window.on_mouse_event(move |e: &MouseUpEvent, phase, _, cx| {
+                        if phase == DispatchPhase::Capture && e.button == MouseButton::Left {
+                            cx.stop_propagation();
+                            release.update(cx, |u, cx| u.end_resize(false, &up_widths, cx));
+                        }
+                    });
+                    window.on_key_event(move |e: &KeyDownEvent, phase, _, cx| {
+                        if phase == DispatchPhase::Capture && e.keystroke.key == "escape" {
+                            cx.stop_propagation();
+                            escape.update(cx, |u, cx| u.end_resize(true, &escape_widths, cx));
+                        }
+                    });
+                }
                 let Some((axis, source)) = held else { return };
                 let (moving, release, escape) = (capture.clone(), capture.clone(), capture.clone());
                 window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
@@ -336,7 +394,11 @@ impl TableWidget {
             .children(rails)
             .child(layer(draws))
             .children(grips)
+            .children(rail)
             .when(dragging, |d| d.cursor(CursorStyle::ClosedHand))
+            .when(resizing.is_some(), |d| {
+                d.cursor(CursorStyle::ResizeLeftRight)
+            })
             .children(overlay)
             .into_any_element()
     }
@@ -346,12 +408,27 @@ impl BlockWidget for TableWidget {
     fn render(&self, cx: &mut WidgetCx) -> (AnyElement, f32) {
         let (top, width) = (cx.top, cx.width);
         let m = &self.style.clone();
-        let widths = layout::column_widths(
-            &self.table,
-            width,
-            m.size,
-            m.cell_padding.left + m.cell_padding.right + 1.,
-        );
+        let inset = m.cell_padding.left + m.cell_padding.right + 1.;
+        let automatic = layout::column_widths(&self.table, width, m.size, inset);
+        // Explicit tracks (for the table's current columns), the held one
+        // following the rail.
+        let ui = cx
+            .render
+            .window
+            .use_keyed_state(cx.id("md-table-ui"), cx.render.app, |_, _| {
+                TableUi::default()
+            });
+        let state = ui.read(cx.render.app);
+        let mut widths = state
+            .widths
+            .clone()
+            .filter(|w| w.len() == automatic.len())
+            .unwrap_or(automatic);
+        if let (Some(resizing), Some(live)) = (state.gestures.resizing, state.live)
+            && let Some(track) = widths.get_mut(resizing.column)
+        {
+            *track = live;
+        }
         let columns = widths.len();
         // `border: 1px` around a `border-collapse: separate` grid whose cells
         // draw right / bottom borders except on the last column / row.
@@ -494,7 +571,10 @@ impl BlockWidget for TableWidget {
         let element = if cx.state.read_only {
             block.into_any_element()
         } else {
-            self.controls(block, geometry, cx)
+            let (table, font) = (self.table.clone(), m.size);
+            let natural =
+                Rc::new(move |column| layout::natural_width(&table, column, width, font, inset));
+            self.controls(block, geometry, ui, Rc::new(widths), natural, cx)
         };
         (element.into_any_element(), height)
     }

@@ -3,7 +3,7 @@
 use crate::editor::{
     table::style::EditableTableStyle,
     tokens::Tokens,
-    view::style::{Edges, LineHeight, TextStyle},
+    view::style::{Edges, Face, LineHeight, TextStyle},
 };
 use gpui::Rgba;
 
@@ -18,6 +18,8 @@ pub struct TableStyle {
     /// `--po-md-table-font-size` / `-line-height`.
     pub size: f32,
     pub line_height: f32,
+    /// `--po-md-table-font`.
+    pub face: Face,
     /// `--po-md-table-background` / `-header-background`.
     pub background: Rgba,
     pub header_background: Rgba,
@@ -52,6 +54,7 @@ impl TableStyle {
             header_weight: t.number("--po-md-table-header-weight"),
             size: table,
             line_height: t.number("--po-md-table-line-height"),
+            face: Face::of(t.raw("--po-md-table-font")),
             background: t.color("--po-md-table-background"),
             header_background: t.color("--po-md-table-header-background"),
             border: t.color("--po-md-table-border"),
@@ -79,6 +82,7 @@ impl TableStyle {
             color: self.body_color,
             tabular: false,
             line_height: LineHeight::Factor(self.line_height),
+            face: self.face,
         };
         if header {
             TextStyle {

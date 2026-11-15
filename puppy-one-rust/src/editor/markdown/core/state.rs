@@ -24,9 +24,13 @@ pub struct PreviewState {
     /// The callout title line holding the caret: its marker shows as source.
     pub callout_title: Option<usize>,
     pub callout_folds: CalloutFolds,
+    /// Diagrams' zoom and deferred renders started here.
+    pub diagrams: DiagramViews,
     /// `markdownRevealedSourceField` (block presentation): a rich block a
     /// widget asked to show as source, while the caret stays inside it.
     pub revealed_source: Option<Range<usize>>,
+    /// MDX tabs shown, by block start (the first until another is chosen).
+    pub tabs: std::collections::BTreeMap<usize, usize>,
 }
 
 /// `calloutFoldField`: foldable callouts folded or opened in this pane, by
@@ -50,6 +54,42 @@ impl CalloutFolds {
     pub fn set(&mut self, at: usize, folded: bool) {
         self.0.retain(|(a, _)| *a != at);
         self.0.push((at, folded));
+    }
+
+    fn map(&mut self, changes: &ChangeSet) {
+        for (at, _) in &mut self.0 {
+            *at = changes.map(*at, Assoc::Before);
+        }
+    }
+}
+
+/// A diagram's view state in this pane, by its block's start
+/// (`createMermaidViewportController`'s zoom, the deferred placeholder's
+/// Render): view state, never written to the document.
+#[derive(Clone, Debug, Default, PartialEq, Hash)]
+pub struct DiagramViews(Vec<(usize, DiagramView)>);
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct DiagramView {
+    /// The zoom chosen here, in percent; `None` keeps the fitted default.
+    pub zoom: Option<u16>,
+    /// A deferred diagram the person asked to render.
+    pub activated: bool,
+}
+
+impl DiagramViews {
+    pub fn get(&self, at: usize) -> DiagramView {
+        self.0
+            .iter()
+            .find(|(a, _)| *a == at)
+            .map(|(_, v)| *v)
+            .unwrap_or_default()
+    }
+
+    pub fn update(&mut self, at: usize, change: impl FnOnce(&mut DiagramView)) {
+        let mut view = self.get(at);
+        change(&mut view);
+        self.0.retain(|(a, _)| *a != at);
+        self.0.push((at, view));
     }
 
     fn map(&mut self, changes: &ChangeSet) {
@@ -218,6 +258,7 @@ impl PreviewState {
         read_only: bool,
     ) {
         self.callout_folds.map(&applied.changes);
+        self.diagrams.map(&applied.changes);
         self.revealed_source = self.revealed_source.as_ref().map(|r| {
             applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After)
         });

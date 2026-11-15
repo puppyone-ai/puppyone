@@ -5,8 +5,8 @@
 //! there, History, an Agent invitation, and the project removed at the end.
 //! The v0.4.4 space flows follow (AC-1): the default space, its members
 //! and access, Plan (catalog, summary, usage and a quote — nothing is paid:
-//! a checkout stops at its URL), and Create space with an invitation, both
-//! taken back at the end. Run explicitly:
+//! a checkout stops at its URL), and Create space with an invitation and a
+//! project opened and saved in it, all taken back at the end. Run explicitly:
 //!
 //! ```text
 //! cargo test -p po-workspace --features test-support -- workspace::acceptance --ignored --nocapture
@@ -184,6 +184,30 @@ fn raw(broker: &Broker, binding: &Binding, method: reqwest::Method, path: String
     }
 }
 
+/// Deletes a space the run made. A project removed from it holds the
+/// deletion back (409) until its Cloud cleanup is verified, which the
+/// server does no sooner than an hour later (the deletion job's
+/// `quiescence_seconds`, `PROJECT_DELETION_QUIESCENCE_SECONDS`), so it is
+/// retried for 80 minutes.
+fn remove_space(broker: &Broker, binding: &Binding, id: &str) {
+    let deadline = Instant::now() + std::time::Duration::from_secs(80 * 60);
+    loop {
+        let removed = raw(
+            broker,
+            binding,
+            reqwest::Method::DELETE,
+            format!("/organizations/{id}"),
+        );
+        eprintln!("[spaces] removing space {id}: {removed}");
+        // An unknown outcome (the connection dropped) is asked again too.
+        let pending = removed.contains("Http(409)") || removed.contains("OutcomeUnknown");
+        if !pending || Instant::now() > deadline {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(60));
+    }
+}
+
 #[test]
 #[ignore = "real Cloud acceptance; run explicitly"]
 fn the_v044_space_flows_work_against_the_real_deployment() {
@@ -279,6 +303,46 @@ fn the_v044_space_flows_work_against_the_real_deployment() {
             "6 invited {alias}; link returned: {}",
             link.is_some()
         ));
+        // A project in the new space: made once, opened, a file saved, and
+        // removed before the space is.
+        let project = client
+            .create_project(&name, &made.id, &uuid::Uuid::new_v4().to_string())
+            .unwrap();
+        step(&format!("6 created project {} in the space", project.id));
+        let cancel = Cancellation::default();
+        let opened = opening::prepare(
+            broker.clone(),
+            binding.clone(),
+            Target::ProjectRoot {
+                project_id: project.id.clone(),
+            },
+            &cancel,
+            false,
+            |phase: Phase| eprintln!("[spaces]   phase {phase:?}"),
+        );
+        let saved = opened
+            .map_err(|f| format!("{} ({:?})", f.code, f.recovery))
+            .and_then(|prepared| {
+                let (workspace, _) = prepared.into_parts().map_err(|e| format!("{e:?}"))?;
+                let created = workspace
+                    .create_entry(Path::new(""), "team.md", false, "")
+                    .map_err(|e| format!("{e:?}"))?;
+                let document = workspace.read(&created).map_err(|e| format!("{e:?}"))?;
+                workspace
+                    .save(&document, "# Saved in a team space\n")
+                    .map_err(|e| format!("{e:?}"))?;
+                workspace
+                    .read(&created)
+                    .map(|d| d.text)
+                    .map_err(|e| format!("{e:?}"))
+            });
+        let removed = client.delete_project(&project.id);
+        step(&format!(
+            "6 opened and saved: {saved:?}; project removed: {}",
+            removed.is_ok()
+        ));
+        assert_eq!(saved.as_deref(), Ok("# Saved in a team space\n"));
+        assert!(removed.is_ok(), "the project made is removed");
         // A quote for the Team plan — nothing is bought.
         if let Some(team) = catalog
             .plans
@@ -352,13 +416,7 @@ fn the_v044_space_flows_work_against_the_real_deployment() {
         );
         eprintln!("[spaces] revoked invitation {invitation}: {revoked}");
     }
-    let removed = raw(
-        &broker,
-        &binding,
-        reqwest::Method::DELETE,
-        format!("/organizations/{}", made.id),
-    );
-    eprintln!("[spaces] removed space {}: {removed}", made.id);
+    remove_space(&broker, &binding, &made.id);
     let gone = spaces::discover(&client)
         .unwrap()
         .iter()
@@ -368,4 +426,15 @@ fn the_v044_space_flows_work_against_the_real_deployment() {
         std::panic::resume_unwind(panic);
     }
     assert!(gone, "the space made is removed");
+}
+
+/// Spaces an interrupted run left behind (`ACCEPT_SPACE`, comma
+/// separated), removed.
+#[test]
+#[ignore = "real Cloud cleanup; run explicitly"]
+fn a_space_a_run_left_behind_is_removed() {
+    let (broker, binding, _) = signed_in();
+    for id in std::env::var("ACCEPT_SPACE").unwrap().split(',') {
+        remove_space(&broker, &binding, id.trim());
+    }
 }

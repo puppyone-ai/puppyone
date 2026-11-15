@@ -26,15 +26,14 @@ pub(crate) struct ComputeSnapshot {
     pub managed: Option<ManagedCompute>,
 }
 
-fn local_endpoint(endpoint: &str) -> bool {
-    reqwest::Url::parse(endpoint)
-        .is_ok_and(|url| matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")))
-}
-
 /// Reads the connections (blocking: the configuration file and PuppyOne
 /// compute's cached catalog).
 pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {
-    let mut connections = configuration::load().unwrap_or_default();
+    let mut connections: Vec<configuration::ModelConnection> = configuration::load()
+        .unwrap_or_default()
+        .iter()
+        .flat_map(configuration::ModelConnection::members)
+        .collect();
     let account = super::host::agent_host_global::CloudCompute;
     let managed = configuration::managed(&account);
     let signed_in = account.current().is_some();
@@ -47,10 +46,8 @@ pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {
             .map(|c| {
                 let kind = if c.managed {
                     "managed"
-                } else if local_endpoint(&c.endpoint) {
-                    "local"
                 } else {
-                    "api"
+                    c.source_kind.key()
                 };
                 (product_connection_id(&c.id), kind)
             })

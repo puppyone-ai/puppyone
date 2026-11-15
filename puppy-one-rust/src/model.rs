@@ -4,7 +4,7 @@
 //! `shared-ui/data/explorer/explorerVisibleModel.ts`.
 use serde::Deserialize;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -234,13 +234,18 @@ impl Tree {
                 .iter()
                 .map(|n| crate::file_kind::display_name(&n.name, n.folder))
                 .collect();
-            for (n, (display, extension)) in visible.iter().zip(&names) {
-                let key = display.trim().to_lowercase();
-                let shared = names
-                    .iter()
-                    .filter(|(d, _)| d.trim().to_lowercase() == key)
-                    .count()
-                    > 1;
+            // Siblings sharing a primary name show their extensions: count
+            // each key once (a folder holds up to 2,000 entries).
+            let keys: Vec<String> = names
+                .iter()
+                .map(|(display, _)| display.trim().to_lowercase())
+                .collect();
+            let mut counts: HashMap<&str, usize> = HashMap::with_capacity(keys.len());
+            for key in &keys {
+                *counts.entry(key.as_str()).or_default() += 1;
+            }
+            for ((n, (display, extension)), key) in visible.iter().zip(&names).zip(&keys) {
+                let shared = counts[key.as_str()] > 1;
                 rows.push(Row {
                     path: n.path.clone(),
                     name: n.name.clone(),
@@ -275,8 +280,10 @@ impl Tree {
         self.rows.clear();
         visit(&self.roots, 0, &self.visibility, &mut self.rows);
         self.revision = NEXT_REVISION.fetch_add(1, Ordering::Relaxed);
-        let rows = &self.rows;
-        self.selection.retain(|p| rows.iter().any(|r| &r.path == p));
+        if !self.selection.is_empty() {
+            let shown: HashSet<&Path> = self.rows.iter().map(|r| r.path.as_path()).collect();
+            self.selection.retain(|p| shown.contains(p.as_path()));
+        }
     }
     pub fn find_mut(&mut self, path: &Path) -> Option<&mut Node> {
         fn find<'a>(nodes: &'a mut [Node], path: &Path) -> Option<&'a mut Node> {
@@ -322,28 +329,51 @@ impl Tree {
     }
     /// Replace a folder's children after a mutation without changing its
     /// expansion; descendants that were loaded keep their own children.
-    pub fn refresh_children(&mut self, path: &Path, mut children: Vec<Node>) {
-        fn carry(old: &[Node], new: &mut [Node]) {
+    pub fn refresh_children(&mut self, path: &Path, children: Vec<Node>) {
+        self.replace_children(path, children);
+        self.rebuild();
+    }
+    /// Rereads of several folders (parent first) and the folders whose
+    /// reread failed, projected once.
+    pub fn refresh_folders(
+        &mut self,
+        listings: Vec<(PathBuf, Vec<Node>)>,
+        failed: Vec<(PathBuf, String)>,
+    ) {
+        for (path, children) in listings {
+            self.replace_children(&path, children);
+        }
+        for (path, error) in failed {
+            if let Some(node) = self.find_mut(&path) {
+                node.error = Some(error);
+            }
+        }
+        self.rebuild();
+    }
+    fn replace_children(&mut self, path: &Path, mut children: Vec<Node>) {
+        // The old listing is dropped: its loaded subtrees move into the
+        // entries that are still there instead of being copied.
+        fn carry(old: Vec<Node>, new: &mut [Node]) {
+            let mut old: HashMap<(PathBuf, bool), Node> = old
+                .into_iter()
+                .map(|o| ((o.path.clone(), o.folder), o))
+                .collect();
             for n in new {
-                if let Some(o) = old
-                    .iter()
-                    .find(|o| o.path == n.path && o.folder == n.folder)
-                {
+                if let Some(o) = old.remove(&(n.path.clone(), n.folder)) {
                     n.expanded = o.expanded;
                     n.loaded = o.loaded;
-                    n.children = o.children.clone();
+                    n.children = o.children;
                 }
             }
         }
         if path.as_os_str().is_empty() {
-            carry(&self.roots, &mut children);
+            carry(std::mem::take(&mut self.roots), &mut children);
             self.roots = children;
         } else if let Some(node) = self.find_mut(path).filter(|n| n.folder) {
-            carry(&node.children, &mut children);
+            carry(std::mem::take(&mut node.children), &mut children);
             node.children = children;
             node.loaded = true;
         }
-        self.rebuild();
     }
     pub fn toggle(&mut self, path: &Path) -> bool {
         let load = if let Some(n) = self.find_mut(path) {
@@ -491,6 +521,151 @@ mod tests {
         assert_eq!(tree.rows.len(), 1);
         assert!(!tree.toggle(Path::new("folder")));
         assert!(!tree.rows[0].expanded);
+    }
+    /// A project with a wide folder open (`node_modules`-like) and a few
+    /// nested ones: what one watcher burst costs the foreground.
+    /// `cargo test --release -p po-contracts model::tests::tree_refresh_cost -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn tree_refresh_cost() {
+        let entries = |base: &Path, count: usize| -> Vec<Node> {
+            (0..count)
+                .map(|i| {
+                    let name = if i % 3 == 0 {
+                        format!("package-{i}")
+                    } else {
+                        format!("file-{}.{}", i / 2, if i % 2 == 0 { "md" } else { "js" })
+                    };
+                    Node {
+                        path: base.join(&name),
+                        folder: i % 3 == 0,
+                        name,
+                        ..Default::default()
+                    }
+                })
+                .collect()
+        };
+        let mut tree = Tree {
+            visibility: Visibility {
+                show_hidden: false,
+                patterns: DEFAULT_EXCLUDE_PATTERNS.map(String::from).to_vec(),
+            },
+            ..Tree::new()
+        };
+        tree.roots = entries(Path::new(""), 40);
+        tree.roots.push(Node {
+            name: "node_modules".into(),
+            path: "node_modules".into(),
+            folder: true,
+            ..Default::default()
+        });
+        tree.rebuild();
+        let wide = PathBuf::from("node_modules");
+        tree.attach_children(&wide, entries(&wide, MAX_DIRECTORY_ENTRIES));
+        let nested: Vec<PathBuf> = (0..30)
+            .map(|i| wide.join(format!("package-{}", i * 3)))
+            .collect();
+        for path in &nested {
+            tree.attach_children(path, entries(path, 200));
+        }
+        let listings: Vec<(PathBuf, Vec<Node>)> = tree
+            .loaded_folders()
+            .into_iter()
+            .map(|path| {
+                let count = match path.as_os_str().len() {
+                    0 => 40,
+                    _ if path == wide => MAX_DIRECTORY_ENTRIES,
+                    _ => 200,
+                };
+                let mut nodes = entries(&path, count);
+                if path.as_os_str().is_empty() {
+                    nodes.push(Node {
+                        name: "node_modules".into(),
+                        path: wide.clone(),
+                        folder: true,
+                        ..Default::default()
+                    });
+                }
+                (path, nodes)
+            })
+            .collect();
+        let started = std::time::Instant::now();
+        tree.rebuild();
+        let rebuild = started.elapsed();
+        let started = std::time::Instant::now();
+        tree.refresh_folders(listings, vec![]);
+        let refresh = started.elapsed();
+        println!(
+            "rows {} · rebuild {rebuild:?} · refresh of {} folders {refresh:?}",
+            tree.rows.len(),
+            nested.len() + 2
+        );
+    }
+    #[test]
+    fn refreshing_folders_keeps_loaded_subtrees_and_drops_removed_entries() {
+        let node = |path: &str, folder: bool| Node {
+            name: Path::new(path)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into(),
+            path: path.into(),
+            folder,
+            ..Default::default()
+        };
+        let mut tree = Tree {
+            roots: vec![node("a", true), node("b", true), node("gone.md", false)],
+            ..Tree::new()
+        };
+        tree.rebuild();
+        tree.attach_children(
+            Path::new("a"),
+            vec![node("a/x", true), node("a/y.md", false)],
+        );
+        tree.attach_children(Path::new("a/x"), vec![node("a/x/deep.md", false)]);
+        tree.select(Path::new("gone.md"), false, false);
+        tree.select(Path::new("a/y.md"), true, false);
+        tree.refresh_folders(
+            vec![
+                (
+                    PathBuf::new(),
+                    vec![node("a", true), node("b", true), node("new.md", false)],
+                ),
+                (
+                    "a".into(),
+                    vec![
+                        node("a/x", true),
+                        node("a/y.md", false),
+                        node("a/z.md", false),
+                    ],
+                ),
+            ],
+            // A failed reread under a refreshed parent still shows.
+            vec![("a/x".into(), "denied".into())],
+        );
+        let paths: Vec<_> = tree.rows.iter().map(|r| r.path.to_str().unwrap()).collect();
+        assert_eq!(
+            paths,
+            [
+                "a",
+                "a/x",
+                "a/x/\u{0}error",
+                "a/x/deep.md",
+                "a/y.md",
+                "a/z.md",
+                "b",
+                "new.md"
+            ]
+        );
+        assert!(
+            tree.find_mut(Path::new("a/x"))
+                .is_some_and(|n| n.loaded && n.expanded)
+        );
+        // A selection whose row went away is dropped; the rest stays.
+        assert_eq!(
+            tree.selection.iter().collect::<Vec<_>>(),
+            [Path::new("a/y.md")]
+        );
     }
     #[test]
     fn missing_and_file_rows_do_not_request_directory_work() {

@@ -32,6 +32,8 @@ pub struct HtmlBlockWidget {
     pub nodes: Vec<Node>,
     pub theme: MarkdownTheme,
     pub assets: Option<DocumentAssets>,
+    /// A web embed's page, in place of the surface.
+    pub embed: Option<String>,
 }
 
 impl BlockWidget for HtmlBlockWidget {
@@ -62,15 +64,26 @@ impl BlockWidget for HtmlBlockWidget {
             .map(|a| a.document.clone())
             .unwrap_or_default();
         let view = cx.render.view.clone();
-        let content = Surface::new(
-            &self.theme,
-            self.assets.as_ref(),
-            &document,
-            view,
-            self.range.start,
-            cx.render,
-        )
-        .render(&self.nodes, width);
+        let content = match &self.embed {
+            Some(href) => super::embed::render(
+                &view,
+                self.range.start,
+                href,
+                width,
+                &self.theme,
+                cx.render.window,
+                cx.render.app,
+            ),
+            None => Surface::new(
+                &self.theme,
+                self.assets.as_ref(),
+                &document,
+                view,
+                self.range.start,
+                cx.render,
+            )
+            .render(&self.nodes, width),
+        };
         let surface = div()
             .absolute()
             .left_0()

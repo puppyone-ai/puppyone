@@ -37,6 +37,8 @@ pub struct Item {
     pub source: Option<Source>,
     pub key: Option<String>,
     pub link: Option<String>,
+    /// The image's own source (inside its link, if linked).
+    pub image: Range<usize>,
 }
 
 pub struct ImageEmbed {
@@ -63,28 +65,32 @@ fn clamp(min: f32, preferred: f32, max: f32) -> f32 {
     preferred.min(max).max(min)
 }
 
-impl ImageEmbed {
-    /// Width and height of an image of natural size `natural` in `available`.
-    fn fit(&self, item: &Item, natural: (f32, f32), available: f32) -> (f32, f32) {
-        let (nw, nh) = (natural.0.max(1.), natural.1.max(1.));
-        let (mut w, mut h) = match item.size {
-            Some((w, Some(h))) => (w, h),
-            Some((w, None)) => (w, nh * w / nw),
-            None => (nw, nh),
-        };
-        let auto_height = !matches!(item.size, Some((_, Some(_))));
-        if !self.block && auto_height && h > INLINE_MAX_HEIGHT {
-            w *= INLINE_MAX_HEIGHT / h;
-            h = INLINE_MAX_HEIGHT;
-        }
-        if w > available {
-            if auto_height {
-                h *= available / w;
-            }
-            w = available;
-        }
-        (w, h)
+/// Width and height of an image of natural size `natural` in `available`:
+/// its `alt|size`, an inline one at most 320px tall, within the column.
+pub fn fit(
+    size: Option<(f32, Option<f32>)>,
+    block: bool,
+    natural: (f32, f32),
+    available: f32,
+) -> (f32, f32) {
+    let (nw, nh) = (natural.0.max(1.), natural.1.max(1.));
+    let (mut w, mut h) = match size {
+        Some((w, Some(h))) => (w, h),
+        Some((w, None)) => (w, nh * w / nw),
+        None => (nw, nh),
+    };
+    let auto_height = !matches!(size, Some((_, Some(_))));
+    if !block && auto_height && h > INLINE_MAX_HEIGHT {
+        w *= INLINE_MAX_HEIGHT / h;
+        h = INLINE_MAX_HEIGHT;
     }
+    if w > available {
+        if auto_height {
+            h *= available / w;
+        }
+        w = available;
+    }
+    (w, h)
 }
 
 impl LineEmbed for ImageEmbed {
@@ -114,7 +120,7 @@ impl LineEmbed for ImageEmbed {
                     width,
                     height,
                 } => {
-                    let (w, h) = self.fit(item, (width, height), available);
+                    let (w, h) = fit(item.size, self.block, (width, height), available);
                     (Shown::Image(image), w, h)
                 }
                 cache::State::Loading if self.block => {

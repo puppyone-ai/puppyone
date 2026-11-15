@@ -3,7 +3,8 @@
 //! on the marker rail, quotes, code panels, the table profile, rules,
 //! `details` that open and close, links, images through the Markdown asset
 //! policy, inline SVG, and `align` / `<center>` / `style` alignment and
-//! colours. `audio` and `video` show a placeholder naming their source.
+//! colours. `audio` and `video` play through the engine (as the video
+//! block does); one that cannot shows a placeholder naming its source.
 use super::dom::{Element, Node};
 use crate::editor::{
     markdown::{
@@ -44,6 +45,8 @@ pub struct Surface<'s, 'r, 'a> {
     pub render: &'r mut RenderCx<'a>,
     details: usize,
     ids: usize,
+    /// Media elements so far (each its own player).
+    media: usize,
 }
 
 /// What an inline flow holds: text runs and atoms.
@@ -141,6 +144,7 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
             render,
             details: 0,
             ids: 0,
+            media: 0,
         }
     }
 
@@ -270,7 +274,7 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
                     .into_any_element();
             }
             "details" => return self.details(e, &inherit, width),
-            "video" | "audio" => return self.media_placeholder(e, &inherit),
+            "video" | "audio" => return self.media(e, &inherit, width),
             "dd" => d = d.ml(px(40.)),
             "dl" => d = d.mb(px(block_gap)),
             _ => {}
@@ -546,13 +550,101 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
         d.into_any_element()
     }
 
-    fn media_placeholder(&mut self, e: &Element, inherit: &Inherit) -> AnyElement {
+    /// `video` / `audio` (`htmlMediaHydration.ts`: controls, no autoplay,
+    /// metadata preloaded): a video at its size (`width` / `height`, else
+    /// its natural size) within the column and min(70vh, 720px), with the
+    /// block radius on the media background; audio, the engine's control.
+    fn media(&mut self, e: &Element, inherit: &Inherit, available: f32) -> AnyElement {
+        use crate::editor::markdown::features::video::player::{self, AUDIO_SIZE, Media};
         let src = e.attribute("src").map(str::to_owned).or_else(|| {
             e.children.iter().find_map(|c| match c {
                 Node::Element(s) if s.tag == "source" => s.attribute("src").map(str::to_owned),
                 _ => None,
             })
         });
+        let index = self.media;
+        self.media += 1;
+        let path = match src
+            .as_deref()
+            .and_then(|s| source::markdown(self.document, s))
+        {
+            Some(source::Source::Workspace(path)) => Some(path),
+            _ => None,
+        };
+        let kind = if e.tag == "video" {
+            Media::Video
+        } else {
+            Media::Audio
+        };
+        let t = Tokens::get(self.theme.dark, self.theme.scale);
+        let background = match kind {
+            Media::Video => t.color("--po-md-media-background"),
+            Media::Audio => t.color("--po-editor-bg"),
+        };
+        let player = match (path, self.assets, self.view.upgrade()) {
+            (Some(path), Some(assets), Some(view)) => player::get(
+                player::Request {
+                    key: (view.entity_id(), self.block, index, path),
+                    media: kind,
+                    title: e.attribute("title"),
+                    background,
+                    assets,
+                    dark: self.theme.dark,
+                },
+                self.render.window,
+                self.render.app,
+            ),
+            _ => None,
+        };
+        if let Some(player) = player.filter(|p| !p.failed.get()) {
+            let number = |name: &str| {
+                e.attribute(name)
+                    .and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok())
+                    .filter(|v| *v > 0.)
+            };
+            let (width, height, radius) = match kind {
+                Media::Audio => (AUDIO_SIZE.0.min(available), AUDIO_SIZE.1, 0.),
+                Media::Video => {
+                    // Before its metadata, a video is 300 × 150.
+                    let (nw, nh) = player.size.get().unwrap_or((300., 150.));
+                    let (mut w, mut h) = match (number("width"), number("height")) {
+                        (Some(w), Some(h)) => (w, h),
+                        (Some(w), None) => (w, w * nh / nw),
+                        (None, Some(h)) => (h * nw / nh, h),
+                        (None, None) => (nw, nh),
+                    };
+                    if w > available {
+                        h *= available / w;
+                        w = available;
+                    }
+                    let viewport = f32::from(self.render.window.viewport_size().height);
+                    let cap = (viewport * 0.7).min(720.);
+                    if h > cap {
+                        w *= cap / h;
+                        h = cap;
+                    }
+                    (w, h, self.theme.block.radius)
+                }
+            };
+            let ready = player.size.get().is_some();
+            return div()
+                .w(px(width))
+                .h(px(height))
+                .rounded(px(radius))
+                .bg(background)
+                .child(
+                    canvas(
+                        |_, _, _| {},
+                        move |bounds, _, window, _| {
+                            if ready {
+                                player.place(bounds, window.content_mask().bounds, radius);
+                            }
+                        },
+                    )
+                    .size_full(),
+                )
+                .into_any_element();
+        }
         let name = src
             .as_deref()
             .and_then(|s| s.rsplit('/').next())

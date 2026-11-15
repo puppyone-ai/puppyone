@@ -29,6 +29,8 @@ pub struct AgentTheme {
     pub inline_code_surface: Rgba,
     pub inline_code_border: Rgba,
     pub code_surface: Rgba,
+    /// `--agent-code-header-surface`: 30% of the control surface.
+    pub code_header_surface: Rgba,
     pub table_header_surface: Rgba,
     pub table_alternate_surface: Rgba,
     pub markdown_disclosure_surface: Rgba,
@@ -66,6 +68,7 @@ impl AgentTheme {
             border: t.border_strong,
             border_subtle,
             control_surface,
+            code_header_surface: crate::theme::alpha(control_surface, 0.3),
             composer_surface: t.active,
             user_message_surface: t.hover,
             user_message_border: alpha(border_subtle, 0.62),

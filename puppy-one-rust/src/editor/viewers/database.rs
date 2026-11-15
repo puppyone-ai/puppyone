@@ -428,6 +428,7 @@ fn cell_text(cell: &crate::platform::database::Cell) -> (String, bool) {
         // SQL token; distinct from an empty string.
         CellKind::Null => ("NULL".into(), true),
         CellKind::Blob => (format!("BLOB · {} B", cell.bytes), true),
+        CellKind::Complex => (t("editor.database.complex").to_owned(), true),
         _ if cell.truncated => (format!("{}…", cell.text), false),
         _ => (cell.text.clone(), false),
     }
@@ -845,7 +846,10 @@ impl DatabaseView {
                             .when(value.kind == CellKind::Null, |d| {
                                 d.text_color(p.text_disabled)
                             })
-                            .when(value.kind == CellKind::Blob, |d| d.text_color(p.muted))
+                            .when(
+                                matches!(value.kind, CellKind::Blob | CellKind::Complex),
+                                |d| d.text_color(p.muted),
+                            )
                             .child(label),
                     );
                 }

@@ -108,6 +108,10 @@ impl WindowChrome {
         })
         .detach();
         cx.observe(&coachmarks, |_, _, cx| cx.notify()).detach();
+        // The titlebar's update action follows the update service.
+        if let Some(updates) = crate::features::updates::global(cx) {
+            cx.observe(&updates, |_, _, cx| cx.notify()).detach();
+        }
         // The project rail takes room from the panes.
         observe_slice(
             &owners.preferences,
@@ -272,6 +276,17 @@ impl WindowChrome {
         }
         if project {
             bar = bar.leading(self.project_context(self.rail, cx));
+        }
+        // `app-status`: an update to download or restart into comes first.
+        if let Some(button) = crate::features::updates::state(cx)
+            .as_ref()
+            .and_then(header::UpdateButton::new)
+        {
+            bar = bar.action(button.on_click(|_, _, cx| {
+                if let Some(updates) = crate::features::updates::global(cx) {
+                    updates.update(cx, |u, cx| u.update_now(cx));
+                }
+            }));
         }
         if opening {
             return self.sign_in(bar, cx);

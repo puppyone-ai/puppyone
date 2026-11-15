@@ -113,7 +113,7 @@ impl MarkdownExtension {
 }
 
 /// `getSafeMarkdownHref`: validate the canonical value that will be opened.
-fn safe_href(value: &str) -> Option<String> {
+pub(crate) fn safe_href(value: &str) -> Option<String> {
     static ENTITY: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"(?i)&(?:#(\d+)|#x([0-9a-f]+)|([a-z][a-z0-9]+));").unwrap());
     static CONTROLS: LazyLock<Regex> =

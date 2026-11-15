@@ -246,9 +246,16 @@ fn an_image_line_shows_its_images_and_reveals_on_request(cx: &mut TestAppContext
                 .collect::<Vec<_>>()
         })
     };
-    // Images (and a linked one) fill the first line; beside text they stay source.
+    // Images (and a linked one) fill the first line; one beside text sits
+    // in the text, its alt text standing in until it decodes.
     assert_eq!(embeds(&view, cx), vec![true, false, false]);
     assert!(hidden(&view, cx).contains(&(0..41)));
+    view.update(cx, |v, _| {
+        let d = v.decorations();
+        let images: Vec<_> = d.inline_images.iter().map(|i| i.range.clone()).collect();
+        assert_eq!(images, vec![50..61]);
+        assert!(d.replaced.iter().any(|(r, s)| *r == (50..61) && s == "c"));
+    });
     view.update_in(cx, |v, w, cx| {
         v.run_command(
             &Command::new(
@@ -310,5 +317,44 @@ fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppCon
     view.update(cx, |v, _| {
         assert_eq!(v.text(), "last\n\npara\n\n# A");
         assert_eq!(v.state().selection, Selection::range(0, v.text().len()));
+    });
+}
+
+#[gpui::test]
+fn missing_and_ambiguous_link_targets_are_underlined(cx: &mut TestAppContext) {
+    use crate::editor::navigation::{Document, ReferenceContext, ReferenceIndex};
+    let text = "[[here]] [[gone]] [[dup]] [x](gone.md)\n\nend";
+    let doc = |path: &str| Document {
+        path: path.into(),
+        name: path.rsplit('/').next().unwrap().into(),
+    };
+    let index = ReferenceIndex::new(vec![
+        doc("note.md"),
+        doc("here.md"),
+        doc("a/dup.md"),
+        doc("b/dup.md"),
+    ]);
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        if let Some(md) = v.extension_mut::<MarkdownExtension>() {
+            md.references = Some(ReferenceContext {
+                source: "note.md".into(),
+                index: std::sync::Arc::new(index),
+            });
+        }
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.update(cx, |v, _| {
+        let lines: Vec<_> = v
+            .decorations()
+            .underlines
+            .iter()
+            .map(|u| (u.range.clone(), u.dash))
+            .collect();
+        // `gone` (dotted) twice, `dup` (dashed); `here` resolves.
+        assert_eq!(lines, vec![(11..15, 1.), (20..23, 3.), (27..28, 1.)]);
     });
 }

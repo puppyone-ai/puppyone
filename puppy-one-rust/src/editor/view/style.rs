@@ -31,7 +31,7 @@ pub fn font_bytes() -> Vec<std::borrow::Cow<'static, [u8]>> {
             vec![$(std::borrow::Cow::Borrowed(include_bytes!(concat!("../../../assets/fonts/editor/", $name)) as &[u8])),*]
         };
     }
-    faces!(
+    let mut faces = faces!(
         "geist-sans-400.ttf",
         "geist-sans-450.ttf",
         "geist-sans-500.ttf",
@@ -69,7 +69,50 @@ pub fn font_bytes() -> Vec<std::borrow::Cow<'static, [u8]>> {
         "geist-mono-inline-oblique.ttf",
         "geist-mono-inline-bold.ttf",
         "geist-mono-inline-bold-oblique.ttf",
-    )
+    );
+    // A Sub Theme's Markdown face (`tools/import-document-fonts.py`).
+    faces.extend([
+        std::borrow::Cow::Borrowed(include_bytes!(
+            "../../../assets/fonts/document/PTSerif-Regular.ttf"
+        ) as &[u8]),
+        std::borrow::Cow::Borrowed(include_bytes!(
+            "../../../assets/fonts/document/PTSerif-Italic.ttf"
+        )),
+        std::borrow::Cow::Borrowed(include_bytes!(
+            "../../../assets/fonts/document/PTSerif-Bold.ttf"
+        )),
+        std::borrow::Cow::Borrowed(include_bytes!(
+            "../../../assets/fonts/document/PTSerif-BoldItalic.ttf"
+        )),
+    ]);
+    faces
+}
+
+/// The proportional face text is set in (`--po-md-content-font`): Geist, or
+/// a face a Sub Theme names that the app bundles.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Face {
+    #[default]
+    Geist,
+    /// "PuppyOne Open Sans" (assets/OpenSans-*.ttf).
+    OpenSans,
+    /// "PuppyOne PT Serif" (assets/fonts/document).
+    PtSerif,
+}
+
+impl Face {
+    /// The first face of a CSS `font-family` list the app has.
+    pub fn of(families: &str) -> Self {
+        for family in families.split(',') {
+            match family.trim().trim_matches(['"', '\'']) {
+                "Geist Sans" | "Geist" => return Self::Geist,
+                "PuppyOne Open Sans" | "Open Sans" => return Self::OpenSans,
+                "PuppyOne PT Serif" | "PT Serif" => return Self::PtSerif,
+                _ => {}
+            }
+        }
+        Self::Geist
+    }
 }
 
 fn nearest(available: &[u16], weight: f32) -> u16 {
@@ -111,6 +154,8 @@ pub struct TextStyle {
     /// `font-variant-numeric: tabular-nums`.
     pub tabular: bool,
     pub line_height: LineHeight,
+    /// The proportional face (code is always Geist Mono).
+    pub face: Face,
 }
 
 impl TextStyle {
@@ -128,15 +173,22 @@ impl TextStyle {
             );
             format!("PuppyOne Geist Mono {w}").into()
         } else {
-            let w = nearest(
-                if self.italic {
-                    &SANS_OBLIQUE
-                } else {
-                    &SANS_WEIGHTS
-                },
-                self.weight,
-            );
-            format!("PuppyOne Geist {w}").into()
+            match self.face {
+                // Weight and style select the family's own faces.
+                Face::OpenSans => "Open Sans".into(),
+                Face::PtSerif => "PT Serif".into(),
+                Face::Geist => {
+                    let w = nearest(
+                        if self.italic {
+                            &SANS_OBLIQUE
+                        } else {
+                            &SANS_WEIGHTS
+                        },
+                        self.weight,
+                    );
+                    format!("PuppyOne Geist {w}").into()
+                }
+            }
         }
     }
     pub fn line_height_px(&self) -> f32 {
@@ -144,7 +196,19 @@ impl TextStyle {
     }
     /// CSS `ch`: the advance of "0" in the primary face.
     pub fn ch(&self) -> f32 {
-        zero_advance(self.mono, self.italic, self.weight) * self.size
+        let em = match (self.mono, self.face) {
+            // "0" per em, read from the bundled faces.
+            (false, Face::OpenSans) => 0.572,
+            (false, Face::PtSerif) => {
+                if self.weight >= 600. {
+                    0.565
+                } else {
+                    0.533
+                }
+            }
+            _ => zero_advance(self.mono, self.italic, self.weight),
+        };
+        em * self.size
     }
     /// The text refinement a container applies so Kit leaves inherit it.
     pub fn refinement(&self) -> TextStyleRefinement {

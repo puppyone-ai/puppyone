@@ -1,7 +1,10 @@
 //! `.cm-md-math-block-widget` (markdown-math.css): a centred formula in a
 //! panel of at least 96px with 24px / 12px padding, the block radius and the
-//! block rings. With the caret inside, the formula's source shows above it
-//! as an editable code leaf, so the block is edited where it is read.
+//! block rings, scrolling sideways when it is wider. The formula is KaTeX's
+//! (`renderKatex` with the product's options); a source KaTeX refuses shows
+//! as `$$` source in the error colour (`.cm-md-math-source-fallback`). With
+//! the caret inside, the formula's source shows above it as an editable code
+//! leaf, so the block is edited where it is read.
 use super::MathBlock;
 use crate::editor::{
     markdown::{
@@ -14,6 +17,7 @@ use crate::editor::{
         widget::{BlockWidget, WidgetCx},
     },
 };
+use crate::render_service::{self, Kind, Request, State};
 use gpui::{prelude::*, *};
 
 /// `min-height: 96px; padding: 24px 12px`.
@@ -26,6 +30,9 @@ pub struct MathBlockWidget {
     chrome: BlockStyle,
     text: TextStyle,
     source: TextStyle,
+    /// `.cm-md-math-source-fallback`: code type in the error colour.
+    fallback: TextStyle,
+    request: Request,
 }
 
 impl MathBlockWidget {
@@ -34,11 +41,24 @@ impl MathBlockWidget {
         let mut text = theme.body.text.clone();
         text.size = t.len("--po-md-math-block-font-size", text.size);
         text.italic = true;
+        let mut fallback = theme.code_block.text();
+        fallback.color = t.color("--po-md-error-color");
         Self {
             block: block.clone(),
             chrome: theme.block.clone(),
+            request: Request {
+                kind: Kind::Math {
+                    display: true,
+                    color: render_service::hex(t.color("--po-md-content-color")),
+                    font_size: text.size,
+                },
+                source: block.source.clone(),
+                background: render_service::hex(t.color("--po-editor-bg")),
+                scale: 1.,
+            },
             text,
             source: theme.code_block.text(),
+            fallback,
         }
     }
 }
@@ -64,20 +84,60 @@ impl BlockWidget for MathBlockWidget {
             children.push(code);
             y += height + 12.;
         }
-        let row = self.text.line_height_px();
+        let typeset = render_service::get(&self.request, cx.render.window, cx.render.app);
+        let row = match &typeset {
+            State::Ready(formula) => formula.height,
+            State::Failed(_) => {
+                let lines = self.block.source.lines().count() as f32 + 2.;
+                lines * self.fallback.line_height_px()
+            }
+            State::Pending | State::Unavailable => self.text.line_height_px(),
+        };
         // `display: grid; align-items: center` within the minimum height
         // (the source, while shown, keeps the top).
         if !editing {
             y += ((MIN_HEIGHT - (2. * PADDING_BLOCK + row)) / 2.).max(0.);
         }
-        let label = cx.render.label(
-            Rect::new(PADDING_INLINE, y, inner, row),
-            &SharedString::from(self.block.text.clone()),
-            &self.text,
-            Align::Center,
-            top,
-        );
-        children.push(label);
+        match typeset {
+            State::Ready(formula) => children.push(
+                div()
+                    .id(cx.id("math-formula"))
+                    .absolute()
+                    .left(px(PADDING_INLINE))
+                    .top(px(y))
+                    .w(px(inner))
+                    .h(px(row))
+                    .overflow_x_scroll()
+                    .child(
+                        div()
+                            .min_w_full()
+                            .w(px(formula.width.max(inner)))
+                            .flex()
+                            .justify_center()
+                            .child(
+                                img(ImageSource::Render(formula.image.clone()))
+                                    .w(px(formula.width))
+                                    .h(px(formula.height))
+                                    .flex_none(),
+                            ),
+                    )
+                    .into_any_element(),
+            ),
+            State::Failed(_) => children.push(cx.render.label(
+                Rect::new(PADDING_INLINE, y, inner, row),
+                &SharedString::from(format!("$$\n{}\n$$", self.block.source)),
+                &self.fallback,
+                Align::Start,
+                top,
+            )),
+            State::Pending | State::Unavailable => children.push(cx.render.label(
+                Rect::new(PADDING_INLINE, y, inner, row),
+                &SharedString::from(self.block.text.clone()),
+                &self.text,
+                Align::Center,
+                top,
+            )),
+        }
         let height = (y + row + PADDING_BLOCK).max(MIN_HEIGHT);
         let c = &self.chrome;
         let size = (width, height);

@@ -7,7 +7,9 @@ pub mod cli_control;
 pub mod database;
 pub mod desktop;
 pub mod diagnostics;
+pub mod docx_redline;
 pub mod drag_out;
+pub mod duckdb;
 pub mod editor_state_storage;
 pub mod electron_import;
 pub mod environment;
@@ -29,6 +31,7 @@ pub mod pdf;
 pub mod preference_storage;
 pub mod process;
 pub mod project_activity;
+pub mod proxy;
 pub mod repository_import;
 #[cfg(unix)]
 pub mod single_instance;
@@ -39,6 +42,8 @@ pub mod terminal;
 pub mod text_rendering;
 pub mod themes;
 pub mod ui_state_store;
+pub mod updates;
+pub mod url_scheme;
 pub mod watchdog;
 pub mod webview;
 

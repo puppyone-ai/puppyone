@@ -2,7 +2,7 @@
 //! read so views stay free of platform access (`RepositorySettingsViews.tsx`).
 use super::workspace_config::{self, WorkspaceConfig};
 use crate::{
-    platform::git::{RepositoryInfo, repository_info},
+    platform::git::{Remote, RepositoryInfo, repository_info},
     wake::Wake,
 };
 use gpui::*;
@@ -70,7 +70,6 @@ impl RepositorySettings {
     /// project remote and a GitHub remote whose push URL differs.
     #[cfg(feature = "dev-capture")]
     pub fn lab_fixture(&mut self, with_remotes: bool, cx: &mut Context<Self>) {
-        use crate::platform::git::Remote;
         let remotes = if with_remotes {
             let puppyone = "https://git.puppyone.ai/git/p7k2m9x4.git";
             vec![
@@ -224,21 +223,36 @@ fn is_scp_like(url: &str) -> bool {
     let host_len = rest.find(|c: char| !word(c)).unwrap_or(rest.len());
     !user.is_empty() && user.chars().all(word) && host_len > 0 && rest[host_len..].starts_with(':')
 }
-/// `parsePuppyoneRemote(url) !== null` from `source-control/remotes.ts`: a
-/// credential-free http(s) URL whose path is an access point
-/// (`/git/ap/<key>.git`), a scope (`/git/<project>/scopes/<scope>.git`) or a
-/// project (`/git/<project>.git`).
-pub fn is_puppyone_remote(url: Option<&str>) -> bool {
-    let Some(url) = url.and_then(|u| url::Url::parse(u).ok()) else {
-        return false;
-    };
+/// What a PuppyOne remote names (`PuppyoneRemoteInfo["kind"]`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PuppyoneRemoteKind {
+    AccessPoint,
+    Project,
+    Scope,
+}
+/// `PuppyoneRemoteInfo`: the remote's host, what it names and how that
+/// reads (an access key masked).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PuppyoneRemoteInfo {
+    pub kind: PuppyoneRemoteKind,
+    /// `url.host`: the host name and any explicit port.
+    pub host: String,
+    pub display_id: String,
+    /// `remoteIdentity`: one target per origin, kind and IDs.
+    identity: String,
+}
+/// `parsePuppyoneRemote` from `source-control/remotes.ts`: a credential-free
+/// http(s) URL whose path is an access point (`/git/ap/<key>.git`), a scope
+/// (`/git/<project>/scopes/<scope>.git`) or a project (`/git/<project>.git`).
+pub fn parse_puppyone_remote(url: Option<&str>) -> Option<PuppyoneRemoteInfo> {
+    let url = url::Url::parse(url?).ok()?;
     let canonical = matches!(url.scheme(), "http" | "https") && url.has_host();
     let credential = !url.username().is_empty()
         || url.password().is_some_and(|p| !p.is_empty())
         || url.query().is_some_and(|q| !q.is_empty())
         || url.fragment().is_some_and(|f| !f.is_empty());
     if !canonical || credential {
-        return false;
+        return None;
     }
     // `CANONICAL_GIT_ID`: `[A-Za-z0-9][A-Za-z0-9_-]{0,199}`.
     let id = |s: &str| {
@@ -247,20 +261,74 @@ pub fn is_puppyone_remote(url: Option<&str>) -> bool {
             && s.len() <= 200
             && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
     };
-    let Some(path) = url
-        .path()
-        .strip_prefix("/git/")
-        .and_then(|p| p.strip_suffix(".git"))
-    else {
-        return false;
+    let path = url.path().strip_prefix("/git/")?.strip_suffix(".git")?;
+    let origin = url.origin().ascii_serialization().to_lowercase();
+    let host = match url.port() {
+        Some(port) => format!("{}:{port}", url.host_str()?),
+        None => url.host_str()?.to_owned(),
     };
-    if let Some(key) = path.strip_prefix("ap/") {
-        return !key.is_empty() && !key.contains('/');
+    let (kind, display_id, ids) = if let Some(key) = path.strip_prefix("ap/") {
+        if key.is_empty() || key.contains('/') {
+            return None;
+        }
+        (
+            PuppyoneRemoteKind::AccessPoint,
+            mask_secret(key),
+            key.to_owned(),
+        )
+    } else if let Some((project, scope)) = path.split_once("/scopes/") {
+        if !id(project) || !id(scope) {
+            return None;
+        }
+        let ids = format!("{project}/{scope}");
+        (
+            PuppyoneRemoteKind::Scope,
+            ids.clone(),
+            ids.replace('/', "\n"),
+        )
+    } else if id(path) {
+        (
+            PuppyoneRemoteKind::Project,
+            path.to_owned(),
+            path.to_owned(),
+        )
+    } else {
+        return None;
+    };
+    Some(PuppyoneRemoteInfo {
+        identity: format!("{origin}\n{kind:?}\n{ids}"),
+        kind,
+        host,
+        display_id,
+    })
+}
+/// `parsePuppyoneRemote(url) !== null`.
+pub fn is_puppyone_remote(url: Option<&str>) -> bool {
+    parse_puppyone_remote(url).is_some()
+}
+/// `getPuppyoneRemote`: the one PuppyOne target of the remotes — its remote,
+/// URL (the fetch URL first) and info. A remote whose fetch and push URLs
+/// disagree on being PuppyOne, or two different targets, is a conflict and
+/// yields none.
+pub fn puppyone_remote(remotes: &[Remote]) -> Option<(&Remote, &str, PuppyoneRemoteInfo)> {
+    let mut candidates = vec![];
+    for remote in remotes {
+        let fetch = parse_puppyone_remote(remote.fetch_url.as_deref());
+        let push = parse_puppyone_remote(remote.push_url.as_deref());
+        if fetch.is_some() != push.is_some() {
+            return None;
+        }
+        for (url, info) in [(&remote.fetch_url, fetch), (&remote.push_url, push)] {
+            if let (Some(url), Some(info)) = (url, info) {
+                candidates.push((remote, url.as_str(), info));
+            }
+        }
     }
-    match path.split_once("/scopes/") {
-        Some((project, scope)) => id(project) && id(scope),
-        None => id(path),
-    }
+    let first = candidates.first()?;
+    candidates
+        .iter()
+        .all(|(_, _, info)| info.identity == first.2.identity)
+        .then(|| first.clone())
 }
 /// `maskSecret` from `source-control/remotes.ts`.
 pub fn mask_secret(value: &str) -> String {
@@ -349,5 +417,70 @@ mod tests {
             assert!(!is_puppyone_remote(Some(url)), "{url}");
         }
         assert!(!is_puppyone_remote(None));
+    }
+    /// `cloudRepositoryContextResolver.test.ts`: classification, the fetch
+    /// and push pair, conflicts and masked access keys.
+    #[test]
+    fn the_puppyone_remote_is_one_target_or_none() {
+        let project =
+            parse_puppyone_remote(Some("https://cloud.example/git/project-1.git")).unwrap();
+        assert_eq!(
+            (
+                project.kind,
+                project.host.as_str(),
+                project.display_id.as_str()
+            ),
+            (PuppyoneRemoteKind::Project, "cloud.example", "project-1")
+        );
+        let scope = parse_puppyone_remote(Some(
+            "http://localhost:8080/git/project-1/scopes/scope-docs.git",
+        ))
+        .unwrap();
+        assert_eq!(
+            (scope.kind, scope.host.as_str(), scope.display_id.as_str()),
+            (
+                PuppyoneRemoteKind::Scope,
+                "localhost:8080",
+                "project-1/scope-docs"
+            )
+        );
+        let access = parse_puppyone_remote(Some(
+            "https://cloud.example/git/ap/pwg_secret-value-1234567890.git",
+        ))
+        .unwrap();
+        assert_eq!(
+            (access.kind, access.display_id.as_str()),
+            (PuppyoneRemoteKind::AccessPoint, "pwg_…7890")
+        );
+        assert!(
+            parse_puppyone_remote(Some(
+                "https://cloud.example/git/project-1/scopes/scope%2Fchild.git"
+            ))
+            .is_none()
+        );
+        let remote = |name: &str, fetch: &str, push: &str| Remote {
+            name: name.into(),
+            fetch_url: Some(fetch.into()),
+            push_url: Some(push.into()),
+            branches: 0,
+        };
+        let one = "https://cloud.example/git/project-1.git";
+        let other = "https://cloud.example/git/project-2.git";
+        let github = "https://github.com/acme/desktop.git";
+        let remotes = [
+            remote("github", github, github),
+            remote("puppyone", one, one),
+        ];
+        let (found, url, info) = puppyone_remote(&remotes).unwrap();
+        assert_eq!(
+            (found.name.as_str(), url, info.kind),
+            ("puppyone", one, PuppyoneRemoteKind::Project)
+        );
+        // The same target under two names is still one target.
+        assert!(puppyone_remote(&[remote("a", one, one), remote("b", one, one)]).is_some());
+        assert!(puppyone_remote(&[remote("puppyone", one, other)]).is_none());
+        assert!(puppyone_remote(&[remote("puppyone", one, github)]).is_none());
+        assert!(puppyone_remote(&[remote("a", one, one), remote("b", other, other)]).is_none());
+        assert!(puppyone_remote(&[remote("github", github, github)]).is_none());
     }
 }

@@ -59,6 +59,9 @@ pub enum Kind {
     Image,
     /// The `!` of an Obsidian image embed: its target resolves by name.
     ImageEmbed,
+    /// An Obsidian `![[clip.mp4]]` video embed (`href` its target, `text`
+    /// its alias).
+    VideoEmbed,
 }
 
 impl Kind {

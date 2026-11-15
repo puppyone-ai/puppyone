@@ -425,6 +425,12 @@ impl Shell {
                 self.session.docs.update(cx, |d, _| d.observe_publication());
             }
             SidebarEvent::Closed => self.frame.focus.focus(window, cx),
+            SidebarEvent::GitFailure => return self.git_failure(cx),
+            // `handleStartCloudInitialization`: the first publication's
+            // page, which asks for the organization before it uploads.
+            SidebarEvent::BackUpToCloud => {
+                return self.cloud.update(cx, |c, cx| c.put_in_cloud(window, cx));
+            }
         }
         self.receive(window, cx);
         cx.notify();
@@ -522,6 +528,33 @@ impl Shell {
 
 /// What the runtime, the Explorer, the panes and the window ask of it.
 impl Shell {
+    /// `GitOperationErrorDialog` follows the Changes failure: shown while
+    /// one is open, closed once it is dismissed or replaced by a new run.
+    fn git_failure(&mut self, cx: &mut Context<Self>) {
+        let source_control = self.sidebar.read(cx).source_control.clone();
+        let open = source_control.read(cx).has_failure();
+        self.dialogs.update(cx, |d, cx| {
+            if !open {
+                d.close(DialogKey::GitFailure, cx);
+                return;
+            }
+            let dismissed = source_control.downgrade();
+            let source_control = source_control.downgrade();
+            d.open_owned(
+                DialogKey::GitFailure,
+                move |_, _, cx| {
+                    source_control
+                        .update(cx, |s, cx| s.failure_dialog(cx))
+                        .unwrap_or_else(|_| Empty.into_any_element())
+                },
+                move |_, cx| {
+                    let _ = dismissed.update(cx, |s, cx| s.dismiss_failure(cx));
+                },
+                cx,
+            );
+        });
+        cx.notify();
+    }
     /// The workers' news: the window pumps the runtime, and draws again
     /// when what it shows changed.
     pub(in crate::app) fn woke(
@@ -655,9 +688,13 @@ impl Shell {
             ExplorerEvent::Create { entry, parent } => {
                 self.start_create(*entry, parent.clone(), window, cx)
             }
-            ExplorerEvent::Rename { path, change_type } => self
-                .dialogs
-                .update(cx, |d, cx| d.rename(path.clone(), *change_type, window, cx)),
+            ExplorerEvent::Rename {
+                path,
+                change_type,
+                folder,
+            } => self.dialogs.update(cx, |d, cx| {
+                d.rename(path.clone(), *change_type, *folder, window, cx)
+            }),
             ExplorerEvent::Error(error) => self.show_error(error.clone(), cx),
             ExplorerEvent::CopyLink { path, folder } => self
                 .cloud

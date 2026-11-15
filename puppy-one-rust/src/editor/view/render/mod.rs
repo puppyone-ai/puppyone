@@ -36,6 +36,16 @@ use std::{
     rc::Rc,
 };
 
+/// Room a leaf keeps for a drawn inline image, and the image.
+pub struct Room {
+    pub range: Range<usize>,
+    pub text: SharedString,
+    pub image: crate::render_service::Rendered,
+    /// Space kept on each side of the image.
+    pub pad: f32,
+    pub radius: f32,
+}
+
 pub struct RenderCx<'a> {
     pub doc: &'a Buffer,
     pub decorations: &'a Decorations,
@@ -50,6 +60,9 @@ pub struct RenderCx<'a> {
     pub keys: std::collections::HashSet<u64>,
     /// Rows of the last text leaf and where its last row ends.
     pub text_end: (usize, f32),
+    /// The ready inline images of the line being laid out (an inline
+    /// formula): the leaf keeps room for each, the line paints it there.
+    pub rooms: Vec<Room>,
     pub window: &'a mut Window,
     pub app: &'a mut App,
 }
@@ -315,11 +328,26 @@ impl RenderCx<'_> {
         align: TextAlign,
     ) -> (AnyElement, f32) {
         let d = self.decorations;
+        // A ready inline image shows as the room it is painted over.
+        let roomed: Vec<(Range<usize>, SharedString)>;
+        let replaced = if self.rooms.is_empty() {
+            d.replaced_in(&source)
+        } else {
+            roomed = d
+                .replaced_in(&source)
+                .iter()
+                .map(|(range, text)| {
+                    let room = self.rooms.iter().find(|r| r.range == *range);
+                    (range.clone(), room.map_or(text.clone(), |r| r.text.clone()))
+                })
+                .collect();
+            &roomed
+        };
         let leaf = LeafText::build_replaced(
             self.doc.as_str(),
             source.clone(),
             d.hidden_in(&source),
-            d.replaced_in(&source),
+            replaced,
             d.marks_in(&source),
             strike,
         );
@@ -552,6 +580,147 @@ impl RenderCx<'_> {
         }
     }
 
+    /// The inline images fully inside `source` that are ready, each with
+    /// the room the leaf keeps for it: its width and its padding on both
+    /// sides, in spaces of the line's font.
+    fn ready_images(
+        &mut self,
+        source: &Range<usize>,
+        style: &TextStyle,
+        background: Option<Rgba>,
+        width: f32,
+    ) -> Vec<Room> {
+        let d = self.decorations;
+        let first = d
+            .inline_images
+            .partition_point(|i| i.range.start < source.start);
+        let found: Vec<_> = d.inline_images[first..]
+            .iter()
+            .take_while(|i| i.range.start < source.end)
+            .filter(|i| i.range.end <= source.end)
+            .cloned()
+            .collect();
+        let mut rooms = Vec::new();
+        for image in found {
+            if let Some(drawn) = (image.draw)(background, width, style.size, self.window, self.app)
+            {
+                let pad = image.pad * style.size;
+                let text = self.room(drawn.width + 2. * pad, style);
+                rooms.push(Room {
+                    range: image.range,
+                    text,
+                    image: drawn,
+                    pad,
+                    radius: image.radius,
+                });
+            }
+        }
+        rooms
+    }
+
+    /// Spaces of `style`'s font as wide as `width` (to under the narrowest
+    /// space's advance), widest first.
+    fn room(&mut self, width: f32, style: &TextStyle) -> SharedString {
+        const SPACES: [char; 7] = [
+            '\u{2003}', '\u{2002}', '\u{2004}', '\u{2005}', '\u{2009}', '\u{2006}', '\u{200a}',
+        ];
+        let font = Self::font(style);
+        let mut advances: Vec<(char, f32)> = SPACES
+            .iter()
+            .filter_map(|&c| {
+                let text = SharedString::from(c.to_string());
+                let run = TextRun {
+                    len: text.len(),
+                    font: font.clone(),
+                    color: Hsla::default(),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                };
+                let line = self
+                    .window
+                    .text_system()
+                    .shape_line(text, px(style.size), &[run], None);
+                let width = f32::from(line.width);
+                (width > 0.).then_some((c, width))
+            })
+            .collect();
+        advances.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let mut room = String::new();
+        let mut left = width;
+        for &(c, advance) in &advances {
+            while left >= advance - 0.01 {
+                room.push(c);
+                left -= advance;
+            }
+        }
+        room.into()
+    }
+
+    /// How far the line's inline images reach above and below its row.
+    fn image_growth(&mut self, style: &TextStyle) -> (f32, f32) {
+        let line = baseline::chromium_baseline(self.scale, style, self.primary_metrics(style), 0.);
+        let below = style.line_height_px() - line;
+        self.rooms.iter().fold((0f32, 0f32), |(lift, drop), room| {
+            (
+                lift.max(room.image.baseline - line),
+                drop.max(room.image.height - room.image.baseline - below),
+            )
+        })
+    }
+
+    /// The line's inline images, each over the room the leaf just built
+    /// keeps for it, its baseline on the text's.
+    fn inline_images(
+        &mut self,
+        style: &TextStyle,
+        wrap: Option<f32>,
+        (x, y): (f32, f32),
+    ) -> Vec<AnyElement> {
+        let Some(leaf) = self
+            .leaves
+            .last()
+            .map(|l| l.text.clone())
+            .filter(|_| !self.rooms.is_empty())
+        else {
+            return Vec::new();
+        };
+        let runs = Self::runs(&leaf, style);
+        let shaped = self.window.text_system().shape_text(
+            leaf.text.clone().into(),
+            px(style.size),
+            &runs,
+            wrap.map(|w| px(self.snap(w))),
+            None,
+        );
+        let Some(shaped) = shaped.ok().and_then(|lines| lines.into_iter().next()) else {
+            return Vec::new();
+        };
+        let row = baseline::chromium_line_height(self.scale, style.line_height_px());
+        let line_baseline =
+            baseline::chromium_baseline(self.scale, style, self.primary_metrics(style), 0.);
+        let mut out = Vec::new();
+        for room in &self.rooms {
+            let pad = room.pad;
+            let index = leaf.to_display(room.range.start - leaf.source.start, false);
+            let Some(at) = shaped.position_for_index(index, px(row)) else {
+                continue;
+            };
+            let image = &room.image;
+            out.push(
+                img(ImageSource::Render(image.image.clone()))
+                    .absolute()
+                    .left(px(x + f32::from(at.x) + pad))
+                    .top(px(y + f32::from(at.y) + line_baseline - image.baseline))
+                    .w(px(image.width))
+                    .h(px(image.height))
+                    .rounded(px(room.radius))
+                    .into_any_element(),
+            );
+        }
+        out
+    }
+
     /// The shifted texts (`<sup>`, `<sub>`) fully inside `source`.
     fn shifted_in(&self, source: &Range<usize>) -> Vec<Superscript> {
         let d = self.decorations;
@@ -704,7 +873,11 @@ impl RenderCx<'_> {
     ) -> (AnyElement, f32) {
         let (p, b) = (style.padding, style.border);
         let x = b.left + p.left;
+        let column = (width - x - p.right - b.right).max(0.);
+        self.rooms = self.ready_images(&source, &style.text, style.background, column);
         let (lift, drop) = self.shifted_growth(&source, &style.text);
+        let (image_lift, image_drop) = self.image_growth(&style.text);
+        let (lift, drop) = (lift.max(image_lift), drop.max(image_drop));
         let y = b.top + p.top + lift;
         let embed = style.embed.as_ref().map(|embed| {
             let inner = (width - x - p.right - b.right).max(0.);
@@ -778,6 +951,10 @@ impl RenderCx<'_> {
         for sup in self.superscripts(&source, &style.text, wrap, (x, y), top) {
             line = line.child(sup);
         }
+        for image in self.inline_images(&style.text, wrap, (x, y)) {
+            line = line.child(image);
+        }
+        self.rooms.clear();
         for paint in &style.overlays {
             line = line.child(self.paint(paint, top));
         }

@@ -50,6 +50,7 @@ impl CsvTheme {
             color: t.color("--po-editable-table-body-color"),
             tabular: false,
             line_height,
+            face: Default::default(),
         };
         // Sticky cells layer their tint over the editor background so content
         // scrolling beneath never shows through.

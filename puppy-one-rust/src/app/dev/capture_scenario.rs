@@ -60,6 +60,20 @@ enum Step {
     Context(f32, f32),
     Submenu,
     ExplorerDrag(f32),
+    /// A wheel scroll of this many pixels down over the editor's middle.
+    Scroll(f32),
+    /// A left click at a window point.
+    Click(f32, f32),
+    /// The Sub Theme for both colour modes.
+    Pack(String),
+    /// The colour mode (`dark` or `light`), switched while the window runs.
+    Mode(bool),
+    /// The pointer moved to a window point.
+    Move(f32, f32),
+    /// The left button pressed / released at a window point (a drag is
+    /// press, moves and release, each its own frame).
+    Press(f32, f32),
+    Release(f32, f32),
     Command(crate::app::Command),
     /// `wait:<ms>`: let asynchronous content (a web page) settle.
     Wait(u64),
@@ -67,9 +81,13 @@ enum Step {
     /// `hosts-fixture`: the owner's other computers of
     /// `#homepage-computers-visual-smoke`, this one sharing three folders.
     HostsFixture,
+    /// `updates-fixture:<preview>`: the update service in one state.
+    UpdatesFixture(String),
     /// `plan-fixture:<state>`: Settings › Plan as `#cloud-plans-visual-smoke`
     /// shows it (`free`, `team`, `enterprise`, `scheduled`).
     PlanFixture(String),
+    /// `cloud-offline`: an available account with Cloud on, nothing behind it.
+    CloudOffline,
     /// `host-share:<absolute path>`: the sharing dialog for that folder.
     HostShare(PathBuf),
     HomeHover(usize),
@@ -141,9 +159,27 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "toggle-explorer" => Step::Command(crate::app::Command::ToggleExplorer),
                 "home" => Step::Command(crate::app::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
+                "scroll" => Step::Scroll(arg.trim().parse().ok()?),
+                "pack" => Step::Pack(arg.trim().to_owned()),
+                "mode" => Step::Mode(arg.trim() == "dark"),
+                "click" | "move" | "press" | "release" => {
+                    let n: Vec<f32> = arg
+                        .split(',')
+                        .map(|v| v.trim().parse().ok())
+                        .collect::<Option<_>>()?;
+                    match (name, n.as_slice()) {
+                        ("click", &[x, y]) => Step::Click(x, y),
+                        ("move", &[x, y]) => Step::Move(x, y),
+                        ("press", &[x, y]) => Step::Press(x, y),
+                        ("release", &[x, y]) => Step::Release(x, y),
+                        _ => return None,
+                    }
+                }
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
                 "plan-fixture" => Step::PlanFixture(arg.to_string()),
+                "cloud-offline" => Step::CloudOffline,
+                "updates-fixture" => Step::UpdatesFixture(arg.to_string()),
                 "host-share" => Step::HostShare(path()),
                 "home-hover" => Step::HomeHover(arg.trim().parse().ok()?),
                 "home-actions" => Step::HomeActions(arg.trim().parse().ok()?),
@@ -367,6 +403,73 @@ impl Shell {
                     p.end_drag(true, cx);
                 });
             }
+            Step::Scroll(by) => {
+                let e = self.frame.layout.editor;
+                window.dispatch_event(
+                    PlatformInput::ScrollWheel(ScrollWheelEvent {
+                        position: point(px(e.x + e.w / 2.), px(e.y + e.h / 2.)),
+                        delta: ScrollDelta::Pixels(point(px(0.), px(-*by))),
+                        modifiers: Modifiers::default(),
+                        touch_phase: TouchPhase::Moved,
+                    }),
+                    cx,
+                );
+            }
+            Step::Move(x, y) => {
+                window.dispatch_event(
+                    PlatformInput::MouseMove(MouseMoveEvent {
+                        position: point(px(*x), px(*y)),
+                        pressed_button: None,
+                        modifiers: Modifiers::default(),
+                    }),
+                    cx,
+                );
+            }
+            Step::Press(x, y) => {
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        button: MouseButton::Left,
+                        position: point(px(*x), px(*y)),
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    cx,
+                );
+            }
+            Step::Release(x, y) => {
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        button: MouseButton::Left,
+                        position: point(px(*x), px(*y)),
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
+                    }),
+                    cx,
+                );
+            }
+            Step::Click(x, y) => {
+                let position = point(px(*x), px(*y));
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        button: MouseButton::Left,
+                        position,
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    cx,
+                );
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        button: MouseButton::Left,
+                        position,
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
+                    }),
+                    cx,
+                );
+            }
             Step::GitCommit(index) => {
                 let index = *index;
                 if !self
@@ -556,6 +659,27 @@ impl Shell {
                     )
                 });
             }
+            Step::Mode(dark) => {
+                let mode = if *dark {
+                    crate::features::settings::ThemeMode::Dark
+                } else {
+                    crate::features::settings::ThemeMode::Light
+                };
+                self.prefs
+                    .store
+                    .update(cx, |p, cx| p.change(|p| p.theme_mode = mode, cx))
+            }
+            Step::Pack(id) => self.prefs.store.update(cx, |p, cx| {
+                p.change(
+                    |p| {
+                        p.sub_theme_ids = crate::features::settings::SubThemeIds {
+                            light: id.clone(),
+                            dark: id.clone(),
+                        }
+                    },
+                    cx,
+                )
+            }),
             Step::HomeList => self.prefs.store.update(cx, |p, cx| {
                 p.change(
                     |p| p.homepage_project_layout = crate::features::settings::HomepageLayout::List,
@@ -582,6 +706,16 @@ impl Shell {
                 self.explorer
                     .session
                     .update(cx, |e, cx| e.toggle_pin(&path, cx));
+            }
+            Step::UpdatesFixture(preview) => {
+                crate::features::updates::install_fixture(preview, cx);
+            }
+            Step::CloudOffline => {
+                crate::features::cloud::account::install_offline(cx);
+                self.prefs.store.update(cx, |p, cx| {
+                    p.state.experimental.cloud_workspace = true;
+                    cx.notify();
+                });
             }
             Step::PlanFixture(state) => {
                 // An available account and Cloud with payments, nothing behind them.

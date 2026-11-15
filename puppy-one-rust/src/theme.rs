@@ -343,6 +343,10 @@ pub fn tint(c: Rgba, weight: f32) -> Rgba {
 pub fn shade(c: Rgba, weight: f32) -> Rgba {
     mix(c, rgb(0x000000), weight)
 }
+/// `.cm-md-video-player { background: #000 }`.
+pub fn video_black() -> Rgba {
+    rgb(0x000000)
+}
 /// `#fff` text on a solid status fill (`.desktop-settings-save-action`).
 pub fn on_solid() -> Rgba {
     rgb(0xffffff)
@@ -501,6 +505,8 @@ pub struct Theme {
     /// the stroke and its 1px ring while it is dragged.
     pub pane_resizer_active: Rgba,
     pub pane_resizer_ring: Rgba,
+    /// `--desktop-titlebar-update-accent`: the titlebar's update action.
+    pub update_accent: Rgba,
     // Status.
     pub accent: Rgba,
     pub accent_text: Rgba,
@@ -627,7 +633,7 @@ pub fn set_pack(id: &str) {
     let pack = find(id).unwrap_or_else(|| packs()[0].clone());
     PACK.with(|p| *p.borrow_mut() = Some(pack));
 }
-#[cfg(any(test, feature = "test-support"))]
+/// The active Sub Theme's id.
 pub fn pack_id() -> String {
     active().id.clone()
 }
@@ -760,6 +766,7 @@ impl Theme {
             control: c("control"),
             control_hover: c("control-hover"),
             focus: resizer,
+            update_accent: if dark { rgb(0x60a5fa) } else { rgb(0x2563eb) },
             focus_ring: c("focus-ring"),
             selection: c("text-selection-bg"),
             // color-mix(in srgb, var(--po-pane-resizer-blue) 55%, var(--po-divider))

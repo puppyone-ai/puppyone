@@ -356,6 +356,7 @@ impl CsvEditor {
                 color,
                 tabular: true,
                 line_height: LineHeight::Factor(1.2),
+                face: Default::default(),
             };
             let mut d = div().whitespace_nowrap();
             style.apply(d.style());
@@ -498,6 +499,7 @@ impl CsvEditor {
                 color,
                 tabular: false,
                 line_height: LineHeight::Factor(1.2),
+                face: Default::default(),
             };
             let mut d = div().whitespace_nowrap();
             style.apply(d.style());

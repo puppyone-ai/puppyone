@@ -42,7 +42,7 @@ use crate::{
     },
     typography::Scale,
 };
-use composition::FEATURES;
+use composition::{FEATURES, MDX_FEATURES};
 use std::{
     hash::{Hash, Hasher},
     rc::Rc,
@@ -71,6 +71,10 @@ pub struct MarkdownExtension {
     pub references: Option<crate::editor::navigation::ReferenceContext>,
     /// Where the document's media resolve and load from.
     pub assets: Option<crate::editor::registry::DocumentAssets>,
+    /// The dialect's features (`.mdx`: with MDX components).
+    features: core::feature::Features,
+    /// The Sub Theme the theme was resolved under (`tokens::theme_key`).
+    theme_key: u64,
 }
 
 impl MarkdownExtension {
@@ -85,14 +89,24 @@ impl MarkdownExtension {
             preview: PreviewState::default(),
             references: None,
             assets: None,
+            features: FEATURES,
+            theme_key: crate::editor::tokens::theme_key(),
         }
+    }
+
+    /// The Open Knowledge MDX dialect (`.mdx` documents).
+    pub fn mdx(mut self) -> Self {
+        self.features = MDX_FEATURES;
+        self
     }
 
     /// Follow the app appearance; returns whether anything changed.
     pub fn set_appearance(&mut self, dark: bool, scale: Scale) -> bool {
-        if self.theme.dark == dark && self.scale == scale {
+        let theme_key = crate::editor::tokens::theme_key();
+        if self.theme.dark == dark && self.scale == scale && self.theme_key == theme_key {
             return false;
         }
+        self.theme_key = theme_key;
         self.theme = MarkdownTheme::resolve(dark, scale);
         self.scale = scale;
         true
@@ -104,14 +118,14 @@ impl MarkdownExtension {
             Some(p) if p.revision == state.revision && p.len == state.doc.len() => {
                 // A callout folded or opened: the same syntax, new plans.
                 if p.folds != *folds {
-                    p.plans = Rc::new(plans::compile(&state.doc, &p.syntax, folds, FEATURES));
+                    p.plans = Rc::new(plans::compile(&state.doc, &p.syntax, folds, self.features));
                     p.folds = folds.clone();
                 }
                 (p.syntax.clone(), p.plans.clone())
             }
             _ => {
                 let syntax = Rc::new(Syntax::parse(&state.doc));
-                let plans = Rc::new(plans::compile(&state.doc, &syntax, folds, FEATURES));
+                let plans = Rc::new(plans::compile(&state.doc, &syntax, folds, self.features));
                 self.parsed = Some(Parsed {
                     revision: state.revision,
                     len: state.doc.len(),
@@ -197,7 +211,7 @@ impl EditorExtension for MarkdownExtension {
             theme: &self.theme,
             preview: &self.preview,
             live: self.live,
-            features: FEATURES,
+            features: self.features,
             assets: self.assets.as_ref(),
             references: self.references.as_ref(),
         })
@@ -211,6 +225,7 @@ impl EditorExtension for MarkdownExtension {
             self.preview.selecting,
             self.preview.callout_title,
             &self.preview.callout_folds,
+            &self.preview.tabs,
             self.preview
                 .revealed_source
                 .clone()
@@ -274,7 +289,7 @@ impl EditorExtension for MarkdownExtension {
 
     /// Commands of feature widgets and hotspots, run by the owning feature.
     fn command(&mut self, command: &Command, state: &EditorState) -> Option<Transaction> {
-        let feature = contract::find(FEATURES, command.feature())?;
+        let feature = contract::find(self.features, command.feature())?;
         if let Some(tr) = feature.view_command(command, &mut self.preview, state) {
             return Some(tr);
         }

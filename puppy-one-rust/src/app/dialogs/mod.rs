@@ -17,6 +17,7 @@
 //! for as long as it is set.
 mod builtin;
 mod create_entry;
+pub(super) mod question;
 mod rename;
 #[cfg(test)]
 mod tests;
@@ -80,6 +81,10 @@ pub(super) enum DialogKey {
     /// A project's folder that cannot be opened (`UnavailableProjectDialog`,
     /// the confirmation of a different folder).
     ProjectFolder,
+    /// A viewer's question (`HtmlFolderAccessDialog`).
+    Question,
+    /// `GitOperationErrorDialog`: a Changes operation failed.
+    GitFailure,
 }
 
 type RenderDialog = Rc<dyn Fn(Size<Pixels>, &mut Window, &mut App) -> AnyElement>;

@@ -104,8 +104,49 @@ pub struct Decorations {
     pub replaced: Vec<(Range<usize>, SharedString)>,
     /// Text set as `<sup>` / `<sub>` (sorted by start).
     pub superscripts: Vec<Superscript>,
+    /// Replaced source drawn by the render service once it is ready (an
+    /// inline formula): its replacement shows until then (sorted by start).
+    pub inline_images: Vec<InlineImage>,
+    /// Dotted or dashed lines under text, which Kit marks cannot draw
+    /// (sorted by start).
+    pub underlines: Vec<Underline>,
     pub surface: Surface,
 }
+
+/// `text-decoration` in a dotted or dashed style: 1px segments `dash` long,
+/// `gap` apart, `text-underline-offset: 2px` under the baseline of text
+/// `size` tall.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Underline {
+    pub range: Range<usize>,
+    pub color: Rgba,
+    pub dash: f32,
+    pub gap: f32,
+    pub size: f32,
+}
+
+/// A replaced range drawn as an image in the text flow once it is ready
+/// (an inline formula, a picture beside text).
+#[derive(Clone)]
+pub struct InlineImage {
+    pub range: Range<usize>,
+    /// Inline padding on each side, in ems of the line's font.
+    pub pad: f32,
+    /// Corner radius of the drawn image.
+    pub radius: f32,
+    pub draw: DrawInline,
+}
+/// The image for a line: its background (a formula is drawn on it), the
+/// line's width and font size. `None` while it is not ready.
+pub type DrawInline = std::rc::Rc<
+    dyn Fn(
+        Option<gpui::Rgba>,
+        f32,
+        f32,
+        &mut gpui::Window,
+        &mut gpui::App,
+    ) -> Option<crate::render_service::Rendered>,
+>;
 
 /// Text set as `<sup>` or `<sub>`: at its own size and colour, its baseline
 /// shifted (`vertical-align: super` / `sub`). One shaped run has one size,

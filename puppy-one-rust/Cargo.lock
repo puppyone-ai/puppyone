@@ -6747,12 +6747,14 @@ dependencies = [
  "base64",
  "blake3",
  "chrono",
+ "core-foundation-sys",
  "flate2",
  "futures-util",
  "getrandom 0.3.4",
  "hmac 0.12.1",
  "image",
  "libc",
+ "libloading",
  "notify",
  "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
@@ -6762,6 +6764,7 @@ dependencies = [
  "portable-pty",
  "raw-window-handle",
  "regex",
+ "roxmltree 0.21.1",
  "rusqlite",
  "rusty-leveldb",
  "serde",
@@ -9959,8 +9962,6 @@ dependencies = [
 [[package]]
 name = "vt100"
 version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84cd863bf0db7e392ba3bd04994be3473491b31e66340672af5d11943c6274de"
 dependencies = [
  "itoa",
  "log",

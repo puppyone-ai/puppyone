@@ -131,7 +131,8 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         let path = s.explorer.session.read(cx).tree().rows[0].path.clone();
-        s.dialogs.update(cx, |d, cx| d.rename(path, false, w, cx));
+        s.dialogs
+            .update(cx, |d, cx| d.rename(path, false, false, w, cx));
     });
     draw(cx);
     view.update(cx, |s, cx| {
@@ -148,7 +149,8 @@ fn a_dialog_keeps_focus_when_its_focused_control_goes(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
         let path = s.explorer.session.read(cx).tree().rows[0].path.clone();
-        s.dialogs.update(cx, |d, cx| d.rename(path, false, w, cx));
+        s.dialogs
+            .update(cx, |d, cx| d.rename(path, false, false, w, cx));
     });
     draw(cx);
     // Focus moves to a control that is no longer there (removed or disabled).
@@ -188,6 +190,7 @@ fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
         cx.emit(ExplorerEvent::Rename {
             path: "a.md".into(),
             change_type: true,
+            folder: false,
         })
     });
     draw(cx);
@@ -249,5 +252,35 @@ fn a_refused_close_asks_to_keep_the_window_or_close_anyway(cx: &mut TestAppConte
         assert!(s.dialogs.read(cx).is_empty());
         assert!(!windows::quitting(cx));
         assert!(!s.files(cx).allow_quit);
+    });
+}
+#[gpui::test]
+fn a_git_failure_is_its_dialog_until_dismissed(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let source_control = view.read_with(cx, |s, cx| s.sidebar.read(cx).source_control.clone());
+    source_control.update(cx, |s, cx| {
+        s.fail(
+            "push",
+            "Unable to push changes: ! [rejected] main (fetch first)",
+            cx,
+        )
+    });
+    draw(cx);
+    view.update(cx, |s, cx| {
+        assert!(s.dialogs.read(cx).contains(DialogKey::GitFailure))
+    });
+    // A press inside the dialog keeps it.
+    let size = cx.update(|w, _| w.viewport_size());
+    cx.simulate_click(point(size.width / 2., size.height / 2.), Modifiers::none());
+    draw(cx);
+    view.update(cx, |s, cx| {
+        assert!(s.dialogs.read(cx).contains(DialogKey::GitFailure))
+    });
+    // Escape dismisses the failure and the dialog with it.
+    command(&view, cx, Command::Escape);
+    cx.run_until_parked();
+    view.update(cx, |s, cx| {
+        assert!(!s.dialogs.read(cx).contains(DialogKey::GitFailure));
+        assert!(!source_control.read(cx).has_failure());
     });
 }

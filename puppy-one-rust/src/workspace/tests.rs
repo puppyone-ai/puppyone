@@ -149,6 +149,31 @@ fn provider_revision_and_resource_binding_cannot_be_retargeted() {
         assert!(StorageId::new(uri).is_err());
     }
 }
+/// A stream of changes that never quiets (a build, an install) still
+/// rereads the tree while it runs, not only once it stops.
+#[test]
+fn local_root_watch_publishes_during_a_continuous_stream() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open(dir.path()).unwrap();
+    let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = count.clone();
+    let _watch = ws
+        .watch_root(Arc::new(move || {
+            seen.fetch_add(1, Ordering::SeqCst);
+        }))
+        .unwrap();
+    let started = Instant::now();
+    let mut n = 0;
+    while started.elapsed() < Duration::from_millis(3000) {
+        n += 1;
+        std::fs::write(dir.path().join("out.js"), n.to_string()).unwrap();
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    assert!(
+        count.load(Ordering::SeqCst) >= 1,
+        "no reread while changes kept arriving"
+    );
+}
 #[test]
 fn local_watch_coalesces_changes_and_drop_releases_its_worker() {
     let dir = tempfile::tempdir().unwrap();

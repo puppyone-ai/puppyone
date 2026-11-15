@@ -14,6 +14,66 @@ use gpui_kit::{
 pub(in crate::app) use crate::ui::resource_drag::ResourceDrag as DragNodes;
 
 impl Explorer {
+    /// OS files dropped on `target`: imported, unless they are this
+    /// project's own entries coming back from a drag that left the window
+    /// (`resource-drag-session-service`'s internal drop), which move.
+    pub(super) fn drop_external(
+        &mut self,
+        paths: &ExternalPaths,
+        target: &Path,
+        cx: &mut Context<Self>,
+    ) {
+        let root = self
+            .session
+            .read(cx)
+            .workspace()
+            .and_then(|w| w.local_root());
+        let own = crate::platform::drag_out::own_files()
+            .filter(|own| own.as_slice() == paths.paths())
+            .zip(root)
+            .and_then(|(own, root)| {
+                own.iter()
+                    .map(|p| p.strip_prefix(root).ok().map(Path::to_path_buf))
+                    .collect::<Option<Vec<_>>>()
+            });
+        self.session.update(cx, |session, cx| match own {
+            Some(entries) => session.move_into(&entries, target, cx),
+            None => session.run_op(FileOp::Import(paths.paths().to_vec(), target.into()), cx),
+        })
+    }
+    /// Entries dragged past the window's edge (`useResourceDragExport`):
+    /// the system's own session takes over with the files, which another
+    /// app can copy; when it ends wherever it is dropped, so does the drag
+    /// here. A Cloud project's entries have no files to carry.
+    pub(super) fn drag_left_window(
+        &mut self,
+        drag: &DragNodes,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if drag.native.get() {
+            return;
+        }
+        let Some(files) = drag.local_paths() else {
+            return;
+        };
+        let (ended, end) = async_channel::bounded(1);
+        let native = crate::platform::drag_out::begin_files(window, &files, move || {
+            let _ = ended.try_send(());
+        });
+        if !native {
+            return;
+        }
+        drag.native.set(true);
+        let handle = window.window_handle();
+        cx.spawn(async move |_, cx| {
+            if end.recv().await.is_ok() {
+                let _ = handle.update(cx, |_, window, cx| cx.stop_active_drag(window));
+            }
+        })
+        .detach();
+        cx.notify();
+    }
     /// One stride of the virtual list: a row inside its 1px block margins
     /// (`uniform_list` measures items without their margins), offset or
     /// clipped while the disclosure motion runs. `ghosts`: this slot also
@@ -253,11 +313,16 @@ impl Explorer {
         } else {
             vec![item.path.clone()]
         };
+        // Only a selection drags another row than this one: the rest need
+        // no scan of every row.
         let single_file = drag_paths.len() == 1
-            && tree
-                .rows
-                .iter()
-                .any(|row| row.path == drag_paths[0] && !row.folder);
+            && if drag_paths[0] == item.path {
+                !item.folder
+            } else {
+                tree.rows
+                    .iter()
+                    .any(|row| row.path == drag_paths[0] && !row.folder)
+            };
         let workspace = session.workspace().cloned();
         let lit = self
             .menu
@@ -338,6 +403,7 @@ impl Explorer {
                 paths: drag_paths,
                 label: drag_label,
                 workspace,
+                native: Default::default(),
             },
             |drag, _, _, cx| cx.new(|_| drag.clone()),
         )
@@ -351,9 +417,7 @@ impl Explorer {
             })
         }))
         .on_drop(cx.listener(move |s, paths: &ExternalPaths, _, cx| {
-            let import = FileOp::Import(paths.paths().to_vec(), import_target.clone());
-            s.session
-                .update(cx, |session, cx| session.run_op(import, cx))
+            s.drop_external(paths, &import_target, cx)
         }))
         .into_any_element()
     }

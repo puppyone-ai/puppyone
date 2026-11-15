@@ -1,12 +1,14 @@
 //! The Markdown table widget's interaction state (tableDragLayer.ts,
 //! tableContextMenu.ts, tableStructuralSelectionState.ts), kept across
 //! frames in keyed element state: the hovered cell, a grip drag, the
-//! structural selection a move leaves, and the open action menu. Every
-//! edit it requests is a table `Structure` command through the editor.
-use super::commands;
+//! structural selection a move leaves, the open action menu, and column
+//! tracks set by the resize rail (`tableColumnLayoutController.ts`: view
+//! state, outside the source and its history). Every edit it requests is a
+//! table `Structure` command through the editor.
+use super::{commands, layout};
 use crate::editor::{
     table::{
-        interaction::{Gestures, Hover, StructureDrag, Tracks},
+        interaction::{Gestures, Hover, Resizing, StructureDrag, Tracks},
         menu::{self, Extras, MenuEvent, Scope, TableMenu, Target},
         operation::{Alignment, Axis, Operation},
     },
@@ -99,6 +101,10 @@ pub struct TableUi {
     /// Window position of the block origin (last paint).
     pub origin: Option<Point<Pixels>>,
     pub frame: Option<Frame>,
+    /// Explicit column tracks (resized or auto-fitted); automatic until set.
+    pub widths: Option<Vec<f32>>,
+    /// The resized column's track while the rail is held.
+    pub live: Option<f32>,
 }
 
 impl TableUi {
@@ -117,6 +123,11 @@ impl TableUi {
             return;
         };
         if let Some((row, column)) = frame.geometry.hit(x, y) {
+            // The resize rail follows the hovered column.
+            if self.gestures.resizing.is_none() && self.gestures.resize_hover != Some(column) {
+                self.gestures.resize_hover = Some(column);
+                cx.notify();
+            }
             let hover = Hover {
                 row: Some(row),
                 column: Some(column),
@@ -132,12 +143,66 @@ impl TableUi {
     pub fn pointer_left(&mut self, cx: &mut Context<Self>) {
         if !self.gestures.surface_hovered
             && !self.gestures.grip_hovered
+            && self.gestures.resizing.is_none()
+            && self.gestures.resize_hover.take().is_some()
+        {
+            cx.notify();
+        }
+        if !self.gestures.surface_hovered
+            && !self.gestures.grip_hovered
             && self.gestures.drag.is_none()
             && self.menu.is_none()
             && self.gestures.hover != Hover::default()
         {
             self.gestures.hover = Hover::default();
             cx.notify();
+        }
+    }
+
+    /// The rail pressed at window `x` on `column` of tracks `widths`.
+    pub fn start_resize(&mut self, column: usize, x: f32, widths: &[f32], cx: &mut Context<Self>) {
+        let Some(start_width) = widths.get(column).copied() else {
+            return;
+        };
+        self.menu = None;
+        self.gestures.resizing = Some(Resizing {
+            column,
+            start_x: x,
+            start_width,
+        });
+        self.live = Some(start_width);
+        cx.notify();
+    }
+
+    pub fn resize_to(&mut self, x: f32, cx: &mut Context<Self>) {
+        let Some(resizing) = self.gestures.resizing else {
+            return;
+        };
+        let width = layout::clamp(resizing.width(x, f32::MIN, f32::MAX));
+        if self.live != Some(width) {
+            self.live = Some(width);
+            cx.notify();
+        }
+    }
+
+    /// Release commits the track to `widths` (the tracks shown); Escape or a
+    /// lost capture restores it.
+    pub fn end_resize(&mut self, cancel: bool, widths: &[f32], cx: &mut Context<Self>) {
+        let (Some(resizing), live) = (self.gestures.resizing.take(), self.live.take()) else {
+            return;
+        };
+        if let (false, Some(width)) = (cancel, live) {
+            self.set_width(resizing.column, width, widths);
+        }
+        cx.notify();
+    }
+
+    /// `commitWidths`: one column's explicit track, the others as shown.
+    pub fn set_width(&mut self, column: usize, width: f32, widths: &[f32]) {
+        let mut next: Vec<f32> = widths.iter().copied().map(layout::clamp).collect();
+        if let Some(track) = next.get_mut(column) {
+            *track = layout::clamp(width);
+            self.widths = Some(next);
         }
     }
 

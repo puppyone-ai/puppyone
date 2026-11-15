@@ -37,6 +37,8 @@ pub(super) struct Builder<'a> {
     /// Source shown as other text.
     pub replaced: Vec<(Range<usize>, SharedString)>,
     pub superscripts: Vec<crate::editor::view::decoration::Superscript>,
+    pub inline_images: Vec<crate::editor::view::decoration::InlineImage>,
+    pub underlines: Vec<crate::editor::view::decoration::Underline>,
     /// Colours an element sets on its content (inline HTML `style`): text
     /// and background, packed.
     pub colors: Vec<(Range<usize>, Option<u32>, Option<u32>)>,
@@ -61,6 +63,8 @@ impl<'a> Builder<'a> {
             atomic: Vec::new(),
             replaced: Vec::new(),
             superscripts: Vec::new(),
+            inline_images: Vec::new(),
+            underlines: Vec::new(),
             colors: Vec::new(),
             spans: Vec::new(),
             contexts: vec![None; count],
@@ -105,6 +109,7 @@ impl<'a> Builder<'a> {
                 style: &mut style,
                 hidden: &mut self.hidden,
                 replaced: &mut self.replaced,
+                inline_images: &mut self.inline_images,
             };
             for feature in cx.features {
                 feature.decorate_line(&mut decoration);
@@ -136,6 +141,8 @@ pub struct LineDecoration<'b> {
     /// Source the line hides, and source it shows as other text.
     pub hidden: &'b mut Vec<Range<usize>>,
     pub replaced: &'b mut Vec<(Range<usize>, SharedString)>,
+    /// Replaced source drawn as an image in the text (a picture beside text).
+    pub inline_images: &'b mut Vec<crate::editor::view::decoration::InlineImage>,
 }
 
 /// A feature decorating its block (around its widget).

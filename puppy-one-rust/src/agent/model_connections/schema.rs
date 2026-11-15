@@ -25,7 +25,7 @@ pub fn connection_id(value: &str) -> AgentResult<String> {
 }
 
 /// `text(value, max)`.
-fn text(value: &str, max: usize) -> AgentResult<String> {
+pub fn text(value: &str, max: usize) -> AgentResult<String> {
     let trimmed = text::trim(value);
     if trimmed.is_empty() || text::len16(value) > max || CONTROL.is_match(value) {
         return Err(connection_error("INVALID_CONFIGURATION"));

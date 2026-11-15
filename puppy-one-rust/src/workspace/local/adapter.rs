@@ -4,8 +4,13 @@ use crate::workspace::{contracts::*, ports::*};
 use std::{
     path::Path,
     sync::{Arc, Mutex, mpsc},
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+/// Quiet that ends a burst of directory changes.
+const BURST_QUIET: Duration = Duration::from_millis(120);
+/// Longest a continuous stream of changes defers the tree's reread.
+const BURST_LIMIT: Duration = Duration::from_secs(1);
 
 struct LocalProvider {
     inner: Arc<Workspace>,
@@ -154,8 +159,13 @@ impl ResourceWatchPort for LocalProvider {
             loop {
                 match rx.recv_timeout(Duration::from_millis(250)) {
                     Ok(()) => {
-                        // Coalesce the burst, then publish one reset.
-                        while rx.recv_timeout(Duration::from_millis(120)).is_ok() {}
+                        // Coalesce the burst, then publish one reset; a
+                        // stream that never quiets (a build, an install)
+                        // still publishes once per `BURST_LIMIT`.
+                        let started = Instant::now();
+                        while started.elapsed() < BURST_LIMIT
+                            && rx.recv_timeout(BURST_QUIET).is_ok()
+                        {}
                         if let Ok(mut slot) = pending.lock() {
                             *slot = Some(WatchEvent::Invalidated);
                         }

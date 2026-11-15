@@ -3,7 +3,10 @@
 //! spreadsheet tracks. Estimates are in ems and sample at most 128 rows.
 use super::model::Table;
 
+/// `EMBEDDED_TABLE_COLUMN_MIN_WIDTH` / `_MAX_WIDTH`: a column stays
+/// clickable; only explicit resizing has a ceiling.
 const MIN: f64 = 48.;
+const MAX: f64 = 960.;
 const SLACK: f64 = 1.06;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -12,8 +15,56 @@ struct Extent {
     max: f64,
 }
 
+/// `clampEmbeddedTableColumnWidth`: an explicit track, whole pixels.
+pub fn clamp(width: f32) -> f32 {
+    if width.is_finite() {
+        (width.round() as f64).clamp(MIN, MAX) as f32
+    } else {
+        MIN as f32
+    }
+}
+
+/// `estimateMarkdownTableColumnWidth` (double-click auto-fit): `column` at
+/// its natural width, within the reading column.
+pub fn natural_width(
+    table: &Table,
+    column: usize,
+    available: f32,
+    font_size: f32,
+    inset: f32,
+) -> f32 {
+    let Some(content) = contents(table).get(column).copied() else {
+        return MIN as f32;
+    };
+    let natural = content.max * font_size as f64 * SLACK + inset as f64;
+    clamp(natural.ceil().min(usable(available as f64)) as f32)
+}
+
+/// `usableWidth`: the reading column less the table's outer rule.
+fn usable(available: f64) -> f64 {
+    let available = if available.is_finite() && available > 0. {
+        available
+    } else {
+        640.
+    };
+    (available.floor() - 2.).max(MIN)
+}
+
 /// Tracks include cell padding and their end rule, like CSS `<col>` widths.
 pub fn column_widths(table: &Table, available: f32, font_size: f32, inset: f32) -> Vec<f32> {
+    layout(
+        &contents(table),
+        available as f64,
+        font_size as f64,
+        inset as f64,
+    )
+    .into_iter()
+    .map(|w| w as f32)
+    .collect()
+}
+
+/// `measureMarkdownTableColumns`: each column's extents, in ems.
+fn contents(table: &Table) -> Vec<Extent> {
     let mut contents = vec![Extent::default(); table.alignments.len().max(1)];
     let rows = table.rows.len();
     for sample in 0..rows.min(128) {
@@ -30,22 +81,14 @@ pub fn column_widths(table: &Table, available: f32, font_size: f32, inset: f32) 
             column.max = column.max.max(extent.max * factor);
         }
     }
-    layout(&contents, available as f64, font_size as f64, inset as f64)
-        .into_iter()
-        .map(|w| w as f32)
-        .collect()
+    contents
 }
 
 fn layout(contents: &[Extent], available: f64, font: f64, inset: f64) -> Vec<f64> {
     if contents.is_empty() {
         return vec![];
     }
-    let available = if available.is_finite() && available > 0. {
-        available
-    } else {
-        640.
-    };
-    let available = (available.floor() - 2.).max(MIN);
+    let available = usable(available);
     let cap = (available * 0.3).max(MIN);
     let natural: Vec<_> = contents
         .iter()
@@ -302,6 +345,46 @@ fn character_em(ch: char) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_tracks_are_whole_pixels_within_their_bounds() {
+        assert_eq!(clamp(10.), 48.);
+        assert_eq!(clamp(120.4), 120.);
+        assert_eq!(clamp(5000.), 960.);
+        assert_eq!(clamp(f32::NAN), 48.);
+    }
+
+    #[test]
+    fn auto_fit_is_a_columns_natural_width_within_the_reading_column() {
+        use super::super::model::{Alignment, Cell, Row};
+        let cell = |text: &str| Cell {
+            range: 0..0,
+            text: text.into(),
+            editable: true,
+        };
+        let table = Table {
+            range: 0..0,
+            lines: 0..0,
+            alignments: vec![Alignment::None; 2],
+            rows: vec![
+                Row {
+                    header: true,
+                    line: 0,
+                    cells: vec![cell("A"), cell("B")],
+                },
+                Row {
+                    header: false,
+                    line: 1,
+                    cells: vec![cell("x"), cell(&"word ".repeat(80))],
+                },
+            ],
+            refinement_valid: true,
+        };
+        // A one-letter column is the floor; a long one the reading column.
+        assert_eq!(natural_width(&table, 0, 600., 13., 21.), 48.);
+        assert_eq!(natural_width(&table, 1, 600., 13., 21.), 598.);
+        assert_eq!(natural_width(&table, 5, 600., 13., 21.), 48.);
+    }
     #[test]
     fn tracks_match_the_product_at_every_reading_width() {
         let cases: serde_json::Value = serde_json::from_str(include_str!(

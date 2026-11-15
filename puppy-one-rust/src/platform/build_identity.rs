@@ -1,7 +1,9 @@
 //! The slice of the product's build identity (`shared/desktop-build-identity.mjs`)
 //! that runtime policy reads: the release channel, whether this executable runs
-//! from an application bundle (Electron's `app.isPackaged`), and the version.
-//! Release coordinates, signing and update feeds belong to packaging (PL-1).
+//! from an application bundle (Electron's `app.isPackaged`), and the release
+//! coordinates `tools/release/package-macos.py` stamps into a release build
+//! (`PUPPYONE_BUILD_*`). An unstamped build is a development build of the
+//! crate version.
 
 /// `DESKTOP_BUILD_CHANNELS`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -11,6 +13,13 @@ pub enum Channel {
     Stable,
 }
 impl Channel {
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Dev => "dev",
+            Self::Internal => "internal",
+            Self::Stable => "stable",
+        }
+    }
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "dev" => Some(Self::Dev),
@@ -26,20 +35,64 @@ pub struct Identity {
     pub channel: Channel,
     pub version: String,
     pub packaged: bool,
+    /// The release's build number, or `g<commit>` for a development build.
+    pub build_id: Option<String>,
+    pub commit: Option<String>,
+    pub built_at: Option<String>,
+    pub source_dirty: bool,
+}
+/// `puppy-one-rust --puppyone-build-identity` prints this build's identity
+/// and exits, so packaging can check what it stamped.
+pub const FLAG: &str = "--puppyone-build-identity";
+
+impl Identity {
+    /// The identity as `build-info.json` names it.
+    pub fn json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "runtime": "gpui",
+            "channel": self.channel.key(),
+            "version": self.version,
+            "buildId": self.build_id,
+            "commitSha": self.commit,
+            "builtAt": self.built_at,
+            "sourceDirty": self.source_dirty,
+        })
+    }
+    /// `formatDesktopBuildDiagnostics`: what Settings › General copies.
+    pub fn diagnostics(&self) -> String {
+        let unknown = |value: &Option<String>| value.clone().unwrap_or_else(|| "unknown".into());
+        [
+            "PuppyOne GPUI".to_string(),
+            format!("Channel: {}", self.channel.key()),
+            format!("Version: {}", self.version),
+            format!("Build ID: {}", unknown(&self.build_id)),
+            format!("Commit: {}", unknown(&self.commit)),
+            format!("Built at: {}", unknown(&self.built_at)),
+            format!("Source dirty: {}", self.source_dirty),
+        ]
+        .join("\n")
+    }
 }
 
-/// This build: the channel the release build stamped in
-/// `PUPPYONE_BUILD_CHANNEL` (a development build otherwise), the crate
-/// version, and whether the executable lives in `*.app/Contents/MacOS`.
+/// This build: the channel and release coordinates a release build stamped
+/// (`PUPPYONE_BUILD_CHANNEL`, `_VERSION`, `_ID`, `_COMMIT`, `_TIME`,
+/// `_DIRTY`; a development build of the crate version otherwise), and
+/// whether the executable lives in `*.app/Contents/MacOS`.
 pub fn current() -> Identity {
+    let stamp = |value: Option<&'static str>| value.filter(|v| !v.is_empty()).map(str::to_owned);
     Identity {
         channel: option_env!("PUPPYONE_BUILD_CHANNEL")
             .and_then(Channel::parse)
             .unwrap_or(Channel::Dev),
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: stamp(option_env!("PUPPYONE_BUILD_VERSION"))
+            .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string()),
         packaged: std::env::current_exe()
             .ok()
             .is_some_and(|exe| bundled(&exe)),
+        build_id: stamp(option_env!("PUPPYONE_BUILD_ID")),
+        commit: stamp(option_env!("PUPPYONE_BUILD_COMMIT")),
+        built_at: stamp(option_env!("PUPPYONE_BUILD_TIME")),
+        source_dirty: option_env!("PUPPYONE_BUILD_DIRTY") == Some("true"),
     }
 }
 
@@ -132,6 +185,9 @@ mod tests {
     fn channels_and_node_names_follow_the_product() {
         assert_eq!(Channel::parse("stable"), Some(Channel::Stable));
         assert_eq!(Channel::parse("qubits"), None);
+        for channel in [Channel::Dev, Channel::Internal, Channel::Stable] {
+            assert_eq!(Channel::parse(channel.key()), Some(channel));
+        }
         // A test executable is never bundled; an unstamped build is Dev.
         assert!(!current().packaged);
         if option_env!("PUPPYONE_BUILD_CHANNEL").is_none() {
@@ -145,6 +201,27 @@ mod tests {
                 .split('.')
                 .next()
                 .is_some_and(|major| major.parse::<u32>().is_ok())
+        );
+    }
+
+    /// `formatDesktopBuildDiagnostics`: every coordinate on its own line.
+    #[test]
+    fn diagnostics_name_every_coordinate() {
+        let identity = Identity {
+            channel: Channel::Internal,
+            version: "0.4.4-internal.7".into(),
+            packaged: true,
+            build_id: Some("7".into()),
+            commit: Some("abc".into()),
+            built_at: None,
+            source_dirty: false,
+        };
+        assert_eq!(identity.json()["buildId"], "7");
+        assert_eq!(identity.json()["builtAt"], serde_json::Value::Null);
+        assert_eq!(
+            identity.diagnostics(),
+            "PuppyOne GPUI\nChannel: internal\nVersion: 0.4.4-internal.7\nBuild ID: 7\n\
+             Commit: abc\nBuilt at: unknown\nSource dirty: false"
         );
     }
 }

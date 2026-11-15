@@ -7,6 +7,8 @@
 
 **v0.4.4 对齐（2026-11-14，已实现并验收，未推送）**：159 个提交的差距（空间与标题栏、首页按地点分组、Create space、设置限定一个空间与 Members / Plan、Excalidraw 白板、HTML 文件夹访问与链接、Getting Started v2、从其他应用导入、项目文件夹丢失、Claude Code 登录、Git 元数据对账、其他电脑发布门控）。逐项清单与 ID（PN / RT / SC / TB / HG / CS / ST / MB / PL / AP / WB / HT / OB / IM / FA / AX / GW / HX / AC）见《PuppyOne-Rust-对齐v0.4.4-TODO-2026-11-14》；各组落地后合同在上面的 puppy-issues 文档原位更新。
 
+**补齐缺口（2026-11-15，`bdd19b2e3`..，已实现，未推送）**：发布链路与自动更新（DS-1..5）、Mermaid / KaTeX 渲染服务（RD-1..4）、Markdown 行内图片 / 视频 / 网页嵌入 / MDX Tabs / 表格列宽 / 缺失与歧义链接 / 主题包作用到正文（MD-1..7）、DuckDB、白板内嵌 HTML 与主题切换、HTML 文件夹询问对话框、新建 Context Map（VW-1..5）、改类型重命名、剪贴板提示、拖到其他应用（EX-1、2、4）、发布分支、Continue / Abort、Git 错误对话框、备份到 Cloud、Word 修订对比（GT-1..5）、Model Connections 表单与 Host server 的 Cloud 一节（ST-1、2）、长回答折叠与历史打开失败原因（AG-1、2）、终端 OSC 8 与跨 scrollback 选区（TM-1、2）、PAC 代理（WN-2）。逐项状态与偏差见《PuppyOne-Rust-补齐缺口TODO-2026-11-14》；View 菜单缩放（WN-1）未做。
+
 v0.4.4 收尾（`f677bd014`）：
 - 各组全部提交，`tools/verify.py` 全过。
 - 真实 qubits 上两项验收通过：
@@ -15,8 +17,8 @@ v0.4.4 收尾（`f677bd014`）：
   - qubits 的 catalog 里没有可购买的套餐，所以没有走报价和 checkout。
 - Plan 用 v0.4.4 的 harness 做了两种主题的像素对照。
 - 已知差异：
-  - 白板的 SDK 打成一个 8.5 MB 脚本，切换主题后撤销历史清空；
-  - HTML 的文件夹询问用系统对话框，页面摘要用 blake3；
+  - 白板的 SDK 打成一个 8.5 MB 脚本，切换主题后撤销历史清空（已修正，VW-3）；
+  - HTML 的文件夹询问用系统对话框（已改为产品对话框，VW-4），页面摘要用 blake3；
   - Find it… 没有起始目录（GPUI 的限制）；
   - Computer access 在 Host 状态读取失败时显示“未共享”。
 - 证据见 puppy-issues 的 `qubits-alignment.md#v044-alignment`。
@@ -52,11 +54,11 @@ v0.4.4 收尾（`f677bd014`）：
 
 | 领域 | 当前已接入 | 完成前还必须验证 |
 | --- | --- | --- |
-| 文件操作 `[~]` | 原 Working Copy/Entity 重绑定；隐藏文档与目录后代保存屏障；复制源 flush；未知回执只对账；移动后 Undo 写回新路径 | 改扩展名的 viewer 转换与历史连续性；与 TS 等价的按资源范围并发队列；所有格式与跨 Root 操作 |
-| 工作区与 Explorer `[~]` | 本地树/选择/滚动/剪贴板保活及重核；目录移动保留子树；同工作区单文件边缘拖放及目标生命周期隔离 | 完整每 Pane 视图状态、跨 Root composition；目录订阅；外部原生拖放；键盘/可访问性与 OS/像素验收 |
-| Cloud 完整链路 `[~]` | 认证和 running Provider；显式 opening/polling 协议、项目/generation/期限/取消校验与根目录准入；首页/项目菜单进入、位置菜单、Agents、Share（2026-11-04） | 真实后端验收（产品已删除 Header 双入口切换，改为位置菜单）；完整错误分类、并发打开合并、草稿/未知结果、权限/viewer budget 与执行隔离；真实测试环境验收 |
-| 文件查看器 `[~]` | Markdown、CSV、图片；代码/JSON 原生语法编辑、行号/折叠/缩进/括号补全、多光标/撤销；同实例语言重绑；产品查找及 Unicode 规范化 | 代码括号匹配/选词高亮/尾空格装饰、严格几何/字体与历史预算；HTML 实际预览；Context Map/PuppyFlow；App/PDF/数据库/Office/音视频的完整 TS 能力与失败态 |
-| Markdown 高级功能 `[~]` | 原生基础格式、代码块及表格；真实工作区元数据解析；CSV 引用打开；Markdown/Wiki 点击与当前文档标题跳转；Front matter、Callout、脚注、数学（Unicode）、图片行、行内 HTML、HTML 块（2026-11-04） | KaTeX 排版、Mermaid、视频、MDX、文字旁的行内图片；表格列宽、backlinks/资源预览；跨文档 heading 与 HTML id、引用视觉/可访问性；多 Root URI 和不同系统 locale 排序 |
+| 文件操作 `[~]` | 原 Working Copy/Entity 重绑定；隐藏文档与目录后代保存屏障；复制源 flush；未知回执只对账；移动后 Undo 写回新路径；改扩展名换查看器（E-2）与改类型重命名（EX-1）；按资源范围排队（E-3） | 所有格式的实机验收；跨 Root 操作（多根工作区为实验功能，不在范围） |
+| 工作区与 Explorer `[~]` | 本地树/选择/滚动/剪贴板保活及重核；目录移动保留子树；同工作区单文件边缘拖放及目标生命周期隔离；目录订阅（FSEvents）；Finder 拖入（含 WebView 窗格）与拖到其他应用（EX-4） | 完整每 Pane 视图状态、跨 Root composition；拖放实机验证；键盘/可访问性与 OS/像素验收 |
+| Cloud 完整链路 `[~]` | 认证和 running Provider；显式 opening/polling 协议、项目/generation/期限/取消校验与根目录准入；首页/项目菜单进入、位置菜单、Agents、Share（2026-11-04）；同目标打开合并、草稿/未知结果（C-6.6）、viewer budget 准入；真实 qubits 上的 Cloud 项目链路验收（v0.4.4） | 生产后端验收；执行隔离（Cloud 项目不开放本地执行） |
+| 文件查看器 `[~]` | Markdown、CSV、图片；代码/JSON 原生语法编辑、行号/折叠/缩进/括号补全、括号匹配/同词高亮/行尾空格、多光标/撤销；同实例语言重绑；产品查找及 Unicode 规范化；HTML Interact/Edit/Source、PDF、SQLite/DuckDB、Office、音视频、Excalidraw、Context Map、App 预览 | 严格几何/字体与历史预算；PuppyFlow；各查看器的完整 TS 能力、失败态与像素验收 |
+| Markdown 高级功能 `[~]` | 原生基础格式、代码块及表格；真实工作区元数据解析；CSV 引用打开；Markdown/Wiki 点击与当前文档标题跳转；Front matter、Callout、脚注、图片行、行内 HTML、HTML 块（2026-11-04）；KaTeX、Mermaid、文字旁的行内图片、视频、网页嵌入、MDX Tabs、表格列宽、缺失 / 歧义链接样式（2026-11-15，RD、MD 组） | 其余 MDX 组件；backlinks/资源预览；跨文档 heading 与 HTML id、引用可访问性；多 Root URI 和不同系统 locale 排序 |
 
 工作区引用续作：`tools/reference-navigation.mjs --check` 固定 TS HEAD 与实际输入哈希，Rust 对照 1,200 个解析结果、4 个标题索引及 18 个 URL 策略。Shell 测试覆盖 CSV→真实文件、目录重绑定后缓存更新和跨项目保活；GPUI 覆盖 Markdown 点击、4px 拖选取消、空白命中与标题跳转不改正文。完整链接图、资源预览及多 Root 未完成，不能将该切片记为整项通过。
 
@@ -169,9 +171,9 @@ v0.4.4 收尾（`f677bd014`）：
   - 标题栏菜单：用产品的菜单行（视图项带自己的图标，末尾一个淡色勾；开关项的勾在图标位），按钮在打开状态下保持标题的颜色。
   - 启动：命令行最后一个文件或文件夹参数生效，非路径参数忽略，不再报用法错误；Finder 在启动时要打开的东西替代默认窗口；单实例锁，后启动的进程把参数交给已运行的进程（`handleSecondInstanceLaunch`）。
 - [x] 顺带发现并修正的编辑器问题：Markdown 的强调、粗体、删除线、行内代码使用各自的颜色，行内代码用主题的内边距（Kit 原来固定 4px），链接不再有下划线；CSV 表格查看器没有源码切换（产品的 `providerPolicy.sourceToggle` 为 false），左下角的切换和快捷键在所有窗口都去掉了。
-- [x] Check for Updates 按产品菜单动作：这个构建没有更新服务，所以弹原生的 Updates Unavailable。
+- [x] Check for Updates 按产品菜单动作：这个构建没有更新服务，所以弹原生的 Updates Unavailable。（已过时：DS-5 起由本应用的更新服务检查、下载并安装。）
 - 像素（新套件 `tools/file-scenarios.json`，参考为真实 `FileModeApp`）：md 99.42、视图菜单 99.36、已编辑 99.33、旧编码 99.52、csv 99.99、csv 菜单 99.87、加载 99.97、打不开 99.95、超大 99.95；剩下的差异是文字抗锯齿。editor 套件 md 从 99.37 升到 99.53，csv 99.99。
-- 未改：菜单栏本身和产品不完全一样（多 Open Folder / Reload / Close File，Help 菜单是反馈而不是系统帮助菜单，没有 Edit / View 角色菜单的全部项目）；这影响所有窗口，留作下一批。
+- 未改：菜单栏本身和产品不完全一样（多 Open Folder / Reload / Close File，Help 菜单是反馈而不是系统帮助菜单，没有 Edit / View 角色菜单的全部项目）；这影响所有窗口，留作下一批。（菜单已在 §0.8 改正；View 的缩放项仍未做，WN-1。）
 
 ### 0.8 2026-11-05 Shell 拆分与菜单栏
 
@@ -205,7 +207,7 @@ v0.4.4 收尾（`f677bd014`）：
 
 - [x] S1 样式 token：`theme.rs` 从 5 个内置主题包（`assets/themes.json`，`tools/import-themes.mjs`）+ `tokens.css` 语义层公式构建；控件几何、UI 字号角色随三档尺度变化。证据：`semantic_tokens_follow_the_web_formulas`、`medium_literals_follow_the_product_role_table`
 - [x] S2 样式原语：组件库 `src/ui/components/`（SidebarRow/SidebarGroup、Settings 行/开关/分段/下拉/按钮、IconButton + tooltip、Menu/PopoverMenu、Dialog）与 `src/ui/loading/`（rounded / dither mark、placeholder）
-- [x] S3 本地化：加入 `source-control` 命名空间；ICU 子集覆盖目录实际用到的 `{arg}`、`number`、`plural`（含 `=N`、`#`），`select` 目录未使用故未实现；全局当前语言 + `localization::spawn` 让工作线程继承语言。证据：`icu_subset_matches_product_catalog_usage`、`workers_inherit_the_spawning_locale`
+- [x] S3 本地化：加入 `source-control` 命名空间；ICU 子集覆盖目录实际用到的 `{arg}`、`number`、`plural`（含 `=N`、`#`），`select` 后来在 S-17 补上；全局当前语言 + `localization::spawn` 让工作线程继承语言。证据：`icu_subset_matches_product_catalog_usage`、`workers_inherit_the_spawning_locale`
 - [x] S4 图标：七种产品语义从真实 `PRODUCT_ICONS` 注册表导入；`Icon::product(ProductIcon)` 是视图入口，兼容名称仅在素材层归并；通用 Lucide 保留。证据：`product_registry_is_exhaustive_and_preserves_geometry`、`referenced_icons_exist` 与 UI 边界审计
 - [x] S5 文件类型图标：按当前 TS 注册表仅保留 `default`，完整覆盖格式层的 22 种语义类型；导入参数化 glyph、尺寸/线宽策略及颜色绑定，不再固定 18px / 默认主题颜色。852 个 TS 分类与 308 个尺寸/线宽 oracle；继承行文字颜色、当前主题、DPR 均进入渲染/缓存。证据：`classification_and_display_follow_the_product_registry`、`every_kind_has_late_bound_ink_and_valid_geometry_at_each_size`、`every_theme_binding_uses_the_active_palette_and_inherited_ink`。大型文件卡片预览与严格像素一致仍未验收
 - [x] S6 映射清单 `tools/ui-migration-map.json` + `tools/audit-ui-migration.py`（29 组；ported 必须引用存在的测试或产物；接入 `tools/verify.py`）
@@ -251,7 +253,7 @@ v0.4.4 收尾（`f677bd014`）：
 - [x] P1-14 Git：分支、分支数、上游、同步状态、HEAD、远程（复制 URL）、刷新。证据：`remote_labels_and_masking`、截图
 - [x] P1-15 General：版本号行；更新行带图标
 - [x] P1-16 Other App Imports 页（受 Experimental 开关控制）。证据：`project_and_import_pages_follow_visibility`
-- [~] P1-17 Model Connections：列表 → 配置 → 详情的流程与文案已做。缺：本地服务发现、工具支持验证、托管连接
+- [~] P1-17 Model Connections：列表 → 配置 → 详情的流程与文案已做；本地服务发现、服务模型目录与逐模型的工具支持验证（S-21）；新增 / 编辑用产品的 `ModelConnectionSetup` 表单与服务形态的存储（ST-1）。缺：托管连接（`modelConnections.managed`）
 - [x] P1-19 Header 功能引导（`9c0e9267`、`e0d9c03d`，S-5）：`useHeaderCoachmarks` 的触发、确认、排队和持久化；Esc 在 Shell 层拦截，焦点在哪都能关，且不阻止按键继续传；对话框打开时浮层隐藏。像素 `coachmark-agent` / `-changes` 99.89%。证据：`escape_acknowledges_the_header_introduction_wherever_focus_is`、`the_agent_is_introduced_once_and_changes_wait_their_turn`
 - [x] P1-18 隐私、反馈与首页开场（`47154780`，S-20 / S-9）
   - 遥测（`electron/main/telemetry`、`shared/desktop-telemetry-*`）：只有打包的 Stable 构建在看过一次性说明后发送两种有界匿名事件（首次运行、每日活跃）；开发、未打包和非 Stable 构建保持 Basic 默认值、从不发送。偏好/身份/生命周期/队列四个原子 JSON 存储，HMAC 按月轮换 ID，只保留 7 个日历日、不存时刻，留存 ID 限 100 天。关闭即清空队列和本地身份。固定的 HTTPS 上报地址，可重试失败退避、被拒批次丢弃、不记录载荷。Electron 的选择导入一次；窗口获得焦点记前台活动。Privacy 开关接真实状态（加载、写入、失败文案）
@@ -313,11 +315,11 @@ v0.4.4 收尾（`f677bd014`）：
   - 复现：`dev-capture` 构建以 `PUPPYONE_SCREENSHOT=out.png PUPPYONE_CAPTURE_SCENARIO="select:src;node-menu:docs" ./target/debug/puppy-one-rust --workspace <repo>` 截图（步骤见 `src/app/dev/capture_scenario.rs`；窗口在后台、不抢焦点）
 - [x] P2-9 Git 右侧栏（`GitChangesSidebar` / `WorkingFileDetail` / `GitFileDiffSurface` / `GitHistoryTimeline` / `GitCommitDetail`，`src/features/source_control/`）：
   - 点开改动在侧栏内打开文件 diff：顶部返回 + Open file / Stage（Unstage）/ Discard（`ButtonVariant::GitAction`），已删除文件不能打开；未跟踪文件也可丢弃（删除文件，同 `discardWorkspaceGitPaths`）
-  - Diff Registry（`diff/mod.rs`）：按格式选择渲染器，顺序同产品（docx 修订视图原生暂缺，落到二进制摘要）。统一文本 diff：行号 / `+-` / 等宽、增删底色、hunk 分隔、长行换行、截断提示；二进制摘要：格式名、前后大小、打开当前文件。卡片头：文件名（重命名 `old → new`）、状态徽标、`+n −m`。变高虚拟列表渲染
+  - Diff Registry（`diff/mod.rs`）：按格式选择渲染器，顺序同产品（docx 修订视图见 GT-5，`diff/docx_redline.rs`）。统一文本 diff：行号 / `+-` / 等宽、增删底色、hunk 分隔、长行换行、截断提示；二进制摘要：格式名、前后大小、打开当前文件。卡片头：文件名（重命名 `old → new`）、状态徽标、`+n −m`。变高虚拟列表渲染
   - 结构化 diff（`platform/git_diff.rs`）移植 `parseGitPatch`（每文件 900 行 / 总 4000 行上限）、未跟踪文件全部视为新增、二进制前后大小；Changes 列表的重命名显示 `old -> new`，状态字母按 Geist 度量对齐基线
   - History（`history.rs`、`platform/git_history.rs`）：按本地日期分组（今天 / 昨天 / 月日，8 种语言），可折叠；每条提交显示增删总数与最多 4 个文件预览（新增 `+`、删除 `−`、`+N files`）。提交详情：标题 + HEAD、可复制 ID、`N files changed +a -d`，下方为该提交的文件 diff（History 用页面密度：13px、42px 行号列）
   - 实测（1280×800 深色，`/tmp` 专用 Git fixture，右侧栏区域，容差 8）：Changes 列表 99.4%、代码 diff 96.0%（浅色 95.8%；剩余为 Chromium / CoreText 字形抗锯齿）、二进制 99.3%、新文件 99.5%、删除 99.5%、重命名 99.6%、History 99.4%、提交详情 99.4%
-  - 已知差异：Pull / Push / Discard 的确认仍是侧栏内确认框（产品为对话框）；docx 修订视图、远程管理、待拉取改动审阅未移植
+  - 已知差异：Discard 与 Abort 前用系统确认框（产品为 `window.confirm`），Pull / Push 与产品一样不确认；Git 失败是产品的错误对话框（GT-3）；没有远程时显示备份到 Cloud 卡片（GT-4）。分区之间的拖动 / 键盘调整大小未移植；待拉取改动审阅（`IncomingChangesRegion`）只在 Reach 实验下出现，不在范围
   - 证据：`patches_parse_like_parse_git_patch`、`long_patches_are_capped_per_file`、`working_tree_diffs_cover_each_scope`、`each_file_resolves_to_the_products_renderer`、`the_list_lays_out_cards_with_their_hunks`、`logs_merge_like_read_git_history`、`a_repository_reads_its_history_and_head`、`commits_group_by_day_newest_first`、`changes_open_file_opens_it_in_the_editor`；截图步骤 `git-diff:` / `git-diff-staged:` / `git-history` / `git-commit:`
 - [x] P2-8 侧栏动效（移植 `explorerMotionPlan.ts` / `explorerMotionAnimation.ts` / `CollapsiblePaneFrame`）：
   - 文件夹展开 / 收起 220ms，产品的「平滑起步 → 匀速 → 平滑刹停」曲线（ramp 0.22）：新出现的行按连续段依次自上而下露出，消失的行留在原位作为幽灵行、最后一行先收起，其余行与列表末尾 New 行从旧位置平移（FLIP），展开箭头同步旋转；项目首次载入和换项目不播放（`src/app/explorer/motion.rs`）
@@ -328,10 +330,10 @@ v0.4.4 收尾（`f677bd014`）：
 
 ## 5. 已知差异（有意保留）
 
-- Changes 面板只在打开的文件夹就是仓库根目录时管理 Git；Web 用 `--is-inside-work-tree`，子目录也会管理整个仓库。Rust 保留这条限制，避免暂存/丢弃波及授权文件夹以外的文件。Settings → Git 页只读，子目录也能显示仓库信息。
-- 右侧栏残余像素差（GPUI 能力边界）：行高/基线取整（≤2px 累积漂移）、无 `letter-spacing`（上下文分隔标签）、无 `backdrop-filter`（对话框遮罩模糊）、行内代码 chip 用占位字形近似、Mermaid 不渲染。
-- `@path` 提及：Kit 文本框不能承载行内组件，提及 chip 排在提示词首行开头，而非任意光标位置。
-- 历史日期按 en-US 格式（`Jan 15, 3:55 PM`）在本地时区显示；产品使用系统区域的 `Intl.DateTimeFormat`。
+- ~~Changes 面板只在打开的文件夹就是仓库根目录时管理 Git~~（已改，G-13 / D-5）：与 Web 一样，仓库子目录也管理整个仓库；暂存、丢弃、diff 与 Open file 只作用于文件夹内的改动。
+- 右侧栏残余像素差（GPUI 能力边界）：行高/基线取整（≤2px 累积漂移）、无 `letter-spacing`（上下文分隔标签）、无 `backdrop-filter`（对话框遮罩模糊）、行内代码 chip 用占位字形近似。（Mermaid 已由渲染服务绘制，RD-2。）
+- ~~`@path` 提及排在提示词首行开头~~（已改，G-5）：提及是 Kit 的原子内联标记，插在光标处。
+- ~~历史日期按 en-US 格式显示~~（已改，S-17）：与产品一样按系统区域格式化（`platform::locale_format`）。
 - 聚焦分组的 1px 内阴影在产品中被不透明子层完全覆盖（参考图像素验证），不移植。
 - 拖拽 pill 的 `--po-surface` 在产品主题中未定义，产品实际为透明底；Rust 同样透明，且不画外阴影（GPUI 会把阴影画到透明主体下方）。
 - 菜单面板的 `background-clip: padding-box`（`menus.css`）：GPUI 把边框画在底色上，半透明边框叠在菜单底色上而不是背后的页面，浅色下边框约深 12 个色阶。Header 引导卡片已用 `menu::padding_box_fill` 改到边框以内（`e0d9c03d`）。**待做**：通用 `Menu` 的面板本身就是滚动容器，绝对定位的底色层会算进内容尺寸、撑大滚动范围，要先拆成外层（边框、阴影、底色）加内层滚动再套用。底色层改法会让 GPUI 在透明边框环下面多画出一点阴影（CSS 会裁掉），实测在容差以内。
@@ -348,7 +350,7 @@ python3 tools/audit-ui-migration.py
 
 ## 7. 原生编辑器：Markdown / CSV / 多窗格（Rust 原生，基于 GPUI Kit `editor_host`）
 
-决定：MD 与 CSV 由 Rust 原生实现；正文文字由 **GPUI Kit `editor_host`** 排版与绘制（不修改 Kit 源码），宿主（本应用）负责文档、装饰、每个块的盒子几何、选区、光标、输入法和指针。沿用原型 `native_editor` 的分层与 Kit 适配方式（`collect_leaf_geometry` 叶子几何），文档内核改为与产品一致的“Markdown 源码为唯一真相”。Rust 版不再内嵌 WebView：所有文档都由原生编辑器打开，没有 WebView 兜底。
+决定：MD 与 CSV 由 Rust 原生实现；正文文字由 **GPUI Kit `editor_host`** 排版与绘制（不修改 Kit 源码），宿主（本应用）负责文档、装饰、每个块的盒子几何、选区、光标、输入法和指针。沿用原型 `native_editor` 的分层与 Kit 适配方式（`collect_leaf_geometry` 叶子几何），文档内核改为与产品一致的“Markdown 源码为唯一真相”。Markdown / CSV 不内嵌 WebView，也没有 WebView 兜底；HTML、白板、Office、音视频等网页类查看器另由系统 WebView 承载（§0.5 第二轮）。
 
 ### 7.1 架构
 
@@ -381,11 +383,9 @@ python3 tools/audit-ui-migration.py
 - `--check` 明确失败，**尚未达到像素级验收**；没有忽略滚动条、选区或字体差异。保留官方 GPUI Kit，没有 fork / patch。
 - 345 个应用测试通过（两种 features），9 ignored；Clippy / release / 帧预算通过。继承的 localization 与 native-editor-probe 全验证问题仍未解决。
 
-### 7.3 已知差异（未改 Kit，严格像素验收仍未通过）
+### 7.3 已知差异（严格像素验收仍未通过）
 
-- Kit 文本标记无法单独设颜色：粗体颜色（#fafafa vs 正文 #e8e8ea）、斜体灰色、删除线颜色、光标进入时显示的 `**` / `[` / `](url)` 灰色，均按正文色绘制。
-- 链接：Kit 固定加 1px、40% 链接色的下划线。
-- 行内代码：Kit 固定两侧各 4px 内边距（`INLINE_CODE_PADDING`），其后文字右移 8px；字体与字号已一致。
+- ~~Kit 文本标记无法单独设颜色；链接固定下划线；行内代码固定 4px 内边距~~（已改，§0.7：`vendor/gpui-base` 的文本颜色标记、行内代码内边距与无下划线链接补丁，见其 `PUPPYONE_PATCH.md`）。
 - GPUI 行高取整到整像素：多行换行段落第 2 行起每行有 ±0.25px 的行距差（块边界已精确）。
 - Web 原生滚动条、代码内部换行的选区尾格，以及两个渲染器的字形/颜色量化仍有差异。代码块的聚焦底色和悬停描边已同步；比图会等待 Web 的 140ms 焦点描边过渡完成。
 
@@ -401,7 +401,8 @@ python3 tools/audit-ui-migration.py
   - [x] 表格交互（共用表格基础件）：增行 / 增列条、行列拖动手柄（拖动移动、单击打开该轴菜单）、右键操作菜单（行、列、对齐、删除表格）、落点线、结构选区；每次结构修改都是一次源码事务（按产品 `serializeMarkdownTable` 重写整表，单步撤销），光标落到目标单元格
   - [x] 块级状态：整块选中时代码块显示选中描边（`--cm-md-block-selected-ring`）、表格边框变为选区色并加 1px 外描边，块内不再画文字选区；代码块悬停 / 光标在内时显示悬停描边
   - [x] 2026-11-04：Front matter、Callout（含折叠）、脚注、数学（Unicode 文本）、图片行、行内 HTML、HTML 块（含其中的 Markdown）、块拖拽实验（O-4、O-5、O-6、O-7）
-  - [ ] Markdown 表格列宽拖拽（`tableColumnLayoutController`）、单元格内编辑器（产品为浮层输入框）、Mermaid、MDX
+  - [x] 2026-11-15：表格列宽拖拽（MD-5）、Mermaid 与 KaTeX（RD-1、RD-3、RD-4）、行内图片（MD-1）、视频（MD-2）、网页嵌入（MD-3）、MDX Tabs（MD-4）
+  - [ ] 单元格内编辑器（产品为浮层输入框）、Tabs 以外的 MDX 组件
 - [x] N7 Markdown 命令与键位：回车续列表与重新编号、引用续行、Tab 缩进、标题 / 列表 / 引用切换、行内格式切换、链接、标记删除单元、← / Home 跨隐藏标记、任务切换；源码模式
 - [x] N8 原生几何与截图对比工具；sample.md 对比通过
 - [~] N9 CSV 原生（`fixtures/editor/sample.csv` 对 `artifacts/editor-reference/csv-{dark,light}.png`：像素一致率 99.98%，所有单元格文字 dx/dy = 0.00，记录号 ≤0.02px）
@@ -422,9 +423,9 @@ python3 tools/audit-ui-migration.py
 - [~] N10 编辑器工作台原生
   - [x] 窗格外框（单窗格）：⋯ 手柄（窗格上三分之一悬停显示）、动作菜单（Markdown 实时 / 源码分段控件、查找、用默认应用打开、关闭；CSV 的表头 / 行号开关与列宽命令；开关不关菜单、命令关菜单；方向键 / Home / End / Enter / Esc）
   - [x] 查找栏（`EditorFindHost`）：⌘F / 菜单打开，Enter / ⇧Enter 上下，结果“n / 共 m”，Esc 关闭并回到编辑器；CSV 适配器与编辑视图适配器（CodeMirror 等价：不区分大小写的字面匹配、当前项选中并居中、匹配标记与当前项外框、编辑后保持）
-  - [~] 本地标签/MRU、递归分屏与 Pane 移动/调宽、独立 Working Copy、原生布局恢复和本地项目文档保活已接进 Shell；真实 TS 600 个 Pane 转换及原生 Undo/后台保存集成测试覆盖。本批补充本地资源历史重绑定、Explorer 状态保活与同工作区边缘拖放。**不是完整工作台迁移**：Cloud、完整 Pane 视图生命周期、跨 Root composition、扩展名变化后的 viewer 转换、并发资源队列与跨应用拖放等仍缺失；详见 §0.3 与 README 的 Retained Editor workbench。
+  - [~] 本地标签/MRU、递归分屏与 Pane 移动/调宽、独立 Working Copy、原生布局恢复和本地项目文档保活已接进 Shell；真实 TS 600 个 Pane 转换及原生 Undo/后台保存集成测试覆盖。本批补充本地资源历史重绑定、Explorer 状态保活与同工作区边缘拖放。**不是完整工作台迁移**：完整 Pane 视图生命周期、跨 Root composition 等仍缺失（Cloud 文档、扩展名变化后的 viewer 转换、并发资源队列与拖到其他应用已接入，见 §0.3）；详见 §0.3 与 README 的 Retained Editor workbench。
   - 已知差异：当前匹配被选中时，选区由 Kit 绘制在匹配底色之上（产品为底色在选区之上），颜色叠加顺序略有不同
-- [~] N11 路由：MD / CSV / 纯文本只走原生编辑器；WebView 编辑器、其产品代码打包（`editor/`）和 GUI 冒烟驱动已删除，不存在回退路径。缺：代码 / JSON 语法高亮，HTML / PDF / 媒体查看器；原型 `native_editor` 已删除（其自绘输入框无人使用，一并删除；共享编辑动作在 `src/ui/input.rs`，文档格式动作在 `src/editor/actions.rs`）
+- [~] N11 路由：MD / CSV / 代码 / 文本只走原生编辑器；旧的 WebView 编辑器、其产品代码打包（`editor/`）和 GUI 冒烟驱动已删除，不存在回退路径。代码 / JSON 语法高亮与 HTML / PDF / 媒体等查看器已由查看器注册表路由（`editor/registry/builtin.rs`）；原型 `native_editor` 已删除（其自绘输入框无人使用，一并删除；共享编辑动作在 `src/ui/input.rs`，文档格式动作在 `src/editor/actions.rs`）
 
 ## 8. 图标注册与共享 Loading 验证（2026-10-27）
 
@@ -442,12 +443,12 @@ python3 tools/audit-ui-migration.py
 - [x] 本地目录、文档条件读写、新建/重命名/移动/复制/导入/删除、预览与文档观察走端口；类型化错误在展示边界转成文字。
 - [x] Provider 变更通知取代 Documents 自行定时观察；本地保留 500ms 观察，订阅有界合并、Drop/撤销清理；不是完整目录监听 journal。
 - [x] 原文件系统测试经统一入口运行；无本地目录的内存 Provider 验证真实 Documents 保存/预览流程；覆盖身份隔离、权限准入、迟到结果、未知写入结果和监听清理。
-- [~] Cloud 认证与 live 文件 Provider 的已验证切片见下节；账号/项目导航和保活、Cloud 草稿冲突策略仍待接入，不因端口或登录存在标为已迁移。
+- [~] Cloud 认证与 live 文件 Provider 的已验证切片见下节；项目导航、保活与 Cloud 草稿策略已接入（§0.5、§0.6），执行隔离与生产后端验收仍缺。
 
 ## Native Cloud authentication（第二步）
 
 - [x] 原生 Broker + 独立 macOS Keychain adapter；恢复/刷新合并、账号/环境代次、取消/超时、退出和安全回调；不导入 TS 凭据，不做明文回退。协议参考来源与实际脏输入哈希由 `fixtures/cloud/auth-reference.json` / `tools/check-auth-reference.py` 固定。
-- [x] Settings 投影真实公开状态及登录/重开浏览器/取消/重试/退出；原生服务不依赖 GPUI，视图不持有令牌。不确定业务写入不自动重放；Cloud 打开、Billing/订阅依然禁用。
+- [x] Settings 投影真实公开状态及登录/重开浏览器/取消/重试/退出；原生服务不依赖 GPUI，视图不持有令牌。不确定业务写入不自动重放；Cloud 打开与 Billing / Plan 不由登录开启，另行接入（§0.6、v0.4.4）。
 - [x] 正常关闭在现有 Shell 屏障等待凭据修改与失败回滚；清理失败阻止关闭，文档沿原会话恢复输入/监听，普通关闭不当作退出登录。证据：`close_preflight_waits_for_slow_vault_work_before_framework_shutdown`、`failed_rollback_blocks_close_until_cleanup_succeeds`、`another_close_participant_failure_thaws_the_same_session_and_resumes_its_watch`。
 - [x] 29 项认证测试 + GPUI 公开投影回归，使用合成 Supabase、真实本地 TCP/HTTP 和内存凭据；全部 Rust 回归两配置各 392 passed / 9 ignored，Clippy / release / frame budgets 通过。
 - [ ] 实际 Keychain/系统浏览器/托管测试账号验收、Windows/Linux、同 profile 多进程协作。回调结果页为纯文本，错误诊断仍为原生英文；完整本地化和像素一致未验收。不得用本地 fixture 替代真实环境验收。
@@ -460,9 +461,9 @@ python3 tools/audit-ui-migration.py
 - [x] 文档/树订阅共享有界 reset SSE；失效后重读、有限重连、正常 token 续期、取消/Drop/权限与 generation 撤权；无 Agent cursor、文件轮询或自动唤醒计算。
 - [x] 20 项新增真实 loopback 协议/故障测试；两配置各 412 passed / 9 ignored，Clippy 通过；12 个 TS/后端输入哈希由 `tools/check-cloud-reference.py` 固定。不是实际后端或托管验收。
 - [x] 显式 workbench 创建/唤醒、opening/polling/recovery 准备状态机（`src/workspace/cloud/opening.rs`）：阶段跟随服务端 `operation.phase`、保留失败码（N-7、N-8），由首页和项目菜单接入。
-- [~] 按项目选择 → 显式准备 → Explorer → 既有 Editor 的链路已接入（Cloud 项目在当前窗口进入，W-1、W-3）；还缺真实后端验收。原文：把 TS 已有 Cloud 草稿/未知写结果行为一起迁移，不另建冲突策略项目或后端 CAS。当前 Cloud UI 仍禁用；本地保活切片不代表 Cloud 导航、执行隔离或保存语义通过。
+- [~] 按项目选择 → 显式准备 → Explorer → 既有 Editor 的链路已接入（Cloud 项目在当前窗口进入，W-1、W-3），TS 的 Cloud 草稿 / 未知写结果行为已迁入（C-6.6），v0.4.4 收尾在真实 qubits 上验收了 Cloud 项目链路。还缺生产后端验收与执行隔离。
 - [ ] Scope、Cloud 复制/导入、本地执行能力不开放；真实账号/项目、平台、可访问性、大文件编辑延迟和严格视觉验收未覆盖。localization 与旧 probe 验证入口已在 §0.4 收口，其他缺口继续保留。
 
 ## 10. 明确不在本轮范围
 
-需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Plan 计费、Host Server、自动更新（包括 Header 的 `DesktopUpdateTitlebarButton`，它只在有下载好的更新时出现，O-12）、Reach、Windows XP 界面风格。产品 CI 的真实环境邮箱登录门禁（`bc579a4d6`，复用 Cloud 仓库的 e2e workflow、Supabase 与 Cloud Web 镜像）依赖 Cloud 仓库和 CI，不在本地范围（N-23）。Account 登录须显式配置原生 API/Web 环境；服务实现与本地协议测试不等于真实账号验收。
+需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Reach、Windows XP 界面风格。（Plan 已随 v0.4.4 接入；Host Server 页的 Cloud 连接一节见 ST-2；自动更新与 Header 的 `DesktopUpdateTitlebarButton` 见 DS-5。）产品 CI 的真实环境邮箱登录门禁（`bc579a4d6`，复用 Cloud 仓库的 e2e workflow、Supabase 与 Cloud Web 镜像）依赖 Cloud 仓库和 CI，不在本地范围（N-23）。Account 登录须显式配置原生 API/Web 环境；服务实现与本地协议测试不等于真实账号验收。

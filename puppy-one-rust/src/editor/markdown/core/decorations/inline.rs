@@ -55,9 +55,17 @@ impl Builder<'_> {
                     self.hide(e.range.start..content.start, SourceSyntax::WikiLink, reveal);
                     self.hide(content.end..e.range.end, SourceSyntax::WikiLink, reveal);
                     let href = Some(SharedString::from(token.target.clone()));
+                    let resolved = (!token.target.starts_with('#'))
+                        .then(|| cx.references.map(|r| r.resolve(&token.target)))
+                        .flatten();
+                    let mut classes = Class::SYNTAX_LINK | Class::WIKI_LINK_LABEL;
+                    if resolved.as_ref().is_some_and(|r| !r.exists) {
+                        classes |= Class::IS_MISSING;
+                    }
+                    self.link_state(content.clone(), resolved.as_ref());
                     self.spans.push(ClassSpan {
                         range: content,
-                        classes: Class::SYNTAX_LINK | Class::WIKI_LINK_LABEL,
+                        classes,
                         href,
                     });
                 }
@@ -83,6 +91,12 @@ impl Builder<'_> {
                     if is_external(&href) {
                         classes |= Class::IS_EXTERNAL;
                     }
+                    // `cm-md-document-link-label`: a link to a workspace file.
+                    let resolved = cx.references.and_then(|r| r.markdown(&href));
+                    if resolved.as_ref().is_some_and(|r| !r.exists) {
+                        classes |= Class::IS_MISSING;
+                    }
+                    self.link_state(content.clone(), resolved.as_ref());
                     let href = SharedString::from(href);
                     for marker in [e.range.start..content.start, content.end..e.range.end] {
                         if reveal {
@@ -171,6 +185,10 @@ impl Builder<'_> {
                                     lower: false,
                                 });
                         }
+                        // `MathInlineWidget`: KaTeX's formula once drawn.
+                        if e.kind == Kind::MathInline {
+                            self.inline_math(e.range.clone());
+                        }
                         let classes = match e.kind {
                             Kind::MathInline => Some(Class::MATH),
                             Kind::FootnoteReference => Some(Class::FOOTNOTE_REFERENCE),
@@ -193,6 +211,75 @@ impl Builder<'_> {
 }
 
 impl Builder<'_> {
+    /// `.is-missing` (dotted) and `.is-ambiguous` (dashed) under a link
+    /// label whose workspace target is missing or names several files.
+    fn link_state(
+        &mut self,
+        label: Range<usize>,
+        resolved: Option<&crate::editor::navigation::Resolution>,
+    ) {
+        use crate::editor::view::decoration::Underline;
+        let Some(resolved) = resolved else { return };
+        let inline = &self.cx.theme.inline;
+        let size = self.cx.theme.body.text.size;
+        let (color, dash, gap) = if !resolved.exists {
+            (inline.missing_underline, 1., 2.)
+        } else if resolved.ambiguous {
+            (inline.ambiguous_underline, 3., 2.)
+        } else {
+            return;
+        };
+        self.underlines.push(Underline {
+            range: label,
+            color,
+            dash,
+            gap,
+            size,
+        });
+    }
+
+    /// An inline formula (`$…$`) to be typeset by KaTeX
+    /// (`.cm-md-math-inline-widget .katex`), in the content colour at the
+    /// inline math size.
+    fn inline_math(&mut self, range: std::ops::Range<usize>) {
+        use crate::render_service::{Kind, Request, hex};
+        let source = self.cx.doc.slice(range.clone());
+        let tex = source
+            .strip_prefix('$')
+            .and_then(|s| s.strip_suffix('$'))
+            .unwrap_or(source);
+        let t = crate::editor::tokens::Tokens::get(self.cx.theme.dark, self.cx.theme.scale);
+        let editor = t.color("--po-editor-bg");
+        let request = Request {
+            kind: Kind::Math {
+                display: false,
+                color: hex(t.color("--po-md-content-color")),
+                font_size: t.len("--po-md-math-inline-font-size", 15.),
+            },
+            source: tex.to_owned(),
+            background: hex(editor),
+            scale: 1.,
+        };
+        self.inline_images
+            .push(crate::editor::view::decoration::InlineImage {
+                range,
+                // `.cm-md-math-inline-widget { padding-inline: 0.08em }`.
+                pad: 0.08,
+                radius: 0.,
+                draw: std::rc::Rc::new(move |line, _, _, window, cx| {
+                    let mut request = request.clone();
+                    // On the line's own background (snapshots are opaque).
+                    if let Some(line) = line {
+                        request.background = hex(crate::editor::tokens::over(line, editor));
+                    }
+                    match crate::render_service::get(&request, window, cx) {
+                        crate::render_service::State::Ready(drawn) => Some(drawn),
+                        _ => None,
+                    }
+                }),
+            });
+    }
+
     /// `applyInlineHtmlPlan`: the tags hide like delimiters (a `q`'s show as
     /// its quotation marks) and the content takes the element's default
     /// presentation: weight, slant, rules, monospace, `mark`'s system

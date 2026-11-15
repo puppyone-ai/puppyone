@@ -156,10 +156,17 @@ pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut V
                 && bytes[token.range.start - 1] == b'!'
                 && !links::is_escaped(bytes, token.range.start - 1)
             {
-                if is_image_path(&token.target) {
+                let kind = if is_image_path(&token.target) {
+                    Some(Kind::ImageEmbed)
+                } else if is_video_path(&token.target) {
+                    Some(Kind::VideoEmbed)
+                } else {
+                    None
+                };
+                if let Some(kind) = kind {
                     let from = range.start + token.range.start - 1;
                     let to = range.start + token.range.end;
-                    let mut e = Element::new(Kind::ImageEmbed, from..to, vec![from..to], None);
+                    let mut e = Element::new(kind, from..to, vec![from..to], None);
                     e.href = Some(token.target.clone());
                     let inner = &text[token.range.start + 2..token.range.end - 2];
                     e.text = inner
@@ -226,6 +233,18 @@ pub fn is_image_path(target: &str) -> bool {
         matches!(
             ext.to_ascii_lowercase().as_str(),
             "avif" | "bmp" | "gif" | "jpeg" | "jpg" | "png" | "svg" | "webp"
+        )
+    })
+}
+
+/// A video file by its extension (`VIDEO_EXTENSIONS`: what the engine
+/// plays).
+pub fn is_video_path(target: &str) -> bool {
+    let path = target.split(['#', '?']).next().unwrap_or(target);
+    path.rsplit_once('.').is_some_and(|(_, ext)| {
+        matches!(
+            ext.to_ascii_lowercase().as_str(),
+            "3g2" | "3gp" | "3gpp" | "m4v" | "mov" | "mp4" | "ogv" | "qt" | "webm"
         )
     })
 }

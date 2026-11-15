@@ -5,6 +5,7 @@ pub mod agent_conversation_history;
 pub mod agent_error_presentation;
 pub mod agent_history_presentation;
 pub mod agent_markdown;
+pub mod agent_markdown_policy;
 pub mod agent_panel_presentation;
 pub mod agent_rich_text;
 pub mod agent_theme;

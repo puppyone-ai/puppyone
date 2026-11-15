@@ -68,6 +68,7 @@ impl Entry {
                 | Self::Csv
                 | Self::Html
                 | Self::Whiteboard
+                | Self::ContextMap
                 | Self::Text
                 | Self::Json
         )
@@ -75,6 +76,11 @@ impl Entry {
     pub fn initial_text(self) -> &'static str {
         match self {
             Self::Json => "{}\n",
+            // `createDefaultContextMapDocumentContent`: its own folder, nothing
+            // expanded or moved yet.
+            Self::ContextMap => {
+                "{\n  \"version\": 1,\n  \"scope\": \".\",\n  \"layout\": {\n    \"expanded\": [],\n    \"offsets\": {}\n  }\n}\n"
+            }
             // `getCreateEntryInitialContent`: an empty board.
             Self::Whiteboard => {
                 "{\n  \"type\": \"excalidraw\",\n  \"version\": 2,\n  \"source\": \"https://excalidraw.com\",\n  \"elements\": [],\n  \"appState\": {\n    \"viewBackgroundColor\": \"#ffffff\"\n  },\n  \"files\": {}\n}\n"
@@ -191,6 +197,21 @@ impl MenuSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_context_map_is_created_empty_in_its_own_folder() {
+        assert!(Entry::ContextMap.available());
+        let map: serde_json::Value =
+            serde_json::from_str(Entry::ContextMap.initial_text()).unwrap();
+        assert_eq!(
+            map,
+            serde_json::json!({"version": 1, "scope": ".", "layout": {"expanded": [], "offsets": {}}})
+        );
+        assert_eq!(
+            super::super::create_entry_draft::normalize_name(Entry::ContextMap, "Map").unwrap(),
+            "Map.contextmap"
+        );
+    }
+
     #[test]
     fn move_preserves_exactly_one_owner_and_fixed_entries() {
         let mut m = MenuSettings::default();

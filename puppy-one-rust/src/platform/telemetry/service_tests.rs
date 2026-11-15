@@ -57,6 +57,7 @@ fn stable() -> Identity {
         channel: Channel::Stable,
         version: "0.3.10".into(),
         packaged: true,
+        ..crate::platform::build_identity::current()
     }
 }
 

@@ -98,7 +98,7 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 impl Http {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            client: reqwest::Client::builder()
+            client: crate::platform::proxy::system(reqwest::Client::builder())
                 .redirect_policy(reqwest::redirect::Policy::none())
                 .timeout(Duration::from_secs(15))
                 .build()

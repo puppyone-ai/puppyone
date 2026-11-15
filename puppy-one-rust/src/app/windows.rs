@@ -141,6 +141,7 @@ pub(super) fn shared_preferences(fixture: bool, cx: &mut App) -> Entity<Preferen
 pub(super) fn register(handle: AnyWindowHandle, shell: WeakEntity<Shell>, cx: &mut App) {
     if !cx.has_global::<Registry>() {
         cx.set_global(Registry::default());
+        super::dialogs::question::install();
     }
     let registry = cx.global_mut::<Registry>();
     registry
@@ -164,6 +165,12 @@ fn live(cx: &App) -> Vec<(AnyWindowHandle, Entity<Shell>)> {
                 .collect()
         })
         .unwrap_or_default()
+}
+/// The shell of `handle`'s window.
+pub(super) fn shell_of(handle: AnyWindowHandle, cx: &App) -> Option<Entity<Shell>> {
+    live(cx)
+        .into_iter()
+        .find_map(|(h, shell)| (h == handle).then_some(shell))
 }
 /// The shell of the key window, else the most recently registered one.
 pub fn active(cx: &App) -> Option<(AnyWindowHandle, Entity<Shell>)> {
@@ -211,6 +218,10 @@ pub fn quit_all(cx: &mut App) {
 pub fn cancel_quit(cx: &mut App) {
     if cx.has_global::<Registry>() {
         cx.global_mut::<Registry>().quitting = false;
+    }
+    // `handleQuitCancelled`: a restart to update did not happen.
+    if let Some(updates) = crate::features::updates::global(cx) {
+        updates.update(cx, |u, cx| u.quit_cancelled(cx));
     }
 }
 
@@ -474,6 +485,13 @@ fn open_template_link(url: &str, cx: &mut App) -> bool {
     }
     true
 }
+/// `isDesktopReturnUrl`: the channel's own `<scheme>://open` brings the app
+/// forward. A cold launch makes its first window anyway, so the link adds
+/// nothing then.
+fn is_return_link(url: &str) -> bool {
+    use crate::platform::{build_identity, templates::link};
+    url == format!("{}://open", link::scheme(build_identity::current().channel))
+}
 /// Paths the platform asked us to open (`openPathFromSystem`): a folder in
 /// a new window; a Markdown, CSV or HTML file in its own file window. Other
 /// files cannot be opened on their own. `true` when a window now shows one.
@@ -482,6 +500,12 @@ pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) -> bool {
     for url in urls {
         if open_template_link(&url, cx) {
             shown = true;
+            continue;
+        }
+        if is_return_link(&url) {
+            if !live(cx).is_empty() {
+                reveal_or_create(cx);
+            }
             continue;
         }
         let Some(path) = url::Url::parse(&url)
@@ -592,6 +616,17 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
     use std::ffi::OsString;
+
+    #[test]
+    fn only_this_channels_open_link_is_a_return_link() {
+        // An unstamped test build is Dev.
+        assert!(is_return_link("puppyone-development://open"));
+        assert!(!is_return_link("puppyone://open"));
+        assert!(!is_return_link("puppyone-development://open/x"));
+        assert!(!is_return_link(
+            "puppyone-development://templates/import?id=a"
+        ));
+    }
 
     #[test]
     fn the_last_folder_or_file_on_the_command_line_is_the_target() {

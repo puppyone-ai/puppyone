@@ -7,6 +7,7 @@
 //! commands. The shell hands it listings and operation outcomes and acts on
 //! what it asks for ([`SessionEvent`]).
 use super::Host;
+use super::clipboard_notice::{Mode, Notice};
 pub(in crate::app) use crate::editor::workbench::resource_operations::Operation as FileOp;
 use crate::editor::workbench::resource_operations::Outcome;
 use crate::features::settings::{ExplorerPins, FilesVisibility, PreferencesStore, observe_slice};
@@ -89,6 +90,12 @@ pub(in crate::app) struct ExplorerSession {
     refresh: Option<Task<()>>,
     references:
         std::collections::BTreeMap<String, (u64, Arc<crate::editor::navigation::ReferenceIndex>)>,
+    /// What the file clipboard says (`FileOperationNotice`), its
+    /// generation (a later one outlives an earlier timer), and the paste or
+    /// duplicate it reports when it finishes.
+    notice: Option<Notice>,
+    notice_generation: u64,
+    clipboard_op: Option<(Mode, usize, Option<PathBuf>)>,
 }
 impl EventEmitter<SessionEvent> for ExplorerSession {}
 
@@ -132,6 +139,9 @@ impl ExplorerSession {
             retained: Default::default(),
             refresh: None,
             references: Default::default(),
+            notice: None,
+            notice_generation: 0,
+            clipboard_op: None,
         };
         let files = preferences.read(cx).state.files.clone();
         session.apply_visibility(&files, cx);
@@ -378,12 +388,16 @@ impl ExplorerSession {
         self.refresh = Some(cx.spawn(async move |this, cx| {
             let listings = read.await;
             let _ = this.update(cx, |s, cx| {
+                crate::platform::watchdog::activity("explorer.refresh");
                 if s.tree.id != tree_id {
                     return;
                 }
+                // One projection for the whole reread, not one per folder.
+                let mut read = Vec::with_capacity(listings.len());
+                let mut failed = Vec::new();
                 for (path, listing) in listings {
                     match listing {
-                        Ok(nodes) => s.tree.refresh_children(&path, nodes),
+                        Ok(nodes) => read.push((path, nodes)),
                         // A lease that ended (its change stream failed) is
                         // the workspace notice's to report, with its Retry.
                         Err(error)
@@ -395,14 +409,10 @@ impl ExplorerSession {
                         Err(error) if path.as_os_str().is_empty() => {
                             cx.emit(SessionEvent::Error(error.to_string()))
                         }
-                        Err(error) => {
-                            if let Some(node) = s.tree.find_mut(&path) {
-                                node.error = Some(error.to_string());
-                            }
-                        }
+                        Err(error) => failed.push((path, error.to_string())),
                     }
                 }
-                s.tree.rebuild();
+                s.tree.refresh_folders(read, failed);
                 cx.emit(SessionEvent::ReferencesChanged);
                 cx.notify();
             });
@@ -513,7 +523,12 @@ impl ExplorerSession {
 
     // ------------------------------------------------------- file operations
     pub fn set_clipboard(&mut self, clipboard: FileClipboard, cx: &mut Context<Self>) {
+        let (cut, count) = match &clipboard {
+            FileClipboard::Copy(paths) => (false, paths.len()),
+            FileClipboard::Cut(paths) => (true, paths.len()),
+        };
         self.clipboard = Some(clipboard);
+        self.show_notice(Notice::Selected { cut, count }, cx);
         cx.notify();
     }
     /// Copy Item: kept for Paste here, and, for a folder on this computer,
@@ -528,6 +543,44 @@ impl ExplorerSession {
             crate::platform::file_pasteboard::write(&absolute);
         }
         self.set_clipboard(FileClipboard::Copy(paths), cx)
+    }
+    /// The clipboard's notice, while it shows.
+    pub fn notice(&self) -> Option<&Notice> {
+        self.notice.as_ref()
+    }
+    pub fn dismiss_notice(&mut self, cx: &mut Context<Self>) {
+        self.notice = None;
+        cx.notify();
+    }
+    /// Shows `notice`, gone after its lifetime unless a later one replaced it.
+    fn show_notice(&mut self, notice: Notice, cx: &mut Context<Self>) {
+        self.notice_generation += 1;
+        let generation = self.notice_generation;
+        if let Some(lifetime) = notice.lifetime() {
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(lifetime).await;
+                let _ = this.update(cx, |s, cx| {
+                    if s.notice_generation == generation {
+                        s.notice = None;
+                        cx.notify();
+                    }
+                });
+            })
+            .detach();
+        }
+        self.notice = Some(notice);
+        cx.notify();
+    }
+    /// A paste or duplicate starts: it says so until it finishes.
+    fn start_clipboard_op(
+        &mut self,
+        mode: Mode,
+        count: usize,
+        target: Option<PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        self.clipboard_op = Some((mode, count, target));
+        self.show_notice(Notice::Working { mode, count }, cx);
     }
     pub fn run_op(&mut self, op: FileOp, cx: &mut Context<Self>) {
         if self.op || self.workspace.is_none() {
@@ -547,6 +600,10 @@ impl ExplorerSession {
     pub fn operation_failed(&mut self, cx: &mut Context<Self>) {
         self.op = false;
         self.op_inline = false;
+        // A paste that never ran says nothing more.
+        if self.clipboard_op.take().is_some() {
+            self.notice = None;
+        }
         cx.notify();
     }
     pub fn finish_op(&mut self, owner: &str, outcome: Outcome, cx: &mut Context<Self>) {
@@ -560,6 +617,12 @@ impl ExplorerSession {
             self.carry_pins(&outcome.moved, &outcome.removed, cx);
         }
         let inline = is_active && std::mem::take(&mut self.op_inline);
+        // A paste or duplicate reports in its notice, not a dialog.
+        let reported = if is_active {
+            self.clipboard_op.take()
+        } else {
+            None
+        };
         let tree = if is_active {
             self.op = false;
             Some(&mut self.tree)
@@ -576,17 +639,31 @@ impl ExplorerSession {
             for path in &outcome.removed {
                 tree.remove_selection(path);
             }
+            let mut read = Vec::with_capacity(outcome.listings.len());
             for (folder, listing) in outcome.listings {
                 match listing {
-                    Ok(nodes) => tree.refresh_children(&folder, nodes),
+                    Ok(nodes) => read.push((folder, nodes)),
                     Err(error) => cx.emit(SessionEvent::Error(error.to_string())),
                 }
+            }
+            if !read.is_empty() {
+                tree.refresh_folders(read, vec![]);
             }
             if let Some(path) = outcome.select {
                 tree.select(&path, false, false);
             }
         }
-        if let Some(error) = outcome.error.clone()
+        if let Some((mode, count, target)) = reported {
+            let notice = match outcome.error {
+                Some(detail) => Notice::Failed { detail },
+                None => Notice::Done {
+                    mode,
+                    count,
+                    target,
+                },
+            };
+            self.show_notice(notice, cx);
+        } else if let Some(error) = outcome.error.clone()
             && inline
         {
             self.operation_error = Some(error.into());
@@ -608,10 +685,18 @@ impl ExplorerSession {
     }
     /// Into a folder: what was copied is copied there, what was cut moves.
     pub fn paste_into(&mut self, target: PathBuf, cx: &mut Context<Self>) {
+        if self.op {
+            return;
+        }
+        let into = (!target.as_os_str().is_empty()).then(|| target.clone());
         match self.clipboard.clone() {
-            Some(FileClipboard::Copy(paths)) => self.run_op(FileOp::Copy(paths, target), cx),
+            Some(FileClipboard::Copy(paths)) => {
+                self.start_clipboard_op(Mode::Copy, paths.len(), into, cx);
+                self.run_op(FileOp::Copy(paths, target), cx)
+            }
             Some(FileClipboard::Cut(paths)) => {
                 self.clipboard = None;
+                self.start_clipboard_op(Mode::Move, paths.len(), into, cx);
                 self.run_op(FileOp::Move(paths, target), cx)
             }
             None => {}
@@ -622,7 +707,8 @@ impl ExplorerSession {
         self.run_op(FileOp::Rename { path, name }, cx);
     }
     pub fn duplicate(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
-        if !paths.is_empty() {
+        if !paths.is_empty() && !self.op {
+            self.start_clipboard_op(Mode::Duplicate, paths.len(), None, cx);
             self.run_op(FileOp::Duplicate(paths), cx);
         }
     }

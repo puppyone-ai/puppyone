@@ -24,7 +24,6 @@ pub enum NoticeTone {
     #[default]
     Neutral,
     Info,
-    #[cfg(test)]
     Success,
     Warning,
     Danger,
@@ -34,7 +33,6 @@ impl NoticeTone {
         match self {
             Self::Neutral => t.muted,
             Self::Info => t.info,
-            #[cfg(test)]
             Self::Success => t.success,
             Self::Warning => t.warning,
             Self::Danger => t.danger,
@@ -45,7 +43,6 @@ impl NoticeTone {
         match self {
             Self::Neutral => None,
             Self::Info => Some("info"),
-            #[cfg(test)]
             Self::Success => Some("circle-check"),
             Self::Warning => Some("triangle-alert"),
             Self::Danger => Some("circle-alert"),
@@ -93,6 +90,8 @@ pub struct FloatingNotice {
     dismiss_label: Option<SharedString>,
     /// `--po-floating-notice-font-size` / `-line-height` overrides.
     text: Option<(f32, f32)>,
+    /// An operation still running: the loading mark leads the message.
+    busy: bool,
 }
 impl FloatingNotice {
     pub fn new(id: impl Into<ElementId>, message: impl Into<SharedString>) -> Self {
@@ -104,7 +103,14 @@ impl FloatingNotice {
             on_dismiss: None,
             dismiss_label: None,
             text: None,
+            busy: false,
         }
+    }
+    /// The loading mark in place of the tone's glyph (`icon={<LoadingMark
+    /// size="xs" />}`).
+    pub fn busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
+        self
     }
     pub fn dismiss_label(mut self, label: impl Into<SharedString>) -> Self {
         self.dismiss_label = Some(label.into());
@@ -168,7 +174,22 @@ impl RenderOnce for FloatingNotice {
             .line_height(px(line))
             .font_weight(FontWeight::NORMAL)
             .occlude()
-            .children(self.tone.glyph().map(|glyph| {
+            .when(self.busy, |d| {
+                d.child(
+                    div()
+                        .flex()
+                        .flex_shrink_0()
+                        .h(px(line))
+                        .items_center()
+                        .child(
+                            crate::ui::loading::LoadingMark::new(
+                                crate::ui::components::menu::child_id(&id, "busy"),
+                            )
+                            .size(crate::ui::loading::LoaderSize::Xs),
+                        ),
+                )
+            })
+            .children(self.tone.glyph().filter(|_| !self.busy).map(|glyph| {
                 div()
                     .flex()
                     .flex_shrink_0()
@@ -260,6 +281,9 @@ pub enum NoticePlacement {
     TopEnd,
     /// Across the top, notices stretched to the inline insets.
     Top,
+    /// The bottom end corner (`placement="bottom-end"`); the stack's `top`
+    /// is its inset from the bottom.
+    BottomEnd,
 }
 
 /// `.po-floating-notice-stack`: one anchored column per surface so
@@ -310,6 +334,9 @@ impl RenderOnce for NoticeStack {
             .max_w(px(self.max_width.max(0.)))
             .items_end()
             .gap(px(8.));
+        if self.placement == NoticePlacement::BottomEnd {
+            return column.bottom(px(self.top)).children(self.notices);
+        }
         column.top(px(self.top)).children(self.notices)
     }
 }

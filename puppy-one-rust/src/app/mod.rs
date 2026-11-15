@@ -497,6 +497,7 @@ impl Shell {
             modal: self.modal(cx) || self.sidebar.read(cx).workbench.read(cx).dialog_open(),
             home: self.home_visible(cx),
             dark: self.prefs.dark,
+            theme: crate::editor::tokens::theme_key(),
         }
     }
     /// The window's gate over the editors changed.
@@ -779,7 +780,13 @@ impl Render for Shell {
                         .read(cx)
                         .notices(editor, end, folder, project),
                 )
-                .children(self.editor.read(cx).notices(editor, end, cx));
+                .children(self.editor.read(cx).notices(editor, end, cx))
+                .children(explorer::clipboard_notice::stack(
+                    &self.explorer.session,
+                    w,
+                    self.frame.layout.explorer.w,
+                    cx,
+                ));
         }
         let chrome = self.chrome.read(cx);
         root = root.child(chrome.project_actions.clone());

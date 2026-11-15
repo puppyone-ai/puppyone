@@ -36,6 +36,8 @@ pub(super) struct EditorGate {
     /// The Homepage shows instead of the project.
     pub home: bool,
     pub dark: bool,
+    /// The Sub Theme the editors' tokens follow (`tokens::theme_key`).
+    pub theme: u64,
 }
 
 /// What the editor area asks of the window.
