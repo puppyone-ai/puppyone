@@ -40,8 +40,9 @@ use crate::{
     ui::{
         appearance::ActiveAppearance,
         components::{
-            Button, ButtonVariant, FileIcon, Icon, Menu, MenuItem, MenuVariant, PopoverMenu,
-            ProductIcon, SurfaceFrame,
+            Button, ButtonVariant, FileIcon, FloatingNotice, Icon, Menu, MenuItem, MenuVariant,
+            NoticeAction, NoticePlacement, NoticeStack, NoticeTone, PopoverMenu, ProductIcon,
+            SurfaceFrame,
         },
         loading::{LoaderSize, LoadingMark, Tone},
     },
@@ -140,11 +141,15 @@ impl FileTarget {
     }
 }
 
+/// A screenshot just copied, offered to the Agent for a moment.
 #[derive(Clone, Debug)]
 struct ScreenshotToast {
     png: Vec<u8>,
-    label: String,
+    /// Which copy this is: a later one keeps its own lifetime.
+    generation: usize,
 }
+/// How long the copied screenshot is offered.
+const TOAST_LIFETIME: std::time::Duration = std::time::Duration::from_secs(6);
 
 /// Which Header menu is open.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -317,10 +322,10 @@ impl FileWindow {
                     );
                     self.open_and_stage_chat(None, &prompt, window, cx);
                 }
-                HtmlToolEvent::CopyScreenshot { png, label } => {
+                HtmlToolEvent::CopyScreenshot { png, .. } => {
                     let image = gpui::Image::from_bytes(gpui::ImageFormat::Png, png.clone());
                     cx.write_to_clipboard(ClipboardItem::new_image(&image));
-                    self.toast = Some(ScreenshotToast { png, label });
+                    self.show_toast(png, cx);
                 }
                 HtmlToolEvent::SendAnnotatedToAgent { png, stroke_count } => {
                     let image = gpui::Image::from_bytes(gpui::ImageFormat::Png, png.clone());
@@ -339,6 +344,23 @@ impl FileWindow {
                 }
             }
         }
+    }
+
+    /// Offers a copied screenshot to the Agent until it is used, dismissed
+    /// or [`TOAST_LIFETIME`] passes.
+    fn show_toast(&mut self, png: Vec<u8>, cx: &mut Context<Self>) {
+        let generation = self.toast.as_ref().map_or(0, |t| t.generation) + 1;
+        self.toast = Some(ScreenshotToast { png, generation });
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(TOAST_LIFETIME).await;
+            let _ = this.update(cx, |s, cx| {
+                if s.toast.as_ref().is_some_and(|t| t.generation == generation) {
+                    s.toast = None;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     pub fn toggle_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -803,20 +825,35 @@ impl FileWindow {
         let chat_open = self.sidebar.read(cx).shows(SidebarSurface::Agent, cx);
         let mut bar = TitleBar::new().leading(self.file_title(cx));
 
+        // The page threw: a quiet count beside its name hands the errors
+        // to the Agent.
         if !tool_state.js_errors.is_empty() {
-            let err_label: SharedString = tf(
-                "fileMode.html.jsErrorPill",
-                &[("count", tool_state.js_errors.len().to_string().into())],
-            )
-            .into();
+            let ty = theme::ty().header;
+            let tip: SharedString = tr("fileMode.html.jsErrorTooltip").into();
+            let count = h_flex()
+                .items_center()
+                .gap(px(5.))
+                .px(px(2.))
+                .text_color(t.danger)
+                .text_size(px(ty.content))
+                .line_height(px(ty.line_height))
+                .child(
+                    Icon::new("triangle-alert")
+                        .with_size(px(13.))
+                        .stroke(1.9)
+                        .color(t.danger),
+                )
+                .child(tf(
+                    "fileMode.html.jsErrorPill",
+                    &[("count", tool_state.js_errors.len().to_string().into())],
+                ));
             let host = self.weak.clone();
             bar = bar.leading(
                 Button::new("file-mode-js-error")
-                    .small()
-                    .variant(ButtonVariant::OutlineDanger)
-                    .icon(Icon::new("triangle-alert").with_size(px(13.)).stroke(1.9))
-                    .label(err_label.clone())
-                    .tooltip(err_label)
+                    .variant(ButtonVariant::Titlebar)
+                    .accessibility_label(tip.clone())
+                    .tooltip(tip)
+                    .trailing(count)
                     .on_click(move |_, w, cx| {
                         let _ = host.update(cx, |s, cx| s.stage_js_errors_to_chat(w, cx));
                     }),
@@ -864,7 +901,7 @@ impl FileWindow {
             };
             let mut annotate = tool(
                 "html-tool-annotate",
-                "agent-glyph-pen",
+                "highlighter",
                 "fileMode.html.annotate",
                 HtmlToolMode::Annotate,
             );
@@ -1221,88 +1258,42 @@ impl FileWindow {
                         .line_height(px(ty.line_height))
                         .child(tr("editor.fileMode.readOnlyEncoding"))
                 });
-                let toast_bar = self.toast.as_ref().map(|toast| {
-                    let msg = tf(
-                        "fileMode.html.toastCopied",
-                        &[("label", toast.label.clone().into())],
-                    );
+                // The copied screenshot floats at the document's end corner
+                // (over the page, `ui::native_cover`) and offers itself to
+                // the Agent.
+                let toast = self.toast.as_ref().map(|toast| {
                     let png = toast.png.clone();
-                    let host_paste = self.weak.clone();
+                    let host_send = self.weak.clone();
                     let host_close = self.weak.clone();
-                    h_flex()
-                        .id("file-mode-toast")
-                        .flex_none()
-                        .items_center()
-                        .justify_between()
-                        .gap(px(8.))
-                        .py(px(6.))
-                        .px(px(12.))
-                        .bg(theme::alpha(t.brand_blue, 0.10))
-                        .border_b_1()
-                        .border_color(t.divider)
+                    NoticeStack::new(NoticePlacement::BottomEnd, 16., 16., (r.w - 32.).min(400.))
                         .child(
-                            h_flex()
-                                .items_center()
-                                .gap(px(6.))
-                                .min_w_0()
-                                .child(
-                                    Icon::new("check")
-                                        .with_size(px(14.))
-                                        .stroke(2.)
-                                        .color(t.success),
-                                )
-                                .child(
-                                    div()
-                                        .text_size(px(ty.content))
-                                        .line_height(px(ty.line_height))
-                                        .text_color(t.text)
-                                        .truncate()
-                                        .child(msg),
-                                ),
-                        )
-                        .child(
-                            h_flex()
-                                .items_center()
-                                .gap(px(4.))
-                                .child(
-                                    Button::new("file-mode-toast-paste")
-                                        .small()
-                                        .variant(ButtonVariant::FilledPrimary)
-                                        .icon(
-                                            Icon::new("clipboard-paste")
-                                                .with_size(px(13.))
-                                                .stroke(1.9),
-                                        )
-                                        .label(tr("fileMode.html.toastPasteChat"))
-                                        .on_click(move |_, w, cx| {
-                                            let bytes = png.clone();
-                                            let _ = host_paste.update(cx, |s, cx| {
-                                                s.toast = None;
-                                                let prompt =
-                                                    tr("fileMode.html.promptScreenshot").to_owned();
-                                                s.open_and_stage_chat(
-                                                    Some(("html-screenshot.png".into(), bytes)),
-                                                    &prompt,
-                                                    w,
-                                                    cx,
-                                                );
-                                                cx.notify();
-                                            });
-                                        }),
-                                )
-                                .child(
-                                    Button::new("file-mode-toast-dismiss")
-                                        .small()
-                                        .variant(ButtonVariant::Titlebar)
-                                        .icon(Icon::new("x").with_size(px(13.)).stroke(1.9))
-                                        .accessibility_label("Dismiss")
-                                        .on_click(move |_, _, cx| {
-                                            let _ = host_close.update(cx, |s, cx| {
-                                                s.toast = None;
-                                                cx.notify();
-                                            });
-                                        }),
-                                ),
+                            FloatingNotice::new("file-mode-toast", tr("fileMode.html.toastCopied"))
+                                .tone(NoticeTone::Success)
+                                .action(NoticeAction::new(
+                                    "file-mode-toast-send",
+                                    tr("fileMode.html.toastPasteChat"),
+                                    move |w, cx| {
+                                        let bytes = png.clone();
+                                        let _ = host_send.update(cx, |s, cx| {
+                                            s.toast = None;
+                                            let prompt =
+                                                tr("fileMode.html.promptScreenshot").to_owned();
+                                            s.open_and_stage_chat(
+                                                Some(("html-screenshot.png".into(), bytes)),
+                                                &prompt,
+                                                w,
+                                                cx,
+                                            );
+                                            cx.notify();
+                                        });
+                                    },
+                                ))
+                                .on_dismiss(move |_, cx| {
+                                    let _ = host_close.update(cx, |s, cx| {
+                                        s.toast = None;
+                                        cx.notify();
+                                    });
+                                }),
                         )
                 });
                 let slot = self.docs.read(cx).active_slot();
@@ -1315,7 +1306,7 @@ impl FileWindow {
                         .child(editor.clone())
                         .children(editor_area.save_chip(slot, cx))
                 });
-                area.children(notice).children(toast_bar).children(document)
+                area.children(notice).children(document).children(toast)
             }
         }
     }

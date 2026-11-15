@@ -474,6 +474,15 @@ fn file_window_html_screenshot_and_annotations_copy_png_and_stage_to_chat(cx: &m
         );
     });
 
+    // A copy left alone is offered for a moment, then goes.
+    editor.update(cx, |e, cx| e.lab_deliver_html_ipc(&snap_msg, cx));
+    cx.run_until_parked();
+    view.read_with(cx, |_, cx| assert!(fw.read(cx).has_screenshot_toast()));
+    cx.executor()
+        .advance_clock(std::time::Duration::from_secs(7));
+    cx.run_until_parked();
+    view.read_with(cx, |_, cx| assert!(!fw.read(cx).has_screenshot_toast()));
+
     // 2. Trigger `send-annotated` from the pen toolbar -> stages `annotated-page.png`.
     let ann_msg = serde_json::json!({
         "type": "po-tool",

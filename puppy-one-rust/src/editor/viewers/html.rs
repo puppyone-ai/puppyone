@@ -453,6 +453,7 @@ impl ViewerSurface for HtmlSurface {
     fn apply(&self, read_only: bool, dark: bool, scale: Scale, window: &mut Window, cx: &mut App) {
         self.source.apply(read_only, dark, scale, window, cx);
         self.read_only.set(read_only);
+        self.interact.set_dark(dark);
         let restyle = self.dark.replace(dark) != dark;
         if self.mode.get() == Mode::Edit {
             if read_only {

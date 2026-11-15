@@ -124,6 +124,8 @@ pub(super) struct Inner {
     workspace: Option<Arc<Workspace>>,
     name: Rc<RefCell<String>>,
     file_mode: bool,
+    /// The window's theme, which the page's tool chrome follows.
+    dark: Cell<bool>,
     window: AnyWindowHandle,
     pub notice: Rc<RefCell<Option<SharedString>>>,
     state: RefCell<State>,
@@ -156,6 +158,7 @@ impl Interact {
             workspace: workspace.filter(|w| w.local_root().is_some()),
             name: Rc::new(RefCell::new(name)),
             file_mode: request.file_mode,
+            dark: Cell::new(dark),
             window: window.window_handle(),
             notice: Rc::default(),
             state: RefCell::default(),
@@ -172,6 +175,10 @@ impl Interact {
     }
     pub fn rename(&self, name: &str) {
         *self.name.borrow_mut() = name.to_owned();
+    }
+    /// The window's theme changed: the next tool the page shows follows it.
+    pub fn set_dark(&self, dark: bool) {
+        self.dark.set(dark);
     }
     pub fn set_references(&self, references: Option<ReferenceContext>) {
         self.state.borrow_mut().references = references;
@@ -474,8 +481,9 @@ impl Interact {
             st.tool_mode = mode;
         }
         let script = format!(
-            "window.__puppyoneHtmlTools&&window.__puppyoneHtmlTools.setMode('{}')",
-            mode.as_js_name()
+            "window.__puppyoneHtmlTools&&window.__puppyoneHtmlTools.setMode('{}',{})",
+            mode.as_js_name(),
+            self.dark.get()
         );
         self.frame.read(cx).evaluate(&script);
         self.emit_tool(HtmlToolEvent::StateChanged, cx);
