@@ -493,8 +493,7 @@ pub fn configured_complete(
             let model_id = request.model_id.clone();
             let reader = account.clone();
             let connection = tokio::task::spawn_blocking(move || {
-                let mut connections = super::configuration::load()?;
-                connections.extend(super::configuration::managed(reader.as_ref()));
+                let connections = super::configuration::agent_connections(reader.as_ref())?;
                 super::native_model_connections::resolve_leased_connection(
                     &configuration,
                     &model_id,

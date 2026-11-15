@@ -119,11 +119,7 @@ mod verify_tests {
             name: "Local".into(),
             endpoint,
             model: "qwen3".into(),
-            images: false,
-            authenticated: false,
-            credential_id: None,
-            generation: String::new(),
-            managed: false,
+            ..Default::default()
         }
     }
 

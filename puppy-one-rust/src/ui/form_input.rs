@@ -136,6 +136,13 @@ impl TextInput {
             _subscriptions: vec![subscription],
         }
     }
+    /// `type="password"`: Kit masks the value and exposes it to no one.
+    pub fn masked(self, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        if let Field::Single(state) = &self.field {
+            state.update(cx, |s, cx| s.set_masked(true, window, cx));
+        }
+        self
+    }
     pub fn text(&self) -> &str {
         &self.value
     }

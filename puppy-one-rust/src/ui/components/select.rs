@@ -56,6 +56,7 @@ pub struct Select {
     disabled: bool,
     min_width: f32,
     max_width: f32,
+    full_width: bool,
     options: Options,
 }
 impl Select {
@@ -70,6 +71,7 @@ impl Select {
             disabled: false,
             min_width: 0.,
             max_width: 220.,
+            full_width: false,
             options: Rc::new(options),
         }
     }
@@ -77,6 +79,11 @@ impl Select {
     pub fn width_range(mut self, min: f32, max: f32) -> Self {
         self.min_width = min;
         self.max_width = max;
+        self
+    }
+    /// `width: 100%; max-width: none`: the trigger fills its container.
+    pub fn full_width(mut self) -> Self {
+        self.full_width = true;
         self
     }
 }
@@ -95,10 +102,12 @@ impl RenderOnce for Select {
             open: false,
             min_width: self.min_width,
             max_width: self.max_width,
+            full_width: self.full_width,
         };
         let options = self.options;
         let width = self.max_width;
         PopoverMenu::new(self.id)
+            .when(self.full_width, |menu| menu.w_full())
             .trigger(trigger)
             .menu(move |menu: Menu, _, cx| {
                 menu.min_w(px(width.min(180.)))
@@ -124,6 +133,7 @@ struct SelectTrigger {
     open: bool,
     min_width: f32,
     max_width: f32,
+    full_width: bool,
 }
 impl Selectable for SelectTrigger {
     fn selected(mut self, selected: bool) -> Self {
@@ -147,7 +157,8 @@ impl RenderOnce for SelectTrigger {
             .gap(px(8.))
             .h(px(theme::control_compact()))
             .min_w(px(self.min_width))
-            .max_w(px(self.max_width))
+            .when(self.full_width, |b| b.w_full())
+            .when(!self.full_width, |b| b.max_w(px(self.max_width)))
             // A native menu list: its arrow ends at the inner border.
             .pl(px(12.))
             .pr(px(0.))
