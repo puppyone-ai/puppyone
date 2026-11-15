@@ -71,6 +71,14 @@ impl CloudSandbox {
         self.features.iter().find(|f| f.id == SCREEN_STREAM_FEATURE)
     }
 
+    /// The bound computer has a screen to show: its Profile ships
+    /// `screen_stream`, or the server reports it as a preview. A stream the
+    /// owner turned off is still present.
+    pub fn screen_present(&self) -> bool {
+        self.screen_feature()
+            .is_some_and(|f| f.installed || f.preview)
+    }
+
     /// `cloudSandboxContributions`: enabled client entry points for `slot`.
     pub fn contributions(&self, slot: Option<SandboxSlot>) -> Vec<&'static str> {
         let _ = slot;
@@ -231,6 +239,19 @@ pub fn fetch_project_sandbox(
     Ok(read_sandbox(&unwrapped["workspace"]["sandbox"]))
 }
 
+/// The body of `PUT /workbench/sandbox`: only the settings given; `None`
+/// when there is nothing to change.
+pub fn settings_body(patch: &SandboxSettings) -> Option<Value> {
+    let mut body = Map::new();
+    if let Some(desktop) = patch.desktop {
+        body.insert("desktop".into(), Value::Bool(desktop));
+    }
+    if let Some(stream) = patch.screen_stream {
+        body.insert("screen_stream".into(), Value::Bool(stream));
+    }
+    (!body.is_empty()).then_some(Value::Object(body))
+}
+
 /// Sends `PUT /projects/{project_id}/workbench/sandbox` and parses the updated sandbox.
 pub fn update_project_sandbox(
     broker: &Broker,
@@ -242,22 +263,13 @@ pub fn update_project_sandbox(
     if !model::identifier(project_id) {
         return Err(SandboxError::Failed);
     }
-    let mut body = Map::new();
-    if let Some(desktop) = patch.desktop {
-        body.insert("desktop".into(), Value::Bool(desktop));
-    }
-    if let Some(stream) = patch.screen_stream {
-        body.insert("screen_stream".into(), Value::Bool(stream));
-    }
-    if body.is_empty() {
-        return Err(SandboxError::Failed);
-    }
+    let body = settings_body(&patch).ok_or(SandboxError::Failed)?;
     let req = ApiRequest {
         idempotency_key: None,
         method: Method::PUT,
         path: format!("/projects/{project_id}/workbench/sandbox"),
         query: Vec::new(),
-        body: Some(Value::Object(body)),
+        body: Some(body),
     };
     let response = broker
         .request_scoped(binding, &req, cancel)
@@ -470,6 +482,33 @@ mod tests {
         assert_eq!(
             unsupported_transport.availability(),
             ScreenAvailability::Unavailable
+        );
+
+        // Only a computer that has a screen (or a preview of one) offers it.
+        assert!(preview.screen_present());
+        assert!(stream_off.screen_present());
+        assert!(unsupported_transport.screen_present());
+        assert!(!CloudSandbox::default().screen_present());
+        assert!(!pending.screen_present());
+        assert!(!requires_uninstalled.screen_present());
+    }
+
+    #[test]
+    fn settings_body_sends_only_the_settings_given() {
+        assert_eq!(settings_body(&SandboxSettings::default()), None);
+        assert_eq!(
+            settings_body(&SandboxSettings {
+                desktop: Some(true),
+                screen_stream: None,
+            }),
+            Some(json!({ "desktop": true }))
+        );
+        assert_eq!(
+            settings_body(&SandboxSettings {
+                desktop: Some(false),
+                screen_stream: Some(true),
+            }),
+            Some(json!({ "desktop": false, "screen_stream": true }))
         );
     }
 

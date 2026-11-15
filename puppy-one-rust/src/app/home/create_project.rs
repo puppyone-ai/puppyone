@@ -10,9 +10,10 @@ use super::*;
 use crate::{
     platform::templates::{self, builtin},
     ui::{
-        components::{Dialog, Icon},
+        components::{Dialog, Icon, Switch},
         form_input::{InputEvent, TextInput},
     },
+    workspace::cloud::sandbox::SandboxSettings,
 };
 use std::path::Path;
 
@@ -37,6 +38,10 @@ pub(in crate::app) struct CreateProject {
     /// same project repeats its operation, so the Cloud makes it once.
     pub(in crate::app) cloud_operation: Option<(String, String)>,
     pub(in crate::app) submitting: bool,
+    /// The hidden settings under a Cloud project's space are shown.
+    pub(in crate::app) advanced_open: bool,
+    /// The project's Cloud Computer comes with a desktop and its screen.
+    pub(in crate::app) cloud_desktop: bool,
 }
 
 /// Who can open the new project: the Homepage's three audiences.
@@ -95,6 +100,13 @@ fn operation(current: &mut Option<(String, String)>, space: &str, name: &str) ->
         .as_ref()
         .map(|(_, id)| id.clone())
         .unwrap_or_default()
+}
+/// What stopped a Cloud project's creation.
+enum CloudCreateError {
+    /// The project was not made.
+    Project(crate::workspace::cloud::services::Error),
+    /// The project was made; its Cloud Computer choice was not saved.
+    Computer,
 }
 /// What the server's answer means to the person creating it.
 fn create_error(error: &crate::workspace::cloud::services::Error) -> String {
@@ -180,6 +192,8 @@ impl Homepage {
             team: None,
             cloud_operation: None,
             submitting: false,
+            advanced_open: false,
+            cloud_desktop: false,
         });
         self.open_dialog(DialogKey::CreateProject, cx);
         cx.notify();
@@ -302,6 +316,25 @@ impl Homepage {
             cx.notify();
         }
     }
+    /// Show or hide the settings under a Cloud project's space.
+    pub(in crate::app) fn toggle_create_advanced(&mut self, cx: &mut Context<Self>) {
+        if let Some(create) = self.create.as_mut() {
+            create.advanced_open = !create.advanced_open;
+            cx.notify();
+        }
+    }
+    pub(in crate::app) fn choose_cloud_desktop(&mut self, on: bool, cx: &mut Context<Self>) {
+        if let Some(create) = self.create.as_mut().filter(|c| !c.submitting) {
+            create.cloud_desktop = on;
+            create.error = None;
+            cx.notify();
+        }
+    }
+    /// A new Cloud project may choose its Cloud Computer while the screen
+    /// experiment is on.
+    fn cloud_computer_offered(&self, cx: &App) -> bool {
+        crate::features::flags::cloud_screen_enabled(&self.preferences, cx)
+    }
     /// The team the dialog would create in, when it is one of the teams.
     fn create_team(&self, cx: &App) -> Option<(String, String)> {
         let create = self.create.as_ref()?;
@@ -318,6 +351,7 @@ impl Homepage {
         cx: &mut Context<Self>,
     ) {
         let team = self.create_team(cx);
+        let offered = self.cloud_computer_offered(cx);
         let Some(create) = self.create.as_mut() else {
             return;
         };
@@ -343,11 +377,27 @@ impl Homepage {
                 return;
             };
             let id = operation(&mut create.cloud_operation, &space, &name);
+            let desktop = offered && create.cloud_desktop;
             create.submitting = true;
             create.error = None;
-            let task = cx
-                .background_executor()
-                .spawn(async move { client.create_project(&name, &space, &id) });
+            // The desktop choice is saved before the project first opens:
+            // its first Cloud Computer is the one that gets it. A retry
+            // repeats the operation, so the Cloud hands back the same project.
+            let task = cx.background_executor().spawn(async move {
+                let project = client
+                    .create_project(&name, &space, &id)
+                    .map_err(CloudCreateError::Project)?;
+                if desktop {
+                    let choice = SandboxSettings {
+                        desktop: Some(true),
+                        screen_stream: None,
+                    };
+                    client
+                        .update_project_sandbox(&project.id, &choice)
+                        .map_err(|_| CloudCreateError::Computer)?;
+                }
+                Ok(project)
+            });
             cx.spawn_in(window, async move |this, cx| {
                 let result = task.await;
                 let _ = this.update_in(cx, |s, w, cx| {
@@ -364,7 +414,13 @@ impl Homepage {
                             s.window_focus.focus(w, cx);
                             cx.emit(HomeEvent::OpenCloud(project.id));
                         }
-                        Err(error) => create.error = Some(create_error(&error)),
+                        Err(CloudCreateError::Project(error)) => {
+                            create.error = Some(create_error(&error))
+                        }
+                        Err(CloudCreateError::Computer) => {
+                            create.error = Some(tr("cloud.settings.computer.failed").into());
+                            s.catalog.update(cx, |c, cx| c.ensure(true, true, cx));
+                        }
                     }
                     cx.notify();
                 });
@@ -662,6 +718,66 @@ impl Homepage {
             })
             .into_any_element()
     }
+    /// Hidden settings under a Cloud project's space: what its Cloud
+    /// Computer comes with. A computer's Profile is fixed when it is first
+    /// created, so a desktop is chosen here, before the project opens.
+    fn create_advanced(&self, create: &CreateProject, cx: &mut Context<Self>) -> Div {
+        let t = cx.palette();
+        let ty = theme::ty();
+        let open = create.advanced_open;
+        let host = self.weak.clone();
+        let summary = h_flex()
+            .id("create-project-advanced")
+            .debug_selector(|| "create-project-advanced".into())
+            .gap(px(4.))
+            .text_size(px(ty.ui.meta))
+            .line_height(px(18.))
+            .text_color(t.muted)
+            .cursor(theme::clickable_cursor())
+            .hover(|d| d.text_color(t.text))
+            .on_click(cx.listener(|s, _, _, cx| s.toggle_create_advanced(cx)))
+            .child(if open { "▾" } else { "▸" })
+            .child(tr("native.create.advanced"));
+        let desktop = h_flex()
+            .debug_selector(|| "create-project-cloud-desktop".into())
+            .gap(px(12.))
+            .items_center()
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap(px(2.))
+                    .child(
+                        div()
+                            .text_size(px(ty.ui.body))
+                            .line_height(px(18.))
+                            .text_color(t.text)
+                            .child(tr("native.create.cloudDesktop")),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(ty.ui.meta))
+                            .line_height(px(16.))
+                            .text_color(t.muted)
+                            .child(tr("native.create.cloudDesktopHelp")),
+                    ),
+            )
+            .child(
+                Switch::new(
+                    "create-project-cloud-desktop",
+                    tr("native.create.cloudDesktop"),
+                )
+                .checked(create.cloud_desktop)
+                .disabled(create.submitting)
+                .on_change(move |on, _, cx| {
+                    let _ = host.update(cx, |s, cx| s.choose_cloud_desktop(on, cx));
+                }),
+            );
+        v_flex()
+            .gap(px(10.))
+            .child(summary)
+            .when(open, |d| d.child(desktop))
+    }
     pub(in crate::app) fn create_project_dialog(
         &self,
         create: &CreateProject,
@@ -710,7 +826,10 @@ impl Homepage {
                             .gap(px(18.))
                             .child(self.name_field(destination, create.submitting, cx))
                             .when(several, |d| d.child(self.audience_choices(create, cx)))
-                            .child(location),
+                            .child(location)
+                            .when(in_cloud && self.cloud_computer_offered(cx), |d| {
+                                d.child(self.create_advanced(create, cx))
+                            }),
                     )
                     .children(create.error.clone().map(|error| {
                         div()
