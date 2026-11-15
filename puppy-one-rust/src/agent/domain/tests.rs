@@ -2,7 +2,7 @@
 //! `tests/integration/agent/controls/electron.agent-session-control.test.mjs`
 //! (the service and feed half lives with the application layer).
 use super::agent_session_actor::{ActorOptions, EventInput, SessionActor};
-use super::agent_session_control::{create_agent_session_control, reduce_control};
+use super::agent_session_control::reduce_control;
 use crate::agent::contract::schema::assert_agent_session_control;
 use crate::agent::contract::types::AgentEventView;
 use core::prelude::v1::test;
@@ -79,23 +79,31 @@ fn uses_one_deterministic_pure_reducer_for_live_folding_and_offline_reconstructi
     started["emittedAt"] = json!("2026-09-06T00:00:00.000Z");
     let mut completed = native_event("turn.completed", "A", json!({}));
     completed["emittedAt"] = json!("2026-09-06T00:00:01.000Z");
+    let mut command = start_command();
+    command["command"]["userMessageId"] = json!("submission-1");
     let inputs = [
         json!({"type": "adapter.attached"}),
-        start_command(),
+        command,
         json!({"type": "command.dispatching", "commandId": "command-1", "operationId": "operation-1"}),
         json!({"type": "submission.prepared", "submission": {"commandId": "command-1", "operationId": "operation-1", "adapterGeneration": 1, "prompt": "hello", "promptMentions": [], "referenceDisplays": []}, "startedAtMs": 100}),
         json!({"type": "event.accepted", "event": started}),
         json!({"type": "event.accepted", "event": completed}),
         json!({"type": "command.accepted", "commandId": "command-1", "turnId": "A"}),
     ];
-    let initial = create_agent_session_control("stream-1", "epoch-1", "idle", 0);
+    let actor = actor();
+    let initial = actor.control();
+    let initial_copy = initial.clone();
     let fold = || {
         inputs.iter().fold(initial.clone(), |control, input| {
             reduce_control(&control, input).unwrap()
         })
     };
-    let (live, rebuilt) = (fold(), fold());
+    for input in &inputs {
+        actor.dispatch(input.clone()).unwrap();
+    }
+    let (live, rebuilt) = (actor.control(), fold());
     assert_eq!(rebuilt, live);
+    assert_eq!(initial, initial_copy);
     assert_match!(
         rebuilt["execution"],
         json!({"status": "ended", "nativeOutcome": "completed"})
@@ -861,7 +869,7 @@ fn clears_partial_or_unknown_coverage_through_a_committed_display_patch_after_co
             replica.borrow().get("history").unwrap()["coverage"],
             coverage
         );
-        let messages = kinds(&replica.borrow().messages, "id");
+        let messages = replica.borrow().messages.clone();
         actor
             .dispatch(json!({"type": "history.loaded", "coverage": "complete"}))
             .unwrap();
@@ -869,7 +877,7 @@ fn clears_partial_or_unknown_coverage_through_a_committed_display_patch_after_co
             replica.borrow().get("history").unwrap(),
             &json!({"coverage": "complete", "reason": null})
         );
-        assert_eq!(kinds(&replica.borrow().messages, "id"), messages);
+        assert_eq!(replica.borrow().messages, messages);
         assert_eq!(replica.borrow().get("missingRanges").unwrap(), &json!([]));
         assert_eq!(actor.sequence(), 43);
     }
@@ -968,4 +976,23 @@ fn compacted_history_rebuilds_interleaved_replace_and_append_reasoning_exactly()
         assert_eq!(reasoning.len(), 1);
         assert_eq!(reasoning[0]["detail"]["delta"], "NEW tail");
     }
+}
+
+#[test]
+fn active_turn_checkpoint_retains_the_exact_native_user_message() {
+    use super::agent_event_checkpoint::fold_agent_event_checkpoint;
+    let message = pi_envelope(
+        4,
+        "user.message",
+        json!({"text": "FOLLOWUP_SENTINEL"}),
+        Some("user-followup"),
+        Some("A"),
+    )
+    .unwrap();
+    let checkpoint = fold_agent_event_checkpoint(&[], &message);
+    assert_eq!(checkpoint, vec![message]);
+    let restored = replay(&checkpoint);
+    assert_eq!(restored.messages.len(), 1);
+    assert_eq!(restored.messages[0]["itemId"], "user-followup");
+    assert_eq!(restored.messages[0]["text"], "FOLLOWUP_SENTINEL");
 }

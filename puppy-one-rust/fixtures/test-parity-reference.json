@@ -10,6 +10,8 @@
     "tests/unit/cloud/repositories/cloudWorkspaceEvents.test.mjs": "82a31ee22399d070ef19a7a6df959462503a0a6e6461cfb484e53f59e31fe29a",
     "tests/unit/cloud/repositories/cloudWorkspaceChanges.test.ts": "64d661d559cfad11aa53eca551cd8a2b39e65a07660cca49fc1f905e5be60771",
     "tests/component/editor/document-session/quietAutoSaveStatus.test.tsx": "f2d1a0326e862ab0a19efcd87e3e88cf1e0c79e4d89cdfa6afc1f4999eba121a",
-    "tests/unit/editor/document-session/windowAutoSave.test.ts": "1817f44452f2f0f6328eef391555c7ba8e2478843a9e22fbd687f66646e3cf0f"
+    "tests/unit/editor/document-session/windowAutoSave.test.ts": "1817f44452f2f0f6328eef391555c7ba8e2478843a9e22fbd687f66646e3cf0f",
+    "shared/agent-contract/constants.mjs": "bdb31ef6411a128e565ae5bb4aae17b72d82a2e0a9d206d5dff5346d718cd8e5",
+    "shared/agent-contract/types.ts": "0c85bf180ab61114f08205f6dcd38f29694fd07e6c3f291c8a7a8ea8fb65e04f"
   }
 }

@@ -35,6 +35,8 @@ struct Script {
     creates: Cell<usize>,
     disposals: Cell<usize>,
     disposal_failure: Cell<bool>,
+    disposal_wait: RefCell<Option<LocalBoxFuture<'static, AgentResult<()>>>>,
+    source_scope: RefCell<Option<String>>,
 }
 struct Discovery(Rc<Script>);
 impl RuntimeDiscovery for Discovery {
@@ -66,7 +68,11 @@ impl AgentRuntimeAdapter for Adapter {
     fn dispose(&self) -> AdapterFuture<'_, ()> {
         self.0.disposals.set(self.0.disposals.get() + 1);
         let fail = self.0.disposal_failure.get();
+        let pending = self.0.disposal_wait.borrow_mut().take();
         Box::pin(async move {
+            if let Some(pending) = pending {
+                return pending.await;
+            }
             if fail {
                 Err(AgentError::new("dispose failed"))
             } else {
@@ -84,7 +90,7 @@ impl AgentRuntimeAdapter for Adapter {
 struct History(Rc<Script>);
 impl SessionHistoryPort for History {
     fn source_scope_id(&self) -> Option<String> {
-        Some("default".into())
+        self.0.source_scope.borrow().clone()
     }
     fn implements(&self, name: &str) -> bool {
         name == "discover"
@@ -150,6 +156,7 @@ struct Harness {
 }
 fn harness() -> Harness {
     let script = Rc::new(Script::default());
+    *script.source_scope.borrow_mut() = Some("default".into());
     let factory = script.clone();
     let registry = AgentRuntimeRegistry::new(
         vec![RuntimeDefinition {
@@ -513,5 +520,131 @@ fn page_budget_stops_unbounded_scans_and_reports_catalog_capacity() {
         assert_eq!(second["status"], "failed");
         assert_eq!(second["retryable"], false);
         assert_eq!(h.catalog.calls.borrow().len(), 1);
+    });
+}
+
+#[test]
+fn source_scope_drift_in_either_the_port_or_page_rejects_reconciliation() {
+    for port_changes in [false, true] {
+        run_paused(async {
+            let h = harness();
+            h.page(page("a", Some("page-2"), proof()));
+            let first = h.start().await;
+            if port_changes {
+                *h.script.source_scope.borrow_mut() = Some("profile-b".into());
+            }
+            let mut changed = page("b", None, proof());
+            changed["sourceScopeId"] = json!("profile-b");
+            h.page(changed);
+            let result = h.next(&first).await;
+            assert_eq!(result["status"], "failed");
+            assert_eq!(result["retryable"], false);
+            assert!(
+                result["warnings"][0]
+                    .as_str()
+                    .unwrap()
+                    .contains("source changed")
+            );
+            assert_eq!(h.catalog.calls.borrow().len(), 1);
+            assert_eq!(
+                h.script.discoveries.borrow().len(),
+                if port_changes { 1 } else { 2 }
+            );
+            assert_eq!(h.script.disposals.get(), 2);
+        });
+    }
+}
+
+#[test]
+fn cumulative_entry_limit_accepts_the_boundary_and_rejects_the_next_page_before_write() {
+    run_paused(async {
+        let mut h = harness();
+        Rc::get_mut(&mut h.indexer.0).unwrap().max_entries = 1;
+        h.page(page("a", Some("page-2"), proof()));
+        h.page(page("b", None, proof()));
+        let first = h.start().await;
+        assert_eq!(first["status"], "partial");
+        assert_eq!(first["indexed"], 1);
+        let second = h.next(&first).await;
+        assert_eq!(second["status"], "failed");
+        assert_eq!(second["retryable"], false);
+        let calls = h.catalog.calls.borrow();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0]["reconcileMissing"], false);
+    });
+}
+
+#[test]
+fn scan_capacity_refuses_new_scopes_until_the_old_scan_expires() {
+    run_paused(async {
+        let mut h = harness();
+        Rc::get_mut(&mut h.indexer.0).unwrap().max_scans = 1;
+        h.page(page("a", Some("page-2"), Value::Null));
+        let first = h.start().await;
+        let rejected = h
+            .indexer
+            .refresh(
+                "/workspace/b",
+                "codex",
+                Value::Null,
+                None,
+                Some(json!(1)),
+                Some(7),
+            )
+            .await;
+        assert_eq!(rejected["status"], "failed");
+        assert_eq!(h.script.creates.get(), 1);
+        assert_eq!(h.indexer.0.scans.borrow().len(), 1);
+        h.indexer
+            .0
+            .scans
+            .borrow()
+            .values()
+            .next()
+            .unwrap()
+            .expires_at
+            .set(0);
+        let expired = h.next(&first).await;
+        assert_eq!(expired["status"], "failed");
+        assert_eq!(expired["retryable"], false);
+        assert_eq!(h.script.discoveries.borrow().len(), 1);
+        let fresh = h
+            .indexer
+            .refresh(
+                "/workspace/b",
+                "codex",
+                Value::Null,
+                None,
+                Some(json!(1)),
+                Some(7),
+            )
+            .await;
+        assert_eq!(fresh["status"], "complete");
+        assert_eq!(h.script.creates.get(), 2);
+    });
+}
+
+#[test]
+fn unsettled_disposal_remains_shared_and_blocks_new_native_resources_until_completion() {
+    run_paused(async {
+        let h = harness();
+        let (complete, wait) = oneshot::channel();
+        *h.script.disposal_wait.borrow_mut() = Some(Box::pin(async move { wait.await.unwrap() }));
+        assert_eq!(h.start().await["status"], "complete");
+        assert_eq!(h.script.disposals.get(), 1);
+        assert_eq!(h.indexer.0.resources.borrow().len(), 1);
+        assert_eq!(h.start().await["status"], "failed");
+        assert_eq!(h.script.creates.get(), 1);
+        let indexer = h.indexer.clone();
+        let closing = spawn_local(async move { indexer.dispose().await });
+        settle().await;
+        assert!(!closing.is_finished());
+        assert_eq!(h.script.disposals.get(), 1);
+        complete.send(Ok(())).unwrap();
+        closing.await.unwrap().unwrap();
+        assert!(h.indexer.0.resources.borrow().is_empty());
+        assert!(h.indexer.0.scans.borrow().is_empty());
+        assert_eq!(h.start().await["status"], "failed");
+        assert_eq!(h.script.creates.get(), 1);
     });
 }

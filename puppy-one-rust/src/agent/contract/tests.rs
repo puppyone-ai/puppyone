@@ -37,6 +37,66 @@ fn err(result: Result<impl std::fmt::Debug, super::ContractError>) -> String {
 }
 
 #[test]
+fn public_constants_and_typed_operations_match_the_executed_typescript_contract() {
+    use super::constants::{
+        AGENT_EVENT_TYPES, AGENT_READINESS_CODE_STATUS, AGENT_RUNTIME_CAPABILITIES,
+        AGENT_SESSION_OPEN_ERROR_CODES, agent_readiness_codes,
+    };
+    use super::protocol::AgentOperation;
+    let oracle: Value =
+        serde_json::from_str(include_str!("../../../fixtures/test-parity-oracle.json")).unwrap();
+    let contract = &oracle["agentContract"];
+    assert_eq!(json!(AGENT_EVENT_TYPES), contract["eventTypes"]);
+    assert_eq!(json!(agent_readiness_codes()), contract["readinessCodes"]);
+    assert_eq!(json!(AGENT_RUNTIME_CAPABILITIES), contract["capabilities"]);
+    assert_eq!(
+        json!(AGENT_SESSION_OPEN_ERROR_CODES),
+        contract["sessionOpenErrorCodes"]
+    );
+    let statuses: serde_json::Map<String, Value> = AGENT_READINESS_CODE_STATUS
+        .iter()
+        .map(|(code, status)| ((*code).into(), json!(status)))
+        .collect();
+    assert_eq!(Value::Object(statuses), contract["readinessCodeStatus"]);
+    // Rust dispatches typed commands directly; the compatibility parser retains
+    // TS's generic dispatch envelope in addition to these concrete operations.
+    let concrete: Vec<Value> = contract["ipcChannels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|channel| *channel != "agent:command-dispatch")
+        .cloned()
+        .collect();
+    assert_eq!(
+        json!(
+            AgentOperation::MAIN
+                .iter()
+                .map(|op| op.channel())
+                .collect::<Vec<_>>()
+        ),
+        json!(concrete)
+    );
+    for kind in ["start", "steer", "interrupt"] {
+        let mut request = json!({"rootPath": "/workspace", "sessionId": "s", "commandId": "c"});
+        if kind != "start" {
+            request["turnId"] = json!("turn");
+        }
+        if kind != "interrupt" {
+            request[if kind == "start" { "prompt" } else { "message" }] =
+                json!("preserve my input");
+        }
+        let channel = format!("agent:turn-{kind}");
+        let mut expected = parse_agent_ipc_request(&channel, &request).unwrap();
+        request["kind"] = json!(kind);
+        expected["kind"] = json!(kind);
+        assert_eq!(
+            parse_agent_ipc_request("agent:command-dispatch", &request).unwrap(),
+            expected
+        );
+    }
+}
+
+#[test]
 fn bounds_inline_attachment_input_and_strips_renderer_mime_claims() {
     let context = json!({"rootPath": "/workspace", "epoch": "draft"});
     let bytes = js::uint8array(&[1, 2]);

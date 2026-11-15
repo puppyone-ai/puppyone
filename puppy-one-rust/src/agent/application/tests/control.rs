@@ -3,8 +3,11 @@
 //! and the request-isolation case of `electron.agent-display-contract.test.mjs`.
 use super::harness::{HarnessOptions, create_sender, create_service_harness, run, settle};
 use crate::agent::agent_error::AgentError;
+use crate::agent::application::ports::SessionCache;
 use crate::agent::application::session::agent_session_feed::MAX_PENDING_FRAMES;
 use crate::agent::contract::schema::assert_agent_session_control;
+use crate::agent::runtimes::codex::codex_events::normalize_codex_notification;
+use crate::agent::runtimes::codex::codex_history_projection::normalize_historical_thread;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use tokio::sync::oneshot;
@@ -133,11 +136,14 @@ fn bounds_reconnect_diagnostics_before_control_state_enters_the_feed() {
             .service
             .acknowledge_session(&owner, &json!({"sessionId": id, "subscriptionId": receipt["subscriptionId"], "streamId": cursor["streamId"], "revision": cursor["revision"]}), "/workspace")
             .unwrap();
-        // `normalizeCodexNotification({ method: "error", params: { willRetry: true, … } })`.
-        harness.adapter(0).emit(json!({
-            "type": "provider.connection.updated", "providerSessionId": "thread-1", "turnId": "turn-1",
-            "payload": {"state": "reconnecting", "message": "x".repeat(1_001)},
+        let notifications = normalize_codex_notification(&json!({
+            "method": "error", "params": {
+                "threadId": "thread-1", "willRetry": true,
+                "error": {"message": "x".repeat(1_001)},
+            },
         }));
+        assert_eq!(notifications.len(), 1);
+        harness.adapter(0).emit(notifications[0].clone());
         let control = harness
             .service
             .replay(
@@ -153,6 +159,52 @@ fn bounds_reconnect_diagnostics_before_control_state_enters_the_feed() {
             1_000
         );
         assert_eq!(control["connection"]["status"], "connected");
+    });
+}
+
+#[test]
+fn keeps_metadata_only_native_running_history_explicitly_unconfirmed() {
+    run(async {
+        let historical_events = normalize_historical_thread(&json!({
+            "id": "thread-1",
+            "turns": [{"id": "A", "status": "inProgress", "items": []}],
+        }));
+        let harness = create_service_harness(HarnessOptions {
+            historical_events,
+            ..Default::default()
+        });
+        harness
+            .persistence
+            .save(
+                json!({
+                    "sessionId": "saved-running", "workspaceRoot": "/workspace",
+                    "runtimeId": "codex", "providerSessionId": "thread-1",
+                    "selectedModel": "gpt-5", "terminalState": "running", "lastSequence": 10,
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                }),
+                true,
+            )
+            .await
+            .unwrap();
+        let (owner, _) = create_sender(507);
+        let restored = harness
+            .service
+            .resume_session(
+                &owner,
+                &json!({"sessionId": "saved-running", "runtimeId": "codex"}),
+                "/workspace",
+            )
+            .await
+            .unwrap();
+        assert_eq!(restored["session"]["id"], "saved-running");
+        assert_eq!(
+            restored["control"]["execution"]["status"],
+            "outcome-unknown"
+        );
+        assert_eq!(restored["control"]["execution"]["certainty"], "unknown");
+        assert!(restored["control"]["execution"]["activeTurnId"].is_null());
+        assert_eq!(harness.last_adapter().history_reads.get(), 1);
+        harness.service.close_all().await.unwrap();
     });
 }
 

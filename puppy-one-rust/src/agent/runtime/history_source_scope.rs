@@ -58,3 +58,41 @@ pub fn assert_history_source_scope(actual: &str, expected: &str) -> Result<(), A
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    #[test]
+    fn codex_claude_and_pi_namespaces_follow_storage_selectors_and_never_credentials() {
+        use crate::agent::runtimes::{
+            claude::claude_history_source::claude_history_source,
+            codex::codex_history_source::codex_history_source,
+            pi::pi_history_source::pi_history_source,
+        };
+        type Source = fn(&dyn Fn(&str) -> Option<String>) -> (String, PathBuf);
+        for (source, key) in [
+            (codex_history_source as Source, "CODEX_HOME"),
+            (claude_history_source as Source, "CLAUDE_CONFIG_DIR"),
+            (pi_history_source as Source, "PI_CODING_AGENT_DIR"),
+        ] {
+            let scope = |profile: &str, secret: &str| {
+                source(&|name| match name {
+                    "HOME" => Some("/test-home".into()),
+                    "API_KEY" => Some(secret.into()),
+                    name if name == key => Some(profile.into()),
+                    _ => None,
+                })
+                .0
+            };
+            let first = scope("/profiles/a", "secret-one");
+            let again = scope("/profiles/a", "secret-two");
+            let other = scope("/profiles/b", "secret-one");
+            assert_eq!(first, again, "{key}");
+            assert_ne!(first, other, "{key}");
+            assert!(!first.contains("profiles"));
+            assert!(!first.contains("secret"));
+            assert!(first.starts_with("local:"));
+        }
+    }
+}

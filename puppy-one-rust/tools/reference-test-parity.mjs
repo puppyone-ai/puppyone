@@ -3,6 +3,7 @@ import {readFile, writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
+import assert from 'node:assert/strict';
 const root = path.resolve(import.meta.dirname, '..');
 const receipt = JSON.parse(await readFile(path.join(root, 'fixtures/test-parity-reference.json'), 'utf8'));
 const reference = path.resolve(root, process.env.PUPPYONE_PARITY_ROOT ?? receipt.checkout);
@@ -62,8 +63,30 @@ for (const reset of [undefined, false, true]) for (const paths of hints) {
   catch(error) { if (error.message !== 'Cloud file connection closed.') valid=false; }
   eventCases.push({frame,valid,events});
 }
+const constants = await import(pathToFileURL(path.join(reference, 'shared/agent-contract/constants.mjs')));
+const types = await readFile(path.join(reference, 'shared/agent-contract/types.ts'), 'utf8');
+function typeBlock(name, next) {
+  const start = types.indexOf(`export type ${name}`);
+  const end = next ? types.indexOf(next, start) : types.length;
+  assert(start >= 0 && end >= start, `Missing TS type ${name}`);
+  return types.slice(start, end);
+}
+const literals = (name, next) => [...typeBlock(name, next).matchAll(/\|\s*"([^"]+)"/g)].map(m => m[1]);
+const agentContract = {
+  eventTypes: constants.AGENT_EVENT_TYPES,
+  readinessCodes: constants.AGENT_READINESS_CODES,
+  readinessCodeStatus: constants.AGENT_READINESS_CODE_STATUS,
+  sessionOpenErrorCodes: constants.AGENT_SESSION_OPEN_ERROR_CODES,
+  capabilities: constants.AGENT_RUNTIME_CAPABILITIES,
+  ipcChannels: constants.AGENT_IPC_CHANNELS,
+};
+assert.deepEqual(literals('AgentEventType', 'AgentCanonicalToolResult'), agentContract.eventTypes);
+assert.deepEqual(literals('AgentReadinessCode', 'AgentRuntimeDescriptor'), agentContract.readinessCodes);
+assert.deepEqual(literals('AgentSessionOpenErrorCode', 'AgentSessionOpenResult'), agentContract.sessionOpenErrorCodes);
+assert.deepEqual([...typeBlock('AgentCapabilities', 'AgentAccountState').matchAll(/^\s{2}([A-Za-z][A-Za-z0-9]*):/gm)].map(m => m[1]), agentContract.capabilities);
+assert.deepEqual(literals('AgentIpcChannel', null), agentContract.ipcChannels);
 // Keep each transition on one line so a reference update is reviewable.
-const output = `{\n "sourceCommit":${JSON.stringify(receipt.commit)},\n "autoSave":[\n${autoSave.map(step=>'  '+JSON.stringify(step)).join(',\n')}\n ],\n "eventCases":[\n${eventCases.map(step=>'  '+JSON.stringify(step)).join(',\n')}\n ]\n}\n`;
+const output = `{\n "sourceCommit":${JSON.stringify(receipt.commit)},\n "autoSave":[\n${autoSave.map(step=>'  '+JSON.stringify(step)).join(',\n')}\n ],\n "eventCases":[\n${eventCases.map(step=>'  '+JSON.stringify(step)).join(',\n')}\n ],\n "agentContract":${JSON.stringify(agentContract)}\n}\n`;
 const file = path.join(root,'fixtures/test-parity-oracle.json');
 if(process.argv.includes('--check')) { if(await readFile(file,'utf8') !== output) throw Error('Stale TS acceptance oracle'); }
 else await writeFile(file,output);

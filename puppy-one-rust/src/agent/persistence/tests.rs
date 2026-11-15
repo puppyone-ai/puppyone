@@ -952,3 +952,176 @@ fn joins_live_replay_with_the_catalogs_authoritative_availability_for_exact_open
         assert_eq!(unavailable["events"], replay);
     });
 }
+
+#[test]
+fn catalog_page_limits_preserve_every_identity_across_restart_and_reject_cross_root_cursors() {
+    run_local(async {
+        let Fixture {
+            _directory,
+            file_path,
+            catalog,
+        } = fixture_with(Some(2));
+        let mut saved = Vec::new();
+        for i in 0..5 {
+            saved.push(
+                catalog
+                    .upsert_native(&record(&format!("native-{i}")))
+                    .await
+                    .unwrap(),
+            );
+        }
+        let restarted = AgentConversationCatalog::new(CatalogOptions {
+            file_path,
+            max_records: Some(2),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(
+            restarted.upsert_native(&record("native-0")).await.unwrap()["sessionId"],
+            saved[0]["sessionId"]
+        );
+        let mut cursor = Value::Null;
+        let mut collected = Vec::new();
+        let mut cross_root_cursor = None;
+        for _ in 0..5 {
+            let page = restarted
+                .list_page("/workspace", &json!({"cursor": cursor}))
+                .await
+                .unwrap();
+            let rows = page["sessions"].as_array().unwrap();
+            assert!(rows.len() <= 2);
+            collected.extend(ids(rows, "sessionId"));
+            cursor = page["nextCursor"].clone();
+            if !cursor.is_null() {
+                cross_root_cursor = Some(cursor.clone());
+            }
+            if cursor.is_null() {
+                break;
+            }
+        }
+        assert!(cursor.is_null(), "catalog pagination must terminate");
+        collected.sort();
+        let mut expected = ids(&saved, "sessionId");
+        expected.sort();
+        assert_eq!(collected, expected);
+        assert!(
+            restarted
+                .find_by_id(saved[0]["sessionId"].as_str().unwrap(), Some("/workspace"))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        let coverage = restarted.get_coverage().await.unwrap();
+        assert_eq!(coverage["truncated"], false);
+        assert_eq!(coverage["retained"], 5);
+        let error = restarted
+            .list_page("/another", &json!({"cursor": cross_root_cursor.unwrap()}))
+            .await
+            .unwrap_err();
+        assert!(error.message.to_lowercase().contains("cursor"));
+    });
+}
+
+#[test]
+fn archived_exclusions_and_visible_rows_share_one_page_budget_without_deleting_identity() {
+    run_local(async {
+        let Fixture { catalog, .. } = fixture_with(Some(2));
+        let mut saved = Vec::new();
+        for i in 0..7 {
+            saved.push(
+                catalog
+                    .upsert_native(&record(&format!("native-{i}")))
+                    .await
+                    .unwrap(),
+            );
+        }
+        for row in &saved[..5] {
+            catalog
+                .archive(row["sessionId"].as_str().unwrap(), None)
+                .await
+                .unwrap();
+        }
+        let mut cursor = Value::Null;
+        let mut visible = Vec::new();
+        let mut excluded = Vec::new();
+        for _ in 0..7 {
+            let page = catalog
+                .list_page("/workspace", &json!({"cursor":cursor}))
+                .await
+                .unwrap();
+            let rows = page["sessions"].as_array().unwrap();
+            let omitted = page["excludedSessionIds"].as_array().unwrap();
+            assert!(rows.len() + omitted.len() <= 2);
+            visible.extend(ids(rows, "sessionId"));
+            excluded.extend(omitted.iter().map(|v| v.as_str().unwrap().to_string()));
+            cursor = page["nextCursor"].clone();
+            if cursor.is_null() {
+                break;
+            }
+        }
+        assert!(cursor.is_null());
+        visible.sort();
+        excluded.sort();
+        let mut expected_visible = ids(&saved[5..], "sessionId");
+        expected_visible.sort();
+        let mut expected_excluded = ids(&saved[..5], "sessionId");
+        expected_excluded.sort();
+        assert_eq!(visible, expected_visible);
+        assert_eq!(excluded, expected_excluded);
+        assert!(
+            catalog
+                .find_by_id(saved[0]["sessionId"].as_str().unwrap(), None)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            catalog
+                .list_page("/workspace", &json!({"includeArchived":true}))
+                .await
+                .unwrap()["excludedSessionIds"],
+            json!([])
+        );
+    });
+}
+
+#[test]
+fn concurrent_reservation_and_discovery_share_an_identity_that_cannot_be_rebound() {
+    run_local(async {
+        let Fixture { catalog, .. } = fixture();
+        let native = js::with(&record("native-1"), "sourceScopeId", "profile-a");
+        let reservation = js::with(&native, "sessionId", "product-a");
+        let (reserved, discovered) = futures_util::join!(
+            catalog.bind_native(&reservation),
+            catalog.upsert_native(&native)
+        );
+        let reserved = reserved.unwrap();
+        let discovered = discovered.unwrap();
+        assert_eq!(discovered["sessionId"], reserved["sessionId"]);
+        let other = catalog
+            .upsert_native(&js::with(&record("native-1"), "sourceScopeId", "profile-b"))
+            .await
+            .unwrap();
+        assert_ne!(other["sessionId"], reserved["sessionId"]);
+        let rebound = js::Obj::from(&record("another-native"))
+            .set("sessionId", reserved["sessionId"].clone())
+            .set("sourceScopeId", "profile-a")
+            .build();
+        assert!(
+            catalog
+                .save(&rebound)
+                .await
+                .unwrap_err()
+                .message
+                .contains("rebound")
+        );
+        assert_eq!(
+            catalog
+                .find_by_id(reserved["sessionId"].as_str().unwrap(), None)
+                .await
+                .unwrap()
+                .unwrap()["providerSessionId"],
+            "native-1"
+        );
+    });
+}

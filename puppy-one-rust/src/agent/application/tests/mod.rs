@@ -14,3 +14,6 @@ mod resolution;
 
 #[cfg(test)]
 mod concurrency;
+
+#[cfg(test)]
+mod history_identity;
