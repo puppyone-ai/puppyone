@@ -125,15 +125,17 @@ impl RenderOnce for OnboardingEntryActions {
     }
 }
 
-/// `OnboardingStartActions`: `New project` (`PatternDeep` filled key),
-/// `Open a folder`, and `Import` in compact toolbar geometry (`28px` tall,
-/// `10px` inline pad, `13px` medium) on the left of Projects Home's header.
+/// `OnboardingStartActions`: `New project` (`PatternDeep` filled key, split
+/// with the menu of Agents that can start one), `Open a folder`, and `Import`
+/// in compact toolbar geometry (`28px` tall, `10px` inline pad, `13px`
+/// medium) at the start of Projects Home's toolbar.
 #[derive(IntoElement)]
 pub(in crate::app::home) struct OnboardingStartActions {
     busy: bool,
     on_create: ActionHandler,
     on_open_folder: ActionHandler,
     on_import: ActionHandler,
+    agents_menu: Option<AnyElement>,
 }
 
 impl OnboardingStartActions {
@@ -148,7 +150,15 @@ impl OnboardingStartActions {
             on_create: Rc::new(on_create),
             on_open_folder: Rc::new(on_open_folder),
             on_import: Rc::new(on_import),
+            agents_menu: None,
         }
+    }
+
+    /// The second half of `New project`: its own trigger and menu, square
+    /// where the two halves meet.
+    pub fn agents_menu(mut self, menu: impl IntoElement) -> Self {
+        self.agents_menu = Some(menu.into_any_element());
+        self
     }
 }
 
@@ -160,6 +170,7 @@ impl RenderOnce for OnboardingStartActions {
         let on_create = self.on_create;
         let on_open = self.on_open_folder;
         let on_import = self.on_import;
+        let split = self.agents_menu.is_some();
 
         let create = Button::new("home-create-project")
             .variant(ButtonVariant::PatternDeep)
@@ -167,44 +178,50 @@ impl RenderOnce for OnboardingStartActions {
             .label(tr("onboarding.action.createLocalProject"))
             .accessibility_label(tr("onboarding.action.createLocalProject"))
             .disabled(busy)
+            .when(split, |b| b.rounded_r(px(0.)))
             .on_click(move |ev, w, cx| on_create(ev, w, cx));
 
-        let open_folder = Button::new("home-open-folder")
-            .variant(ButtonVariant::Ghost)
-            .icon(Icon::product(ProductIcon::Folder).small().stroke(1.85))
-            .label(tr("onboarding.action.openFolder"))
-            .disabled(busy)
-            .h(px(theme::control_compact()))
-            .px(px(10.))
-            .rounded(px(metric::CONTROL_RADIUS))
-            .text_size(px(meta))
-            .font_weight(FontWeight::MEDIUM)
-            .when(busy, |b| {
-                b.bg(t.control).text_color(t.text_disabled).opacity(1.)
-            })
-            .on_click(move |ev, w, cx| on_open(ev, w, cx));
-
-        let import = Button::new("home-import")
-            .variant(ButtonVariant::Ghost)
-            .icon(Icon::new("download").small().stroke(1.85))
-            .label(tr("onboarding.action.importFromApps"))
-            .disabled(busy)
-            .h(px(theme::control_compact()))
-            .px(px(10.))
-            .rounded(px(metric::CONTROL_RADIUS))
-            .text_size(px(meta))
-            .font_weight(FontWeight::MEDIUM)
-            .when(busy, |b| {
-                b.bg(t.control).text_color(t.text_disabled).opacity(1.)
-            })
-            .on_click(move |ev, w, cx| on_import(ev, w, cx));
+        let quiet = |id: &'static str, icon: Icon, label: &'static str| {
+            Button::new(id)
+                .variant(ButtonVariant::Ghost)
+                .icon(icon)
+                .label(label)
+                .disabled(busy)
+                .h(px(theme::control_compact()))
+                .px(px(10.))
+                .rounded(px(metric::CONTROL_RADIUS))
+                .text_size(px(meta))
+                .font_weight(FontWeight::MEDIUM)
+                .when(busy, |b| {
+                    b.bg(t.control).text_color(t.text_disabled).opacity(1.)
+                })
+        };
+        let open_folder = quiet(
+            "home-open-folder",
+            Icon::product(ProductIcon::Folder).small().stroke(1.85),
+            tr("onboarding.action.openFolder"),
+        )
+        .on_click(move |ev, w, cx| on_open(ev, w, cx));
+        let import = quiet(
+            "home-import",
+            Icon::new("download").small().stroke(1.85),
+            tr("onboarding.action.importFromApps"),
+        )
+        .on_click(move |ev, w, cx| on_import(ev, w, cx));
 
         h_flex()
             .debug_selector(|| "home-start-actions".into())
             .flex_none()
             .items_center()
             .gap(px(6.))
-            .child(create)
+            .child(
+                h_flex()
+                    .flex_none()
+                    .items_center()
+                    .gap(px(1.))
+                    .child(create)
+                    .children(self.agents_menu),
+            )
             .child(open_folder)
             .child(import)
     }

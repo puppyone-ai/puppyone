@@ -4,13 +4,13 @@
 //! Architecture & component boundaries:
 //! - `components` — Pure `RenderOnce` UI components (`OnboardingHomeLayout`,
 //!   `OnboardingBrandLockup`, `OnboardingStartActions`, `OnboardingEntryActions`,
-//!   `HomepageAgentStrip`, `HomepageAgentBrandMark`, `OnboardingErrorBanner`,
+//!   `HomepageAgentBrandMark`, `SpaceAgents`, `OnboardingErrorBanner`,
 //!   `OnboardingTelemetryDisclosure`)
 //! - `discovery` — Background preview & Local/Cloud Agent discovery (`HomeDiscovery`)
 //! - `hydration` — Activity hydration, spaces/hosts sync, first-paint & list hold
 //! - `display` — Display names, compact workspace paths, and relative timestamps
-//! - `folder` — `ProjectFolderGlyph` (`104 × 78` Grid / `34 × 26` List) and sheets
-//! - `projects` — `OnboardingProjectsHead`, toolbar, audience groups, Grid tiles & List rows
+//! - `folder` — `ProjectFolderGlyph` (`104 × 78` Grid / `34 × 26` List) and blank sheets
+//! - `projects` — toolbar menus, audience groups, Grid tiles & List rows
 //! - `create_project`, `agent_start`, `import_sources`, `import_repository`,
 //!   `template_import`, `project_entry` — Entry dialogs
 use super::{
@@ -72,14 +72,14 @@ mod template_import;
 mod value;
 
 use components::{
-    HomepageAgentStrip, OnboardingBrandLockup, OnboardingCreateProjectAction,
-    OnboardingEntryActions, OnboardingHomeLayout, OnboardingHomeState, OnboardingStartActions,
+    OnboardingBrandLockup, OnboardingCreateProjectAction, OnboardingEntryActions,
+    OnboardingHomeLayout, OnboardingHomeState, OnboardingStartActions,
 };
 pub(super) use create_project::CreateProject;
 pub(in crate::app) use display::{compact_display_path, item_name_or, path_for_display};
 pub(super) use import_repository::ImportRepository;
 pub(in crate::app) use projects::HomeMenu;
-use projects::{OnboardingProjectsHead, SpacesUnavailableNote};
+use projects::SpacesUnavailableNote;
 pub(super) use template_import::TemplateImport;
 
 /// What the Homepage asks of the window.
@@ -540,32 +540,17 @@ impl Homepage {
             let list_held = self.list_held();
             let held = held || list_held;
 
+            // One toolbar: ways to start a project at its start, how the
+            // projects are shown at its end.
             let start_actions = OnboardingStartActions::new(
                 busy,
                 cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)),
                 cx.listener(|s, _, _, cx| s.command(Command::OpenFolder, cx)),
                 cx.listener(|s, _, w, cx| s.begin_import(w, cx)),
-            );
-            let host_start = self.weak.clone();
-            let host_connect = self.weak.clone();
-            let agent_strip = HomepageAgentStrip::new(
-                self.visible_local_agents(cx),
-                self.discovery.cloud_agents.clone(),
-                busy,
             )
-            .on_start(move |agent, w, cx| {
-                let _ = host_start.update(cx, |s, cx| s.begin_agent_start(agent, w, cx));
-            })
-            .on_connect(move |_, cx| {
-                let _ = host_connect.update(cx, |_, cx| {
-                    cx.emit(HomeEvent::OpenSettings(
-                        crate::features::settings::Page::LocalAgents,
-                    ))
-                });
-            });
-            let head = OnboardingBrandLockup::projects(start_actions, agent_strip);
-            let projects_head =
-                (!list_held).then(|| OnboardingProjectsHead::new(self.project_toolbar(busy, cx)));
+            .agents_menu(self.new_project_menu(busy, cx));
+            let view = (!list_held).then(|| self.project_toolbar(busy, cx));
+            let head = OnboardingBrandLockup::projects(start_actions, view);
             let note = (crate::features::flags::cloud_enabled(&self.preferences, cx)
                 && self.spaces.read(cx).status() == SpacesStatus::Error)
                 .then(|| {
@@ -583,7 +568,6 @@ impl Homepage {
                 .gap(px(8.))
                 .rounded(px(metric::CARD_RADIUS))
                 .when(self.dragging, |d| d.bg(t.hover))
-                .children(projects_head)
                 .child(list);
 
             v_flex()

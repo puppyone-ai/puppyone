@@ -253,3 +253,70 @@ fn members_and_plan_open_settings_on_that_space(cx: &mut TestAppContext) {
         assert!(settings.page_shown(crate::features::settings::Page::Space));
     });
 }
+
+/// The personal space's Cloud Agents stand at the end of that space's
+/// heading, beside its members, and nowhere else.
+#[gpui::test]
+fn the_personal_spaces_agents_stand_with_its_heading(cx: &mut TestAppContext) {
+    use super::home::discovery::HomepageCloudAgent;
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            h.discovery.cloud_details_override = true;
+            h.discovery.cloud_agents = vec![HomepageCloudAgent {
+                id: "agent-cloud-1".into(),
+                name: "Review Bot".into(),
+                avatar: None,
+                last_active_at: Some("2026-11-15T08:00:00Z".into()),
+            }];
+            cx.notify();
+        })
+    });
+    draw(cx);
+    let face = cx
+        .debug_bounds("home-cloud-agent:agent-cloud-1")
+        .expect("the Agent's face");
+    let personal = cx.debug_bounds("home-group:space:me").unwrap();
+    let team = cx.debug_bounds("home-group:space:team-1").unwrap();
+    assert!(personal.contains(&face.center()));
+    assert!(!team.contains(&face.center()));
+}
+
+/// Signed in, the Homepage Header ends with the person's circle: it names
+/// who is signed in and signs them out.
+#[gpui::test]
+fn the_header_account_circle_names_the_account_and_signs_out(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    assert!(cx.debug_bounds("header-sign-in").is_none());
+    let circle = cx
+        .debug_bounds("header-account")
+        .expect("the account circle");
+    cx.simulate_click(circle.center(), Modifiers::default());
+    draw(cx);
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.chrome.read(cx).popover, Some(Popover::Account))
+    });
+    let email = cx
+        .update(|_, cx| crate::features::cloud::account::snapshot(cx))
+        .and_then(|s| s.account)
+        .map(|a| a.email)
+        .unwrap();
+    let email_row: &'static str = Box::leak(format!("menu-item:{email}").into_boxed_str());
+    assert!(cx.debug_bounds(email_row).is_some());
+    let sign_out = crate::localization::t("settings.account.signOut");
+    let sign_out: &'static str = Box::leak(format!("menu-item:{sign_out}").into_boxed_str());
+    let row = cx.debug_bounds(sign_out).unwrap().center();
+    cx.simulate_click(row, Modifiers::default());
+    settle_cloud(&view, cx, "the signed-out account", &|_, cx| {
+        !crate::features::cloud::account::has_account(cx)
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("header-account").is_none());
+}

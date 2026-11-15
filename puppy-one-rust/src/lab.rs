@@ -218,6 +218,9 @@ impl Lab {
                 let shell_view = cx.new(|cx| {
                     let mut view = crate::app::Shell::new(window, cx);
                     view.lab_home(shell.starts_with("home-empty"), cx);
+                    if shell.starts_with("home-projects") {
+                        view.lab_home_projects(shell, cx);
+                    }
                     view
                 });
                 cx.observe(&shell_view, |_, _, cx| cx.notify()).detach();

@@ -8,9 +8,9 @@ mod store;
 mod transport;
 pub use model::{Environment, Error, Snapshot, Status};
 pub use service::{Broker, BrowserEvent};
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(any(test, feature = "test-support", feature = "dev-capture"))]
 mod fixtures;
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(any(test, feature = "test-support", feature = "dev-capture"))]
 pub use fixtures::{
     Responder, ScreenResponder, SignInControl, account_fixture, protocol_fixture,
     refresh_token_broker, relogin, responding_account_fixture, responding_screen_account_fixture,

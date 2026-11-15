@@ -231,8 +231,8 @@ pub fn broker_and_binding(cx: &App) -> Option<(Arc<Broker>, crate::cloud::auth::
     let binding = account.snapshot.as_ref()?.account.as_ref()?.binding.clone();
     Some((account.broker.clone()?, binding))
 }
-/// Tests: sign this app in through a fixture broker.
-#[cfg(test)]
+/// Tests and dev captures: sign this app in through a fixture broker.
+#[cfg(any(test, feature = "dev-capture"))]
 pub fn install_fixture(
     broker: Arc<Broker>,
     browser: async_channel::Receiver<crate::cloud::auth::BrowserEvent>,
@@ -292,7 +292,7 @@ pub fn status(cx: &App) -> Option<crate::cloud::auth::Status> {
     let account = cx.try_global::<CloudAccountService>()?.0.read(cx);
     account.snapshot.as_ref().map(|s| s.status)
 }
-#[cfg(test)]
+/// Signs the account out (the Homepage's account menu, Settings › Account).
 pub fn sign_out(cx: &App) {
     if let Some(service) = cx.try_global::<CloudAccountService>() {
         service.0.read(cx).sign_out();

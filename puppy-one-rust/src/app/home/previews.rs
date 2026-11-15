@@ -36,15 +36,6 @@ impl PreviewKind {
         }
         Self::Other
     }
-
-    pub fn badge(self) -> Option<&'static str> {
-        match self {
-            Self::Html => Some("HTML"),
-            Self::Md => Some("MD"),
-            Self::Csv => Some("CSV"),
-            Self::Other => None,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -4,3 +4,5 @@
 mod bench;
 #[cfg(feature = "dev-capture")]
 pub(super) mod capture_scenario;
+#[cfg(feature = "dev-capture")]
+mod home_lab;

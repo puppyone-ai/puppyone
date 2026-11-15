@@ -1,44 +1,8 @@
-//! `OnboardingProjectsHead`, `OnboardingProjectToolbar` and
-//! `OnboardingProjectLayoutSwitch`: the section heading and sort/layout
-//! controls at the trailing end of `.onboarding-projects-head`.
-use super::*;
-
-/// `.onboarding-projects-head`: `Projects` on the left, sort and layout on the right.
-#[derive(IntoElement)]
-pub(in crate::app::home) struct OnboardingProjectsHead {
-    toolbar: AnyElement,
-}
-
-impl OnboardingProjectsHead {
-    pub fn new(toolbar: impl IntoElement) -> Self {
-        Self {
-            toolbar: toolbar.into_any_element(),
-        }
-    }
-}
-
-impl RenderOnce for OnboardingProjectsHead {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let t = cx.palette();
-        h_flex()
-            .debug_selector(|| "home-projects-head".into())
-            .flex_none()
-            .w_full()
-            .min_w_0()
-            .items_center()
-            .justify_between()
-            .gap(px(8.))
-            .child(
-                div()
-                    .text_size(px(theme::ty().ui.meta))
-                    .font_weight(FontWeight::MEDIUM)
-                    .line_height(px(20.))
-                    .text_color(t.text)
-                    .child(tr("onboarding.projects.title")),
-            )
-            .child(self.toolbar)
-    }
-}
+//! `OnboardingProjectToolbar` and `OnboardingProjectLayoutSwitch`: sort and
+//! layout at the end of Projects Home's toolbar; and the second half of
+//! `New project`, the menu of Local Agents that can start one.
+use super::{super::components::HomepageAgentBrandMark, *};
+use crate::localization::bidi_isolate;
 
 impl Homepage {
     /// `OnboardingToolbarMenu`: a quiet control that opens its own menu,
@@ -80,8 +44,91 @@ impl Homepage {
             .menu(move |surface, _, _| build(surface.min_w(px(VIEW_MENU_MIN_WIDTH))))
     }
 
+    /// `New project`'s menu: each Local Agent that can start a project, said
+    /// as what choosing it does, then where Agents are set up.
+    pub(in crate::app::home) fn new_project_menu(
+        &self,
+        busy: bool,
+        cx: &mut Context<Self>,
+    ) -> PopoverMenu {
+        let open = self.menu == Some(HomeMenu::NewProject) && !busy;
+        let host = self.weak.clone();
+        let agents = self.visible_local_agents(cx);
+        let more = tr("onboarding.action.moreEntries");
+        let trigger = Button::new("home-new-project-agents")
+            .debug_selector(|| "home-new-project-agents".into())
+            .variant(ButtonVariant::PatternDeep)
+            .icon(Icon::new("chevron-down").small().stroke(2.))
+            .accessibility_label(more)
+            .tooltip(more)
+            .disabled(busy)
+            .w(px(24.))
+            .px(px(0.))
+            .rounded_l(px(0.));
+        let opened = host.clone();
+        PopoverMenu::new("home-new-project-menu")
+            .anchor(Anchor::TopLeft)
+            .offset(px(metric::MENU_PADDING))
+            .open(open)
+            .on_open_change(move |opened_now, _, cx| {
+                let _ = opened.update(cx, |s, cx| {
+                    let is = s.menu == Some(HomeMenu::NewProject);
+                    if *opened_now != is {
+                        s.menu = opened_now.then_some(HomeMenu::NewProject);
+                        cx.notify();
+                    }
+                });
+            })
+            .trigger(trigger)
+            .menu(move |surface, _, cx| {
+                let t = cx.palette();
+                let starts: Vec<MenuItem> = if agents.is_empty() {
+                    vec![
+                        MenuItem::new(tr("settings.localAgents.empty"))
+                            .fact(true)
+                            .color(t.subtle),
+                    ]
+                } else {
+                    agents
+                        .into_iter()
+                        .map(|agent| {
+                            let label = tf(
+                                "onboarding.agents.start",
+                                &[("agent", bidi_isolate(&agent.label).into())],
+                            );
+                            let mark = HomepageAgentBrandMark::new(
+                                Some(&agent.icon_key),
+                                agent.label.clone(),
+                            )
+                            .size(16.);
+                            let host = host.clone();
+                            MenuItem::new(label)
+                                .icon_element(mark)
+                                .on_click(move |w, cx| {
+                                    let agent = agent.clone();
+                                    let _ =
+                                        host.update(cx, |s, cx| s.begin_agent_start(agent, w, cx));
+                                })
+                        })
+                        .collect()
+                };
+                let settings = host.clone();
+                surface.min_w(px(240.)).items(starts).separator().item(
+                    MenuItem::new(tr("settings.localAgents.title"))
+                        .icon("settings")
+                        .on_click(move |_, cx| {
+                            let _ = settings.update(cx, |_, cx| {
+                                cx.emit(HomeEvent::OpenSettings(
+                                    crate::features::settings::Page::LocalAgents,
+                                ))
+                            });
+                        }),
+                )
+            })
+    }
+
     /// `OnboardingProjectToolbar` + the layout switch: Sort and Layout,
-    /// aligned to the end of `.onboarding-projects-head`.
+    /// aligned to the end of Projects Home's toolbar.
     pub(in crate::app::home) fn project_toolbar(
         &self,
         disabled: bool,
@@ -159,6 +206,7 @@ impl Homepage {
             )
         };
         div()
+            .debug_selector(|| "home-view-controls".into())
             .flex()
             .flex_none()
             .min_w_0()

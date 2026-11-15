@@ -125,10 +125,17 @@ impl WindowChrome {
             Popover::Project => "project-menu",
             Popover::Place => "place-menu",
             Popover::Brand => "brand-menu",
+            Popover::Account => "account-menu",
         };
         let host = self.weak.clone();
+        // The account sits at the Header's end: its menu hangs inward.
+        let anchor = if popover == Popover::Account {
+            Anchor::TopRight
+        } else {
+            Anchor::TopLeft
+        };
         let mut menu = PopoverMenu::new(id)
-            .anchor(Anchor::TopLeft)
+            .anchor(anchor)
             .offset(px(MENU_GAP))
             .open(open)
             .on_open_change(move |opened, window, cx| {
@@ -158,6 +165,10 @@ impl WindowChrome {
                                 .max_h(max_height),
                         )
                     });
+                }
+                Popover::Account => {
+                    let fill = self.account_menu(cx);
+                    menu = menu.menu(move |surface, _, _| fill(surface));
                 }
                 Popover::Place | Popover::Brand => {
                     let place = popover == Popover::Place;

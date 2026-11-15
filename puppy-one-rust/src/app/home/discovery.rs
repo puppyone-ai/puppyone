@@ -128,6 +128,82 @@ pub(in crate::app::home) fn format_cloud_agent_activity(
 }
 
 impl Homepage {
+    /// `shell-home-projects` (`app/dev/home_lab.rs`): Local Agents to start
+    /// with (their menu open with `agents`), and the personal space's Cloud
+    /// Agents and root files.
+    #[cfg(feature = "dev-capture")]
+    pub(in crate::app) fn lab_projects(&mut self, agents: bool) {
+        if agents {
+            self.menu = Some(super::HomeMenu::NewProject);
+        }
+        use super::previews::PreviewKind;
+        let local = |runtime_id: &str, label: &str, icon_key: &str, connected| HomepageLocalAgent {
+            runtime_id: runtime_id.into(),
+            label: label.into(),
+            icon_key: icon_key.into(),
+            connected,
+        };
+        self.discovery.local_agents_override = Some(vec![
+            local("claude", "Claude Code", "claude", true),
+            local("codex", "Codex", "codex", false),
+            local("cursor", "Cursor", "cursor", false),
+        ]);
+        let agents = [
+            ("a-codex", "Codex"),
+            ("a-puppy", "Puppy"),
+            ("a-scout", "Scout"),
+        ];
+        self.discovery.cloud_agents = agents
+            .iter()
+            .map(|(id, name)| HomepageCloudAgent {
+                id: (*id).into(),
+                name: (*name).into(),
+                avatar: None,
+                last_active_at: Some("2026-11-14T08:00:00Z".into()),
+            })
+            .collect();
+        self.discovery.cloud_project_agents.insert(
+            "p-issues".into(),
+            agents
+                .iter()
+                .map(|(id, name)| FolderAgentBadge {
+                    id: (*id).into(),
+                    name: (*name).into(),
+                    avatar: None,
+                })
+                .collect(),
+        );
+        let previews = |files: &[(&str, PreviewKind)]| {
+            files
+                .iter()
+                .map(|(name, kind)| ProjectAssetPreview {
+                    name: (*name).into(),
+                    kind: *kind,
+                })
+                .collect::<Vec<_>>()
+        };
+        self.discovery.cloud_previews.insert(
+            "p-issues".into(),
+            previews(&[
+                ("board.html", PreviewKind::Html),
+                ("README.md", PreviewKind::Md),
+            ]),
+        );
+        self.discovery.cloud_previews.insert(
+            "p-todo".into(),
+            previews(&[
+                ("today.md", PreviewKind::Md),
+                ("week.md", PreviewKind::Md),
+                ("tasks.csv", PreviewKind::Csv),
+            ]),
+        );
+        self.discovery.cloud_previews.insert(
+            "p-brand".into(),
+            previews(&[("palette.md", PreviewKind::Md)]),
+        );
+        self.discovery.cloud_details_override = true;
+    }
+
     /// Visible local Agents for the strip: test override when set, else the
     /// background discovery snapshot filtered by current preferences.
     pub(in crate::app) fn visible_local_agents(&self, cx: &App) -> Vec<HomepageLocalAgent> {

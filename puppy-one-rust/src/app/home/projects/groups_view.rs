@@ -120,7 +120,7 @@ impl Homepage {
             }))
             .flex()
             .flex_col()
-            .gap(px(20.))
+            .gap(px(24.))
             .children(views.into_iter().map(|view| div().w(px(width)).child(view)))
             .children(note.map(|note| div().w(px(width)).child(note)));
 
@@ -153,8 +153,9 @@ impl Homepage {
             .into_any_element()
     }
 
-    /// One audience: its head (a quiet label under a hairline, what it
-    /// offers at its end) and its projects as the Grid or the List.
+    /// One audience: its heading (the place's mark and name, its plan said
+    /// quietly, who works there and what it offers at its end), set off from
+    /// the one before by a hairline, and its projects as the Grid or the List.
     #[allow(clippy::too_many_arguments)]
     fn project_group(
         &mut self,
@@ -178,7 +179,6 @@ impl Homepage {
         let id = group.id.clone();
         let available = group.drop.as_ref().is_some_and(|d| d.enabled);
         let over = available && self.drop_over.as_ref() == Some(&id);
-        let marks = id.marks_places();
         let ids: Vec<String> = group.items.iter().map(|i| i.id.clone()).collect();
         let stop = self.project_stop(&group.items);
         let mut cells = Vec::with_capacity(group.items.len());
@@ -221,13 +221,9 @@ impl Homepage {
                 }
             };
             cells.push(if grid {
-                self.project_tile(
-                    index, item, focus, cell_w, lit, is_stop, marks, busy, keys, cx,
-                )
+                self.project_tile(index, item, focus, cell_w, lit, is_stop, busy, keys, cx)
             } else {
-                self.project_row(
-                    index, item, focus, lit, is_stop, marks, narrow, busy, keys, cx,
-                )
+                self.project_row(index, item, focus, lit, is_stop, narrow, busy, keys, cx)
             });
         }
         let content = if let Some(text) = group.empty_text.clone().filter(|_| cells.is_empty()) {
@@ -237,7 +233,7 @@ impl Homepage {
                 .items_center()
                 .py(px(8.))
                 .px(px(inset))
-                .text_size(px(theme::ty().ui.caption))
+                .text_size(px(theme::ty().ui.meta))
                 .text_color(t.subtle)
                 .child(text)
                 .into_any_element()
@@ -266,11 +262,11 @@ impl Homepage {
                 .children(cells)
                 .into_any_element()
         };
+        let ty = theme::ty().ui;
         let head_end: Option<AnyElement> = match &group.drop {
             Some(drop) if drop.enabled => Some(
                 div()
                     .flex_none()
-                    .font_weight(FontWeight::MEDIUM)
                     .text_color(if over { t.text } else { t.muted })
                     .child(drop.hint.clone())
                     .into_any_element(),
@@ -297,6 +293,10 @@ impl Homepage {
                     )
                 })
         });
+        let space = group.mark.as_ref().and_then(|mark| match mark {
+            super::super::groups::Mark::Space(space) => Some(space),
+            _ => None,
+        });
         let mark: Option<AnyElement> = group.mark.as_ref().map(|mark| match mark {
             super::super::groups::Mark::Space(space) => {
                 crate::features::cloud::space_mark(space).into_any_element()
@@ -304,24 +304,31 @@ impl Homepage {
             super::super::groups::Mark::Computer => Icon::product(ProductIcon::Local)
                 .with_size(px(16.))
                 .stroke(1.75)
-                .color(t.subtle)
+                .color(t.muted)
                 .into_any_element(),
         });
-        let badge = group.plan.as_deref().and_then(|plan| {
-            group.mark.as_ref().and_then(|m| match m {
-                super::super::groups::Mark::Space(space) => {
-                    let mut space = space.clone();
-                    space.plan_id = Some(plan.to_owned());
-                    crate::features::cloud::space_plan_badge(&space)
-                }
-                _ => None,
-            })
+        // The plan and whether this account owns a shared space, said
+        // quietly after the name rather than as badges.
+        let plan = group.plan.as_deref().map(|plan| {
+            let key = crate::workspace::cloud::spaces::PlanKey::of(plan).key();
+            tr(&format!("onboarding.spaces.plan.{key}")).to_owned()
         });
-        let owner = group.owner.then(|| {
-            div()
-                .text_color(t.subtle)
-                .child(tr("settings.space.role.owner"))
-        });
+        let owner = group
+            .owner
+            .then(|| tr("settings.space.role.owner").to_owned());
+        let detail = [plan, owner]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" · ");
+        let detail =
+            (!detail.is_empty()).then(|| div().flex_none().text_color(t.subtle).child(detail));
+        // The Cloud Agents that work in the personal space stand with it.
+        let agents = space
+            .filter(|space| space.is_default)
+            .map(|_| self.discovery.cloud_agents.clone())
+            .filter(|agents| !agents.is_empty())
+            .map(super::super::components::SpaceAgents::new);
         let manage = group
             .manage
             .clone()
@@ -330,27 +337,24 @@ impl Homepage {
                 Button::new(SharedString::from(format!("home-manage-{space}")))
                     .variant(ButtonVariant::Ghost)
                     .label(tr("settings.space.manage"))
-                    .h(px(18.))
+                    .h(px(22.))
                     .px(px(6.))
-                    .text_size(px(theme::ty().ui.caption))
+                    .mr(px(-6.))
+                    .text_size(px(ty.body))
                     .text_color(t.subtle)
                     .on_click(cx.listener(move |_, _, _, cx| {
                         cx.emit(HomeEvent::ManageSpace(space.clone()))
                     }))
             });
-        let caption = theme::ty().ui.caption;
         let head = h_flex()
             .min_w_0()
+            .h(px(24.))
             .items_center()
             .gap(px(8.))
             .mx(px(inset))
-            .pb(px(4.))
-            .when(index > 0, |d| {
-                d.pt(px(20.)).border_t_1().border_color(t.divider)
-            })
-            .text_size(px(caption))
-            .line_height(px(18.))
-            .text_color(if over || lit { t.text } else { t.subtle })
+            .text_size(px(ty.body))
+            .line_height(px(20.))
+            .text_color(t.text)
             .children(mark)
             .child(
                 div()
@@ -359,10 +363,10 @@ impl Homepage {
                     .font_weight(FontWeight::MEDIUM)
                     .child(group.title.clone()),
             )
-            .children(badge)
-            .children(owner)
+            .children(detail)
             .children(presence)
             .child(div().flex_1())
+            .children(agents)
             .children(head_end)
             .children(manage);
         let drop_action = group.drop.clone().filter(|d| d.enabled).map(|d| d.action);
@@ -375,13 +379,17 @@ impl Homepage {
             .relative()
             .flex()
             .flex_col()
-            .gap(px(2.))
+            .gap(px(if grid { 6. } else { 4. }))
+            .when(index > 0, |d| {
+                d.pt(px(24.)).border_t_1().border_color(t.divider)
+            })
             .when(dragging && !available, |d| d.opacity(0.38))
             .when(available || lit, |d| {
+                // Under the hairline, around the heading and its projects.
                 d.child(
                     div()
                         .absolute()
-                        .top_0()
+                        .top(px(if index > 0 { 14. } else { -8. }))
                         .left_0()
                         .right_0()
                         .bottom(px(-6.))
