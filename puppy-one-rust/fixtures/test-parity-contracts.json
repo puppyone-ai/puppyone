@@ -7268,6 +7268,115 @@
           "test": "platform::local_agent_setup::activation::tests::worker_spawn_failure_publishes_a_terminal_receipt_and_releases_activation_capacity"
         }
       ]
+    },
+    {
+      "id": "application-session-installation-discovery",
+      "acceptance": "One application-session installation service shares one immutable resolution context per scan, emits incremental path-free outcomes in registry order, replays progress to late subscribers, isolates resolver/observer failures, retains previously available evidence only across failed observations, and reuses empty/failed snapshots without a TTL. Ordinary reads during refresh return cached evidence immediately; a refresh during active work coalesces into one guaranteed subsequent scan. Disposal cancels work, rejects queued requests, and suppresses late publication. Native Settings, launchers, and Home consume the shared service; actual Settings windows verify incremental rows, cross-window refresh, view replacement, and app shutdown. Native terminal recipes preserve prefix arguments and environment, with real PTY proof of literal argument delivery. This does not claim setup-guide receipt parity, real OS window automation, or Windows execution acceptance.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-installation/electron.local-agent-installation-service.test.mjs",
+          "sha256": "fca10fa8857e5ec8dc4ef3a8df2555b0f3ba8992df514fe4d5dae1f4fbbb6c97",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Local Agent installation service > publishes fast results before slow siblings and replays them to late observers without rescanning"
+            },
+            {
+              "index": 1,
+              "name": "Local Agent installation service > does not publish late progress after disposal"
+            },
+            {
+              "index": 2,
+              "name": "Local Agent installation service > keeps the application registry aligned with launcher products"
+            },
+            {
+              "index": 3,
+              "name": "Local Agent installation service > returns path-free, per-product outcomes in stable registry order"
+            },
+            {
+              "index": 4,
+              "name": "Local Agent installation service > owns retained evidence across failures and removes it only after definitive absence"
+            },
+            {
+              "index": 5,
+              "name": "Local Agent installation service > reuses the application-session snapshot regardless of age and only scans on explicit refresh"
+            },
+            {
+              "index": 6,
+              "name": "Local Agent installation service > ordinary reads during an explicit refresh return the previous snapshot without waiting"
+            },
+            {
+              "index": 7,
+              "name": "Local Agent installation service > queues one guaranteed follow-up scan when refresh is clicked during an active scan"
+            },
+            {
+              "index": 8,
+              "name": "Local Agent installation service > shares one search context, publishes incremental outcomes, and broadcasts final scans"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::fast_results_are_replayed_to_late_observers_without_rescanning_or_waiting_for_siblings"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::disposal_cancels_context_and_rejects_queued_work_without_publishing_late_results"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::registry_order_is_canonical_and_includes_every_terminal_product"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::public_outcomes_are_path_free_stably_ordered_and_isolate_product_errors"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::failed_refresh_retains_evidence_until_definitive_absence_and_rejects_inconsistent_snapshots"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::session_cache_has_no_ttl_for_empty_or_failed_scans_and_new_sessions_scan_again"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::ordinary_reads_during_refresh_return_cached_evidence_without_waiting"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::explicit_refresh_during_initial_scan_guarantees_exactly_one_followup_scan"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::one_context_is_shared_across_products_and_progress_precedes_final_broadcast"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::context_and_product_panics_become_failed_observations_and_release_the_scan"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::settings::discovery_tests::native_settings_share_initial_work_and_reopened_windows_reuse_cache_while_refreshes_coalesce"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::settings::discovery_tests::native_settings_show_fast_evidence_while_siblings_wait_and_view_closure_does_not_cancel_discovery"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::workbench::launch_tests::terminal_launch_keeps_verified_prefix_environment_and_sibling_path"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::verified_cli_arguments_and_environment_reach_the_real_pty_without_shell_interpolation"
+        }
+      ]
     }
   ],
   "openAcceptance": [

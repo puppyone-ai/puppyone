@@ -54,15 +54,15 @@ impl TerminalView {
     /// `launcher`: `shell`, or the local Agent id whose CLI `executable` is.
     pub fn new(
         root: PathBuf,
-        executable: Option<PathBuf>,
+        command: Option<crate::platform::terminal::LaunchCommand>,
         launcher: &'static str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let agent = executable.is_some();
+        let agent = command.is_some();
         let owner = crate::features::agent_presence::owner(window);
         Self::start(
-            move |wake| Terminal::spawn(root, executable, launcher, wake, owner),
+            move |wake| Terminal::spawn_command(root, command, launcher, wake, owner),
             agent,
             window,
             cx,

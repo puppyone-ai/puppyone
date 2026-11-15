@@ -32,7 +32,6 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc,
     },
 };
 
@@ -65,8 +64,8 @@ pub(crate) struct WorkbenchLauncher {
     scanning: bool,
     /// When the running discovery began (`useDelayedDiscoveryFeedback`).
     scan_started: Option<std::time::Instant>,
-    scan_rx: mpsc::Receiver<agents::Inventory>,
-    scan_tx: mpsc::Sender<agents::Inventory>,
+    discovery: Entity<crate::features::local_agents::Installations>,
+    discovery_override: bool,
     /// Agents launch as chats; a row's menu runs its CLI in a terminal.
     chat_mode: bool,
     /// Launcher tabs showing the cross-runtime History browser.
@@ -96,13 +95,11 @@ impl WorkbenchLauncher {
         cx: &mut Context<Self>,
     ) -> Self {
         let (wake, rx) = Wake::channel();
-        let (scan_tx, scan_rx) = mpsc::channel();
-        let tx = scan_tx.clone();
-        let scan_wake = wake.clone();
-        std::thread::spawn(move || {
-            let _ = tx.send(agents::discover_with_evidence());
-            scan_wake.notify();
-        });
+        let discovery = crate::features::local_agents::installation_store(cx);
+        cx.observe(&discovery, |s, _, cx| s.sync_inventory(cx))
+            .detach();
+        let found = discovery.read(cx).inventory();
+        let scanning = discovery.read(cx).scanning;
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
                 if this.update_in(cx, |s, _, cx| s.woke(cx)).is_err() {
@@ -111,26 +108,17 @@ impl WorkbenchLauncher {
             }
         })
         .detach();
-        // An activation that installed a CLI rescans the launchers' Agents.
-        let activation = crate::features::local_agents::activation_store(cx);
-        cx.subscribe(
-            &activation,
-            |s, _, _: &crate::features::local_agents::InstallationsChanged, cx| {
-                s.rescan_inventory(cx)
-            },
-        )
-        .detach();
         Self {
             workbench,
             chats: AgentChats::new(window.window_handle().window_id().as_u64()),
             hosted: HostedChats::default(),
-            installations: vec![],
+            installations: found.installations,
             hidden_agents: vec![],
-            observations: vec![],
-            scanning: true,
+            observations: found.observations,
+            scanning,
             scan_started: Some(std::time::Instant::now()),
-            scan_rx,
-            scan_tx,
+            discovery,
+            discovery_override: false,
             chat_mode: true,
             history: HashMap::new(),
             launch_errors: HashMap::new(),
@@ -148,15 +136,21 @@ impl WorkbenchLauncher {
         if self.cloud_published.swap(false, Ordering::SeqCst) {
             cx.emit(LauncherEvent::CloudPublished);
         }
-        if let Ok(found) = self.scan_rx.try_recv() {
-            self.installations = found.installations;
-            self.observations = found.observations;
-            self.scanning = false;
-            cx.notify();
-        } else if self.scanning {
-            // The delayed discovery feedback is due.
-            cx.notify();
+        cx.notify();
+    }
+    fn sync_inventory(&mut self, cx: &mut Context<Self>) {
+        if self.discovery_override {
+            return;
         }
+        let discovery = self.discovery.read(cx);
+        if discovery.scanning && !self.scanning {
+            self.scan_started = Some(std::time::Instant::now());
+        }
+        self.scanning = discovery.scanning;
+        let found = discovery.inventory();
+        self.installations = found.installations;
+        self.observations = found.observations;
+        cx.notify();
     }
     pub fn set_preference_store(
         &mut self,
@@ -273,6 +267,7 @@ impl WorkbenchLauncher {
                 id: agents::BUILT_IN_AGENT_ID,
                 label: agents::BUILT_IN_AGENT_LABEL.into(),
                 executable: PathBuf::new(),
+                launch: None,
                 chat: true,
             });
         self.chat_mode = true;
@@ -331,23 +326,8 @@ impl WorkbenchLauncher {
     }
     /// `discovery.refresh`: rescan local agent installations.
     fn rescan(&mut self, cx: &mut Context<Self>) {
-        crate::features::local_agents::activation_store(cx)
-            .update(cx, |s, cx| s.rescan_companions(cx));
-        self.rescan_inventory(cx);
-    }
-    fn rescan_inventory(&mut self, cx: &mut Context<Self>) {
-        if self.scanning {
-            return;
-        }
-        self.scanning = true;
-        self.scan_started = Some(std::time::Instant::now());
-        let tx = self.scan_tx.clone();
-        let wake = self.wake.clone();
-        std::thread::spawn(move || {
-            let _ = tx.send(agents::discover_with_evidence());
-            wake.notify();
-        });
-        cx.notify();
+        self.discovery.update(cx, |s, cx| s.refresh(cx));
+        self.sync_inventory(cx);
     }
     /// `CloudAgentWorkbench.prepare(id, session)`: a hosted chat for `tab`
     /// of `root`, its receipts persisted under the tab id; a History

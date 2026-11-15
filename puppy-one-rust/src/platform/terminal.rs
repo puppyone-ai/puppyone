@@ -10,6 +10,14 @@ use std::{
     },
     time::Duration,
 };
+/// A verified CLI's argument and environment recipe, passed directly to the PTY
+/// without shell interpolation. Shell sessions use `None`.
+#[derive(Clone, Debug, Default)]
+pub struct LaunchCommand {
+    pub executable: PathBuf,
+    pub arguments: Vec<String>,
+    pub environment: Vec<(String, String)>,
+}
 pub enum Event {
     Data(Vec<u8>),
     Error(String),
@@ -96,6 +104,25 @@ impl Terminal {
         wake: Wake,
         owner: String,
     ) -> Self {
+        Self::spawn_command(
+            root,
+            executable.map(|executable| LaunchCommand {
+                executable,
+                ..Default::default()
+            }),
+            launcher,
+            wake,
+            owner,
+        )
+    }
+    /// Launch a CLI recipe without dropping its prefix arguments or captured environment.
+    pub fn spawn_command(
+        root: PathBuf,
+        launch: Option<LaunchCommand>,
+        launcher: &'static str,
+        wake: Wake,
+        owner: String,
+    ) -> Self {
         let (tx, rx) = mpsc::sync_channel(64);
         let (out, events) = mpsc::sync_channel(128);
         let stop = Arc::new(AtomicBool::new(false));
@@ -140,21 +167,31 @@ impl Terminal {
                     pixel_width: 0,
                     pixel_height: 0,
                 })?;
-                let shell = executable.is_none();
-                let executable = executable.unwrap_or_else(|| {
-                    std::env::var_os("SHELL")
-                        .map(PathBuf::from)
-                        .filter(|p| p.is_absolute())
-                        .unwrap_or_else(|| PathBuf::from("/bin/zsh"))
-                });
+                let shell = launch.is_none();
+                let executable = launch
+                    .as_ref()
+                    .map(|c| c.executable.clone())
+                    .unwrap_or_else(|| {
+                        std::env::var_os("SHELL")
+                            .map(PathBuf::from)
+                            .filter(|p| p.is_absolute())
+                            .unwrap_or_else(|| PathBuf::from("/bin/zsh"))
+                    });
                 let mut command = CommandBuilder::new(executable);
                 if shell {
                     command.arg("-l");
                 }
                 command.cwd(root);
+                command.env("PATH", super::environment::search_path());
+                if let Some(launch) = &launch {
+                    command.args(&launch.arguments);
+                    for (key, value) in &launch.environment {
+                        command.env(key, value);
+                    }
+                }
+                // Discovery can capture TERM=dumb; the actual PTY owns these capabilities.
                 command.env("TERM", "xterm-256color");
                 command.env("COLORTERM", "truecolor");
-                command.env("PATH", super::environment::search_path());
                 // Which app hosts the terminal, so `puppyone open` reaches
                 // this one.
                 if let Some(endpoint) = super::cli_control::serving() {
@@ -326,6 +363,48 @@ impl Drop for Terminal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn verified_cli_arguments_and_environment_reach_the_real_pty_without_shell_interpolation() {
+        let dir = tempfile::tempdir().unwrap();
+        let terminal = Terminal::spawn_command(
+            dir.path().into(),
+            Some(LaunchCommand {
+                executable: "/bin/sh".into(),
+                arguments: vec![
+                    "-c".into(),
+                    "printf 'ARG=<%s> ENV=<%s> TERM=<%s>\\n' \"$1\" \"$PUPPYONE_RECIPE_TEST\" \"$TERM\"".into(),
+                    "fixture".into(),
+                    "literal $(touch must-not-exist)".into(),
+                ],
+                environment: vec![("PUPPYONE_RECIPE_TEST".into(), "private value".into()), ("TERM".into(), "dumb".into())],
+            }),
+            "shell",
+            Wake::default(),
+            format!("recipe-test-{}", uuid::Uuid::new_v4()),
+        );
+        let mut output = String::new();
+        let mut exited = false;
+        let expected =
+            "ARG=<literal $(touch must-not-exist)> ENV=<private value> TERM=<xterm-256color>";
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        while !exited || !output.contains("ARG=<") {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            match terminal
+                .events
+                .recv_timeout(remaining)
+                .expect("PTY recipe did not finish")
+            {
+                Event::Data(bytes) => output.push_str(&String::from_utf8_lossy(&bytes)),
+                Event::Error(error) => panic!("{error}"),
+                Event::Exit(code) => {
+                    assert_eq!(code, 0);
+                    exited = true;
+                }
+            }
+        }
+        assert!(output.contains(expected), "{output}");
+        assert!(!dir.path().join("must-not-exist").exists());
+    }
     #[test]
     #[ignore = "real PTY integration; run explicitly on a desktop host"]
     fn real_pty_input_resize_and_cleanup() {

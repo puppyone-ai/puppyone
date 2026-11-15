@@ -188,13 +188,10 @@ impl Homepage {
         cx.observe(&hosts, |h, _, cx| h.refresh(cx)).detach();
         let link = crate::features::hosts::host_link(cx);
         cx.observe(&link, |h, _, cx| h.refresh(cx)).detach();
-        let activation = crate::features::local_agents::activation_store(cx);
-        cx.subscribe(
-            &activation,
-            |h, _, _: &crate::features::local_agents::InstallationsChanged, cx| {
-                h.refresh_local_agents(true, cx);
-            },
-        )
+        let installations = crate::features::local_agents::installation_store(cx);
+        cx.observe(&installations, |h, _, cx| {
+            h.sync_local_agent_installations(cx)
+        })
         .detach();
         cx.observe_window_activation(window, |h, window, cx| {
             if !window.is_window_active() {

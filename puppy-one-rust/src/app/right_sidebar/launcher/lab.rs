@@ -20,6 +20,7 @@ impl WorkbenchLauncher {
             &self.installations.iter().map(|i| i.id).collect::<Vec<_>>(),
         );
         self.scanning = false;
+        self.discovery_override = true;
         let Some(workbench) = self.workbench.upgrade() else {
             return;
         };

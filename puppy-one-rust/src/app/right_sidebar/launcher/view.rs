@@ -11,7 +11,7 @@ use crate::{
     ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
     ui::components::{AnchoredMenu, IconButton, Menu, MenuItem, Spinner},
 };
-use gpui_kit::base::{Disableable as _, h_flex, v_flex};
+use gpui_kit::base::{h_flex, v_flex};
 
 /// `.desktop-terminal-launcher-content`: `min(100%, 252px)`, 264px from a 460px container.
 fn content_width(container: f32) -> f32 {
@@ -231,7 +231,6 @@ impl WorkbenchLauncher {
             Icon::new("refresh-cw").xsmall().stroke(1.7),
             tr("terminal.launcher.scanAgain"),
         )
-        .disabled(self.scanning)
         .on_click(cx.listener(|s, _, _, cx| s.rescan(cx)));
 
         // `.desktop-terminal-launcher-history`: opens the cross-runtime

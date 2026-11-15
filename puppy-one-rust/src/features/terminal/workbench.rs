@@ -35,8 +35,8 @@ impl TerminalItem {
         let title = path_label(&root);
         let runtime = installation.as_ref().map(|i| i.runtime);
         let launcher = installation.as_ref().map_or("shell", |i| i.id);
-        let executable = installation.map(|i| i.executable);
-        let view = cx.new(|cx| TerminalView::new(root, executable, launcher, window, cx));
+        let command = installation.as_ref().map(launch_command);
+        let view = cx.new(|cx| TerminalView::new(root, command, launcher, window, cx));
         Self::of(view, title, runtime)
     }
 
@@ -164,4 +164,69 @@ fn activity_grid(tab: u64, color: Rgba) -> AnyElement {
             },
         )
         .into_any_element()
+}
+
+/// The resolver already applied vendor environment overrides. Keep its PATH
+/// and put the verified entry's directory first for sibling executables.
+fn launch_command(installation: &Installation) -> crate::platform::terminal::LaunchCommand {
+    let mut command = crate::platform::terminal::LaunchCommand {
+        executable: installation.executable.clone(),
+        ..Default::default()
+    };
+    if let Some(candidate) = &installation.launch {
+        command.arguments = candidate.args_prefix.clone();
+        let mut environment = candidate.environment.clone().unwrap_or_default();
+        for (key, value) in candidate.environment_overrides.iter().flatten() {
+            environment.insert(key.clone(), value.clone());
+        }
+        if !candidate.launch_path_entry.is_empty() {
+            let existing = environment.get("PATH").cloned().unwrap_or_default();
+            let paths = std::iter::once(PathBuf::from(&candidate.launch_path_entry)).chain(
+                std::env::split_paths(&existing)
+                    .filter(|p| p != &PathBuf::from(&candidate.launch_path_entry)),
+            );
+            if let Ok(path) = std::env::join_paths(paths) {
+                environment.insert("PATH".into(), path.to_string_lossy().into_owned());
+            }
+        }
+        command.environment = environment.into_iter().collect();
+    }
+    command
+}
+
+#[cfg(test)]
+mod launch_tests {
+    use super::*;
+    use crate::agent::installation::executable_resolver::ResolvedCandidate;
+    use core::prelude::v1::test;
+    #[test]
+    fn terminal_launch_keeps_verified_prefix_environment_and_sibling_path() {
+        let installation = Installation {
+            runtime: Runtime::Cursor,
+            id: "cursor",
+            label: "Cursor".into(),
+            executable: "/fixture/cursor".into(),
+            chat: true,
+            launch: Some(std::sync::Arc::new(ResolvedCandidate {
+                args_prefix: vec!["agent".into(), "literal $(touch ignored)".into()],
+                environment: Some(
+                    [
+                        ("PATH".into(), "/bin:/fixture:/usr/bin".into()),
+                        ("VENDOR_MODE".into(), "old".into()),
+                    ]
+                    .into(),
+                ),
+                environment_overrides: Some(vec![("VENDOR_MODE".into(), "managed".into())]),
+                launch_path_entry: "/fixture".into(),
+                ..Default::default()
+            })),
+        };
+        let command = launch_command(&installation);
+        assert_eq!(command.executable, PathBuf::from("/fixture/cursor"));
+        assert_eq!(command.arguments, ["agent", "literal $(touch ignored)"]);
+        let environment: std::collections::BTreeMap<_, _> =
+            command.environment.into_iter().collect();
+        assert_eq!(environment["VENDOR_MODE"], "managed");
+        assert_eq!(environment["PATH"], "/fixture:/bin:/usr/bin");
+    }
 }

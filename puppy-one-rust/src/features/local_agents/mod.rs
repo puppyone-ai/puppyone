@@ -4,6 +4,8 @@
 //! and the Settings page that lists the detected Agents with their Hooks
 //! ([`settings`]), and the chat runtimes of the detected Agents.
 mod chat_recipes;
+mod discovery;
+pub(crate) use discovery::{Installations, store as installation_store};
 mod settings;
 mod setup;
 

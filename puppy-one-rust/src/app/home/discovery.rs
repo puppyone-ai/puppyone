@@ -7,7 +7,7 @@ use super::{
     Homepage, display::modification_time, folder::FolderAgentBadge, previews::ProjectAssetPreview,
 };
 use crate::{
-    agent::connections::legacy_local_agent_inventory::{self as agent_inventory, Installation},
+    agent::connections::legacy_local_agent_inventory::Installation,
     features::local_agents::{LOCAL_AGENT_CHAT_RECIPES, local_agent_id_for_agent_chat_runtime},
     platform::agent_activity::{host::Host, registration::Enrollment},
     workspace::cloud::catalog::Item,
@@ -266,8 +266,8 @@ impl Homepage {
         &[]
     }
 
-    /// Scans local Agent CLI installations and Hook enrollment off the main
-    /// thread on mount, CLI activation, and window focus (`useHomepageLocalAgents`).
+    /// Read the application-session installation evidence. Focus refreshes Hook
+    /// enrollment only; it never expires or repeats CLI discovery.
     pub(in crate::app) fn refresh_local_agents(&mut self, force: bool, cx: &mut Context<Self>) {
         if self.discovery.local_agents_override.is_some() {
             return;
@@ -275,8 +275,10 @@ impl Homepage {
         if !self.session.home || !self.has_projects(cx) {
             return;
         }
+        self.sync_local_agent_installations(cx);
+        let shared = crate::features::local_agents::installation_store(cx);
         if self.discovery.scanning_local_agents
-            || (!force && self.discovery.discovered_local_agents.is_some())
+            || (!force && self.discovery.local_agents_generation > 0)
         {
             return;
         }
@@ -284,26 +286,41 @@ impl Homepage {
         self.discovery.local_agents_generation += 1;
         let generation = self.discovery.local_agents_generation;
         let task = cx.background_executor().spawn(async move {
-            let installations = agent_inventory::discover();
-            let enrolled: HashSet<String> = Host::global()
+            Host::global()
                 .enrollment()
                 .into_iter()
                 .filter(|p| p.enrollment == Enrollment::Enabled)
                 .map(|p| p.provider_id.to_owned())
-                .collect();
-            (installations, enrolled)
+                .collect::<HashSet<String>>()
         });
         cx.spawn(async move |this, cx| {
             let found = task.await;
             let _ = this.update(cx, |s, cx| {
                 if s.discovery.local_agents_generation == generation {
                     s.discovery.scanning_local_agents = false;
-                    s.discovery.discovered_local_agents = Some(found);
+                    let installations = shared.read(cx).inventory().installations;
+                    s.discovery.discovered_local_agents = Some((installations, found));
                     cx.notify();
                 }
             });
         })
         .detach();
+    }
+
+    pub(in crate::app) fn sync_local_agent_installations(&mut self, cx: &mut Context<Self>) {
+        if self.discovery.local_agents_override.is_some() {
+            return;
+        }
+        let shared = crate::features::local_agents::installation_store(cx);
+        let installations = shared.read(cx).inventory().installations;
+        let enrolled = self
+            .discovery
+            .discovered_local_agents
+            .as_ref()
+            .map(|(_, ids)| ids.clone())
+            .unwrap_or_default();
+        self.discovery.discovered_local_agents = Some((installations, enrolled));
+        cx.notify();
     }
 
     /// Reads root file previews for visible Cloud projects and connected Agents
@@ -466,6 +483,7 @@ mod tests {
             id,
             label: label.into(),
             executable: PathBuf::from(format!("/usr/bin/{id}")),
+            launch: None,
             chat: true,
         }
     }
@@ -475,9 +493,12 @@ mod tests {
         let installations = vec![
             Installation {
                 runtime: Runtime::PuppyOne,
-                id: agent_inventory::BUILT_IN_AGENT_ID,
-                label: agent_inventory::BUILT_IN_AGENT_LABEL.into(),
+                id: crate::agent::connections::legacy_local_agent_inventory::BUILT_IN_AGENT_ID,
+                label:
+                    crate::agent::connections::legacy_local_agent_inventory::BUILT_IN_AGENT_LABEL
+                        .into(),
                 executable: PathBuf::new(),
+                launch: None,
                 chat: true,
             },
             inst(Runtime::Cursor, "cursor", "Cursor"),

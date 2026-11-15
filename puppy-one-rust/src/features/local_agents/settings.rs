@@ -4,8 +4,6 @@
 //! PuppyOne's Hook in each Agent's configuration.
 use crate::agent::connections::legacy_local_agent_inventory as local_agent_inventory;
 use crate::agent::connections::legacy_local_agent_inventory::Installation;
-use crate::features::local_agents::setup;
-use crate::features::local_agents::setup::InstallationsChanged;
 use crate::features::local_agents::setup::Presentation;
 use crate::features::local_agents::setup::SetupSection;
 use crate::features::settings::PreferencesStore;
@@ -37,8 +35,6 @@ enum HooksPhase {
 }
 /// Work finished off the UI thread.
 enum Done {
-    /// One scan generation's installations; a later scan wins.
-    Installations(u64, local_agent_inventory::Inventory),
     /// `readEnrollment` of one generation; a later read or change wins.
     Enrollment(u64, Option<Vec<ProviderStatus>>),
     /// `setEnabled`: the snapshot after the change, or the failed provider.
@@ -53,7 +49,8 @@ pub struct AgentSettings {
     preferences: Entity<PreferencesStore>,
     installations: Option<Vec<Installation>>,
     scanning: bool,
-    scan_generation: u64,
+    discovery: Entity<super::discovery::Installations>,
+    discovery_override: bool,
     hooks: Vec<ProviderStatus>,
     hooks_phase: HooksPhase,
     hooks_generation: u64,
@@ -84,13 +81,9 @@ impl AgentSettings {
         })
         .detach();
         cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
-        // An activation that installed a CLI refreshes the detected Agents.
-        let activation = setup::store(cx);
-        cx.subscribe(&activation, |s, _, _: &InstallationsChanged, cx| {
-            s.refresh_inventory(cx);
-            cx.notify();
-        })
-        .detach();
+        let discovery = super::discovery::store(cx);
+        cx.observe(&discovery, |s, _, cx| s.sync_inventory(cx))
+            .detach();
         let owner = crate::features::agent_presence::owner(window);
         let setup = cx.new(|cx| {
             SetupSection::new(
@@ -106,7 +99,8 @@ impl AgentSettings {
             preferences,
             installations: None,
             scanning: false,
-            scan_generation: 0,
+            discovery,
+            discovery_override: false,
             hooks: vec![],
             hooks_phase: HooksPhase::Loading,
             hooks_generation: 0,
@@ -124,20 +118,13 @@ impl AgentSettings {
             rx,
             wake,
         };
-        s.refresh_inventory(cx);
+        s.sync_inventory(cx);
         s.read_enrollment(false, cx);
         s
     }
     fn drain(&mut self, cx: &mut Context<Self>) {
         while let Ok(done) = self.rx.try_recv() {
             match done {
-                Done::Installations(generation, _) if generation != self.scan_generation => {}
-                Done::Installations(_, found) => {
-                    self.scanning = false;
-                    self.setup
-                        .update(cx, |s, cx| s.set_observations(found.observations, cx));
-                    self.installations = Some(found.installations);
-                }
                 Done::Enrollment(generation, _) if generation != self.hooks_generation => {}
                 Done::Enrollment(_, Some(providers)) => {
                     self.hooks = providers;
@@ -175,21 +162,20 @@ impl AgentSettings {
     }
     /// Rescans this machine's Agents.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
-        setup::store(cx).update(cx, |s, cx| s.rescan_companions(cx));
-        self.refresh_inventory(cx);
+        self.discovery.update(cx, |s, cx| s.refresh(cx));
+        self.sync_inventory(cx);
     }
-    fn refresh_inventory(&mut self, cx: &mut Context<Self>) {
-        if self.scanning {
+    fn sync_inventory(&mut self, cx: &mut Context<Self>) {
+        if self.discovery_override {
             return;
         }
-        self.scanning = true;
+        let discovery = self.discovery.read(cx);
+        let found = discovery.inventory();
+        self.scanning = discovery.scanning;
+        self.installations = Some(found.installations);
         self.setup
-            .update(cx, |s, cx| s.set_observations(vec![], cx));
-        self.scan_generation += 1;
-        let generation = self.scan_generation;
-        self.run(move || {
-            Done::Installations(generation, local_agent_inventory::discover_with_evidence())
-        });
+            .update(cx, |s, cx| s.set_observations(found.observations, cx));
+        cx.notify();
     }
     /// `load` / `refresh`: the Hook enrollment, with a rescan when `rescan`.
     fn read_enrollment(&mut self, rescan: bool, cx: &mut Context<Self>) {
@@ -218,7 +204,7 @@ impl AgentSettings {
     pub fn lab_fixture(&mut self, cx: &mut Context<Self>) {
         use crate::platform::agent_activity::registration::PROVIDERS;
         // Results of this machine's scans still on their way are stale.
-        self.scan_generation += 1;
+        self.discovery_override = true;
         self.hooks_generation += 1;
         self.scanning = false;
         let installations = local_agent_inventory::lab_installations();
@@ -248,7 +234,7 @@ impl AgentSettings {
         });
         self.hooks = (self.enrollments)(None).unwrap_or_default();
         self.hooks_phase = HooksPhase::Ready;
-        setup::store(cx).update(cx, |s, cx| s.lab_fixture(cx));
+        super::setup::store(cx).update(cx, |s, cx| s.lab_fixture(cx));
     }
     /// Dev-capture: `agent-hooks` has the Codex Hook installed and the
     /// setup directory open; `agent-activation` adds Codex's dialog.
@@ -628,3 +614,7 @@ mod tests {
         assert!(!preferences.read_with(cx, |p, _| p.state.agent_file_activity_indicators));
     }
 }
+
+#[cfg(test)]
+#[path = "settings/tests.rs"]
+mod discovery_tests;

@@ -52,18 +52,15 @@ struct ProductPorts {
 #[cfg(not(test))]
 impl activation::Ports for ProductPorts {
     fn resolve(&self, id: &str) -> Result<bool, ErrorCode> {
-        let inventory = local_agent_inventory::discover_with_evidence();
-        match inventory
-            .observations
-            .iter()
-            .find(|o| o.id == id)
-            .map(|o| o.status)
-        {
-            Some(setup::ObservationStatus::Found) => Ok(true),
-            Some(setup::ObservationStatus::NotFound) => Ok(false),
+        use crate::agent::host::InstallationObservation as Observation;
+        let observation = crate::agent::host::resolve_installation_now(id);
+        match observation {
+            Ok(Observation::Found { .. }) => Ok(true),
+            Ok(Observation::NotFound { .. }) => Ok(false),
             _ => Err(ErrorCode::InstallationCheck),
         }
     }
+
     fn install(
         &self,
         recipe: &Recipe,
