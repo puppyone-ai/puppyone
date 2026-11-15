@@ -69,7 +69,7 @@ pub fn discover(wake: Wake) -> Receiver<Vec<Candidate>> {
             .build()
             .map(|runtime| {
                 runtime.block_on(async {
-                    let Ok(client) = reqwest::Client::builder()
+                    let Ok(client) = crate::platform::proxy::system(reqwest::Client::builder())
                         .redirect_policy(reqwest::redirect::Policy::none())
                         .timeout(std::time::Duration::from_millis(1500))
                         .build()
@@ -286,7 +286,7 @@ pub fn catalog(
             .map_err(|e| e.to_string())
             .and_then(|runtime| {
                 runtime.block_on(async {
-                    let client = reqwest::Client::builder()
+                    let client = crate::platform::proxy::system(reqwest::Client::builder())
                         .redirect_policy(reqwest::redirect::Policy::none())
                         .timeout(std::time::Duration::from_secs(15))
                         .build()

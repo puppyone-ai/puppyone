@@ -549,7 +549,7 @@ impl HttpGateway {
     pub fn new(deployment: &str) -> Self {
         Self {
             deployment: deployment.trim_end_matches('/').to_owned(),
-            client: reqwest::Client::builder()
+            client: crate::platform::proxy::system(reqwest::Client::builder())
                 .redirect_policy(reqwest::redirect::Policy::none())
                 .timeout(Duration::from_secs(15))
                 .build()

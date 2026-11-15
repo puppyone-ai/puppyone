@@ -117,7 +117,7 @@ fn fetch(url: &str) -> Option<Vec<u8>> {
         .build()
         .ok()?;
     runtime.block_on(async {
-        let client = reqwest::Client::builder()
+        let client = crate::platform::proxy::system(reqwest::Client::builder())
             .redirect_policy(reqwest::redirect::Policy::custom(|attempt| {
                 if attempt.previous().len() >= 5 || attempt.url().scheme() != "https" {
                     attempt.stop()

@@ -311,7 +311,8 @@ fn send_to(url: url::Url, request: &Request, app_version: &str) -> Result<(), Er
         .build()
         .map_err(|_| Error::Unavailable)?;
     let status = runtime.block_on(async {
-        let mut client = reqwest::Client::builder().timeout(TIMEOUT);
+        let mut client =
+            crate::platform::proxy::system(reqwest::Client::builder()).timeout(TIMEOUT);
         // Like Chromium, a loopback endpoint never goes through a proxy.
         if loopback(&url) {
             client = client.no_proxy();

@@ -271,7 +271,7 @@ pub fn download(recipe: &Recipe, destination: &Path, cancel: &AtomicBool) -> Res
         .map_err(|_| ErrorCode::Download)?;
     let mut hasher = Hasher::new(recipe.algorithm);
     runtime.block_on(async {
-        let client = reqwest::Client::builder()
+        let client = crate::platform::proxy::system(reqwest::Client::builder())
             .redirect_policy(reqwest::redirect::Policy::none())
             .https_only(true)
             .timeout(Duration::from_secs(10 * 60))

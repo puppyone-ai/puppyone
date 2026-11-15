@@ -62,7 +62,7 @@ impl Http {
             .build()
             .map_err(|_| UNAVAILABLE.to_owned())?;
         runtime.block_on(async {
-            let client = reqwest::Client::builder()
+            let client = crate::platform::proxy::system(reqwest::Client::builder())
                 .redirect_policy(reqwest::redirect::Policy::none())
                 .timeout(timeout)
                 .build()

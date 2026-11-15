@@ -31,7 +31,7 @@ pub async fn complete(
     if connection.managed {
         return complete_managed(account, body, delta).await;
     }
-    let mut request = reqwest::Client::builder()
+    let mut request = crate::platform::proxy::system(reqwest::Client::builder())
         .redirect_policy(reqwest::redirect::Policy::none())
         .connect_timeout(std::time::Duration::from_secs(15))
         .timeout(std::time::Duration::from_secs(300))

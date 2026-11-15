@@ -186,7 +186,7 @@ fn runtime() -> Result<tokio::runtime::Runtime, String> {
         .map_err(|e| e.to_string())
 }
 fn client(config: &Configuration, timeout: Duration) -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
+    crate::platform::proxy::system(reqwest::Client::builder())
         .redirect_policy(reqwest::redirect::Policy::none())
         .https_only(!config.force_dev)
         .timeout(timeout)

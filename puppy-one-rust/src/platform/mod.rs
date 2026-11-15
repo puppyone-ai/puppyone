@@ -29,6 +29,7 @@ pub mod pdf;
 pub mod preference_storage;
 pub mod process;
 pub mod project_activity;
+pub mod proxy;
 pub mod repository_import;
 #[cfg(unix)]
 pub mod single_instance;
