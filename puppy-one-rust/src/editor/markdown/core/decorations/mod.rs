@@ -146,9 +146,10 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
             .as_ref()
             .and_then(|(_, embed)| Some((feature::find(cx.features, embed.feature)?, embed)));
         if let Some((f, embed)) = widget
-            && let Some(view) =
-                feature::catch_feature_panic(f.id(), "block_widget", || f.block_widget(embed, &factory))
-                    .flatten()
+            && let Some(view) = feature::catch_feature_panic(f.id(), "block_widget", || {
+                f.block_widget(embed, &factory)
+            })
+            .flatten()
         {
             let source = block.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
             let last = doc.line_index(source.end.saturating_sub(1).max(source.start));

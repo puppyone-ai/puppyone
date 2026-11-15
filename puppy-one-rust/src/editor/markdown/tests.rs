@@ -497,7 +497,8 @@ fn random_markdown_and_edits_never_panic_the_pipeline() {
                 for _ in 0..rng.below(4) {
                     insert.push_str(rng.pick(FRAGMENTS));
                 }
-                let caret = rng.below(state.doc.len().saturating_sub(range.len()) + insert.len() + 1);
+                let caret =
+                    rng.below(state.doc.len().saturating_sub(range.len()) + insert.len() + 1);
                 let tr = Transaction::edit(
                     ChangeSet::replace(range, insert),
                     None,
@@ -526,9 +527,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
     use super::{
         core::{
             decorations::BlockDecoration,
-            feature::{
-                CompileCx, FEATURE_PANIC_EVENT, Features, MarkdownFeature, WidgetFactoryCx,
-            },
+            feature::{CompileCx, FEATURE_PANIC_EVENT, Features, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan, Presentation},
             syntax::{Element, Kind},
         },
@@ -645,7 +644,10 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
         assert_eq!(widgets, vec![4..7], "only healthy math widget should mount");
         let panic_line = v.state().doc.line_range(2);
         assert!(
-            !decos.hidden.iter().any(|h| h.start < panic_line.end && panic_line.start < h.end),
+            !decos
+                .hidden
+                .iter()
+                .any(|h| h.start < panic_line.end && panic_line.start < h.end),
             ":::panic line must remain visible source: {:?}",
             decos.hidden
         );
