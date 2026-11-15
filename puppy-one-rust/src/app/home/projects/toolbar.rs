@@ -1,9 +1,46 @@
-//! `OnboardingProjectToolbar` and `OnboardingProjectLayoutSwitch`: sort and
-//! layout controls at the trailing end of `.onboarding-projects-head`.
+//! `OnboardingProjectsHead`, `OnboardingProjectToolbar` and
+//! `OnboardingProjectLayoutSwitch`: the section heading and sort/layout
+//! controls at the trailing end of `.onboarding-projects-head`.
 use super::*;
 
+/// `.onboarding-projects-head`: `Projects` on the left, sort and layout on the right.
+#[derive(IntoElement)]
+pub(in crate::app::home) struct OnboardingProjectsHead {
+    toolbar: AnyElement,
+}
+
+impl OnboardingProjectsHead {
+    pub fn new(toolbar: impl IntoElement) -> Self {
+        Self {
+            toolbar: toolbar.into_any_element(),
+        }
+    }
+}
+
+impl RenderOnce for OnboardingProjectsHead {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        h_flex()
+            .debug_selector(|| "home-projects-head".into())
+            .flex_none()
+            .w_full()
+            .min_w_0()
+            .items_center()
+            .justify_between()
+            .gap(px(8.))
+            .child(
+                div()
+                    .text_size(px(theme::ty().ui.meta))
+                    .font_weight(FontWeight::MEDIUM)
+                    .line_height(px(20.))
+                    .text_color(t.text)
+                    .child(tr("onboarding.projects.title")),
+            )
+            .child(self.toolbar)
+    }
+}
+
 impl Homepage {
-    // ------------------------------------------------------------- toolbar
     /// `OnboardingToolbarMenu`: a quiet control that opens its own menu,
     /// aligned to its trailing edge so it stays inside narrow windows; its
     /// tooltip says what it is set to.
@@ -42,6 +79,7 @@ impl Homepage {
             .trigger(trigger)
             .menu(move |surface, _, _| build(surface.min_w(px(VIEW_MENU_MIN_WIDTH))))
     }
+
     /// `OnboardingProjectToolbar` + the layout switch: Sort and Layout,
     /// aligned to the end of `.onboarding-projects-head`.
     pub(in crate::app::home) fn project_toolbar(
@@ -120,7 +158,6 @@ impl Homepage {
                 cx,
             )
         };
-        // `.onboarding-project-toolbar` > `.onboarding-project-view`.
         div()
             .flex()
             .flex_none()

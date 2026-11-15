@@ -1,5 +1,5 @@
 //! The folder glyph's tones and sheet stacking (`ProjectFolderGlyph`).
-use super::*;
+use super::{sheet::grid_sheet_placements, *};
 use core::prelude::v1::test;
 
 #[test]

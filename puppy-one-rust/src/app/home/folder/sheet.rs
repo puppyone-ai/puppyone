@@ -1,81 +1,12 @@
-//! `ProjectFolderGlyph` and `HomeProjectIcon` (`components/onboarding`):
-//! every project's folder on Home and in the switcher rail. Both empty and
-//! asset-bearing folders share one `104 × 78` SVG silhouette (`34 × 26` in List
-//! rows) so adjacent projects align identically; when top-level `previews`
-//! exist, up to three calm preview sheets sit between the back and front, and
-//! Cloud projects show up to three connected Agents at the bottom-right corner.
-use super::previews::{PreviewKind, ProjectAssetPreview};
+//! Miniature asset preview sheets peeking between `folder-back` and
+//! `folder-front` (`ProjectFolderGlyph.tsx` and `.project-folder-preview`).
+use super::super::previews::{PreviewKind, ProjectAssetPreview};
 use crate::{
-    app::cloud_agents_ui::compact_agent_face,
-    theme::{self, Theme, metric},
-    ui::{
-        components::{Icon, ProductIcon},
-        moments::paint,
-    },
-    workspace::cloud::catalog::Location,
+    theme::{self, Theme},
+    ui::moments::paint,
 };
 use gpui::{prelude::*, *};
-use gpui_kit::{base::h_flex, component::Sizable as _};
-
-pub(super) const GRID_FOLDER_SIZE: (f32, f32) = (104., 78.);
-pub(super) const LIST_FOLDER_SIZE: (f32, f32) = (34., 26.);
-
-/// Connected Agent badge shown at the bottom-right corner of a Cloud folder.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::app) struct FolderAgentBadge {
-    pub id: String,
-    pub name: String,
-    pub avatar: Option<String>,
-}
-
-/// `--po-project-folder-back` / `--po-project-folder-front` mixed into canvas.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct Tones {
-    pub back: Rgba,
-    pub front: Rgba,
-}
-
-fn base_tones(t: Theme) -> Tones {
-    if t.dark {
-        Tones {
-            back: theme::mix(t.text, t.canvas, 0.20),
-            front: theme::mix(t.text, t.canvas, 0.32),
-        }
-    } else {
-        Tones {
-            back: theme::mix(t.text, t.canvas, 0.34),
-            front: theme::mix(t.text, t.canvas, 0.22),
-        }
-    }
-}
-
-/// Resting fill (`80%` back, `78%` front against `--po-canvas`).
-pub(super) fn tones(t: Theme) -> Tones {
-    let base = base_tones(t);
-    Tones {
-        back: theme::mix(base.back, t.canvas, 0.80),
-        front: theme::mix(base.front, t.canvas, 0.78),
-    }
-}
-
-/// Hovered / focused / menu-open fill (`90%` back, `88%` front against `--po-canvas`).
-pub(super) fn lit(t: Theme) -> Tones {
-    let base = base_tones(t);
-    Tones {
-        back: theme::mix(base.back, t.canvas, 0.90),
-        front: theme::mix(base.front, t.canvas, 0.88),
-    }
-}
-
-/// Fades an unavailable (`0.4`) or offline (`0.5`) folder cleanly into `--po-canvas`.
-pub(super) fn faded(tones: Tones, strength: Option<f32>, t: Theme) -> Tones {
-    let Some(w) = strength else { return tones };
-    let fade = |c| theme::mix(c, t.canvas, w);
-    Tones {
-        back: fade(tones.back),
-        front: fade(tones.front),
-    }
-}
+use gpui_kit::base::h_flex;
 
 fn fade_color(color: Rgba, strength: Option<f32>, t: Theme) -> Rgba {
     strength.map_or(color, |w| theme::mix(color, t.canvas, w))
@@ -90,18 +21,9 @@ fn preview_accent(kind: PreviewKind, t: Theme) -> Rgba {
     }
 }
 
-fn layer(path: &'static str, w: f32, h: f32, color: Rgba) -> Svg {
-    svg()
-        .path(path)
-        .absolute()
-        .top_0()
-        .left_0()
-        .w(px(w))
-        .h(px(h))
-        .text_color(color)
-}
-
-fn grid_sheet_placements(count: usize) -> (&'static [(f32, f32, f32)], &'static [usize]) {
+pub(super) fn grid_sheet_placements(
+    count: usize,
+) -> (&'static [(f32, f32, f32)], &'static [usize]) {
     match count {
         1 => (&[(30., 4., 1.5)], &[0]),
         2 => (&[(16., 6., -4.5), (44., 4., 4.5)], &[0, 1]),
@@ -112,7 +34,7 @@ fn grid_sheet_placements(count: usize) -> (&'static [(f32, f32, f32)], &'static 
     }
 }
 
-fn compact_sheet_placements(count: usize) -> (&'static [(f32, f32)], &'static [usize]) {
+pub(super) fn compact_sheet_placements(count: usize) -> (&'static [(f32, f32)], &'static [usize]) {
     match count {
         1 => (&[(9.5, 1.5)], &[0]),
         2 => (&[(6.5, 2.), (12.5, 1.)], &[0, 1]),
@@ -135,7 +57,7 @@ fn badge_width(label: &str) -> f32 {
     }
 }
 
-fn render_grid_sheet(
+pub(super) fn render_grid_sheet(
     preview: &ProjectAssetPreview,
     placement: (f32, f32, f32),
     left_shoulder_badge: bool,
@@ -330,7 +252,7 @@ fn render_grid_sheet(
     )
 }
 
-fn render_compact_sheet(
+pub(super) fn render_compact_sheet(
     preview: &ProjectAssetPreview,
     placement: (f32, f32),
     fade: Option<f32>,
@@ -424,139 +346,3 @@ fn render_compact_sheet(
         )
         .child(content)
 }
-
-/// Grid tile folder (`104 × 78`) with optional peeking preview sheets and Cloud
-/// Agent corner badges.
-pub(super) fn grid_folder(
-    previews: &[ProjectAssetPreview],
-    agents: &[FolderAgentBadge],
-    is_lit: bool,
-    fade: Option<f32>,
-    t: Theme,
-) -> Div {
-    let (w, h) = GRID_FOLDER_SIZE;
-    let folder = faded(if is_lit { lit(t) } else { tones(t) }, fade, t);
-    let count = previews.len().min(3);
-    let (placements, order) = grid_sheet_placements(count);
-
-    let mut stage = div().relative().flex_none().w(px(w)).h(px(h)).child(layer(
-        "home/folder-back.svg",
-        w,
-        h,
-        folder.back,
-    ));
-
-    if count > 0 {
-        for &idx in order {
-            if let Some(preview) = previews.get(idx) {
-                stage = stage.child(render_grid_sheet(
-                    preview,
-                    placements[idx],
-                    count >= 2 && idx == 0,
-                    fade,
-                    t,
-                ));
-            }
-        }
-    }
-
-    stage = stage.child(layer("home/folder-front.svg", w, h, folder.front));
-
-    if !agents.is_empty() {
-        stage = stage.child(h_flex().absolute().right_0().bottom(px(-3.)).children(
-            agents.iter().take(3).enumerate().map(|(idx, agent)| {
-                div()
-                    .w(px(20.))
-                    .h(px(20.))
-                    .flex_none()
-                    .when(idx > 0, |d| d.ml(px(-5.)))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded(px(metric::CONTROL_RADIUS))
-                    .bg(t.panel_raised)
-                    .shadow(vec![
-                        paint::ring(t.canvas, px(1.5)),
-                        theme::elevation_low(&t),
-                    ])
-                    .child(compact_agent_face(
-                        &agent.name,
-                        agent.avatar.as_deref(),
-                        14.,
-                        3.,
-                        t.panel_raised,
-                        t,
-                    ))
-            }),
-        ));
-    }
-
-    stage
-}
-
-/// `.onboarding-project-icon` in a Homepage List row (`34 × 26`), with optional
-/// compact peeking sheets.
-pub(in crate::app) fn list_folder(
-    previews: &[ProjectAssetPreview],
-    is_lit: bool,
-    fade: Option<f32>,
-    t: Theme,
-) -> AnyElement {
-    let (w, h) = LIST_FOLDER_SIZE;
-    let folder = faded(if is_lit { lit(t) } else { tones(t) }, fade, t);
-    let count = previews.len().min(3);
-    let (placements, order) = compact_sheet_placements(count);
-
-    let mut stage = div().relative().w(px(w)).h(px(h)).flex_none().child(layer(
-        "home/folder-back.svg",
-        w,
-        h,
-        folder.back,
-    ));
-
-    if count > 0 {
-        for &idx in order {
-            if let Some(preview) = previews.get(idx) {
-                stage = stage.child(render_compact_sheet(preview, placements[idx], fade, t));
-            }
-        }
-    }
-
-    stage
-        .child(layer("home/folder-front.svg", w, h, folder.front))
-        .into_any_element()
-}
-
-/// `HomeProjectIcon` in a 14px slot (the Header's project menu and the
-/// project rail): the laptop mark of a local folder, with a small cloud on
-/// a folder that has its own Cloud project; a Cloud project is its cloud.
-pub(in crate::app) fn list_icon(location: Location, t: Theme) -> AnyElement {
-    let glyph = match location {
-        Location::CloudOnly => Icon::product(ProductIcon::Cloud)
-            .with_size(px(14.))
-            .stroke(1.85)
-            .color(t.brand_blue),
-        _ => Icon::product(ProductIcon::Local)
-            .with_size(px(14.))
-            .stroke(1.85),
-    };
-    div()
-        .relative()
-        .size(px(14.))
-        .flex_none()
-        .child(glyph)
-        .when(location == Location::Linked, |d| {
-            d.child(
-                div().absolute().right(px(-4.)).bottom(px(-3.)).child(
-                    Icon::product(ProductIcon::Cloud)
-                        .with_size(px(9.))
-                        .color(t.brand_blue),
-                ),
-            )
-        })
-        .into_any_element()
-}
-
-#[cfg(test)]
-#[path = "folder_tests.rs"]
-mod tests;

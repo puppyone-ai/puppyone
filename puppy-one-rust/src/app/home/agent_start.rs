@@ -3,8 +3,9 @@
 //! when its name is already taken in the chosen location), opens it, and hands
 //! the prompt to a fresh chat tab on that Agent's runtime.
 use super::{
-    agent_strip::{HomepageLocalAgent, agent_brand_mark},
+    components::HomepageAgentBrandMark,
     create_project::{Destination, default_location, rand_suffix},
+    discovery::HomepageLocalAgent,
     *,
 };
 use crate::{
@@ -247,14 +248,15 @@ impl Homepage {
                     .justify_center()
                     .rounded(px(7.))
                     .bg(theme::alpha(t.text, 0.07))
-                    .child(agent_brand_mark(
-                        Some(&start.agent.icon_key),
-                        &start.agent.label,
-                        20.,
-                        6.,
-                        t.text,
-                        t,
-                    )),
+                    .child(
+                        HomepageAgentBrandMark::new(
+                            Some(&start.agent.icon_key),
+                            start.agent.label.clone(),
+                        )
+                        .size(20.)
+                        .radius(6.)
+                        .ink(t.text),
+                    ),
             )
             .child(
                 div()
@@ -289,14 +291,17 @@ impl Homepage {
                         prompt_focus.focus(w, cx);
                     })
             })
-            .child(div().mt(px(1.)).flex_none().child(agent_brand_mark(
-                Some(&start.agent.icon_key),
-                &start.agent.label,
-                28.,
-                8.,
-                t.text,
-                t,
-            )))
+            .child(
+                div().mt(px(1.)).flex_none().child(
+                    HomepageAgentBrandMark::new(
+                        Some(&start.agent.icon_key),
+                        start.agent.label.clone(),
+                    )
+                    .size(28.)
+                    .radius(8.)
+                    .ink(t.text),
+                ),
+            )
             .child(
                 v_flex()
                     .flex_1()
@@ -369,14 +374,12 @@ impl Homepage {
             .disabled(!can_submit)
             .on_click(cx.listener(|s, _, w, cx| s.submit_agent_start(w, cx)));
         if !start.submitting {
-            submit_btn = submit_btn.leading(agent_brand_mark(
-                Some(&start.agent.icon_key),
-                &start.agent.label,
-                16.,
-                4.,
-                submit_ink,
-                t,
-            ));
+            submit_btn = submit_btn.leading(
+                HomepageAgentBrandMark::new(Some(&start.agent.icon_key), start.agent.label.clone())
+                    .size(16.)
+                    .radius(4.)
+                    .ink(submit_ink),
+            );
         }
 
         Dialog::new("agent-project-start")

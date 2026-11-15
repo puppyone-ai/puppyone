@@ -906,7 +906,7 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
 fn projects_home_agent_strip_and_agent_start_create_blank_project_with_seeded_chat(
     cx: &mut TestAppContext,
 ) {
-    use super::home::agent_strip::{HomepageCloudAgent, HomepageLocalAgent};
+    use super::home::discovery::{HomepageCloudAgent, HomepageLocalAgent};
     let temp = tempfile::tempdir().unwrap();
     let parent = temp.path().canonicalize().unwrap();
     let existing = parent.join("existing");
@@ -926,6 +926,39 @@ fn projects_home_agent_strip_and_agent_start_create_blank_project_with_seeded_ch
         icon_key: "claude".into(),
         connected: true,
     };
+    let all_local = vec![
+        claude.clone(),
+        HomepageLocalAgent {
+            runtime_id: "codex".into(),
+            label: "Codex".into(),
+            icon_key: "codex".into(),
+            connected: false,
+        },
+        HomepageLocalAgent {
+            runtime_id: "cursor".into(),
+            label: "Cursor".into(),
+            icon_key: "cursor".into(),
+            connected: false,
+        },
+        HomepageLocalAgent {
+            runtime_id: "opencode-native".into(),
+            label: "OpenCode".into(),
+            icon_key: "opencode".into(),
+            connected: false,
+        },
+        HomepageLocalAgent {
+            runtime_id: "pi".into(),
+            label: "Pi".into(),
+            icon_key: "pi".into(),
+            connected: false,
+        },
+        HomepageLocalAgent {
+            runtime_id: "workbuddy-china".into(),
+            label: "WorkBuddy (China)".into(),
+            icon_key: "workbuddy".into(),
+            connected: false,
+        },
+    ];
     view.update(cx, |s, cx| {
         s.session
             .project
@@ -934,9 +967,9 @@ fn projects_home_agent_strip_and_agent_start_create_blank_project_with_seeded_ch
             .store
             .update(cx, |p, _| p.state.remember_project(&existing, 1));
         s.home.update(cx, |h, _| {
-            h.local_agents_override = Some(vec![claude.clone()]);
-            h.cloud_details_override = true;
-            h.cloud_agents = vec![HomepageCloudAgent {
+            h.discovery.local_agents_override = Some(all_local);
+            h.discovery.cloud_details_override = true;
+            h.discovery.cloud_agents = vec![HomepageCloudAgent {
                 id: "agent-cloud-1".into(),
                 name: "Review Bot".into(),
                 avatar: None,
@@ -949,15 +982,64 @@ fn projects_home_agent_strip_and_agent_start_create_blank_project_with_seeded_ch
         !s.home.read(cx).list_held()
             && s.home
                 .read(cx)
+                .discovery
                 .local_previews
                 .contains_key(existing.as_path())
     });
     draw(cx);
-    assert!(cx.debug_bounds("home-start-actions").is_some());
-    assert!(cx.debug_bounds("home-agent-strip").is_some());
+
+    let assert_header_bounds = |cx: &mut VisualTestContext, expected_col_w: f32| {
+        let header = cx.debug_bounds("home-header-row").unwrap();
+        let start_actions = cx.debug_bounds("home-start-actions").unwrap();
+        let strip = cx.debug_bounds("home-agent-strip").unwrap();
+        let connect = cx.debug_bounds("home-agent-connect").unwrap();
+        let projects_head = cx.debug_bounds("home-projects-head").unwrap();
+        assert!(
+            (f32::from(header.size.width) - expected_col_w).abs() < 1.0,
+            "header width {:?} != expected {expected_col_w}",
+            header.size.width
+        );
+        assert!(
+            (f32::from(header.right()) - f32::from(projects_head.right())).abs() < 1.0,
+            "header right {:?} != projects_head right {:?}",
+            header.right(),
+            projects_head.right()
+        );
+        assert!(
+            (f32::from(strip.right()) - f32::from(header.right())).abs() < 1.0,
+            "agent strip right {:?} overflowed header right {:?}",
+            strip.right(),
+            header.right()
+        );
+        assert!(
+            (f32::from(connect.right()) - f32::from(header.right())).abs() < 1.0,
+            "connect button right {:?} != header right {:?}",
+            connect.right(),
+            header.right()
+        );
+        assert!(
+            f32::from(strip.left()) >= f32::from(start_actions.right()) + 11.0,
+            "agent strip left {:?} collided with start_actions right {:?}",
+            strip.left(),
+            start_actions.right()
+        );
+    };
+
+    // Standard wide viewport (`760px` column), compact macOS window (`958×625`,
+    // `760px` column), and narrow viewport (`620×625`, `564px` column where
+    // 6 local + 1 cloud + `+` shrinks into horizontal scroll).
+    assert_header_bounds(cx, 760.);
+    cx.simulate_resize(size(px(958.), px(625.)));
+    draw(cx);
+    assert_header_bounds(cx, 760.);
     assert!(cx.debug_bounds("home-agent:claude").is_some());
     assert!(cx.debug_bounds("home-cloud-agent:agent-cloud-1").is_some());
-    assert!(cx.debug_bounds("home-projects-head").is_some());
+    cx.simulate_resize(size(px(620.), px(625.)));
+    draw(cx);
+    assert_header_bounds(cx, 564.);
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    draw(cx);
+    assert_header_bounds(cx, 760.);
 
     // `+` opens Settings on the Local Agents page.
     let plus = cx.debug_bounds("home-agent-connect").unwrap().center();

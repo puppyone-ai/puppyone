@@ -1,18 +1,19 @@
-//! The Homepage's projects: `OnboardingProjectToolbar` (sort),
-//! `OnboardingProjectLayoutSwitch`, `OnboardingEntryMenu`,
-//! `OnboardingProjectGroups` (the audiences), `OnboardingProjectList` (the
-//! List and the Grid), `LinkedCloudProjectButton` and
-//! `useProjectListNavigation`.
-//!
-//! A project is lit while the pointer is on it, a key has focused it, or its
-//! menu is open: its row fills, its folder leans to the ink and lifts its
-//! sheet, its time gives way to its actions. The list is one Tab stop (a
-//! roving stop, the project last focused); the arrow keys move inside it.
+//! The Homepage's projects:
+//! - `toolbar` — `OnboardingProjectsHead`, `OnboardingProjectToolbar` (sort & layout)
+//! - `groups_view` — `OnboardingProjectGroups` (place audiences, scroller, drop zones)
+//! - `tile` — Grid cell (`104 × 78` `ProjectFolderGlyph` + name + caption)
+//! - `row` — List row (`34 × 26` `ProjectFolderGlyph`, `open_control`, actions)
+mod groups_view;
+mod row;
+mod tile;
+mod toolbar;
+
+pub(in crate::app::home) use groups_view::SpacesUnavailableNote;
+pub(in crate::app::home) use toolbar::OnboardingProjectsHead;
+
 use super::*;
 use crate::features::settings::{HomepageLayout, HomepageSort};
 use gpui_kit::base::Selectable as _;
-mod list;
-mod toolbar;
 
 /// A local project dragged on the Homepage: its absolute path. It stays a
 /// drag inside the page (so a group can take it) until the pointer leaves
@@ -20,10 +21,11 @@ mod toolbar;
 #[derive(Clone)]
 pub(in crate::app) struct ProjectDrag {
     pub path: String,
-    label: SharedString,
+    pub(super) label: SharedString,
     /// The system draws the drag now (it left the window).
-    native: std::rc::Rc<std::cell::Cell<bool>>,
+    pub(super) native: std::rc::Rc<std::cell::Cell<bool>>,
 }
+
 impl Render for ProjectDrag {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
@@ -61,11 +63,11 @@ pub(super) fn grid_column_gap(viewport_w: f32) -> f32 {
     if viewport_w <= 820. { 10. } else { 14. }
 }
 /// Grid rows are `12px` apart (`row-gap: 12px`).
-const CELL_ROW_GAP: f32 = 12.;
+pub(super) const CELL_ROW_GAP: f32 = 12.;
 /// `--po-scrollbar-size`: the list's lane hangs outside the column.
-const SCROLLBAR_SIZE: f32 = 12.;
+pub(super) const SCROLLBAR_SIZE: f32 = 12.;
 /// `.onboarding-view-menu`'s smallest width.
-const VIEW_MENU_MIN_WIDTH: f32 = 104.;
+pub(super) const VIEW_MENU_MIN_WIDTH: f32 = 104.;
 
 /// A choice with its tick (`menuitemradio` / `menuitemcheckbox`).
 pub(super) fn checked_item(item: MenuItem, checked: bool) -> MenuItem {
@@ -75,6 +77,7 @@ pub(super) fn checked_item(item: MenuItem, checked: bool) -> MenuItem {
         item
     }
 }
+
 /// `viewProjectHomeItems`: by name (`Intl.Collator(numeric, base)`) or by
 /// modification, newest first, unknown last, equals in catalog order.
 pub(super) fn view_items(mut items: Vec<Item>, sort: HomepageSort, untitled: &str) -> Vec<Item> {
@@ -92,6 +95,7 @@ pub(super) fn view_items(mut items: Vec<Item>, sort: HomepageSort, untitled: &st
     }
     items
 }
+
 /// `Intl.Collator(locale, {numeric: true, sensitivity: "base"})`: case and
 /// accents fold, digit runs compare by value.
 pub(super) fn collate(a: &str, b: &str) -> std::cmp::Ordering {
@@ -131,6 +135,7 @@ pub(super) fn collate(a: &str, b: &str) -> std::cmp::Ordering {
     }
     (a.len() - i).cmp(&(b.len() - j))
 }
+
 /// `settleShownDates`: a date learned after a project is on screen waits
 /// for the next visit, so projects move only when someone asked them to.
 pub(super) fn settle_dates(shown: &mut HashMap<String, i64>, items: &mut [Item]) {
@@ -145,6 +150,7 @@ pub(super) fn settle_dates(shown: &mut HashMap<String, i64>, items: &mut [Item])
         }
     }
 }
+
 /// `resolveTarget`: where a key leads from one project, or nowhere.
 pub(super) fn key_target(
     key: &str,
@@ -174,6 +180,7 @@ pub(super) fn key_target(
         _ => None,
     }
 }
+
 /// Equal cell width for `GRID_COLUMNS` across `width` with `col_gap` gutters.
 pub(super) fn grid_cell_width(width: f32, col_gap: f32) -> f32 {
     ((width - col_gap * (GRID_COLUMNS.saturating_sub(1) as f32)) / GRID_COLUMNS as f32).max(0.)
@@ -189,6 +196,7 @@ impl Homepage {
         let mut items = self.project_items(cx);
         settle_dates(&mut self.shown_dates, &mut items);
     }
+
     /// The projects the page shows, in the order it shows them.
     pub(in crate::app) fn visible_projects(&self, cx: &App) -> Vec<Item> {
         if self.list_held() {
@@ -203,22 +211,25 @@ impl Homepage {
         let sort = self.preferences.read(cx).state.homepage_project_sort;
         view_items(items, sort, tr("onboarding.projects.untitled"))
     }
+
     /// A list's roving stop: the project last focused in it, else its first.
-    fn project_stop(&self, items: &[Item]) -> Option<String> {
+    pub(super) fn project_stop(&self, items: &[Item]) -> Option<String> {
         self.stop
             .as_ref()
             .filter(|id| items.iter().any(|i| &i.id == *id))
             .cloned()
             .or_else(|| items.first().map(|i| i.id.clone()))
     }
-    fn project_focus(&mut self, id: &str, cx: &mut Context<Self>) -> FocusHandle {
+
+    pub(super) fn project_focus(&mut self, id: &str, cx: &mut Context<Self>) -> FocusHandle {
         self.focus
             .entry(id.to_owned())
             .or_insert_with(|| cx.focus_handle())
             .clone()
     }
+
     /// `true` while a project is reached for: pointer, key focus or menu.
-    fn project_lit(&self, item: &Item, window: &Window, cx: &App) -> bool {
+    pub(super) fn project_lit(&self, item: &Item, window: &Window, cx: &App) -> bool {
         self.hovered.as_deref() == Some(item.id.as_str())
             || self.actions.read(cx).item() == Some(item.id.as_str())
             || (window.last_input_was_keyboard()
@@ -229,10 +240,25 @@ impl Homepage {
     }
 
     /// `.onboarding-project-row-wrap.is-dragging`.
-    fn dragging_item(&self, item: &Item, cx: &App) -> bool {
+    pub(super) fn dragging_item(&self, item: &Item, cx: &App) -> bool {
         item.local_path.is_some()
             && cx.has_active_drag()
             && self.dragging_path.as_deref() == item.local_path.as_deref().map(str::trim)
+    }
+
+    pub(super) fn item_shared(&self, item: &Item) -> bool {
+        item.host_folder
+            .as_ref()
+            .is_some_and(|id| self.shared_ids.as_ref().is_none_or(|ids| ids.contains(id)))
+    }
+
+    /// A stable index for a project's element ids across groups.
+    pub(super) fn cell_index(&self, id: &str) -> usize {
+        let mut hash: usize = 5381;
+        for byte in id.bytes() {
+            hash = hash.wrapping_mul(33) ^ byte as usize;
+        }
+        hash
     }
 }
 
@@ -285,11 +311,9 @@ mod tests {
 
     #[test]
     fn keys_walk_rows_and_cells_like_the_product() {
-        // A list: up and down only.
         assert_eq!(key_target("down", 0, 3, 1, false), Some(1));
         assert_eq!(key_target("up", 0, 3, 1, false), None);
         assert_eq!(key_target("right", 0, 3, 1, false), None);
-        // A grid of three columns over eight cells.
         assert_eq!(key_target("down", 1, 7, 3, false), Some(4));
         assert_eq!(
             key_target("down", 5, 7, 3, false),
