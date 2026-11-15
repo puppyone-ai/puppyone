@@ -446,8 +446,17 @@ impl WindowCloud {
     pub fn screen_thumbnail(&self, cx: &App) -> Option<AnyElement> {
         self.screen.read(cx).render_thumbnail(&self.screen, cx)
     }
+    pub fn screen_pip(&self, editor: crate::geometry::Rect, cx: &App) -> Option<AnyElement> {
+        self.screen.read(cx).render_pip(&self.screen, editor, cx)
+    }
     pub fn screen_shown(&self, cx: &App) -> bool {
         self.screen.read(cx).is_shown(cx)
+    }
+    pub fn screen_interactive(&self, cx: &App) -> bool {
+        self.screen.read(cx).is_interactive(cx)
+    }
+    pub fn release_screen_control(&mut self, cx: &mut Context<Self>) {
+        self.screen.update(cx, |s, cx| s.release_control(cx));
     }
     pub fn close_screen(&mut self, cx: &mut Context<Self>) {
         self.screen.update(cx, |s, cx| s.close(cx));

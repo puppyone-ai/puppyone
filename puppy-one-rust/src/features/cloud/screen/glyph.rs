@@ -52,3 +52,63 @@ pub(super) fn screen_glyph(
                 .bg(stroke),
         )
 }
+
+/// Crisp 4-corner fullscreen frame glyph (`12×12` logical viewBox).
+pub(super) fn fullscreen_glyph(size: f32, color: Rgba) -> impl IntoElement {
+    let s = size / 12.;
+    let arm = (3.4 * s).max(3.);
+    let stroke = (1.4 * s).max(1.2);
+    div()
+        .relative()
+        .w(px(size))
+        .h(px(size))
+        .flex_shrink_0()
+        // Top-left corner
+        .child(
+            div()
+                .absolute()
+                .left(px(1.5 * s))
+                .top(px(1.5 * s))
+                .w(px(arm))
+                .h(px(arm))
+                .border_t(px(stroke))
+                .border_l(px(stroke))
+                .border_color(color),
+        )
+        // Top-right corner
+        .child(
+            div()
+                .absolute()
+                .right(px(1.5 * s))
+                .top(px(1.5 * s))
+                .w(px(arm))
+                .h(px(arm))
+                .border_t(px(stroke))
+                .border_r(px(stroke))
+                .border_color(color),
+        )
+        // Bottom-left corner
+        .child(
+            div()
+                .absolute()
+                .left(px(1.5 * s))
+                .bottom(px(1.5 * s))
+                .w(px(arm))
+                .h(px(arm))
+                .border_b(px(stroke))
+                .border_l(px(stroke))
+                .border_color(color),
+        )
+        // Bottom-right corner
+        .child(
+            div()
+                .absolute()
+                .right(px(1.5 * s))
+                .bottom(px(1.5 * s))
+                .w(px(arm))
+                .h(px(arm))
+                .border_b(px(stroke))
+                .border_r(px(stroke))
+                .border_color(color),
+        )
+}

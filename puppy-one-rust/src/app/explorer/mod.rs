@@ -68,6 +68,9 @@ pub(in crate::app) struct Host {
     pub folder_busy: bool,
     /// The folder picker is open.
     pub picking: bool,
+    /// The Cloud Computer Screen currently occupies the main stage, so the
+    /// sidebar screen entry carries the active selection rather than a file.
+    pub screen_active: bool,
 }
 
 /// What the Explorer reads from the preferences while it paints and acts:

@@ -23,7 +23,8 @@ impl ExplorerColumn {
             footer: None,
         }
     }
-    /// Optional companion control anchored above the footer (e.g. Cloud Computer Screen).
+    /// Optional fixed-height companion control anchored at the top above the
+    /// file tree (e.g. Cloud Computer Screen).
     pub fn companion(mut self, companion: Option<AnyElement>) -> Self {
         self.companion = companion;
         self
@@ -42,10 +43,10 @@ impl RenderOnce for ExplorerColumn {
             .size_full()
             .flex()
             .flex_col()
-            .child(div().flex_1().min_h_0().child(self.explorer.cached(fill())))
             .when_some(self.companion, |d, companion| {
                 d.child(div().flex_shrink_0().child(companion))
             })
+            .child(div().flex_1().min_h_0().child(self.explorer.cached(fill())))
             .when(footer > 0., |d| {
                 d.child(div().flex_shrink_0().h(px(footer)).children(self.footer))
             })

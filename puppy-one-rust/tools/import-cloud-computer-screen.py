@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKOUT = '../../puppyone-qubits'
-COMMIT = '76e56e3c73f25079f92999df24e13c2666784989'
+COMMIT = 'c902535220b72b87ec0a79db7ddb9574c6e45870'
 LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de', 'ja', 'ko', 'zh-Hans']
 OUTPUT = ROOT / 'assets/cloud-computer-screen.json'
 

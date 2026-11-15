@@ -704,13 +704,17 @@ impl Render for Shell {
                 // content starts at the divider like the product's.
                 stack = stack.end(self.frame.layout.auxiliary, self.sidebar.clone());
             }
+            let editor_rect = self.frame.layout.editor;
+            let pip = (!home && !self.opening(cx))
+                .then(|| self.cloud.read(cx).screen_pip(editor_rect, cx))
+                .flatten();
             let main = if !home && self.cloud.read(cx).screen_shown(cx) {
                 self.cloud.read(cx).screen.clone().into_any_element()
             } else {
                 self.editor.clone().into_any_element()
             };
             stack
-                .main(at(self.frame.layout.editor).child(main))
+                .main(at(editor_rect).child(main).children(pip))
                 .into_any_element()
         });
         let weak = cx.weak_entity();

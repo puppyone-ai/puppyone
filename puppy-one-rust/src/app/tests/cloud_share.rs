@@ -58,7 +58,9 @@ fn the_agents_stand_in_the_header_and_open_their_dialog(cx: &mut TestAppContext)
     draw(cx);
     let request = cx.debug_bounds("cloud-workspace-agent:r1").unwrap();
     let stack = cx.debug_bounds("cloud-workspace-agent-stack").unwrap();
+    let add = cx.debug_bounds("cloud-workspace-agent-add").unwrap();
     assert!(request.origin.x < stack.origin.x);
+    assert!(stack.origin.x < add.origin.x);
     // Somebody is here, so there is no empty seat in the Header.
     assert!(
         cx.debug_bounds("cloud-workspace-tool:invite-agent")
@@ -116,6 +118,20 @@ fn the_agents_stand_in_the_header_and_open_their_dialog(cx: &mut TestAppContext)
         assert!(s.dialogs.read(cx).is_empty());
         assert!(!s.cloud.read(cx).agents.read(cx).invite_open);
     });
+    // Clicking the solid circular `+` button beside existing Agents opens the
+    // dialog straight into its invite prompt steps.
+    let add = cx.debug_bounds("cloud-workspace-agent-add").unwrap();
+    cx.simulate_click(add.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.top_dialog(cx).as_deref() == Some("Agents"));
+        assert_eq!(
+            s.cloud.read(cx).agents.read(cx).opener,
+            crate::features::cloud::Opener::Invite
+        );
+    });
+    assert!(cx.debug_bounds("cloud-agent-invite-steps").is_some());
+    command(&view, cx, Command::Escape);
 }
 
 /// C-10.1/10.2: in Cloud the right sidebar's workbench is the hosted Agent —
