@@ -45,6 +45,7 @@ impl Memory {
         let text = self.text.lock().unwrap().clone();
         TextSnapshot {
             encoding: Default::default(),
+            line_ending: Default::default(),
             revision: Revision(blake3::hash(text.as_bytes()).to_string()),
             text,
         }
@@ -101,6 +102,32 @@ impl ResourcePort for Memory {
             mime: "image/png".into(),
             bytes: Arc::from([1, 2, 3]),
         })
+    }
+    fn stat_entry(&self, path: &RelativePath) -> Result<EntryStat> {
+        self.called();
+        if path.as_path() == std::path::Path::new("note.md") {
+            let size = self.text.lock().unwrap().len() as u64;
+            return Ok(EntryStat {
+                size,
+                is_file: true,
+                readonly: !self.descriptor.capabilities.write,
+            });
+        }
+        Ok(EntryStat {
+            size: 3,
+            is_file: true,
+            readonly: !self.descriptor.capabilities.write,
+        })
+    }
+    fn read_head(&self, path: &RelativePath, max_bytes: usize) -> Result<Vec<u8>> {
+        self.called();
+        if path.as_path() == std::path::Path::new("note.md") {
+            let text = self.text.lock().unwrap();
+            let len = text.len().min(max_bytes);
+            return Ok(text.as_bytes()[..len].to_vec());
+        }
+        let sample = [1u8, 2, 3];
+        Ok(sample[..sample.len().min(max_bytes)].to_vec())
     }
 }
 impl ResourceWatchPort for Memory {

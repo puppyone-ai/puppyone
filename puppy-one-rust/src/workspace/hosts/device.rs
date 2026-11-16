@@ -399,13 +399,15 @@ impl DocumentStoragePort for DeviceFolder {
             Ok(text) => (text, TextEncoding::Utf8),
             Err(error) => (
                 String::from_utf8_lossy(error.as_bytes()).into_owned(),
-                TextEncoding::Unknown,
+                TextEncoding::Lossy,
             ),
         };
+        let (text, line_ending) = LineEnding::detect_and_normalize(&text);
         Ok(TextSnapshot {
             text,
             revision: Revision(revision),
             encoding,
+            line_ending,
         })
     }
     fn write(&self, path: &RelativePath, base: &Revision, text: &str) -> Result<WriteResult> {
@@ -422,6 +424,7 @@ impl DocumentStoragePort for DeviceFolder {
                 text: text.into(),
                 revision: Revision(result["revision"].as_str().unwrap_or_default().into()),
                 encoding: TextEncoding::Utf8,
+                line_ending: LineEnding::Lf,
             })),
             // Keep the draft when the other computer itself is unavailable.
             Err(error) if error.kind == ErrorKind::AlreadyExists => {
@@ -444,6 +447,19 @@ impl ResourcePort for DeviceFolder {
     }
     fn platform_path(&self, _: &RelativePath) -> Result<PathBuf> {
         Err(Error::unsupported())
+    }
+    fn stat_entry(&self, path: &RelativePath) -> Result<EntryStat> {
+        let (bytes, _) = self.read_bytes(path)?;
+        Ok(EntryStat {
+            size: bytes.len() as u64,
+            is_file: true,
+            readonly: false,
+        })
+    }
+    fn read_head(&self, path: &RelativePath, max_bytes: usize) -> Result<Vec<u8>> {
+        let (mut bytes, _) = self.read_bytes(path)?;
+        bytes.truncate(max_bytes);
+        Ok(bytes)
     }
 }
 impl ResourceWatchPort for DeviceFolder {

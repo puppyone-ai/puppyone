@@ -267,6 +267,11 @@ impl Version {
         };
         Ok(TextSnapshot {
             encoding: Default::default(),
+            line_ending: if crlf {
+                LineEnding::Crlf
+            } else {
+                LineEnding::Lf
+            },
             text: normalized,
             revision: version.revision()?,
         })
