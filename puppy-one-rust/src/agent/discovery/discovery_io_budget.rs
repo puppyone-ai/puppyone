@@ -15,6 +15,19 @@ pub mod policy {
 
 static PENDING_TASKS: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(test)]
+#[path = "discovery_io_budget_tests.rs"]
+mod tests;
+
+// A timed-out/cancelled caller does not own the slot. The blocking task keeps
+// it until it exits, including unwinding or being dropped before dispatch.
+struct Permit;
+impl Drop for Permit {
+    fn drop(&mut self) {
+        PENDING_TASKS.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
 fn io_error(code: &str) -> AgentError {
     AgentError::coded(code, "Installation filesystem check is incomplete.")
 }
@@ -34,10 +47,10 @@ pub async fn run_discovery_io<T: Send + 'static>(
     if admitted.is_err() {
         return Err(io_error("filesystem-busy"));
     }
+    let permit = Permit;
     let work = tokio::task::spawn_blocking(move || {
-        let result = task();
-        PENDING_TASKS.fetch_sub(1, Ordering::AcqRel);
-        result
+        let _permit = permit;
+        task()
     });
     let timeout = Duration::from_millis(timeout_ms.unwrap_or(policy::TIMEOUT_MS));
     let cancelled = async {

@@ -69,3 +69,74 @@ pub fn quote_windows_batch_argument(value: &str) -> AgentResult<String> {
     }
     Ok(format!("\"{value}\""))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn batch_plans_quote_paths_disable_expansion_and_native_plans_preserve_argv() {
+        let environment = EnvMap::from([("SystemRoot".into(), r"C:\Windows".into())]);
+        assert_eq!(
+            resolve_process_invocation(
+                r"C:\CLI tools\codex.cmd",
+                &["--version".into()],
+                "win32",
+                &environment
+            )
+            .unwrap(),
+            ProcessInvocation {
+                file: r"C:\Windows\System32\cmd.exe".into(),
+                args: [
+                    "/d",
+                    "/s",
+                    "/v:off",
+                    "/c",
+                    r#"""C:\CLI tools\codex.cmd" "--version"""#
+                ]
+                .map(String::from)
+                .into(),
+                verbatim_arguments: true,
+            }
+        );
+        for platform in ["win32", "linux", "darwin"] {
+            let file = if platform == "win32" {
+                r"C:\tools\codex.exe"
+            } else {
+                "/tools/codex"
+            };
+            let args = vec!["a b".into(), "&literal".into()];
+            assert_eq!(
+                resolve_process_invocation(file, &args, platform, &environment).unwrap(),
+                ProcessInvocation {
+                    file: file.into(),
+                    args,
+                    verbatim_arguments: false
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn batch_plans_reject_paths_and_arguments_cmd_cannot_preserve() {
+        for file in [r"C:\%expanded%\codex.cmd", "C:\\bad\"path\\codex.cmd"] {
+            assert!(
+                resolve_process_invocation(file, &[], "win32", &EnvMap::new())
+                    .unwrap_err()
+                    .message
+                    .contains("cannot preserve")
+            );
+        }
+        for argument in ["%PATH%", "a\"b", "a\rb", "a\nb", "a\0b"] {
+            assert!(
+                resolve_process_invocation(
+                    r"C:\tools\codex.cmd",
+                    &[argument.into()],
+                    "win32",
+                    &EnvMap::new()
+                )
+                .is_err()
+            );
+        }
+    }
+}

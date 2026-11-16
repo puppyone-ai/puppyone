@@ -167,7 +167,14 @@ pub async fn run_bounded_process_probe(
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    let mut child = command.spawn().map_err(|_| failure("could not start."))?;
+    let mut child = command.spawn().map_err(|error| {
+        #[cfg(test)]
+        if std::env::var_os("PUPPYONE_TEST_PROBE_DIAGNOSTICS").is_some() {
+            eprintln!("probe spawn: {executable_path} {error:?}");
+        }
+        let _ = error;
+        failure("could not start.")
+    })?;
     let pid = child.id();
     let kill = |child: &mut tokio::process::Child| {
         #[cfg(unix)]
@@ -253,10 +260,72 @@ pub async fn run_bounded_process_probe(
         .map(crate::agent::transports::managed_agent_process::signal_name);
     #[cfg(not(unix))]
     let signal: Option<String> = None;
-    Ok(ProbeResult {
+    let result = ProbeResult {
         stdout: String::from_utf8_lossy(&stdout).into_owned(),
         stderr: String::from_utf8_lossy(&stderr).into_owned(),
         code: status.code(),
         signal,
-    })
+    };
+    #[cfg(test)]
+    if std::env::var_os("PUPPYONE_TEST_PROBE_DIAGNOSTICS").is_some() {
+        eprintln!("bounded probe {executable_path}: {result:?}");
+    }
+    Ok(result)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use crate::agent::application::tests_support::run_local;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+    use tokio::io::ReadBuf;
+
+    struct ByteChunks<'a>(&'a [u8]);
+    impl AsyncRead for ByteChunks<'_> {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            if !self.0.is_empty() && buf.remaining() > 0 {
+                buf.put_slice(&self.0[..1]);
+                self.0 = &self.0[1..];
+            }
+            Poll::Ready(Ok(()))
+        }
+    }
+    #[test]
+    fn unicode_probe_output_survives_byte_chunks_and_real_pipe_boundaries() {
+        run_local(async {
+            let text = "PATH=/工具/命令/bin\0";
+            let bytes = read_bounded(
+                ByteChunks(text.as_bytes()),
+                Arc::new(AtomicUsize::new(0)),
+                100,
+            )
+            .await
+            .unwrap();
+            assert_eq!(bytes, text.as_bytes());
+            // Also exercise the public child-process path with more than one
+            // read buffer, including multi-byte scalars spanning its boundary.
+            let directory = tempfile::tempdir().unwrap();
+            let file = directory.path().join("unicode.txt");
+            let expected = text.repeat(1_024);
+            std::fs::write(&file, &expected).unwrap();
+            let result = run_bounded_process_probe(
+                "/bin/cat",
+                &[file.to_string_lossy().into_owned()],
+                ProbeOptions {
+                    max_output_bytes: expected.len(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(result.stdout, expected);
+            assert_eq!(result.code, Some(0));
+            assert!(result.stderr.is_empty());
+        });
+    }
 }

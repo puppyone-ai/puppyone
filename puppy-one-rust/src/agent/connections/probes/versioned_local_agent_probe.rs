@@ -78,6 +78,10 @@ pub async fn probe_versioned_local_agent(
         .await
     }
     .await;
+    #[cfg(test)]
+    if std::env::var_os("PUPPYONE_TEST_PROBE_DIAGNOSTICS").is_some() {
+        eprintln!("version probe {id}: {probe:?}");
+    }
     match probe {
         Ok(result) => match parse_versioned_local_agent_version(&format!(
             "{}\n{}",

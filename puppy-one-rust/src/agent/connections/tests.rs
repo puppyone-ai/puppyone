@@ -223,7 +223,7 @@ fn registers_every_terminal_launched_agent_and_verifies_generic_local_versions()
         )
         .await;
         assert_eq!(result["id"], "claude");
-        assert_eq!(result["installation"], "detected");
+        assert_eq!(result["installation"], "detected", "{result:#}");
         assert_eq!(result["version"], "2.1.159");
         assert_eq!(result["protocolCompatible"], false);
     });
@@ -252,10 +252,10 @@ fn finds_the_active_nvm_claude_through_path_and_opencode_through_its_product_fal
         let connections = snapshot["connections"].as_array().unwrap();
         assert_eq!(connections.len(), 2);
         assert_eq!(connections[0]["id"], "claude");
-        assert_eq!(connections[0]["installation"], "detected");
+        assert_eq!(connections[0]["installation"], "detected", "{snapshot:#}");
         assert_eq!(connections[0]["version"], "2.1.159");
         assert_eq!(connections[1]["id"], "opencode");
-        assert_eq!(connections[1]["installation"], "detected");
+        assert_eq!(connections[1]["installation"], "detected", "{snapshot:#}");
         assert_eq!(connections[1]["version"], "1.2.3");
         inventory.dispose();
     });
@@ -774,7 +774,7 @@ fn accepts_a_real_cursor_shaped_cli_whose_version_and_status_each_exceed_the_gen
         )
         .await
         .unwrap();
-        assert_eq!(cursor["status"], "ready");
+        assert_eq!(cursor["status"], "ready", "{cursor:#}");
         assert_eq!(cursor["code"], "READY");
         assert_eq!(cursor["selectable"], true);
         assert!(!cursor.to_string().contains("private@example.test"));

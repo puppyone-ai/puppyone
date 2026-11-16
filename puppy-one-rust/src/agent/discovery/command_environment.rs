@@ -10,6 +10,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+#[cfg(test)]
+#[path = "command_environment_tests.rs"]
+mod tests;
+
 /// A process environment (`{ NAME: value }`).
 pub type EnvMap = BTreeMap<String, String>;
 

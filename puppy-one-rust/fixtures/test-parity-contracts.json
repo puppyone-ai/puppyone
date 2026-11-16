@@ -13992,6 +13992,125 @@
           "test": "platform::git_history::tests::a_repository_reads_its_history_and_head"
         }
       ]
+    },
+    {
+      "id": "native-command-environment-and-discovery-budget",
+      "acceptance": "Preserve byte-split Unicode probe output; bash/zsh/fish issue one bounded neutral-cwd probe and parse only private frames; environment timeout/missing-marker/nonzero failures retain inherited state and retry fresh; cancellation cannot become fallback or success; Linux defaults to bash; Windows persistent PATH replaces competing Path while preserving unrelated settings; batch invocation plans quote paths, disable expansion, reject unpreservable input, and keep native argv. A process-wide 16-slot filesystem budget retains timed-out/cancelled work until actual completion, and releases on failure or panic. Windows subprocess execution remains a separate native-host gap; the plan tests do not prove that the process adapter honors verbatim arguments.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-installation/electron.command-environment.test.mjs",
+          "sha256": "31484a3354e32fad72f2b34c37160758f2d673af5d960f1282a760d2c2d19bb9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "platform command environment > preserves Unicode installation paths split across stdout chunks"
+            },
+            {
+              "index": 1,
+              "name": "platform command environment > loads bash once using a neutral cwd and parses framed data only"
+            },
+            {
+              "index": 2,
+              "name": "platform command environment > loads zsh once using a neutral cwd and parses framed data only"
+            },
+            {
+              "index": 3,
+              "name": "platform command environment > loads fish once using a neutral cwd and parses framed data only"
+            },
+            {
+              "index": 4,
+              "name": "platform command environment > reports timeout as incomplete and retries on the next read"
+            },
+            {
+              "index": 5,
+              "name": "platform command environment > reports missing-marker as incomplete and retries on the next read"
+            },
+            {
+              "index": 6,
+              "name": "platform command environment > reports nonzero-exit as incomplete and retries on the next read"
+            },
+            {
+              "index": 7,
+              "name": "platform command environment > does not turn cancellation into a successful fallback"
+            },
+            {
+              "index": 8,
+              "name": "platform command environment > uses the Linux shell policy when SHELL is absent"
+            },
+            {
+              "index": 9,
+              "name": "platform command environment > refreshes Windows persistent PATH without retaining a competing Path key"
+            },
+            {
+              "index": 10,
+              "name": "Windows CLI entrypoint invocation > launches an npm .cmd through cmd.exe with quoted paths and delayed expansion disabled"
+            },
+            {
+              "index": 11,
+              "name": "Windows CLI entrypoint invocation > preserves native argv without a shell"
+            },
+            {
+              "index": 12,
+              "name": "Windows CLI entrypoint invocation > rejects batch paths that cmd cannot preserve: C:\\%expanded%\\codex.cmd"
+            },
+            {
+              "index": 13,
+              "name": "Windows CLI entrypoint invocation > rejects batch paths that cmd cannot preserve: C:\\bad\"path\\codex.cmd"
+            },
+            {
+              "index": 14,
+              "name": "discovery filesystem budget > keeps timed-out work in the concurrency budget and releases capacity only on actual completion"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::discovery_io_budget::tests::timed_out_work_keeps_all_slots_until_the_blocking_tasks_really_finish"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::discovery_io_budget::tests::cancelled_work_retains_capacity_but_pre_cancelled_work_never_dispatches"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::discovery_io_budget::tests::panicking_and_failed_tasks_release_capacity_for_the_next_scan"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::command_environment::tests::login_shells_use_one_bounded_neutral_probe_and_only_private_framed_data"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::command_environment::tests::failed_environment_reads_remain_incomplete_and_the_next_read_retries"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::command_environment::tests::cancellation_during_environment_read_never_becomes_success_or_fallback"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::command_environment::tests::missing_shell_uses_the_linux_policy"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::command_environment::tests::windows_persistent_path_is_refreshed_without_competing_case_variants"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::windows::process_invocation::tests::batch_plans_quote_paths_disable_expansion_and_native_plans_preserve_argv"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::windows::process_invocation::tests::batch_plans_reject_paths_and_arguments_cmd_cannot_preserve"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::bounded_process_probe::tests::unicode_probe_output_survives_byte_chunks_and_real_pipe_boundaries"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
