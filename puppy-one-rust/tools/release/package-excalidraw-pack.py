@@ -47,18 +47,13 @@ def main() -> None:
     version = font_manifest['version']
     fonts = font_manifest['fonts']
 
-    font_root = ROOT / 'vendor/excalidraw/fonts'
-    check = subprocess.run([sys.executable, str(ROOT / 'tools/fetch-excalidraw-fonts.py'), '--check'],
-                           capture_output=True, text=True)
-    if check.returncode != 0:
-        subprocess.run([sys.executable, str(ROOT / 'tools/fetch-excalidraw-fonts.py')], check=True)
-
     with tempfile.TemporaryDirectory(prefix='po-excalidraw-pack-') as tmp:
         tmp_dir = Path(tmp)
-        subprocess.run(['node', str(ROOT / 'tools/import-excalidraw.mjs'), '--out-dir', str(tmp_dir)],
+        subprocess.run(['node', str(ROOT / 'tools/import-excalidraw.mjs'), '--export-verified', '--out-dir', str(tmp_dir)],
                        cwd=ROOT, check=True)
         js_bytes = (tmp_dir / 'excalidraw.js').read_bytes()
         css_bytes = (tmp_dir / 'excalidraw.css').read_bytes()
+        font_data = {name: (tmp_dir / 'fonts' / name).read_bytes() for name in fonts}
 
     if sha256_bytes(js_bytes) != receipt['outputs']['excalidraw.js']:
         raise SystemExit('Built excalidraw.js digest does not match assets/web/excalidraw.json')
@@ -83,7 +78,7 @@ def main() -> None:
         add_tar_bytes(tar, 'LICENSE', (ROOT / 'licenses/excalidraw/LICENSE').read_bytes())
         add_tar_bytes(tar, 'FONT-NOTICES.txt', (ROOT / 'licenses/excalidraw/FONT-NOTICES.txt').read_bytes())
         for rel_path in sorted(fonts.keys()):
-            font_bytes = (font_root / rel_path).read_bytes()
+            font_bytes = font_data[rel_path]
             if sha256_bytes(font_bytes) != fonts[rel_path]:
                 raise SystemExit(f'Font digest mismatch for {rel_path}')
             add_tar_bytes(tar, f'fonts/{rel_path}', font_bytes)

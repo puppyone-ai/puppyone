@@ -13,9 +13,9 @@ use std::{
 use unicode_normalization::UnicodeNormalization;
 
 #[derive(Clone, Debug)]
-pub(super) struct LocalRoot(Arc<Dir>);
+pub(crate) struct LocalRoot(Arc<Dir>);
 
-pub(super) struct OpenedFile {
+pub(crate) struct OpenedFile {
     pub file: File,
     pub relative: PathBuf,
     pub size: u64,
@@ -131,7 +131,7 @@ fn display_key(value: &str) -> String {
 }
 
 impl OpenedFile {
-    pub fn reader(self) -> io::Result<SnapshotReader> {
+    pub(super) fn reader(self) -> io::Result<SnapshotReader> {
         let before = self.file.metadata()?;
         Ok(SnapshotReader {
             file: self.file,
@@ -142,7 +142,7 @@ impl OpenedFile {
     /// the admitted end. Appends cannot extend this stream. Dropping it closes
     /// the file; revocation prevents subsequent chunks from being delivered.
     #[cfg(test)]
-    pub fn stream(
+    pub(super) fn stream(
         mut self,
         start: u64,
         length: u64,
@@ -158,8 +158,7 @@ impl OpenedFile {
         })
     }
 
-    #[cfg(test)]
-    pub fn read_bounded(self, max: u64) -> io::Result<Vec<u8>> {
+    pub(crate) fn read_bounded(self, max: u64) -> io::Result<Vec<u8>> {
         if self.size > max {
             return Err(io::Error::new(
                 io::ErrorKind::FileTooLarge,

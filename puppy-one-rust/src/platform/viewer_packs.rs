@@ -6,8 +6,8 @@ use super::build_identity::{self, Channel};
 use flate2::read::GzDecoder;
 use sha2::{Digest as _, Sha256};
 use std::{
-    collections::BTreeMap,
-    io::Read as _,
+    collections::{BTreeMap, HashSet},
+    io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
@@ -92,42 +92,74 @@ fn sha256_hex(bytes: &[u8]) -> String {
 /// Loads the installed Excalidraw pack from [`packs_root`], caching the
 /// verified bundle bytes in memory once checked.
 pub fn load_excalidraw() -> Option<ExcalidrawPack> {
-    let root = packs_root();
-    if let Ok(guard) = cache().lock()
-        && let Some((cached_root, pack)) = guard.as_ref()
-        && *cached_root == root
-        && pack.dir.join("fonts").is_dir()
+    load_cached(&packs_root(), excalidraw_spec(), cache())
+}
+
+fn load_cached(
+    root: &Path,
+    spec: &ExcalidrawSpec,
+    cache: &Mutex<Option<(PathBuf, ExcalidrawPack)>>,
+) -> Option<ExcalidrawPack> {
+    // Never hold the cache lock while checking files on disk.
+    let cached = cache.lock().ok().and_then(|guard| guard.clone());
+    if let Some((cached_root, pack)) = cached
+        && cached_root == root
+        && verified_fonts(
+            root,
+            &PathBuf::from(EXCALIDRAW_PACK_ID).join(&pack.version),
+            spec,
+        )
+        .is_ok()
     {
-        return Some(pack.clone());
+        return Some(pack);
     }
-    let pack = load_excalidraw_from(&root)?;
-    if let Ok(mut guard) = cache().lock() {
-        *guard = Some((root, pack.clone()));
+    let pack = load_with_spec(root, spec)?;
+    if let Ok(mut guard) = cache.lock() {
+        *guard = Some((root.to_path_buf(), pack.clone()));
     }
     Some(pack)
 }
 
 /// Loads and verifies an installed Excalidraw pack under `root`.
 pub fn load_excalidraw_from(root: &Path) -> Option<ExcalidrawPack> {
-    let spec = excalidraw_spec();
+    load_with_spec(root, excalidraw_spec())
+}
+
+fn load_with_spec(root: &Path, spec: &ExcalidrawSpec) -> Option<ExcalidrawPack> {
     let dir = root.join(EXCALIDRAW_PACK_ID).join(&spec.version);
-    if !dir.join("fonts").is_dir() {
-        return None;
-    }
-    let script = std::fs::read(dir.join("excalidraw.js")).ok()?;
-    if sha256_hex(&script) != spec.script_sha256 {
-        return None;
-    }
-    let style = std::fs::read(dir.join("excalidraw.css")).ok()?;
-    if sha256_hex(&style) != spec.style_sha256 {
-        return None;
-    }
+    let relative = PathBuf::from(EXCALIDRAW_PACK_ID).join(&spec.version);
+    let grant = super::webview::files::LocalRoot::open(root).ok()?;
+    let script = checked_file(&grant, &relative.join("excalidraw.js"), &spec.script_sha256).ok()?;
+    let style = checked_file(&grant, &relative.join("excalidraw.css"), &spec.style_sha256).ok()?;
+    verified_fonts(root, &relative, spec).ok()?;
     Some(ExcalidrawPack {
         version: spec.version.clone(),
         script: Arc::from(script),
         style: Arc::from(style),
         dir,
     })
+}
+
+fn checked_file(
+    grant: &super::webview::files::LocalRoot,
+    path: &Path,
+    expected: &str,
+) -> Result<Vec<u8>, String> {
+    let bytes = grant
+        .file(path)
+        .and_then(|f| f.read_bounded(MAX_EXTRACTED_BYTES))
+        .map_err(|e| format!("Invalid viewer pack file {}: {e}", path.display()))?;
+    if sha256_hex(&bytes) != expected {
+        return Err(format!("Viewer pack {} digest mismatch.", path.display()));
+    }
+    Ok(bytes)
+}
+fn verified_fonts(root: &Path, relative: &Path, spec: &ExcalidrawSpec) -> Result<(), String> {
+    let grant = super::webview::files::LocalRoot::open(root).map_err(|e| e.to_string())?;
+    for (font, digest) in &spec.fonts {
+        checked_file(&grant, &relative.join("fonts").join(font), digest)?;
+    }
+    Ok(())
 }
 
 /// Downloads, cryptographically verifies, and atomically installs the
@@ -146,40 +178,65 @@ pub fn install_excalidraw() -> Result<ExcalidrawPack, String> {
 /// Verifies every file inside a `.tar.gz` Excalidraw pack archive against
 /// [`excalidraw_spec`] and atomically swaps it into `root`.
 pub fn install_excalidraw_bytes(root: &Path, archive_gz: &[u8]) -> Result<ExcalidrawPack, String> {
+    install_with_spec(root, archive_gz, excalidraw_spec())
+}
+
+fn install_with_spec(
+    root: &Path,
+    archive_gz: &[u8],
+    spec: &ExcalidrawSpec,
+) -> Result<ExcalidrawPack, String> {
     if archive_gz.len() as u64 > MAX_ARCHIVE_BYTES {
         return Err("Viewer pack archive exceeds the 32 MiB limit.".into());
     }
-    std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
-    let staging = root.join(format!(".staging-{}", uuid::Uuid::new_v4()));
-    let result = unpack_and_verify(&staging, archive_gz);
-    if let Err(error) = result {
-        let _ = std::fs::remove_dir_all(&staging);
-        return Err(error);
-    }
-    let (script, style) = result?;
-    let spec = excalidraw_spec();
     let parent = root.join(EXCALIDRAW_PACK_ID);
-    std::fs::create_dir_all(&parent).map_err(|e| {
-        let _ = std::fs::remove_dir_all(&staging);
-        e.to_string()
-    })?;
-    let dest = parent.join(&spec.version);
-    if dest.exists() {
-        let backup = parent.join(format!(".old-{}", uuid::Uuid::new_v4()));
-        std::fs::rename(&dest, &backup).map_err(|e| {
-            let _ = std::fs::remove_dir_all(&staging);
-            e.to_string()
-        })?;
-        if let Err(e) = std::fs::rename(&staging, &dest) {
-            let _ = std::fs::rename(&backup, &dest);
-            let _ = std::fs::remove_dir_all(&staging);
-            return Err(e.to_string());
-        }
-        let _ = std::fs::remove_dir_all(&backup);
-    } else if let Err(e) = std::fs::rename(&staging, &dest) {
-        let _ = std::fs::remove_dir_all(&staging);
-        return Err(e.to_string());
+    std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
+    // Cooperating application processes serialize publication of the same
+    // pinned version. TempDir owns every failed/cancelled staging directory.
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(parent.join(".install.lock"))
+        .map_err(|e| e.to_string())?;
+    lock.lock().map_err(|e| e.to_string())?;
+    let staging = tempfile::Builder::new()
+        .prefix(".staging-")
+        .tempdir_in(&parent)
+        .map_err(|e| e.to_string())?;
+    let (script, style) = unpack_and_verify(staging.path(), archive_gz, spec)?;
+    // Do not replace a valid version: existing readers retain its directory.
+    // Validate the new archive first so bad input never masquerades as success.
+    if let Some(pack) = load_with_spec(root, spec) {
+        return Ok(pack);
     }
+    let dest = parent.join(&spec.version);
+    let publish = super::templates::publish;
+    match std::fs::symlink_metadata(&dest) {
+        Ok(metadata) => {
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("Viewer pack destination is not a regular directory.".into());
+            }
+            let backup = parent.join(format!(".old-{}", uuid::Uuid::new_v4()));
+            publish(&dest, &backup).map_err(|e| e.to_string())?;
+            if let Err(error) = publish(staging.path(), &dest) {
+                if let Err(rollback) = publish(&backup, &dest) {
+                    return Err(format!(
+                        "Viewer pack publication failed: {error}; previous files retained at {} because rollback failed: {rollback}",
+                        backup.display()
+                    ));
+                }
+                return Err(error.to_string());
+            }
+            let _ = std::fs::remove_dir_all(backup);
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            publish(staging.path(), &dest).map_err(|e| e.to_string())?;
+        }
+        Err(error) => return Err(error.to_string()),
+    }
+
     Ok(ExcalidrawPack {
         version: spec.version.clone(),
         script,
@@ -190,11 +247,16 @@ pub fn install_excalidraw_bytes(root: &Path, archive_gz: &[u8]) -> Result<Excali
 
 type VerifiedBundles = (Arc<[u8]>, Arc<[u8]>);
 
-fn unpack_and_verify(staging: &Path, archive_gz: &[u8]) -> Result<VerifiedBundles, String> {
+fn unpack_and_verify(
+    staging: &Path,
+    archive_gz: &[u8],
+    spec: &ExcalidrawSpec,
+) -> Result<VerifiedBundles, String> {
     std::fs::create_dir_all(staging).map_err(|e| e.to_string())?;
     let decoder = GzDecoder::new(archive_gz);
     let mut archive = tar::Archive::new(decoder);
     let mut total_bytes = 0u64;
+    let mut seen = HashSet::new();
     let entries = archive.entries().map_err(|e| e.to_string())?;
     for entry in entries {
         let mut entry = entry.map_err(|e| e.to_string())?;
@@ -207,6 +269,35 @@ fn unpack_and_verify(staging: &Path, archive_gz: &[u8]) -> Result<VerifiedBundle
         {
             return Err("Viewer pack archive contains an invalid relative path.".into());
         }
+        let Some(name) = rel.to_str() else {
+            return Err("Viewer pack archive contains a non-UTF-8 path.".into());
+        };
+        if name.contains('\\')
+            || name
+                .split('/')
+                .any(|p| p.is_empty() || p == "." || p == "..")
+        {
+            return Err("Viewer pack archive contains an invalid relative path.".into());
+        }
+        if !seen.insert(rel.clone()) {
+            return Err(format!("Viewer pack archive repeats {name}."));
+        }
+        let digest = match name {
+            "excalidraw.js" => Some(spec.script_sha256.as_str()),
+            "excalidraw.css" => Some(spec.style_sha256.as_str()),
+            "manifest.json" | "LICENSE" | "FONT-NOTICES.txt" => None,
+            _ => Some(
+                name.strip_prefix("fonts/")
+                    .and_then(|p| spec.fonts.get(p))
+                    .ok_or_else(|| {
+                        format!("Viewer pack archive contains an unlisted file: {name}")
+                    })?
+                    .as_str(),
+            ),
+        };
+        if entry.size() > MAX_EXTRACTED_BYTES - total_bytes {
+            return Err("Viewer pack archive exceeds the extracted size budget.".into());
+        }
         let mut buf = Vec::new();
         entry
             .by_ref()
@@ -217,41 +308,51 @@ fn unpack_and_verify(staging: &Path, archive_gz: &[u8]) -> Result<VerifiedBundle
         if total_bytes > MAX_EXTRACTED_BYTES {
             return Err("Viewer pack archive exceeds the extracted size budget.".into());
         }
+        if let Some(expected) = digest {
+            if sha256_hex(&buf) != expected {
+                return Err(format!("Viewer pack {name} digest mismatch."));
+            }
+        } else {
+            let valid = match name {
+                "LICENSE" => buf == include_bytes!("../../licenses/excalidraw/LICENSE"),
+                "FONT-NOTICES.txt" => buf == include_bytes!("../../licenses/excalidraw/FONT-NOTICES.txt"),
+                "manifest.json" => serde_json::from_slice::<serde_json::Value>(&buf).is_ok_and(|v| v == serde_json::json!({
+                    "schemaVersion": 1, "id": EXCALIDRAW_PACK_ID, "version": spec.version,
+                    "outputs": {"excalidraw.js": spec.script_sha256, "excalidraw.css": spec.style_sha256},
+                    "fontCount": spec.fonts.len(),
+                })),
+                _ => false,
+            };
+            if !valid {
+                return Err(format!(
+                    "Viewer pack {name} does not match its compiled receipt."
+                ));
+            }
+        }
         let out = staging.join(&rel);
         if let Some(parent) = out.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        std::fs::write(&out, &buf).map_err(|e| e.to_string())?;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&out)
+            .map_err(|e| e.to_string())?;
+        file.write_all(&buf)
+            .and_then(|_| file.sync_all())
+            .map_err(|e| e.to_string())?;
     }
 
-    let spec = excalidraw_spec();
-    let script = std::fs::read(staging.join("excalidraw.js"))
-        .map_err(|_| "Viewer pack is missing excalidraw.js.".to_owned())?;
-    if sha256_hex(&script) != spec.script_sha256 {
-        return Err("Viewer pack excalidraw.js digest mismatch.".into());
-    }
-    let style = std::fs::read(staging.join("excalidraw.css"))
-        .map_err(|_| "Viewer pack is missing excalidraw.css.".to_owned())?;
-    if sha256_hex(&style) != spec.style_sha256 {
-        return Err("Viewer pack excalidraw.css digest mismatch.".into());
-    }
-    for (font_rel, expected_sha) in &spec.fonts {
-        let bytes = std::fs::read(staging.join("fonts").join(font_rel))
-            .map_err(|_| format!("Viewer pack is missing font {font_rel}."))?;
-        if sha256_hex(&bytes) != *expected_sha {
-            return Err(format!("Viewer pack font digest mismatch for {font_rel}."));
-        }
-    }
+    let grant = super::webview::files::LocalRoot::open(staging).map_err(|e| e.to_string())?;
+    let script = checked_file(&grant, Path::new("excalidraw.js"), &spec.script_sha256)?;
+    let style = checked_file(&grant, Path::new("excalidraw.css"), &spec.style_sha256)?;
+    verified_fonts(staging, Path::new(""), spec)?;
     Ok((Arc::from(script), Arc::from(style)))
 }
 
 fn fetch_excalidraw_archive(version: &str) -> Result<Vec<u8>, String> {
     if let Some(local) = std::env::var_os("PUPPYONE_VIEWER_PACKS_ARCHIVE") {
-        let bytes = std::fs::read(local).map_err(|e| e.to_string())?;
-        if bytes.len() as u64 > MAX_ARCHIVE_BYTES {
-            return Err("Viewer pack archive exceeds the 32 MiB limit.".into());
-        }
-        return Ok(bytes);
+        return read_archive_file(Path::new(&local));
     }
     let base = std::env::var("PUPPYONE_VIEWER_PACKS_BASE_URL")
         .ok()
@@ -275,11 +376,29 @@ fn fetch_excalidraw_archive(version: &str) -> Result<Vec<u8>, String> {
     // yet been uploaded to CDN.
     if build_identity::current().channel == Channel::Dev
         && let Some(local) = dev_local_archive(version)
-        && let Ok(bytes) = std::fs::read(local)
+        && let Ok(bytes) = read_archive_file(&local)
     {
         return Ok(bytes);
     }
     remote_result
+}
+
+fn read_archive(reader: impl std::io::Read, limit: u64) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    reader
+        .take(limit.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > limit {
+        return Err("Viewer pack archive exceeds the 32 MiB limit.".into());
+    }
+    Ok(bytes)
+}
+fn read_archive_file(path: &Path) -> Result<Vec<u8>, String> {
+    read_archive(
+        std::fs::File::open(path).map_err(|e| e.to_string())?,
+        MAX_ARCHIVE_BYTES,
+    )
 }
 
 fn dev_local_archive(version: &str) -> Option<PathBuf> {
@@ -298,6 +417,10 @@ fn dev_local_archive(version: &str) -> Option<PathBuf> {
 }
 
 fn download_bytes(url: &url::Url) -> Result<Vec<u8>, String> {
+    download_with_budget(url, MAX_ARCHIVE_BYTES, Duration::from_secs(180))
+}
+
+fn download_with_budget(url: &url::Url, limit: u64, timeout: Duration) -> Result<Vec<u8>, String> {
     let loopback = matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1"));
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -305,12 +428,22 @@ fn download_bytes(url: &url::Url) -> Result<Vec<u8>, String> {
         .map_err(|e| e.to_string())?;
     rt.block_on(async {
         let client = super::proxy::system(reqwest::Client::builder())
-            .redirect_policy(reqwest::redirect::Policy::limited(3))
+            .redirect_policy(reqwest::redirect::Policy::custom(|attempt| {
+                let target = attempt.url();
+                let local = matches!(target.host_str(), Some("127.0.0.1" | "localhost" | "::1"));
+                if attempt.previous().len() > 3 {
+                    attempt.error("Too many viewer pack redirects")
+                } else if target.scheme() == "https" || (target.scheme() == "http" && local) {
+                    attempt.follow()
+                } else {
+                    attempt.error("Viewer pack redirects require HTTPS")
+                }
+            }))
             .https_only(!loopback)
-            .timeout(Duration::from_secs(180))
+            .timeout(timeout)
             .build()
             .map_err(|e| e.to_string())?;
-        let response = client
+        let mut response = client
             .get(url.clone())
             .send()
             .await
@@ -318,82 +451,19 @@ fn download_bytes(url: &url::Url) -> Result<Vec<u8>, String> {
         if !response.status().is_success() {
             return Err(format!("{url} answered {}", response.status()));
         }
-        if response
-            .content_length()
-            .is_some_and(|n| n > MAX_ARCHIVE_BYTES)
-        {
+        if response.content_length().is_some_and(|n| n > limit) {
             return Err("Viewer pack archive exceeds the 32 MiB limit.".into());
         }
-        let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-        if bytes.len() as u64 > MAX_ARCHIVE_BYTES {
-            return Err("Viewer pack archive exceeds the 32 MiB limit.".into());
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+            if chunk.len() as u64 > limit.saturating_sub(bytes.len() as u64) {
+                return Err("Viewer pack archive exceeds the 32 MiB limit.".into());
+            }
+            bytes.extend_from_slice(&chunk);
         }
-        Ok(bytes.to_vec())
+        Ok(bytes)
     })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-    use flate2::{Compression, write::GzEncoder};
-
-    fn make_tar_gz(entries: &[(&str, &[u8])]) -> Vec<u8> {
-        let mut gz = GzEncoder::new(Vec::new(), Compression::fast());
-        {
-            let mut tar = tar::Builder::new(&mut gz);
-            for (path, data) in entries {
-                let mut header = tar::Header::new_gnu();
-                header.set_size(data.len() as u64);
-                header.set_mode(0o644);
-                header.set_cksum();
-                tar.append_data(&mut header, path, *data).unwrap();
-            }
-            tar.finish().unwrap();
-        }
-        gz.finish().unwrap()
-    }
-
-    #[test]
-    fn pinned_excalidraw_spec_parses_digests_and_fonts() {
-        let spec = excalidraw_spec();
-        assert!(!spec.version.is_empty());
-        assert_eq!(spec.script_sha256.len(), 64);
-        assert_eq!(spec.style_sha256.len(), 64);
-        assert!(spec.fonts.len() >= 200);
-        for family in ["Assistant/", "Excalifont/", "Virgil/", "Xiaolai/"] {
-            assert!(spec.fonts.keys().any(|k| k.starts_with(family)), "{family}");
-        }
-    }
-
-    #[test]
-    fn tampered_or_traversing_archives_are_rejected_and_missing_root_returns_none() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(load_excalidraw_from(dir.path()).is_none());
-
-        let bad_js = make_tar_gz(&[
-            ("excalidraw.js", b"tampered"),
-            ("excalidraw.css", b"tampered"),
-        ]);
-        let err = install_excalidraw_bytes(dir.path(), &bad_js).unwrap_err();
-        assert!(err.contains("digest mismatch"), "{err}");
-        assert!(load_excalidraw_from(dir.path()).is_none());
-
-        // Tampered on-disk script after manual placement is also refused.
-        let spec = excalidraw_spec();
-        let manual = dir.path().join(EXCALIDRAW_PACK_ID).join(&spec.version);
-        std::fs::create_dir_all(manual.join("fonts")).unwrap();
-        std::fs::write(manual.join("excalidraw.js"), b"bad").unwrap();
-        std::fs::write(manual.join("excalidraw.css"), b"bad").unwrap();
-        assert!(load_excalidraw_from(dir.path()).is_none());
-
-        // Real built pack archive (when packaged locally) installs and loads cleanly.
-        if let Some(archive_path) = dev_local_archive(&spec.version) {
-            let archive = std::fs::read(archive_path).unwrap();
-            let installed = install_excalidraw_bytes(dir.path(), &archive).unwrap();
-            assert_eq!(installed.version, spec.version);
-            assert!(!installed.script.is_empty());
-            assert!(load_excalidraw_from(dir.path()).is_some());
-        }
-    }
-}
+mod tests;

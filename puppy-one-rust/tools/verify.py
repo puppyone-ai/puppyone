@@ -26,6 +26,7 @@ commands = [
     ('test-runner', ['python3', '-B', '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_*.py']),
     ('test-parity-reference', ['node', 'tools/reference-test-parity.mjs', '--check']),
     ('test-parity-cases', ['node', 'tools/collect-test-cases.mjs']),
+    ('viewer-pack', ['python3', '-B', 'tools/verify-viewer-pack.py']),
     ('test-parity-contracts', ['python3', '-B', 'tools/verify-test-parity.py']),
     ('filesystem-case-sensitivity', ['python3', '-B', 'tools/verify-filesystem-case-sensitivity.py']),
     ('managed-installer-interop', ['python3', '-B', 'tools/verify-managed-installer-interop.py']),

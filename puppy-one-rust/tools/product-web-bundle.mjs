@@ -34,10 +34,12 @@ const WEBKIT_COMPAT = `(()=>{const d=TextDecoder.prototype.decode;const r=v=>v&&
 export async function bundleProductPage({name, entry, styles, workers = {}, baseUrl = './',
   conditions = [], plugins = [], packages = [], cssExternal = [], cssRewrite = text => text,
   cssFonts = 'empty', bundleOutDir = path.join(root, 'assets/web')}) {
-  const check = process.argv.includes('--check');
+  const exporting = process.argv.includes('--export-verified');
+  const check = process.argv.includes('--check') || exporting;
   const cliArgs = process.argv.slice(2);
   const outIdx = cliArgs.indexOf('--out-dir');
   const explicitOutDir = outIdx >= 0 && cliArgs[outIdx + 1] ? path.resolve(cliArgs[outIdx + 1]) : null;
+  if (exporting && !explicitOutDir) throw new Error('--export-verified requires --out-dir');
   const product = await productRoot(cliArgs.find((a, i) => !a.startsWith('--') && (outIdx < 0 || i !== outIdx + 1)));
   const modules = path.join(product, 'node_modules');
   const {build} = await import(pathToFileURL(path.join(modules, 'esbuild/lib/main.js')));
@@ -117,7 +119,7 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
   const assetDir = explicitOutDir ?? bundleOutDir;
   if (check) {
     const stale = [];
-    if (assetDir) {
+    if (assetDir && !exporting) {
       for (const [file, text] of Object.entries(files)) {
         const committed = await readFile(path.join(assetDir, file), 'utf8').catch(() => null);
         if (committed !== text) stale.push(file);
@@ -128,6 +130,10 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
       || JSON.stringify(committed.packages) !== JSON.stringify(receipt.packages)
       || JSON.stringify(committed.outputs) !== JSON.stringify(receipt.outputs)) stale.push(`${name}.json`);
     if (stale.length) throw new Error(`Stale ${name} assets: ${stale.join(', ')} (run node tools/import-${name}.mjs)`);
+    if (exporting) {
+      await mkdir(explicitOutDir, {recursive: true});
+      for (const [file, text] of Object.entries(files)) await writeFile(path.join(explicitOutDir, file), text);
+    }
     console.log(`${name} assets verified (${sources.length} product sources)`);
   } else {
     await mkdir(target, {recursive: true});

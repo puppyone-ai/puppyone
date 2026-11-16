@@ -12693,6 +12693,95 @@
         }
       ],
       "environment": "macos"
+    },
+    {
+      "id": "native-viewer-pack-installation",
+      "acceptance": "Reject actual traversal and absolute archive entries before publication. The native Excalidraw build always uses the production SDK; its verified export includes every pinned font, offline fallback and idempotent unsubscribe/host patches. A mandatory real-pack test installs all 234 fonts and checks bundle assets. Deterministic fixtures additionally enforce duplicate/unlisted/link refusal, every pinned file digest including cached font loads, bounded chunked and local reads, strict redirect admission, same-version reuse, serialized installers and cleanup after rejected publication. Native first-party TAR/compiled SHA-256 pins replace the TS fixture ZIP/signature mechanism only for this fixed pack; generic plugin signatures, registry activation, uninstall, immutable content-addressed versions and full whiteboard interaction remain separate acceptance.",
+      "typescript": [
+        {
+          "path": "tests/integration/extensions/viewer-packs/package-install.test.mjs",
+          "sha256": "00530c1fdec26a5957b27bdb573eed967ae0c0534fc6b76e226a29a7d7698a1e",
+          "cases": [
+            {
+              "index": 2,
+              "name": "viewer pack package install > rejects path traversal entries"
+            },
+            {
+              "index": 3,
+              "name": "viewer pack package install > rejects absolute archive entry paths"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/runtime/whiteboardAssets.test.mjs",
+          "sha256": "4bf9dea3d4346298fde41e6910949ea4d4a6eee66b9518fb5f5ef9822ddbc20f",
+          "cases": [
+            {
+              "index": 1,
+              "name": "whiteboard desktop resources > keeps the SDK font fallback offline and emits every referenced font"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::pinned_excalidraw_spec_parses_digests_and_fonts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::tampered_scripts_are_rejected_and_missing_root_returns_none"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::deterministic_valid_archives_install_and_every_font_is_verified_again_on_load"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::duplicate_or_unlisted_archive_files_are_refused_without_replacing_the_installed_pack"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::actual_traversal_absolute_link_and_special_entries_never_escape_staging"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::missing_or_changed_pinned_files_keep_the_previous_installation_and_remove_staging"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::chunked_downloads_stop_at_the_byte_budget_without_waiting_for_eof"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::installed_assets_and_font_directories_cannot_be_replaced_with_symlinks"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::local_archive_reads_stop_at_the_budget_and_preserve_io_failures"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::repeated_and_concurrent_installation_reuses_one_complete_version"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::failed_publication_leaves_an_existing_file_untouched_and_cleans_staging"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::the_actual_pinned_pack_installs_all_sdk_fonts_without_network_fallback"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::cache_reuses_verified_bundles_but_rejects_a_changed_font"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::viewer_packs::tests::download_headers_errors_and_redirects_preserve_the_admission_boundary"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

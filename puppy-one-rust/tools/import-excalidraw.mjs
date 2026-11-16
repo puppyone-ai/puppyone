@@ -17,7 +17,7 @@
 //
 // The fonts (13 MB, mostly Xiaolai's CJK shards) are not bundled: they are
 // served from disk (tools/fetch-excalidraw-fonts.py installs them).
-import {mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
+import {copyFile, mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {root} from './product-bundle.mjs';
@@ -99,7 +99,7 @@ const outputs = {
 for (const file of ['LICENSE', 'FONT-NOTICES.txt']) {
   outputs[`licenses/excalidraw/${file}`] = await readFile(path.join(product, 'licenses/excalidraw', file), 'utf8');
 }
-if (process.argv.includes('--check')) {
+if (process.argv.includes('--check') || process.argv.includes('--export-verified')) {
   for (const [file, text] of Object.entries(outputs)) {
     if (await readFile(path.join(root, file), 'utf8').catch(() => null) !== text) {
       throw new Error(`Stale ${file} (run node tools/import-excalidraw.mjs)`);
@@ -112,4 +112,15 @@ if (process.argv.includes('--check')) {
     await writeFile(path.join(root, file), text);
   }
   console.log(`excalidraw fonts listed (${files.length}) and licenses copied`);
+}
+
+// Verified exports are self-contained pack inputs. Read fonts from the same
+// pinned SDK used by the bundle; packaging must not install source-tree files.
+if (process.argv.includes('--export-verified')) {
+  const output = path.resolve(process.argv[process.argv.indexOf('--out-dir') + 1]);
+  for (const name of files) {
+    const target = path.join(output, 'fonts', name);
+    await mkdir(path.dirname(target), {recursive: true});
+    await copyFile(path.join(fonts, name), target);
+  }
 }

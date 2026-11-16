@@ -15,7 +15,7 @@
 use std::path::{Component, Path, PathBuf};
 #[cfg(test)]
 mod file_tests;
-mod files;
+pub(crate) mod files;
 mod range;
 mod request;
 mod stream;
