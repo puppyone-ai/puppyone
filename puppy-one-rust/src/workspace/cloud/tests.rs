@@ -1075,8 +1075,9 @@ fn document_and_tree_subscriptions_share_one_stream_and_last_drop_stops_it() {
     assert_eq!(f.state.streams.lock().unwrap().len(), 1);
     drop(document);
     wait(|| f.state.streams.lock().unwrap().is_empty());
+    let before_reopen = shared.epoch.load(Ordering::SeqCst);
     let (_next, _) = subscription(&ws);
-    wait(|| shared.epoch.load(Ordering::SeqCst) >= epoch + 22);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= before_reopen + 2);
     assert_eq!(f.state.stream_count.load(Ordering::SeqCst), 2);
 }
 #[test]

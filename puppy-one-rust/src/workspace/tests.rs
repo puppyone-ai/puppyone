@@ -264,3 +264,84 @@ fn moving_an_expanded_subtree_carries_state_into_the_destination_listing() {
     assert!(tree.index_of(Path::new("to/from/nested/a.md")).is_some());
     assert!(tree.find_mut(Path::new("from")).is_none());
 }
+
+/// DP-51 regression gate: multiple open watched local documents sitting idle
+/// perform exact `0` full-file observation reads, and editing one file reads
+/// only that changed file via the shared root watcher.
+#[test]
+fn idle_open_documents_perform_zero_full_file_observation_reads() {
+    let dir = tempfile::tempdir().unwrap();
+    let names = ["one.md", "two.md", "three.md", "four.md"];
+    for name in names {
+        std::fs::write(dir.path().join(name), format!("initial {name}\n")).unwrap();
+    }
+    let ws = Workspace::open(dir.path()).unwrap();
+    let root_wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let root_seen = root_wakes.clone();
+    let _root_sub = ws
+        .watch_root(Arc::new(move || {
+            root_seen.fetch_add(1, Ordering::SeqCst);
+        }))
+        .unwrap();
+
+    let mut subs = Vec::new();
+    let mut flags = Vec::new();
+    for name in names {
+        let doc = ws.read(Path::new(name)).unwrap();
+        let woke = Arc::new(AtomicBool::new(false));
+        let flag = woke.clone();
+        let sub = ws
+            .watch(
+                &doc,
+                Arc::new(move || {
+                    flag.store(true, Ordering::SeqCst);
+                }),
+            )
+            .unwrap();
+        subs.push(sub);
+        flags.push(woke);
+    }
+
+    // Sit idle across >2x the retired 500ms polling interval.
+    std::thread::sleep(Duration::from_millis(1200));
+    assert_eq!(
+        ws.observation_full_reads(),
+        0,
+        "DP-51: idle open documents must perform 0 full-file observation reads"
+    );
+    assert!(flags.iter().all(|f| !f.load(Ordering::SeqCst)));
+
+    // Modify only `two.md`; only its subscription wakes.
+    std::fs::write(dir.path().join("two.md"), "updated two\n").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while !flags[1].load(Ordering::SeqCst) {
+        assert!(Instant::now() < deadline, "two.md watch did not wake");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(matches!(subs[1].next(), Some(WatchEvent::Invalidated)));
+    assert!(!flags[0].load(Ordering::SeqCst));
+    assert!(!flags[2].load(Ordering::SeqCst));
+    assert!(!flags[3].load(Ordering::SeqCst));
+    assert_eq!(ws.observation_full_reads(), 1);
+}
+
+/// RG-01 / RG-02 support: `stat_entry` and `read_head` inspect oversized
+/// binary files without reading the entire payload into memory.
+#[test]
+fn stat_entry_and_read_head_work_on_files_exceeding_text_limit() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("oversized_blob");
+    let mut payload = b"%PDF-1.7\nheader-bytes\n".to_vec();
+    payload.resize(MAX_TEXT_BYTES + 4096, b'x');
+    std::fs::write(&path, &payload).unwrap();
+
+    let ws = Workspace::open(dir.path()).unwrap();
+    let stat = ws.stat_entry(Path::new("oversized_blob")).unwrap();
+    assert_eq!(stat.size, (MAX_TEXT_BYTES + 4096) as u64);
+    assert!(stat.is_file);
+    assert!(!stat.readonly);
+
+    let head = ws.read_head(Path::new("oversized_blob"), 64).unwrap();
+    assert_eq!(head.len(), 64);
+    assert!(head.starts_with(b"%PDF-1.7\nheader-bytes\n"));
+}

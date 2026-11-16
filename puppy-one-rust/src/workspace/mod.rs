@@ -17,7 +17,10 @@ mod tests;
 
 use crate::model::Node;
 use contracts::{Descriptor, RelativePath, Revision, TextSnapshot, WriteResult};
-pub use contracts::{Error, ErrorKind, PreviewData, ResourceId, Result, TextEncoding};
+pub use contracts::{
+    Encoding, EntryStat, Error, ErrorKind, LineEnding, PreviewData, ResourceId, Result,
+    TextEncoding,
+};
 use ports::{Notify, Provider, WatchCancellation, WatchEvent, WatchSubscription};
 use std::{
     path::{Path, PathBuf},
@@ -67,10 +70,47 @@ pub struct Document {
     pub relative: PathBuf,
     pub text: String,
     pub identity: ResourceId,
-    /// Not UTF-8: shown read-only, never written (`FileContent.encoding`).
+    /// Decoded text encoding (`DP-32`): lossless encodings save back in place;
+    /// [`TextEncoding::Lossy`] is read-only.
     pub encoding: TextEncoding,
+    /// Observed line-ending discipline (`DP-31`).
+    pub line_ending: LineEnding,
     revision: Revision,
     lease: Uuid,
+}
+impl Document {
+    /// `true` when the file had lone `CR` or mixed line endings and requires
+    /// explicit normalization before saving (`DP-31`).
+    pub const fn line_ending_anomaly(&self) -> bool {
+        self.line_ending.requires_normalization()
+    }
+
+    pub const fn requires_line_ending_normalization(&self) -> bool {
+        self.line_ending.requires_normalization()
+    }
+
+    /// "Normalize line endings and edit" (`DP-31`): converts anomalous line
+    /// endings (`Cr` / `Mixed`) to the dominant uniform `Crlf` or `Lf`.
+    pub fn normalize_line_endings(&mut self) {
+        self.line_ending = self.line_ending.normalized();
+    }
+
+    /// `true` when decoded via lossy `U+FFFD` replacement (`DP-32`); read-only.
+    pub const fn is_lossy_readonly(&self) -> bool {
+        self.encoding.is_lossy()
+    }
+
+    /// Localized explanation when the document opened read-only due to lossy
+    /// encoding or un-normalized mixed/`CR` line endings.
+    pub fn readonly_reason(&self) -> Option<&'static str> {
+        if self.is_lossy_readonly() {
+            Some(crate::localization::t("editor.fileMode.readOnlyEncoding"))
+        } else if self.line_ending_anomaly() {
+            Some(crate::localization::t("native.workspace.lineEndings"))
+        } else {
+            None
+        }
+    }
 }
 #[derive(Debug)]
 pub struct WriteOutcome {
@@ -250,6 +290,7 @@ impl Workspace {
             text: value.text,
             identity,
             encoding: value.encoding,
+            line_ending: value.line_ending,
             revision: value.revision,
             lease: self.lease.id,
         })
@@ -310,10 +351,23 @@ impl Workspace {
                 "native.workspace.invalidText",
             )));
         }
-        let result = self.mutated(self.provider.write(
+        if document.is_lossy_readonly() {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                crate::localization::t("editor.fileMode.readOnlyEncoding"),
+            ));
+        }
+        if document.line_ending_anomaly() {
+            return Err(Error::new(
+                ErrorKind::LineEndingNormalizationRequired,
+                crate::localization::t("native.workspace.lineEndings"),
+            ));
+        }
+        let result = self.mutated(self.provider.write_normalized(
             &document.identity.path,
             &document.revision,
             text,
+            document.line_ending,
         ))?;
         let (value, updated) = match result {
             WriteResult::Saved(v) => (v, false),
@@ -441,6 +495,26 @@ impl Workspace {
     pub fn absolute(&self, relative: &Path) -> Result<PathBuf> {
         self.admit(self.capabilities().local_actions)?;
         self.finish(self.provider.platform_path(&RelativePath::new(relative)?))
+    }
+    /// Fast size/kind preflight without reading file contents (`RG-02`).
+    pub fn stat_entry(&self, path: &Path) -> Result<EntryStat> {
+        self.admit(self.capabilities().read)?;
+        let relative = Self::entry_path(path)?;
+        self.finish(self.provider.stat_entry(&relative))
+    }
+    /// Reads at most `max_bytes` leading bytes of a regular file for format
+    /// sniffing (`RG-01`) without buffering the entire file.
+    pub fn read_head(&self, path: &Path, max_bytes: usize) -> Result<Vec<u8>> {
+        self.admit(self.capabilities().read)?;
+        let relative = Self::entry_path(path)?;
+        let capped = max_bytes.min(contracts::Limits::MAX_TEXT_BYTES);
+        let mut bytes = self.finish(self.provider.read_head(&relative, capped))?;
+        bytes.truncate(capped);
+        Ok(bytes)
+    }
+    /// Number of full-file reads triggered by background document observation (`DP-51`).
+    pub fn observation_full_reads(&self) -> u64 {
+        self.provider.observation_full_reads()
     }
     pub fn watch(&self, document: &Document, notify: Notify) -> Result<Subscription> {
         self.check_document(document)?;

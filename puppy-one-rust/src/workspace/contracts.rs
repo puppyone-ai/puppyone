@@ -9,10 +9,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorKind {
     InvalidInput,
+    InvalidData,
     NotFound,
     PermissionDenied,
     AlreadyExists,
     Unsupported,
+    LineEndingNormalizationRequired,
+    EncodingRoundTrip,
     StaleLease,
     ForeignResource,
     OutcomeUnknown,
@@ -108,22 +111,135 @@ pub struct ResourceId {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Revision(pub String);
-/// How the stored bytes became the text (`FileContent.encoding`): anything
-/// but UTF-8 cannot be written back without changing the file.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// How the stored bytes became the text (`DP-32`): lossless encodings
+/// (`Utf8`, `Utf16Le`, `Utf16Be`, `Gb18030`) round-trip back to their original
+/// byte representation on save, while [`TextEncoding::Lossy`] opens read-only.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TextEncoding {
     #[default]
     Utf8,
-    /// Decoded as GB18030 (a file window's `decodeLegacyText`).
+    /// UTF-16 little-endian with `FF FE` BOM.
+    Utf16Le,
+    /// UTF-16 big-endian with `FE FF` BOM.
+    Utf16Be,
+    /// Lossless GB18030 (`decodeTextFile`).
     Gb18030,
-    /// Not UTF-8 and not GB18030: shown with replacement characters.
-    Unknown,
+    /// Invalid byte sequences decoded with `U+FFFD` replacement; read-only.
+    Lossy,
 }
+impl TextEncoding {
+    /// Compatibility alias for callers comparing against `Unknown`.
+    #[allow(non_upper_case_globals)]
+    pub const Unknown: Self = Self::Lossy;
+
+    pub const fn is_lossless(self) -> bool {
+        !matches!(self, Self::Lossy)
+    }
+
+    pub const fn is_lossy(self) -> bool {
+        matches!(self, Self::Lossy)
+    }
+}
+pub type Encoding = TextEncoding;
+
+/// Observed line-ending discipline of a decoded text resource (`DP-31`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum LineEnding {
+    #[default]
+    Lf,
+    Crlf,
+    Cr,
+    Mixed {
+        dominant_crlf: bool,
+    },
+}
+impl LineEnding {
+    /// `true` when saving silently would rewrite mixed or lone-`CR` line endings
+    /// without explicit user normalization (`DP-31`).
+    pub const fn requires_normalization(self) -> bool {
+        matches!(self, Self::Cr | Self::Mixed { .. })
+    }
+
+    /// Target uniform line ending used after "Normalize line endings and edit".
+    pub const fn normalized(self) -> Self {
+        match self {
+            Self::Crlf
+            | Self::Mixed {
+                dominant_crlf: true,
+            } => Self::Crlf,
+            Self::Lf
+            | Self::Cr
+            | Self::Mixed {
+                dominant_crlf: false,
+            } => Self::Lf,
+        }
+    }
+
+    /// Normalizes all `\r\n` and lone `\r` into `\n` while recording the
+    /// original line-ending discipline.
+    pub fn detect_and_normalize(raw: &str) -> (String, Self) {
+        if !raw.contains('\r') {
+            return (raw.to_owned(), Self::Lf);
+        }
+        let bytes = raw.as_bytes();
+        let mut out = String::with_capacity(raw.len());
+        let mut crlf_count = 0usize;
+        let mut cr_count = 0usize;
+        let mut lf_count = 0usize;
+        let mut i = 0usize;
+        let mut seg_start = 0usize;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'\r' => {
+                    out.push_str(&raw[seg_start..i]);
+                    out.push('\n');
+                    if bytes.get(i + 1) == Some(&b'\n') {
+                        crlf_count += 1;
+                        i += 2;
+                    } else {
+                        cr_count += 1;
+                        i += 1;
+                    }
+                    seg_start = i;
+                }
+                b'\n' => {
+                    lf_count += 1;
+                    i += 1;
+                }
+                _ => {
+                    i += 1;
+                }
+            }
+        }
+        out.push_str(&raw[seg_start..]);
+        let line_ending = if cr_count == 0 && lf_count == 0 {
+            Self::Crlf
+        } else if crlf_count == 0 && lf_count == 0 {
+            Self::Cr
+        } else {
+            Self::Mixed {
+                dominant_crlf: crlf_count > lf_count + cr_count,
+            }
+        };
+        (out, line_ending)
+    }
+}
+
+/// Lightweight entry metadata returned by `stat_entry` (`RG-02`) without
+/// buffering file contents.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EntryStat {
+    pub size: u64,
+    pub is_file: bool,
+    pub readonly: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct TextSnapshot {
     pub text: String,
     pub revision: Revision,
     pub encoding: TextEncoding,
+    pub line_ending: LineEnding,
 }
 #[derive(Clone, Debug)]
 pub enum WriteResult {
