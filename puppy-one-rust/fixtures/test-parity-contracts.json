@@ -11561,6 +11561,81 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-git-project-metadata-cache",
+      "acceptance": "All three frozen repository presentation lifecycle cases through the native SourceControl owner: no root has no loading/status, an unseen root synchronously becomes pending without leaking the previous project metadata, and matching cached metadata stays visible during revalidation. Successful snapshots, mutations and known non-repository states are cached per project; transient errors preserve the last successful state. Old epochs cannot publish into the live state or cache. The cache retains at most 12 projects ordered by successful publication, not access, and a fresh response replaces the matching snapshot and sections. Metadata is available before any fetch completes; local status reads do not depend on network completion. This does not qualify history-preservation policy or metadata watcher retry. A real two-repository A-to-B-to-A regression verifies open History reloads even when cached status equals revalidated status.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/gitRepositoryLifecycle.test.ts",
+          "sha256": "74cd96944315dd5b50ec36bef8d27f083868b8e0b4c4edfa5fcd45b1a0a10012",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git repository presentation lifecycle > is synchronously pending when the rendered Project outruns the committed Git context"
+            },
+            {
+              "index": 1,
+              "name": "Git repository presentation lifecycle > keeps cached metadata visible while its matching context revalidates"
+            },
+            {
+              "index": 2,
+              "name": "Git repository presentation lifecycle > reuses per-Project Git metadata synchronously without coupling local files to the network"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::project_switches_publish_pending_state_and_reuse_only_that_projects_cached_metadata"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::cached_repository_absence_survives_revalidation_without_reusing_another_roots_state"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::project_metadata_cache_is_bounded_and_orders_eviction_by_successful_publication"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::returning_to_cached_metadata_still_loads_the_matching_projects_history"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-git-titlebar-status",
+      "acceptance": "Both frozen titlebar status cases: actual native projection counts a staged-and-unstaged logical file once, includes untracked files and conflicts, and keeps incoming/outgoing commit counts separate. Non-repository absence restores all four counts to zero. Rust porcelain entries already combine the staged/unstaged states per path, and commit counts are unsigned. This qualifies the production titlebar model, not native screen-reader announcements.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/gitTitlebarStatus.test.ts",
+          "sha256": "fca07f061b060ae4640e301c44ec4a5677fe3dd57ac682909860d6d398d22c7d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git titlebar status > keeps local files and remote commit directions as separate counts"
+            },
+            {
+              "index": 1,
+              "name": "Git titlebar status > returns a quiet state outside a repository"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::header::tests::titlebar_counts_logical_files_once_and_keeps_remote_directions_separate"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

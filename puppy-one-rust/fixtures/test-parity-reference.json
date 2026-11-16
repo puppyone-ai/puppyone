@@ -76,6 +76,9 @@
     "tests/unit/source-control/status/remoteRefreshPolicy.test.ts": "ba8ce80f879d164a371da0967dee6695549ff8b7404d32a2cb9b8048e1a8428d",
     "src/features/source-control/remoteRefreshPolicy.ts": "c1112ab282412f54e55c32ae63118d93465a07db4ea0b07df940f31dc0ce4619",
     "src/features/source-control/useGitRepositoryLifecycle.ts": "48eba123809109e8696778176f64d62df3b3decfcf6a49f25a2aa0abc5eccad4",
-    "electron/local-api/workspace.mjs": "7e679a9ea7596ec31a16c981884c3b7e45c803a30ea2ed51b5d92b9cd69e5a78"
+    "electron/local-api/workspace.mjs": "7e679a9ea7596ec31a16c981884c3b7e45c803a30ea2ed51b5d92b9cd69e5a78",
+    "tests/unit/source-control/status/gitRepositoryLifecycle.test.ts": "74cd96944315dd5b50ec36bef8d27f083868b8e0b4c4edfa5fcd45b1a0a10012",
+    "tests/unit/source-control/status/gitTitlebarStatus.test.ts": "fca07f061b060ae4640e301c44ec4a5677fe3dd57ac682909860d6d398d22c7d",
+    "src/features/source-control/gitTitlebarStatus.ts": "572ce778205f8624757db7e2d02c2102d605fe1420c486d779e1241dfe43f3b7"
   }
 }

@@ -25,6 +25,8 @@ pub const REMOTE_INTERVAL: Duration = Duration::from_secs(180);
 pub const REMOTE_FOCUS_STALE: Duration = Duration::from_secs(60);
 pub const REMOTE_MIN_GAP: Duration = Duration::from_secs(15);
 pub const ONLINE_POLL: Duration = Duration::from_secs(1);
+/// `MAX_CACHED_GIT_WORKSPACES`: ordered by successful publication, not reads.
+const MAX_CACHED_WORKSPACES: usize = 12;
 
 /// `shouldFetchRemote`: a focused, online window, past the minimum gap.
 pub fn should_fetch_remote(
@@ -194,6 +196,7 @@ impl super::SourceControl {
             // TS returns an ordinary isRepo=false snapshot here. Absence is
             // not a transient error and must not become an idle polling loop.
             self.snapshot = None;
+            self.remember_status();
             self.repository_absent = true;
             self.sections.clear();
             self.history_cancel.store(true, Ordering::Relaxed);
@@ -214,12 +217,24 @@ impl super::SourceControl {
             self.schedule_refresh_retry(cx);
         }
     }
+    fn remember_status(&mut self) {
+        let Some(root) = self.root.as_ref() else {
+            return;
+        };
+        self.status_cache.retain(|(path, _)| path != root);
+        self.status_cache
+            .push_back((root.clone(), self.snapshot.clone()));
+        while self.status_cache.len() > MAX_CACHED_WORKSPACES {
+            self.status_cache.pop_front();
+        }
+    }
     pub(super) fn publish_status(&mut self, snapshot: Snapshot, cx: &mut Context<Self>) {
         let changed = self.snapshot.as_ref() != Some(&snapshot);
         if changed {
             self.sections = project_sections(&snapshot);
         }
         self.snapshot = Some(snapshot);
+        self.remember_status();
         self.repository_absent = false;
         self.error = None;
         self.last_successful_refresh = Some(cx.background_executor().now());

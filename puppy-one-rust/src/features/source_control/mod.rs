@@ -281,6 +281,8 @@ pub struct SourceControl {
     rx: mpsc::Receiver<(u64, ResultValue)>,
     wake: Wake,
     pub snapshot: Option<Snapshot>,
+    /// Last successful metadata per project, including known non-repositories.
+    status_cache: std::collections::VecDeque<(PathBuf, Option<Snapshot>)>,
     /// A successful observation of an ordinary, non-repository folder.
     repository_absent: bool,
     /// The status could not be read.
@@ -390,6 +392,7 @@ impl SourceControl {
             rx: results,
             wake,
             snapshot: None,
+            status_cache: Default::default(),
             repository_absent: false,
             error: None,
             failure: None,
@@ -456,9 +459,14 @@ impl SourceControl {
         self.detail_cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.epoch += 1;
+        let cached = self
+            .status_cache
+            .iter()
+            .find(|(path, _)| path == &root)
+            .map(|(_, snapshot)| snapshot.clone());
+        self.repository_absent = matches!(cached, Some(None));
+        self.snapshot = cached.flatten();
         self.root = Some(root);
-        self.snapshot = None;
-        self.repository_absent = false;
         self.error = None;
         self.dismiss_failure(cx);
         self.backup_dismissed = false;
@@ -480,7 +488,11 @@ impl SourceControl {
         self.history_loaded = false;
         self.collapsed_days.clear();
         self.rebuild_timeline();
-        self.sections.clear();
+        self.sections = self
+            .snapshot
+            .as_ref()
+            .map(project_sections)
+            .unwrap_or_default();
         self.fetching = false;
         self.observed_fetch_target = None;
         self.next_remote_tick = Some(cx.background_executor().now() + refresh::REMOTE_INTERVAL);
@@ -519,6 +531,12 @@ impl SourceControl {
             }
         }));
         self.refresh(cx);
+        // A cached status can compare equal to the fresh response. History
+        // was cleared for the new epoch, so it still needs its own first read.
+        if self.history_open && self.snapshot.is_some() {
+            self.load_history();
+        }
+        self.reconcile_fetch_target(cx);
     }
     fn task(&self, work: impl FnOnce(PathBuf, &AtomicBool) -> ResultValue + Send + 'static) {
         self.task_with(self.cancel.clone(), work);

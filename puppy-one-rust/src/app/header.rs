@@ -477,3 +477,59 @@ impl RenderOnce for UpdateButton {
             .tooltip(crate::ui::components::tooltip(self.label))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::platform::git::{Change, Snapshot};
+    use core::prelude::v1::test;
+    use gpui::TestAppContext;
+
+    #[gpui::test]
+    fn titlebar_counts_logical_files_once_and_keeps_remote_directions_separate(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = cx.add_window_view(SourceControl::new);
+        view.update(cx, |s, _| {
+            assert_eq!(GitTitlebarStatus::of(s), GitTitlebarStatus::default());
+            // Porcelain status already combines staged/unstaged records for
+            // one path, unlike the four TS entry arrays being deduplicated.
+            s.snapshot = Some(Snapshot {
+                ahead: 2,
+                behind: 4,
+                changes: vec![
+                    Change {
+                        path: "shared.md".into(),
+                        original: None,
+                        index: 'M',
+                        worktree: 'M',
+                    },
+                    Change {
+                        path: "conflict.md".into(),
+                        original: None,
+                        index: 'U',
+                        worktree: 'U',
+                    },
+                    Change {
+                        path: "new.md".into(),
+                        original: None,
+                        index: '?',
+                        worktree: '?',
+                    },
+                ],
+                ..Default::default()
+            });
+            assert_eq!(
+                GitTitlebarStatus::of(s),
+                GitTitlebarStatus {
+                    conflicts: 1,
+                    incoming: 4,
+                    local: 3,
+                    outgoing: 2
+                }
+            );
+            s.snapshot = None;
+            assert_eq!(GitTitlebarStatus::of(s), GitTitlebarStatus::default());
+        });
+    }
+}

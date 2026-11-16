@@ -778,3 +778,197 @@ fn online_recovery_focus_and_interval_obey_distinct_gaps_and_close_stops_samplin
         "closed view has no online sampler"
     );
 }
+
+#[gpui::test]
+fn project_switches_publish_pending_state_and_reuse_only_that_projects_cached_metadata(
+    cx: &mut TestAppContext,
+) {
+    let mut f = Fixture::new(cx);
+    f.view.read_with(f.cx, |s, _| {
+        assert!(s.root.is_none() && s.snapshot.is_none() && !s.busy);
+    });
+    f.attach("a");
+    let first = f.request();
+    f.view.read_with(f.cx, |s, _| {
+        assert!(s.snapshot.is_none() && s.busy && !s.repository_absent);
+    });
+    let mut cached = snapshot("project-a");
+    cached.changes.push(Change {
+        path: "a.md".into(),
+        original: None,
+        index: 'M',
+        worktree: ' ',
+    });
+    first.finish(Ok(cached.clone()));
+    f.settle_branch("project-a");
+    f.attach("b");
+    let stale_b = f.request();
+    let obsolete_epoch = f.view.read_with(f.cx, |s, _| {
+        assert!(s.snapshot.is_none() && s.sections.is_empty() && s.busy && !s.repository_absent);
+        s.epoch
+    });
+    f.attach("a");
+    // This is synchronous: the worker has not returned, and no remote fetch
+    // has to finish before the matching project's metadata becomes visible.
+    f.view.read_with(f.cx, |s, _| {
+        assert_eq!(s.snapshot.as_ref(), Some(&cached));
+        assert!(!s.sections.is_empty());
+        assert!(s.busy);
+    });
+    let current = f.request();
+    stale_b.finish(Ok(snapshot("late-b")));
+    f.view.update_in(f.cx, |s, window, cx| {
+        s.tx.send((
+            obsolete_epoch,
+            ResultValue::Status(Ok(snapshot("late-b-mutation"))),
+        ))
+        .unwrap();
+        s.poll(window, cx);
+        assert_eq!(s.snapshot.as_ref(), Some(&cached));
+        assert!(
+            s.status_cache
+                .iter()
+                .all(|(root, _)| root != &f.roots.path().join("b"))
+        );
+    });
+    current.finish(Err("transient verification failure".into()));
+    f.settle(|s| !s.busy && s.error.is_some());
+    f.view
+        .read_with(f.cx, |s, _| assert_eq!(s.snapshot.as_ref(), Some(&cached)));
+    f.advance(refresh::RETRY_INITIAL);
+    f.request().finish(Ok(snapshot("fresh-a")));
+    f.settle_branch("fresh-a");
+    f.view.read_with(f.cx, |s, _| {
+        assert!(s.sections.is_empty());
+        assert_eq!(
+            s.status_cache.back().unwrap().1.as_ref().unwrap().branch,
+            "fresh-a"
+        );
+    });
+}
+
+#[gpui::test]
+fn cached_repository_absence_survives_revalidation_without_reusing_another_roots_state(
+    cx: &mut TestAppContext,
+) {
+    let mut f = Fixture::new(cx);
+    f.attach("a");
+    f.request()
+        .finish(Err("fatal: not a git repository".into()));
+    f.settle(|s| s.repository_absent && !s.busy);
+    f.attach("b");
+    f.request().finish(Ok(snapshot("project-b")));
+    f.settle_branch("project-b");
+    f.attach("a");
+    f.view.read_with(f.cx, |s, _| {
+        assert!(s.repository_absent && s.snapshot.is_none() && s.busy);
+        assert!(s.error.is_none() && s.sections.is_empty());
+    });
+    f.request().finish(Ok(snapshot("newly-initialized-a")));
+    f.settle_branch("newly-initialized-a");
+    f.view.read_with(f.cx, |s, _| assert!(!s.repository_absent));
+}
+
+#[gpui::test]
+fn project_metadata_cache_is_bounded_and_orders_eviction_by_successful_publication(
+    cx: &mut TestAppContext,
+) {
+    let mut f = Fixture::new(cx);
+    for i in 0..13 {
+        let name = format!("project-{i}");
+        std::fs::create_dir(f.roots.path().join(&name)).unwrap();
+        f.attach(&name);
+        f.request().finish(Ok(snapshot(&name)));
+        f.settle_branch(&name);
+        if i == 5 {
+            f.attach("project-0");
+            f.request().finish(Ok(snapshot("updated-zero")));
+            f.settle_branch("updated-zero");
+        }
+    }
+    f.view.read_with(f.cx, |s, _| {
+        assert_eq!(s.status_cache.len(), 12);
+        assert!(
+            !s.status_cache
+                .iter()
+                .any(|(path, _)| path.ends_with("project-1"))
+        );
+    });
+    f.attach("project-0");
+    f.view.read_with(f.cx, |s, _| {
+        assert_eq!(s.snapshot.as_ref().unwrap().branch, "updated-zero");
+        assert!(s.busy);
+    });
+    f.request().finish(Ok(snapshot("zero-current")));
+    f.settle_branch("zero-current");
+    f.attach("project-1");
+    f.view
+        .read_with(f.cx, |s, _| assert!(s.snapshot.is_none() && s.busy));
+    f.request().finish(Ok(snapshot("one-current")));
+    f.settle_branch("one-current");
+}
+
+#[gpui::test]
+fn returning_to_cached_metadata_still_loads_the_matching_projects_history(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let roots = tempfile::tempdir().unwrap();
+    for name in ["a", "b"] {
+        let root = roots.path().join(name);
+        std::fs::create_dir(&root).unwrap();
+        for args in [
+            vec!["init", "-b", name],
+            vec!["commit", "--allow-empty", "-m", name],
+        ] {
+            let output = std::process::Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=Parity",
+                    "-c",
+                    "user.email=parity@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                ])
+                .args(args)
+                .current_dir(&root)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+    let (view, cx) = cx.add_window_view(SourceControl::new);
+    view.update(cx, |s, _| s.history_open = true);
+    for (index, name) in ["a", "b", "a"].into_iter().enumerate() {
+        view.update(cx, |s, cx| {
+            s.set_workspace(roots.path().join(name), cx);
+            assert!(
+                s.history.commits.is_empty(),
+                "the previous project must disappear synchronously"
+            );
+            if index == 2 {
+                assert_eq!(s.snapshot.as_ref().unwrap().branch, name);
+                assert!(s.busy);
+            }
+        });
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            cx.run_until_parked();
+            if view.read_with(cx, |s, _| {
+                !s.busy
+                    && s.history_loaded
+                    && s.history.commits.first().is_some_and(|c| c.message == name)
+            }) {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "history for {name} at switch {index} did not load"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        view.read_with(cx, |s, _| assert!(s.error.is_none(), "{:?}", s.error));
+    }
+}
