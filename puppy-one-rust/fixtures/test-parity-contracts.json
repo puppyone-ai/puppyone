@@ -12860,6 +12860,38 @@
           "test": "editor::viewers::whiteboard::tests::ready_theme_and_history_commands_keep_the_same_frame_and_read_only_fences"
         }
       ]
+    },
+    {
+      "id": "native-whiteboard-creation-and-menu-migration",
+      "acceptance": "Create real files through the native creation port for both case-insensitive Excalidraw suffixes and the default suffix, preserve explicitly supplied names, initialize valid v2 empty boards, resolve the actual registry to the editable text-backed whiteboard with native source mode, and refuse overwriting existing edits. Load persisted pre-whiteboard menu settings through Preferences::from_stored, insert Whiteboard exactly once immediately before Custom files, preserve custom order and an explicit hidden choice across serialization and repeated reloads. This closes the two routing/creation and menu migration cases, independently of canvas interaction acceptance.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/whiteboard.test.ts",
+          "sha256": "1015cdcf1b3eb93766ac956432350a0d507a91d6adcb4b7815182defd6bdf3b4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "standard Excalidraw files > routes both extensions as editable text-backed whiteboards"
+            },
+            {
+              "index": 9,
+              "name": "standard Excalidraw files > adds Whiteboard to existing menus once and preserves an explicit hidden choice"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::create_new::native_create_entry::tests::both_whiteboard_extensions_create_real_editable_documents_without_renaming_them"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::create_new::create_entry_menu_registry::whiteboard_migration_tests::stored_menu_migration_adds_whiteboard_once_and_preserves_an_explicit_hidden_choice"
+        }
+      ]
     }
   ],
   "openAcceptance": [

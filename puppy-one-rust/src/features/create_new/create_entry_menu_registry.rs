@@ -255,3 +255,58 @@ mod tests {
         assert!(board["appState"]["viewBackgroundColor"].is_string());
     }
 }
+
+#[cfg(test)]
+mod whiteboard_migration_tests {
+    use super::*;
+    use crate::features::settings::Preferences;
+
+    #[test]
+    fn stored_menu_migration_adds_whiteboard_once_and_preserves_an_explicit_hidden_choice() {
+        let old = serde_json::json!({"version":5,"main":["html","customFiles","markdown"],"submenu":["csv"],"hidden":["json"]});
+        let upgraded = Preferences::from_stored(serde_json::json!({"create_new":old})).unwrap();
+        assert_eq!(
+            upgraded.create_new.main,
+            [
+                Entry::Html,
+                Entry::Whiteboard,
+                Entry::CustomFiles,
+                Entry::Markdown
+            ]
+        );
+        let persisted = serde_json::to_value(&upgraded).unwrap();
+        let again = Preferences::from_stored(persisted).unwrap();
+        assert_eq!(again.create_new, upgraded.create_new);
+        assert_eq!(
+            again
+                .create_new
+                .main
+                .iter()
+                .filter(|e| **e == Entry::Whiteboard)
+                .count(),
+            1
+        );
+        let mut hidden = old;
+        hidden["hidden"] = serde_json::json!(["json", "whiteboard"]);
+        let hidden = Preferences::from_stored(serde_json::json!({"create_new":hidden})).unwrap();
+        assert_eq!(
+            hidden.create_new.main,
+            [Entry::Html, Entry::CustomFiles, Entry::Markdown]
+        );
+        assert_eq!(
+            hidden
+                .create_new
+                .hidden
+                .iter()
+                .filter(|e| **e == Entry::Whiteboard)
+                .count(),
+            1
+        );
+        assert!(!hidden.create_new.submenu.contains(&Entry::Whiteboard));
+        let persisted = serde_json::to_value(&hidden).unwrap();
+        assert_eq!(
+            Preferences::from_stored(persisted).unwrap().create_new,
+            hidden.create_new
+        );
+    }
+}
