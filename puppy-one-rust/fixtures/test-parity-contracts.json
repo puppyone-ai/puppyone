@@ -10232,6 +10232,106 @@
           "test": "editor::registry::tests::office_mime_routing_recovers_parser_dispatch_without_a_filename_extension"
         }
       ]
+    },
+    {
+      "id": "native-web-resource-capabilities-and-ranges",
+      "acceptance": "Each native WebHost retains opened directory authority and one shared revocation flag. Local/disk resources use descriptor-relative no-follow reads; exact filenames win, missing paths allow only a unique NFC/Unicode-space alias, root replacement cannot redirect an admitted host, and missing roots cannot acquire authority later. Both native protocol handlers share method/origin/URL admission before provider I/O. Real filesystem GET ranges are bounded/open-ended/suffix with exact 206 lengths and Content-Range; malformed or unsatisfiable ranges yield 416. HEAD uses opened metadata without reading the file, and foreign Origin requests are rejected. A worker reply after host revocation is discarded. A frozen TS execution oracle checks 480 parser outcomes including safe integers and ECMAScript whitespace. Native Wry response construction verifies CORS/security/range headers, 204/405, and duplicate headers. The retained FileStream is lazy and bounded after append and per-read revocation; Wry still buffers the selected response body, so end-to-end large-media streaming, purpose/exact-file capabilities, immutable document-projection snapshots, real WebView disposal races, and Windows runtime behavior are NOT credited. Provider HEAD requires explicit size support; providers without it return 501 rather than fetching a full body. This row credits five specified TS cases only.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
+          "sha256": "558e501f335a47c312f74ff5283ec50f01e60a24539cd82ab24bb8570493c6cb",
+          "cases": [
+            {
+              "index": 23,
+              "name": "read / write round-trips > returns partial bytes for puppyone-local Range reads"
+            },
+            {
+              "index": 24,
+              "name": "read / write round-trips > resolves one unique Unicode-space display alias but keeps exact names authoritative"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/security/electron.local-file-capabilities.test.mjs",
+          "sha256": "91563d2efabad22d5efc49dff9a4b5d7ed07d7dbcb4c2481e8c4535ab652047c",
+          "cases": [
+            {
+              "index": 7,
+              "name": "puppyone-local protocol capability enforcement > does not publish a projection revoked while asynchronous admission is pending"
+            },
+            {
+              "index": 9,
+              "name": "puppyone-local protocol capability enforcement > serves bounded video ranges and metadata-only HEAD requests"
+            },
+            {
+              "index": 10,
+              "name": "puppyone-local protocol capability enforcement > rejects an external web origin even when it presents a valid token"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::byte_ranges_match_executed_typescript_including_safe_integers_and_whitespace"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::native_protocol_ranges_head_and_unsatisfiable_requests_use_opened_file_metadata"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_rejects_foreign_origins_methods_and_lookalike_urls_before_provider_reads"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::bounded_file_streams_are_lazy_owned_and_stop_at_admitted_end_or_revocation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_revocation_during_a_worker_read_discards_the_late_response"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::local_protocol_refuses_internal_leaf_and_parent_links"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_roots_remain_bound_when_the_original_path_is_replaced"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_display_aliases_are_unique_and_exact_names_remain_authoritative"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_paths_are_decoded_once_and_reads_obey_actual_byte_budgets"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_revocation_fences_cached_clones_and_in_flight_provider_replies"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::opened_resources_never_reopen_paths_and_budget_growth_remains_bounded"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::tests::disk_assets_serve_their_folder_only_and_never_as_resources"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::tests::resources_stay_inside_the_granted_root_and_budget"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::tests::a_provider_source_serves_normal_paths_within_its_budgets"
+        },
+        {
+          "package": "po-editor",
+          "test": "web_host::protocol_tests::wry_adapter_emits_exact_range_head_cors_and_security_headers"
+        }
+      ]
     }
   ],
   "openAcceptance": [

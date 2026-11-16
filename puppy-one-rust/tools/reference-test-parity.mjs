@@ -11,6 +11,15 @@ for (const [file, expected] of Object.entries(receipt.inputs)) {
   const hash = createHash('sha256').update(await readFile(path.join(reference, file))).digest('hex');
   if (hash !== expected) throw Error(`Reviewed TS acceptance input drift: ${file}; review before repinning`);
 }
+const {parseSingleByteRange} = await import(pathToFileURL(path.join(reference, 'electron/local-api/files/byte-range.mjs')));
+const rangeHeaders = [null, '', ' ', '\uFEFF', '\u0085', 'bytes=-', 'bytes=0-0', 'bytes=2-5', 'bytes=2-', 'bytes=-3', 'bytes=-0', 'bytes=-9007199254740992', 'bytes=9007199254740991-', 'bytes=9007199254740992-', 'bytes=0-9007199254740991', 'bytes=0-9007199254740992', 'bytes=9-2', 'bytes=0-1,3-4', 'bytes=1.0-2', 'bytes=+1-2', 'bytes=1e2-200', 'bytes=١-٢', 'bytes=1-2\nextra', 'items=1-2', ' bytes=1-2\t', '\uFEFFBYTES=0001-0002\uFEFF', 'bytes=1 -2', 'bytes=1--2', 'bytes=--2', `bytes=${'0'.repeat(100)}1-2`, `bytes=-${'9'.repeat(100)}`];
+for (const start of ['', '0', '1', '9', '10', '11', '100']) for (const end of ['', '0', '1', '9', '10', '11', '100']) rangeHeaders.push(`bytes=${start}-${end}`);
+const byteRanges = [0,1,10,26,1073741824,9007199254740991].flatMap(size => rangeHeaders.map(header => ({size,header,expected:parseSingleByteRange(header,size)})));
+const rangeOutput = JSON.stringify({sourceCommit:receipt.commit,inputHash:receipt.inputs['electron/local-api/files/byte-range.mjs'],cases:byteRanges})+'\n';
+const rangeFile = path.join(root, 'fixtures/byte-range-oracle.json');
+if(process.argv.includes('--check')) { if(await readFile(rangeFile,'utf8') !== rangeOutput) throw Error('Stale TS byte-range oracle'); }
+else await writeFile(rangeFile, rangeOutput);
+console.log(`${byteRanges.length} TS byte-range outcomes verified`);
 const {build} = await import(pathToFileURL(path.join(reference, 'node_modules/esbuild/lib/main.js')));
 const bundle = await build({entryPoints:[path.join(reference,'src/shared-ui/editor/document-session/autoSavePolicy.ts')],bundle:true,write:false,platform:'node',format:'esm'});
 const ts = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);

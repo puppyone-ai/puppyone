@@ -2,13 +2,17 @@
 //! protocol, path policy and MIME table live in `platform::webview`.
 #![cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 use crate::platform::webview::{
-    Content, LOCAL_SCHEME, SCHEME, entry_url, probe_local, respond, respond_local,
+    Content, ENTRY_ORIGIN, LOCAL_SCHEME, PreparedContent, ProtocolResponse, SCHEME, entry_url,
+    respond_request,
 };
 use std::{
     borrow::Cow,
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
 };
+#[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
+#[path = "web_host/protocol_tests.rs"]
+mod protocol_tests;
 
 /// Floating surfaces cut out of a view, in its own coordinates
 /// (`x, y, w, h, radius`), and the size they were cut from.
@@ -19,6 +23,7 @@ struct Cut {
 }
 /// Shared visibility state of one host (main thread only).
 struct HostState {
+    resources: PreparedContent,
     window: u64,
     painted: Cell<bool>,
     #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -158,9 +163,10 @@ impl HostState {
         let _ = show;
     }
 }
-#[cfg(target_os = "macos")]
 impl Drop for HostState {
     fn drop(&mut self) {
+        self.resources.revoke();
+        #[cfg(target_os = "macos")]
         if let Some(clip) = self.clip.borrow_mut().take() {
             // SAFETY: a live NSView on the main thread.
             unsafe {
@@ -235,8 +241,9 @@ impl WebHost {
     /// Creates the WebView hidden; it shows once its element paints.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub fn new(window: &gpui::Window, content: Content, dark: bool) -> Result<Self, String> {
-        let served = content.clone();
-        let local = content.clone();
+        let served = content.clone().prepare();
+        let local = served.clone();
+        let resources = served.clone();
         #[cfg(target_os = "macos")]
         let _ = dark;
         let frames = content.frames.clone();
@@ -267,45 +274,14 @@ impl WebHost {
             // Cloud provider request never stalls drawing.
             .with_asynchronous_custom_protocol(SCHEME.into(), move |_, request, responder| {
                 let served = served.clone();
-                let path = request.uri().path().to_owned();
                 std::thread::spawn(move || {
-                    let (status, mime, body) = respond(&served, &path);
-                    responder.respond(response(status, mime, body, served.policy));
+                    responder.respond(protocol_response(&served, false, &request));
                 });
             })
             .with_asynchronous_custom_protocol(LOCAL_SCHEME.into(), move |_, request, responder| {
                 let served = local.clone();
-                let path = request.uri().path().to_owned();
-                let probe = request
-                    .headers()
-                    .get("range")
-                    .is_some_and(|range| range.as_bytes() == b"bytes=0-0");
-                // The entry page reads granted resources with `fetch` (the
-                // Office loader's size probe and body); no other origin may.
-                let cors = request
-                    .headers()
-                    .get("origin")
-                    .is_some_and(|origin| origin.as_bytes() == ENTRY_ORIGIN.as_bytes());
-                if request.method() == wry::http::Method::OPTIONS {
-                    let mut preflight = response(204, "text/plain", Vec::new(), served.policy);
-                    if cors {
-                        allow(&mut preflight);
-                    }
-                    responder.respond(preflight);
-                    return;
-                }
                 std::thread::spawn(move || {
-                    let mut reply = match probe.then(|| probe_local(&served, &path)).flatten() {
-                        Some((size, first)) => partial(size, first, served.policy),
-                        None => {
-                            let (status, mime, body) = respond_local(&served, &path);
-                            response(status, mime, body, served.policy)
-                        }
-                    };
-                    if cors {
-                        allow(&mut reply);
-                    }
-                    responder.respond(reply);
+                    responder.respond(protocol_response(&served, true, &request));
                 });
             })
             // OS file drags over web content never load the file into the
@@ -371,6 +347,7 @@ impl WebHost {
             }
         }
         let state = Rc::new(HostState {
+            resources,
             window: window_key(window),
             painted: Cell::new(false),
             view,
@@ -694,66 +671,69 @@ fn reconcile(key: u64) {
     });
 }
 
-/// A protocol response; `policy` travels with every one of a host's
-/// responses (`local-file-protocol.mjs` security headers).
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-/// The entry document's origin (`puppyone-preview://local`).
-const ENTRY_ORIGIN: &str = "puppyone-preview://local";
-/// CORS for the entry page's own reads of granted resources.
-fn allow(response: &mut wry::http::Response<Cow<'static, [u8]>>) {
-    let headers = response.headers_mut();
-    headers.insert(
-        "Access-Control-Allow-Origin",
-        wry::http::HeaderValue::from_static(ENTRY_ORIGIN),
-    );
-    headers.insert(
-        "Access-Control-Allow-Headers",
-        wry::http::HeaderValue::from_static("range"),
-    );
-    headers.insert(
-        "Access-Control-Allow-Methods",
-        wry::http::HeaderValue::from_static("GET"),
-    );
-    headers.insert(
-        "Access-Control-Expose-Headers",
-        wry::http::HeaderValue::from_static("Content-Range, Content-Length"),
-    );
-}
-/// `206 Partial Content` for a size probe: the first byte and the total.
-fn partial(
-    size: u64,
-    first: Vec<u8>,
-    policy: Option<&'static str>,
+/// Shared by the two Wry handlers, so method/origin/range checks cannot drift.
+fn protocol_response(
+    content: &PreparedContent,
+    local: bool,
+    request: &wry::http::Request<Vec<u8>>,
 ) -> wry::http::Response<Cow<'static, [u8]>> {
-    let mut builder = wry::http::Response::builder()
-        .status(206)
-        .header("Content-Type", "application/octet-stream")
-        .header("Content-Range", format!("bytes 0-0/{size}"))
-        .header("Cache-Control", "no-store")
-        .header("X-Content-Type-Options", "nosniff");
-    if let Some(policy) = policy {
-        builder = builder.header("Content-Security-Policy", policy);
-    }
-    builder
-        .body(Cow::<'static, [u8]>::Owned(first))
-        .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..])))
+    let header = |name| {
+        let mut values = request.headers().get_all(name).iter();
+        let first = values.next()?;
+        Some(if values.next().is_some() {
+            "\0"
+        } else {
+            first.to_str().unwrap_or("\0")
+        })
+    };
+    let reply = respond_request(
+        content,
+        local,
+        request.method().as_str(),
+        &request.uri().to_string(),
+        header("origin"),
+        header("range"),
+    );
+    response(reply, content.policy)
 }
+
 fn response(
-    status: u16,
-    mime: &str,
-    body: Vec<u8>,
+    reply: ProtocolResponse,
     policy: Option<&'static str>,
 ) -> wry::http::Response<Cow<'static, [u8]>> {
     let mut builder = wry::http::Response::builder()
-        .status(status)
-        .header("Content-Type", mime)
+        .status(reply.status)
+        .header("Content-Type", reply.mime)
         .header("Cache-Control", "no-store")
         .header("X-Content-Type-Options", "nosniff");
+    if let Some(length) = reply.length {
+        builder = builder.header("Content-Length", length);
+    }
+    if let Some(range) = reply.content_range {
+        builder = builder.header("Content-Range", range);
+    }
+    if reply.accept_ranges {
+        builder = builder.header("Accept-Ranges", "bytes");
+    }
+    if reply.status == 405 {
+        builder = builder.header("Allow", "GET, HEAD, OPTIONS");
+    }
+    if reply.cors {
+        builder = builder
+            .header("Access-Control-Allow-Origin", ENTRY_ORIGIN)
+            .header("Vary", "Origin")
+            .header("Access-Control-Allow-Headers", "range")
+            .header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+            .header(
+                "Access-Control-Expose-Headers",
+                "Content-Range, Content-Length, Accept-Ranges",
+            );
+    }
     if let Some(policy) = policy {
         builder = builder.header("Content-Security-Policy", policy);
     }
     builder
-        .body(Cow::<'static, [u8]>::Owned(body))
+        .body(Cow::<'static, [u8]>::Owned(reply.body))
         .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..])))
 }
 

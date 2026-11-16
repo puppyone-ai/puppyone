@@ -15,6 +15,7 @@ anyhow = "1"
 async-channel = "2"
 base64 = "0.22"
 blake3 = "1.8"
+cap-std = "3.4"
 chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
 flate2 = "1.1"
 futures-util = "0.3"

@@ -13,6 +13,12 @@
 //! frame and no shell overlay (menu, dialog) is open — native child views
 //! draw above GPUI, so overlays hide web content instead of being covered.
 use std::path::{Component, Path, PathBuf};
+#[cfg(test)]
+mod file_tests;
+mod files;
+mod range;
+mod request;
+pub use request::{ENTRY_ORIGIN, ProtocolResponse, respond_request};
 
 pub const SCHEME: &str = "puppyone-preview";
 /// The product's resource scheme (`puppyone-local:`): the same granted
@@ -25,6 +31,9 @@ const ENTRY: &str = "__entry__";
 /// document's assets): `relative` is decoded and has only normal components.
 pub trait ResourceSource: Send + Sync {
     fn read(&self, relative: &Path) -> Option<Vec<u8>>;
+    fn size(&self, _relative: &Path) -> Option<u64> {
+        None
+    }
 }
 /// A shared source, for [`Content`].
 #[derive(Clone)]
@@ -32,6 +41,9 @@ pub struct Source(pub std::sync::Arc<dyn ResourceSource>);
 impl ResourceSource for Source {
     fn read(&self, relative: &Path) -> Option<Vec<u8>> {
         self.0.read(relative)
+    }
+    fn size(&self, relative: &Path) -> Option<u64> {
+        self.0.size(relative)
     }
 }
 impl std::fmt::Debug for Source {
@@ -103,6 +115,50 @@ pub struct Content {
     /// its folder runs offline) or the origins `frames` allows: every other
     /// navigation is refused, not even handed to the browser.
     pub locked: bool,
+}
+
+/// A host captures directory authority once, before asynchronous requests can
+/// race with root renames or replacement. Missing roots remain unavailable.
+#[derive(Clone, Debug)]
+pub struct PreparedContent {
+    content: Content,
+    local_root: Option<files::LocalRoot>,
+    disk_root: Option<files::LocalRoot>,
+    live: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+impl Content {
+    pub fn prepare(self) -> PreparedContent {
+        let local_root = self
+            .root
+            .as_deref()
+            .and_then(|p| files::LocalRoot::open(p).ok());
+        let disk_root = self
+            .disk_assets
+            .as_ref()
+            .and_then(|d| files::LocalRoot::open(&d.dir).ok());
+        PreparedContent {
+            content: self,
+            local_root,
+            disk_root,
+            live: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+        }
+    }
+}
+impl PreparedContent {
+    /// Called by the owning native WebView before it is destroyed. Pending
+    /// readers cannot publish bytes after the host's authority retires.
+    pub fn revoke(&self) {
+        self.live.store(false, std::sync::atomic::Ordering::Release);
+    }
+    fn is_live(&self) -> bool {
+        self.live.load(std::sync::atomic::Ordering::Acquire)
+    }
+}
+impl std::ops::Deref for PreparedContent {
+    type Target = Content;
+    fn deref(&self) -> &Self::Target {
+        &self.content
+    }
 }
 /// A folder of trusted app resources: `prefix` names it under `__assets__/`;
 /// a missing folder or file is a 404, never a fallback elsewhere.
@@ -195,13 +251,20 @@ pub fn mime_for(path: &Path) -> &'static str {
         "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        _ => "application/octet-stream",
+        _ => path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(po_contracts::formats::preferred_mime)
+            .unwrap_or("application/octet-stream"),
     }
 }
 
-/// Resolves a request path inside `root`; `None` refuses it.
-pub fn resolve(root: &Path, request_path: &str) -> Option<PathBuf> {
+/// Decode once and admit only relative normal components.
+fn relative_path(request_path: &str) -> Option<PathBuf> {
     let decoded = percent_decode(request_path.trim_start_matches('/'))?;
+    if decoded.contains('\0') || decoded.contains('\\') {
+        return None;
+    }
     let relative = Path::new(&decoded);
     if relative
         .components()
@@ -209,10 +272,7 @@ pub fn resolve(root: &Path, request_path: &str) -> Option<PathBuf> {
     {
         return None;
     }
-    let candidate = root.join(relative);
-    let canonical = candidate.canonicalize().ok()?;
-    let root = root.canonicalize().ok()?;
-    (canonical.starts_with(&root) && canonical.is_file()).then_some(canonical)
+    (!relative.as_os_str().is_empty()).then(|| relative.to_path_buf())
 }
 fn percent_decode(value: &str) -> Option<String> {
     let bytes = value.as_bytes();
@@ -234,25 +294,29 @@ fn percent_decode(value: &str) -> Option<String> {
 /// `Range: bytes=0-0` under [`LOCAL_SCHEME`] (`probeLocalResourceSize`):
 /// a granted file's size and first byte, answered without reading the file,
 /// so an oversized resource is refused before it is buffered.
-pub fn probe_local(content: &Content, path: &str) -> Option<(u64, Vec<u8>)> {
+pub fn probe_local(content: &PreparedContent, path: &str) -> Option<(u64, Vec<u8>)> {
     use std::io::Read;
     let trimmed = path.trim_start_matches('/');
-    if trimmed == ENTRY || trimmed.is_empty() || trimmed.starts_with("__assets__/") {
+    if !content.is_live()
+        || trimmed == ENTRY
+        || trimmed.is_empty()
+        || trimmed.starts_with("__assets__/")
+    {
         return None;
     }
-    let file = resolve(content.root.as_deref()?, path)?;
-    let size = std::fs::metadata(&file).ok()?.len();
-    let mut first = Vec::new();
-    std::fs::File::open(&file)
-        .ok()?
-        .take(1)
-        .read_to_end(&mut first)
+    let opened = content
+        .local_root
+        .as_ref()?
+        .file(&relative_path(path)?)
         .ok()?;
+    let size = opened.size;
+    let mut first = Vec::new();
+    opened.file.take(1).read_to_end(&mut first).ok()?;
     // An empty file has no byte to range over: it is served whole.
-    (!first.is_empty()).then_some((size, first))
+    (content.is_live() && !first.is_empty()).then_some((size, first))
 }
 /// The response for `path` under [`LOCAL_SCHEME`]: resources only.
-pub fn respond_local(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
+pub fn respond_local(content: &PreparedContent, path: &str) -> (u16, &'static str, Vec<u8>) {
     let trimmed = path.trim_start_matches('/');
     if trimmed == ENTRY || trimmed.is_empty() || trimmed.starts_with("__assets__/") {
         return (404, "text/plain", b"Not found".to_vec());
@@ -260,68 +324,19 @@ pub fn respond_local(content: &Content, path: &str) -> (u16, &'static str, Vec<u
     respond(content, path)
 }
 /// The response for `path` under `content` (status, mime, body).
-pub fn respond(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
-    let path = path.trim_start_matches('/');
-    if path == ENTRY || path.is_empty() {
-        let Entry::Html(html) = &content.entry;
-        return (200, "text/html; charset=utf-8", html.clone().into_bytes());
-    }
-    if let Some(name) = path.strip_prefix("__assets__/") {
-        if let Some(disk) = &content.disk_assets
-            && let Some(relative) = name
-                .strip_prefix(disk.prefix)
-                .and_then(|n| n.strip_prefix('/'))
-        {
-            return match resolve(&disk.dir, relative) {
-                Some(file) => serve_with(&file, DISK_ASSET_MAX_BYTES),
-                None => (404, "text/plain", b"Not found".to_vec()),
-            };
-        }
-        return match content.assets.iter().find(|(n, _)| *n == name) {
-            Some((n, bytes)) => (200, mime_for(Path::new(n)), bytes.to_vec()),
-            None => (404, "text/plain", b"Not found".to_vec()),
-        };
-    }
-    if let (None, Some(source)) = (&content.root, &content.source) {
-        let Some(relative) = percent_decode(path)
-            .map(PathBuf::from)
-            .filter(|p| p.components().all(|c| matches!(c, Component::Normal(_))))
-        else {
-            return (404, "text/plain", b"Not found".to_vec());
-        };
-        return match source.0.read(&relative) {
-            Some(bytes) if bytes.len() as u64 <= content.max_bytes => {
-                (200, mime_for(&relative), bytes)
-            }
-            Some(_) => (
-                413,
-                "text/plain",
-                b"Resource exceeds its preview budget".to_vec(),
-            ),
-            None => (404, "text/plain", b"Not found".to_vec()),
-        };
-    }
-    match content.root.as_deref().and_then(|root| resolve(root, path)) {
-        Some(file) => serve(content, &file),
-        None => (404, "text/plain", b"Not found".to_vec()),
-    }
-}
-fn serve(content: &Content, file: &Path) -> (u16, &'static str, Vec<u8>) {
-    serve_with(file, content.max_bytes)
-}
-fn serve_with(file: &Path, max_bytes: u64) -> (u16, &'static str, Vec<u8>) {
-    match std::fs::metadata(file) {
-        Ok(meta) if meta.len() > max_bytes => (
-            413,
-            "text/plain",
-            b"Resource exceeds its preview budget".to_vec(),
+pub fn respond(content: &PreparedContent, path: &str) -> (u16, &'static str, Vec<u8>) {
+    let result = respond_request(
+        content,
+        false,
+        "GET",
+        &format!(
+            "{SCHEME}://local/{path}",
+            path = path.trim_start_matches('/')
         ),
-        Ok(_) => match std::fs::read(file) {
-            Ok(bytes) => (200, mime_for(file), bytes),
-            Err(_) => (404, "text/plain", b"Not found".to_vec()),
-        },
-        Err(_) => (404, "text/plain", b"Not found".to_vec()),
-    }
+        None,
+        None,
+    );
+    (result.status, result.mime, result.body)
 }
 /// Writes `bytes` to `path` readable only by this user (temporary media).
 pub fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -431,7 +446,8 @@ mod tests {
                 dir: dir.path().into(),
             }),
             locked: false,
-        };
+        }
+        .prepare();
         let (status, mime, body) =
             respond(&content, "/__assets__/excalidraw/fonts/Virgil/Virgil.woff2");
         assert_eq!(
@@ -480,7 +496,8 @@ mod tests {
             frames: None,
             disk_assets: None,
             locked: false,
-        };
+        }
+        .prepare();
         assert_eq!(
             respond(&content, "/__assets__/r.js").1,
             "text/javascript; charset=utf-8"
@@ -557,7 +574,8 @@ mod tests {
             frames: None,
             disk_assets: None,
             locked: false,
-        };
+        }
+        .prepare();
         assert_eq!(respond(&content, "/style.css").0, 200);
         assert_eq!(respond(&content, "/../style.css").0, 404);
         // The second distinct resource fits the reference budget but the

@@ -50,6 +50,7 @@
     "shared/local-agent-activation/schema.mjs": "a0d8eae16ed74293da4fae9eeef337ffb6b12580b103d8f53d6260b6dd692fca",
     "tests/unit/platform/local-agent-activation/activation-journal.test.mjs": "5498d8a9acb802851bd1867be986eca01bbcf7b60e094b02395af44a03695763",
     "electron/main/local-agent-activation/managed-artifact-installer.mjs": "3db29180bfc0e8ab636eee68b666d5da98adfdea618a4355dcfb285de610e6bb",
-    "package-lock.json": "ee9c90632b79febfc00faaf0bc6344420f2b0614a62dd1e56af68acfa9cb5252"
+    "package-lock.json": "ee9c90632b79febfc00faaf0bc6344420f2b0614a62dd1e56af68acfa9cb5252",
+    "electron/local-api/files/byte-range.mjs": "cd1904382b2e2d0f85a583265cb97729956b551673f45dfa7769b92612ef2940"
   }
 }
