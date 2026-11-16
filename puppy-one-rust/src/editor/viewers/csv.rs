@@ -57,6 +57,13 @@ impl ViewerSurface for CsvSurface {
         Some(
             cx.subscribe(&self.editor, move |_, event: &CsvEvent, cx| match event {
                 CsvEvent::Changed => events(SurfaceEvent::Changed, cx),
+                CsvEvent::FindResult { current, total } => events(
+                    SurfaceEvent::FindResult {
+                        current: *current,
+                        total: *total,
+                    },
+                    cx,
+                ),
                 CsvEvent::OpenReference(paths) => {
                     events(SurfaceEvent::OpenPaths(paths.clone()), cx)
                 }
@@ -126,6 +133,25 @@ impl ViewerSurface for CsvSurface {
             .update(cx, |c, cx| c.view_command(id, window, cx));
     }
     fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
+        // `CS-12`: when in Source mode (`!is_live()`), delegate Find directly to `self.source`!
+        if !self.editor.read(cx).is_live()
+            && let Some(source) = self.editor.read(cx).source_editor_entity()
+        {
+            return match event {
+                FindEvent::Query(query) => {
+                    Some(source.update(cx, |e, cx| e.find_query(&query, cx)))
+                }
+                FindEvent::Move { forward } => {
+                    Some(source.update(cx, |e, cx| e.find_move(forward, cx)))
+                }
+                FindEvent::Close => {
+                    source.update(cx, |e, cx| e.find_clear(cx));
+                    let handle = source.read(cx).focus_handle(cx);
+                    handle.focus(window, cx);
+                    None
+                }
+            };
+        }
         match event {
             FindEvent::Query(query) => {
                 let r = self.editor.update(cx, |c, cx| c.find_query(&query, cx));

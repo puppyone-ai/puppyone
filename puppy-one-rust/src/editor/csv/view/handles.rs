@@ -1,15 +1,14 @@
 //! Row and column drag handles (`CsvTableControls`, editable-table.css): a
 //! grip for the hovered column on its top edge and one for the hovered data
 //! row on the gutter's outer edge. Docked inside the sticky header / gutter
-//! cell once the scrollport leaves less than 9px outside. A click opens the
-//! axis menu; a drag past 4px shows the drop indicator and moves the
-//! row / column on release (Escape cancels). Moves leave a structural
-//! selection: a 2px perimeter around the row / column, cleared by pressing a
-//! cell or Escape.
+//! cell once the scrollport leaves less than 9px outside. Focusable for
+//! keyboard access (`Enter` / `Space` opens the axis menu, `CS-14`), and
+//! animated across tracks with an `80ms` fade-in and `160ms` slide unless the
+//! system prefers reduced motion (`TB-03`).
 use super::*;
 
 use crate::editor::table::{
-    controls::{self, GripHandlers},
+    controls::{self, GripHandlers, GripOptions},
     interaction,
 };
 pub(super) use crate::editor::table::{
@@ -56,6 +55,24 @@ impl CsvEditor {
         ))
     }
 
+    pub(super) fn sync_grip_motion(&mut self, reduce_motion: bool) -> bool {
+        let col = self
+            .column_grip_shown()
+            .map(|c| (c, self.column_grip(c).0.origin.x));
+        let row = self
+            .row_grip_shown()
+            .map(|r| (r, self.row_grip(r).0.origin.y));
+        let mut changed = self.gestures.column_motion.retarget(col, reduce_motion);
+        changed |= self.gestures.row_motion.retarget(row, reduce_motion);
+        changed
+    }
+
+    pub(super) fn advance_grip_motion(&mut self, reduce_motion: bool) -> bool {
+        let c = self.gestures.column_motion.tick(reduce_motion);
+        let r = self.gestures.row_motion.tick(reduce_motion);
+        c || r
+    }
+
     /// The pointer moved over the table: the resize rail follows data cells,
     /// the grips follow cells and record numbers. Both stay put while a
     /// gesture or the menu owns the pointer.
@@ -91,6 +108,7 @@ impl CsvEditor {
                 changed = true;
             }
         }
+        changed |= self.sync_grip_motion(cx.reduce_motion());
         if changed {
             cx.notify();
         }
@@ -113,6 +131,7 @@ impl CsvEditor {
             self.gestures.hover = Hover::default();
             changed = true;
         }
+        changed |= self.sync_grip_motion(cx.reduce_motion());
         if changed {
             cx.notify();
         }
@@ -150,7 +169,7 @@ impl CsvEditor {
 
     pub(super) fn column_grip_shown(&self) -> Option<usize> {
         let column = self.gestures.hover.column.filter(|c| *c < self.columns())?;
-        if self.read_only
+        if self.grid_read_only()
             || self
                 .gestures
                 .drag
@@ -174,7 +193,7 @@ impl CsvEditor {
             .hover
             .row
             .filter(|r| *r >= self.first_movable() && *r < self.rows())?;
-        if self.read_only
+        if self.grid_read_only()
             || self
                 .gestures
                 .drag
@@ -183,6 +202,65 @@ impl CsvEditor {
             return None;
         }
         Some(row)
+    }
+
+    pub(super) fn column_grip_target(&self, window: &Window) -> Option<usize> {
+        if self.grid_read_only() {
+            return None;
+        }
+        self.column_grip_shown().or_else(|| {
+            if !self.column_grip_focus.is_focused(window) {
+                return None;
+            }
+            match self.gestures.structural {
+                Some((Axis::Column, c)) if c < self.columns() => Some(c),
+                _ => (self.columns() > 0).then_some(0),
+            }
+        })
+    }
+
+    pub(super) fn row_grip_target(&self, window: &Window) -> Option<usize> {
+        if self.grid_read_only() {
+            return None;
+        }
+        self.row_grip_shown().or_else(|| {
+            if !self.row_grip_focus.is_focused(window) {
+                return None;
+            }
+            let first = self.first_movable();
+            match self.gestures.structural {
+                Some((Axis::Row, r)) if r >= first && r < self.rows() => Some(r),
+                _ => (first < self.rows()).then_some(first),
+            }
+        })
+    }
+
+    /// Focus the column or row grip handle for `index` (`CS-14`).
+    pub fn focus_grip(
+        &mut self,
+        axis: Axis,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.grid_read_only() {
+            return;
+        }
+        match axis {
+            Axis::Column if index < self.columns() => {
+                self.gestures.hover.column = Some(index);
+                self.gestures.column_motion.snap_immediate();
+                self.column_grip_focus.focus(window, cx);
+                cx.notify();
+            }
+            Axis::Row if index >= self.first_movable() && index < self.rows() => {
+                self.gestures.hover.row = Some(index);
+                self.gestures.row_motion.snap_immediate();
+                self.row_grip_focus.focus(window, cx);
+                cx.notify();
+            }
+            _ => {}
+        }
     }
 
     /// The header cell whose text a docked column grip covers.
@@ -214,13 +292,15 @@ impl CsvEditor {
         cx: &mut Context<Self>,
     ) {
         let source = match axis {
-            Axis::Row => self.row_grip_shown(),
-            Axis::Column => self.column_grip_shown(),
+            Axis::Row => self.row_grip_target(window),
+            Axis::Column => self.column_grip_target(window),
         };
         let Some(source) = source else { return };
         self.close_menu(false, window, cx);
         self.gestures.resizing = None;
         self.gestures.structural = None;
+        self.gestures.column_motion.snap_immediate();
+        self.gestures.row_motion.snap_immediate();
         self.gestures.drag = Some(StructureDrag::new(axis, source, position));
         cx.notify();
     }
@@ -272,10 +352,10 @@ impl CsvEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(origin) = self.port.origin else {
-            return;
-        };
+        let origin = self.port.origin.unwrap_or_default();
         self.gestures.structural = None;
+        self.gestures.column_motion.snap_immediate();
+        self.gestures.row_motion.snap_immediate();
         let to_window = |x: f32, y: f32| {
             point(
                 origin.x + px(x - self.port.scroll.x),
@@ -326,17 +406,22 @@ impl CsvEditor {
 
     // --- painting -------------------------------------------------------------------
 
-    /// A grip (shared `controls::grip`) wired to this table's gestures.
+    /// A grip (shared `controls::grip_with_options`) wired to this table's gestures.
     pub(super) fn grip(
         &self,
         axis: Axis,
         bounds: Bounds<f32>,
+        opacity: f32,
         active: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let id = match axis {
             Axis::Column => "csv-column-handle",
             Axis::Row => "csv-row-handle",
+        };
+        let focus = match axis {
+            Axis::Column => &self.column_grip_focus,
+            Axis::Row => &self.row_grip_focus,
         };
         let dragging = self.gestures.drag.is_some_and(|d| d.moved);
         let (press, menu, hover) = (
@@ -353,8 +438,8 @@ impl CsvEditor {
             menu: Rc::new(move |window, cx| {
                 let _ = menu.update(cx, |this, cx| {
                     let source = match axis {
-                        Axis::Row => this.row_grip_shown(),
-                        Axis::Column => this.column_grip_shown(),
+                        Axis::Row => this.row_grip_target(window),
+                        Axis::Column => this.column_grip_target(window),
                     };
                     if let Some(source) = source {
                         this.open_grip_menu(axis, source, window, cx);
@@ -370,33 +455,56 @@ impl CsvEditor {
                 });
             }),
         };
-        controls::grip(
+        controls::grip_with_options(
             &self.theme.table,
             axis,
             id.into(),
             bounds,
             active,
             dragging,
+            GripOptions {
+                focus: Some(focus),
+                opacity,
+            },
             handlers,
         )
     }
 
     /// The drag layer (z 5): both grips and the drop indicator.
-    pub(super) fn drag_layer(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    pub(super) fn drag_layer(&self, window: &Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let mut out = Vec::new();
+        let reduce_motion = cx.reduce_motion();
         let active = |axis: Axis, source: usize| {
             self.gestures
                 .drag
                 .is_some_and(|d| d.axis == axis && d.source == source)
                 || self.menu.as_ref().and_then(|m| m.source) == Some((axis, source))
         };
-        if let Some(column) = self.column_grip_shown() {
-            let (bounds, _) = self.column_grip(column);
-            out.push(self.grip(Axis::Column, bounds, active(Axis::Column, column), cx));
+        if let Some(column) = self.column_grip_target(window) {
+            let (mut bounds, _) = self.column_grip(column);
+            let is_active = active(Axis::Column, column);
+            let (visual_x, opacity) = if is_active {
+                (bounds.origin.x, 1.)
+            } else {
+                self.gestures
+                    .column_motion
+                    .sample(bounds.origin.x, reduce_motion)
+            };
+            bounds.origin.x = visual_x;
+            out.push(self.grip(Axis::Column, bounds, opacity, is_active, cx));
         }
-        if let Some(row) = self.row_grip_shown() {
-            let (bounds, _) = self.row_grip(row);
-            out.push(self.grip(Axis::Row, bounds, active(Axis::Row, row), cx));
+        if let Some(row) = self.row_grip_target(window) {
+            let (mut bounds, _) = self.row_grip(row);
+            let is_active = active(Axis::Row, row);
+            let (visual_y, opacity) = if is_active {
+                (bounds.origin.y, 1.)
+            } else {
+                self.gestures
+                    .row_motion
+                    .sample(bounds.origin.y, reduce_motion)
+            };
+            bounds.origin.y = visual_y;
+            out.push(self.grip(Axis::Row, bounds, opacity, is_active, cx));
         }
         if let Some(indicator) = self.drop_indicator() {
             out.push(layer(vec![indicator]).into_any_element());

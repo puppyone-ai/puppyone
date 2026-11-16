@@ -4,7 +4,7 @@
 //! label as tooltip. Arrow keys, Home / End and type-ahead move between
 //! enabled items; Enter / Space run one; Escape closes and returns focus;
 //! pressing outside closes.
-use super::operation::Alignment;
+use super::operation::{Alignment, MAX_COLUMNS, MAX_DATA_ROWS, MenuAction};
 use crate::{
     localization::t,
     theme::{self, Theme, metric},
@@ -294,63 +294,84 @@ pub fn sections(target: Target, extras: Extras) -> Vec<Vec<Item>> {
         columns,
         first_movable,
     } = target;
+    let row_cap = rows.saturating_sub(first_movable) >= MAX_DATA_ROWS;
+    let col_cap = columns >= MAX_COLUMNS;
     let row_items = vec![
         Item::new(
-            "insert-row-above",
+            MenuAction::InsertRowAbove.id(),
             "insert-row-above",
             t("editor.table.insertRowAbove"),
         )
-        .disabled(row < first_movable),
+        .disabled(row < first_movable || row_cap),
         Item::new(
-            "insert-row-below",
+            MenuAction::InsertRowBelow.id(),
             "insert-row-below",
             t("editor.table.insertRowBelow"),
-        ),
+        )
+        .disabled(row_cap),
         Item::new(
-            "duplicate-row",
+            MenuAction::DuplicateRow.id(),
             "duplicate-row",
             t("editor.table.duplicateRow"),
         )
+        .disabled(row < first_movable || row_cap),
+        Item::new(
+            MenuAction::MoveRowUp.id(),
+            "move-up",
+            t("editor.table.moveRowUp"),
+        )
+        .disabled(row <= first_movable),
+        Item::new(
+            MenuAction::MoveRowDown.id(),
+            "move-down",
+            t("editor.table.moveRowDown"),
+        )
+        .disabled(row < first_movable || row + 1 >= rows),
+        Item::new(
+            MenuAction::DeleteRow.id(),
+            "delete",
+            t("editor.table.deleteRow"),
+        )
+        .danger()
         .disabled(row < first_movable),
-        Item::new("move-row-up", "move-up", t("editor.table.moveRowUp"))
-            .disabled(row <= first_movable),
-        Item::new("move-row-down", "move-down", t("editor.table.moveRowDown"))
-            .disabled(row < first_movable || row + 1 >= rows),
-        Item::new("delete-row", "delete", t("editor.table.deleteRow"))
-            .danger()
-            .disabled(row < first_movable),
     ];
     let column_items = vec![
         Item::new(
-            "insert-column-left",
+            MenuAction::InsertColumnLeft.id(),
             "insert-column-left",
             t("editor.table.insertColumnLeft"),
-        ),
+        )
+        .disabled(col_cap),
         Item::new(
-            "insert-column-right",
+            MenuAction::InsertColumnRight.id(),
             "insert-column-right",
             t("editor.table.insertColumnRight"),
-        ),
+        )
+        .disabled(col_cap),
         Item::new(
-            "move-column-left",
+            MenuAction::MoveColumnLeft.id(),
             "move-left",
             t("editor.table.moveColumnLeft"),
         )
         .disabled(column == 0),
         Item::new(
-            "move-column-right",
+            MenuAction::MoveColumnRight.id(),
             "move-right",
             t("editor.table.moveColumnRight"),
         )
         .disabled(column + 1 >= columns),
-        Item::new("delete-column", "delete", t("editor.table.deleteColumn"))
-            .danger()
-            .disabled(columns <= 1),
+        Item::new(
+            MenuAction::DeleteColumn.id(),
+            "delete",
+            t("editor.table.deleteColumn"),
+        )
+        .danger()
+        .disabled(columns <= 1),
     ];
     let mut column_extras = Vec::new();
     if extras.auto_fit {
         column_extras.push(vec![Item::new(
-            "auto-fit-column",
+            MenuAction::AutoFitColumn.id(),
             "auto-fit-column",
             t("editor.csv.autoFitColumn"),
         )]);
@@ -363,21 +384,36 @@ pub fn sections(target: Target, extras: Extras) -> Vec<Vec<Item>> {
             current
         };
         column_extras.push(vec![
-            Item::new("align-left", "align-left", t("editor.table.alignLeft"))
-                .selected(current == Alignment::Left),
             Item::new(
-                "align-center",
+                MenuAction::AlignLeft.id(),
+                "align-left",
+                t("editor.table.alignLeft"),
+            )
+            .selected(current == Alignment::Left),
+            Item::new(
+                MenuAction::AlignCenter.id(),
                 "align-center",
                 t("editor.table.alignCenter"),
             )
             .selected(current == Alignment::Center),
-            Item::new("align-right", "align-right", t("editor.table.alignRight"))
-                .selected(current == Alignment::Right),
+            Item::new(
+                MenuAction::AlignRight.id(),
+                "align-right",
+                t("editor.table.alignRight"),
+            )
+            .selected(current == Alignment::Right),
         ]);
     }
-    let table_items = extras
-        .delete_table
-        .then(|| vec![Item::new("delete-table", "delete", t("editor.table.deleteTable")).danger()]);
+    let table_items = extras.delete_table.then(|| {
+        vec![
+            Item::new(
+                MenuAction::DeleteTable.id(),
+                "delete",
+                t("editor.table.deleteTable"),
+            )
+            .danger(),
+        ]
+    });
     match scope {
         Scope::Row => vec![row_items],
         Scope::Column => std::iter::once(column_items).chain(column_extras).collect(),
@@ -452,6 +488,40 @@ mod tests {
             Some(&MenuEvent::Dismiss {
                 restore_focus: true
             })
+        );
+    }
+
+    #[test]
+    fn menu_actions_round_trip_and_disable_at_dimension_caps() {
+        for action in MenuAction::ALL {
+            assert_eq!(MenuAction::parse(action.id()), Some(action));
+            assert_eq!(
+                super::super::operation::Operation::from_menu_id(action.id()),
+                action.into_operation()
+            );
+        }
+        let capped = sections(
+            Target {
+                scope: Scope::Cell,
+                row: 5,
+                column: 3,
+                rows: MAX_DATA_ROWS + 1,
+                columns: MAX_COLUMNS,
+                first_movable: 1,
+            },
+            Extras {
+                auto_fit: true,
+                ..Default::default()
+            },
+        );
+        // InsertRowAbove, InsertRowBelow, DuplicateRow are disabled at 10,000 data rows.
+        assert!(capped[0][0].disabled && capped[0][1].disabled && capped[0][2].disabled);
+        assert!(!capped[0][5].disabled, "DeleteRow stays enabled at row cap");
+        // InsertColumnLeft, InsertColumnRight are disabled at 256 columns.
+        assert!(capped[1][0].disabled && capped[1][1].disabled);
+        assert!(
+            !capped[1][4].disabled,
+            "DeleteColumn stays enabled at column cap"
         );
     }
 }

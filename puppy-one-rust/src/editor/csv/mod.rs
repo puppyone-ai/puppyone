@@ -1,11 +1,13 @@
 //! Native CSV / TSV editor (product `editor/viewers/csv`): the structured
 //! model owns the document while live; source mode edits the raw text.
 mod cell;
+pub mod diff;
 pub mod document;
 pub mod layout;
 pub mod model;
 pub mod operations;
 pub mod preferences;
+pub mod rows;
 pub mod theme;
 mod view;
 

@@ -10,12 +10,168 @@ use super::{
     paint::{Draw, Sides},
     style::EditableTableStyle,
 };
+use crate::ui::motion::{cubic_bezier, frozen_time};
 use gpui::{Bounds, Corners, Pixels, Point, Rgba};
+use std::time::{Duration, Instant};
 
 /// A press becomes a drag after moving more than this (`moved`).
 pub const DRAG_SLOP: f32 = 4.;
 /// Grips straddle their outside edge by about nine pixels.
 pub const OUTER_REACH: f32 = 9.;
+/// Initial grip fade-in duration (`editable-table.css`, `TB-03`).
+pub const GRIP_FADE_DURATION: Duration = Duration::from_millis(80);
+/// Cross-cell grip slide duration (`cubic-bezier(0.2, 0, 0, 1)`, `TB-03`).
+pub const GRIP_MOVE_DURATION: Duration = Duration::from_millis(160);
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct MotionSpan {
+    started: Instant,
+    duration: Duration,
+}
+
+impl MotionSpan {
+    fn start(duration: Duration) -> Self {
+        Self {
+            started: Instant::now(),
+            duration,
+        }
+    }
+
+    fn time(&self) -> f32 {
+        frozen_time().unwrap_or_else(|| {
+            (self.started.elapsed().as_secs_f32() / self.duration.as_secs_f32()).clamp(0., 1.)
+        })
+    }
+
+    fn finished(&self) -> bool {
+        frozen_time().is_none() && self.started.elapsed() >= self.duration
+    }
+
+    #[cfg(test)]
+    fn advance(&mut self, by: Duration) {
+        self.started -= by;
+    }
+}
+
+/// Pointer-following motion state for a single axis's grip handle (`TB-03`).
+///
+/// First appearance places the grip directly at its target and fades in over
+/// `80ms`; retargeting an already-shown grip slides along its axis over `160ms`
+/// (`cubic-bezier(0.2, 0, 0, 1)`), continuing smoothly if retargeted mid-flight.
+/// Scroll, layout refresh, menu anchor and drag start snap immediately, and
+/// `reduce_motion` disables both transitions.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GripMotion {
+    pub target: Option<usize>,
+    last_pos: f32,
+    from_offset: f32,
+    fade: Option<MotionSpan>,
+    slide: Option<MotionSpan>,
+}
+
+impl GripMotion {
+    fn move_progress(tl: &MotionSpan) -> f32 {
+        cubic_bezier(0.2, 0., 0., 1., tl.time())
+    }
+
+    fn current_offset(&self) -> f32 {
+        match &self.slide {
+            Some(tl) if !tl.finished() => self.from_offset * (1. - Self::move_progress(tl)),
+            _ => 0.,
+        }
+    }
+
+    /// Update the targeted track index and its natural main-axis coordinate.
+    /// Returns whether the motion state changed.
+    pub fn retarget(&mut self, next: Option<(usize, f32)>, reduce_motion: bool) -> bool {
+        let before = *self;
+        let Some((index, pos)) = next else {
+            *self = Self::default();
+            return *self != before;
+        };
+        if reduce_motion {
+            *self = Self {
+                target: Some(index),
+                last_pos: pos,
+                from_offset: 0.,
+                fade: None,
+                slide: None,
+            };
+            return *self != before;
+        }
+        match self.target {
+            None => {
+                self.target = Some(index);
+                self.last_pos = pos;
+                self.from_offset = 0.;
+                self.fade = Some(MotionSpan::start(GRIP_FADE_DURATION));
+                self.slide = None;
+            }
+            Some(prev) if prev == index => {
+                // Same track (e.g. scroll or resize): follow immediately without hover lag.
+                self.last_pos = pos;
+            }
+            Some(_) => {
+                let visual = self.last_pos + self.current_offset();
+                self.target = Some(index);
+                self.from_offset = visual - pos;
+                self.last_pos = pos;
+                self.slide =
+                    (self.from_offset.abs() > 0.01).then(|| MotionSpan::start(GRIP_MOVE_DURATION));
+                if self.fade.as_ref().is_some_and(MotionSpan::finished) {
+                    self.fade = None;
+                }
+            }
+        }
+        *self != before
+    }
+
+    /// Snap immediately to the target with full opacity (press, drag, menu).
+    pub fn snap_immediate(&mut self) {
+        self.from_offset = 0.;
+        self.fade = None;
+        self.slide = None;
+    }
+
+    /// Sample `(visual_pos, opacity)` at the current frame for `target_pos`.
+    pub fn sample(&self, target_pos: f32, reduce_motion: bool) -> (f32, f32) {
+        if reduce_motion {
+            return (target_pos, 1.);
+        }
+        let opacity = match &self.fade {
+            Some(tl) if !tl.finished() => tl.time(),
+            _ => 1.,
+        };
+        let pos = target_pos + self.current_offset();
+        (pos, opacity)
+    }
+
+    /// Prune finished timelines; returns `true` while an animation is still active.
+    pub fn tick(&mut self, reduce_motion: bool) -> bool {
+        if reduce_motion {
+            self.snap_immediate();
+            return false;
+        }
+        if self.fade.as_ref().is_some_and(MotionSpan::finished) {
+            self.fade = None;
+        }
+        if self.slide.as_ref().is_some_and(MotionSpan::finished) {
+            self.slide = None;
+            self.from_offset = 0.;
+        }
+        self.fade.is_some() || self.slide.is_some()
+    }
+
+    #[cfg(test)]
+    pub fn advance(&mut self, by: Duration) {
+        if let Some(fade) = &mut self.fade {
+            fade.advance(by);
+        }
+        if let Some(slide) = &mut self.slide {
+            slide.advance(by);
+        }
+    }
+}
 
 /// A table's tracks, in the coordinates its controls are drawn in.
 pub trait Tracks {
@@ -236,6 +392,8 @@ pub struct Gestures {
     pub resize_hover: Option<usize>,
     pub surface_hovered: bool,
     pub grip_hovered: bool,
+    pub column_motion: GripMotion,
+    pub row_motion: GripMotion,
 }
 
 impl Gestures {
@@ -246,6 +404,16 @@ impl Gestures {
             .map(|d| (d.axis, d.source))
             .or(menu)
             .or(self.structural)
+    }
+
+    /// End in-progress pointer gestures (`CS-11`), returning any cancelled
+    /// column resize so the owner can restore its starting width.
+    pub fn cancel_transient(&mut self) -> Option<Resizing> {
+        self.drag = None;
+        self.resize_hover = None;
+        self.column_motion.snap_immediate();
+        self.row_motion.snap_immediate();
+        self.resizing.take()
     }
 }
 
@@ -335,5 +503,47 @@ mod tests {
             crate::editor::tokens::Tokens::csv(true, crate::typography::Scale::Medium),
             13.,
         )
+    }
+
+    #[test]
+    fn grip_motion_fades_on_appear_slides_across_tracks_and_respects_reduced_motion() {
+        let mut motion = GripMotion::default();
+        // First appearance: positioned directly at target (no fly-in), 80ms fade-in.
+        assert!(motion.retarget(Some((0, 100.)), false));
+        let (pos0, op0) = motion.sample(100., false);
+        assert_eq!(pos0, 100.);
+        assert!(op0 < 0.25);
+        motion.advance(Duration::from_millis(40));
+        let (pos_mid, op_mid) = motion.sample(100., false);
+        assert_eq!(pos_mid, 100.);
+        assert!((0.35..0.75).contains(&op_mid));
+        motion.advance(Duration::from_millis(50));
+        assert!(!motion.tick(false));
+        assert_eq!(motion.sample(100., false), (100., 1.));
+
+        // Cross-track retarget: 160ms slide from 100 to 220, and mid-flight reversal.
+        assert!(motion.retarget(Some((1, 220.)), false));
+        motion.advance(Duration::from_millis(40));
+        let (mid_x, op) = motion.sample(220., false);
+        assert_eq!(op, 1.);
+        assert!(mid_x > 105. && mid_x < 215., "mid_x={mid_x}");
+        // Retarget back to track 0 mid-flight: starts smoothly from `mid_x`, no jump.
+        motion.retarget(Some((0, 100.)), false);
+        let (after_reverse, _) = motion.sample(100., false);
+        assert!(
+            (after_reverse - mid_x).abs() < 2.,
+            "{after_reverse} vs {mid_x}"
+        );
+        motion.advance(Duration::from_millis(170));
+        assert!(!motion.tick(false));
+        assert_eq!(motion.sample(100., false), (100., 1.));
+
+        // Reduced motion skips both fade and slide immediately.
+        let mut still = GripMotion::default();
+        still.retarget(Some((0, 50.)), true);
+        assert_eq!(still.sample(50., true), (50., 1.));
+        still.retarget(Some((2, 300.)), true);
+        assert_eq!(still.sample(300., true), (300., 1.));
+        assert!(!still.tick(true));
     }
 }
