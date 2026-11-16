@@ -36,7 +36,9 @@ impl PreviewResource {
         let validate: std::sync::Arc<dyn Fn() -> SessionReadResult<()> + Send + Sync> =
             std::sync::Arc::new(move || {
                 lease.check()?;
-                validate()
+                validate()?;
+                lease.check()?;
+                Ok(())
             });
         validate()?;
         if source

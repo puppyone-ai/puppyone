@@ -23,8 +23,11 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
+/// Monotonic time belongs to the session owner. Injection lets lifecycle
+/// acceptance advance absolute deadlines without sleeping for five minutes.
+pub type Clock = Arc<dyn Fn() -> std::time::Instant + Send + Sync>;
 
 /// `DATABASE_BUDGET`.
 pub const MAX_SOURCE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
@@ -45,6 +48,8 @@ pub enum Failure {
     Unsupported,
     /// `stale-input`: the file changed since it was opened.
     Expired,
+    /// `session-expired`: an unchanged input may be reopened once.
+    SessionExpired,
     /// `permission-denied`
     Permission,
     /// `budget-exceeded` / `timeout`
@@ -61,7 +66,7 @@ impl Failure {
             Self::Expired => "editor.database.expired",
             Self::Permission => "editor.database.permission",
             Self::Budget => "editor.database.budget",
-            Self::Unavailable => "editor.database.unavailable",
+            Self::SessionExpired | Self::Unavailable => "editor.database.unavailable",
         }
     }
 }
@@ -178,7 +183,6 @@ pub struct Session {
     guard: Arc<Guard>,
     objects: Vec<Object>,
     pub epoch: u64,
-    opened: Instant,
 }
 fn quote(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
@@ -199,11 +203,29 @@ impl Session {
         )
     }
     pub fn open_reader(
-        mut input: Input,
+        input: Input,
         max_bytes: u64,
         cancel: Arc<AtomicBool>,
     ) -> Result<Self, Failure> {
-        let guard = Guard::new(&input, cancel);
+        Self::open_reader_with_clock(
+            input,
+            max_bytes,
+            cancel,
+            Arc::new(std::time::Instant::now),
+            std::time::Instant::now(),
+        )
+    }
+    pub fn open_reader_with_clock(
+        input: Input,
+        max_bytes: u64,
+        cancel: Arc<AtomicBool>,
+        clock: Clock,
+        started: std::time::Instant,
+    ) -> Result<Self, Failure> {
+        let guard = Guard::with_clock(&input, cancel, clock, started);
+        Self::open_guarded(input, max_bytes, guard)
+    }
+    fn open_guarded(mut input: Input, max_bytes: u64, guard: Arc<Guard>) -> Result<Self, Failure> {
         source::admit(&mut input, max_bytes, &guard)?;
         let (connection, registration) = vfs::open(input, guard.clone())?;
         let progress = guard.clone();
@@ -220,7 +242,6 @@ impl Session {
             guard,
             objects: vec![],
             epoch: EPOCH.fetch_add(1, Ordering::Relaxed),
-            opened: Instant::now(),
         };
         session.objects = session.list()?;
         session.check()?;
@@ -231,7 +252,10 @@ impl Session {
     }
     /// Past the session's five minutes: reopen before reading.
     pub fn ended(&self) -> bool {
-        self.opened.elapsed() >= SESSION
+        self.remaining().is_zero()
+    }
+    pub fn remaining(&self) -> Duration {
+        self.guard.remaining()
     }
     pub fn objects(&self) -> &[Object] {
         &self.objects

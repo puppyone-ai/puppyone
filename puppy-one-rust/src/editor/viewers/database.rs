@@ -97,6 +97,7 @@ pub struct DatabaseView {
     dark: bool,
     scale: Scale,
     cancel: Arc<AtomicBool>,
+    clock: crate::platform::database::Clock,
     loading: Option<Task<()>>,
     session: Option<Shared>,
     /// `info`: listed once the database opened.
@@ -134,13 +135,18 @@ fn session_failure(error: crate::workspace::ports::SessionReadFailure) -> Failur
         },
     }
 }
-fn open_session(resource: &PreviewResource, cancel: Arc<AtomicBool>) -> Result<Session, Failure> {
+fn open_session(
+    resource: &PreviewResource,
+    cancel: Arc<AtomicBool>,
+    clock: crate::platform::database::Clock,
+) -> Result<Session, Failure> {
+    let started = clock();
     if cancel.load(Ordering::Acquire) {
         return Err(Failure::Unavailable);
     }
     let input = resource.session_reader().map_err(session_failure)?;
     let validate = input.validate;
-    Session::open_reader(
+    Session::open_reader_with_clock(
         crate::platform::database::Input {
             length: input.source.length,
             reader: Box::new(input.source.reader),
@@ -148,6 +154,8 @@ fn open_session(resource: &PreviewResource, cancel: Arc<AtomicBool>) -> Result<S
         },
         MAX_SOURCE_BYTES,
         cancel,
+        clock,
+        started,
     )
 }
 /// What a background read brings back.
@@ -158,6 +166,34 @@ struct Read {
     page: Page,
     continued: bool,
 }
+fn read_current(
+    session: Shared,
+    name: &str,
+    column_offset: usize,
+    cursor: Option<(u64, usize)>,
+) -> Result<Read, Failure> {
+    let (objects, selected, page, continued) = {
+        let current = session.lock().map_err(|_| Failure::Unavailable)?;
+        let objects = current.objects().to_vec();
+        let selected = objects
+            .iter()
+            .position(|o| o.name == name && o.unreadable.is_none())
+            .ok_or(Failure::Unsupported)?;
+        let (continued, offset) = match cursor {
+            Some((epoch, offset)) if epoch == current.epoch => (true, offset),
+            _ => (false, 0),
+        };
+        let page = current.page(selected, offset, column_offset)?;
+        (objects, selected, page, continued)
+    };
+    Ok(Read {
+        session,
+        objects,
+        selected,
+        page,
+        continued,
+    })
+}
 impl DatabaseView {
     fn new(resource: Option<PreviewResource>, dark: bool, scale: Scale) -> Self {
         Self {
@@ -165,6 +201,7 @@ impl DatabaseView {
             dark,
             scale,
             cancel: Arc::new(AtomicBool::new(false)),
+            clock: Arc::new(std::time::Instant::now),
             loading: None,
             session: None,
             objects: None,
@@ -207,9 +244,10 @@ impl DatabaseView {
             return self.fail(Failure::Permission, cx);
         }
         let cancel = self.cancel.clone();
+        let clock = self.clock.clone();
         let remembered = self.remembered.clone();
         let task = crate::platform::database::run(move || {
-            let session = open_session(&resource, cancel)?;
+            let session = open_session(&resource, cancel, clock)?;
             let objects = session.objects().to_vec();
             let readable = |o: &Object| o.unreadable.is_none();
             let Some(selected) = objects
@@ -278,9 +316,13 @@ impl DatabaseView {
     }
     /// Keep the session until it has been idle for a minute.
     fn arm(&mut self, session: Shared, cx: &mut Context<Self>) {
+        let timeout = session
+            .lock()
+            .map(|session| session.remaining().min(IDLE))
+            .unwrap_or_default();
         self.session = Some(session.clone());
         self.idle = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(IDLE).await;
+            cx.background_executor().timer(timeout).await;
             let _ = this.update(cx, |v, _| {
                 if v.session.as_ref().is_some_and(|s| Arc::ptr_eq(s, &session)) {
                     v.session = None;
@@ -312,12 +354,17 @@ impl DatabaseView {
         let epoch = self.epoch;
         let session = self.session.take();
         let cancel = self.cancel.clone();
+        let clock = self.clock.clone();
         let cursor = self
             .page
             .as_ref()
             .filter(|_| next)
             .map(|p| (p.epoch, p.offset + p.rows.len()));
         let task = crate::platform::database::run(move || {
+            let open = || {
+                open_session(&resource, cancel.clone(), clock.clone())
+                    .map(|s| Arc::new(Mutex::new(s)))
+            };
             let session = match session
                 .map(|s| {
                     let ended = s.lock().map_err(|_| Failure::Unavailable)?.ended();
@@ -327,30 +374,14 @@ impl DatabaseView {
                 .filter(|(_, ended)| !ended)
             {
                 Some((session, _)) => session,
-                None => Arc::new(Mutex::new(open_session(&resource, cancel)?)),
+                None => open()?,
             };
-            let (objects, selected, page, continued) = {
-                let current = session.lock().map_err(|_| Failure::Unavailable)?;
-                let objects = current.objects().to_vec();
-                let selected = objects
-                    .iter()
-                    .position(|o| o.name == name && o.unreadable.is_none())
-                    .ok_or(Failure::Unsupported)?;
-                // A cursor never continues on another snapshot.
-                let (continued, offset) = match cursor {
-                    Some((epoch, offset)) if epoch == current.epoch => (true, offset),
-                    _ => (false, 0),
-                };
-                let page = current.page(selected, offset, column_offset)?;
-                (objects, selected, page, continued)
-            };
-            Ok::<_, Failure>(Read {
-                session,
-                objects,
-                selected,
-                page,
-                continued,
-            })
+            match read_current(session, &name, column_offset, cursor) {
+                // A native lease can end after the initial remaining-time
+                // check. Reopen once, remap by name, and fence the old cursor.
+                Err(Failure::SessionExpired) => read_current(open()?, &name, column_offset, cursor),
+                result => result,
+            }
         });
         self.loading = Some(cx.spawn(async move |this, cx| {
             let result = task.await;

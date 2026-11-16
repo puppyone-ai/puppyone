@@ -175,6 +175,19 @@ impl ResourcePort for StreamProvider {
             }),
         })
     }
+    fn preview_session_reader(&self, path: &RelativePath) -> SessionReadResult<SessionReader> {
+        let hook = self.on_read.clone();
+        Ok(SessionReader {
+            source: self.preview_reader(path)?,
+            validate: Arc::new(move || {
+                let hook = hook.lock().unwrap().take();
+                if let Some(hook) = hook {
+                    hook();
+                }
+                Ok(())
+            }),
+        })
+    }
 }
 impl ResourceWatchPort for StreamProvider {
     fn watch(&self, _: &RelativePath, _: &Revision, _: Notify) -> Result<WatchSubscription> {
@@ -385,4 +398,39 @@ fn removing_a_session_source_expires_it_even_when_its_descriptor_remains_readabl
         (session.validate)(),
         Err(SessionReadFailure::Changed)
     ));
+}
+
+#[test]
+fn session_validation_rechecks_the_lease_after_the_provider_returns() {
+    for pending in [true, false] {
+        let provider = Arc::new(StreamProvider {
+            memory: Memory::new("memory://session-validation/root/"),
+            reads: Arc::default(),
+            drops: Arc::default(),
+            seeks: Arc::default(),
+            on_read: Arc::default(),
+        });
+        let ws = Workspace::from_provider(provider.clone()).unwrap();
+        let resource = ws.resource(Path::new("data.db")).unwrap();
+        let ready = (!pending).then(|| resource.session_reader().unwrap());
+        let revoker = ws.clone();
+        *provider.on_read.lock().unwrap() = Some(Box::new(move || revoker.revoke()));
+        let error = if let Some(session) = ready {
+            (session.validate)().unwrap_err()
+        } else {
+            match resource.session_reader() {
+                Err(error) => error,
+                Ok(_) => panic!("revoked session was admitted"),
+            }
+        };
+        assert!(matches!(
+            error,
+            SessionReadFailure::Resource(Error {
+                kind: ErrorKind::StaleLease,
+                ..
+            })
+        ));
+        assert_eq!(provider.drops.load(Ordering::Acquire), 1);
+        assert_eq!(provider.reads.load(Ordering::Acquire), 0);
+    }
 }

@@ -40,6 +40,8 @@ struct Gate {
     drops: AtomicUsize,
     timed_out: AtomicBool,
     block_validation: AtomicBool,
+    validation_hook: Mutex<Option<Box<dyn FnMut() + Send>>>,
+    opens: AtomicUsize,
 }
 impl Gate {
     fn release(&self) {
@@ -125,6 +127,7 @@ impl ResourcePort for Provider {
         ))
     }
     fn preview_session_reader(&self, _: &RelativePath) -> SessionReadResult<SessionReader> {
+        self.gate.opens.fetch_add(1, Ordering::AcqRel);
         let gate = self.gate.clone();
         Ok(SessionReader {
             source: ResourceReader {
@@ -135,6 +138,9 @@ impl ResourcePort for Provider {
                 }),
             },
             validate: Arc::new(move || {
+                if let Some(hook) = gate.validation_hook.lock().unwrap().as_mut() {
+                    hook();
+                }
                 if gate.block_validation.swap(false, Ordering::AcqRel) {
                     gate.wait()
                         .map_err(|_| Error::new(ErrorKind::Io, "test gate expired"))?;
@@ -627,4 +633,129 @@ fn a_pending_database_page_ignores_duplicate_next_clicks_and_the_previous_idle_d
         assert!(v.failure.is_none() && !v.restarted && v.session.is_some());
     });
     assert!(!gate.timed_out.load(Ordering::Acquire));
+}
+
+#[gpui::test]
+fn database_session_expiry_during_a_query_recovers_once_and_never_replays_the_old_cursor(
+    cx: &mut TestAppContext,
+) {
+    use std::sync::atomic::AtomicU64;
+    cx.executor().allow_parking();
+    for replacement_also_expires in [false, true] {
+        let (ws, gate) = gated("retained row");
+        gate.release();
+        let resource = ws.resource(Path::new("fixture.db")).unwrap();
+        let ticks = Arc::new(AtomicU64::new(0));
+        let clock = ticks.clone();
+        let began = Instant::now();
+        let (view, cx) = cx.add_window_view(|_, cx| {
+            let mut v = DatabaseView::new(Some(resource), false, Scale::default());
+            v.clock =
+                Arc::new(move || began + Duration::from_millis(clock.load(Ordering::Acquire)));
+            v.reload(cx);
+            v
+        });
+        settle(&view, cx);
+        let (old_epoch, selected) = view.read_with(cx, |v, _| {
+            (v.page.as_ref().unwrap().epoch, v.selected.unwrap())
+        });
+        let time = ticks.clone();
+        let mut calls = 0;
+        *gate.validation_hook.lock().unwrap() = Some(Box::new(move || {
+            calls += 1;
+            // First query validation occurs after ended() admitted the old
+            // session. Calls 2/3 validate the newly acquired resource; call 4
+            // occurs after the replacement engine's absolute lease starts.
+            if calls == 1 || (replacement_also_expires && calls == 4) {
+                time.fetch_add(300_000, Ordering::AcqRel);
+            }
+        }));
+        view.update(cx, |v, cx| v.read(selected, 0, true, cx));
+        settle(&view, cx);
+        cx.run_until_parked();
+        assert_eq!(gate.opens.load(Ordering::Acquire), 2);
+        view.read_with(cx, |v, _| {
+            if replacement_also_expires {
+                assert_eq!(v.failure, Some(Failure::SessionExpired));
+                assert!(v.page.is_none() && v.session.is_none());
+                assert_eq!(gate.drops.load(Ordering::Acquire), 2);
+            } else {
+                assert!(v.failure.is_none() && v.restarted);
+                let page = v.page.as_ref().unwrap();
+                assert_ne!(page.epoch, old_epoch);
+                assert_eq!(page.offset, 0);
+                assert_eq!(page.rows[0][0].text, "retained row");
+                assert_eq!(gate.drops.load(Ordering::Acquire), 1);
+            }
+        });
+    }
+}
+
+#[gpui::test]
+fn the_database_idle_timer_is_capped_by_the_absolute_session_lifetime(cx: &mut TestAppContext) {
+    use std::sync::atomic::AtomicU64;
+    cx.executor().allow_parking();
+    let (ws, gate) = gated("retained row");
+    gate.release();
+    let resource = ws.resource(Path::new("fixture.db")).unwrap();
+    let ticks = Arc::new(AtomicU64::new(0));
+    let clock = ticks.clone();
+    let began = Instant::now();
+    let (view, cx) = cx.add_window_view(|_, cx| {
+        let mut v = DatabaseView::new(Some(resource), false, Scale::default());
+        v.clock = Arc::new(move || began + Duration::from_millis(clock.load(Ordering::Acquire)));
+        v.reload(cx);
+        v
+    });
+    settle(&view, cx);
+    ticks.store(299_000, Ordering::Release);
+    view.update(cx, |v, cx| v.read(v.selected.unwrap(), 0, false, cx));
+    settle(&view, cx);
+    cx.run_until_parked();
+    cx.cx.executor().advance_clock(Duration::from_millis(999));
+    cx.run_until_parked();
+    view.read_with(cx, |v, _| assert!(v.session.is_some()));
+    ticks.store(300_000, Ordering::Release);
+    cx.cx.executor().advance_clock(Duration::from_millis(1));
+    cx.run_until_parked();
+    view.read_with(cx, |v, _| {
+        assert!(v.session.is_none() && v.failure.is_none());
+        assert_eq!(v.page.as_ref().unwrap().rows[0][0].text, "retained row");
+    });
+    assert_eq!(gate.drops.load(Ordering::Acquire), 1);
+    assert_eq!(gate.opens.load(Ordering::Acquire), 1);
+}
+
+#[gpui::test]
+fn the_database_open_budget_includes_provider_admission_before_the_engine_exists(
+    cx: &mut TestAppContext,
+) {
+    use std::sync::atomic::AtomicU64;
+    cx.executor().allow_parking();
+    let (ws, gate) = gated("private row");
+    gate.release();
+    let resource = ws.resource(Path::new("fixture.db")).unwrap();
+    let ticks = Arc::new(AtomicU64::new(0));
+    let elapsed = ticks.clone();
+    *gate.validation_hook.lock().unwrap() = Some(Box::new(move || {
+        elapsed.store(15_000, Ordering::Release);
+    }));
+    let began = Instant::now();
+    let (view, cx) = cx.add_window_view(|_, cx| {
+        let mut v = DatabaseView::new(Some(resource), false, Scale::default());
+        v.clock = Arc::new(move || began + Duration::from_millis(ticks.load(Ordering::Acquire)));
+        v.reload(cx);
+        v
+    });
+    settle(&view, cx);
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.failure, Some(Failure::Budget));
+        assert!(v.session.is_none() && v.page.is_none());
+    });
+    assert_eq!(gate.opens.load(Ordering::Acquire), 1);
+    assert_eq!(gate.drops.load(Ordering::Acquire), 1);
+    assert!(
+        !gate.entered.load(Ordering::Acquire),
+        "overdue admission must not read the SQLite header"
+    );
 }

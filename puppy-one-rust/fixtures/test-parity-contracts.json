@@ -10668,7 +10668,7 @@
     },
     {
       "id": "native-database-provider-sessions",
-      "acceptance": "SQLite previews read lazy provider-authorized pages without reopening display paths or copying hosted snapshots. A retained directory and file identity reject replacement, links, removal and recovery sidecars; cached pages remain lease-bound. The read-only VFS cannot attach ambient files or write, and propagates read errors instead of publishing partial results. Actual SQLite enforces bounded lossless pages, column windows, VM cancellation and deadlines. GPUI tests exercise pending and cached owner retirement, A-to-B-to-A replacement, actual Retry/Reload actions, virtual-time idle release with retained pages, name-based recovery after object reordering, input-generation invalidation and failure without automatic retry. Actual repeated Next clicks during a blocked provider validation issue only one query; crossing the old idle deadline cannot retire that query or replay its cursor. This row does not qualify process isolation, forced blocked-read cancellation, host exit confirmation or quotas, absolute session expiry during a query, DuckDB, or Windows runtime behavior.",
+      "acceptance": "SQLite previews read lazy provider-authorized pages without reopening display paths or copying hosted snapshots. A retained directory and file identity reject replacement, links, removal and recovery sidecars; cached pages remain lease-bound. The read-only VFS cannot attach ambient files or write, and propagates read errors instead of publishing partial results. Actual SQLite enforces bounded lossless pages, column windows, VM cancellation and deadlines. GPUI tests exercise pending and cached owner retirement, A-to-B-to-A replacement, actual Retry/Reload actions, virtual-time idle release with retained pages, name-based recovery after object reordering, input-generation invalidation and failure without automatic retry. Actual repeated Next clicks during a blocked provider validation issue only one query; crossing the old idle deadline cannot retire that query or replay its cursor. This row does not qualify process isolation, forced blocked-read cancellation, host exit confirmation or quotas, OS-level absolute deadlines during unresponsive native calls, DuckDB, or Windows runtime behavior. A monotonic absolute session deadline is checked before and after provider validation, during the actual SQLite VM and before cached-page delivery. Idle release is capped by the remaining lifetime. Only session expiry permits one fresh allocation and first-page recovery; a second expiry remains a distinct failure without an automatic retry loop. Opening and absolute deadlines start before provider admission; a late admission cannot reset either deadline or read a header after expiry.",
       "typescript": [
         {
           "path": "tests/component/editor/formats/database/databaseViewer.test.tsx",
@@ -10699,6 +10699,10 @@
               "name": "registered database DOM viewer > does not let the previous idle timer cancel a page query already in flight"
             },
             {
+              "index": 8,
+              "name": "registered database DOM viewer > recovers once when the native session expires before the renderer timer"
+            },
+            {
               "index": 9,
               "name": "registered database DOM viewer > clears unsafe results and does not automatically retry stale-input"
             },
@@ -10709,6 +10713,10 @@
             {
               "index": 11,
               "name": "registered database DOM viewer > clears unsafe results and does not automatically retry recovery-required"
+            },
+            {
+              "index": 14,
+              "name": "registered database DOM viewer > bounds automatic recovery when a replacement session also expires"
             },
             {
               "index": 17,
@@ -10851,6 +10859,34 @@
         {
           "package": "po-editor",
           "test": "editor::viewers::database::admission_tests::a_pending_database_page_ignores_duplicate_next_clicks_and_the_previous_idle_deadline"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::an_absolutely_expired_sqlite_session_cannot_serve_even_a_cached_page"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::the_real_sqlite_vm_cannot_run_past_its_absolute_session_deadline"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::cancellation_and_deadlines_are_rechecked_after_blocking_provider_validation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::database_session_expiry_during_a_query_recovers_once_and_never_replays_the_old_cursor"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::the_database_idle_timer_is_capped_by_the_absolute_session_lifetime"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::session_validation_rechecks_the_lease_after_the_provider_returns"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::the_database_open_budget_includes_provider_admission_before_the_engine_exists"
         }
       ],
       "environment": "local"

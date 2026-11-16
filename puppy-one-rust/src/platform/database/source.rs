@@ -25,31 +25,54 @@ pub(super) struct Guard {
     cancel: Arc<AtomicBool>,
     deadline: Mutex<Instant>,
     failure: Mutex<Option<Failure>>,
+    now: Arc<dyn Fn() -> Instant + Send + Sync>,
+    expires: Instant,
 }
 impl Guard {
-    pub fn new(input: &Input, cancel: Arc<AtomicBool>) -> Arc<Self> {
+    pub fn with_clock(
+        input: &Input,
+        cancel: Arc<AtomicBool>,
+        now: Arc<dyn Fn() -> Instant + Send + Sync>,
+        started: Instant,
+    ) -> Arc<Self> {
         Arc::new(Self {
             validate: input.validate.clone(),
             cancel,
-            deadline: Mutex::new(Instant::now() + OPEN_TIMEOUT),
+            deadline: Mutex::new(started + OPEN_TIMEOUT),
             failure: Mutex::new(None),
+            now,
+            expires: started + super::SESSION,
         })
     }
+    pub fn remaining(&self) -> Duration {
+        self.expires.saturating_duration_since((self.now)())
+    }
     pub fn begin(&self, timeout: Duration) -> Result<(), Failure> {
-        *self.deadline.lock().map_err(|_| Failure::Unavailable)? = Instant::now() + timeout;
+        *self.deadline.lock().map_err(|_| Failure::Unavailable)? = (self.now)() + timeout;
         self.check()
+    }
+    fn active(&self) -> Result<(), Failure> {
+        let now = (self.now)();
+        if self.cancel.load(Ordering::Acquire) {
+            Err(Failure::Unavailable)
+        } else if now >= self.expires {
+            Err(Failure::SessionExpired)
+        } else if now >= *self.deadline.lock().map_err(|_| Failure::Unavailable)? {
+            Err(Failure::Budget)
+        } else {
+            Ok(())
+        }
     }
     pub fn check(&self) -> Result<(), Failure> {
         if let Some(failure) = *self.failure.lock().map_err(|_| Failure::Unavailable)? {
             return Err(failure);
         }
-        let result = if self.cancel.load(Ordering::Acquire) {
-            Err(Failure::Unavailable)
-        } else if Instant::now() >= *self.deadline.lock().map_err(|_| Failure::Unavailable)? {
-            Err(Failure::Budget)
-        } else {
-            (self.validate)()
-        };
+        // Metadata/authority validation may itself block. Its return must not
+        // publish success after cancellation or a deadline that elapsed inside it.
+        let result = self
+            .active()
+            .and_then(|_| (self.validate)())
+            .and_then(|_| self.active());
         if let Err(failure) = result {
             self.record(failure);
         }
