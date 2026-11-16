@@ -132,6 +132,10 @@
     "tests/component/source-control/diff/diffLifecycle.test.tsx": "70a3e894b1bbadf744c9f6b26953733255f76b7dc49be052c5b6c3eaf5223076",
     "src/features/source-control/diff/core/registry.ts": "ac5b4ce97ffb5ccdae021db84aa48bf8301c6439d9fc9ef68887309171b9b9c0",
     "src/features/source-control/diff/core/createAsyncDiffContribution.tsx": "d022826bc7b716af5f46ab94743b905942fc9f3bb7d733327b1e06000f442e5a",
-    "src/features/source-control/diff/contributions/docx-redline/contribution.tsx": "a7e4a3e3f11c7da78a9566bdc72354e4874f95f6fea98b0a57a1a1256f7bc9f4"
+    "src/features/source-control/diff/contributions/docx-redline/contribution.tsx": "a7e4a3e3f11c7da78a9566bdc72354e4874f95f6fea98b0a57a1a1256f7bc9f4",
+    "tests/unit/source-control/history/gitRevisionSpecs.test.mjs": "e2130515e441628464d1f8cef5ade86feea6bce0d9adde53272599b5104a8a64",
+    "tests/integration/source-control/status/workspace.git.integration.test.mjs": "24341b907c1dd60fa4a954d096232822ca3b4799cb6bef074a1fd1d20ec2b64d",
+    "electron/local-api/git/revision-pair.mjs": "b702e284aec2c88f90b1cd271957e06a0a2c858fe2e096c739c95074fa338dc7",
+    "electron/local-api/git/revision-specs.mjs": "635d2e9f0884d7d1967dc984f3cda2da081d52c041c7583d4d24ddc4a00e7d4c"
   }
 }

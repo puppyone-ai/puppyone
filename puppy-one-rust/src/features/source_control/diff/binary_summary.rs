@@ -69,11 +69,20 @@ fn side(label: &'static str, side: &Side, p: &DiffPalette) -> Div {
                 .truncate()
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(t.muted)
-                .child(match side {
-                    Side::Missing => tr("source-control.diff.binary.notPresent").to_owned(),
-                    Side::Present(size) => bytes(*size),
-                }),
+                .child(side_value(side)),
         )
+}
+
+fn side_value(side: &Side) -> String {
+    match side {
+        Side::Missing => tr("source-control.diff.binary.notPresent").to_owned(),
+        Side::Present(size) => bytes(*size),
+        Side::SizeLimited(size) => format!(
+            "{} · {}",
+            bytes(Some(*size)),
+            tr("source-control.diff.binary.unavailable")
+        ),
+    }
 }
 
 pub(super) fn summary(file: &FileDiff, p: &DiffPalette, open_file: Option<super::OpenFile>) -> Div {
@@ -130,7 +139,7 @@ pub(super) fn summary(file: &FileDiff, p: &DiffPalette, open_file: Option<super:
 
 #[cfg(test)]
 mod tests {
-    use super::bytes;
+    use super::{Side, bytes, side_value};
     use core::prelude::v1::test;
 
     #[test]
@@ -139,5 +148,14 @@ mod tests {
         assert_eq!(bytes(Some(1536)), "1.5 kB");
         assert_eq!(bytes(Some(2048)), "2 kB");
         assert_eq!(bytes(Some(5 * 1024 * 1024 + 300_000)), "5.3 MB");
+    }
+
+    #[test]
+    fn over_budget_revisions_keep_their_size_and_explain_unavailability() {
+        assert_eq!(
+            side_value(&Side::SizeLimited(25 * 1024 * 1024 + 1)),
+            "25 MB · Unavailable"
+        );
+        assert_eq!(side_value(&Side::Present(Some(25 * 1024 * 1024))), "25 MB");
     }
 }

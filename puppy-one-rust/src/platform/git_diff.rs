@@ -2,6 +2,8 @@
 //! `getWorkspaceGitFileDiff` / `getWorkspaceGitCommitDetail` (`parseGitPatch`,
 //! `buildUntrackedFileDiff`, `deriveGitRevisionSpecs`). Git CLI only, paths as
 //! literal pathspecs; no presentation.
+mod working;
+
 use super::git::{self, git_read as git};
 use std::{path::Path, sync::atomic::AtomicBool};
 
@@ -46,6 +48,8 @@ pub enum Side {
     Missing,
     /// Its size, when Git could read it.
     Present(Option<u64>),
+    /// Known size, but bytes exceed the shared diff resource budget.
+    SizeLimited(u64),
 }
 
 /// `GitFileDiff`.
@@ -240,7 +244,7 @@ pub fn file_diff(
         None => None,
     };
     if scope == Scope::Untracked {
-        return untracked(root, path, local).map(|file| vec![file]);
+        return untracked(root, path, local, cancel).map(|file| vec![file]);
     }
     let mut args = vec![
         "diff",
@@ -281,11 +285,12 @@ pub fn file_diff(
         });
         file.redline = Some(redline(root, before, after, cancel));
     }
+    working::check_cancel(cancel)?;
     Ok(files)
 }
 
-/// The most bytes one Word revision may have.
-const MAX_DOCX_BYTES: u64 = 64 * 1024 * 1024;
+/// `GIT_DIFF_REVISION_LIMITS.maxResourceBytes`; expanded XML has a separate budget.
+const MAX_RESOURCE_BYTES: u64 = 25 * 1024 * 1024;
 
 /// `docxRedlineContribution.match`: a Word (OpenXML) document.
 fn is_docx(path: &str) -> bool {
@@ -314,46 +319,58 @@ fn redline(
         match side {
             None => Ok(None),
             Some(Revision::Blob(spec)) => {
-                let size: u64 = git(root, &["cat-file", "-s", &spec], None, cancel)
+                // Resolve mutable HEAD/index specs once, then read the same
+                // immutable blob for size and content even if refs change.
+                let oid = git(
+                    root,
+                    &["rev-parse", "--verify", "--end-of-options", &spec],
+                    None,
+                    cancel,
+                )?;
+                let oid = std::str::from_utf8(&oid).map_err(|e| e.to_string())?.trim();
+                if !matches!(oid.len(), 40 | 64) || !oid.bytes().all(|b| b.is_ascii_hexdigit()) {
+                    return Err("Git returned an invalid revision object id.".into());
+                }
+                let size: u64 = git(root, &["cat-file", "-s", oid], None, cancel)
                     .ok()
                     .and_then(|out| String::from_utf8_lossy(&out).trim().parse().ok())
                     .ok_or("The Word revision could not be read from Git.")?;
-                if size > MAX_DOCX_BYTES {
+                if size > MAX_RESOURCE_BYTES {
                     return Err("The Word revision exceeds the semantic diff budget.".into());
                 }
-                git::git_read_bounded(
+                let bytes = git::git_read_bounded(
                     root,
-                    &["cat-file", "blob", &spec],
+                    &["cat-file", "blob", oid],
                     None,
                     cancel,
-                    MAX_DOCX_BYTES as usize,
-                )
-                .map(Some)
+                    MAX_RESOURCE_BYTES as usize,
+                )?;
+                if bytes.len() as u64 != size {
+                    return Err("Git returned an incomplete revision blob.".into());
+                }
+                Ok(Some(bytes))
             }
             Some(Revision::Working(local)) => {
                 let local = local
                     .ok_or_else(|| crate::localization::t("native.git.pathOutside").to_owned())?;
-                let base = root.canonicalize().map_err(|e| e.to_string())?;
-                let file = root.join(local).canonicalize().map_err(|e| e.to_string())?;
-                read_working(&base, &file)
+                read_working(root, &local, cancel)
             }
         }
     };
     let before = read(before)?;
     let after = read(after)?;
-    super::docx_redline::build(before.as_deref(), after.as_deref())
+    working::check_cancel(cancel)?;
+    let model = super::docx_redline::build(before.as_deref(), after.as_deref());
+    working::check_cancel(cancel)?;
+    model
 }
 
-/// A working Word file inside `base`, within the size budget.
-fn read_working(base: &Path, file: &Path) -> Result<Option<Vec<u8>>, String> {
-    if !file.starts_with(base) {
-        return Err(crate::localization::t("native.git.symlinkPreview").into());
-    }
-    let meta = std::fs::metadata(file).map_err(|e| e.to_string())?;
-    if meta.len() > MAX_DOCX_BYTES {
-        return Err("The Word revision exceeds the semantic diff budget.".into());
-    }
-    std::fs::read(file).map(Some).map_err(|e| e.to_string())
+/// A working Word file is read once through an admitted, bounded descriptor.
+fn read_working(root: &Path, local: &str, cancel: &AtomicBool) -> Result<Option<Vec<u8>>, String> {
+    working::Revision::open(root, local, cancel)?
+        .ok_or_else(|| "The Word revision is not a regular file.".to_owned())?
+        .read(MAX_RESOURCE_BYTES, cancel)
+        .map(Some)
 }
 
 /// `getWorkspaceGitCommitDetail`: every file a commit changed.
@@ -394,46 +411,70 @@ pub fn commit_detail(root: &Path, id: &str, cancel: &AtomicBool) -> Result<Vec<F
             (file.status != Status::Deleted).then(|| Revision::Blob(format!("{id}:{}", file.path)));
         file.redline = Some(redline(root, before, after, cancel));
     }
+    working::check_cancel(cancel)?;
     Ok(files)
 }
 
 /// `buildUntrackedFileDiff`: every line added — the product splits on line
 /// breaks, so a final newline shows as an empty last line.
-fn untracked(root: &Path, path: &str, local: &str) -> Result<FileDiff, String> {
-    let base = root.canonicalize().map_err(|e| e.to_string())?;
-    let file = root.join(local).canonicalize().map_err(|e| e.to_string())?;
-    if !file.starts_with(&base) {
-        return Err(crate::localization::t("native.git.symlinkPreview").into());
-    }
-    let summary = |binary: bool| FileDiff {
+fn untracked(
+    root: &Path,
+    path: &str,
+    local: &str,
+    cancel: &AtomicBool,
+) -> Result<FileDiff, String> {
+    let working = working::Revision::open(root, local, cancel)?;
+    let size = working.as_ref().map(working::Revision::size);
+    let mut file = FileDiff {
         path: path.to_owned(),
         old_path: None,
         status: Status::Added,
         additions: None,
         deletions: None,
-        binary,
+        binary: true,
         lines: Vec::new(),
         truncated: false,
         omitted_lines: 0,
-        revision: Some((
-            Side::Missing,
-            Side::Present(std::fs::metadata(&file).ok().map(|m| m.len())),
-        )),
-        redline: is_docx(path).then(|| {
-            read_working(&base, &file)
-                .and_then(|after| super::docx_redline::build(None, after.as_deref()))
-        }),
+        revision: Some((Side::Missing, side_size(size))),
+        redline: None,
     };
-    let meta = std::fs::metadata(&file).map_err(|e| e.to_string())?;
-    if meta.is_dir() || meta.len() > MAX_UNTRACKED_BYTES {
-        return Ok(summary(true));
+    let word = is_docx(path);
+    let Some(working) = working else {
+        if word {
+            file.redline = Some(Err("The Word revision is not a regular file.".into()));
+        }
+        return Ok(file);
+    };
+    if !word && working.size() > MAX_UNTRACKED_BYTES {
+        return Ok(file);
     }
-    let bytes = std::fs::read(&file).map_err(|e| e.to_string())?;
-    if bytes.contains(&0) {
-        return Ok(summary(true));
+    let bytes = match working.read(
+        if word {
+            MAX_RESOURCE_BYTES
+        } else {
+            MAX_UNTRACKED_BYTES
+        },
+        cancel,
+    ) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            working::check_cancel(cancel)?;
+            if !word {
+                return Err(error);
+            }
+            file.redline = Some(Err(error));
+            return Ok(file);
+        }
+    };
+    if word {
+        file.redline = Some(super::docx_redline::build(None, Some(&bytes)));
+        working::check_cancel(cancel)?;
+    }
+    if bytes.len() as u64 > MAX_UNTRACKED_BYTES || bytes.contains(&0) {
+        return Ok(file);
     }
     let text = String::from_utf8_lossy(&bytes);
-    let lines: Vec<DiffLine> = text
+    file.lines = text
         .split('\n')
         .enumerate()
         .map(|(i, line)| DiffLine {
@@ -443,13 +484,19 @@ fn untracked(root: &Path, path: &str, local: &str) -> Result<FileDiff, String> {
             new_line: Some(i as u32 + 1),
         })
         .collect();
-    Ok(FileDiff {
-        additions: Some(lines.len() as u32),
-        deletions: Some(0),
-        revision: None,
-        lines,
-        ..summary(false)
-    })
+    working::check_cancel(cancel)?;
+    file.binary = false;
+    file.additions = Some(file.lines.len() as u32);
+    file.deletions = Some(0);
+    file.revision = None;
+    Ok(file)
+}
+
+fn side_size(size: Option<u64>) -> Side {
+    match size {
+        Some(size) if size > MAX_RESOURCE_BYTES => Side::SizeLimited(size),
+        size => Side::Present(size),
+    }
 }
 
 /// `deriveGitRevisionSpecs` → sizes: unstaged compares the index with the
@@ -466,7 +513,7 @@ fn binary_sides(
         let size = git(root, &["cat-file", "-s", &spec], None, cancel)
             .ok()
             .and_then(|out| String::from_utf8_lossy(&out).trim().parse().ok());
-        Side::Present(size)
+        side_size(size)
     };
     let before = if file.status == Status::Added {
         Side::Missing
@@ -482,10 +529,10 @@ fn binary_sides(
     } else {
         // `HEAD:path` and `:path` name repository paths; the working file
         // is under the opened folder.
-        Side::Present(
+        side_size(
             git::local(prefix, &file.path)
-                .and_then(|local| std::fs::symlink_metadata(root.join(local)).ok())
-                .map(|m| m.len()),
+                .and_then(|local| working::Revision::open(root, local, cancel).ok().flatten())
+                .map(|revision| revision.size()),
         )
     };
     (before, after)
@@ -550,6 +597,209 @@ mod tests {
         assert_eq!(
             (file.truncated, file.omitted_lines, file.additions),
             (true, 101, Some(1000))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn working_diff_never_follows_symbolic_links_even_inside_the_workspace() {
+        use std::os::unix::fs::symlink;
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let cancel = AtomicBool::new(false);
+        git::operate(root, &git::Operation::Init, &cancel).unwrap();
+        std::fs::write(root.join("actual.txt"), "private bytes\n").unwrap();
+        symlink("actual.txt", root.join("alias.txt")).unwrap();
+        assert!(file_diff(root, "", "alias.txt", None, Scope::Untracked, &cancel).is_err());
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.txt"), "outside secret\n").unwrap();
+        symlink(outside.path().join("secret.txt"), root.join("outside.txt")).unwrap();
+        assert!(file_diff(root, "", "outside.txt", None, Scope::Untracked, &cancel).is_err());
+    }
+
+    #[test]
+    fn word_revision_reading_obeys_the_same_25_mib_resource_budget_as_typescript() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let cancel = AtomicBool::new(false);
+        git::operate(root, &git::Operation::Init, &cancel).unwrap();
+        let file = std::fs::File::create(root.join("oversize.docx")).unwrap();
+        file.set_len(25 * 1024 * 1024 + 1).unwrap();
+        let diff = file_diff(root, "", "oversize.docx", None, Scope::Untracked, &cancel).unwrap();
+        assert_eq!(
+            diff[0].revision,
+            Some((Side::Missing, Side::SizeLimited(25 * 1024 * 1024 + 1)))
+        );
+        let error = diff[0].redline.as_ref().unwrap().as_ref().unwrap_err();
+        assert!(
+            error.contains("exceeds"),
+            "must refuse bytes before parsing: {error}"
+        );
+        std::fs::hard_link(root.join("oversize.docx"), root.join("oversize.bin")).unwrap();
+        let binary = file_diff(root, "", "oversize.bin", None, Scope::Untracked, &cancel).unwrap();
+        assert_eq!(binary[0].revision, diff[0].revision);
+        assert!(binary[0].lines.is_empty() && binary[0].redline.is_none());
+        git::git(root, &["add", "oversize.docx"], None, &cancel).unwrap();
+        let staged = file_diff(root, "", "oversize.docx", None, Scope::Staged, &cancel).unwrap();
+        assert_eq!(staged[0].revision, diff[0].revision);
+        assert!(
+            staged[0]
+                .redline
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unwrap_err()
+                .contains("exceeds")
+        );
+        assert!(
+            file_diff(
+                root,
+                "",
+                "oversize.docx",
+                None,
+                Scope::Untracked,
+                &AtomicBool::new(true)
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn total_patch_limits_preserve_later_files_and_exact_change_counts() {
+        let mut patch = String::new();
+        for file in 0..7 {
+            patch.push_str(&format!(
+                "diff --git a/{file}.txt b/{file}.txt\n@@ -0,0 +1,1000 @@\n"
+            ));
+            for line in 0..1000 {
+                patch.push_str(&format!("+file {file} line {line}\n"));
+            }
+        }
+        let files = parse_patch(&patch);
+        assert_eq!(files.len(), 7);
+        assert_eq!(
+            files.iter().map(|file| file.lines.len()).sum::<usize>(),
+            MAX_TOTAL_LINES
+        );
+        for (i, file) in files.iter().enumerate() {
+            assert_eq!(file.path, format!("{i}.txt"));
+            assert!(file.lines.len() <= MAX_FILE_LINES && file.truncated);
+            assert_eq!((file.additions, file.deletions), (Some(1000), Some(0)));
+            assert_eq!(file.lines.len() + file.omitted_lines as usize, 1001);
+        }
+        assert!(files.last().unwrap().lines.is_empty());
+    }
+
+    #[test]
+    fn real_word_revision_scopes_distinguish_head_index_worktree_rename_and_deletion() {
+        use super::super::docx_redline::{self, SegmentKind, State};
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let cancel = AtomicBool::new(false);
+        let run = |args: &[&str]| git::git(root, args, None, &cancel).unwrap();
+        run(&["init", "-q", "-b", "main"]);
+        for (key, value) in [
+            ("user.name", "Diff Fixture"),
+            ("user.email", "diff@example.invalid"),
+            ("commit.gpgsign", "false"),
+            ("core.hooksPath", "/dev/null"),
+        ] {
+            run(&["config", key, value]);
+        }
+        let write = |name: &str, body: &str| {
+            std::fs::write(
+                root.join(name),
+                docx_redline::test_docx(&format!("<w:p><w:r><w:t>{body}</w:t></w:r></w:p>")),
+            )
+            .unwrap();
+        };
+        let diff = |path: &str, old: Option<&str>, scope| {
+            file_diff(root, "", path, old, scope, &cancel)
+                .unwrap()
+                .remove(0)
+        };
+        write("report.docx", "Base");
+        run(&["add", "report.docx"]);
+        let unborn = diff("report.docx", None, Scope::Staged);
+        assert_eq!(unborn.status, Status::Added);
+        assert_eq!(unborn.revision.as_ref().unwrap().0, Side::Missing);
+        assert_eq!(
+            unborn.redline.as_ref().unwrap().as_ref().unwrap().state,
+            State::Added
+        );
+        run(&["commit", "-qm", "base"]);
+        let head = String::from_utf8(run(&["rev-parse", "HEAD"])).unwrap();
+        write("report.docx", "Staged");
+        run(&["add", "report.docx"]);
+        write("report.docx", "Working");
+        let words = |file: &FileDiff, kind| {
+            file.redline
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .changes
+                .iter()
+                .flat_map(|change| &change.segments)
+                .filter(|part| part.kind == kind)
+                .map(|part| part.text.as_str())
+                .collect::<String>()
+        };
+        let staged = diff("report.docx", None, Scope::Staged);
+        let unstaged = diff("report.docx", None, Scope::Unstaged);
+        assert_eq!(words(&staged, SegmentKind::Remove), "Base");
+        assert_eq!(words(&staged, SegmentKind::Add), "Staged");
+        assert_eq!(words(&unstaged, SegmentKind::Remove), "Staged");
+        assert_eq!(words(&unstaged, SegmentKind::Add), "Working");
+        let historical = commit_detail(root, head.trim(), &cancel).unwrap().remove(0);
+        assert_eq!(words(&historical, SegmentKind::Add), "Base");
+        // Rename unchanged index bytes so Git's similarity heuristic cannot
+        // turn this scope assertion into an unrelated add/delete fixture.
+        run(&["restore", "--staged", "report.docx"]);
+        run(&["mv", "report.docx", "renamed.docx"]);
+        let renamed = diff("renamed.docx", Some("report.docx"), Scope::Staged);
+        assert_eq!(
+            (renamed.status, renamed.old_path.as_deref()),
+            (Status::Renamed, Some("report.docx"))
+        );
+        assert_eq!(
+            renamed.redline.as_ref().unwrap().as_ref().unwrap().state,
+            State::Empty
+        );
+        let renamed_working = diff("renamed.docx", None, Scope::Unstaged);
+        assert_eq!(words(&renamed_working, SegmentKind::Remove), "Base");
+        assert_eq!(words(&renamed_working, SegmentKind::Add), "Working");
+        assert_eq!(
+            words(&staged, SegmentKind::Add),
+            "Staged",
+            "already delivered models own their original bytes"
+        );
+        run(&["rm", "-f", "renamed.docx"]);
+        let deleted = diff("report.docx", None, Scope::Staged);
+        assert_eq!(deleted.status, Status::Deleted);
+        assert_eq!(deleted.revision.as_ref().unwrap().1, Side::Missing);
+        assert_eq!(
+            deleted.redline.as_ref().unwrap().as_ref().unwrap().state,
+            State::Deleted
+        );
+        assert_eq!(words(&deleted, SegmentKind::Remove), "Base");
+        write("new.docx", "New body");
+        assert_eq!(
+            diff("new.docx", None, Scope::Untracked)
+                .redline
+                .unwrap()
+                .unwrap()
+                .state,
+            State::Added
+        );
+        run(&["add", "new.docx"]);
+        assert_eq!(
+            diff("new.docx", None, Scope::Staged)
+                .redline
+                .unwrap()
+                .unwrap()
+                .state,
+            State::Added
         );
     }
 

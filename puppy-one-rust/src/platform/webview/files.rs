@@ -34,6 +34,26 @@ impl LocalRoot {
     }
 
     pub fn file(&self, relative: &Path) -> io::Result<OpenedFile> {
+        self.open_file(relative, true)
+    }
+
+    /// Git paths are exact repository names, never Unicode display aliases.
+    pub(crate) fn file_exact(&self, relative: &Path) -> io::Result<OpenedFile> {
+        self.open_file(relative, false)
+    }
+
+    pub(crate) fn metadata_exact(&self, relative: &Path) -> io::Result<cap_std::fs::Metadata> {
+        if relative.as_os_str().is_empty()
+            || !relative
+                .components()
+                .all(|part| matches!(part, Component::Normal(_)))
+        {
+            return Err(refused());
+        }
+        self.0.symlink_metadata(relative)
+    }
+
+    fn open_file(&self, relative: &Path, display_alias: bool) -> io::Result<OpenedFile> {
         let mut parts = relative.components().peekable();
         if parts.peek().is_none()
             || !parts
@@ -45,7 +65,11 @@ impl LocalRoot {
         let mut dir = self.0.try_clone()?;
         let mut resolved = PathBuf::new();
         while let Some(part) = parts.next() {
-            let name = display_name(&dir, Path::new(part.as_os_str()))?;
+            let name = if display_alias {
+                display_name(&dir, Path::new(part.as_os_str()))?
+            } else {
+                part.as_os_str().to_owned()
+            };
             resolved.push(&name);
             let metadata = dir.symlink_metadata(&name)?;
             let directory = parts.peek().is_some();

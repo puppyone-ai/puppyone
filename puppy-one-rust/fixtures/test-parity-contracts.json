@@ -13534,6 +13534,112 @@
           "test": "features::source_control::tests::stale_workspace_history_and_diff_results_cannot_publish"
         }
       ]
+    },
+    {
+      "id": "native-git-revision-read-authority",
+      "acceptance": "Working revisions use exact repository names and a retained directory capability, reject final/parent symlinks and special files before byte reads, bound each read, check cancellation before and after every chunk, and reject growth, replacement, or same-size modification hidden by restoring mtime. Root replacement cannot redirect an admitted descriptor. DOCX working/index/tree bytes use the same 25 MiB resource limit as TS; known over-budget sizes remain visible with an Unavailable label. Git refs/index specs are resolved to immutable blob IDs before size/content reads. Real DOCX repositories prove index-to-worktree, HEAD-to-index, one-sided addition/deletion, unborn HEAD, renamed index versus working bytes, and historical root-commit isolation. Patch limits preserve all file headers and exact totals after the global line budget is exhausted.",
+      "environment": "Real temporary Git repositories, bounded native file descriptors, deterministic chunk readers and filesystem replacement fixtures. Rust owns the parsed model rather than retaining renderer-accessible IPC byte handles; SizeLimited is the native size-limit state. The five local scope cases are qualified through real derived Git state, including unborn staged additions. Remote/committed merge-base aggregate comparisons, IPC broker quotas, and byte-cache identity cases remain open. CPU parser interruption/worker deadlines are not qualified by read cancellation.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/history/gitRevisionSpecs.test.mjs",
+          "sha256": "e2130515e441628464d1f8cef5ade86feea6bce0d9adde53272599b5104a8a64",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git revision pair scope matrix > derives 'unstaged modification' without renderer refs"
+            },
+            {
+              "index": 1,
+              "name": "Git revision pair scope matrix > derives 'staged addition' without renderer refs"
+            },
+            {
+              "index": 2,
+              "name": "Git revision pair scope matrix > derives 'staged deletion' without renderer refs"
+            },
+            {
+              "index": 3,
+              "name": "Git revision pair scope matrix > derives 'untracked file' without renderer refs"
+            },
+            {
+              "index": 8,
+              "name": "Git revision pair scope matrix > models a repository without HEAD as a missing staged before side"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/source-control/status/workspace.git.integration.test.mjs",
+          "sha256": "24341b907c1dd60fa4a954d096232822ca3b4799cb6bef074a1fd1d20ec2b64d",
+          "cases": [
+            {
+              "index": 10,
+              "name": "diffs > returns an honest unavailable side for over-budget binary resources and honors cancellation"
+            },
+            {
+              "index": 12,
+              "name": "diffs > refuses to read an untracked symbolic link outside the workspace"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::patches_parse_like_parse_git_patch"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::long_patches_are_capped_per_file"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::working_tree_diffs_cover_each_scope"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::working_diff_never_follows_symbolic_links_even_inside_the_workspace"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::word_revision_reading_obeys_the_same_25_mib_resource_budget_as_typescript"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::total_patch_limits_preserve_later_files_and_exact_change_counts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::real_word_revision_scopes_distinguish_head_index_worktree_rename_and_deletion"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::working::tests::bounded_chunks_cancel_before_reading_or_delivering_another_chunk"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::working::tests::a_revision_rejects_growth_and_replacement_after_admission"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::working::tests::root_and_parent_replacements_cannot_redirect_admitted_bytes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::working::tests::git_reads_require_exact_names_and_preserve_binary_bytes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::working::tests::non_regular_entries_never_block_a_revision_read"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::working::tests::same_size_writes_cannot_hide_behind_a_restored_modification_time"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff::binary_summary::tests::over_budget_revisions_keep_their_size_and_explain_unavailability"
+        }
+      ]
     }
   ],
   "openAcceptance": [
