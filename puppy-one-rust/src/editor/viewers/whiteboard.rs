@@ -71,12 +71,11 @@ enum Asked {
 
 /// `excalidraw`: the whiteboard editor with on-demand pack installation and JSON source mode.
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
-    Box::new(open_with_pack(
-        request,
-        viewer_packs::load_excalidraw(),
-        window,
-        cx,
-    ))
+    let surface = open_with_pack(request, None, window, cx);
+    surface.board.update(cx, |view, cx| {
+        view.start_load(viewer_packs::load_excalidraw, cx)
+    });
+    Box::new(surface)
 }
 
 fn open_with_pack(
@@ -166,11 +165,13 @@ struct WhiteboardView {
     references: Option<ReferenceContext>,
     assets: Option<DocumentAssets>,
     pack: Option<ExcalidrawPack>,
+    loading: bool,
     installing: bool,
     install_error: Option<String>,
     frame: Option<Entity<WebFrame>>,
     _inbox: Option<Task<()>>,
     _installer: Option<Task<()>>,
+    _loader: Option<Task<()>>,
 }
 impl EventEmitter<Asked> for WhiteboardView {}
 
@@ -188,11 +189,13 @@ impl WhiteboardView {
             references: None,
             assets: None,
             pack: None,
+            loading: false,
             installing: false,
             install_error: None,
             frame: None,
             _inbox: None,
             _installer: None,
+            _loader: None,
         }
     }
 
@@ -260,8 +263,36 @@ impl WhiteboardView {
         cx.notify();
     }
 
+    fn start_load(
+        &mut self,
+        load: impl FnOnce() -> Option<ExcalidrawPack> + Send + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        if self.loading || self.installing || self.pack.is_some() {
+            return;
+        }
+        self.loading = true;
+        cx.notify();
+        let (tx, rx) = async_channel::bounded(1);
+        // The cache may need to read and hash every SDK font. Never run that
+        // disk work in the UI executor, including its first poll.
+        std::thread::spawn(move || {
+            let _ = tx.send_blocking(load());
+        });
+        self._loader = Some(cx.spawn(async move |this, cx| {
+            let pack = rx.recv().await.unwrap_or(None);
+            let _ = this.update(cx, |view, cx| {
+                view.loading = false;
+                view.pack = pack;
+                // show reads current text, mode and read-only state; the load
+                // result carries assets only, never an old document snapshot.
+                view.show(cx);
+            });
+        }));
+    }
+
     fn start_install(&mut self, cx: &mut Context<Self>) {
-        if self.installing {
+        if self.loading || self.installing {
             return;
         }
         self.installing = true;
@@ -603,7 +634,9 @@ impl Render for WhiteboardView {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.name.clone());
-        let install_label = if self.installing {
+        let install_label = if self.loading {
+            t("editor.preview.loading")
+        } else if self.installing {
             t("native.whiteboard.installingPack")
         } else {
             t("native.whiteboard.installPack")
@@ -673,7 +706,7 @@ impl Render for WhiteboardView {
                                 Button::new("whiteboard-install-pack")
                                     .variant(ButtonVariant::Solid)
                                     .icon("download")
-                                    .disabled(self.installing)
+                                    .disabled(self.loading || self.installing)
                                     .label(install_label.to_owned())
                                     .on_click(cx.listener(|v, _, _, cx| v.start_install(cx))),
                             )

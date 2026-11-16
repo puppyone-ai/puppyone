@@ -344,3 +344,129 @@ fn ready_theme_and_history_commands_keep_the_same_frame_and_read_only_fences(
     content(&s, cx, old, "queued before read-only");
     assert_eq!(text(&s, cx), BLANK);
 }
+
+#[gpui::test]
+fn pack_verification_runs_off_the_ui_thread_and_mounts_the_latest_document(
+    app: &mut TestAppContext,
+) {
+    app.executor().allow_parking();
+    let (_window, cx) = app.add_window_view(|_, _| EmptyView);
+    let dir = tempfile::tempdir().unwrap();
+    let s = surface(cx, BLANK, false, dir.path());
+    let ui_thread = std::thread::current().id();
+    let (started, begin) = std::sync::mpsc::channel();
+    let (release, wait) = std::sync::mpsc::channel();
+    let path = dir.path().to_path_buf();
+    s.board.update(cx, |v, cx| {
+        v.start_load(
+            move || {
+                started.send(std::thread::current().id()).unwrap();
+                wait.recv_timeout(std::time::Duration::from_secs(5))
+                    .unwrap();
+                Some(ExcalidrawPack {
+                    version: "fixture".into(),
+                    script: Arc::from([]),
+                    style: Arc::from([]),
+                    dir: path,
+                })
+            },
+            cx,
+        )
+    });
+    assert_ne!(
+        begin
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap(),
+        ui_thread
+    );
+    // The worker is deliberately held while the real source editor remains usable.
+    cx.update(|w, cx| s.pane_segment("source", w, cx));
+    let edited = format!("\n{BLANK}\n");
+    cx.update(|w, cx| {
+        s.source.replace_text(&edited, w, cx);
+        s.apply(true, true, Scale::default(), w, cx);
+    });
+    assert_eq!(text(&s, cx), edited);
+    assert!(s.board.read_with(cx, |v, _| v.loading));
+    s.board.update(cx, |v, cx| {
+        v.start_install(cx);
+        assert!(!v.installing, "loading cannot also start installation");
+        v.start_load(|| panic!("duplicate loading must not start"), cx);
+    });
+    release.send(()).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while s.board.read_with(cx, |v, _| v.loading) {
+        cx.run_until_parked();
+        assert!(
+            std::time::Instant::now() < deadline,
+            "loading did not settle"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(s.mode.get(), Mode::Source);
+    assert_eq!(text(&s, cx), edited);
+    assert!(s.board.read_with(cx, |v, _| v.frame.is_some()
+        && !v.enabled
+        && !v.active
+        && v.dark));
+    cx.update(|w, cx| s.pane_segment("live", w, cx));
+    assert_eq!(text(&s, cx), edited);
+    assert!(s.board.read_with(cx, |v, _| !v.enabled));
+}
+
+#[gpui::test]
+fn closing_a_board_during_pack_loading_discards_its_result(app: &mut TestAppContext) {
+    app.executor().allow_parking();
+    let (started, begin) = std::sync::mpsc::channel();
+    let (release, wait) = std::sync::mpsc::channel();
+    let (finished, done) = std::sync::mpsc::channel();
+    let view =
+        app.new(|_| WhiteboardView::new("plan.excalidraw".into(), None, BLANK.into(), false));
+    let weak = view.downgrade();
+    view.update(app, |v, cx| {
+        v.start_load(
+            move || {
+                started.send(()).unwrap();
+                wait.recv_timeout(std::time::Duration::from_secs(5))
+                    .unwrap();
+                finished.send(()).unwrap();
+                None
+            },
+            cx,
+        )
+    });
+    begin
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap();
+    drop(view);
+    app.run_until_parked();
+    assert!(weak.upgrade().is_none());
+    release.send(()).unwrap();
+    done.recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap();
+    app.run_until_parked();
+    assert!(weak.upgrade().is_none());
+}
+
+#[gpui::test]
+fn a_missing_pack_finishes_loading_without_changing_source_or_starting_installation(
+    app: &mut TestAppContext,
+) {
+    app.executor().allow_parking();
+    let (_window, cx) = app.add_window_view(|_, _| EmptyView);
+    let dir = tempfile::tempdir().unwrap();
+    let s = surface(cx, "{broken", false, dir.path());
+    s.board.update(cx, |v, cx| v.start_load(|| None, cx));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while s.board.read_with(cx, |v, _| v.loading) {
+        cx.run_until_parked();
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(text(&s, cx), "{broken");
+    assert!(s.board.read_with(cx, |v, _| v.pack.is_none()
+        && v.frame.is_none()
+        && !v.installing));
+    cx.update(|w, cx| s.pane_segment("source", w, cx));
+    assert_eq!(text(&s, cx), "{broken");
+}

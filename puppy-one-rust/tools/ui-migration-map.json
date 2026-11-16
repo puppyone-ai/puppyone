@@ -2481,9 +2481,12 @@
         "test:a_layout_saved_before_the_whiteboard_offers_it_before_custom_files",
         "test:an_external_replacement_rejects_content_already_queued_by_the_previous_scene",
         "test:the_bundled_bridge_and_real_product_model_preserve_scene_acceptance",
-        "test:source_mode_retires_board_writes_and_returns_the_latest_json"
+        "test:source_mode_retires_board_writes_and_returns_the_latest_json",
+        "test:pack_verification_runs_off_the_ui_thread_and_mounts_the_latest_document",
+        "test:closing_a_board_during_pack_loading_discards_its_result",
+        "test:a_missing_pack_finishes_loading_without_changing_source_or_starting_installation"
       ],
-      "remaining": "The fixed on-demand Excalidraw pack and native document-generation ownership are qualified by actual archive/model tests and GPUI transport acceptance. Real OS canvas drawing, IME, undo keyboard handling and embedded HTML interaction remain unqualified; loading all fonts remains synchronous, without a main-thread budget acceptance. Third-party pack activation, signatures and uninstall are separate."
+      "remaining": "The fixed on-demand Excalidraw pack and native document-generation ownership are qualified by actual archive/model tests and GPUI transport acceptance. Real OS canvas drawing, IME, undo keyboard handling and embedded HTML interaction remain unqualified; actual frame latency and full interaction budgets still need native-window evidence. Third-party pack activation, signatures and uninstall are separate."
     },
     {
       "name": "Context Map viewer",

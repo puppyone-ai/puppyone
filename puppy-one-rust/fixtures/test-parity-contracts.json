@@ -12785,7 +12785,7 @@
     },
     {
       "id": "native-whiteboard-document-ownership",
-      "acceptance": "Execute the actual pinned ExcalidrawDocumentModel with the same native IPC bridge bundled into the shipped pack. Preserve original bytes until semantic edits, retain detached edits, reject old model generations after AI/external replacement, preserve five invalid/unsupported inputs without writing, and retain embedded image data and element properties. Native GPUI acceptance additionally requires current ready generation for content/link admission, fences read-only and source transitions including queued old writes after re-enabling, preserves ready frames for reset/theme/history transport, and allows JSON repair without a pack. The recording transport verifies host messages and actual model execution verifies page semantics; OS canvas drawing, IME, actual undo key dispatch and visual rendering remain separate native acceptance. Routing/template/menu migration cases are not included in this criterion.",
+      "acceptance": "Execute the actual pinned ExcalidrawDocumentModel with the same native IPC bridge bundled into the shipped pack. Preserve original bytes until semantic edits, retain detached edits, reject old model generations after AI/external replacement, preserve five invalid/unsupported inputs without writing, and retain embedded image data and element properties. Native GPUI acceptance additionally requires current ready generation for content/link admission, fences read-only and source transitions including queued old writes after re-enabling, preserves ready frames for reset/theme/history transport, and allows JSON repair without a pack. The recording transport verifies host messages and actual model execution verifies page semantics; OS canvas drawing, IME, actual undo key dispatch and visual rendering remain separate native acceptance. Routing/template/menu migration cases are not included in this criterion. Pack validation executes on a separate OS thread, permits source editing while held, mounts using current ownership/read-only state, refuses overlapping load/install starts, and discards results after the board is released. Tests coordinate actual worker threads rather than replacing filesystem work with immediate results.",
       "typescript": [
         {
           "path": "tests/unit/editor/runtime/whiteboard.test.ts",
@@ -12858,6 +12858,18 @@
         {
           "package": "po-editor",
           "test": "editor::viewers::whiteboard::tests::ready_theme_and_history_commands_keep_the_same_frame_and_read_only_fences"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::pack_verification_runs_off_the_ui_thread_and_mounts_the_latest_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::closing_a_board_during_pack_loading_discards_its_result"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::a_missing_pack_finishes_loading_without_changing_source_or_starting_installation"
         }
       ]
     },
