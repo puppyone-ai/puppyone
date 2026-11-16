@@ -136,6 +136,13 @@ pub fn grip_size(axis: Axis) -> (f32, f32) {
     }
 }
 
+/// Optional focus and transition presentation for a grip (`CS-14`, `TB-03`).
+#[derive(Clone, Default)]
+pub struct GripOptions<'a> {
+    pub focus: Option<&'a FocusHandle>,
+    pub opacity: f32,
+}
+
 /// A drag grip (`.po-editable-table-drag-handle`): the 22×14 / 14×22 face
 /// with three dots (`radial-gradient` on a 4px tile), selection-coloured
 /// while pressed, dragged or showing its menu (`active`).
@@ -146,6 +153,35 @@ pub fn grip(
     bounds: Bounds<f32>,
     active: bool,
     dragging: bool,
+    handlers: GripHandlers,
+) -> AnyElement {
+    grip_with_options(
+        style,
+        axis,
+        id,
+        bounds,
+        active,
+        dragging,
+        GripOptions {
+            focus: None,
+            opacity: 1.,
+        },
+        handlers,
+    )
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "stateless builder over shared style, axis, id, bounds, state, options and handlers"
+)]
+pub fn grip_with_options(
+    style: &EditableTableStyle,
+    axis: Axis,
+    id: SharedString,
+    bounds: Bounds<f32>,
+    active: bool,
+    dragging: bool,
+    options: GripOptions<'_>,
     handlers: GripHandlers,
 ) -> AnyElement {
     let (w, h) = match axis {
@@ -185,7 +221,9 @@ pub fn grip(
         menu,
         hover: on_hover,
     } = handlers;
-    div()
+    let key_menu = menu.clone();
+    let focus_ring = style.focus_ring;
+    let mut root = div()
         .id(id.clone())
         .group(id.clone())
         .absolute()
@@ -193,6 +231,7 @@ pub fn grip(
         .top(px(bounds.origin.y))
         .w(px(bounds.size.width))
         .h(px(bounds.size.height))
+        .opacity(options.opacity.clamp(0., 1.))
         .cursor(if dragging {
             CursorStyle::ClosedHand
         } else {
@@ -206,21 +245,45 @@ pub fn grip(
         .on_mouse_down(MouseButton::Right, move |_, window, cx| {
             cx.stop_propagation();
             menu(window, cx);
-        })
-        .child(
-            div()
-                .absolute()
-                .left(px(left))
-                .top(px(top))
-                .w(px(w))
-                .h(px(h))
-                .rounded(px(2.))
-                .bg(face)
-                .child(dot(0.))
-                .child(dot(1.))
-                .child(dot(2.)),
-        )
-        .into_any_element()
+        });
+    if let Some(focus) = options.focus {
+        root = root
+            .track_focus(focus)
+            .on_key_down(move |e: &KeyDownEvent, window, cx| {
+                let m = &e.keystroke.modifiers;
+                if matches!(e.keystroke.key.as_str(), "enter" | "space" | " ")
+                    && !m.alt
+                    && !m.control
+                    && !m.platform
+                {
+                    cx.stop_propagation();
+                    key_menu(window, cx);
+                }
+            });
+    }
+    let mut pill = div()
+        .absolute()
+        .left(px(left))
+        .top(px(top))
+        .w(px(w))
+        .h(px(h))
+        .rounded(px(2.))
+        .bg(face)
+        .child(dot(0.))
+        .child(dot(1.))
+        .child(dot(2.));
+    if options.focus.is_some() {
+        pill = pill.focus_visible(move |s| {
+            s.shadow(vec![BoxShadow {
+                color: focus_ring.into(),
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(0.),
+                spread_radius: px(1.5),
+                inset: false,
+            }])
+        });
+    }
+    root.child(pill).into_any_element()
 }
 
 /// What the resize rail hands back: a press at window x, or a double-click.

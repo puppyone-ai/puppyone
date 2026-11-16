@@ -2,14 +2,14 @@
 //! csv-table-editor.css and the shared editable-table.css): a bordered grid
 //! with a record-number gutter and an optional header record, placed in the
 //! content inset of a scrollport that owns both axes; the header record and
-//! the gutter are sticky. Cells show their values the way the product's
-//! `<input>`s do; the active cell is a native editor (`EditorView`) at the same
-//! place and style whose edits and history go to the CSV model. The add-row /
-//! add-column rails and the expansion corner appear while the table is
-//! hovered. Source mode (`CsvSourceEditor` → `PlainTextEditor`) edits the raw
-//! text.
+//! the gutter are sticky. Static cells render on canvas layers; the active
+//! cell mounts one native `EditorView` whose session commits as a single
+//! table-level undo step (`CS-03`) and supports multi-line values (`CS-06`).
+//! Unclosed quotes lock the grid to read-only with an offending-row highlight
+//! and a repair banner into Source mode (`CS-05`). Large inputs preview their
+//! first screen immediately while parsing finishes in the background (`CS-13`).
 use super::{
-    cell::{CellRequest, CellSession, CellText, Outbox, display},
+    cell::{CellRequest, CellSession, CellText, Outbox, first_line, normalize_newlines},
     document::{self, Delimiter},
     layout::{ColumnLayout, MAX_WIDTH},
     model::{Change, CsvModel},
@@ -28,7 +28,7 @@ use crate::{
         text::selection::Selection,
         tokens::Tokens,
         view::{
-            EditorView,
+            EditorView, InsertSoftNewline,
             decoration::{Decorations, Surface},
             editor::EditorEvent,
             extension::PlainText,
@@ -37,10 +37,21 @@ use crate::{
         },
     },
     localization::t,
+    theme::Theme,
     typography::Scale,
 };
 use gpui::{prelude::*, *};
-use std::rc::Rc;
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Arc,
+};
+
+/// Inputs larger than `256 KiB` preview synchronously and finish parsing on
+/// GPUI's background executor (`CS-13`).
+pub const BACKGROUND_PARSE_BYTES: usize = 256 * 1024;
+const PREVIEW_RECORDS: usize = 100;
+const NOTICE_BANNER_HEIGHT: f32 = 36.;
 
 actions!(csv_table, [Undo, Redo]);
 
@@ -48,12 +59,21 @@ pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new("cmd-z", Undo, Some("CsvTable")),
         KeyBinding::new("cmd-shift-z", Redo, Some("CsvTable")),
+        KeyBinding::new(
+            "alt-enter",
+            InsertSoftNewline,
+            Some("CsvCell > PuppyEditor"),
+        ),
     ]);
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CsvEvent {
     Changed,
+    FindResult {
+        current: usize,
+        total: usize,
+    },
     /// A workspace reference's candidate paths, for the host to open.
     OpenReference(Vec<String>),
 }
@@ -93,11 +113,18 @@ pub struct CsvEditor {
     pub header: bool,
     pub row_numbers: bool,
     pub read_only: bool,
+    /// True while a large CSV is still finishing background parsing (`CS-13`).
+    loading: bool,
+    parse_generation: u64,
+    parse_task: Option<Task<()>>,
+    /// Non-blocking notice when an external reload deleted an actively edited row (`DP-04`).
+    conflict_restored: bool,
     /// Live table, or the source editor.
     live: bool,
     /// `!hideSourceView`: the table viewer declares no source toggle
     /// (`providerPolicy.sourceToggle` is false), so its source view, the
-    /// toggle and the shortcut are off unless a host turns them on.
+    /// toggle and the shortcut are off unless a host turns them on (or an
+    /// unclosed quote directs the user to Source mode to repair it, `CS-05`).
     pub source_view: bool,
     source: Option<(Entity<EditorView>, Subscription)>,
     /// `--po-editor-chrome-inset-block-start`: room above the frame for
@@ -105,6 +132,9 @@ pub struct CsvEditor {
     /// header stops below it.
     chrome_inset: f32,
     focus: FocusHandle,
+    focus_subscriptions: Vec<Subscription>,
+    pub(super) column_grip_focus: FocusHandle,
+    pub(super) row_grip_focus: FocusHandle,
     port: Viewport,
     /// The cell being edited.
     cell: Option<CellSession>,
@@ -115,7 +145,8 @@ pub struct CsvEditor {
     expansion: expand::Expanding,
     refs: references::ReferenceCells,
     find: find::Find,
-    /// Dev capture: a cell to activate once mounted (`PUPPYONE_CSV_ACTIVE`).
+    /// Dev capture: a cell to activate once mounted (`PUPPYONE_CSV_ACTIVE`, `CS-15`).
+    #[cfg(any(test, feature = "dev-capture"))]
     pending_active: Option<(usize, usize)>,
 }
 
@@ -137,7 +168,18 @@ impl CsvEditor {
         cx: &mut Context<Self>,
     ) -> Self {
         let delimiter: Delimiter = document::infer_delimiter(name, text);
-        let model = CsvModel::new(text, delimiter);
+        let large = text.len() > BACKGROUND_PARSE_BYTES;
+        let initial_text = if large {
+            document::first_screen_prefix(text, PREVIEW_RECORDS)
+        } else {
+            text
+        };
+        let model = CsvModel::new(initial_text, delimiter);
+        let full_rc = large.then(|| {
+            let rc = Rc::new(text.to_owned());
+            model.set_cached_text(rc.clone());
+            rc
+        });
         // Stored view state wins over the defaults (`readCsv…Preference`).
         let stored = preferences::read(document_id);
         let widths = stored
@@ -160,11 +202,18 @@ impl CsvEditor {
             header,
             row_numbers: stored.show_row_numbers.unwrap_or(true),
             read_only: false,
+            loading: large,
+            parse_generation: u64::from(large),
+            parse_task: None,
+            conflict_restored: false,
             live: true,
             source_view: false,
             source: None,
             chrome_inset: 0.,
             focus: cx.focus_handle(),
+            focus_subscriptions: Vec::new(),
+            column_grip_focus: cx.focus_handle(),
+            row_grip_focus: cx.focus_handle(),
             port: Viewport::default(),
             cell: None,
             gestures: Gestures::default(),
@@ -172,26 +221,138 @@ impl CsvEditor {
             expansion: Default::default(),
             refs: Default::default(),
             find: Default::default(),
+            #[cfg(any(test, feature = "dev-capture"))]
             pending_active: None,
         };
-        let pair = |key: &str| {
-            let v = std::env::var(key).ok()?;
-            let (a, b) = v.split_once(',')?;
-            Some((a.trim().parse().ok()?, b.trim().parse().ok()?))
-        };
-        this.pending_active = pair("PUPPYONE_CSV_ACTIVE");
-        // Dev capture: start scrolled (`x,y`).
-        if let Some((x, y)) = pair("PUPPYONE_CSV_SCROLL") {
-            this.port.scroll = point(x as f32, y as f32);
+        if let Some(full_rc) = full_rc {
+            let generation = this.parse_generation;
+            let bg_text: Arc<str> = Arc::from(text);
+            let bg = cx
+                .background_executor()
+                .spawn(async move { CsvModel::parse_standalone(&bg_text, delimiter) });
+            let stored_header = stored.first_record_as_header;
+            let stored_widths = stored
+                .column_layout
+                .filter(|(d, _)| *d == delimiter)
+                .map(|(_, w)| w);
+            this.parse_task = Some(cx.spawn(async move |this, cx| {
+                let parsed = bg.await;
+                let _ = this.update(cx, |this, cx| {
+                    if this.parse_generation != generation {
+                        return;
+                    }
+                    this.parse_task = None;
+                    this.loading = false;
+                    this.model.install_parsed(parsed, full_rc);
+                    if stored_header.is_none() {
+                        this.header = this.model.content().suggested_header;
+                    }
+                    let widths_slice = stored_widths
+                        .as_deref()
+                        .filter(|w| w.len() == this.model.column_count());
+                    this.layout = ColumnLayout::new(&this.model, widths_slice);
+                    if let Some(cell) = &this.cell {
+                        let editor = cell.editor.clone();
+                        let ro = this.grid_read_only();
+                        editor.update(cx, |e, cx| e.set_read_only(ro, cx));
+                    }
+                    this.find_changed(cx);
+                    this.clamp_scroll();
+                    cx.notify();
+                });
+            }));
+        }
+        #[cfg(any(test, feature = "dev-capture"))]
+        {
+            let pair = |key: &str| {
+                let v = std::env::var(key).ok()?;
+                let (a, b) = v.split_once(',')?;
+                Some((a.trim().parse().ok()?, b.trim().parse().ok()?))
+            };
+            this.pending_active = pair("PUPPYONE_CSV_ACTIVE");
+            // Dev capture: start scrolled (`x,y`).
+            if let Some((x, y)) = pair("PUPPYONE_CSV_SCROLL") {
+                this.port.scroll = point(x as f32, y as f32);
+            }
         }
         this
+    }
+
+    pub fn is_live(&self) -> bool {
+        self.live
+    }
+
+    pub fn is_loading(&self) -> bool {
+        self.loading
+    }
+
+    pub fn has_unclosed_quote(&self) -> Option<usize> {
+        self.model.has_unclosed_quote()
+    }
+
+    pub fn source_editor_entity(&self) -> Option<Entity<EditorView>> {
+        self.source.as_ref().map(|(s, _)| s.clone())
+    }
+
+    pub(super) fn grid_read_only(&self) -> bool {
+        self.read_only || self.loading || !self.model.input_enabled()
+    }
+
+    fn sync_editor_read_only(&self, cx: &mut Context<Self>) {
+        let grid_ro = self.grid_read_only();
+        if let Some(cell) = &self.cell {
+            let editor = cell.editor.clone();
+            editor.update(cx, |e, cx| e.set_read_only(grid_ro, cx));
+        }
+        let source_ro = self.read_only;
+        if let Some((source, _)) = &self.source {
+            let source = source.clone();
+            source.update(cx, |e, cx| e.set_read_only(source_ro, cx));
+        }
+    }
+
+    /// End every transient pointer gesture, menu and picker (`CS-11`).
+    pub(super) fn cancel_transient_gestures(&mut self) {
+        self.menu = None;
+        if let Some(r) = self.gestures.cancel_transient() {
+            self.layout.set_width(r.column, r.start_width);
+        }
+        if let Some(drag) = self.expansion.drag.take() {
+            self.port.scroll.x = drag.start_scroll_x;
+        }
+        self.expansion.picker = None;
+    }
+
+    pub(super) fn clamp_scroll(&mut self) {
+        if self.port.size.width <= 0. || self.port.size.height <= 0. {
+            return;
+        }
+        let (cw, ch) = self.content_size();
+        self.port.scroll = point(
+            self.port
+                .scroll
+                .x
+                .clamp(0., (cw - self.port.size.width).max(0.)),
+            self.port
+                .scroll
+                .y
+                .clamp(0., (ch - self.port.size.height).max(0.)),
+        );
     }
 
     /// The canonical file text of the current mode.
     pub fn text(&self, cx: &App) -> String {
         match &self.source {
             Some((source, _)) if !self.live => source.read(cx).text().to_owned(),
-            _ => (*self.model.text()).clone(),
+            _ => {
+                let draft = self
+                    .cell
+                    .as_ref()
+                    .filter(|c| c.dirty.get())
+                    .map(|c| (c.row, c.column, c.committed_draft.borrow().clone()));
+                self.model
+                    .text_with_draft(draft.as_ref().map(|(r, c, s)| (*r, *c, s.as_str())))
+            }
         }
     }
 
@@ -205,17 +366,95 @@ impl CsvEditor {
                 .is_some_and(|(s, _)| s.read(cx).composing())
     }
 
-    /// External replacement from storage (not undoable).
+    fn structural_identity(&self) -> Option<(Axis, u64)> {
+        self.gestures.structural.and_then(|(axis, idx)| match axis {
+            Axis::Row => self.model.rows().get(idx).map(|r| (Axis::Row, r.id)),
+            Axis::Column => self
+                .model
+                .content()
+                .columns
+                .get(idx)
+                .map(|&id| (Axis::Column, id)),
+        })
+    }
+
+    fn restore_structural_identity(&mut self, saved: Option<(Axis, u64)>) {
+        self.gestures.structural = saved.and_then(|(axis, id)| match axis {
+            Axis::Row => self.model.row_index_by_id(id).map(|r| (Axis::Row, r)),
+            Axis::Column => self.model.column_index_by_id(id).map(|c| (Axis::Column, c)),
+        });
+        if self.header && self.gestures.structural == Some((Axis::Row, 0)) {
+            self.gestures.structural = None;
+        }
+    }
+
+    /// External replacement from storage: reconciled by record-level diff so
+    /// unchanged identities, column widths, selection and undo history survive
+    /// (`CS-10`, `CS-11`, `DP-02`–`DP-04`).
     pub fn replace_text(&mut self, text: &str, cx: &mut Context<Self>) {
-        self.model.replace_content(text);
-        self.sync_layout();
-        self.find_changed();
-        if let Some(cell) = self.cell.take() {
+        self.cancel_transient_gestures();
+        self.parse_generation += 1;
+        self.parse_task = None;
+        self.loading = false;
+        self.conflict_restored = false;
+
+        let saved_structural = self.structural_identity();
+
+        // Preserve uncommitted cell session text across external reload (`DP-04`).
+        let pending_session = self.cell.as_ref().and_then(|cell| {
+            let row_id = self.model.rows().get(cell.row)?.id;
+            let col_id = *self.model.content().columns.get(cell.column)?;
+            let was_dirty = cell.dirty.get();
+            Some((row_id, col_id, was_dirty))
+        });
+
+        let mut uncommitted: Option<(u64, u64, String)> = None;
+        if let Some((row_id, col_id, true)) = pending_session
+            && let Some(cell) = &self.cell
+        {
+            cell.editor.update(cx, |e, cx| e.abandon_composition(cx));
+            let draft = normalize_newlines(cell.editor.read(cx).text()).into_owned();
+            uncommitted = Some((row_id, col_id, draft));
+        } else if let Some(cell) = self.cell.take() {
             cell.editor.update(cx, |e, cx| e.abandon_composition(cx));
         }
+
+        self.model.adopt_text(text);
+        self.restore_structural_identity(saved_structural);
+        self.sync_layout();
+
+        if let Some((row_id, col_id, draft)) = uncommitted {
+            let new_row = self.model.row_index_by_id(row_id);
+            let new_col = self.model.column_index_by_id(col_id).unwrap_or(0);
+            let can_keep = !self.grid_read_only() && new_col < self.columns();
+            if let (Some(nr), true) = (new_row, self.cell.is_some()) {
+                if can_keep {
+                    if let Some(cell) = self.cell.as_mut() {
+                        cell.row = nr;
+                        cell.column = new_col;
+                        *cell.committed_draft.borrow_mut() = draft;
+                        cell.dirty.set(true);
+                    }
+                } else {
+                    self.cell = None;
+                }
+            } else {
+                // `DP-04`: target record was deleted externally; preserve the
+                // uncommitted text as a single undoable recovery row!
+                self.cell = None;
+                if self.model.append_recovery_row(new_col, &draft) {
+                    self.conflict_restored = true;
+                    cx.emit(CsvEvent::Changed);
+                }
+            }
+        }
+
         if let Some((source, _)) = &self.source {
             source.update(cx, |s, cx| s.replace_text(text, cx));
         }
+        self.sync_editor_read_only(cx);
+        self.find_changed(cx);
+        self.clamp_scroll();
         cx.notify();
     }
 
@@ -224,6 +463,7 @@ impl CsvEditor {
         if self.theme.dark == dark && self.theme.scale == scale && self.theme_key == theme_key {
             return;
         }
+        self.cancel_transient_gestures();
         self.theme_key = theme_key;
         self.theme = CsvTheme::resolve(dark, scale);
         self.frame = FrameTheme::resolve(dark, scale, self.theme.surface);
@@ -235,6 +475,7 @@ impl CsvEditor {
             let text = source.read(cx).text().to_owned();
             self.source = Some(self.source_editor(&text, cx));
         }
+        self.clamp_scroll();
         cx.notify();
     }
 
@@ -242,23 +483,21 @@ impl CsvEditor {
         if self.read_only == read_only {
             return;
         }
-        self.read_only = read_only;
-        let editors: Vec<_> = self
-            .cell
-            .as_ref()
-            .map(|c| c.editor.clone())
-            .into_iter()
-            .chain(self.source.as_ref().map(|(s, _)| s.clone()))
-            .collect();
-        for editor in editors {
-            editor.update(cx, |e, cx| e.set_read_only(read_only, cx));
+        if read_only {
+            self.cancel_transient_gestures();
         }
+        self.read_only = read_only;
+        self.sync_editor_read_only(cx);
         cx.notify();
+    }
+
+    fn mode_toggle_shown(&self) -> bool {
+        self.source_view || !self.live || self.model.has_unclosed_quote().is_some()
     }
 
     /// The pane's "source" command flips live / source like the toggle.
     pub fn toggle_mode(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.source_view {
+        if !self.mode_toggle_shown() {
             return;
         }
         let live = !self.live;
@@ -273,12 +512,15 @@ impl CsvEditor {
             return;
         }
         // As in the editors, undo waits for an open composition.
-        if self.read_only || self.composing(cx) || !self.model.undo(redo) {
+        if self.read_only || self.loading || self.composing(cx) || !self.model.undo(redo) {
             return;
         }
+        self.conflict_restored = false;
         self.sync_layout();
+        self.sync_editor_read_only(cx);
         self.refresh_cell(cx);
-        self.find_changed();
+        self.find_changed(cx);
+        self.clamp_scroll();
         let _ = window;
         cx.emit(CsvEvent::Changed);
         cx.notify();
@@ -299,7 +541,7 @@ impl CsvEditor {
     // --- geometry (content coordinates) -------------------------------------
 
     fn rows(&self) -> usize {
-        self.model.rows().len()
+        self.model.row_count()
     }
     fn columns(&self) -> usize {
         self.model.column_count()
@@ -314,10 +556,17 @@ impl CsvEditor {
             0.
         }
     }
+    fn banner_offset(&self) -> f32 {
+        if self.model.has_unclosed_quote().is_some() || self.conflict_restored {
+            NOTICE_BANNER_HEIGHT
+        } else {
+            0.
+        }
+    }
     fn table_origin(&self) -> (f32, f32) {
         (
             self.theme.inset.left,
-            self.theme.inset.top + self.chrome_inset,
+            self.theme.inset.top + self.chrome_inset + self.banner_offset(),
         )
     }
     /// Rows / columns drawn, an expansion preview included.
@@ -345,7 +594,7 @@ impl CsvEditor {
             + (column - n) as f32 * ADDED_COLUMN_WIDTH
     }
     fn row_y(&self, row: usize) -> f32 {
-        self.theme.inset.top + self.chrome_inset + 1. + row as f32 * self.theme.table.row_min_height
+        self.table_origin().1 + 1. + row as f32 * self.theme.table.row_min_height
     }
     fn table_size(&self) -> (f32, f32) {
         let w = 2.
@@ -360,7 +609,7 @@ impl CsvEditor {
         let t = &self.theme;
         (
             t.inset.left + w + t.inset.right + t.table.action_gutter,
-            t.inset.top + self.chrome_inset + h + t.inset.bottom + t.table.action_gutter,
+            self.table_origin().1 + h + t.inset.bottom + t.table.action_gutter,
         )
     }
     /// The sticky header record's top (`inset-block-start: 0` within the
@@ -369,7 +618,7 @@ impl CsvEditor {
         let (_, ty) = self.table_origin();
         let (_, th) = self.table_size();
         self.row_y(0)
-            .max(self.port.scroll.y + self.chrome_inset)
+            .max(self.port.scroll.y + self.chrome_inset + self.banner_offset())
             .min(ty + th - 1. - self.theme.table.row_min_height)
     }
     /// The sticky record gutter's left edge.
@@ -430,10 +679,7 @@ impl CsvEditor {
         )
     }
     /// The text style of a cell's `<input>` and its inner editor's top within
-    /// the cell. The input is `height: 100%`, so Chromium drops the authored
-    /// line height on the inner editor (`line-height: normal`,
-    /// text_control_inner_elements.cc) and centres that line box in the
-    /// content box.
+    /// the cell.
     fn input_text(&self, row: usize, window: &Window) -> (TextStyle, f32) {
         let style = self.style(row);
         let (a, d) = primary_metrics(window, style);
@@ -467,23 +713,32 @@ impl CsvEditor {
         }
     }
 
-    /// End the active cell's edit session's pending input: commit an open
-    /// composition and make sure the model has the editor's value (its
-    /// change event is delivered after this update, when a replaced session
-    /// no longer listens).
+    /// Commit the active cell session's pending edits as a single table-level
+    /// undo step on `CsvModel` (`CS-03`). Untouched sessions (`!dirty`, even on
+    /// multi-line cells) never dirty or rewrite the model (`CS-06`).
     fn flush_cell(&mut self, cx: &mut Context<Self>) {
         let Some(cell) = &self.cell else { return };
-        let (row, column, editor) = (cell.row, cell.column, cell.editor.clone());
+        let (row, column, editor, dirty, draft) = (
+            cell.row,
+            cell.column,
+            cell.editor.clone(),
+            cell.dirty.clone(),
+            cell.committed_draft.clone(),
+        );
         editor.update(cx, |e, cx| e.commit_composition(cx));
-        let value = display(editor.read(cx).text());
+        if !dirty.get() {
+            return;
+        }
+        let value = normalize_newlines(editor.read(cx).text()).into_owned();
+        *draft.borrow_mut() = value.clone();
+        dirty.set(false);
         if self.model.set_cell(row, column, &value) {
-            self.find_changed();
-            cx.emit(CsvEvent::Changed);
+            self.find_cell_changed(row, column, &value, cx);
         }
     }
 
-    /// End the edit session before the table's structure changes (its row
-    /// and column would no longer name its cell); true when there was one.
+    /// End the edit session before the table's structure changes or on explicit
+    /// `Enter` / `Escape` exit; true when there was one.
     fn end_cell(&mut self, cx: &mut Context<Self>) -> bool {
         self.flush_cell(cx);
         self.cell.take().is_some()
@@ -500,27 +755,36 @@ impl CsvEditor {
         cx: &mut Context<Self>,
     ) {
         self.flush_cell(cx);
-        let value = display(
-            self.model
-                .rows()
-                .get(row)
-                .and_then(|r| r.cells.get(column))
-                .map_or("", String::as_str),
-        );
+        let raw_value = self
+            .model
+            .rows()
+            .get(row)
+            .map_or("", |r| r.cell_or_empty(column));
+        let value = normalize_newlines(raw_value).into_owned();
         let outbox = Outbox::default();
+        let dirty = Rc::new(Cell::new(false));
+        let committed_draft = Rc::new(RefCell::new(value.clone()));
         let p = self.theme.table.cell_padding;
+        let end_pad = self.end_padding(row, column);
         let (style, top) = self.input_text(row, window);
-        let line = LineStyle {
-            padding: Edges::new(top, self.end_padding(row, column), 0., p.left),
+        let first = LineStyle {
+            padding: Edges::new(top, end_pad, 0., p.left),
+            nowrap: true,
+            ..LineStyle::new(style.clone())
+        };
+        let continuation = LineStyle {
+            padding: Edges::new(0., end_pad, 0., p.left),
             nowrap: true,
             ..LineStyle::new(style)
         };
         let extension = CellText {
-            line: Rc::new(line),
+            first_line: Rc::new(first),
+            continuation_line: Rc::new(continuation),
             surface: self.surface(),
             outbox: outbox.clone(),
+            dirty: dirty.clone(),
         };
-        let read_only = self.read_only;
+        let read_only = self.grid_read_only();
         let selection = match caret {
             Some(c) => Selection::cursor(c.min(value.len())),
             None => Selection::range(0, value.len()),
@@ -531,43 +795,39 @@ impl CsvEditor {
             e.set_selection(selection, cx);
             e
         });
-        // The cell's value reaches the model once per edit: provisional IME
-        // text is not reported, a composition is when it commits.
+        let draft_sink = committed_draft.clone();
+        // Edits inside the active cell stay in `EditorView`'s own history until
+        // the session flushes (`CS-03`), while keeping snapshots, dirty state
+        // and incremental find live (`CS-06`, `CS-12`).
         let changed = cx.subscribe(
             &editor,
             move |this: &mut Self, editor, event: &EditorEvent, cx| {
                 let EditorEvent::Changed(_) = event else {
                     return;
                 };
-                let mut text = editor.read(cx).text().to_owned();
-                if text.contains(['\n', '\r']) {
-                    // `<input>` value sanitisation: pasted line breaks are dropped.
-                    let head = editor.read(cx).state().selection.head;
-                    let caret = display(&text[..head]).len();
-                    text = display(&text);
-                    editor.update(cx, |e, cx| {
-                        e.replace_text(&text, cx);
-                        e.set_selection(Selection::cursor(caret), cx);
-                    });
-                }
-                if this.model.set_cell(row, column, &text) {
-                    this.find_changed();
-                    cx.emit(CsvEvent::Changed);
-                }
+                let text = normalize_newlines(editor.read(cx).text()).into_owned();
+                *draft_sink.borrow_mut() = text.clone();
+                this.find_cell_changed(row, column, &text, cx);
+                cx.emit(CsvEvent::Changed);
                 cx.notify();
             },
         );
         let requests = cx.observe_in(&editor, window, |this: &mut Self, _, window, cx| {
             this.handle_request(window, cx)
         });
+        let handle = editor.read(cx).focus_handle(cx);
+        let blur = cx.on_blur(&handle, window, |this, _, cx| {
+            this.flush_cell(cx);
+        });
         self.cell = Some(CellSession {
             row,
             column,
+            dirty,
+            committed_draft,
             editor: editor.clone(),
             outbox,
-            _subscriptions: vec![changed, requests],
+            _subscriptions: vec![changed, requests, blur],
         });
-        let handle = editor.read(cx).focus_handle(cx);
         handle.focus(window, cx);
         self.reveal(row, column);
         cx.notify();
@@ -592,9 +852,17 @@ impl CsvEditor {
                 };
                 if let Some(next) = next.filter(|n| *n < self.rows() * columns) {
                     self.activate(next / columns, next % columns, None, window, cx);
+                } else {
+                    // Even at the boundary, Tab commits the session so `⌘Z` undoes it cleanly.
+                    self.flush_cell(cx);
                 }
             }
             CellRequest::History { redo } => self.undo(redo, window, cx),
+            CellRequest::Commit | CellRequest::Escape => {
+                self.end_cell(cx);
+                self.focus.focus(window, cx);
+                cx.notify();
+            }
         }
     }
 
@@ -608,7 +876,9 @@ impl CsvEditor {
             }
             return;
         }
-        let value = display(&self.model.rows()[row].cells[column]);
+        let value = normalize_newlines(self.model.rows()[row].cell_or_empty(column)).into_owned();
+        *cell.committed_draft.borrow_mut() = value.clone();
+        cell.dirty.set(false);
         let editor = cell.editor.clone();
         if editor.read(cx).text() != value {
             editor.update(cx, |e, cx| e.replace_text(&value, cx));
@@ -618,7 +888,7 @@ impl CsvEditor {
     /// Keep a cell clear of the viewport edges and the sticky bands.
     fn reveal(&mut self, row: usize, column: usize) {
         let (vw, vh) = (self.port.size.width, self.port.size.height);
-        if vw <= 0. || vh <= 0. {
+        if vw <= 0. || vh <= 0. || column >= self.layout.widths.len() {
             return;
         }
         let (x, w) = (self.column_x(column), self.layout.widths[column]);
@@ -630,8 +900,9 @@ impl CsvEditor {
         if y + h > scroll.y + vh {
             scroll.y = y + h - vh;
         }
-        if y - sticky_top - self.chrome_inset < scroll.y {
-            scroll.y = y - sticky_top - self.chrome_inset;
+        let min_top = sticky_top + self.chrome_inset + self.banner_offset();
+        if y - min_top < scroll.y {
+            scroll.y = y - min_top;
         }
         if x + w > scroll.x + vw {
             scroll.x = x + w - vw;
@@ -646,12 +917,18 @@ impl CsvEditor {
     }
 
     fn add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.grid_read_only() {
+            return;
+        }
         self.end_cell(cx);
         let change = self.model.append_row(self.header);
         self.after_structure(change, window, cx);
     }
 
     fn add_column(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.grid_read_only() {
+            return;
+        }
         self.end_cell(cx);
         let change = self.model.append_column(self.header);
         self.after_structure(change, window, cx);
@@ -660,7 +937,8 @@ impl CsvEditor {
     fn after_structure(&mut self, change: Change, window: &mut Window, cx: &mut Context<Self>) {
         if change.changed {
             self.sync_layout();
-            self.find_changed();
+            self.find_changed(cx);
+            self.clamp_scroll();
             cx.emit(CsvEvent::Changed);
         }
         if let Some(focus) = change.focus {
@@ -679,7 +957,7 @@ impl CsvEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.read_only {
+        if self.grid_read_only() {
             return;
         }
         let moving = operation.move_axis();
@@ -771,12 +1049,14 @@ impl CsvEditor {
         (editor, sub)
     }
 
-    fn set_live(&mut self, live: bool, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn set_live(&mut self, live: bool, window: &mut Window, cx: &mut Context<Self>) {
         if self.live == live {
             return;
         }
+        self.cancel_transient_gestures();
         if live {
-            // The draft re-enters the structured view (`TextEditorFrame`).
+            // The draft re-enters the structured view via record-level diff (`CS-10`).
+            let saved_structural = self.structural_identity();
             if let Some((source, _)) = self.source.take() {
                 source.update(cx, |s, cx| s.commit_composition(cx));
                 let text = source.read(cx).text().to_owned();
@@ -784,9 +1064,14 @@ impl CsvEditor {
                     cell.editor.update(cx, |e, cx| e.abandon_composition(cx));
                 }
                 if text != *self.model.text() {
-                    self.model.replace_content(&text);
+                    self.parse_generation += 1;
+                    self.parse_task = None;
+                    self.loading = false;
+                    self.model.adopt_text(&text);
+                    self.restore_structural_identity(saved_structural);
                     self.sync_layout();
-                    self.find_changed();
+                    self.find_changed(cx);
+                    self.clamp_scroll();
                 }
             }
             self.focus.focus(window, cx);
@@ -863,20 +1148,15 @@ impl CsvEditor {
         {
             return;
         }
-        let value = display(
-            self.model.rows()[row]
-                .cells
-                .get(column)
-                .map_or("", String::as_str),
-        );
+        let (first, _) = first_line(self.model.rows()[row].cell_or_empty(column));
         let local = x - self.column_x(column) - self.theme.table.cell_padding.left;
-        let caret = caret_at(window, self.style(row), &value, local);
+        let caret = caret_at(window, self.style(row), first, local);
         self.activate(row, column, Some(caret), window, cx);
     }
 
     // --- painting -----------------------------------------------------------------
 
-    /// A cell box and, unless it is being edited, its value.
+    /// A cell box and, unless it is being edited, its value (`CS-05`, `CS-06`).
     fn draw_cell(
         &self,
         row: usize,
@@ -900,8 +1180,16 @@ impl CsvEditor {
         // Previewed cells (`.csv-table-editor__expansion-cell`) are empty and
         // keep the table background.
         let expansion = row >= self.rows() || column >= self.columns();
+        let offending = !expansion && self.model.has_unclosed_quote() == Some(row);
         let background = if expansion {
             Rgba::default()
+        } else if offending {
+            let warning = Theme::new(t.dark).warning;
+            if background.a > 0. {
+                crate::theme::mix(warning, background, 0.18)
+            } else {
+                crate::theme::alpha(warning, 0.14)
+            }
         } else {
             background
         };
@@ -912,6 +1200,30 @@ impl CsvEditor {
             border_color: t.table.cell_border,
             radius: self.cell_radius(row, column),
         });
+        if offending {
+            let warning = Theme::new(t.dark).warning;
+            out.push(Draw::Cell {
+                bounds: Draw::rect(
+                    x,
+                    y,
+                    w - border.right,
+                    t.table.row_min_height - border.bottom,
+                ),
+                background: Rgba::default(),
+                border: Sides {
+                    top: 1.,
+                    bottom: 1.,
+                    left: if column == 0 && !self.row_numbers {
+                        2.
+                    } else {
+                        0.
+                    },
+                    right: 0.,
+                },
+                border_color: crate::theme::alpha(warning, 0.62),
+                radius: Corners::default(),
+            });
+        }
         if expansion {
             return;
         }
@@ -930,32 +1242,70 @@ impl CsvEditor {
         if self.draw_reference(row, column, out) {
             return;
         }
-        let value = self.model.rows()[row]
-            .cells
-            .get(column)
-            .map_or("", String::as_str);
+        let value = self.model.rows()[row].cell_or_empty(column);
         if value.is_empty() {
             return;
         }
+        let (first, multiline) = first_line(value);
         let (style, inner) = self.input_text(row, window);
         let p = t.table.cell_padding;
         let content_w = (w - border.right - p.left - p.right).max(0.);
-        let clip = Draw::rect(
-            x + p.left,
-            y,
-            content_w,
-            t.table.row_min_height - border.bottom,
-        );
-        out.push(Draw::Text {
-            text: display(value).into(),
-            style,
-            x: x + p.left,
-            line_top: y + inner,
-            center: None,
-            clip,
-            ellipsis: false,
-            underline: None,
-        });
+        let badge_reserve = if multiline { 18. } else { 0. };
+        let text_w = (content_w - badge_reserve).max(0.);
+        let cell_h = t.table.row_min_height - border.bottom;
+        let clip = Draw::rect(x + p.left, y, text_w, cell_h);
+        if !first.is_empty() {
+            out.push(Draw::Text {
+                text: first.to_owned().into(),
+                style,
+                x: x + p.left,
+                line_top: y + inner,
+                center: None,
+                clip,
+                ellipsis: multiline,
+                underline: None,
+            });
+        }
+        if multiline && content_w >= 16. {
+            // Subtle `↵` badge indicating additional lines inside the cell (`CS-06`).
+            let badge_size = 15.;
+            let bx = x + w - border.right - p.right - badge_size;
+            let by = y + (cell_h - badge_size) / 2.;
+            out.push(Draw::Cell {
+                bounds: Draw::rect(bx, by, badge_size, badge_size),
+                background: crate::theme::alpha(t.control, 0.72),
+                border: Sides {
+                    top: 1.,
+                    right: 1.,
+                    bottom: 1.,
+                    left: 1.,
+                },
+                border_color: t.table.cell_border,
+                radius: Corners {
+                    top_left: 3.,
+                    top_right: 3.,
+                    bottom_right: 3.,
+                    bottom_left: 3.,
+                },
+            });
+            let badge_style = TextStyle {
+                size: (t.body.size - 2.).max(9.),
+                color: t.text_muted,
+                line_height: LineHeight::Factor(1.),
+                ..t.body.clone()
+            };
+            let badge_line_top = by + (badge_size - badge_style.line_height_px()) / 2.;
+            out.push(Draw::Text {
+                text: "↵".into(),
+                style: badge_style,
+                x: bx,
+                line_top: badge_line_top,
+                center: Some(badge_size),
+                clip: Draw::rect(bx, by, badge_size, badge_size),
+                ellipsis: false,
+                underline: None,
+            });
+        }
     }
 
     /// A record-number cell (the header record's is blank).
@@ -969,16 +1319,30 @@ impl CsvEditor {
             bottom: self.cell_bottom_border(row),
             left,
         };
-        let border_color = t.table.cell_border;
+        let offending = row < self.rows() && self.model.has_unclosed_quote() == Some(row);
+        let warning = Theme::new(t.dark).warning;
+        let bg = if offending {
+            crate::theme::mix(warning, t.index_background, 0.22)
+        } else {
+            t.index_background
+        };
         out.push(Draw::Cell {
             bounds: Draw::rect(x, y, w, t.table.row_min_height),
-            background: t.index_background,
+            background: bg,
             border,
-            border_color,
+            border_color: t.table.cell_border,
             radius: self.corner_radius(row, true, false),
         });
+        if offending {
+            out.push(Draw::Cell {
+                bounds: Draw::rect(x + left, y, 2., t.table.row_min_height - border.bottom),
+                background: warning,
+                border: Sides::default(),
+                border_color: Rgba::default(),
+                radius: Corners::default(),
+            });
+        }
         if left > 0. {
-            // `border-inline-start: 1px solid var(--po-editable-table-border)`.
             out.push(Draw::Cell {
                 bounds: Draw::rect(x, y, 1., t.table.row_min_height),
                 background: Rgba::default(),
@@ -993,18 +1357,16 @@ impl CsvEditor {
         if self.header && row == 0 || self.grip_covered_index() == Some(row) {
             return;
         }
-        // `.csv-table-editor__record-index-label`: a `row-min-height - 1px`
-        // flex box centred in the cell (`vertical-align: middle`), its text
-        // at `line-height: 1` centred in it.
-        // Previewed records number on in an accent-tinted colour.
-        let color = if row >= self.rows() {
+        let color = if offending {
+            warning
+        } else if row >= self.rows() {
             crate::theme::mix(t.table.accent, t.index.color, 0.36)
         } else {
             t.index.color
         };
         let style = TextStyle {
             color: Rgba {
-                a: color.a * t.index_opacity,
+                a: color.a * if offending { 1. } else { t.index_opacity },
                 ..color
             },
             ..t.index.clone()
@@ -1046,9 +1408,9 @@ impl CsvEditor {
         (first..last, columns)
     }
 
-    /// The active cell's editor and its 2px focus outline (inside the border
-    /// box, following the corner radius).
-    fn active_cell(&self) -> Option<(usize, AnyElement)> {
+    /// The active cell's editor and its 2px focus outline (expanding vertically
+    /// while editing a multi-line value, `CS-06`).
+    fn active_cell(&self, cx: &App) -> Option<(usize, AnyElement)> {
         let cell = self.cell.as_ref()?;
         let t = &self.theme;
         let (row, column) = (cell.row, cell.column);
@@ -1057,18 +1419,33 @@ impl CsvEditor {
             self.row_top(row),
             self.column_width(column),
         );
+        let lines = cell.editor.read(cx).state().doc.line_count().max(1);
+        let extra = (lines - 1) as f32 * self.style(row).line_height_px();
+        let box_h = (t.table.row_min_height + extra).min(t.table.row_min_height * 6.);
+        let inner_h = if lines > 1 {
+            box_h - 1.
+        } else {
+            t.table.row_min_height - self.cell_bottom_border(row)
+        };
+        let fill = if self.header && row == 0 {
+            t.header_background
+        } else {
+            t.surface
+        };
         let editor = div()
+            .key_context("CsvCell")
             .absolute()
             .left(px(x))
             .top(px(y))
             .w(px(w - self.cell_end_border(column)))
-            .h(px(t.table.row_min_height - self.cell_bottom_border(row)))
+            .h(px(inner_h))
+            .when(lines > 1, |d| d.bg(fill))
             .overflow_hidden()
             .child(cell.editor.clone());
         // A structural selection owns the perimeter: no cell outline.
         let s = t.table.focus_stroke;
         let ring = self.structure_outline().is_none().then(|| Draw::Cell {
-            bounds: Draw::rect(x, y, w, t.table.row_min_height),
+            bounds: Draw::rect(x, y, w, box_h),
             background: Rgba::default(),
             border: Sides {
                 top: s,
@@ -1090,6 +1467,93 @@ impl CsvEditor {
                 .child(layer(ring.into_iter().collect()))
                 .into_any_element(),
         ))
+    }
+
+    /// Top banner shown when an unclosed quote forces the grid read-only (`CS-05`)
+    /// or when an external reload preserved uncommitted cell edits (`DP-04`).
+    fn notice_banner(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.live {
+            return None;
+        }
+        let unclosed = self.model.has_unclosed_quote();
+        if unclosed.is_none() && !self.conflict_restored {
+            return None;
+        }
+        let palette = Theme::new(self.theme.dark);
+        let text_style = TextStyle {
+            size: self.theme.body.size,
+            weight: 500.,
+            italic: false,
+            mono: false,
+            color: palette.text,
+            tabular: false,
+            line_height: LineHeight::Factor(1.2),
+            face: Default::default(),
+        };
+        let make_label = |msg: String| {
+            let mut d = div().whitespace_nowrap().overflow_hidden().text_ellipsis();
+            text_style.apply(d.style());
+            d.child(msg)
+        };
+        let (message, show_repair) = if let Some(row) = unclosed {
+            (
+                format!(
+                    "{} — row {} (table is read-only)",
+                    t("editor.csv.warning.unclosedQuote"),
+                    row + 1
+                ),
+                !self.read_only,
+            )
+        } else {
+            (
+                "File changed on disk; unsaved cell text was kept as an undoable row.".to_owned(),
+                false,
+            )
+        };
+        let mut bar = div()
+            .id("csv-notice-banner")
+            .occlude()
+            .absolute()
+            .left_0()
+            .top(px(self.chrome_inset))
+            .w_full()
+            .h(px(NOTICE_BANNER_HEIGHT))
+            .px(px(14.))
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(px(12.))
+            .bg(crate::theme::mix(palette.warning, palette.panel, 0.14))
+            .border_b_1()
+            .border_color(crate::theme::alpha(palette.warning, 0.42))
+            .child(make_label(message));
+        if show_repair {
+            let hover_bg = palette.hover;
+            let btn_style = TextStyle {
+                weight: 600.,
+                color: palette.text,
+                ..text_style
+            };
+            let mut btn_label = div().whitespace_nowrap();
+            btn_style.apply(btn_label.style());
+            bar = bar.child(
+                div()
+                    .id("csv-unclosed-quote-repair")
+                    .px(px(10.))
+                    .py(px(4.))
+                    .rounded(px(5.))
+                    .border_1()
+                    .border_color(palette.border)
+                    .bg(palette.control)
+                    .cursor(crate::theme::clickable_cursor())
+                    .hover(move |s| s.bg(hover_bg))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.set_live(false, window, cx);
+                    }))
+                    .child(btn_label.child("Open Source")),
+            );
+        }
+        Some(bar.into_any_element())
     }
 
     fn render_live(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -1127,7 +1591,7 @@ impl CsvEditor {
                 self.draw_cell(row, column, Rgba::default(), window, &mut body);
             }
         }
-        let active = self.active_cell();
+        let active = self.active_cell(cx);
         let (active_body, active_header) = match active {
             Some((row, e)) if self.header && row == 0 => (None, Some(e)),
             Some((_, e)) => (Some(e), None),
@@ -1152,6 +1616,7 @@ impl CsvEditor {
         }
         let weak = cx.entity().downgrade();
         let (cw, ch) = self.content_size();
+        let grid_ro = self.grid_read_only();
         let surface = div()
             .id("csv-table-surface")
             .group(GROUP)
@@ -1181,15 +1646,11 @@ impl CsvEditor {
                 d.cursor(CursorStyle::PointingHand)
             })
             .on_hover(cx.listener(|this, hovered: &bool, window, cx| {
-                // `pointerleave` of the surface; its grips overhang it, so
-                // the check waits for their hover state.
                 this.gestures.surface_hovered = *hovered;
                 if !*hovered {
                     cx.defer_in(window, |this, _, cx| this.pointer_left(cx));
                 }
             }))
-            // The surface's controls overhang it; their coordinates are the
-            // content's.
             .child(
                 div()
                     .absolute()
@@ -1197,13 +1658,11 @@ impl CsvEditor {
                     .top(px(-ty))
                     .w(px(cw))
                     .h(px(ch))
-                    .children(
-                        if self.read_only || self.gestures.drag.is_some_and(|d| d.moved) {
-                            Vec::new()
-                        } else {
-                            self.structure_controls(GROUP, cx)
-                        },
-                    ),
+                    .children(if grid_ro || self.gestures.drag.is_some_and(|d| d.moved) {
+                        Vec::new()
+                    } else {
+                        self.structure_controls(GROUP, cx)
+                    }),
             );
         div()
             .absolute()
@@ -1220,8 +1679,8 @@ impl CsvEditor {
             .children(active_header)
             .child(layer(corner))
             .child(layer(self.outline().into_iter().collect()))
-            .children(self.drag_layer(cx))
-            .children(if self.read_only || self.gestures.drag.is_some() {
+            .children(self.drag_layer(window, cx))
+            .children(if grid_ro || self.gestures.drag.is_some() {
                 None
             } else {
                 self.resize_rail(cx)
@@ -1286,17 +1745,32 @@ fn caret_at(window: &Window, style: &TextStyle, text: &str, x: f32) -> usize {
 
 impl Render for CsvEditor {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.focus_subscriptions.is_empty() {
+            cx.defer_in(window, |this, window, cx| {
+                if this.focus_subscriptions.is_empty() {
+                    let on_focus = cx.on_focus(&this.focus, window, |this, _, cx| {
+                        this.flush_cell(cx);
+                    });
+                    let on_blur = cx.on_blur(&this.focus, window, |this, _, cx| {
+                        this.flush_cell(cx);
+                    });
+                    this.focus_subscriptions = vec![on_focus, on_blur];
+                }
+            });
+        }
+        #[cfg(any(test, feature = "dev-capture"))]
         if let Some((row, column)) = self.pending_active.take() {
             cx.defer_in(window, move |this, window, cx| {
                 if row < this.rows() && column < this.columns() {
-                    let len = display(&this.model.rows()[row].cells[column]).len();
+                    let len =
+                        normalize_newlines(this.model.rows()[row].cell_or_empty(column)).len();
                     this.activate(row, column, Some(len), window, cx);
                 }
             });
         }
         let weak = cx.entity().downgrade();
         let (w_live, w_source) = (weak.clone(), weak.clone());
-        let toggle = self.source_view.then(|| {
+        let toggle = self.mode_toggle_shown().then(|| {
             frame::mode_toggle(
                 &self.frame,
                 self.live,
@@ -1308,6 +1782,7 @@ impl Render for CsvEditor {
                 },
             )
         });
+        let banner = self.notice_banner(cx);
         let body = if self.live {
             self.render_live(window, cx)
         } else {
@@ -1316,8 +1791,6 @@ impl Render for CsvEditor {
                 None => div().into_any_element(),
             }
         };
-        // The scrollport's size and window origin, for virtualisation and
-        // pointer mapping.
         let resizing = self.gestures.resizing.is_some();
         let expanding = self.expansion.drag.is_some();
         let dragging = self.gestures.drag.is_some();
@@ -1331,17 +1804,20 @@ impl Render for CsvEditor {
                     if this.port.size != viewport || this.port.origin != Some(bounds.origin) {
                         this.port.size = viewport;
                         this.port.origin = Some(bounds.origin);
+                        this.clamp_scroll();
                         cx.notify();
                     }
-                    // Expansion edge-scrolling runs once per frame.
-                    if this.advance_expand_scroll(cx) {
+                    let mut animating = this.advance_expand_scroll(cx);
+                    if this.advance_grip_motion(cx.reduce_motion()) {
+                        animating = true;
+                        cx.notify();
+                    }
+                    if animating {
                         window.request_animation_frame();
                     }
                 });
             },
             move |_, _, window, _| {
-                // A gesture owns the pointer until release, wherever it goes
-                // (`setPointerCapture`).
                 if expanding {
                     let (moving, releasing) = (capture.clone(), capture.clone());
                     window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
@@ -1390,6 +1866,7 @@ impl Render for CsvEditor {
         )
         .absolute()
         .size_full();
+        let top_cover = self.chrome_inset + self.banner_offset();
         div()
             .id("csv-table-editor")
             .key_context("CsvTable")
@@ -1415,6 +1892,12 @@ impl Render for CsvEditor {
                     this.end_structure_drag(true, window, cx);
                 } else if this.gestures.structural.take().is_some() {
                     cx.stop_propagation();
+                    this.focus.focus(window, cx);
+                    cx.notify();
+                } else if this.cell.is_some() && !this.composing(cx) {
+                    cx.stop_propagation();
+                    this.end_cell(cx);
+                    this.focus.focus(window, cx);
                     cx.notify();
                 }
             }))
@@ -1432,10 +1915,8 @@ impl Render for CsvEditor {
             }))
             .child(measure)
             .child(body)
-            // A pinned header stops below the floating chrome, with nothing
-            // showing above it.
             .when(
-                self.live && self.chrome_inset > 0. && self.port.scroll.y > 0.,
+                self.live && top_cover > 0. && self.port.scroll.y > 0.,
                 |d| {
                     d.child(
                         div()
@@ -1443,11 +1924,12 @@ impl Render for CsvEditor {
                             .top_0()
                             .left_0()
                             .w_full()
-                            .h(px(self.chrome_inset))
+                            .h(px(top_cover))
                             .bg(self.theme.surface),
                     )
                 },
             )
+            .children(banner)
             .children(self.expand_status())
             .children(toggle)
             .children(self.menu.as_ref().map(|m| {

@@ -27,16 +27,35 @@ fn visual_units(text: &str) -> usize {
         .unwrap_or(0)
 }
 
-/// `sampleTableRows`: at most 128 rows, first and last included.
-fn sample<T>(rows: &[T]) -> Vec<&T> {
-    if rows.len() <= SAMPLE_ROWS {
-        return rows.iter().collect();
+/// `sampleTableRows`: at most 128 row indices, first and last included.
+fn sample_indices(row_count: usize) -> Vec<usize> {
+    if row_count <= SAMPLE_ROWS {
+        return (0..row_count).collect();
     }
     let mut seen = std::collections::BTreeSet::new();
     (0..SAMPLE_ROWS)
-        .map(|k| ((k * (rows.len() - 1)) as f64 / (SAMPLE_ROWS - 1) as f64).round() as usize)
+        .map(|k| ((k * (row_count - 1)) as f64 / (SAMPLE_ROWS - 1) as f64).round() as usize)
         .filter(|i| seen.insert(*i))
-        .map(|i| &rows[i])
+        .collect()
+}
+
+/// `estimateEditableTableColumnWidths`: `28 + 7 × units`, clamped to the
+/// readable range, per column of the sampled row indices.
+pub fn estimate_widths_by_index<'a>(
+    row_count: usize,
+    columns: usize,
+    cell: impl Fn(usize, usize) -> Option<&'a str>,
+) -> Vec<f32> {
+    let sampled = sample_indices(row_count);
+    (0..columns.max(1))
+        .map(|c| {
+            let units = sampled
+                .iter()
+                .map(|&r| cell(r, c).map_or(0, visual_units))
+                .max()
+                .unwrap_or(0);
+            (28. + units as f32 * 7.).clamp(COLUMN_MIN_WIDTH, COLUMN_MAX_WIDTH)
+        })
         .collect()
 }
 
@@ -47,17 +66,7 @@ pub fn estimate_widths<T>(
     columns: usize,
     cell: impl Fn(&T, usize) -> Option<&str>,
 ) -> Vec<f32> {
-    let sampled = sample(rows);
-    (0..columns.max(1))
-        .map(|c| {
-            let units = sampled
-                .iter()
-                .map(|r| cell(r, c).map_or(0, visual_units))
-                .max()
-                .unwrap_or(0);
-            (28. + units as f32 * 7.).clamp(COLUMN_MIN_WIDTH, COLUMN_MAX_WIDTH)
-        })
-        .collect()
+    estimate_widths_by_index(rows.len(), columns, |r, c| cell(&rows[r], c))
 }
 
 /// `clampEditableTableColumnWidth`.

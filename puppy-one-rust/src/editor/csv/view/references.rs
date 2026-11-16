@@ -57,7 +57,7 @@ impl CsvEditor {
 
     /// The reference a cell's value is, if any (cached by value).
     pub fn reference(&self, row: usize, column: usize) -> Option<Reference> {
-        let value = self.model.rows().get(row)?.cells.get(column)?;
+        let value = self.model.rows().get(row)?.cell(column)?;
         if value.is_empty() {
             return None;
         }
@@ -75,7 +75,7 @@ impl CsvEditor {
         if cache.len() > 4096 {
             cache.clear();
         }
-        cache.insert(value.clone(), found.clone());
+        cache.insert(value.to_owned(), found.clone());
         found
     }
 

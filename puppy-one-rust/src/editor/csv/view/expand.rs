@@ -117,7 +117,7 @@ impl CsvEditor {
         cx: &mut Context<Self>,
     ) {
         let (rows, columns) = self.available();
-        if self.read_only || (rows == 0 && columns == 0) {
+        if self.grid_read_only() || (rows == 0 && columns == 0) {
             return;
         }
         let Some(origin) = self.port.origin else {
@@ -281,6 +281,9 @@ impl CsvEditor {
     }
 
     pub(super) fn toggle_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.grid_read_only() {
+            return;
+        }
         let (rows, columns) = self.picker_size();
         if self.expansion.picker.take().is_some() || rows == 0 || columns == 0 {
             cx.notify();

@@ -1,10 +1,7 @@
 //! Structural table edits (viewers/csv/csvTableOperations.ts): a pure model
 //! over the row matrix. The first row stays fixed while it is the header.
 
-pub use crate::editor::table::operation::{Focus, Operation};
-
-pub const MAX_DATA_ROWS: usize = 10_000;
-pub const MAX_COLUMNS: usize = 256;
+pub use crate::editor::table::operation::{Focus, MAX_COLUMNS, MAX_DATA_ROWS, Operation};
 
 fn empty(columns: usize) -> Vec<String> {
     vec![String::new(); columns]
@@ -36,6 +33,7 @@ pub fn apply(
         rows.push(empty(columns));
     }
     let first = usize::from(header);
+    let data_count = rows.len().saturating_sub(first);
     let movable = row >= first && row < rows.len();
     let r = row.clamp(first, first.max(rows.len() - 1));
     let c = column.min(columns - 1);
@@ -45,17 +43,21 @@ pub fn apply(
     };
     match op {
         Operation::InsertRowAbove => {
-            let at = r.clamp(first, rows.len());
-            rows.insert(at, empty(columns));
-            focus = Focus { row: at, column: 0 };
+            if data_count < MAX_DATA_ROWS {
+                let at = r.clamp(first, rows.len());
+                rows.insert(at, empty(columns));
+                focus = Focus { row: at, column: 0 };
+            }
         }
         Operation::InsertRowBelow => {
-            let at = (r + 1).clamp(first, rows.len());
-            rows.insert(at, empty(columns));
-            focus = Focus { row: at, column: 0 };
+            if data_count < MAX_DATA_ROWS {
+                let at = (r + 1).clamp(first, rows.len());
+                rows.insert(at, empty(columns));
+                focus = Focus { row: at, column: 0 };
+            }
         }
         Operation::DuplicateRow => {
-            if movable && r < rows.len() {
+            if movable && r < rows.len() && data_count < MAX_DATA_ROWS {
                 let copy = rows[r].clone();
                 rows.insert(r + 1, copy);
                 focus = Focus {
@@ -111,22 +113,26 @@ pub fn apply(
             }
         }
         Operation::InsertColumnLeft => {
-            for row in &mut rows {
-                row.insert(c, String::new());
+            if columns < MAX_COLUMNS {
+                for row in &mut rows {
+                    row.insert(c, String::new());
+                }
+                focus = Focus {
+                    row: r.min(rows.len() - 1),
+                    column: c,
+                };
             }
-            focus = Focus {
-                row: r.min(rows.len() - 1),
-                column: c,
-            };
         }
         Operation::InsertColumnRight => {
-            for row in &mut rows {
-                row.insert(c + 1, String::new());
+            if columns < MAX_COLUMNS {
+                for row in &mut rows {
+                    row.insert(c + 1, String::new());
+                }
+                focus = Focus {
+                    row: r.min(rows.len() - 1),
+                    column: c + 1,
+                };
             }
-            focus = Focus {
-                row: r.min(rows.len() - 1),
-                column: c + 1,
-            };
         }
         Operation::MoveColumnLeft => {
             if c > 0 {
@@ -246,5 +252,30 @@ mod tests {
         assert_eq!(r, m(&[&["h2"], &["b"], &["d"]]));
         let (r, _) = apply(&rows, true, Operation::MoveColumnTo(1), 1, 0);
         assert_eq!(r[0], vec!["h2".to_string(), "h1".to_string()]);
+    }
+
+    #[test]
+    fn dimension_caps_refuse_row_and_column_overflow_cleanly() {
+        let mut full_rows: Vec<Vec<String>> =
+            (0..=MAX_DATA_ROWS).map(|i| vec![format!("r{i}")]).collect();
+        let (after_above, _) = apply(&full_rows, true, Operation::InsertRowAbove, 1, 0);
+        assert_eq!(after_above.len(), MAX_DATA_ROWS + 1);
+        let (after_below, _) = apply(&full_rows, true, Operation::InsertRowBelow, 1, 0);
+        assert_eq!(after_below.len(), MAX_DATA_ROWS + 1);
+        let (after_dup, _) = apply(&full_rows, true, Operation::DuplicateRow, 1, 0);
+        assert_eq!(after_dup.len(), MAX_DATA_ROWS + 1);
+        full_rows.pop();
+        let (allowed, _) = apply(&full_rows, true, Operation::InsertRowBelow, 1, 0);
+        assert_eq!(allowed.len(), MAX_DATA_ROWS + 1);
+
+        let full_cols = vec![
+            (0..MAX_COLUMNS)
+                .map(|c| format!("c{c}"))
+                .collect::<Vec<_>>(),
+        ];
+        let (after_left, _) = apply(&full_cols, false, Operation::InsertColumnLeft, 0, 0);
+        assert_eq!(after_left[0].len(), MAX_COLUMNS);
+        let (after_right, _) = apply(&full_cols, false, Operation::InsertColumnRight, 0, 0);
+        assert_eq!(after_right[0].len(), MAX_COLUMNS);
     }
 }
