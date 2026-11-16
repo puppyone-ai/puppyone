@@ -37,6 +37,7 @@ use crate::ui::components::Menu;
 use crate::ui::components::MenuItem;
 use crate::ui::components::PopoverMenu;
 use crate::ui::components::ProductIcon;
+use crate::ui::components::cover;
 use crate::workspace::cloud::{
     catalog::{self, Item},
     locator::{self, Locator},
@@ -759,10 +760,12 @@ impl Render for Homepage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let size = window.viewport_size();
         let (w, h) = (f32::from(size.width), f32::from(size.height));
-        let root = div().absolute().top_0().left_0().size_full();
         if !self.session.home {
-            return root;
+            return div().absolute().top_0().left_0().size_full();
         }
+        // The project the window keeps stays in the tree beneath: none of it
+        // takes the pointer or shows its web content through the page.
+        let root = cover();
         match &self.intro {
             Some(timeline) if timeline.finished() => {
                 cx.defer_in(window, |h, _, cx| h.refresh(cx));

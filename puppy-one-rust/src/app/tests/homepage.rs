@@ -1123,3 +1123,50 @@ fn projects_home_toolbar_and_agent_start_create_blank_project_with_seeded_chat(
         );
     });
 }
+/// The Homepage over a project takes the pointer from it: the editor beneath,
+/// laid out but not drawn, neither scrolls under the wheel nor takes the
+/// focus from a press on the page.
+#[gpui::test]
+fn the_homepage_takes_the_pointer_from_the_project_beneath_it(cx: &mut TestAppContext) {
+    let projects = tempfile::tempdir().unwrap();
+    let folder = projects.path().canonicalize().unwrap().join("Field Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = setup(cx);
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    let _document = open_long_document(&view, cx);
+    let editor = view.read_with(cx, |s, _| s.frame.layout.editor);
+    let blank = point(px(editor.x + editor.w / 2.), px(editor.bottom() - 40.));
+    // In the project, the wheel there scrolls the document.
+    wheel_down(cx, blank);
+    let scrolled = document_scroll(&view, cx);
+    assert!(scrolled > 0., "the document scrolls in its project");
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.remember_project(&folder, 1));
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the Homepage list", &|s, cx| {
+        !s.home.read(cx).list_held()
+    });
+    draw(cx);
+    view.read_with(cx, |s, cx| assert!(s.home_visible(cx)));
+    let focused = cx.update(|w, cx| w.focused(cx));
+    wheel_down(cx, blank);
+    cx.simulate_mouse_down(blank, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_up(blank, MouseButton::Left, Modifiers::default());
+    draw(cx);
+    assert_eq!(
+        cx.update(|w, cx| w.focused(cx)),
+        focused,
+        "a press on the page focuses nothing beneath it"
+    );
+    assert_eq!(
+        document_scroll(&view, cx),
+        scrolled,
+        "the document under the Homepage stays where it was"
+    );
+}

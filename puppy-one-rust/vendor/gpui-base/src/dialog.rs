@@ -557,6 +557,11 @@ impl RenderOnce for Dialog {
                 div()
                     .id(("dialog-host", self.layer))
                     .test_support()
+                    // PuppyOne patch: a modal takes the pointer from the
+                    // window beneath it (hover, cursor, tooltips, scrolling),
+                    // not only its presses. Its backdrop and popup, hit-tested
+                    // before the host, keep theirs.
+                    .occlude()
                     .absolute()
                     .top_0()
                     .left_0()

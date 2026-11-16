@@ -296,3 +296,24 @@ fn a_git_failure_is_its_dialog_until_dismissed(cx: &mut TestAppContext) {
         assert!(!source_control.read(cx).has_failure());
     });
 }
+/// A modal takes the pointer from the window beneath it, not only its
+/// presses: the wheel over its backdrop leaves the document where it was.
+#[gpui::test]
+fn a_dialog_takes_the_wheel_from_the_document_beneath_it(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    let _document = open_long_document(&view, cx);
+    let editor = view.read_with(cx, |s, _| s.frame.layout.editor);
+    let backdrop = point(px(editor.x + 40.), px(editor.bottom() - 40.));
+    wheel_down(cx, backdrop);
+    let scrolled = document_scroll(&view, cx);
+    assert!(scrolled > 0., "the document scrolls without a dialog");
+    command(&view, cx, Command::Feedback);
+    view.read_with(cx, |s, cx| assert!(s.modal(cx)));
+    wheel_down(cx, backdrop);
+    assert_eq!(
+        document_scroll(&view, cx),
+        scrolled,
+        "the document under the dialog stays where it was"
+    );
+}

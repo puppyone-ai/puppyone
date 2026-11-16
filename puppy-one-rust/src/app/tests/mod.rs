@@ -66,6 +66,48 @@ fn draw(cx: &mut VisualTestContext) {
         let _ = w.draw(cx);
     });
 }
+/// A long Markdown document open in the window's editor, from a folder
+/// that lasts as long as the returned guard.
+fn open_long_document(view: &Entity<Shell>, cx: &mut VisualTestContext) -> tempfile::TempDir {
+    let temp = tempfile::tempdir().unwrap();
+    let text: String = (0..400).map(|i| format!("Line {i}\n\n")).collect();
+    std::fs::write(temp.path().join("long.md"), &text).unwrap();
+    let workspace = crate::workspace::Workspace::open(temp.path()).unwrap();
+    let document = workspace.read(std::path::Path::new("long.md")).unwrap();
+    view.update_in(cx, |s, w, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.replace(Documents::default());
+            d.workspace = Some(workspace);
+            d.document = Some(document.clone());
+            d.outgoing.push(crate::documents::HostMessage::Open {
+                id: document.id.clone(),
+                name: "long.md".into(),
+                text: document.text.clone(),
+                revision: 0,
+                external: false,
+            });
+        });
+        s.sync_editor(w, cx);
+    });
+    draw(cx);
+    draw(cx);
+    temp
+}
+/// How far the front document is scrolled.
+fn document_scroll(view: &Entity<Shell>, cx: &mut VisualTestContext) -> f32 {
+    view.read_with(cx, |s, cx| {
+        s.editor.read(cx).front.read(cx).scroll_state(cx).0
+    })
+}
+/// One turn of the wheel, down, at `position`.
+fn wheel_down(cx: &mut VisualTestContext, position: Point<Pixels>) {
+    cx.simulate_event(ScrollWheelEvent {
+        position,
+        delta: ScrollDelta::Pixels(point(px(0.), px(-120.))),
+        ..Default::default()
+    });
+    draw(cx);
+}
 fn drag(
     view: &Entity<Shell>,
     cx: &mut VisualTestContext,
