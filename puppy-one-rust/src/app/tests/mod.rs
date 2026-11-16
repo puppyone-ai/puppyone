@@ -22,7 +22,7 @@ mod sidebar_surfaces;
 mod sign_in_dialog;
 mod window_chrome;
 
-fn setup(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
+pub(in crate::app) fn setup(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
     // Shell integration tests exercise real filesystem workers.
     cx.executor().allow_parking();
     cx.update(|cx| {
@@ -177,7 +177,7 @@ fn linked_checkout(
         },
     )
 }
-fn settle_cloud(
+pub(in crate::app) fn settle_cloud(
     view: &Entity<Shell>,
     cx: &mut VisualTestContext,
     what: &str,

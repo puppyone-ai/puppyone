@@ -235,33 +235,118 @@ pub fn materialize(parent: &Path, name: &str, plan: &Plan) -> Result<PathBuf, St
     }
 }
 /// `publishDirectory`: rename without replacing anything at `target`.
-fn publish(staging: &Path, target: &Path) -> std::io::Result<()> {
-    #[cfg(target_os = "macos")]
+pub(super) fn publish(staging: &Path, target: &Path) -> std::io::Result<()> {
+    if staging.parent() != target.parent() || !std::fs::symlink_metadata(staging)?.is_dir() {
+        return Err(std::io::ErrorKind::InvalidInput.into());
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         use std::os::unix::ffi::OsStrExt as _;
         let from = std::ffi::CString::new(staging.as_os_str().as_bytes())?;
         let to = std::ffi::CString::new(target.as_os_str().as_bytes())?;
         // SAFETY: both are valid NUL-terminated paths for the call.
+        #[cfg(target_os = "macos")]
         let result = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+        // SAFETY: the two strings remain valid throughout the syscall. Both
+        // names are siblings; no overwrite fallback is permitted on failure.
+        #[cfg(target_os = "linux")]
+        let result = unsafe {
+            libc::syscall(
+                libc::SYS_renameat2,
+                libc::AT_FDCWD,
+                from.as_ptr(),
+                libc::AT_FDCWD,
+                to.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
         if result == 0 {
             Ok(())
         } else {
             Err(std::io::Error::last_os_error())
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
-        if std::fs::symlink_metadata(target).is_ok() {
-            return Err(std::io::ErrorKind::AlreadyExists.into());
-        }
+        // Windows directory moves cannot replace an existing directory.
         std::fs::rename(staging, target)
     }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    Err(std::io::ErrorKind::Unsupported.into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    #[test]
+    fn exclusive_publication_has_one_winner_even_for_two_empty_directories() {
+        let parent = tempfile::tempdir().unwrap();
+        let target = parent.path().join("target");
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let mut attempts = Vec::new();
+        for name in ["first", "second"] {
+            let staging = parent.path().join(name);
+            std::fs::create_dir(&staging).unwrap();
+            let target = target.clone();
+            let ready = barrier.clone();
+            attempts.push(std::thread::spawn(move || {
+                ready.wait();
+                let result = publish(&staging, &target);
+                (staging, result)
+            }));
+        }
+        barrier.wait();
+        let results: Vec<_> = attempts.into_iter().map(|a| a.join().unwrap()).collect();
+        assert_eq!(
+            results.iter().filter(|(_, result)| result.is_ok()).count(),
+            1
+        );
+        for (staging, result) in results {
+            match result {
+                Ok(()) => assert!(!staging.exists()),
+                Err(error) => {
+                    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+                    assert!(staging.is_dir(), "the losing caller retains its staging");
+                }
+            }
+        }
+        assert!(target.is_dir());
+        assert_eq!(std::fs::read_dir(parent.path()).unwrap().count(), 2);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn publication_rejects_linked_staging_and_preserves_files_and_dangling_targets() {
+        let parent = tempfile::tempdir().unwrap();
+        let staging = parent.path().join("staging");
+        std::fs::create_dir(&staging).unwrap();
+        let target = parent.path().join("target");
+        std::fs::write(&target, "keep").unwrap();
+        assert!(publish(&staging, &target).is_err());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "keep");
+        std::fs::remove_file(&target).unwrap();
+        let absent = parent.path().join("absent");
+        std::os::unix::fs::symlink(&absent, &target).unwrap();
+        assert!(publish(&staging, &target).is_err());
+        assert_eq!(std::fs::read_link(&target).unwrap(), absent);
+        let linked = parent.path().join("linked");
+        std::os::unix::fs::symlink(&staging, &linked).unwrap();
+        assert_eq!(
+            publish(&linked, &absent).unwrap_err().kind(),
+            std::io::ErrorKind::InvalidInput
+        );
+        assert!(staging.is_dir());
+        assert!(!absent.exists());
+        let other = tempfile::tempdir().unwrap();
+        assert_eq!(
+            publish(&staging, &other.path().join("target"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::InvalidInput
+        );
+    }
 
     fn plan(files: &[(&str, &str)], open: Option<&str>) -> Plan {
         Plan {

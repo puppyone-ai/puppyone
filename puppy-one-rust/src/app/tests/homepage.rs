@@ -394,6 +394,10 @@ fn import_starts_from_its_sources_and_a_repository_takes_only_its_provider(
         draw(cx);
         view.read_with(cx, |s, cx| {
             assert!(s.has_dialog("ImportRepository", cx));
+            assert!(
+                !s.home.read(cx).repository_busy(),
+                "invalid URLs must not start a clone"
+            );
             assert!(s.workspace_root(cx).is_none());
         });
     }

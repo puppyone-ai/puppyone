@@ -109,6 +109,24 @@ pub fn clone_into(
     repository: &Repository,
     cancel: &AtomicBool,
 ) -> Result<PathBuf, String> {
+    clone_into_with(parent, repository, cancel, super::git::clone_repository)
+}
+
+fn clone_into_with(
+    parent: &Path,
+    repository: &Repository,
+    cancel: &AtomicBool,
+    clone: impl FnOnce(&Path, &str, &AtomicBool) -> Result<(), String>,
+) -> Result<PathBuf, String> {
+    let check_cancel = || {
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            Err("Repository cloning was cancelled.".to_owned())
+        } else {
+            Ok(())
+        }
+    };
+    check_cancel()?;
+    super::templates::require_project_name(&repository.name)?;
     let target = parent.join(&repository.name);
     if std::fs::symlink_metadata(&target).is_ok() {
         return Err(format!(
@@ -120,7 +138,13 @@ pub fn clone_into(
         .prefix(&format!(".puppyone-import-{}-", repository.name))
         .tempdir_in(parent)
         .map_err(|e| e.to_string())?;
-    super::git::clone_repository(staging.path(), &repository.url, cancel).map_err(|error| {
+    clone(staging.path(), &repository.url, cancel).map_err(|error| {
+        let diagnostic = error.to_ascii_lowercase();
+        if ["authentication failed", "could not read username", "permission denied (publickey)", "terminal prompts disabled"]
+            .iter().any(|message| diagnostic.contains(message))
+        {
+            return format!("{} authentication failed. Use an SSH URL with a configured key or sign in with your Git credential helper.", repository.provider.label());
+        }
         let line = error
             .lines()
             .rev()
@@ -128,17 +152,20 @@ pub fn clone_into(
             .unwrap_or("Clone failed");
         line.trim().chars().take(300).collect::<String>()
     })?;
-    if std::fs::symlink_metadata(&target).is_ok() {
-        return Err(format!(
-            "A file or folder named “{}” already exists in that location.",
-            repository.name
-        ));
-    }
-    let staged = staging.keep();
-    std::fs::rename(&staged, &target).map_err(|e| {
-        let _ = std::fs::remove_dir_all(&staged);
-        e.to_string()
+    check_cancel()?;
+    super::templates::publish(staging.path(), &target).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            format!(
+                "A file or folder named “{}” already exists in that location.",
+                repository.name
+            )
+        } else {
+            error.to_string()
+        }
     })?;
+    // Ownership moves only after the exclusive publication succeeds. On any
+    // failure the TempDir still owns and removes only our staged directory.
+    let _ = staging.keep();
     Ok(target)
 }
 
@@ -146,6 +173,157 @@ pub fn clone_into(
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    fn entries(parent: &Path) -> Vec<String> {
+        let mut names: Vec<_> = std::fs::read_dir(parent)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn cloning_keeps_the_destination_private_and_publishes_only_the_complete_directory() {
+        let parent = tempfile::tempdir().unwrap();
+        let repository = parse("https://github.com/owner/repository.git").unwrap();
+        let target = parent.path().join("repository");
+        let result = clone_into_with(
+            parent.path(),
+            &repository,
+            &AtomicBool::new(false),
+            |staging, url, _| {
+                assert!(!target.exists());
+                assert_eq!(url, "https://github.com/owner/repository.git");
+                assert_eq!(staging.parent(), Some(parent.path()));
+                assert!(
+                    staging
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .starts_with(".puppyone-import-repository-")
+                );
+                std::fs::write(staging.join("README.md"), b"hello\n").unwrap();
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(result, target);
+        assert_eq!(std::fs::read(target.join("README.md")).unwrap(), b"hello\n");
+        assert_eq!(entries(parent.path()), ["repository"]);
+    }
+
+    #[test]
+    fn cancellation_before_or_after_clone_cleans_only_its_own_staging_directory() {
+        let parent = tempfile::tempdir().unwrap();
+        std::fs::write(parent.path().join("keep.txt"), "keep").unwrap();
+        let repository = parse("https://github.com/owner/repository.git").unwrap();
+        let cancel = AtomicBool::new(false);
+        let result = clone_into_with(parent.path(), &repository, &cancel, |staging, _, cancel| {
+            std::fs::write(staging.join("partial"), "partial").unwrap();
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            Ok(())
+        });
+        assert_eq!(result.unwrap_err(), "Repository cloning was cancelled.");
+        assert_eq!(entries(parent.path()), ["keep.txt"]);
+        let result = clone_into_with(parent.path(), &repository, &cancel, |_, _, _| {
+            panic!("cancelled import started cloning")
+        });
+        assert_eq!(result.unwrap_err(), "Repository cloning was cancelled.");
+        assert_eq!(entries(parent.path()), ["keep.txt"]);
+        assert_eq!(
+            std::fs::read_to_string(parent.path().join("keep.txt")).unwrap(),
+            "keep"
+        );
+    }
+
+    #[test]
+    fn a_destination_created_during_clone_is_preserved_even_when_empty() {
+        for empty in [true, false] {
+            let parent = tempfile::tempdir().unwrap();
+            let repository = parse("https://github.com/owner/repository.git").unwrap();
+            let target = parent.path().join("repository");
+            let result = clone_into_with(
+                parent.path(),
+                &repository,
+                &AtomicBool::new(false),
+                |staging, _, _| {
+                    std::fs::write(staging.join("README.md"), "cloned").unwrap();
+                    std::fs::create_dir(&target).unwrap();
+                    if !empty {
+                        std::fs::write(target.join("keep.txt"), "keep").unwrap();
+                    }
+                    Ok(())
+                },
+            );
+            assert!(result.unwrap_err().contains("already exists"));
+            assert_eq!(entries(parent.path()), ["repository"]);
+            assert!(!target.join("README.md").exists());
+            if empty {
+                assert!(entries(&target).is_empty());
+            } else {
+                assert_eq!(
+                    std::fs::read_to_string(target.join("keep.txt")).unwrap(),
+                    "keep"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn clone_failures_keep_provider_authentication_advice_and_bound_other_diagnostics() {
+        for (provider, url) in [
+            ("GitHub", "https://github.com/o/repository.git"),
+            ("GitLab", "https://gitlab.com/o/repository.git"),
+        ] {
+            for failure in [
+                "authentication failed",
+                "could not read Username",
+                "Permission denied (publickey)",
+                "terminal prompts disabled",
+            ] {
+                let parent = tempfile::tempdir().unwrap();
+                std::fs::write(parent.path().join("keep.txt"), "keep").unwrap();
+                let repository = parse(url).unwrap();
+                let error = clone_into_with(
+                    parent.path(),
+                    &repository,
+                    &AtomicBool::new(false),
+                    |staging, _, _| {
+                        std::fs::write(staging.join("partial"), "partial").unwrap();
+                        Err(format!("progress\nfatal: {failure}"))
+                    },
+                )
+                .unwrap_err();
+                assert_eq!(
+                    error,
+                    format!(
+                        "{provider} authentication failed. Use an SSH URL with a configured key or sign in with your Git credential helper."
+                    )
+                );
+                assert_eq!(entries(parent.path()), ["keep.txt"]);
+            }
+        }
+        let parent = tempfile::tempdir().unwrap();
+        let repository = parse("https://github.com/o/repository.git").unwrap();
+        for (diagnostic, expected) in [
+            (
+                "progress\nfatal: repository not found\n".into(),
+                "fatal: repository not found".into(),
+            ),
+            (format!("progress\n{}", "错".repeat(301)), "错".repeat(300)),
+        ] {
+            let error = clone_into_with(
+                parent.path(),
+                &repository,
+                &AtomicBool::new(false),
+                |_, _, _| Err(diagnostic),
+            )
+            .unwrap_err();
+            assert_eq!(error, expected);
+            assert!(entries(parent.path()).is_empty());
+        }
+    }
 
     #[test]
     fn repository_urls_follow_the_product_rules() {

@@ -11702,6 +11702,134 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-repository-import-publication",
+      "acceptance": "The same production clone coordinator keeps the destination absent during materialization, publishes a complete sibling staging directory with OS no-replace semantics, refuses an external destination including an empty directory, and removes only owned staging on failure. Both provider authentication errors expose the same SSH/credential-helper guidance as TS; other errors retain the last nonempty diagnostic with a 300-character bound. Additional native regression coverage refuses cancellation both before transport and after materialization, proves one winner for two concurrent empty-directory publications, and preserves existing files and dangling links. Real Git cloning remains required. macOS execution is verified; Linux/Windows implementations are not claimed runtime-qualified. This row does not cover publishing-phase UI cancellation, remote import adapters or hard-process-crash recovery.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
+          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+          "cases": [
+            {
+              "index": 9,
+              "name": "project entry service > keeps the final path absent while cloning, then publishes the completed result"
+            },
+            {
+              "index": 11,
+              "name": "project entry service > does not replace a path created while a clone is running"
+            },
+            {
+              "index": 12,
+              "name": "project entry service > removes only its temporary clone directory after a failure"
+            },
+            {
+              "index": 13,
+              "name": "project entry service > turns non-interactive credential failures into an actionable provider message"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::cloning_keeps_the_destination_private_and_publishes_only_the_complete_directory"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::cancellation_before_or_after_clone_cleans_only_its_own_staging_directory"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::a_destination_created_during_clone_is_preserved_even_when_empty"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::clone_failures_keep_provider_authentication_advice_and_bound_other_diagnostics"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::a_clone_lands_in_place_and_never_replaces_an_existing_folder"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::exclusive_publication_has_one_winner_even_for_two_empty_directories"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::publication_rejects_linked_staging_and_preserves_files_and_dangling_targets"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-repository-import-ui-ownership",
+      "acceptance": "The actual GPUI import owner refuses unsupported or mismatched provider URLs before starting a clone, retains the published directory after an opening failure and retries only opening, preserving edits made since publication even without a valid URL. Controlled task completions exercise the real foreground callback and prove closed/replaced attempts cannot alter a new provider dialog, clear its worker, publish stale errors, retain a wrong project or navigate the window. Replacing/dropping the import owner cancels its worker. Native path-picker replies are fenced by dialog identity and idle state. These extra lifecycle tests strengthen the TS acceptance rather than mapping unrelated TS cases. This row does not qualify recent-project persistence failures or cancellation disabling during the publication phase.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageImport.test.tsx",
+          "sha256": "6cb534890273fc07778dc64261486bff9b302d70c46bfb5dd86c2c5dca0ff001",
+          "cases": [
+            {
+              "index": 0,
+              "name": "importing from the Homepage > retries only opening after publication and preserves the original import task"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
+          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+          "cases": [
+            {
+              "index": 10,
+              "name": "project entry service > rejects a repository that does not match the selected provider before cloning"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::home::import_repository::tests::closed_import_completions_cannot_change_a_reopened_dialog",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::import_repository::tests::replacing_or_dropping_import_state_cancels_its_owned_worker",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::import_repository::tests::folder_picker_replies_belong_to_the_idle_import_that_requested_them",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::import_repository::tests::retry_opens_the_published_project_and_preserves_edits_without_recloning",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::import_starts_from_its_sources_and_a_repository_takes_only_its_provider",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ]
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

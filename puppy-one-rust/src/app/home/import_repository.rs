@@ -14,6 +14,9 @@ use crate::{
 };
 use std::sync::{Arc, atomic::AtomicBool};
 
+#[cfg(test)]
+mod tests;
+
 pub(in crate::app) struct ImportRepository {
     /// The source chosen in the list; the URL must be its.
     provider: Provider,
@@ -24,6 +27,14 @@ pub(in crate::app) struct ImportRepository {
     /// Imported, but its folder could not be opened: Import opens it again.
     pub(in crate::app) imported: Option<PathBuf>,
     error: Option<String>,
+}
+
+impl Drop for ImportRepository {
+    fn drop(&mut self) {
+        if let Some(cancel) = &self.cloning {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
 }
 
 impl Homepage {
@@ -82,13 +93,14 @@ impl Homepage {
         cx.notify();
     }
     fn choose_import_location(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self
+        let Some(import) = self
             .import
             .as_ref()
-            .is_none_or(|i| i.cloning.is_some() || i.imported.is_some())
-        {
+            .filter(|i| i.cloning.is_none() && i.imported.is_none())
+        else {
             return;
-        }
+        };
+        let owner = import.url.entity_id();
         let prompt = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -99,6 +111,9 @@ impl Homepage {
             let result = prompt.await;
             let _ = this.update(cx, |s, cx| {
                 if let Some(import) = s.import_state()
+                    && import.url.entity_id() == owner
+                    && import.cloning.is_none()
+                    && import.imported.is_none()
                     && let Ok(Ok(Some(paths))) = result
                     && let Some(path) = paths.into_iter().next()
                 {
@@ -166,12 +181,23 @@ impl Homepage {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let Some(attempt) = self.import.as_ref().and_then(|i| i.cloning.clone()) else {
+            return;
+        };
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             let _ = this.update_in(cx, |s, _, cx| {
                 let Some(import) = s.import_state() else {
                     return;
                 };
+                if attempt.load(std::sync::atomic::Ordering::Relaxed)
+                    || !import
+                        .cloning
+                        .as_ref()
+                        .is_some_and(|current| Arc::ptr_eq(current, &attempt))
+                {
+                    return;
+                }
                 import.cloning = None;
                 match result {
                     Ok((true, path)) => {

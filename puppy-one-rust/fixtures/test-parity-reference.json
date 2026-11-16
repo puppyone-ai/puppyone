@@ -82,6 +82,13 @@
     "src/features/source-control/gitTitlebarStatus.ts": "572ce778205f8624757db7e2d02c2102d605fe1420c486d779e1241dfe43f3b7",
     "tests/unit/source-control/operations/gitRunner.test.mjs": "d78414df505e7a0157d5589c5fdd8a3559892b5b7632055b45d66ec82b2273aa",
     "tests/integration/source-control/status/electron.git-metadata-watch.integration.test.mjs": "c4d466aa99926ceb0dc951730ea672cfb1b31c1e4f1b64cc0c6b112934885d75",
-    "electron/local-api/git/runner.mjs": "6600597760f5a98b52d55002f648f732e1a89d303a6fb2956bc9845adbfde221"
+    "electron/local-api/git/runner.mjs": "6600597760f5a98b52d55002f648f732e1a89d303a6fb2956bc9845adbfde221",
+    "tests/integration/workspace/projects/project-entry-service.test.mjs": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+    "tests/component/workspace/homepage/homepageImport.test.tsx": "6cb534890273fc07778dc64261486bff9b302d70c46bfb5dd86c2c5dca0ff001",
+    "electron/main/project-entry-service.mjs": "c53ec2937480ac1d2416e8fc5b2d23dd1f6ff3fdad154672053a5f101292aa42",
+    "electron/main/project-import/service.mjs": "58a050b13209a40d872d62bed832425bfa259cdba524af4ad9dc5bdf71fda98e",
+    "electron/main/project-import/sources/git.mjs": "c2c58ac81a8ae8fa905c3b9890747dd5e94b94f5ce76e1d69abf2b11339f6fa4",
+    "electron/local-api/templates/publish-directory.mjs": "02b60c3339f8ecc964a85e4d343f8392260c4a1fc40e051cdf18ae90a4620223",
+    "src/components/OnboardingImportDialog.tsx": "2b1858be9a20fa99456c43d4053f7d309cbb8e9a01e27750a34f0266e33e58e0"
   }
 }
