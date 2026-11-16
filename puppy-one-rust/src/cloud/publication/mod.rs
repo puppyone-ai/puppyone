@@ -287,6 +287,7 @@ pub struct Coordinator {
 struct Context {
     journal: Journal,
     fingerprint: String,
+    _ownership: crate::platform::git::coordinator::Lease<'static>,
 }
 
 impl Coordinator {
@@ -295,6 +296,7 @@ impl Coordinator {
     fn context(&self, root: &Path) -> Result<Context, PublishError> {
         use sha2::Digest as _;
         let identity = self.git.identity(root)?;
+        let ownership = git::repository_ownership(&identity.common_dir)?;
         let metadata = std::fs::metadata(&identity.common_dir).map_err(|_| {
             PublishError::new(
                 Code::RepositoryRequired,
@@ -328,6 +330,7 @@ impl Coordinator {
         Ok(Context {
             journal: Journal::in_git_dir(&identity.git_dir),
             fingerprint,
+            _ownership: ownership,
         })
     }
     fn persist(

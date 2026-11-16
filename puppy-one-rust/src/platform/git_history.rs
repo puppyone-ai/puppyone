@@ -176,6 +176,7 @@ pub fn parse(name_status_log: &str, numstat_log: &str) -> Vec<CommitSummary> {
 }
 
 pub fn history(root: &Path, cancel: &AtomicBool) -> Result<History, String> {
+    super::git::coordinator::wait_for_reads(root, cancel)?;
     let limit = LIMIT.to_string();
     let base = [
         "log",

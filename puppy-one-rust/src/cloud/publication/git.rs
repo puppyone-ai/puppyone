@@ -862,11 +862,24 @@ fn regex_escape(text: &str) -> String {
         .collect()
 }
 
+/// Publication, reconciliation and cleanup share the local Git ref owner.
+pub(super) fn repository_ownership(
+    common: &Path,
+) -> Result<crate::platform::git::coordinator::Lease<'static>, PublishError> {
+    use crate::platform::git::coordinator::{GLOBAL, Key};
+    let failure = |error: String| PublishError::new(Code::RepositoryRequired, error, true);
+    let common = common.canonicalize().map_err(|e| failure(e.to_string()))?;
+    GLOBAL
+        .acquire(&[Key::Repository(common)], &AtomicBool::new(false))
+        .map_err(failure)
+}
+
 /// `detachManaged` + removing the remote: the local half of replacing a
 /// Cloud association whose Project no longer exists. Nothing happens unless
 /// `puppyone` still points exactly at the reviewed URL.
 pub fn detach(root: &Path, reviewed_url: &str) -> Result<(), PublishError> {
     let cli = Cli { helper: None };
+    let _ownership = repository_ownership(&cli.identity(root)?.common_dir)?;
     if cli.remote(root)? != Remote::Exact(reviewed_url.to_owned()) {
         return Err(PublishError::new(
             Code::RemoteConflict,

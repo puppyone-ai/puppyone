@@ -11,6 +11,7 @@ mod push_tests;
 #[path = "git/sync_config.rs"]
 mod sync_config;
 use sync_config::binding;
+pub mod coordinator;
 pub mod runner;
 pub mod sync_state;
 use std::{
@@ -189,6 +190,10 @@ pub(super) fn clone_repository(root: &Path, url: &str, cancel: &AtomicBool) -> R
     .map(|_| ())
 }
 pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
+    coordinator::wait_for_reads(root, cancel)?;
+    status_owned(root, cancel)
+}
+fn status_owned(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
     let prefix = prefix(root, cancel)?;
     let mut snapshot = parse_status(&git_read_bounded(
         root,
@@ -501,6 +506,23 @@ impl Operation {
     }
 }
 pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
+    let domains = if matches!(op, Operation::Init) {
+        coordinator::Domains::resolve(root, cancel)
+            .or_else(|_| coordinator::Domains::uninitialized(root))?
+    } else {
+        coordinator::Domains::resolve(root, cancel)?
+    };
+    let keys = match op {
+        Operation::Stage(_) | Operation::Unstage(_) | Operation::Discard(_) => {
+            vec![domains.worktree]
+        }
+        Operation::Push | Operation::Publish => vec![domains.repository],
+        _ => domains.both().to_vec(),
+    };
+    let _ownership = coordinator::GLOBAL.acquire(&keys, cancel)?;
+    operate_owned(root, op, cancel)
+}
+fn operate_owned(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
     let prefix = if matches!(op, Operation::Init) {
         String::new()
     } else {
@@ -543,7 +565,7 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
                     std::fs::remove_file(&target)
                 }
                 .map_err(|e| e.to_string())?;
-                return status(root, cancel);
+                return status_owned(root, cancel);
             }
             vec!["restore", "--worktree", "--"]
         }
@@ -576,12 +598,12 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
         args.extend(paths.iter().copied());
     }
     git(root, &args, input, cancel)?;
-    status(root, cancel)
+    status_owned(root, cancel)
 }
 /// Pull, Push and Publish (`pullWorkspaceGit`, `pushWorkspaceGit`,
 /// `publishWorkspaceGitBranch`): refused while conflicts remain.
 fn synchronize(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
-    let current = status(root, cancel)?;
+    let current = status_owned(root, cancel)?;
     // `assertNoInProgressGitOperation`.
     if let Some(operation) = current.operation {
         return Err(format!(
@@ -622,12 +644,12 @@ fn synchronize(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
         },
         _ => publish(root, cancel)?,
     }
-    status(root, cancel)
+    status_owned(root, cancel)
 }
 /// Continue (`-c core.editor=true <kind> --continue`, keeping Git's own
 /// message) or abort the operation in progress.
 fn resolve_operation(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
-    let current = status(root, cancel)?;
+    let current = status_owned(root, cancel)?;
     let verb = op.label();
     let Some(operation) = current.operation else {
         return Err(format!(
@@ -647,7 +669,7 @@ fn resolve_operation(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result
         vec![kind, "--abort"]
     };
     git(root, &args, None, cancel).map_err(|e| format!("Unable to {verb} {kind}: {e}"))?;
-    status(root, cancel)
+    status_owned(root, cancel)
 }
 fn missing_upstream(message: &str) -> bool {
     let message = message.to_lowercase();
@@ -750,6 +772,8 @@ fn push_remote(
 /// `fetchWorkspaceGit`: refresh `remote`'s tracking refs (`--prune`); the
 /// working tree and the index are untouched.
 pub fn fetch(root: &Path, remote: &str, cancel: &AtomicBool) -> Result<(), String> {
+    let domains = coordinator::Domains::resolve(root, cancel)?;
+    let _ownership = coordinator::GLOBAL.acquire(&[domains.repository], cancel)?;
     if remote.is_empty() || remote.starts_with('-') {
         return Err(crate::localization::t("native.git.pathOutside").into());
     }
@@ -842,6 +866,7 @@ fn remotes(root: &Path, cancel: &AtomicBool) -> Vec<Remote> {
     remotes
 }
 pub fn repository_info(root: &Path, cancel: &AtomicBool) -> Result<RepositoryInfo, String> {
+    coordinator::wait_for_reads(root, cancel)?;
     if text(root, &["rev-parse", "--is-inside-work-tree"], cancel).as_deref() != Some("true") {
         return Ok(RepositoryInfo::default());
     }

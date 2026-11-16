@@ -13218,6 +13218,101 @@
           "test": "platform::git::tests::publishing_a_new_branch_pushes_its_commit_and_tracks_it"
         }
       ]
+    },
+    {
+      "id": "native-git-shared-operation-coordinator",
+      "acceptance": "A process-wide coordinator reserves deduplicated worktree/repository domains atomically. Overlapping application mutations preserve queue order, independent keys remain parallel, linked worktrees share repository ownership but keep separate indexes, and low-priority acquisition cannot jump queued users. Idle waits cover every existing owner and support cancellation; cancelled requests, failed operations and unwinding release ownership. Real Git identities canonicalize aliases/subfolders; real staging and status share the owner, linked staging can proceed while shared fetch waits, and production status/settings/history/diff readers cancel without changing repository contents. Cloud first-publication/reconciliation/cleanup contexts and reviewed detach participate in the same repository domain. This is in-process application coordination, not an interprocess lock against terminals/hooks, an auto-commit implementation, or remote Host sandbox qualification.",
+      "environment": "Bounded thread/channel tests and private real Git repositories; scripted Cloud/Git publication ports exercise the production coordinator. No user repositories, credentials or remote services.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/operations/gitOperationCoordinator.test.mjs",
+          "sha256": "66d6155ef68336e9fcfd584326bfff1ef45b82989b809f605fc0c0089cb5860d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "git operation coordinator > serializes mutations for one lock key"
+            },
+            {
+              "index": 1,
+              "name": "git operation coordinator > keeps independent lock keys parallel"
+            },
+            {
+              "index": 2,
+              "name": "git operation coordinator > serializes linked worktrees that share a repository lock"
+            },
+            {
+              "index": 3,
+              "name": "git operation coordinator > allows worktree mutations to stay parallel across linked roots"
+            },
+            {
+              "index": 4,
+              "name": "git operation coordinator > atomically reserves worktree and repository domains"
+            },
+            {
+              "index": 5,
+              "name": "git operation coordinator > lets low-priority work acquire only when every domain is idle"
+            },
+            {
+              "index": 6,
+              "name": "git operation coordinator > allows an idle wait to be cancelled"
+            },
+            {
+              "index": 7,
+              "name": "git operation coordinator > waits for every lock key in whenIdleAll"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::overlapping_mutations_keep_fifo_order_and_release_every_owner"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::independent_worktrees_run_together_but_shared_repository_keys_serialize"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::multi_domain_reservation_is_atomic_and_low_priority_never_jumps_the_queue"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::cancelling_a_pending_owner_releases_all_its_reserved_domains"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::read_waits_are_cancellable_without_cancelling_the_active_mutation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::idle_waits_observe_every_requested_domain"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::errors_and_panics_drop_ownership_without_poisoning_the_coordinator"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::git_identity_collapses_aliases_and_subfolders_but_distinguishes_linked_indexes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::real_mutations_and_status_reads_share_ownership_across_opened_subfolders"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::linked_worktree_staging_remains_parallel_while_shared_fetch_waits"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::all_production_git_readers_cancel_while_a_mutation_owns_the_repository"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::publication_context_owns_the_same_repository_domain_as_local_git"
+        }
+      ]
     }
   ],
   "openAcceptance": [

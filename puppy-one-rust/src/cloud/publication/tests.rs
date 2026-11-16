@@ -47,6 +47,59 @@ fn pending(fake: &Fake) -> Option<Record> {
 }
 
 #[test]
+fn publication_context_owns_the_same_repository_domain_as_local_git() {
+    use crate::platform::git::coordinator::{GLOBAL, Key};
+    let (temp, fake) = Fake::new();
+    let (coordinator, _) = coordinator(&fake);
+    let key = Key::Repository(fake.git_dir.canonicalize().unwrap());
+    let context = coordinator.context(temp.path()).unwrap();
+    assert!(
+        GLOBAL
+            .try_acquire(std::slice::from_ref(&key))
+            .unwrap()
+            .is_none()
+    );
+    drop(context);
+    assert!(
+        GLOBAL
+            .try_acquire(std::slice::from_ref(&key))
+            .unwrap()
+            .is_some()
+    );
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let (began, started) = std::sync::mpsc::channel();
+    let (completed, done) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        let owner = GLOBAL.acquire(std::slice::from_ref(&key), &cancel).unwrap();
+        let worker = scope.spawn(|| {
+            let outcome = coordinator.start(&request(temp.path()), &mut |stage| {
+                if stage == Stage::Validating {
+                    began.send(()).unwrap();
+                }
+            });
+            completed.send(outcome).unwrap();
+        });
+        started
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        assert!(
+            done.recv_timeout(std::time::Duration::from_millis(30))
+                .is_err()
+        );
+        assert_eq!(fake.with(|s| s.creates), 0);
+        assert!(pending(&fake).is_none());
+        drop(owner);
+        let outcome = done
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        assert!(outcome.ok, "{:?}", outcome.error);
+        worker.join().unwrap();
+    });
+    assert_eq!(fake.with(|s| s.creates), 1);
+    assert!(GLOBAL.is_idle(&[key]).unwrap());
+}
+
+#[test]
 fn a_first_publication_walks_every_checkpoint_and_leaves_nothing_behind() {
     let (temp, fake) = Fake::new();
     let (c, vault) = coordinator(&fake);

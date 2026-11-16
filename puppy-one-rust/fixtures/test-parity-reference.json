@@ -117,6 +117,9 @@
     "tests/architecture/source-control/sync/noForcePushArchitecture.test.ts": "e3d0de8f26eeb10d4c2324d67afb2530d9f72269f3a7000ec06984b4be7fa03d",
     "tests/unit/source-control/status/gitSyncConfig.test.mjs": "b3b7faf1a904fc1d118d994e19297195c3aa06f4a1a82fb058eb7db78d37d97e",
     "tests/integration/source-control/status/workspace.branch-target.integration.test.mjs": "054cdf8aeaa649f2674a7055cb2346bd1a9cd66b5ac40bb2c8d4eb410f505a01",
-    "electron/local-api/git/sync-config.mjs": "97a363230cfcdbd58024a06f3e06d94685ad4e6587ca59c7cd38d0af8ca89748"
+    "electron/local-api/git/sync-config.mjs": "97a363230cfcdbd58024a06f3e06d94685ad4e6587ca59c7cd38d0af8ca89748",
+    "tests/unit/source-control/operations/gitOperationCoordinator.test.mjs": "66d6155ef68336e9fcfd584326bfff1ef45b82989b809f605fc0c0089cb5860d",
+    "electron/main/git-operation-coordinator.mjs": "bdff310d12cfb8f822d15d2bac7ccc4d41ea3c789ea3ea7f4f204257181f2f38",
+    "electron/main/ipc/workspace-git-ipc.mjs": "f2bf544215d0b0b9ae3baadef399fdb2a426ad6b7188bf868ea291df528cf1d6"
   }
 }

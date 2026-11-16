@@ -228,6 +228,7 @@ pub fn file_diff(
     scope: Scope,
     cancel: &AtomicBool,
 ) -> Result<Vec<FileDiff>, String> {
+    git::coordinator::wait_for_reads(root, cancel)?;
     let outside = || crate::localization::t("native.git.pathOutside").to_owned();
     git::validate_path(path)?;
     let local = git::local(prefix, path).ok_or_else(outside)?;
@@ -357,6 +358,7 @@ fn read_working(base: &Path, file: &Path) -> Result<Option<Vec<u8>>, String> {
 
 /// `getWorkspaceGitCommitDetail`: every file a commit changed.
 pub fn commit_detail(root: &Path, id: &str, cancel: &AtomicBool) -> Result<Vec<FileDiff>, String> {
+    git::coordinator::wait_for_reads(root, cancel)?;
     if !(4..=64).contains(&id.len()) || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err("Commit id must be a Git object id.".into());
     }
