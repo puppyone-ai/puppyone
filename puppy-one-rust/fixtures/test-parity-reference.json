@@ -109,6 +109,7 @@
     "scripts/desktop/build/excalidraw-assets-plugin.mjs": "8182f978d54dd2b61a32d6a14cf989bf5d94bf83af5e5607e3422182952b0e8f",
     "tests/unit/editor/runtime/whiteboard.test.ts": "1015cdcf1b3eb93766ac956432350a0d507a91d6adcb4b7815182defd6bdf3b4",
     "src/shared-ui/editor/viewers/excalidraw/ExcalidrawDocumentModel.ts": "19122a456b0b6eb15d71a20735cf4a48e46114fcbcb671fa632a8427cfde8151",
-    "src/shared-ui/editor/viewers/excalidraw/ExcalidrawViewer.tsx": "84f0d9280f23569b17d4c7d05db0fb3b97b8ddea68c67e118553b0a1820b324d"
+    "src/shared-ui/editor/viewers/excalidraw/ExcalidrawViewer.tsx": "84f0d9280f23569b17d4c7d05db0fb3b97b8ddea68c67e118553b0a1820b324d",
+    "electron/local-api/files/file-format-policy.mjs": "cbf117385d004620c845211032193159a4dd558139a80e447f9ca4e03e174f53"
   }
 }

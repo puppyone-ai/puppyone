@@ -369,6 +369,47 @@ pub fn preferred_mime(name: &str) -> Option<&'static str> {
     format.mime_types.first().map(String::as_str)
 }
 
+/// Explicit registry MIME rules take precedence over a transport's fallback
+/// suffix table, including compound suffixes. Match the filesystem host's
+/// UTF-8 declaration for text/data formats without changing binary formats.
+pub fn explicit_response_mime(name: &str) -> Option<&'static str> {
+    type Headers = HashMap<&'static str, BTreeMap<&'static str, String>>;
+    static HEADERS: OnceLock<Headers> = OnceLock::new();
+    let format = of(name);
+    let extension = format.extension_in(name)?;
+    HEADERS
+        .get_or_init(|| {
+            all()
+                .iter()
+                .map(|format| {
+                    let utf8 = matches!(
+                        format.category,
+                        Category::Markdown | Category::Text | Category::Code | Category::Data
+                    ) || matches!(
+                        format.default_viewer.as_str(),
+                        "html-artifact" | "monaco-code" | "csv-table" | "plain-text"
+                    );
+                    let headers = format
+                        .mime_types_by_extension
+                        .iter()
+                        .map(|(extension, mime)| {
+                            let header = if utf8 || mime.starts_with("text/") {
+                                format!("{mime}; charset=utf-8")
+                            } else {
+                                mime.clone()
+                            };
+                            (extension.as_str(), header)
+                        })
+                        .collect();
+                    (format.id.as_str(), headers)
+                })
+                .collect()
+        })
+        .get(format.id.as_str())?
+        .get(format!(".{extension}").as_str())
+        .map(String::as_str)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

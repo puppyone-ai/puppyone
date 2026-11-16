@@ -276,6 +276,13 @@ pub enum Entry {
 
 /// `text/html` etc. for a served path.
 pub fn mime_for(path: &Path) -> &'static str {
+    if let Some(mime) = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .and_then(po_contracts::formats::explicit_response_mime)
+    {
+        return mime;
+    }
     let ext = path
         .extension()
         .and_then(|e| e.to_str())

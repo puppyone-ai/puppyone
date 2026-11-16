@@ -613,3 +613,56 @@ fn provider_authority_is_rechecked_after_read_and_through_budgeted_sources() {
     );
     assert_eq!(source.reads.load(Ordering::Relaxed), 1);
 }
+
+#[test]
+fn whiteboard_resources_keep_the_registered_compound_mime_and_utf8_body() {
+    let dir = tempfile::tempdir().unwrap();
+    let body = "{\"type\":\"excalidraw\",\"version\":2,\"elements\":[],\"note\":\"中文\"}\n";
+    for name in [
+        "a.excalidraw",
+        "a.excalidraw.json",
+        "b.EXCALIDRAW",
+        "b.EXCALIDRAW.JSON",
+    ] {
+        std::fs::write(dir.path().join(name), body).unwrap();
+    }
+    let content = content(dir.path(), 4096);
+    for name in [
+        "a.excalidraw",
+        "a.excalidraw.json",
+        "b.EXCALIDRAW",
+        "b.EXCALIDRAW.JSON",
+    ] {
+        let uri = format!("{SCHEME}://local/{name}");
+        for (method, range, status) in [
+            ("GET", None, 200),
+            ("HEAD", None, 200),
+            ("GET", Some("bytes=0-0"), 206),
+        ] {
+            let response = respond_request(&content, false, method, &uri, None, range);
+            assert_eq!(response.status, status, "{method} {name}");
+            assert_eq!(
+                response.mime, "application/vnd.excalidraw+json; charset=utf-8",
+                "{method} {name}"
+            );
+            if method == "HEAD" {
+                assert_eq!(response.length, Some(body.len() as u64));
+                assert!(response.body.is_empty());
+            } else if range.is_some() {
+                assert_eq!(response.body, b"{");
+            } else {
+                assert_eq!(response.body, body.as_bytes());
+            }
+        }
+    }
+    assert_ne!(
+        mime_for(Path::new("a.excalidraw.json.backup")),
+        "application/vnd.excalidraw+json; charset=utf-8"
+    );
+    assert_eq!(mime_for(Path::new("notes.json")), "application/json");
+    assert_eq!(mime_for(Path::new("photo.png")), "image/png");
+    assert_eq!(
+        mime_for(Path::new("book.xlsm")),
+        "application/vnd.ms-excel.sheet.macroEnabled.12"
+    );
+}

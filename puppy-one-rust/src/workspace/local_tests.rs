@@ -1040,3 +1040,32 @@ fn openknowledge_metadata_never_follows_config_or_parent_links() {
         );
     }
 }
+
+#[test]
+fn whiteboard_text_admission_and_duplicate_names_keep_the_full_registered_suffix() {
+    let dir = tempdir().unwrap();
+    let ws = Workspace::open(dir.path()).unwrap();
+    let body = "{\"type\":\"excalidraw\",\"version\":2,\"elements\":[],\"note\":\"中文\"}\n";
+    for (name, copy) in [
+        ("a.excalidraw", "a copy.excalidraw"),
+        ("b.EXCALIDRAW.JSON", "b copy.EXCALIDRAW.JSON"),
+    ] {
+        std::fs::write(dir.path().join(name), body).unwrap();
+        assert_eq!(crate::formats::of(name).semantic_kind(), "whiteboard");
+        assert!(crate::formats::of(name).is_text_like());
+        assert_eq!(ws.read(Path::new(name)).unwrap().text, body);
+        assert_eq!(
+            ws.copy_entry(Path::new(name), Path::new("")).unwrap(),
+            Path::new(copy)
+        );
+        assert_eq!(ws.read(Path::new(copy)).unwrap().text, body);
+        assert_eq!(
+            ws.resource(Path::new(copy)).unwrap().bytes(4096).unwrap(),
+            body.as_bytes()
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join(name)).unwrap(),
+            body
+        );
+    }
+}

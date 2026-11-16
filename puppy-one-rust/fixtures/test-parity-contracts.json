@@ -12904,6 +12904,32 @@
           "test": "features::create_new::create_entry_menu_registry::whiteboard_migration_tests::stored_menu_migration_adds_whiteboard_once_and_preserves_an_explicit_hidden_choice"
         }
       ]
+    },
+    {
+      "id": "native-whiteboard-filesystem-resources",
+      "acceptance": "Real whiteboard files and uppercase compound suffixes retain text admission, UTF-8 bytes and their complete suffix during collision-safe copy. Actual GET, metadata-only HEAD and partial GET responses use the registry-specific application/vnd.excalidraw+json; charset=utf-8 header before generic JSON fallbacks. Explicit per-extension registry MIME rules preserve binary MIME encodings and unrelated JSON/PNG fallbacks. This qualifies the local filesystem resource case; it does not imply new Cloud/device provider MIME qualification.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/whiteboardAssets.test.mjs",
+          "sha256": "4bf9dea3d4346298fde41e6910949ea4d4a6eee66b9518fb5f5ef9822ddbc20f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "whiteboard desktop resources > uses matching text admission, MIME and compound suffixes in the filesystem host"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::whiteboard_resources_keep_the_registered_compound_mime_and_utf8_body"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::whiteboard_text_admission_and_duplicate_names_keep_the_full_registered_suffix"
+        }
+      ]
     }
   ],
   "openAcceptance": [
