@@ -279,7 +279,7 @@ impl SettingsWorkspaceSurface {
         // `useAccountPlan`: coming back to the window reads Plan again.
         cx.observe_window_activation(window, |s, window, cx| {
             if window.is_window_active() && matches!(s.page, Page::Plan | Page::Account) {
-                s.load_plan(false, cx);
+                s.activate_plan(cx);
             }
         })
         .detach();

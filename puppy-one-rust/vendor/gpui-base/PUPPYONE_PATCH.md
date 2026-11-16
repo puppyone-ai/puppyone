@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with six additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with seven additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -160,6 +160,17 @@ code run, and every place that adds `INLINE_CODE_PADDING` asks
 `TextViewStyle::with_link_underline(false)` leaves links without the
 underline (`link_underline` returns `None`). Unset, nothing changes. The
 Markdown editor sets both from its theme (`src/editor/view/editor.rs`).
+
+## The patch: observed accessibility range values
+
+`test_support::ElementSnapshot` exposes `numeric_value`, `min_numeric_value`
+and `max_numeric_value` from the actual AccessKit node written by the element
+in prepaint. They are optional, so an unknown reading cannot look like zero.
+The native Plan acceptance tests use these values together with the element's
+role and label to verify its one authoritative progress indicator. No semantic
+values are injected by the test helper; normal builds without test support do
+not collect snapshots. This verifies native element semantics, not an OS
+screen-reader session.
 
 ## Upgrading
 

@@ -88,13 +88,23 @@ impl Fixture {
         error: bool,
         restoring: bool,
     ) -> Self {
+        Self::mount_responding(content, usage, signed_in, error, restoring, None)
+    }
+    fn mount_responding(
+        content: Content,
+        usage: Option<Usage>,
+        signed_in: bool,
+        error: bool,
+        restoring: bool,
+        responder: Option<crate::cloud::auth::Responder>,
+    ) -> Self {
         let text = Arc::new(RecordingText::default());
         let mut app =
             TestAppContext::build_with_text_system(TestDispatcher::new(0), None, text.clone());
         app.executor().allow_parking();
         crate::localization::set_current("en");
         let (broker, browser) = if signed_in {
-            crate::cloud::auth::responding_account_fixture(Arc::new(|request| {
+            crate::cloud::auth::responding_account_fixture(responder.unwrap_or_else(||Arc::new(|request| {
                 if request.path.ends_with("/organizations/") {
                     Ok(
                         json!([{"id":"o1","name":"Space","is_default":true,"can_create_projects":true,"role":"owner"}]),
@@ -102,7 +112,7 @@ impl Fixture {
                 } else {
                     Err(crate::cloud::auth::Error::Unavailable)
                 }
-            }))
+            })))
         } else {
             let (broker, browser, _control) = crate::cloud::auth::sign_in_fixture();
             (broker, browser)
@@ -578,3 +588,6 @@ fn scheduled_changes_render_the_renewal_and_deliver_one_keep_action() {
         assert_eq!(calls.get(), 1);
     }
 }
+
+#[path = "controller.rs"]
+mod controller_tests;

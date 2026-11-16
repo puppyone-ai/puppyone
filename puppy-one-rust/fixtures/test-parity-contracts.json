@@ -9127,6 +9127,186 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "settings-billing-controller-lifecycle",
+      "acceptance": "All 20 frozen TS billing-controller cases through the native Settings owner, broker, decoder and deterministic GPUI executor: supplied-reading reuse and independent refresh even when operations fail; monotonic terminal state; account and API-host boundaries; disable/re-enable ABA and stale errors; single-flight unresolved requests and activation wakes; durable terminal-only completion and no one-minute expiry; stable retry keys with scope rotation; linked membership checkout; stale account replies, expired/mismatched quotes, actual page disposal/remount and durable-operation resumption. The native snapshot and controller share one Settings owner; changing the native API host revokes authentication before another reading, and entity disposal/recreation is the native equivalent of React abandoned-mount cleanup. URL effects are recorded by TestAppContext; no live financial mutation or OS browser is used.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/billing/cloudBillingController.test.tsx",
+          "sha256": "179c68f41ed32c64b0988212bd17555070d7aa7ab855a1c50539d62ef677eb3e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "useCloudBillingController > resumes provider confirmation without refetching the supplied Settings reading"
+            },
+            {
+              "index": 1,
+              "name": "useCloudBillingController > delegates explicit snapshot refresh to Settings and refreshes operations independently"
+            },
+            {
+              "index": 2,
+              "name": "useCloudBillingController > requests a new Settings snapshot even when the operation list cannot be refreshed"
+            },
+            {
+              "index": 3,
+              "name": "useCloudBillingController > never lets a delayed operation response regress an observed terminal state"
+            },
+            {
+              "index": 4,
+              "name": "useCloudBillingController > discards an old account response and resets quote/idempotency state on context change"
+            },
+            {
+              "index": 5,
+              "name": "useCloudBillingController > treats the API host as a request epoch boundary"
+            },
+            {
+              "index": 6,
+              "name": "useCloudBillingController > rejects an old action even if the same context is disabled and re-enabled"
+            },
+            {
+              "index": 7,
+              "name": "useCloudBillingController > keeps operation polling single-flight while a request is unresolved"
+            },
+            {
+              "index": 8,
+              "name": "useCloudBillingController > stops polling only after the durable operation succeeds"
+            },
+            {
+              "index": 9,
+              "name": "useCloudBillingController > refreshes a watched operation immediately when the window regains focus"
+            },
+            {
+              "index": 10,
+              "name": "useCloudBillingController > keeps the mutation idempotency key stable for retry but rotates it with context"
+            },
+            {
+              "index": 11,
+              "name": "useCloudBillingController > keeps an apply idempotency key stable when confirmation is retried"
+            },
+            {
+              "index": 12,
+              "name": "useCloudBillingController > reuses a membership operation when its seat quote requires checkout"
+            },
+            {
+              "index": 13,
+              "name": "useCloudBillingController > ignores a completed checkout after its account context was replaced"
+            },
+            {
+              "index": 14,
+              "name": "useCloudBillingController > does not turn a slow browser checkout into a one-minute failure"
+            },
+            {
+              "index": 15,
+              "name": "useCloudBillingController > rejects an expired quote before starting a financial mutation"
+            },
+            {
+              "index": 16,
+              "name": "useCloudBillingController > never opens checkout when the returned quote does not match the confirmed quote"
+            },
+            {
+              "index": 17,
+              "name": "useCloudBillingController > resumes a durable commercial operation after the Billing surface reloads"
+            },
+            {
+              "index": 18,
+              "name": "useCloudBillingController > stops a permanently mismatched resumed operation until an explicit refresh"
+            },
+            {
+              "index": 19,
+              "name": "useCloudBillingController > runs correctly under React StrictMode without retaining an abandoned request"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::reopening_the_same_scope_rejects_every_old_billing_action_reply"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::an_ordinary_read_refresh_does_not_abandon_an_admitted_quote"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::old_quote_errors_cannot_replace_the_reopened_pages_error_state"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::quote_and_apply_retries_keep_their_key_but_reopening_rotates_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::expired_quotes_and_mismatched_checkouts_never_open_the_browser_or_start_polling"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::a_membership_checkout_reuses_the_admitted_seat_operation"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::a_slow_checkout_keeps_watching_until_the_durable_operation_ends"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::native_window_activation_refreshes_the_watch_without_waiting_for_backoff"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::resetting_the_scope_cancels_the_sleeping_watch_before_it_sends_a_request"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::an_operations_refresh_preserves_the_supplied_reading_and_refreshes_it_even_on_failure"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::a_reopened_controller_stops_foreign_responses_until_explicit_refresh"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::a_lagging_operation_or_list_cannot_reopen_a_terminal_operation"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::a_pending_operation_request_stays_single_flight_across_timer_and_focus_wakes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::replacing_the_account_discards_pending_reads_quotes_and_checkout_effects"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::changing_api_host_revokes_the_old_page_and_cancels_its_watch"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::disposing_the_native_page_does_not_retain_or_deliver_an_abandoned_checkout"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::a_new_native_page_resumes_the_persisted_operation_without_submitting_it_again"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

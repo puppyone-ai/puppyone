@@ -36,6 +36,10 @@ struct Controller {
     /// Hosted subscriptions answered as switched off: nothing sells.
     disabled: bool,
     polling: Option<String>,
+    poll_epoch: u64,
+    /// Window activation wakes the same sequential watcher; it never starts
+    /// a second request while the first one is still being answered.
+    poll_wake: Option<async_channel::Sender<()>>,
     keys: Keys,
     add_on: AddOnChange,
 }
@@ -55,7 +59,10 @@ pub(in crate::features::settings) struct PlanPage {
     /// The session namespace and the space the readings belong to.
     context: Option<(String, String)>,
     snapshot: PlanSnapshot,
+    /// Read freshness changes on every refresh; action ownership changes only
+    /// when the account/space is replaced or Payments is disabled.
     epoch: u64,
+    scope_epoch: u64,
     controller: Controller,
     /// `.desktop-plan-storage-details[open]`.
     storage_open: bool,
@@ -99,8 +106,10 @@ impl SettingsWorkspaceSurface {
             return;
         }
         let epoch = self.plan_page.epoch + 1;
+        let scope_epoch = self.plan_page.scope_epoch + 1;
         self.plan_page = PlanPage {
             epoch,
+            scope_epoch,
             ..Default::default()
         };
     }
@@ -192,11 +201,7 @@ impl SettingsWorkspaceSurface {
             return;
         }
         let Some((client, namespace, org)) = self.plan_scope(cx) else {
-            let epoch = self.plan_page.epoch + 1;
-            self.plan_page = PlanPage {
-                epoch,
-                ..Default::default()
-            };
+            self.reset_plan();
             return;
         };
         let context = (namespace.clone(), org.clone());
@@ -204,6 +209,7 @@ impl SettingsWorkspaceSurface {
         let changed = self.plan_page.context.as_ref() != Some(&context);
         self.plan_page.epoch += 1;
         if changed {
+            self.plan_page.scope_epoch += 1;
             self.plan_page.context = Some(context);
             self.plan_page.controller = Controller::default();
             self.plan_page.snapshot = cached.snapshot(&org);
@@ -266,17 +272,25 @@ impl SettingsWorkspaceSurface {
         else {
             return;
         };
-        let epoch = self.plan_page.epoch;
+        let scope_epoch = self.plan_page.scope_epoch;
         let task = cx.background_spawn(async move { client.operations(&org) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.epoch < epoch || s.plan_org().is_none() {
+                if s.plan_page.scope_epoch != scope_epoch || s.plan_org().is_none() {
                     return;
                 }
                 if let Ok(incoming) = result {
                     let controller = &mut s.plan_page.controller;
                     controller.operations = billing::keep_ended(&controller.operations, incoming);
+                    if controller
+                        .operations
+                        .iter()
+                        .any(|o| o.terminal && controller.polling.as_deref() == Some(o.id.as_str()))
+                    {
+                        controller.polling = None;
+                        controller.poll_wake = None;
+                    }
                     let resume = billing::resumable(&controller.operations).map(|o| o.id.clone());
                     if let (Some(id), None) = (resume, controller.polling.as_ref()) {
                         s.watch_operation(id, cx);
@@ -293,6 +307,12 @@ impl SettingsWorkspaceSurface {
         self.plan_page.controller.error = None;
         self.load_plan(true, cx);
         self.load_operations(cx);
+    }
+    pub(in crate::features::settings) fn activate_plan(&mut self, cx: &mut Context<Self>) {
+        self.load_plan(false, cx);
+        if let Some(wake) = &self.plan_page.controller.poll_wake {
+            let _ = wake.try_send(());
+        }
     }
     fn plan_failed(&mut self, error: Error, otherwise: &'static str) {
         let controller = &mut self.plan_page.controller;
@@ -323,13 +343,13 @@ impl SettingsWorkspaceSurface {
         controller.error = None;
         controller.quote = None;
         controller.quoted_operation = None;
-        let epoch = self.plan_page.epoch;
+        let scope_epoch = self.plan_page.scope_epoch;
         let task =
             cx.background_spawn(async move { client.quote_plan(&org, &plan.id, seats, key) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.epoch < epoch {
+                if s.plan_page.scope_epoch != scope_epoch {
                     return;
                 }
                 s.plan_page.controller.acting = false;
@@ -375,7 +395,7 @@ impl SettingsWorkspaceSurface {
         controller.error = None;
         controller.quote = None;
         controller.quoted_operation = linked.clone();
-        let epoch = self.plan_page.epoch;
+        let scope_epoch = self.plan_page.scope_epoch;
         let task =
             cx.background_spawn(
                 async move { client.quote_seats(&org, seats, linked.as_deref(), key) },
@@ -383,7 +403,7 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.epoch < epoch {
+                if s.plan_page.scope_epoch != scope_epoch {
                     return;
                 }
                 s.plan_page.controller.acting = false;
@@ -428,7 +448,7 @@ impl SettingsWorkspaceSurface {
         let expected = controller.quoted_operation.clone();
         controller.acting = true;
         controller.error = None;
-        let epoch = self.plan_page.epoch;
+        let scope_epoch = self.plan_page.scope_epoch;
         let task = cx.background_spawn(async move {
             let (url, returned, operation) = if quote.application_mode == "checkout" {
                 let (url, returned, operation) =
@@ -448,7 +468,7 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.epoch < epoch {
+                if s.plan_page.scope_epoch != scope_epoch {
                     return;
                 }
                 s.plan_page.controller.acting = false;
@@ -487,27 +507,64 @@ impl SettingsWorkspaceSurface {
         else {
             return;
         };
-        self.plan_page.controller.polling = Some(id.clone());
-        let epoch = self.plan_page.epoch;
+        let controller = &mut self.plan_page.controller;
+        if controller.polling.as_deref() == Some(id.as_str()) {
+            return;
+        }
+        controller.polling = Some(id.clone());
+        controller.poll_epoch += 1;
+        let poll_epoch = controller.poll_epoch;
+        let (wake, wakes) = async_channel::bounded(1);
+        controller.poll_wake = Some(wake);
+        let scope_epoch = self.plan_page.scope_epoch;
         cx.spawn(async move |this, cx| {
             let mut attempt = 0;
             loop {
-                cx.background_executor()
-                    .timer(billing::poll_delay(attempt))
-                    .await;
+                let timer = cx.background_executor().timer(billing::poll_delay(attempt));
+                let wake = wakes.recv();
+                futures_util::pin_mut!(timer, wake);
+                if matches!(
+                    futures_util::future::select(timer, wake).await,
+                    futures_util::future::Either::Right((Err(_), _))
+                ) {
+                    break;
+                }
+                // Closing/replacing the page cancels a sleeping watch before
+                // it sends anything, as well as rejecting a late reply.
+                let current = this
+                    .update(cx, |s, _| {
+                        s.plan_page.scope_epoch == scope_epoch
+                            && s.plan_page.controller.poll_epoch == poll_epoch
+                            && s.plan_page.controller.polling.as_deref() == Some(id.as_str())
+                    })
+                    .unwrap_or(false);
+                if !current {
+                    break;
+                }
                 let (client, org, asked) = (client.clone(), org.clone(), id.clone());
                 let result = cx
                     .background_spawn(async move { client.operation(&org, &asked) })
                     .await;
                 let stop = this
                     .update(cx, |s, cx| {
-                        if s.plan_page.epoch < epoch
+                        if s.plan_page.scope_epoch != scope_epoch
+                            || s.plan_page.controller.poll_epoch != poll_epoch
                             || s.plan_page.controller.polling.as_deref() != Some(id.as_str())
                         {
                             return true;
                         }
                         let stop = match result {
                             Ok(operation) => {
+                                let operation = s
+                                    .plan_page
+                                    .controller
+                                    .operations
+                                    .iter()
+                                    .find(|o| {
+                                        o.id == operation.id && o.terminal && !operation.terminal
+                                    })
+                                    .cloned()
+                                    .unwrap_or(operation);
                                 let terminal = operation.terminal;
                                 let failed = terminal && operation.state != "succeeded";
                                 let controller = &mut s.plan_page.controller;
@@ -536,6 +593,9 @@ impl SettingsWorkspaceSurface {
                             }
                             Err(_) => false,
                         };
+                        if stop {
+                            s.plan_page.controller.poll_wake = None;
+                        }
                         cx.notify();
                         stop
                     })
@@ -564,12 +624,12 @@ impl SettingsWorkspaceSurface {
         let key = controller.keys.key(&intent, "portal");
         controller.acting = true;
         controller.error = None;
-        let epoch = self.plan_page.epoch;
+        let scope_epoch = self.plan_page.scope_epoch;
         let task = cx.background_spawn(async move { client.portal(&org, key) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.epoch < epoch {
+                if s.plan_page.scope_epoch != scope_epoch {
                     return;
                 }
                 s.plan_page.controller.acting = false;
@@ -618,13 +678,13 @@ impl SettingsWorkspaceSurface {
         let key = add_on.key.clone().map(|k| k.1).unwrap_or_default();
         add_on.pending = true;
         add_on.message = None;
-        let epoch = self.plan_page.epoch;
+        let scope_epoch = self.plan_page.scope_epoch;
         let task =
             cx.background_spawn(async move { client.change_add_on(&org, &id, quantity, key) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.epoch < epoch {
+                if s.plan_page.scope_epoch != scope_epoch {
                     return;
                 }
                 let add_on = &mut s.plan_page.controller.add_on;
