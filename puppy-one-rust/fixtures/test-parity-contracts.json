@@ -11258,6 +11258,230 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-git-refresh-lifecycle",
+      "acceptance": "Actual native owner, worker results, cancellation tokens and virtual GPUI timers preserve one physical status read per active workspace epoch and one coalesced trailing refresh. Background invalidations restart a 250 ms quiet period and pause while unfocused; explicit refresh remains available. Freshness is measured from successful publication, not dispatch. Failures retain good metadata and retry at 250 ms doubling to 30 s, resetting on success; retry timers pause while unfocused. A-to-B-to-A switching aborts obsolete owners without blocking the new root, and epoch/generation fences reject stale reads, errors and mutation snapshots. Mutation publication cancels the old reader but retains its physical slot until settlement. Closing releases owners and cancels timers. Fetch updates refs only and reconciles through this same queue, so it cannot publish an old snapshot after a mutation. This row does not qualify watcher backoff, cross-service auto-commit leases, per-project metadata caches, effective-hosting fetch target selection, or OS online-state preflight. A real Git not-a-repository result is a quiet absent state: it retires old metadata/history and does not retry forever; a later invalidation can reinitialize it.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/gitRefreshScheduler.test.ts",
+          "sha256": "f41798c8a1765c88efd3b9147fe116290e8e0d9ffb0e5a9d16e1f918328b2f34",
+          "cases": [
+            {
+              "index": 0,
+              "name": "gitRefreshScheduler > allows one in-flight read and at most one trailing refresh after a burst"
+            },
+            {
+              "index": 1,
+              "name": "gitRefreshScheduler > never lets an older deferred response overwrite a newer generation or mutation"
+            },
+            {
+              "index": 2,
+              "name": "gitRefreshScheduler > discards delayed responses across A \u2192 B workspace switches"
+            },
+            {
+              "index": 3,
+              "name": "gitRefreshScheduler > discards a delayed B response after A \u2192 B \u2192 A"
+            },
+            {
+              "index": 4,
+              "name": "gitRefreshScheduler > rejects mutation snapshots captured before a workspace epoch change"
+            },
+            {
+              "index": 5,
+              "name": "gitRefreshScheduler > aborts an obsolete physical read before starting the next workspace"
+            },
+            {
+              "index": 6,
+              "name": "gitRefreshScheduler > queues background invalidation while unfocused and drains on focus"
+            },
+            {
+              "index": 7,
+              "name": "gitRefreshScheduler > reconciles on focus when the last successful snapshot is stale"
+            },
+            {
+              "index": 8,
+              "name": "gitRefreshScheduler > preserves the last good snapshot path by not clearing on transient read errors"
+            },
+            {
+              "index": 9,
+              "name": "gitRefreshScheduler > retries failed refreshes with bounded exponential backoff"
+            },
+            {
+              "index": 10,
+              "name": "gitRefreshScheduler > does not start a debounced read after the window loses focus"
+            },
+            {
+              "index": 11,
+              "name": "gitRefreshScheduler > does not run a retry timer while unfocused"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::background_reads_restart_the_quiet_period_and_wait_for_focus"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::one_physical_read_owns_one_tail_and_obsolete_roots_cannot_block_or_publish"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::mutation_publication_fences_read_results_but_keeps_the_physical_slot_until_settlement"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::failed_reads_keep_good_metadata_and_retry_with_capped_backoff_that_resets_on_success"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::focus_freshness_starts_at_success_and_retry_timers_never_read_in_the_background"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::fetch_completion_reconciles_through_the_same_debounced_read_queue"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::closing_releases_pending_read_owners_and_cancels_debounce_and_retry_timers"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::a_fetch_finishing_after_a_mutation_cannot_replace_the_mutation_snapshot"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::reads_follow_invalidations_and_the_metadata_watch_not_a_clock"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::absent_repositories_are_quiet_states_and_retire_old_history_instead_of_retrying_forever"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-git-current-branch-target",
+      "acceptance": "The synchronization destination preserves every explicit upstream, uses the current branch name for first publication, prefers the established Cloud default, refuses detached HEAD or a removed upstream, and matches the longest remote-name prefix without truncating slash-containing branches. A missing configured remote does not silently authorize fallback.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/gitSyncTarget.test.mjs",
+          "sha256": "379a42d5a9fc5a2c741060f3d666c7e3dca551c2fd78238608c2d2089e408685",
+          "cases": [
+            {
+              "index": 0,
+              "name": "current branch synchronization destination > preserves explicit upstream puppyone/topic"
+            },
+            {
+              "index": 1,
+              "name": "current branch synchronization destination > preserves explicit upstream origin/release"
+            },
+            {
+              "index": 2,
+              "name": "current branch synchronization destination > preserves explicit upstream puppyone/main"
+            },
+            {
+              "index": 3,
+              "name": "current branch synchronization destination > publishes a new branch under its own name, not the workspace's old default"
+            },
+            {
+              "index": 4,
+              "name": "current branch synchronization destination > does not choose origin/main ahead of an unconfigured current branch"
+            },
+            {
+              "index": 5,
+              "name": "current branch synchronization destination > does not invent a destination in detached HEAD"
+            },
+            {
+              "index": 6,
+              "name": "current branch synchronization destination > does not redirect an unavailable upstream to a different remote"
+            },
+            {
+              "index": 7,
+              "name": "current branch synchronization destination > resolves a remote name containing slashes without truncating the branch"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::the_sync_target_is_the_upstream_else_a_first_push_under_the_branch_name"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-git-primary-action-priority",
+      "acceptance": "The native production priority selector matches all ten established collaboration states: conflicts suppress the primary action; operation, incoming sync, staged commit, outgoing commit, and stage-and-commit follow that order; a clean synchronized repository has none.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/sourceControlWorkflow.test.ts",
+          "sha256": "67b2cc5cb4eab38e201dc4db13cb3a44b7e13bfd691c3c79955b15593432ccc1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "single-branch collaboration UX policy > synced and clean"
+            },
+            {
+              "index": 1,
+              "name": "single-branch collaboration UX policy > only uncommitted changes"
+            },
+            {
+              "index": 2,
+              "name": "single-branch collaboration UX policy > only staged changes"
+            },
+            {
+              "index": 3,
+              "name": "single-branch collaboration UX policy > only outgoing commits"
+            },
+            {
+              "index": 4,
+              "name": "single-branch collaboration UX policy > outgoing commits plus staged changes"
+            },
+            {
+              "index": 5,
+              "name": "single-branch collaboration UX policy > incoming commits plus a dirty worktree"
+            },
+            {
+              "index": 6,
+              "name": "single-branch collaboration UX policy > incoming commits plus staged changes"
+            },
+            {
+              "index": 7,
+              "name": "single-branch collaboration UX policy > diverged commits"
+            },
+            {
+              "index": 8,
+              "name": "single-branch collaboration UX policy > resolved rebase waiting to continue"
+            },
+            {
+              "index": 9,
+              "name": "single-branch collaboration UX policy > unresolved content conflicts"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::one_primary_action_follows_the_collaboration_policy"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

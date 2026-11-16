@@ -67,6 +67,11 @@
     "src/lib/localization/core/index.ts": "ec4654d4af947a15c7355c97815234792148801d5f0af2c8ce12bee05934b3a5",
     "src/lib/localization/react/LocalizationProvider.tsx": "1b13d96387bfa9ef1ec64b262fd5cb0064c63b8790d0b581915ba7228a38722f",
     "src/lib/localization/react/index.ts": "8c8e5b102801595a8a3f44118e55bf0c5da2cfe0976672ae707c4f28e18a64df",
-    "src/lib/localization/index.ts": "8e43a19b9f21477cfae72ba89a0be480c1eab890c4a7c2fd28e088aceafd731e"
+    "src/lib/localization/index.ts": "8e43a19b9f21477cfae72ba89a0be480c1eab890c4a7c2fd28e088aceafd731e",
+    "src/features/source-control/gitRefreshScheduler.ts": "798a9f17ba5a630d79407b579341f2dd2a9395291213637a9aa61c710d7dc1e3",
+    "electron/local-api/git/sync-target.mjs": "4e2863227b59bd3a91ce64e80f7a03db9569d019edc503d9e3cc7187ad053168",
+    "tests/unit/source-control/status/gitRefreshScheduler.test.ts": "f41798c8a1765c88efd3b9147fe116290e8e0d9ffb0e5a9d16e1f918328b2f34",
+    "tests/unit/source-control/status/gitSyncTarget.test.mjs": "379a42d5a9fc5a2c741060f3d666c7e3dca551c2fd78238608c2d2089e408685",
+    "tests/unit/source-control/status/sourceControlWorkflow.test.ts": "67b2cc5cb4eab38e201dc4db13cb3a44b7e13bfd691c3c79955b15593432ccc1"
   }
 }

@@ -12,6 +12,8 @@ mod diff;
 mod failure;
 mod history;
 mod refresh;
+#[cfg(test)]
+mod refresh_tests;
 
 pub use cloud_history::{CloudHistory, CloudHistoryEvent};
 
@@ -48,9 +50,11 @@ use std::{
 };
 
 enum ResultValue {
+    /// A physical status read retains its slot until its own completion.
+    Read(Result<Snapshot, String>, u64),
     Status(Result<Snapshot, String>),
-    /// A silent remote fetch, then the status (`refreshGitStatusWithFetch`).
-    Fetched(Result<Snapshot, String>),
+    /// A silent fetch only invalidates; it cannot publish a second status read.
+    Fetched(Result<(), String>),
     /// The repository metadata watcher (`git-metadata-watch-service`).
     Watching(Option<crate::platform::git_watch::GitWatch>),
     History(Result<History, String>, u64),
@@ -277,6 +281,8 @@ pub struct SourceControl {
     rx: mpsc::Receiver<(u64, ResultValue)>,
     wake: Wake,
     pub snapshot: Option<Snapshot>,
+    /// A successful observation of an ordinary, non-repository folder.
+    repository_absent: bool,
     /// The status could not be read.
     pub error: Option<String>,
     /// The last operation's failure, while its dialog is open.
@@ -294,7 +300,15 @@ pub struct SourceControl {
     running: Option<&'static str>,
     queued_operation: Option<Operation>,
     dirty: bool,
-    last_refresh: Instant,
+    dirty_immediate: bool,
+    last_successful_refresh: Option<Instant>,
+    refresh_generation: u64,
+    applied_generation: u64,
+    read_ticket: Option<u64>,
+    read_cancel: Option<Arc<AtomicBool>>,
+    status_reader: StatusReader,
+    refresh_retry: Option<Task<()>>,
+    retry_delay: Duration,
     /// Refresh scheduling (`gitRefreshScheduler`, `remoteRefreshPolicy`):
     /// the metadata watcher and its flag, the pending debounce, window
     /// focus, and the remote fetch's last attempt and loop.
@@ -330,6 +344,7 @@ pub struct SourceControl {
     #[cfg(test)]
     painted_rows: usize,
 }
+type StatusReader = Arc<dyn Fn(PathBuf, Arc<AtomicBool>) -> Result<Snapshot, String> + Send + Sync>;
 impl EventEmitter<SourceControlEvent> for SourceControl {}
 impl SourceControl {
     /// Appearance → Git sidebar layout and file icon theme.
@@ -369,6 +384,7 @@ impl SourceControl {
             rx: results,
             wake,
             snapshot: None,
+            repository_absent: false,
             error: None,
             failure: None,
             prompt_copied: false,
@@ -380,7 +396,15 @@ impl SourceControl {
             running: None,
             queued_operation: None,
             dirty: false,
-            last_refresh: Instant::now(),
+            dirty_immediate: false,
+            last_successful_refresh: None,
+            refresh_generation: 0,
+            applied_generation: 0,
+            read_ticket: None,
+            read_cancel: None,
+            status_reader: Arc::new(|root, cancel| git::status(&root, &cancel)),
+            refresh_retry: None,
+            retry_delay: refresh::RETRY_INITIAL,
             git_watch: None,
             metadata_changed: Arc::new(AtomicBool::new(false)),
             debounce: None,
@@ -414,18 +438,30 @@ impl SourceControl {
             return;
         }
         self.cancel.store(true, Ordering::Relaxed);
+        if let Some(cancel) = self.read_cancel.take() {
+            cancel.store(true, Ordering::Relaxed);
+        }
         self.history_cancel.store(true, Ordering::Relaxed);
         self.detail_cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.epoch += 1;
         self.root = Some(root);
         self.snapshot = None;
+        self.repository_absent = false;
         self.error = None;
         self.dismiss_failure(cx);
         self.backup_dismissed = false;
         self.busy = false;
         self.running = None;
         self.queued_operation = None;
+        self.read_ticket = None;
+        self.refresh_generation = 0;
+        self.applied_generation = 0;
+        self.last_successful_refresh = None;
+        self.refresh_retry = None;
+        self.retry_delay = refresh::RETRY_INITIAL;
+        self.dirty = false;
+        self.dirty_immediate = false;
         // History stays the surface across projects (`rightSidebarSurface`);
         // it reloads with the new repository's first snapshot.
         self.detail = None;
@@ -466,60 +502,6 @@ impl SourceControl {
         }));
         self.refresh(cx);
     }
-    /// Something may have changed in the repository (the working tree or
-    /// its metadata): read the status once the burst settles
-    /// (`GIT_REFRESH_DEBOUNCE_MS`).
-    pub fn invalidate(&mut self, cx: &mut Context<Self>) {
-        if self.root.is_none() || self.debounce.is_some() {
-            return;
-        }
-        self.debounce = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(refresh::DEBOUNCE).await;
-            let _ = this.update(cx, |s, cx| {
-                s.debounce = None;
-                s.refresh(cx);
-            });
-        }));
-    }
-    /// Window focus: a stale status is read again (`GIT_FOCUS_STALE_MS`) and
-    /// the sync remote is fetched once it is stale too.
-    pub fn set_focused(&mut self, focused: bool, cx: &mut Context<Self>) {
-        self.focused = focused;
-        if !focused || self.root.is_none() {
-            return;
-        }
-        if self.last_refresh.elapsed() >= refresh::FOCUS_STALE {
-            self.refresh(cx);
-        }
-        self.request_fetch(refresh::REMOTE_FOCUS_STALE, cx);
-    }
-    /// A silent fetch of the upstream's remote, past `gap` since the last
-    /// attempt; never for a local-only branch, never while unfocused.
-    fn request_fetch(&mut self, gap: Duration, cx: &mut Context<Self>) {
-        // `getRemoteFetchTarget`: the sync target's remote; a local-only
-        // branch never touches the network.
-        let Some(remote) = self
-            .snapshot
-            .as_ref()
-            .and_then(|s| s.target.as_ref())
-            .map(|t| t.remote.clone())
-        else {
-            return;
-        };
-        if self.fetching
-            || !refresh::should_fetch_remote(
-                self.focused,
-                self.last_fetch.map(|at| at.elapsed()),
-                gap,
-            )
-        {
-            return;
-        }
-        self.fetching = true;
-        self.last_fetch = Some(Instant::now());
-        self.task(move |root, cancel| ResultValue::Fetched(git::fetch(&root, &remote, cancel)));
-        cx.notify();
-    }
     fn task(&self, work: impl FnOnce(PathBuf, &AtomicBool) -> ResultValue + Send + 'static) {
         self.task_with(self.cancel.clone(), work);
     }
@@ -540,22 +522,8 @@ impl SourceControl {
             wake.notify();
         });
     }
-    pub fn refresh(&mut self, cx: &mut Context<Self>) {
-        if self.busy {
-            self.dirty = true;
-            return;
-        }
-        if self.root.is_none() {
-            return;
-        }
-        self.busy = true;
-        self.dirty = false;
-        self.last_refresh = Instant::now();
-        self.task(|root, cancel| ResultValue::Status(git::status(&root, cancel)));
-        cx.notify();
-    }
     fn operation(&mut self, op: Operation, cx: &mut Context<Self>) {
-        if self.busy {
+        if self.busy || self.read_ticket.is_some() {
             if self.running.is_none() {
                 self.queued_operation = Some(op);
             }
@@ -578,20 +546,34 @@ impl SourceControl {
                 continue;
             }
             match result {
+                ResultValue::Read(result, generation) => {
+                    if self.read_ticket != Some(generation) {
+                        continue;
+                    }
+                    self.read_ticket = None;
+                    self.read_cancel = None;
+                    if self.running.is_none() {
+                        self.busy = false;
+                    }
+                    if generation < self.applied_generation {
+                        continue;
+                    }
+                    match result {
+                        Ok(snapshot) => {
+                            self.applied_generation = generation;
+                            self.publish_status(snapshot, cx);
+                        }
+                        Err(error) => {
+                            self.failed_status(error, cx);
+                        }
+                    }
+                }
                 ResultValue::Status(result) => {
                     self.busy = false;
                     let running = self.running.take();
                     match result {
                         Ok(snapshot) => {
-                            let changed = self.snapshot.as_ref() != Some(&snapshot);
-                            if changed {
-                                self.sections = project_sections(&snapshot);
-                            }
-                            self.snapshot = Some(snapshot);
-                            self.error = None;
-                            if self.history_open && changed {
-                                self.load_history();
-                            }
+                            self.apply_mutation_status(snapshot, cx);
                         }
                         // `runGitOperation`: the failure's dialog, then
                         // the status read again.
@@ -600,9 +582,12 @@ impl SourceControl {
                                 let workspace = self.root.as_ref().map(|r| r.display().to_string());
                                 self.failure = Some(failure::Failure::new(label, &e, workspace));
                                 self.dirty = true;
+                                self.dirty_immediate = true;
                                 cx.emit(SourceControlEvent::Failure);
                             }
-                            None => self.error = Some(e),
+                            None => {
+                                self.failed_status(e, cx);
+                            }
                         },
                     }
                 }
@@ -610,13 +595,8 @@ impl SourceControl {
                 // Silent: a failed fetch keeps the last status.
                 ResultValue::Fetched(result) => {
                     self.fetching = false;
-                    if let Ok(snapshot) = result
-                        && !self.busy
-                        && self.snapshot.as_ref() != Some(&snapshot)
-                    {
-                        self.sections = project_sections(&snapshot);
-                        self.snapshot = Some(snapshot);
-                        self.last_refresh = Instant::now();
+                    if result.is_ok() {
+                        self.invalidate(cx);
                     }
                 }
                 ResultValue::History(result, ticket) => {
@@ -641,13 +621,20 @@ impl SourceControl {
             }
         }
         if !self.busy
+            && self.read_ticket.is_none()
             && let Some(operation) = self.queued_operation.take()
         {
             self.operation(operation, cx);
         }
         // No polling: reads come from invalidations, focus and mutations.
-        if self.root.is_some() && self.dirty {
-            self.refresh(cx);
+        if self.root.is_some()
+            && self.dirty
+            && !self.busy
+            && self.read_ticket.is_none()
+            && self.debounce.is_none()
+            && (self.focused || self.dirty_immediate)
+        {
+            self.request_read(self.dirty_immediate, cx);
         }
         // `requestFetch(REMOTE_FETCH_MIN_GAP_MS)` once a remote is known.
         if self.last_fetch.is_none() {
@@ -776,6 +763,9 @@ impl SourceControl {
 impl Drop for SourceControl {
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Relaxed);
+        if let Some(cancel) = &self.read_cancel {
+            cancel.store(true, Ordering::Relaxed);
+        }
         self.history_cancel.store(true, Ordering::Relaxed);
         self.detail_cancel.store(true, Ordering::Relaxed);
     }
@@ -1761,12 +1751,7 @@ impl Render for SourceControl {
         if let Some(snapshot) = self.snapshot.clone() {
             return pane.child(self.changes_list(&snapshot, cx));
         }
-        let not_repo = self.root.is_some()
-            && !self.busy
-            && self
-                .error
-                .as_deref()
-                .is_some_and(|e| e.contains("not a git repository"));
+        let not_repo = self.root.is_some() && self.repository_absent;
         if not_repo {
             // `GitRepositorySetupAction`.
             return pane.child(
@@ -1774,10 +1759,15 @@ impl Render for SourceControl {
                     operation_button(
                         "git-init",
                         "plus",
-                        tr("source-control.setup.enable"),
+                        tr(if self.running == Some(Operation::Init.label()) {
+                            "source-control.setup.enabling"
+                        } else {
+                            "source-control.setup.enable"
+                        }),
                         true,
-                        false,
+                        self.busy,
                     )
+                    .debug_selector(|| "git-init".into())
                     .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Init, cx))),
                 ),
             );
@@ -2159,6 +2149,23 @@ mod tests {
                 "painted {} rows",
                 s.painted_rows
             );
+        });
+    }
+
+    #[gpui::test]
+    fn a_fetch_finishing_after_a_mutation_cannot_replace_the_mutation_snapshot(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = cx.add_window_view(SourceControl::new);
+        view.update_in(cx, |s, window, cx| {
+            s.snapshot = Some(Snapshot {
+                branch: "new-mutation".into(),
+                ..Default::default()
+            });
+            s.fetching = true;
+            s.tx.send((s.epoch, ResultValue::Fetched(Ok(())))).unwrap();
+            s.poll(window, cx);
+            assert_eq!(s.snapshot.as_ref().unwrap().branch, "new-mutation");
         });
     }
 

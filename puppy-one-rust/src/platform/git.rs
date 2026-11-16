@@ -765,12 +765,14 @@ fn push_remote(
 }
 /// `fetchWorkspaceGit`: refresh `remote`'s tracking refs (`--prune`); the
 /// working tree and the index are untouched.
-pub fn fetch(root: &Path, remote: &str, cancel: &AtomicBool) -> Result<Snapshot, String> {
+pub fn fetch(root: &Path, remote: &str, cancel: &AtomicBool) -> Result<(), String> {
     if remote.is_empty() || remote.starts_with('-') {
         return Err(crate::localization::t("native.git.pathOutside").into());
     }
     git(root, &["fetch", "--prune", "--quiet", remote], None, cancel)?;
-    status(root, cancel)
+    // Status publication belongs to the caller's single-flight refresh queue.
+    // A second read here could finish after a mutation and overwrite it.
+    Ok(())
 }
 /// `buildDefaultCommitMessage`: names the one staged file, counts several.
 fn default_commit_message(root: &Path, cancel: &AtomicBool) -> String {
