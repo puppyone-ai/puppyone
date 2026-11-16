@@ -354,7 +354,7 @@ Rust / GPUI Kit 0.8.0 / gpui-pre 0.3.9 / Metal (macOS)
    以及隐藏的渲染服务（Mermaid / KaTeX → 图片）
 ```
 
-- 没有 HTML/CSS 外壳、Tauri 或 Electron 运行时；外壳与原生编辑器在同一 Metal 帧内绘制。WebView 是叠在窗格矩形上的原生子视图，内容只经 `puppyone-preview://` 协议读取授权文件夹（`platform::webview`）；菜单从网页内容上挖出自己的形状；对话框打开、Homepage 或项目准备页整块盖住时隐藏网页内容，而不是被它盖住。
+- 没有 HTML/CSS 外壳、Tauri 或 Electron 运行时；外壳与原生编辑器在同一 Metal 帧内绘制。WebView 是叠在窗格矩形上的原生子视图，内容只经 `puppyone-preview://` 协议读取授权文件夹（`platform::webview`）；菜单从网页内容上挖出自己的形状，网页所在的裁剪视图在挖出的地方不参与命中测试，点击和滚轮落到菜单上；对话框打开、Homepage 或项目准备页整块盖住时隐藏网页内容，而不是被它盖住。
 - 编辑器没有文件系统 API；只上报已打开文档的 revision 和快照。保存路径由 Rust 文档会话持有。
 - `cap-std` 将目录访问约束在原生打开的 capability 内。拒绝绝对 / `..` 路径、外部符号链接和特殊文件；文档还绑定 workspace grant。
 - 切换 / 关闭不单靠异步 dirty 标记：先冻结编辑器并索取快照，确认收到后才决策（组字中会等组字结束）。5 秒内无确认则取消操作，不静默关掉文件。
