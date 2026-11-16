@@ -37,7 +37,7 @@ def isolated_test_environment(overrides=None):
 
 
 def outcomes(output):
-    return re.findall(r'^test (\S+) \.\.\. (ok|FAILED|ignored)(?:[^\n]*)$', output, re.M)
+    return re.findall(r'^test (\S+)(?: - should panic)? \.\.\. (ok|FAILED|ignored)(?:[^\n]*)$', output, re.M)
 
 
 def validate_result(name, code, output):

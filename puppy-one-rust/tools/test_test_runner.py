@@ -25,6 +25,15 @@ class LibtestEvidence(unittest.TestCase):
         output = 'test a::b ... ok\ntest a::b ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored;'
         self.assertIsNotNone(validate_result('a::b', 0, output))
 
+    def test_expected_panic_annotation_keeps_the_exact_test_identity(self):
+        output = ('test a::b - should panic ... ok\n\n'
+                  'test result: ok. 1 passed; 0 failed; 0 ignored;')
+        self.assertIsNone(validate_result('a::b', 0, output))
+        self.assertIsNotNone(validate_result('a::c', 0, output))
+        self.assertIsNotNone(validate_result('a::b', 101, output.replace('... ok', '... FAILED')))
+        self.assertIsNotNone(validate_result('a::b', 0, output.replace('... ok', '... ignored')))
+        self.assertIsNotNone(validate_result('a::b', 0, 'test a::b ... ok\n' + output))
+
     def test_real_stderr_diagnostics_cannot_split_a_libtest_result_line(self):
         # Raw logging on another thread bypasses libtest's capture. These
         # ordered writes reproduce a recovery diagnostic between name and ok.
