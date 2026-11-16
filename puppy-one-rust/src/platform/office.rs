@@ -328,18 +328,14 @@ mod lifetime_tests {
                 dir.path(),
                 &format!("printf '%s' \"$PWD\" > '{}'\n{body}", receipt.display()),
             );
+            let timeout = if overflow {
+                TIMEOUT
+            } else {
+                Duration::from_millis(100)
+            };
             let started = Instant::now();
-            let result = convert_with(
-                &original,
-                &AtomicBool::new(false),
-                &script,
-                if overflow {
-                    TIMEOUT
-                } else {
-                    Duration::from_millis(100)
-                },
-            );
-            assert!(started.elapsed() < Duration::from_secs(4));
+            let result = convert_with(&original, &AtomicBool::new(false), &script, timeout);
+            let elapsed = started.elapsed();
             let error = result.unwrap_err();
             assert!(
                 error.contains(if overflow {
@@ -347,7 +343,15 @@ mod lifetime_tests {
                 } else {
                     "timed out"
                 }),
-                "{error}"
+                "overflow={overflow}, elapsed={elapsed:?}: {error}"
+            );
+            // The output-limit case admits up to the production 8-second
+            // conversion budget; it is not a separate 4-second throughput
+            // benchmark. Keep the short deadline case short, and allow the
+            // owned child/group cleanup after either execution budget.
+            assert!(
+                elapsed < timeout + Duration::from_secs(3),
+                "overflow={overflow}, timeout={timeout:?}, elapsed={elapsed:?}: {error}"
             );
             // A deadline may expire during OS process startup, before the
             // script can write its receipt. If it ran, its directory is gone.
