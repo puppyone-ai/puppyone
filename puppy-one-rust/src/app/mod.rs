@@ -713,9 +713,11 @@ impl Render for Shell {
             } else {
                 self.editor.clone().into_any_element()
             };
-            stack
-                .main(at(self.frame.layout.editor).child(main))
-                .into_any_element()
+            // Under the Homepage the editors keep their state but draw nothing and take no input.
+            let main = at(self.frame.layout.editor)
+                .when(home, |d| d.invisible())
+                .child(main);
+            stack.main(main).into_any_element()
         });
         // The live screen above the panes, under the Header and the edges;
         // on its way to or from the main area, over the edges too.

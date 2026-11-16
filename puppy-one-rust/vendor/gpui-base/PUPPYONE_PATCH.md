@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with six additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with seven additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -160,6 +160,29 @@ code run, and every place that adds `INLINE_CODE_PADDING` asks
 `TextViewStyle::with_link_underline(false)` leaves links without the
 underline (`link_underline` returns `None`). Unset, nothing changes. The
 Markdown editor sets both from its theme (`src/editor/view/editor.rs`).
+
+## The patch: a modal host takes the pointer
+
+The dialog host covers the window, but upstream it only stops presses on its
+backdrop: GPUI hit-tests every hitbox under the pointer, so the content
+beneath a modal kept its hover styles, cursor and tooltips, and scrolled under
+the wheel. GPUI Component wraps this host in an occluding element of its own;
+PuppyOne uses the host directly (`src/ui/components/dialog.rs`, the Settings
+host, the Cloud sign-in), so the host occludes itself. Its backdrop and popup
+are hit-tested before it and keep their presses, so a backdrop press still
+dismisses. A press above `dismiss_below_y` no longer reaches the window beneath
+(PuppyOne leaves it at 0).
+
+```diff
+--- registry/gpui-base-0.8.0/src/dialog.rs
++++ vendor/gpui-base/src/dialog.rs
+@@ fn render
+                 div()
+                     .id(("dialog-host", self.layer))
+                     .test_support()
++                    .occlude()
+                     .absolute()
+```
 
 ## Upgrading
 

@@ -44,6 +44,7 @@ cargo run --release --locked -- --workspace /path/to/project --file README.md
 - 颜色从全局外观读取（`cx.palette()` / `cx.is_dark()`，见 `ui/appearance.rs`），不再由调用方传 `Theme` 或 `dark` 参数。
 - 现有组件：`Button`（Outline / Filled / Ghost / Titlebar / 对话框等变体）、`IconButton`、`Icon` / `FileIcon`、`Switch`、`SegmentedControl`、`Select`、`Menu` / `MenuItem`、`PopoverMenu`（挂在触发按钮上）、`AnchoredMenu`（右键菜单）、`Dialog`、`SidebarRow` / `SectionHeader` / `SidebarGroup` / `RowActionButton`、`ResizeHandle`（面板边缘与工作台分屏共用的拖拽手柄：8px 命中带 + 1px 描边，悬停 / 拖动色来自 `--po-pane-resizer-*` token）、设置页的 `SettingsSection` / `SettingRow` / `ValueRow` 等，以及 `Spinner`、`tooltip`。
 - 弹层统一交给 Kit 的 `Popover` / `Positioner`：位置、贴边、点外部和 Esc 关闭、焦点恢复都不手写。
+- 盖在别的内容上的层必须拿走指针：GPUI 对指针下的所有 hitbox 做命中测试，只铺一层 `.bg(..)` 挡不住下面的悬停、光标、点击、焦点和滚轮。浮层用 `SurfaceFrame`（菜单、Popover、对话框等变体默认 occlude）；全窗口层（Homepage、项目准备页）用 `cover()` / `covering()`（`ui/components/layer.rs`：occlude，并向 `native_cover` 报告形状，被整块盖住的网页内容隐藏）；对话框由宿主 occlude（`vendor/gpui-base` 补丁）。被盖住但要保留状态的内容用 `invisible()`：照常布局、不绘制、不接收输入（Homepage 下的编辑区）。
 - 有限动画统一用 `ui/motion.rs` 的 `Timeline`（面板开合、Explorer 展开）；持续 Loading 由 `ui/loading/` 的共享调度器管理，不能每个页面再造一套计时器。
 - 样例页：`PUPPYONE_LAB=gallery-dark`（或 `gallery-light`、`gallery-dialog-dark`）配合 `dev-capture` 构建打开，展示所有组件和状态。
 - `tools/check-ui-boundaries.py` 会拦截：功能 / Shell 代码里使用 Kit 默认外观组件（`gpui_kit::component::{button,menu,…}`、`PopupMenu` 等）、自建配色（`Theme::new`），以及已退役的旧辅助文件（`ui/primitives.rs`、`ui/menu.rs` 等）重新出现。
@@ -261,7 +262,7 @@ cargo test -p po-workspace --features test-support -- workspace::acceptance --ig
 
 三个 crate 以 crates.io 发布版为底，经 `Cargo.toml` 的 `[patch.crates-io]` 使用；改动都写在各自的 `PUPPYONE_PATCH.md` 里，其余与发布版相同：
 
-- `vendor/gpui-base`（0.8.0）：代码 gutter、`replay_undo`、撤销历史保留、悬停显示滚动条、文本颜色标记、行内代码内边距与无下划线链接。
+- `vendor/gpui-base`（0.8.0）：代码 gutter、`replay_undo`、撤销历史保留、悬停显示滚动条、文本颜色标记、行内代码内边距与无下划线链接、模态宿主拿走指针。
 - `vendor/russh`（0.65.1）：接受 TS 客户端按证书类型命名的证书签名（见上文“互通”）。
 - `vendor/vt100`（0.15.2）：OSC 8 超链接（单元格记录所属链接，`Screen::hyperlink`），以及 `Screen::scrolled_rows()` 给每行一个在整个输出中的位置，让终端选区跨越 scrollback（TM-1、TM-2）。
 
@@ -353,7 +354,7 @@ Rust / GPUI Kit 0.8.0 / gpui-pre 0.3.9 / Metal (macOS)
    以及隐藏的渲染服务（Mermaid / KaTeX → 图片）
 ```
 
-- 没有 HTML/CSS 外壳、Tauri 或 Electron 运行时；外壳与原生编辑器在同一 Metal 帧内绘制。WebView 是叠在窗格矩形上的原生子视图，内容只经 `puppyone-preview://` 协议读取授权文件夹（`platform::webview`）；菜单和对话框打开时隐藏网页内容，而不是被它盖住。
+- 没有 HTML/CSS 外壳、Tauri 或 Electron 运行时；外壳与原生编辑器在同一 Metal 帧内绘制。WebView 是叠在窗格矩形上的原生子视图，内容只经 `puppyone-preview://` 协议读取授权文件夹（`platform::webview`）；菜单从网页内容上挖出自己的形状；对话框打开、Homepage 或项目准备页整块盖住时隐藏网页内容，而不是被它盖住。
 - 编辑器没有文件系统 API；只上报已打开文档的 revision 和快照。保存路径由 Rust 文档会话持有。
 - `cap-std` 将目录访问约束在原生打开的 capability 内。拒绝绝对 / `..` 路径、外部符号链接和特殊文件；文档还绑定 workspace grant。
 - 切换 / 关闭不单靠异步 dirty 标记：先冻结编辑器并索取快照，确认收到后才决策（组字中会等组字结束）。5 秒内无确认则取消操作，不静默关掉文件。

@@ -47,9 +47,13 @@ impl HostState {
     }
     /// Cuts `cutouts` (window coordinates) out of the view where they
     /// cross it: floating surfaces over the page show through. `false`
-    /// where the platform cannot cut and one crosses it: the view hides.
+    /// where the platform cannot cut and one crosses it, or where one covers
+    /// the view whole (a layer over the page): the view hides.
     fn cut(&self, cutouts: &[crate::ui::native_cover::Cutout]) -> bool {
         let (x, y, w, h) = self.showing();
+        if cutouts.iter().any(|c| covers(c, (x, y, w, h))) {
+            return false;
+        }
         let local: Vec<[f32; 5]> = cutouts
             .iter()
             .filter_map(|c| {
@@ -157,6 +161,15 @@ impl HostState {
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         let _ = show;
     }
+}
+/// Whether `cutout` lies over the whole of the window rectangle
+/// `(x, y, w, h)` (to half a pixel).
+fn covers(cutout: &crate::ui::native_cover::Cutout, (x, y, w, h): (f32, f32, f32, f32)) -> bool {
+    let b = cutout.bounds;
+    f32::from(b.origin.x) <= x + 0.5
+        && f32::from(b.origin.y) <= y + 0.5
+        && f32::from(b.origin.x + b.size.width) >= x + w - 0.5
+        && f32::from(b.origin.y + b.size.height) >= y + h - 0.5
 }
 #[cfg(target_os = "macos")]
 impl Drop for HostState {
@@ -936,5 +949,23 @@ mod tests {
         assert_eq!((full.width(), full.height()), (400, 450));
         assert_eq!(full.get_pixel(10, 10).0, [20, 30, 40, 255]);
         assert_eq!(full.get_pixel(10, 440).0, [200, 100, 50, 255]);
+    }
+
+    /// A layer over the whole view hides it; a menu over part of it is cut.
+    #[test]
+    fn only_a_shape_over_the_whole_view_covers_it() {
+        use crate::ui::native_cover::Cutout;
+        let shape = |x: f32, y: f32, w: f32, h: f32| Cutout {
+            bounds: gpui::Bounds::new(
+                gpui::point(gpui::px(x), gpui::px(y)),
+                gpui::size(gpui::px(w), gpui::px(h)),
+            ),
+            radius: 0.,
+        };
+        let view = (300., 40., 700., 760.);
+        assert!(covers(&shape(0., 0., 1280., 800.), view));
+        assert!(covers(&shape(300.2, 40., 699.9, 760.), view));
+        assert!(!covers(&shape(320., 60., 224., 300.), view));
+        assert!(!covers(&shape(0., 40., 1280., 700.), view));
     }
 }
