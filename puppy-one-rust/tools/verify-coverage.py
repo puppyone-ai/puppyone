@@ -4,26 +4,29 @@ import argparse
 from datetime import datetime, timezone
 import importlib.util
 import json
-import os
 from pathlib import Path
 import subprocess
 from coverage_report import measure, failures
-from test_runner import CARGO, ROOT, execute, source_hashes, validate_result
+from test_runner import CARGO, ROOT, execute, isolated_test_environment, source_hashes, validate_result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, default=ROOT / 'fixtures/coverage-baseline.json')
     args = parser.parse_args()
+    # Coverage is also a direct entry point, so never inherit a user's profile.
+    # Use the same compiler channel and dependency cfgs as the application;
+    # RUSTC_BOOTSTRAP only enables LLVM's unstable branch instrumentation.
+    with isolated_test_environment({'RUSTC_BOOTSTRAP': '1'}) as env:
+        return verify(args, env)
+
+
+def verify(args, env):
     out = ROOT / 'artifacts/coverage'
     out.mkdir(parents=True, exist_ok=True)
     receipt = out / 'result.json'
     receipt.unlink(missing_ok=True)
     before = source_hashes()
-    # Keep the same compiler channel and dependency cfgs as the application.
-    # RUSTC_BOOTSTRAP only enables LLVM's unstable branch instrumentation.
-    # The newer nightly activates unsupported pathfinder_simd intrinsics on ARM.
-    env = dict(os.environ, RUSTC_BOOTSTRAP='1')
     compiler = subprocess.check_output([CARGO, '--version'], text=True).strip()
     commands = [
         # LLVM scans matching binaries in the target directory, including old
@@ -44,10 +47,14 @@ def main():
         (out / f'{name}.log').write_text(output)
         checks.append({'name': name, 'exit': code, 'passed': code == 0})
     for index, (package, test) in enumerate(required):
-        code, output = execute([CARGO, 'llvm-cov', 'test', '--branch', '--no-report', '--locked', '--offline', '-p', package, '--features', 'dev-capture', test, '--', '--exact', '--include-ignored', '--test-threads=1'], env=env, timeout=300)
+        # Preserve workspace feature unification from the measured build.
+        # Selecting one package recompiles different dependency variants and can
+        # exhaust disk while linking a second instrumented editor. The exact
+        # libtest validator still requires only the requested test to execute.
+        code, output = execute([CARGO, 'llvm-cov', 'test', '--branch', '--no-report', '--locked', '--offline', '--workspace', '--features', 'dev-capture', test, '--', '--exact', '--include-ignored', '--test-threads=1'], env=env, timeout=300)
         (out / f'native-{index}.log').write_text(output)
         error = validate_result(test, code, output)
-        checks.append({'name': test, 'exit': code, 'passed': error is None, 'error': error})
+        checks.append({'package': package, 'name': test, 'exit': code, 'passed': error is None, 'error': error})
         print(f'Coverage: {test}: {error or "passed"}', flush=True)
     code, output = execute([CARGO, 'run', '--locked', '--offline', '--manifest-path', 'tools/source-index/Cargo.toml', '--', str(ROOT)], timeout=120)
     (out / 'source-index.log').write_text(output)
