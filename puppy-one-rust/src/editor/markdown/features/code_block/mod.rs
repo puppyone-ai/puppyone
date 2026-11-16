@@ -6,10 +6,13 @@ pub mod style;
 mod widget;
 
 use crate::editor::{
-    markdown::core::{
-        decorations::BlockDecoration,
-        feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-        plans::{BlockEmbed, Plan, Presentation},
+    markdown::{
+        core::{
+            decorations::BlockDecoration,
+            feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+            plans::{BlockEmbed, Plan, Presentation},
+        },
+        shared::fence::fence_delimiter_ranges,
     },
     view::widget::BlockWidget,
 };
@@ -67,8 +70,9 @@ impl MarkdownFeature for CodeBlockFeature {
     /// The fences around the code text are not caret positions.
     fn decorate_block(&self, embed: &BlockEmbed, cx: &mut BlockDecoration) {
         if let Some(block) = embed.model::<CodeBlock>() {
-            cx.atomic(block.range.start..block.code.start);
-            cx.atomic(block.code.end..block.range.end);
+            let (open, close) = fence_delimiter_ranges(&block.range, &block.code);
+            cx.atomic(open);
+            cx.atomic(close);
         }
     }
 }

@@ -3,6 +3,7 @@
 //! Markdown; pipes and the delimiter row are not caret positions) and the
 //! table widget.
 mod commands;
+mod controls;
 mod interaction;
 mod layout;
 pub mod model;

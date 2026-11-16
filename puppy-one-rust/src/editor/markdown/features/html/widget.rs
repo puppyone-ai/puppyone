@@ -1,11 +1,16 @@
 //! `.cm-md-html-widget`: the rendered surface in `.cm-md-html-widget-content`
-//! (the block radius and rings) with the toolbar's source toggle. The
-//! surface lays itself out; its measured height is the block's from the
-//! next frame on (until then, an estimate from its lines).
-use super::{ID, ShowSource, dom::Node, render::Surface};
+//! (the block radius and rings) with the toolbar's source toggle. Uses the
+//! shared bounded height cache and [`HtmlPlatformBridge`] (`TA-41`, `TA-42`,
+//! `TODO-31`).
+use super::{ID, ShowSource, dom};
 use crate::editor::{
     markdown::{
-        shared::{ring, source_toggle::source_toggle},
+        platform::HtmlPlatformBridge,
+        shared::{
+            html_surface::{Surface, measured_height, record_measured_height},
+            ring,
+            source_toggle::source_toggle,
+        },
         style::MarkdownTheme,
     },
     registry::DocumentAssets,
@@ -16,20 +21,14 @@ use crate::editor::{
 };
 use gpui::{prelude::*, *};
 use std::{
-    cell::RefCell,
-    collections::HashMap,
     hash::{Hash, Hasher},
     ops::Range,
+    path::Path,
 };
-
-thread_local! {
-    /// Measured surface heights, by block content and width.
-    static HEIGHTS: RefCell<HashMap<u64, f32>> = RefCell::new(HashMap::new());
-}
 
 pub struct HtmlBlockWidget {
     pub range: Range<usize>,
-    pub nodes: Vec<Node>,
+    pub nodes: Vec<dom::Node>,
     pub theme: MarkdownTheme,
     pub assets: Option<DocumentAssets>,
     /// A web embed's page, in place of the surface.
@@ -40,12 +39,8 @@ impl BlockWidget for HtmlBlockWidget {
     fn render(&self, cx: &mut WidgetCx) -> (AnyElement, f32) {
         let width = cx.width;
         let mut h = std::hash::DefaultHasher::new();
-        (
-            self.range.start,
-            format!("{:?}", self.nodes),
-            width.to_bits(),
-        )
-            .hash(&mut h);
+        (self.range.start, width.to_bits()).hash(&mut h);
+        dom::hash_nodes(&self.nodes, &mut h);
         let key = h.finish();
         let lines = cx
             .render
@@ -55,9 +50,7 @@ impl BlockWidget for HtmlBlockWidget {
             .count()
             .max(1);
         let estimate = lines as f32 * self.theme.body.text.line_height_px();
-        let height = HEIGHTS
-            .with(|m| m.borrow().get(&key).copied())
-            .unwrap_or(estimate);
+        let height = measured_height(key).unwrap_or(estimate);
         let document = self
             .assets
             .as_ref()
@@ -74,15 +67,23 @@ impl BlockWidget for HtmlBlockWidget {
                 cx.render.window,
                 cx.render.app,
             ),
-            None => Surface::new(
-                &self.theme,
-                self.assets.as_ref(),
-                &document,
-                view,
-                self.range.start,
-                cx.render,
-            )
-            .render(&self.nodes, width),
+            None => {
+                let mut bridge = HtmlPlatformBridge::new(
+                    &self.theme,
+                    self.assets.as_ref(),
+                    view.clone(),
+                    self.range.start,
+                );
+                Surface::new(
+                    &self.theme,
+                    Path::new(&document),
+                    view,
+                    self.range.start,
+                    cx.render,
+                    &mut bridge,
+                )
+                .render(&self.nodes, width)
+            }
         };
         let surface = div()
             .absolute()
@@ -92,13 +93,7 @@ impl BlockWidget for HtmlBlockWidget {
             .child(content)
             .on_children_prepainted(move |bounds, window, _| {
                 let Some(b) = bounds.first() else { return };
-                let h = f32::from(b.size.height);
-                let changed = HEIGHTS.with(|m| {
-                    let mut m = m.borrow_mut();
-                    let old = m.insert(key, h);
-                    old.is_none_or(|o| (o - h).abs() > 0.25)
-                });
-                if changed {
+                if record_measured_height(key, f32::from(b.size.height)) {
                     window.refresh();
                 }
             });

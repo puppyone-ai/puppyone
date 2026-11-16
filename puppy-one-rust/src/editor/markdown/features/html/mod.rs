@@ -7,16 +7,18 @@
 //! a browser would repair, comments and declarations stay source. A block
 //! that is only an `https:` `<iframe>` is a web embed (`embed`).
 pub mod dom;
-mod embed;
-pub(crate) mod render;
+pub mod embed;
 mod widget;
 
 use crate::editor::{
-    markdown::core::{
-        decorations::BlockDecoration,
-        feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-        plans::{BlockEmbed, Plan, Presentation},
-        state::PreviewState,
+    markdown::{
+        core::{
+            decorations::BlockDecoration,
+            feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+            plans::{BlockEmbed, Plan, Presentation},
+            state::PreviewState,
+        },
+        shared::dom::markdown_html,
     },
     text::{
         selection::Selection,
@@ -46,28 +48,6 @@ pub struct HtmlBlock {
 /// Reveal the block's source (the toolbar toggle).
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ShowSource(pub Range<usize>);
-
-/// `renderMarkdownBlocksToHtml`: Markdown to HTML, raw HTML passing
-/// through untouched.
-fn markdown_html(source: &str) -> String {
-    use pulldown_cmark::{Options, Parser, html};
-    let mut options = Options::empty();
-    options.insert(Options::ENABLE_TABLES);
-    options.insert(Options::ENABLE_STRIKETHROUGH);
-    options.insert(Options::ENABLE_TASKLISTS);
-    let mut out = String::new();
-    html::push_html(&mut out, Parser::new_ext(source, options));
-    out
-}
-
-/// Markdown as the surface's nodes (`renderMarkdownInlineFromSharedPolicy`:
-/// a tab's or a cell's Markdown, HTML in it as authored).
-pub(crate) fn markdown_nodes(source: &str) -> Vec<dom::Node> {
-    match dom::parse(&markdown_html(source)) {
-        dom::Parsed::Complete(nodes) => nodes,
-        _ => Vec::new(),
-    }
-}
 
 /// The HTML blocks of the document as the surface shows them.
 fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
@@ -99,7 +79,6 @@ fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
                 embed: None,
             }),
             dom::Parsed::Incomplete(open) => {
-                // The balancing sibling, once Markdown has been crossed.
                 let mut open = open;
                 let mut crossed = false;
                 let mut previous = range.end;

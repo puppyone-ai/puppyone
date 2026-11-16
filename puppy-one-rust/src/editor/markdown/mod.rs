@@ -14,6 +14,7 @@ pub mod composition;
 pub mod core;
 pub mod features;
 mod navigation;
+pub mod platform;
 pub mod shared;
 pub mod style;
 #[cfg(test)]

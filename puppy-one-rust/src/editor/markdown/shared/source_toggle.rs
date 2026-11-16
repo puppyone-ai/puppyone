@@ -13,6 +13,13 @@ const HEIGHT: f32 = 24.;
 const INSET: f32 = 6.;
 const ICON: f32 = 13.;
 
+/// Horizontal offset of the source toggle inside a block of `width`, clamped
+/// at `0.` so narrow columns (`width < 32.`) never push the button past the
+/// leading edge.
+pub fn toggle_left(width: f32) -> f32 {
+    (width - (INSET + WIDTH)).max(0.)
+}
+
 /// The toggle for a block of `width` in hover group `group`; `shown` keeps
 /// it visible without the pointer (focus within, selected).
 pub fn source_toggle(
@@ -35,7 +42,7 @@ pub fn source_toggle(
         .id(id)
         .absolute()
         .top(px(INSET))
-        .left(px(width - INSET - WIDTH))
+        .left(px(toggle_left(width)))
         .w(px(WIDTH))
         .h(px(HEIGHT))
         .flex()
@@ -65,4 +72,19 @@ pub fn source_toggle(
         toggle = toggle.opacity(0.).group_hover(group, |s| s.opacity(1.));
     }
     toggle
+}
+
+#[cfg(test)]
+mod tests {
+    use super::toggle_left;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn narrow_block_widths_clamp_toggle_left_to_zero() {
+        assert_eq!(toggle_left(0.), 0.);
+        assert_eq!(toggle_left(16.), 0.);
+        assert_eq!(toggle_left(31.75), 0.);
+        assert_eq!(toggle_left(32.), 0.);
+        assert_eq!(toggle_left(100.), 68.);
+    }
 }

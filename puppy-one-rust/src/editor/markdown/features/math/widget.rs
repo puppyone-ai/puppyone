@@ -1,32 +1,42 @@
 //! `.cm-md-math-block-widget` (markdown-math.css): a centred formula in a
 //! panel of at least 96px with 24px / 12px padding, the block radius and the
 //! block rings, scrolling sideways when it is wider. The formula is KaTeX's
-//! (`renderKatex` with the product's options); a source KaTeX refuses shows
-//! as `$$` source in the error colour (`.cm-md-math-source-fallback`). With
-//! the caret inside, the formula's source shows above it as an editable code
-//! leaf, so the block is edited where it is read.
+//! (`renderKatex` with the product's options) routed through [`platform::render`];
+//! a source KaTeX refuses degrades visibly along `Rendered -> Fallback -> Source`
+//! (`TA-52`) with the KaTeX error reason, `$$` source fallback, and `Retry` /
+//! `Source code` actions. With the caret inside, the formula's source shows
+//! above it as an editable code leaf, so the block is edited where it is read.
 use super::MathBlock;
-use crate::editor::{
-    markdown::{
-        shared::ring,
-        style::{BlockStyle, MarkdownTheme},
+use crate::{
+    editor::{
+        markdown::{
+            platform::render as render_broker,
+            shared::{fallback::action_pill, ring},
+            style::{BlockStyle, MarkdownTheme},
+        },
+        text::{selection::Selection, state::Transaction},
+        tokens::Tokens,
+        view::{
+            style::{Align, Rect, TextStyle},
+            widget::{BlockWidget, WidgetCx},
+        },
     },
-    tokens::Tokens,
-    view::{
-        style::{Align, Rect, TextStyle},
-        widget::{BlockWidget, WidgetCx},
-    },
+    localization::t,
+    render_service::{self, Kind, Request, State},
+    theme::{self, Theme},
 };
-use crate::render_service::{self, Kind, Request, State};
 use gpui::{prelude::*, *};
 
 /// `min-height: 96px; padding: 24px 12px`.
 const MIN_HEIGHT: f32 = 96.;
 const PADDING_BLOCK: f32 = 24.;
 const PADDING_INLINE: f32 = 12.;
+const BANNER_HEIGHT: f32 = 32.;
+const BANNER_GAP: f32 = 8.;
 
 pub struct MathBlockWidget {
     block: MathBlock,
+    dark: bool,
     chrome: BlockStyle,
     text: TextStyle,
     source: TextStyle,
@@ -45,6 +55,7 @@ impl MathBlockWidget {
         fallback.color = t.color("--po-md-error-color");
         Self {
             block: block.clone(),
+            dark: theme.dark,
             chrome: theme.block.clone(),
             request: Request {
                 kind: Kind::Math {
@@ -60,6 +71,89 @@ impl MathBlockWidget {
             source: theme.code_block.text(),
             fallback,
         }
+    }
+
+    fn fallback_bar(
+        &self,
+        reason: &str,
+        is_error: bool,
+        editing: bool,
+        top_y: f32,
+        inner: f32,
+        cx: &WidgetCx,
+    ) -> AnyElement {
+        let app = Theme::new(self.dark);
+        let ty = theme::ty().ui;
+        let request = self.request.clone();
+        let retry_btn = action_pill(
+            cx.id("math-retry"),
+            t("common.action.retry"),
+            self.dark,
+            move |_, cx| render_broker::retry(&request, cx),
+        );
+        let can_edit_source = !editing && !cx.state.read_only;
+        let view = cx.render.view.clone();
+        let caret = self.block.content.end;
+        let border = if is_error {
+            theme::mix(app.danger, app.divider, 0.28)
+        } else {
+            app.border_subtle
+        };
+        let bg = if is_error {
+            theme::alpha(app.danger, 0.08)
+        } else {
+            app.panel
+        };
+        let fg = if is_error {
+            theme::mix(app.danger, app.text, 0.58)
+        } else {
+            app.muted
+        };
+        div()
+            .absolute()
+            .left(px(PADDING_INLINE))
+            .top(px(top_y))
+            .w(px(inner))
+            .h(px(BANNER_HEIGHT))
+            .px(px(8.))
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(px(8.))
+            .rounded(px(5.))
+            .border_1()
+            .border_color(border)
+            .bg(bg)
+            .text_size(px(ty.meta))
+            .text_color(fg)
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .child(SharedString::from(reason.to_owned())),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .child(retry_btn)
+                    .when(can_edit_source, |row| {
+                        row.child(action_pill(
+                            cx.id("math-show-source"),
+                            t("editor.mode.source"),
+                            self.dark,
+                            move |window, cx| {
+                                let _ = view.update(cx, |v, cx| {
+                                    v.focus(window, cx);
+                                    let pos = caret.min(v.state().doc.len());
+                                    v.dispatch(Transaction::select(Selection::cursor(pos)), cx);
+                                });
+                            },
+                        ))
+                    }),
+            )
+            .into_any_element()
     }
 }
 
@@ -84,14 +178,17 @@ impl BlockWidget for MathBlockWidget {
             children.push(code);
             y += height + 12.;
         }
-        let typeset = render_service::get(&self.request, cx.render.window, cx.render.app);
+        let slot = render_broker::slot_for(cx.render.view.entity_id(), self.block.range.start);
+        let typeset =
+            render_broker::get_for_slot(slot, &self.request, cx.render.window, cx.render.app);
         let row = match &typeset {
             State::Ready(formula) => formula.height,
             State::Failed(_) => {
                 let lines = self.block.source.lines().count() as f32 + 2.;
-                lines * self.fallback.line_height_px()
+                lines * self.fallback.line_height_px() + BANNER_GAP + BANNER_HEIGHT
             }
-            State::Pending | State::Unavailable => self.text.line_height_px(),
+            State::Unavailable => self.text.line_height_px() + BANNER_GAP + BANNER_HEIGHT,
+            State::Pending => self.text.line_height_px(),
         };
         // `display: grid; align-items: center` within the minimum height
         // (the source, while shown, keeps the top).
@@ -123,14 +220,49 @@ impl BlockWidget for MathBlockWidget {
                     )
                     .into_any_element(),
             ),
-            State::Failed(_) => children.push(cx.render.label(
-                Rect::new(PADDING_INLINE, y, inner, row),
-                &SharedString::from(format!("$$\n{}\n$$", self.block.source)),
-                &self.fallback,
-                Align::Start,
-                top,
-            )),
-            State::Pending | State::Unavailable => children.push(cx.render.label(
+            State::Failed(error) => {
+                let src_h = (self.block.source.lines().count() as f32 + 2.)
+                    * self.fallback.line_height_px();
+                children.push(cx.render.label(
+                    Rect::new(PADDING_INLINE, y, inner, src_h),
+                    &SharedString::from(format!("$$\n{}\n$$", self.block.source)),
+                    &self.fallback,
+                    Align::Start,
+                    top,
+                ));
+                let reason = if error.trim().is_empty() {
+                    t("editor.markdown.previewUnavailable").to_owned()
+                } else {
+                    crate::localization::bidi_isolate(&error)
+                };
+                children.push(self.fallback_bar(
+                    &reason,
+                    true,
+                    editing,
+                    y + src_h + BANNER_GAP,
+                    inner,
+                    cx,
+                ));
+            }
+            State::Unavailable => {
+                let text_h = self.text.line_height_px();
+                children.push(cx.render.label(
+                    Rect::new(PADDING_INLINE, y, inner, text_h),
+                    &SharedString::from(self.block.text.clone()),
+                    &self.text,
+                    Align::Center,
+                    top,
+                ));
+                children.push(self.fallback_bar(
+                    t("editor.markdown.previewUnavailable"),
+                    false,
+                    editing,
+                    y + text_h + BANNER_GAP,
+                    inner,
+                    cx,
+                ));
+            }
+            State::Pending => children.push(cx.render.label(
                 Rect::new(PADDING_INLINE, y, inner, row),
                 &SharedString::from(self.block.text.clone()),
                 &self.text,

@@ -2,10 +2,6 @@
   "comment": "Pre-existing editor internal layering and generic-view format-vocabulary exemptions enforced by tools/check-editor-architecture.py (TA-80, ISSUE-131). Shrink-only: resolved entries must be removed with `python3 tools/check-editor-architecture.py --prune` in the commit that fixes them (Batches 3-5).",
   "violations": [
     "core-import src/editor/markdown/core/syntax/lines.rs -> features/math",
-    "feature-import src/editor/markdown/features/html/render.rs -> features/image",
-    "feature-import src/editor/markdown/features/html/render.rs -> features/video",
-    "feature-import src/editor/markdown/features/mdx/widget.rs -> features/html",
-    "feature-import src/editor/markdown/features/video/mod.rs -> features/image",
     "markdown-internal src/app/appearance.rs -> markdown/core/commands",
     "markdown-internal src/editor/navigation.rs -> markdown/core/links",
     "view-vocabulary src/editor/view/extension.rs EditIntent::BlockDown",
