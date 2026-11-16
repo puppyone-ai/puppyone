@@ -18,7 +18,13 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 /// `office-preview` resourcePolicy.maxSourceBytes.
 pub const BUDGET: u64 = 25 * 1024 * 1024;
@@ -71,6 +77,9 @@ pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn V
             root: None,
             _served: None,
             _inbox: None,
+            pending: None,
+            load_epoch: 0,
+            _loading: None,
         };
         view.load(cx);
         view
@@ -124,9 +133,24 @@ struct OfficeView {
     /// A private folder for Cloud bytes or a converted document.
     _served: Option<tempfile::TempDir>,
     _inbox: Option<Task<()>>,
+    pending: Option<Pending>,
+    load_epoch: u64,
+    _loading: Option<Task<()>>,
+}
+struct Pending(Arc<AtomicBool>);
+impl Drop for Pending {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Release);
+    }
+}
+struct OfficeInput {
+    name: String,
+    extension: String,
+    resource: Option<PreviewResource>,
 }
 
 /// What the page is given: the folder it may read and its boot fields.
+#[derive(Debug, Default)]
 struct Served {
     root: Option<PathBuf>,
     file_url: Option<String>,
@@ -137,7 +161,7 @@ struct Served {
     temporary: Option<tempfile::TempDir>,
 }
 
-impl OfficeView {
+impl OfficeInput {
     /// The file's folder and name, or a private copy of Cloud bytes.
     fn source(&self) -> Result<(PathBuf, String, Option<tempfile::TempDir>), String> {
         match self.resource.as_ref().map(|r| r.data()) {
@@ -161,7 +185,7 @@ impl OfficeView {
             None => Err("The Office document is unavailable.".into()),
         }
     }
-    fn serve(&self) -> Served {
+    fn serve(&self, cancel: &AtomicBool) -> Served {
         let empty = |error: Option<String>| Served {
             root: None,
             file_url: None,
@@ -185,18 +209,19 @@ impl OfficeView {
         }
         // `convertOfficeDocumentToDocx`: the page reads only the result.
         let converted =
-            crate::platform::office::convert_to_docx(&folder.join(&file)).and_then(|converted| {
-                let dir = tempfile::Builder::new()
-                    .prefix("puppyone-office-")
-                    .tempdir()
+            crate::platform::office::convert_to_docx_cancellable(&folder.join(&file), cancel)
+                .and_then(|converted| {
+                    let dir = tempfile::Builder::new()
+                        .prefix("puppyone-office-")
+                        .tempdir()
+                        .map_err(|e| e.to_string())?;
+                    crate::platform::webview::write_private(
+                        &dir.path().join(CONVERTED),
+                        &converted.bytes,
+                    )
                     .map_err(|e| e.to_string())?;
-                crate::platform::webview::write_private(
-                    &dir.path().join(CONVERTED),
-                    &converted.bytes,
-                )
-                .map_err(|e| e.to_string())?;
-                Ok((dir, converted.warnings))
-            });
+                    Ok((dir, converted.warnings))
+                });
         match converted {
             Ok((dir, warnings)) => Served {
                 root: Some(dir.path().to_path_buf()),
@@ -211,9 +236,46 @@ impl OfficeView {
             },
         }
     }
-    /// A fresh page over the current input (opening, a new revision, Retry).
+}
+impl OfficeView {
+    /// Prepare bytes away from the UI thread; every revision owns its own
+    /// cancellation token and only its matching completion can publish a page.
     fn load(&mut self, cx: &mut Context<Self>) {
-        let served = self.serve();
+        let input = OfficeInput {
+            name: self.name.clone(),
+            extension: self.extension.clone(),
+            resource: self.resource.clone(),
+        };
+        self.start_load(cx, move |cancel| async move { input.serve(&cancel) });
+    }
+    fn start_load<F, Fut>(&mut self, cx: &mut Context<Self>, prepare: F)
+    where
+        F: FnOnce(Arc<AtomicBool>) -> Fut,
+        Fut: std::future::Future<Output = Served> + Send + 'static,
+    {
+        self.load_epoch += 1;
+        let epoch = self.load_epoch;
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.pending = Some(Pending(cancel.clone()));
+        self._loading = None;
+        self._inbox = None;
+        self.frame = None;
+        self.root = None;
+        self._served = None;
+        self.boot = serde_json::Value::Null;
+        let task = cx.background_spawn(prepare(cancel));
+        self._loading = Some(cx.spawn(async move |this, cx| {
+            let served = task.await;
+            let _ = this.update(cx, |view, cx| {
+                if view.load_epoch == epoch {
+                    view.pending = None;
+                    view.finish_load(served, cx);
+                }
+            });
+        }));
+        cx.notify();
+    }
+    fn finish_load(&mut self, served: Served, cx: &mut Context<Self>) {
         let boot = serde_json::json!({
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
             "path": self.name,
@@ -275,6 +337,10 @@ impl OfficeView {
             return;
         }
         self.dark = dark;
+        if self.pending.is_some() {
+            cx.notify();
+            return;
+        }
         let script = format!(
             "(function(){{var r=document.documentElement;r.classList.toggle(\"dark\",{dark});r.dataset.initialTheme=\"{scheme}\";var s=document.getElementById(\"po-native-tokens\");if(s)s.textContent={tokens};}})()",
             scheme = if dark { "dark" } else { "light" },
@@ -344,7 +410,20 @@ fn page(boot: &serde_json::Value, dark: bool) -> String {
 
 impl Render for OfficeView {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().children(self.frame.clone())
+        div()
+            .id("office-preview")
+            .size_full()
+            .when(self.pending.is_some(), |d| {
+                d.role(Role::Status)
+                    .aria_label(crate::localization::t("editor.preview.loading"))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(8.))
+                    .child(crate::ui::loading::LoadingMark::new("office-converting"))
+                    .child(crate::localization::t("editor.preview.loading"))
+            })
+            .children(self.frame.clone())
     }
 }
 
@@ -367,5 +446,160 @@ mod tests {
         );
         assert!(serde_json::from_str::<Inbound>(r#"{"type":"navigate"}"#).is_err());
         assert!(convertible("rtf") && convertible("doc") && !convertible("docx"));
+    }
+}
+
+#[cfg(test)]
+mod lifetime_tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    fn view(cx: &mut TestAppContext) -> Entity<OfficeView> {
+        cx.new(|_| OfficeView {
+            name: "document.rtf".into(),
+            extension: "rtf".into(),
+            dark: false,
+            resource: None,
+            frame: None,
+            boot: serde_json::Value::Null,
+            root: None,
+            _served: None,
+            _inbox: None,
+            pending: None,
+            load_epoch: 0,
+            _loading: None,
+        })
+    }
+    fn answer(url: &str) -> Served {
+        Served {
+            converted_url: Some(url.into()),
+            ..Default::default()
+        }
+    }
+    #[gpui::test]
+    fn preparing_a_conversion_keeps_the_ui_available_and_uses_the_latest_appearance(
+        cx: &mut TestAppContext,
+    ) {
+        let view = view(cx);
+        let (send, receive) = async_channel::bounded(1);
+        view.update(cx, |v, cx| {
+            v.start_load(cx, |_| async move { receive.recv().await.unwrap() })
+        });
+        cx.run_until_parked();
+        view.update(cx, |v, cx| {
+            assert!(v.pending.is_some() && v.frame.is_none());
+            v.set_dark(true, cx);
+            assert!(v.frame.is_none());
+        });
+        send.try_send(answer("new.docx")).unwrap();
+        cx.run_until_parked();
+        view.read_with(cx, |v, _| {
+            assert!(v.pending.is_none() && v.frame.is_some());
+            assert!(v.dark);
+            assert_eq!(v.boot["convertedUrl"], "new.docx");
+        });
+    }
+    #[gpui::test]
+    fn replacing_an_input_cancels_its_conversion_and_discards_an_already_queued_reply(
+        cx: &mut TestAppContext,
+    ) {
+        let view = view(cx);
+        let (old_send, old_receive) = async_channel::bounded(1);
+        view.update(cx, |v, cx| {
+            v.start_load(cx, |_| async move { old_receive.recv().await.unwrap() })
+        });
+        cx.run_until_parked();
+        let old_cancel = view.read_with(cx, |v, _| v.pending.as_ref().unwrap().0.clone());
+        let old_temporary = tempfile::tempdir().unwrap();
+        let old_path = old_temporary.path().to_path_buf();
+        old_send
+            .try_send(Served {
+                root: Some(old_path.clone()),
+                temporary: Some(old_temporary),
+                ..answer("stale.docx")
+            })
+            .unwrap();
+        // The producer has finished. Only the cancelled receiving task owns
+        // this queued result; the fixture must not retain a channel endpoint.
+        drop(old_send);
+        let (send, receive) = async_channel::bounded(1);
+        view.update(cx, |v, cx| {
+            v.start_load(cx, |_| async move { receive.recv().await.unwrap() })
+        });
+        assert!(old_cancel.load(Ordering::Acquire));
+        cx.run_until_parked();
+        view.read_with(cx, |v, _| assert!(v.pending.is_some() && v.boot.is_null()));
+        assert!(
+            !old_path.exists(),
+            "discarded conversion retained its files"
+        );
+        send.try_send(answer("current.docx")).unwrap();
+        cx.run_until_parked();
+        view.read_with(cx, |v, _| {
+            assert_eq!(v.boot["convertedUrl"], "current.docx")
+        });
+    }
+    #[gpui::test]
+    fn disposing_the_view_cancels_the_same_token_observed_by_its_worker(cx: &mut TestAppContext) {
+        let view = view(cx);
+        let (send, receive) = async_channel::bounded(1);
+        let (tokens, token_receiver) = async_channel::bounded(1);
+        view.update(cx, |v, cx| {
+            v.start_load(cx, move |cancel| async move {
+                tokens.send(cancel).await.unwrap();
+                receive.recv().await.unwrap()
+            })
+        });
+        cx.run_until_parked();
+        let cancel = token_receiver.try_recv().unwrap();
+        assert!(!cancel.load(Ordering::Acquire));
+        let weak = view.downgrade();
+        drop(view);
+        // GPUI releases zero-reference entities at the end of an App update,
+        // as the real window-close/rebind transaction does.
+        cx.update(|_| {});
+        cx.run_until_parked();
+        assert!(weak.upgrade().is_none());
+        assert!(cancel.load(Ordering::Acquire));
+        assert!(send.try_send(answer("abandoned.docx")).is_err());
+    }
+    #[cfg(target_os = "macos")]
+    #[gpui::test]
+    fn real_rtf_conversion_loads_a_private_docx_and_releases_it_with_the_view(
+        cx: &mut TestAppContext,
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        let original = r"{\rtf1\ansi Native conversion}";
+        std::fs::write(dir.path().join("document.rtf"), original).unwrap();
+        let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+        let resource = ws.resource(Path::new("document.rtf")).unwrap();
+        let view = view(cx);
+        let surface = OfficeSurface { view: view.clone() };
+        cx.update(|cx| surface.rebind_resource(&resource, cx));
+        drop(surface);
+        view.read_with(cx, |v, _| assert!(v.pending.is_some() && v.frame.is_none()));
+        cx.run_until_parked();
+        let private = view.read_with(cx, |v, _| {
+            assert!(v.pending.is_none(), "conversion has not settled");
+            assert!(v.boot["conversionError"].is_null(), "{}", v.boot);
+            assert!(v.boot["convertedUrl"].as_str().unwrap().contains(CONVERTED));
+            let private = v.root.clone().unwrap();
+            assert!(
+                std::fs::read(private.join(CONVERTED))
+                    .unwrap()
+                    .starts_with(b"PK\x03\x04")
+            );
+            private
+        });
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("document.rtf")).unwrap(),
+            original
+        );
+        drop(view);
+        // GPUI releases zero-reference entities at the end of an App update,
+        // as the real window-close/rebind transaction does.
+        cx.update(|_| {});
+        cx.run_until_parked();
+        assert!(!private.exists());
     }
 }

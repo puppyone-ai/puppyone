@@ -9638,6 +9638,117 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-office-conversion-lifetime",
+      "acceptance": "Native equivalents of conversion request/cancel identity, pre-abort without source or process lookup, successful bytes and warnings, waiting for actual child/group/pipe exit before temporary cleanup, and real macOS RTF conversion with source symlink rejection. Platform tests use actual isolated executable fixtures and textutil, including timeout, output overflow and invalid outputs. GPUI owner tests keep pending work off the foreground, apply current appearance, cancel the exact worker token on replacement/disposal, discard a queued old result and its temporary directory, and exercise the real resource-rebind bridge through conversion to DOCX. Native cancellation uses one Arc token per load instead of an Electron IPC request ID. This does not claim OS WebView/Office worker rendering or non-macOS conversion acceptance.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/formats/office/officeConversionLifetime.test.mjs",
+          "sha256": "c251fe779af6b3f65083a3f0e7060ba4018421f4cbb9dced44720f28f85a9238",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native Office conversion lifetime > waits for actual child exit after the cancellation callback, before releasing temporary files"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/office/localFiles.office-conversion.test.ts",
+          "sha256": "51f516f3d9c8ceb8d8450574fff22aaf6bc0085d960fb38f4adc83cb78ad441f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local Office conversion bridge > uses one request id for conversion and AbortSignal cancellation"
+            },
+            {
+              "index": 1,
+              "name": "local Office conversion bridge > does not start a conversion for an already-aborted signal"
+            },
+            {
+              "index": 2,
+              "name": "local Office conversion bridge > returns converted bytes without issuing a cancellation"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
+          "sha256": "558e501f335a47c312f74ff5283ec50f01e60a24539cd82ab24bb8570493c6cb",
+          "cases": [
+            {
+              "index": 27,
+              "name": "read / write round-trips > rejects direct reads, writes, and conversion through symbolic links"
+            },
+            {
+              "index": 28,
+              "name": "read / write round-trips > converts RTF to DOCX bytes on macOS"
+            },
+            {
+              "index": 29,
+              "name": "read / write round-trips > honors an already-aborted Office conversion signal"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::office::tests::rtf_converts_to_a_docx_package_and_other_inputs_are_refused"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::precancellation_precedes_source_and_converter_lookup"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::source_links_directories_and_oversize_files_never_reach_the_converter"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::successful_conversion_returns_warnings_and_removes_its_private_snapshot"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::cancellation_keeps_temporary_files_until_the_owned_child_has_exited"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::deadlines_and_full_stderr_are_bounded_and_clean_the_conversion_directory"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::missing_or_symlinked_outputs_are_never_returned_as_converted_bytes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::lifetime_tests::preparing_a_conversion_keeps_the_ui_available_and_uses_the_latest_appearance"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::lifetime_tests::replacing_an_input_cancels_its_conversion_and_discards_an_already_queued_reply"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::lifetime_tests::disposing_the_view_cancels_the_same_token_observed_by_its_worker"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::lifetime_tests::real_rtf_conversion_loads_a_private_docx_and_releases_it_with_the_view"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::tests::the_page_boots_the_product_bundle_and_reads_only_typed_messages"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::symlinks_cannot_read_or_write_outside_granted_root"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::direct_symlink_mutations_are_rejected_without_removing_the_link_or_target"
+        }
+      ],
+      "environment": "macos"
     }
   ],
   "openAcceptance": [

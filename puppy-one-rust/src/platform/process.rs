@@ -58,6 +58,41 @@ pub fn run(
     timeout: Duration,
     cancel: &AtomicBool,
 ) -> Result<Vec<u8>, String> {
+    run_output(
+        executable,
+        args,
+        root,
+        input,
+        timeout,
+        cancel,
+        OutputLimits {
+            stdout: 8 * 1024 * 1024,
+            stderr: 256 * 1024,
+        },
+    )
+    .map(|output| output.stdout)
+}
+
+/// Captured streams share the same child/pipe lifetime and cancellation owner.
+/// Callers such as Office need successful stderr warnings as well as stdout.
+pub struct Output {
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+}
+#[derive(Clone, Copy)]
+pub struct OutputLimits {
+    pub stdout: usize,
+    pub stderr: usize,
+}
+pub fn run_output(
+    executable: &Path,
+    args: &[&str],
+    root: &Path,
+    input: Option<&[u8]>,
+    timeout: Duration,
+    cancel: &AtomicBool,
+    limits: OutputLimits,
+) -> Result<Output, String> {
     const CANCELLED: &str = "Command cancelled, timed out, or exceeded its output limit";
     if cancel.load(Ordering::Acquire) || timeout.is_zero() {
         return Err(CANCELLED.into());
@@ -96,7 +131,7 @@ pub fn run(
         let out = thread::Builder::new()
             .name("command-stdout".into())
             .spawn_scoped(scope, move || {
-                let result = pipes::read(stdout, stdout_ready, 8 * 1024 * 1024, &out_stop);
+                let result = pipes::read(stdout, stdout_ready, limits.stdout, &out_stop);
                 if result.is_err() {
                     out_limit.store(true, Ordering::Release);
                 }
@@ -108,7 +143,7 @@ pub fn run(
         let err = thread::Builder::new()
             .name("command-stderr".into())
             .spawn_scoped(scope, move || {
-                let result = pipes::read(stderr, stderr_ready, 256 * 1024, &err_stop);
+                let result = pipes::read(stderr, stderr_ready, limits.stderr, &err_stop);
                 if result.is_err() {
                     err_limit.store(true, Ordering::Release);
                 }
@@ -179,7 +214,10 @@ pub fn run(
         let output = output?.map_err(|e| e.to_string())?;
         let errors = errors?.map_err(|e| e.to_string())?;
         if status.success() {
-            Ok(output)
+            Ok(Output {
+                stdout: output,
+                stderr: errors,
+            })
         } else {
             let error = String::from_utf8_lossy(&errors).trim().to_owned();
             Err(if error.is_empty() {
