@@ -7,11 +7,14 @@
 mod widget;
 
 use crate::editor::{
-    markdown::core::{
-        decorations::BlockDecoration,
-        feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-        plans::{BlockEmbed, Plan, Presentation},
-        state::PreviewState,
+    markdown::{
+        core::{
+            decorations::BlockDecoration,
+            feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+            plans::{BlockEmbed, Plan, Presentation},
+            state::PreviewState,
+        },
+        shared::fence::fence_marker,
     },
     text::{
         selection::Selection,
@@ -106,14 +109,7 @@ fn tag_at(s: &str, start: usize) -> Option<Token> {
 
 /// `getCodeFenceMarker`: a fence's character and length.
 fn fence(line: &str) -> Option<(u8, usize)> {
-    let indent = line.len() - line.trim_start_matches(' ').len();
-    if indent > 3 {
-        return None;
-    }
-    let rest = &line.as_bytes()[indent..];
-    let c = *rest.first()?;
-    let run = rest.iter().take_while(|b| **b == c).count();
-    (matches!(c, b'`' | b'~') && run >= 3).then_some((c, run))
+    fence_marker(line)
 }
 
 /// `scanMdxComponentTagTokens`: the component tags of `s` (offsets from

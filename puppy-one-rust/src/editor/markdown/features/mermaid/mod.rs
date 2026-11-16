@@ -1,18 +1,24 @@
 //! Mermaid (product features/mermaid): a fence labelled `mermaid` or `mmd`
 //! shows its diagram, drawn by the product's own Mermaid in the render
-//! service (`crate::render_service`). The caret inside the block (Edit, or
-//! a click on the diagram) shows its source above the diagram, which follows
-//! as it is typed; Done leaves it. Zoom (− 100% + Fit) is the pane's view
-//! state. Larger diagrams wait for Render (`deferred`), the largest stay a
-//! code block (`markdownBlockExecution.ts`).
+//! service through [`crate::editor::markdown::platform::render`]. The caret
+//! inside the block (Edit, or a click on the diagram) shows its source above
+//! the diagram, which follows as it is typed; Done leaves it. Zoom (− 100% + Fit)
+//! is the pane's view state. Larger diagrams wait for Render (`deferred`),
+//! the largest stay a code block (`markdownBlockExecution.ts`).
+mod controls;
 mod widget;
 
 use crate::editor::{
-    markdown::core::{
-        decorations::BlockDecoration,
-        feature::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
-        plans::{BlockEmbed, Plan, Presentation},
-        state::PreviewState,
+    markdown::{
+        core::{
+            decorations::BlockDecoration,
+            feature::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
+            plans::{BlockEmbed, Plan, Presentation},
+            state::PreviewState,
+        },
+        shared::fence::{
+            DocumentProfile, FenceExecution, decide_fence_execution, fence_delimiter_ranges,
+        },
     },
     text::{
         selection::Selection,
@@ -50,36 +56,45 @@ pub fn is_mermaid(language: &str) -> bool {
     matches!(language.trim().to_lowercase().as_str(), "mermaid" | "mmd")
 }
 
-/// `getMarkdownDocumentProfile`: normal, large or extreme (UTF-16 units).
-fn profile(units: usize, lines: usize) -> usize {
-    if units > 10 * 1024 * 1024 || lines > 250_000 {
-        2
-    } else if units > 1024 * 1024 || lines > 50_000 {
-        1
-    } else {
-        0
-    }
-}
-
 /// `decideMarkdownBlockExecution("mermaid", …)`: `Some(deferred)` for a
 /// diagram, `None` for one that stays source.
-fn execution(source: &str, profile: usize) -> Option<bool> {
-    let bytes = source.len();
-    let items = source.lines().filter(|l| !l.trim().is_empty()).count();
-    if bytes <= RICH_BYTES[profile] && items <= RICH_ITEMS[profile] {
-        return Some(false);
+fn execution(source: &str, profile: DocumentProfile) -> Option<bool> {
+    match decide_fence_execution(
+        source,
+        profile,
+        RICH_BYTES,
+        RICH_ITEMS,
+        DEFERRED_MAX_BYTES,
+        DEFERRED_MAX_ITEMS,
+    ) {
+        FenceExecution::Immediate => Some(false),
+        FenceExecution::Deferred => Some(true),
+        FenceExecution::FallbackToCode => None,
     }
-    (bytes <= DEFERRED_MAX_BYTES && items <= DEFERRED_MAX_ITEMS).then_some(true)
 }
 
-/// The widget's commands: zoom and Render change the pane's view; Edit and
-/// Done move the caret into and out of the block.
+/// The widget's commands: zoom, Render, and ShowSource change the pane's view;
+/// Edit and Done move the caret into and out of the block.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Action {
-    Zoom { at: usize, percent: u16 },
-    Activate { at: usize },
-    Edit { at: usize },
-    Done { at: usize },
+    Zoom {
+        at: usize,
+        percent: u16,
+    },
+    Activate {
+        at: usize,
+    },
+    ShowSource {
+        start: usize,
+        end: usize,
+        caret: usize,
+    },
+    Edit {
+        at: usize,
+    },
+    Done {
+        at: usize,
+    },
 }
 
 impl MarkdownFeature for MermaidFeature {
@@ -91,7 +106,7 @@ impl MarkdownFeature for MermaidFeature {
     /// in the composition) would show them as code.
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
         let units = cx.doc.as_str().encode_utf16().count();
-        let profile = profile(units, cx.doc.line_count());
+        let profile = DocumentProfile::classify(units, cx.doc.line_count());
         for fence in &cx.syntax.fences {
             if !is_mermaid(&fence.language) {
                 continue;
@@ -133,8 +148,9 @@ impl MarkdownFeature for MermaidFeature {
     /// The fences are no caret position while the diagram shows.
     fn decorate_block(&self, embed: &BlockEmbed, cx: &mut BlockDecoration) {
         if let Some(block) = embed.model::<MermaidBlock>() {
-            cx.atomic(block.range.start..block.code.start);
-            cx.atomic(block.code.end..block.range.end);
+            let (open, close) = fence_delimiter_ranges(&block.range, &block.code);
+            cx.atomic(open);
+            cx.atomic(close);
         }
     }
 
@@ -161,11 +177,19 @@ impl MarkdownFeature for MermaidFeature {
         match *command.payload::<Action>()? {
             Action::Zoom { at, percent } => {
                 preview.diagrams.update(at, |v| v.zoom = Some(percent));
+                Some(Transaction::select(state.selection))
             }
-            Action::Activate { at } => preview.diagrams.update(at, |v| v.activated = true),
-            Action::Edit { .. } | Action::Done { .. } => return None,
+            Action::Activate { at } => {
+                preview.diagrams.update(at, |v| v.activated = true);
+                Some(Transaction::select(state.selection))
+            }
+            Action::ShowSource { start, end, caret } => {
+                let len = state.doc.len();
+                preview.revealed_source = Some(start.min(len)..end.min(len));
+                Some(Transaction::select(Selection::cursor(caret.min(len))))
+            }
+            Action::Edit { .. } | Action::Done { .. } => None,
         }
-        Some(Transaction::select(state.selection))
     }
 }
 
@@ -196,8 +220,6 @@ mod tests {
             .filter_map(|p| p.embed())
             .map(|e| e.feature)
             .collect();
-        // Both features plan the diagram's fence; Mermaid comes first and
-        // wins the tie, the plain fence is code only.
         assert_eq!(embeds, [ID, "code-block", "code-block"]);
         let block = compiled[0]
             .embed()
@@ -209,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn zoom_and_render_are_the_panes_view_state() {
+    fn zoom_render_and_show_source_update_pane_view_state() {
         use crate::editor::markdown::core::state::DiagramViews;
         let mut views = DiagramViews::default();
         assert_eq!(views.get(10).zoom, None);
@@ -219,7 +241,7 @@ mod tests {
         assert!(views.get(10).activated);
         let mut preview = PreviewState::default();
         preview.diagrams = views;
-        let state = EditorState::new("ab\n");
+        let state = EditorState::new("```mermaid\nA-->B\n```\n");
         let zoom = Command::new(
             ID,
             Action::Zoom {
@@ -229,21 +251,45 @@ mod tests {
         );
         assert!(FEATURE.view_command(&zoom, &mut preview, &state).is_some());
         assert_eq!(preview.diagrams.get(10).zoom, Some(80));
+
+        let show = Command::new(
+            ID,
+            Action::ShowSource {
+                start: 0,
+                end: 20,
+                caret: 11,
+            },
+        );
+        assert!(FEATURE.view_command(&show, &mut preview, &state).is_some());
+        assert_eq!(preview.revealed_source, Some(0..20));
     }
 
     #[test]
     fn mermaid_languages_and_budgets_follow_the_product() {
         assert!(is_mermaid("mermaid") && is_mermaid(" MMD ") && !is_mermaid("mermaidjs"));
-        assert_eq!(execution("graph TD\n  A-->B\n", 0), Some(false));
+        assert_eq!(
+            execution("graph TD\n  A-->B\n", DocumentProfile::Normal),
+            Some(false)
+        );
         let large = "A-->B\n".repeat(1_200);
         assert_eq!(
-            execution(&large, 0),
+            execution(&large, DocumentProfile::Normal),
             Some(true),
             "over the rich items, deferred"
         );
         let huge = "A-->B\n".repeat(5_000);
-        assert_eq!(execution(&huge, 0), None, "beyond the deferred ceiling");
-        assert_eq!(profile(2 * 1024 * 1024, 10), 1);
-        assert_eq!(profile(10, 300_000), 2);
+        assert_eq!(
+            execution(&huge, DocumentProfile::Normal),
+            None,
+            "beyond the deferred ceiling"
+        );
+        assert_eq!(
+            DocumentProfile::classify(2 * 1024 * 1024, 10),
+            DocumentProfile::Large
+        );
+        assert_eq!(
+            DocumentProfile::classify(10, 300_000),
+            DocumentProfile::Extreme
+        );
     }
 }

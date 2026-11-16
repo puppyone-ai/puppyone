@@ -1,27 +1,41 @@
 //! Video (product features/video): an Obsidian `![[clip.mp4]]` embed alone
 //! on its line is a player, its alias the title or `640x360` its size. The
-//! system web engine decodes and draws the video and its controls (as the
-//! video viewer does); the file streams from the workspace. An embed beside
-//! text stays source.
+//! system web engine decodes and draws the video and its controls through
+//! [`crate::editor::markdown::platform::embed`]; workspace files exceeding the
+//! `32 MiB` budget or missing on disk degrade visibly along
+//! `Rendered -> Card Fallback -> Source` (`TA-52`). An embed beside text stays
+//! source.
 pub mod player;
 mod widget;
 
-use crate::editor::markdown::{
-    core::{
-        decorations::BlockDecoration,
-        feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-        plans::{BlockEmbed, Plan, Presentation},
-        syntax::Kind,
+use crate::editor::{
+    markdown::{
+        core::{
+            decorations::BlockDecoration,
+            feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+            plans::{BlockEmbed, Plan, Presentation},
+            state::PreviewState,
+            syntax::Kind,
+        },
+        platform::policy::AssetFailure,
+        shared::media_source::{MediaSource, parse_video_size, resolve_embed_media},
     },
-    features::image::source,
+    text::{
+        selection::Selection,
+        state::{EditorState, Transaction},
+    },
+    view::{command::Command, widget::BlockWidget},
 };
-use crate::editor::view::widget::BlockWidget;
-use std::{ops::Range, rc::Rc};
+use std::{ops::Range, path::Path, rc::Rc};
 use widget::VideoBlockWidget;
 
 pub struct VideoFeature;
 pub static FEATURE: VideoFeature = VideoFeature;
 pub const ID: &str = "video";
+
+/// Reveal the video embed's raw Markdown source line (`TA-52`).
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct ShowSource(pub Range<usize>);
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct VideoBlock {
@@ -35,31 +49,10 @@ pub struct VideoBlock {
     pub height: Option<u32>,
 }
 
-/// `parseVideoSize`: `640` or `640x360`, each 1 to 4096.
-fn size(value: &str) -> Option<(u32, Option<u32>)> {
-    let (w, h) = match value.trim().split_once('x') {
-        Some((w, h)) => (w, Some(h)),
-        None => (value.trim(), None),
-    };
-    let number = |s: &str| {
-        (!s.is_empty() && s.len() <= 4 && s.bytes().all(|b| b.is_ascii_digit()))
-            .then(|| s.parse::<u32>().ok())
-            .flatten()
-            .filter(|n| (1..=4096).contains(n))
-    };
-    Some((
-        number(w)?,
-        match h {
-            Some(h) => Some(number(h)?),
-            None => None,
-        },
-    ))
-}
-
 impl VideoBlock {
     /// `createMarkdownVideoModel` for an embed of `href` with `alias`.
     fn new(range: Range<usize>, href: String, alias: Option<&str>) -> Self {
-        let parsed = alias.and_then(size);
+        let parsed = alias.and_then(parse_video_size);
         Self {
             range,
             href,
@@ -113,9 +106,9 @@ impl MarkdownFeature for VideoFeature {
         let block = embed.model::<VideoBlock>()?;
         let document = cx.assets.map(|a| a.document.clone()).unwrap_or_default();
         // Workspace files only: the engine never reaches past the project.
-        let path = match source::embed(&document, &block.href, cx.references) {
-            Some(source::Source::Workspace(path)) => Some(path),
-            _ => None,
+        let path = match resolve_embed_media(Path::new(&document), &block.href, cx.references) {
+            Ok(MediaSource::Workspace(path)) => Ok(path),
+            _ => Err(AssetFailure::Blocked),
         };
         Some(Rc::new(VideoBlockWidget::new(
             block.clone(),
@@ -130,6 +123,18 @@ impl MarkdownFeature for VideoFeature {
         if let Some(block) = embed.model::<VideoBlock>() {
             cx.atomic(block.range.clone());
         }
+    }
+
+    fn view_command(
+        &self,
+        command: &Command,
+        preview: &mut PreviewState,
+        state: &EditorState,
+    ) -> Option<Transaction> {
+        let ShowSource(range) = command.payload::<ShowSource>()?;
+        let len = state.doc.len();
+        preview.revealed_source = Some(range.start.min(len)..range.end.min(len));
+        Some(Transaction::select(Selection::cursor(range.start.min(len))))
     }
 }
 
@@ -161,17 +166,16 @@ mod tests {
         assert_eq!((blocks[1].width, blocks[1].height), (Some(640), Some(360)));
         assert_eq!(blocks[1].title, None);
         assert_eq!(blocks[2].title.as_deref(), Some("Intro"));
-        // Images and other files are not videos.
         assert!(embeds("![[a.png]]\n\n![[notes.md]]\n").is_empty());
     }
 
     #[test]
     fn sizes_follow_the_product() {
-        assert_eq!(size("640"), Some((640, None)));
-        assert_eq!(size(" 640x360 "), Some((640, Some(360))));
-        assert_eq!(size("0"), None);
-        assert_eq!(size("5000"), None);
-        assert_eq!(size("12345"), None);
-        assert_eq!(size("wide"), None);
+        assert_eq!(parse_video_size("640"), Some((640, None)));
+        assert_eq!(parse_video_size(" 640x360 "), Some((640, Some(360))));
+        assert_eq!(parse_video_size("0"), None);
+        assert_eq!(parse_video_size("5000"), None);
+        assert_eq!(parse_video_size("12345"), None);
+        assert_eq!(parse_video_size("wide"), None);
     }
 }

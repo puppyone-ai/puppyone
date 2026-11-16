@@ -78,8 +78,11 @@ concrete viewer. Viewers whose product surface is a web application (Office,
 PuppyFlow, Context Map, App Preview, HTML Edit) run the product's own bundled
 code in a WebView over native file, runtime and pane bridges.
 
-Local text remains capped at 4 MiB (`MAX_TEXT_BYTES`), no larger than
-any content viewer's `maxSourceBytes`. The dormant live Cloud adapter has an
+Local text and Markdown source admission is capped at 16 MiB (`MAX_TEXT_BYTES`,
+`contracts::Limits::MAX_TEXT_BYTES`), matching the Markdown content viewer's
+`maxSourceBytes` ceiling; Markdown workspace media and image assets are bounded
+at 32 MiB (`MAX_WORKSPACE_ASSET_BYTES`) and inline `data:image/*` payloads at
+2 MiB (`MAX_DATA_BYTES`). The dormant live Cloud adapter has an
 8 MiB transport/storage bound; that is **not** a blanket increase to viewer
 budgets or a large-document rendering qualification. Before Cloud navigation
 is enabled, admission must honor the selected viewer's smaller budget too.
@@ -183,42 +186,91 @@ no host is installed, and the layer is exercised by its tests only.
 ```text
 markdown/
   mod.rs           MarkdownExtension (the EditorExtension) — the composition root
-  composition.rs   the built-in features (the only list of them)
+  composition.rs   the built-in features per dialect (FEATURES, MDX_FEATURES)
   core/
     feature.rs     the feature contract (MarkdownFeature)
-    syntax/        Markdown source → semantic elements
+    syntax/        Markdown source → semantic elements (pure, no gpui)
     plans.rs       elements → presentation plans (features compile their own)
     decorations/   plans → line boxes, widgets, marks (builder, lines, inline, marks)
-    presentation.rs, state.rs, classes.rs, links.rs, commands/
+    presentation.rs, state.rs, classes.rs, content_language.rs, localization.rs,
+    links.rs, commands/
   style/           one typed style per element type + the line cascade + marks
     surface.rs body.rs heading.rs inline.rs blockquote.rs list.rs block.rs
     cascade.rs     the product's line CSS in cascade order
     marks.rs       inline classes → Kit marks
-  shared/          presentation helpers several widgets use (rings)
-  features/        one vertical slice per capability
-    code_block/    model, plan, widget, highlight, style
-    table/         model, plan, operation (rewrite + serialise), commands,
-                   interaction (keyed widget state), widget, style
-    rule/          plan, widget, style
-    task/          plan, checkbox paint, toggle command, style
+  platform/        external side-effect brokers & security policy (no features/composition)
+    assets.rs      AssetBroker: async cancellable bounded LRU (64 MiB / 256 bitmaps),
+                   content-stamp invalidation, symlink containment, retryable errors
+    render.rs      RenderBroker: KaTeX/Mermaid deduplication, slot cancellation,
+                   retryable Unavailable, bounded LRU last-good diagram cache
+    embed/         EmbedBroker: per-window LRU WebHost pools for workspace video/audio
+                   and DNS-pinned click-to-load https: <iframe> embeds
+    policy.rs      centralized HTML tag/depth caps (MAX_HTML_DEPTH = 64), TeX depth cap
+                   (MAX_TEX_DEPTH = 64), O(1) data: URL precheck, public IP & symlink guards
+    link.rs        LinkBroker: safe href normalization & navigation handoff
+  shared/          pure/UI leaf helpers shared across features (no core/features/platform/addons)
+    dom.rs         sanitized authored-nesting HTML DOM parser & Markdown-to-HTML bridge
+    html_surface/  reusable sanitized HTML block/inline/media surface over HtmlMediaPort
+    media_source.rs workspace, https:, and data:image/* media reference parser & size helpers
+    fence.rs       document scale profiles, rich/deferred fence budgets, delimiter ranges
+    fallback.rs    shared Retry / Source code action pills and FallbackSummary
+    ring.rs        hover/focus/selected block rings
+    source_toggle.rs clamped top-right "show source" toolbar button
+  addons/          optional workflow add-ons installed only by markdown/mod.rs
+                   (e.g. ai_review/, block_drag/), isolated to explicit core ports
+  features/        12 independent vertical slices (zero cross-feature imports)
+    front_matter/  YAML front matter property table + source reveal while focused
+    math/          inline $…$ (Unicode TeX stand-in, MAX_TEX_DEPTH) + display $$ / ```math
+                   blocks via RenderBroker with visible fallback & Retry / Source
+    mermaid/       ```mermaid / ```mmd diagrams via RenderBroker, zoom/fit controls,
+                   live inline source editor, deferred large diagrams, error strip
+    code_block/    fenced code widget, syntax highlighting, atomic fence delimiters
+    mdx/           Open Knowledge .mdx <Tabs>/<Tab> component blocks over html_surface
+    html/          sanitized HTML blocks & Markdown-crossing flows + lone https: <iframe>
+                   embeds via EmbedBroker
+    table/         GFM pipe table model, capacity-checked structural rewrites
+                   (ROW_LIMIT=2000, COLUMN_LIMIT=64, CELL_LIMIT=20_000, ROW_BYTE_LIMIT=64 KiB),
+                   shared editable-table grips/rails/menu, bounded column width state
+    rule/          thematic break block widget and style
+    task/          [ ] / [x] inline checkbox atom, hotspot toggle, completed_decoration
+                   strikethrough overlay
+    callout/       Obsidian [!type] blockquote headers, icons, and pane-local folding
+    image/         inline & block ![alt|size](src) and ![[embed]] images via AssetBroker
+                   with visible fallback cards/chips + Retry / Source
+    video/         standalone ![[clip.mp4|size]] players via EmbedBroker with 32 MiB
+                   budget & missing-file fallback cards + Retry / Source
 ```
 
-Rules (as the product's `features/README.md`):
+Rules (enforced by `tools/check-editor-architecture.py` `R1`–`R10` and `tools/check-ui-boundaries.py`):
 
-- Core never names a feature; a feature never imports `composition`.
-  Dependencies run composition → features → core / style / view.
-- Every committed edit is one editor transaction (undo is one step).
-- Widgets consume compiled plans; they never reparse their outer syntax.
-- Every visual value is a product token (or a cited CSS constant).
+- **Layering (`R4`–`R8`)**:
+  - `core/` never imports `features` or `composition` (`R4`), and outside `core/decorations/` never references `gpui` (`R10`).
+  - `features/<a>/` never imports another `features/<b>` (`b != a`) or `composition` (`R5`); cross-slice capabilities live in `shared/` (pure/UI primitives) or `platform/` (side-effect brokers).
+  - `shared/` never imports `core`, `features`, `composition`, `platform`, or `addons` (`R6`); broker capabilities enter `shared/` via traits (`HtmlMediaPort`).
+  - `platform/` never imports `features` or `composition` (`R7`).
+  - `addons/<name>/` never imports `features`, `composition`, `platform`, `shared`, or sibling add-ons, and only `markdown/mod.rs` installs add-ons (`R8`).
+- **Editing & Rendering Invariants**:
+  - Every committed edit is one editor transaction (undo is one step); `Render::render` never mutates state.
+  - Widgets consume compiled plans; they never reparse their outer syntax.
+  - External/async capabilities (`AssetBroker`, `RenderBroker`, `EmbedBroker`) bound memory with LRU budgets and degrade visibly along `Rendered -> Text/Card Fallback -> Source` with localized failure reasons plus `Retry` / `Source code` actions.
+  - Every visual value is a product token (or a cited CSS constant); raw color literals stay in `theme.rs` / `tokens.rs`.
 
 ### Adding a Markdown feature
 
 1. Create `features/<name>/` with `mod.rs` implementing `MarkdownFeature`
-   (`id`, and whichever of `semantic_kinds` / `compile_element`,
+   (`id`, and whichever of `semantic_kinds`, `compile_element`,
    `compile_blocks`, `block_widget`, `decorate_block`, `decorate_line`,
-   `command` it needs), its `style.rs`, and its widget.
-2. Add its style to `MarkdownTheme` (`style/mod.rs`) if it has one.
-3. Add it to `composition.rs`.
+   `command` for document transactions, and `view_command` for pane-local
+   `PreviewState` updates such as `ShowSource` or zoom it needs), its `style.rs`,
+   and modularized widget submodules (< 500 non-test lines per file).
+2. Route any async asset reads, web embeds, or external rendering through
+   `markdown/platform/` brokers with bounded LRU caches and a visible
+   `Rendered -> Fallback -> Source` chain; place any reusable pure/UI helpers
+   in `markdown/shared/` rather than importing sibling features (`R5`).
+3. Add its typed style to `MarkdownTheme` (`style/mod.rs`) if it introduces
+   product CSS tokens.
+4. Register `&<name>::FEATURE` in `composition.rs` (`FEATURES` and/or
+   `MDX_FEATURES` in precedence order) and verify `python3 tools/check-ui-boundaries.py`.
 
 ### Restyling one element type
 

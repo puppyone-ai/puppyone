@@ -12,11 +12,14 @@ mod embed;
 pub mod source;
 
 use crate::editor::{
-    markdown::core::{
-        decorations::LineDecoration,
-        feature::MarkdownFeature,
-        state::PreviewState,
-        syntax::{Element, Kind},
+    markdown::{
+        core::{
+            decorations::LineDecoration,
+            feature::MarkdownFeature,
+            state::PreviewState,
+            syntax::{Element, Kind},
+        },
+        shared::media_source::{parse_image_size, split_image_alt},
     },
     text::{
         selection::Selection,
@@ -38,43 +41,11 @@ pub struct ImageFeature;
 pub static FEATURE: ImageFeature = ImageFeature;
 pub const ID: &str = "image";
 
-/// Reveal an image line's source (double click), the caret after `![`.
+/// Reveal an image line's source (double click / fallback Source action), the caret after `![`.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ShowSource {
     pub line: Range<usize>,
     pub caret: usize,
-}
-
-/// `parseMarkdownImageSize`: `100` sets the width, `100x50` both.
-fn size(value: &str) -> Option<(f32, Option<f32>)> {
-    let value = value.trim();
-    let (w, h) = match value.split_once(['x', 'X']) {
-        Some((w, h)) => (w, Some(h)),
-        None => (value, None),
-    };
-    let number = |s: &str| {
-        (!s.is_empty() && s.len() <= 4 && s.chars().all(|c| c.is_ascii_digit()))
-            .then(|| s.parse::<f32>().ok())
-            .flatten()
-    };
-    Some((
-        number(w)?,
-        match h {
-            Some(h) => Some(number(h)?),
-            None => None,
-        },
-    ))
-}
-
-/// `splitMarkdownImageAlt`: a trailing `|size` is the size, not the text.
-fn split_alt(alt: &str) -> (String, Option<(f32, Option<f32>)>) {
-    match alt
-        .rsplit_once('|')
-        .and_then(|(text, s)| Some((text, size(s)?)))
-    {
-        Some((text, size)) => (text.trim().to_owned(), Some(size)),
-        None => (alt.to_owned(), None),
-    }
 }
 
 /// The image an element shows, if it is one (a link around exactly one
@@ -102,25 +73,28 @@ fn item(cx: &LineDecoration, e: &Element, document: &Path) -> Option<Item> {
     let href = image_el.href.clone().unwrap_or_default();
     let (alt, size, source) = if image_el.kind == Kind::ImageEmbed {
         let alias = image_el.text.clone();
-        let size = alias.as_deref().and_then(size);
+        let size = alias.as_deref().and_then(parse_image_size);
         let alt = alias
             .filter(|_| size.is_none())
             .unwrap_or_else(|| href.clone());
-        (alt, size, source::embed(document, &href, cx.references))
+        (
+            alt,
+            size,
+            source::embed_checked(document, &href, cx.references),
+        )
     } else {
         let alt = image_el
             .content
             .clone()
             .map(|c| cx.doc.slice(c).to_owned())
             .unwrap_or_default();
-        let (alt, size) = split_alt(&alt);
-        (alt, size, source::markdown(document, &href))
+        let (alt, size) = split_image_alt(&alt);
+        (alt, size, source::markdown_checked(document, &href))
     };
     Some(Item {
         range: e.range.clone(),
         label: if alt.is_empty() { href.clone() } else { alt },
         size,
-        key: source.as_ref().map(|s| s.key(cx.assets)),
         source,
         link,
         image: image_el.range.clone(),
@@ -128,16 +102,24 @@ fn item(cx: &LineDecoration, e: &Element, document: &Path) -> Option<Item> {
 }
 
 /// `.cm-md-image-widget` in a line with text: each image drawn where its
-/// source is, its alt text (or source) standing in until it decodes.
+/// source is, its alt text (or failure summary) standing in until it decodes.
 fn inline(cx: &mut LineDecoration, items: Vec<Item>) {
     let radius = cx.theme.block.radius;
     for item in items {
-        let (Some(key), Some(source)) = (item.key, item.source) else {
-            continue;
-        };
         if cx.preview.reveal.as_ref() == Some(&item.image) {
             continue;
         }
+        let source = match item.source {
+            Ok(source) => source,
+            Err(failure) => {
+                let summary = embed::describe_failure(&item.label, &failure);
+                cx.replaced.push((
+                    item.image.clone(),
+                    SharedString::from(format!("[{} — {}]", summary.title, summary.reason)),
+                ));
+                continue;
+            }
+        };
         let assets = cx.assets.cloned();
         let size = item.size;
         cx.replaced
@@ -151,7 +133,7 @@ fn inline(cx: &mut LineDecoration, items: Vec<Item>) {
                     image,
                     width,
                     height,
-                } = cache::get(&key, &source, assets.as_ref(), app)
+                } = cache::get(&source, assets.as_ref(), app)
                 else {
                     return None;
                 };
@@ -160,8 +142,6 @@ fn inline(cx: &mut LineDecoration, items: Vec<Item>) {
                     image,
                     width,
                     height,
-                    // `vertical-align: middle`: the middle at half the
-                    // x-height above the baseline.
                     baseline: height / 2. + X_HEIGHT / 2. * font,
                 })
             }),
@@ -196,7 +176,6 @@ impl MarkdownFeature for ImageFeature {
         if !text.contains('!') {
             return;
         }
-        // After the block markers (quote, list) and indentation.
         let start = cx
             .syntax
             .elements_in(range.clone())
@@ -208,10 +187,8 @@ impl MarkdownFeature for ImageFeature {
             .unwrap_or(range.start)
             .max(range.start);
         let document = cx.assets.map(|a| a.document.clone()).unwrap_or_default();
-        // Outermost elements of the content, in order.
         let mut items = Vec::new();
         let mut at = start;
-        // Text beside the images (or a link that is not one).
         let mut mixed = false;
         let mut candidates: Vec<&Element> = cx
             .syntax
@@ -230,7 +207,6 @@ impl MarkdownFeature for ImageFeature {
             if !cx.doc.slice(at..e.range.start).trim().is_empty() {
                 mixed = true;
             }
-            // A link that is not an image is text, its images still found.
             let Some(item) = item(cx, e, &document) else {
                 mixed = true;
                 continue;
@@ -245,7 +221,6 @@ impl MarkdownFeature for ImageFeature {
             inline(cx, items);
             return;
         }
-        // `getImageDisplayModeOnLine`: alone on the raw line, unlinked.
         let block = items.len() == 1
             && items[0].link.is_none()
             && cx
@@ -258,9 +233,11 @@ impl MarkdownFeature for ImageFeature {
         let mut h = std::hash::DefaultHasher::new();
         (range.start, block).hash(&mut h);
         for i in &items {
+            let source_key = i.source.as_ref().ok().map(|s| s.key(cx.assets));
             (
                 &i.range,
-                &i.key,
+                &source_key,
+                &i.source.is_ok(),
                 &i.link,
                 &i.label,
                 i.size.map(|(w, h)| (w.to_bits(), h.map(f32::to_bits))),
@@ -292,12 +269,14 @@ mod tests {
 
     #[test]
     fn sizes_follow_the_alt_text() {
-        assert_eq!(split_alt("Logo|300"), ("Logo".into(), Some((300., None))));
         assert_eq!(
-            split_alt("Logo | 300x200"),
+            split_image_alt("Logo|300"),
+            ("Logo".into(), Some((300., None)))
+        );
+        assert_eq!(
+            split_image_alt("Logo | 300x200"),
             ("Logo".into(), Some((300., Some(200.))))
         );
-        assert_eq!(split_alt("a|b"), ("a|b".into(), None));
-        assert_eq!(size("12345"), None);
+        assert_eq!(split_image_alt("a|b"), ("a|b".into(), None));
     }
 }
