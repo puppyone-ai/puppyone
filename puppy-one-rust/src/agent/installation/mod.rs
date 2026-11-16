@@ -9,4 +9,6 @@ pub mod installation_registry;
 pub mod installation_service;
 pub mod managed_installation_layout;
 #[cfg(all(test, unix))]
+mod parity_tests;
+#[cfg(all(test, unix))]
 mod tests;

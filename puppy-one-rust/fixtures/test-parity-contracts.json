@@ -14272,6 +14272,205 @@
           "test": "features::create_new::create_entry_menu_registry::tests::a_context_map_is_created_empty_in_its_own_folder"
         }
       ]
+    },
+    {
+      "id": "native-ordered-executable-discovery-and-fresh-launch",
+      "acceptance": "Actual temporary files verify arbitrary PATHs for six products, shim precedence over fallback installs, no inactive NVM scan, authoritative invalid overrides, installer-directory hints, five documented fallbacks, both Pi npm package identities and symlink retarget detection, ambiguous-command rejection, separate WorkBuddy overrides and app candidates, explicit search budget failure, Windows PATHEXT ordering and standalone Codex candidate paths. Production InstallationService preserves incomplete negative evidence in cache and explicit refresh observes new files. A real bounded zsh profile recovers after repair; refreshed discovery, terminal launch and Codex readiness share the selected fresh interpreter environment without exposing native paths in public snapshots. Removal before launch is rejected.",
+      "environment": "13 Rust requirements, real temporary POSIX files and symlinks. The macOS integration uses a temporary ZDOTDIR and a PATH-resolved fixture interpreter; no real account or provider CLI is invoked. Windows path-selection rules are exercised on a Unix filesystem, not claimed as Windows process execution. The registered WorkBuddy Windows Electron-hosted atomic recipe case (index 24) remains unqualified.",
+      "typescript": [
+        {
+          "path": "tests/integration/platform/processes/electron.local-executable-resolver.test.mjs",
+          "sha256": "b4d53997a7f6adb4d4e8ca70522f2e9c500779231eaa6955f728c61dced64dbc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ordered installation discovery > keeps macOS Homebrew Claude Code entrypoints available when shell PATH is incomplete"
+            },
+            {
+              "index": 1,
+              "name": "ordered installation discovery > discovers codex in an arbitrary PATH without package-manager knowledge"
+            },
+            {
+              "index": 2,
+              "name": "ordered installation discovery > discovers claude in an arbitrary PATH without package-manager knowledge"
+            },
+            {
+              "index": 3,
+              "name": "ordered installation discovery > discovers pi in an arbitrary PATH without package-manager knowledge"
+            },
+            {
+              "index": 4,
+              "name": "ordered installation discovery > discovers cursor in an arbitrary PATH without package-manager knowledge"
+            },
+            {
+              "index": 5,
+              "name": "ordered installation discovery > discovers opencode in an arbitrary PATH without package-manager knowledge"
+            },
+            {
+              "index": 6,
+              "name": "ordered installation discovery > discovers hermes in an arbitrary PATH without package-manager knowledge"
+            },
+            {
+              "index": 7,
+              "name": "ordered installation discovery > keeps PATH precedence, including a version manager's selected shim"
+            },
+            {
+              "index": 8,
+              "name": "ordered installation discovery > does not discover an inactive NVM installation outside PATH"
+            },
+            {
+              "index": 9,
+              "name": "ordered installation discovery > keeps an invalid explicit override visible instead of selecting another install"
+            },
+            {
+              "index": 10,
+              "name": "ordered installation discovery > treats CODEX_INSTALL_DIR as an installer hint, not an executable override"
+            },
+            {
+              "index": 11,
+              "name": "ordered installation discovery > treats PI_CODING_AGENT_DIR as an installer hint, not an executable override"
+            },
+            {
+              "index": 12,
+              "name": "ordered installation discovery > treats PI_MANAGED_INSTALL_ROOT as an installer hint, not an executable override"
+            },
+            {
+              "index": 13,
+              "name": "ordered installation discovery > retains the documented codex fallback [\".local\",\"bin\",\"codex\"]"
+            },
+            {
+              "index": 14,
+              "name": "ordered installation discovery > retains the documented claude fallback [\".local\",\"bin\",\"claude\"]"
+            },
+            {
+              "index": 15,
+              "name": "ordered installation discovery > retains the documented claude fallback [\".claude\",\"local\",\"claude\"]"
+            },
+            {
+              "index": 16,
+              "name": "ordered installation discovery > retains the documented pi fallback [\".pi\",\"agent\",\"bin\",\"pi\"]"
+            },
+            {
+              "index": 17,
+              "name": "ordered installation discovery > retains the documented pi fallback [\".local\",\"bin\",\"pi\"]"
+            },
+            {
+              "index": 18,
+              "name": "ordered installation discovery > preserves the npm entrypoint while checking @earendil-works Pi's canonical package identity"
+            },
+            {
+              "index": 19,
+              "name": "ordered installation discovery > preserves the npm entrypoint while checking @mariozechner Pi's canonical package identity"
+            },
+            {
+              "index": 20,
+              "name": "ordered installation discovery > rejects the unrelated ambiguous command pi"
+            },
+            {
+              "index": 21,
+              "name": "ordered installation discovery > rejects the unrelated ambiguous command agent"
+            },
+            {
+              "index": 22,
+              "name": "ordered installation discovery > does not claim one multi-channel CodeBuddy PATH command as two WorkBuddy products"
+            },
+            {
+              "index": 23,
+              "name": "ordered installation discovery > keeps channel-specific overrides and desktop-app entrypoints in shared WorkBuddy definitions"
+            },
+            {
+              "index": 25,
+              "name": "ordered installation discovery > accepts an explicit WorkBuddy channel override without enabling the other channel"
+            },
+            {
+              "index": 26,
+              "name": "ordered installation discovery > reports a search budget failure instead of silently ignoring the end of PATH"
+            },
+            {
+              "index": 27,
+              "name": "ordered installation discovery > respects Windows PATHEXT when resolving npm codex entrypoints"
+            },
+            {
+              "index": 28,
+              "name": "ordered installation discovery > respects Windows PATHEXT when resolving npm claude entrypoints"
+            },
+            {
+              "index": 29,
+              "name": "ordered installation discovery > respects Windows PATHEXT when resolving npm pi entrypoints"
+            },
+            {
+              "index": 30,
+              "name": "ordered installation discovery > detects Codex's Windows standalone installation without PATH"
+            },
+            {
+              "index": 31,
+              "name": "ordered installation discovery > distinguishes failed environment acquisition from a completed negative result"
+            },
+            {
+              "index": 32,
+              "name": "fresh shell environment across discovery and launch > bounds a blocking shell profile and succeeds after the profile is fixed"
+            },
+            {
+              "index": 33,
+              "name": "fresh shell environment across discovery and launch > finds a newly installed CLI after refresh, and launches the same entrypoint with its interpreter environment"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::every_path_discoverable_product_accepts_an_arbitrary_spaced_directory"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::selected_path_wins_over_newer_shims_and_fallbacks_and_inactive_nvm_is_not_searched"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::invalid_explicit_overrides_fail_but_installer_directory_hints_do_not_override_path"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::documented_product_fallbacks_remain_available_without_path"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::pi_package_identities_preserve_symlink_entrypoints_and_reject_retargeted_links"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::ambiguous_unrelated_commands_are_rejected_and_workbuddy_channels_stay_separate"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::workbuddy_definitions_keep_channel_overrides_and_exact_desktop_app_entrypoints"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::search_budget_failure_is_explicit_and_windows_extensions_follow_pathext_order"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::windows_codex_standalone_fallback_does_not_require_path"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::environment::incomplete_environment_is_failed_evidence_until_explicit_refresh_discovers_the_new_file"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::environment::a_real_blocking_shell_profile_is_bounded_and_a_fixed_profile_is_read_again"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::parity_tests::environment::refreshed_shell_discovery_terminal_launch_and_runtime_readiness_use_the_same_fresh_environment"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::definitions::claude::tests::homebrew_claude_code_is_a_candidate_on_macos_only"
+        }
+      ]
     }
   ],
   "openAcceptance": [

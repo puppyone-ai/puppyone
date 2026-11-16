@@ -52,7 +52,10 @@ mod tests {
             (definition.candidate_paths.as_ref().unwrap())(&context)
                 .unwrap()
                 .into_iter()
-                .map(|c| c.path)
+                .map(|c| {
+                    assert_eq!(c.source, "product-fallback");
+                    c.path
+                })
                 .collect::<Vec<_>>()
         };
         let mac = candidates("darwin");
