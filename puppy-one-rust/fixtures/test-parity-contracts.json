@@ -13879,6 +13879,78 @@
           "test": "platform::git_diff::patch_paths::tests::git_c_quoted_paths_decode_utf8_octal_and_control_characters_without_loss"
         }
       ]
+    },
+    {
+      "id": "native-git-repository-lifecycle",
+      "acceptance": "Absent and unborn repositories have no invented HEAD, branches or commits; the native view treats confirmed absence as a quiet initialization state. Real stage/commit transitions publish matching lazy history, and staging a specific path preserves unstaged siblings. Status is bounded with honest truncation at and above its limit, still observes untracked files when Git config hides them, and rejects pre-cancelled reads. A real six-second pre-commit hook completes under the mutation budget.",
+      "environment": "Disposable repositories in child processes with isolated Git configuration and explicit fixture identity. The Rust production status cap is 10,000 entries (tested at the cap and two beyond it), corresponding to the TS configurable bounded-snapshot acceptance. macOS/Unix executes the actual hook. This row does not qualify all-branch history graphs, consistency fingerprint changes, or empty first publication snapshots.",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/status/workspace.git.integration.test.mjs",
+          "sha256": "24341b907c1dd60fa4a954d096232822ca3b4799cb6bef074a1fd1d20ec2b64d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "repository detection > reports a non-repo folder as isRepo=false with zero commits"
+            },
+            {
+              "index": 1,
+              "name": "repository detection > initializes a repository"
+            },
+            {
+              "index": 3,
+              "name": "stage → commit lifecycle > tracks a new file as untracked, then staged, then committed"
+            },
+            {
+              "index": 4,
+              "name": "stage → commit lifecycle > detects modifications to a committed file as unstaged"
+            },
+            {
+              "index": 5,
+              "name": "stage → commit lifecycle > stages a specific path and makes a second commit"
+            },
+            {
+              "index": 32,
+              "name": "fast status vs lazy history > returns a bounded status snapshot and reports truncation"
+            },
+            {
+              "index": 33,
+              "name": "fast status vs lazy history > honors an already-cancelled status request"
+            },
+            {
+              "index": 35,
+              "name": "fast status vs lazy history > still reports untracked files when status.showUntrackedFiles=no"
+            },
+            {
+              "index": 36,
+              "name": "fast status vs lazy history > allows a slow pre-commit hook beyond the read timeout"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::lifecycle_tests::plain_and_newly_initialized_repositories_have_no_invented_head_or_history"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::lifecycle_tests::actual_stage_commit_lifecycle_preserves_unstaged_siblings_and_publishes_matching_history"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::lifecycle_tests::real_status_bounds_entries_overrides_hidden_untracked_config_and_honors_cancellation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::lifecycle_tests::a_real_commit_hook_can_outlast_the_read_budget_without_losing_the_commit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::absent_repositories_are_quiet_states_and_retire_old_history_instead_of_retrying_forever"
+        }
+      ]
     }
   ],
   "openAcceptance": [

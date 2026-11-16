@@ -6,6 +6,9 @@
 //! inside the opened folder: a change elsewhere in the repository is shown but
 //! cannot be staged, discarded or opened from here.
 #[cfg(test)]
+#[path = "git/lifecycle_tests.rs"]
+mod lifecycle_tests;
+#[cfg(test)]
 #[path = "git/push_tests.rs"]
 mod push_tests;
 #[path = "git/sync_config.rs"]
