@@ -73,6 +73,8 @@ pub(super) struct EditorArea {
     /// The save failure whose notice the person dismissed
     /// (`useDismissibleNotice`).
     pub dismissed_save_error: Option<String>,
+    /// Whether the read-only Cloud conflict comparison dialog is open (`DP-05`).
+    pub comparing_conflict: bool,
     /// Re-renders once a transient "Saved" status lapses.
     pub saved_refresh: Option<Task<()>>,
     /// Where each pane and split was painted, in window coordinates: what
@@ -95,7 +97,7 @@ impl EditorArea {
         let front = cx.new(DocumentEditor::new);
         // The front host before the workbench has panes: pane menu commands
         // are the window's, everything else the runtime's.
-        cx.subscribe_in(&front, window, |s, _, event: &ClientMessage, _, cx| {
+        cx.subscribe_in(&front, window, |s, _, event: &ClientMessage, window, cx| {
             if let ClientMessage::Action { action } = event {
                 if s.docs.read(cx).state().is_none()
                     && let Some(command) = Command::from_protocol(action)
@@ -104,8 +106,13 @@ impl EditorArea {
                 }
                 return;
             }
+            let normalized = matches!(event, ClientMessage::NormalizeLineEndings { .. });
             let event = event.clone();
             s.docs.update(cx, |d, _| d.client_for(0, event));
+            if normalized {
+                s.sync(window, cx);
+                cx.emit(EditorEvent::Pump);
+            }
             cx.notify();
         })
         .detach();
@@ -152,6 +159,7 @@ impl EditorArea {
             drop: None,
             tab_focus: Default::default(),
             dismissed_save_error: None,
+            comparing_conflict: false,
             saved_refresh: None,
             pane_bounds: Default::default(),
             split_bounds: Default::default(),
@@ -173,8 +181,8 @@ impl EditorArea {
         self.drop = None;
         self.end_resize(false, cx);
     }
-    /// The file's text is not UTF-8: it reads, and never writes
-    /// (`editor.fileMode.readOnlyEncoding`).
+    /// The file's text was decoded with lossy replacement: it reads, and never
+    /// writes (`editor.fileMode.readOnlyEncoding`, `DP-32`).
     pub fn read_only(&self, cx: &App) -> bool {
         self.file_mode
             && self
@@ -182,7 +190,30 @@ impl EditorArea {
                 .read(cx)
                 .document
                 .as_ref()
-                .is_some_and(|d| d.encoding != crate::workspace::TextEncoding::Utf8)
+                .is_some_and(|d| d.is_lossy_readonly())
+    }
+    pub fn open_conflict_comparison(&mut self, cx: &mut Context<Self>) {
+        if self.docs.read(cx).cloud_conflict() && !self.comparing_conflict {
+            self.comparing_conflict = true;
+            cx.notify();
+        }
+    }
+    pub fn close_conflict_comparison(&mut self, cx: &mut Context<Self>) {
+        if self.comparing_conflict {
+            self.comparing_conflict = false;
+            cx.notify();
+        }
+    }
+    /// Refreshes workspace link reference contexts across all open editor hosts (`TODO-48`).
+    pub fn refresh_references(&mut self, cx: &mut Context<Self>) {
+        let hosts: Vec<_> = self.hosts.iter().map(|(s, e)| (*s, e.clone())).collect();
+        for (slot, editor) in hosts {
+            let references = self.references(slot, cx);
+            editor.update(cx, |s, cx| {
+                s.set_reference_context(references, cx);
+            });
+        }
+        cx.notify();
     }
     /// `slot`'s host, once its document has one.
     pub fn host(&self, slot: u64) -> Option<&Entity<DocumentEditor>> {
@@ -310,8 +341,13 @@ impl EditorArea {
                         s.sync(window, cx);
                     }
                 } else {
+                    let normalized = matches!(event, ClientMessage::NormalizeLineEndings { .. });
                     let event = event.clone();
                     s.docs.update(cx, |d, _| d.client_for(slot, event));
+                    if normalized {
+                        s.sync(window, cx);
+                        cx.emit(EditorEvent::Pump);
+                    }
                 }
                 cx.notify();
             },
@@ -400,6 +436,9 @@ impl Render for EditorArea {
                 .size_full(),
             );
         }
+        if let Some(dialog) = self.conflict_comparison_dialog(cx) {
+            canvas = canvas.child(dialog);
+        }
         canvas
     }
 }
@@ -408,7 +447,8 @@ use crate::ui::appearance::ActiveAppearance as _;
 impl EditorArea {
     /// `.editor-notice-stack`, 48px below the top of the editor region
     /// `editor`, 12px in from its end (`end` from the window's): the active
-    /// document's save failure, or a held-back Cloud conflict.
+    /// document's 4-exit Cloud conflict, local overwrite undo notice, draft
+    /// recovery notice, or typed save failure (`DP-04`, `DP-05`, `DP-11`, `DP-43`).
     pub(super) fn notices(
         &self,
         editor: crate::geometry::Rect,
@@ -421,60 +461,124 @@ impl EditorArea {
                 FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
             },
         };
-        let stack = || {
-            NoticeStack::new(
-                NoticePlacement::TopEnd,
-                editor.y + 48.,
-                end + 12.,
-                (editor.w - 24.).min(420.),
-            )
-        };
         let docs = self.docs.read(cx);
         if docs.cloud_conflict() {
-            let area = self.weak.clone();
+            let compare_area = self.weak.clone();
+            let keep_area = self.weak.clone();
+            let accept_area = self.weak.clone();
+            let copy_area = self.weak.clone();
             return Some(
-                stack()
-                    .child(
-                        FloatingNotice::new(
-                            "editor-session-notice",
-                            tr("editor.session.cloudConflict"),
-                        )
-                        .tone(NoticeTone::Danger)
-                        .action(
-                            NoticeAction::new(
-                                "editor-session-reload",
-                                tr("editor.session.discardAndReload"),
-                                move |_, cx| {
-                                    let _ = area.update(cx, |_, cx| {
-                                        cx.emit(EditorEvent::Command(Command::ReloadCloudBaseline))
-                                    });
-                                },
-                            )
-                            .emphasis(),
-                        ),
-                    )
-                    .into_any_element(),
-            );
-        }
-        let detail = docs
-            .save_error
-            .clone()
-            .filter(|e| self.dismissed_save_error.as_ref() != Some(e))?;
-        let area = self.weak.clone();
-        let dismissed = detail.clone();
-        Some(
-            stack()
+                NoticeStack::new(
+                    NoticePlacement::TopEnd,
+                    editor.y + 48.,
+                    end + 12.,
+                    (editor.w - 24.).min(620.),
+                )
                 .child(
                     FloatingNotice::new(
-                        "editor-save-failure",
-                        crate::localization::tf(
-                            "editor.session.saveFailedDetail",
-                            &[(
-                                "detail",
-                                detail.chars().take(300).collect::<String>().into(),
-                            )],
-                        ),
+                        "editor-session-notice",
+                        tr("editor.session.cloudConflict"),
                     )
+                    .tone(NoticeTone::Danger)
+                    .action(NoticeAction::new(
+                        "editor-conflict-compare",
+                        tr("native.editor.conflictCompare"),
+                        move |_, cx| {
+                            let _ = compare_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::CompareCloudConflict))
+                            });
+                        },
+                    ))
+                    .action(
+                        NoticeAction::new(
+                            "editor-conflict-keep-mine",
+                            tr("native.editor.conflictKeepMine"),
+                            move |_, cx| {
+                                let _ = keep_area.update(cx, |_, cx| {
+                                    cx.emit(EditorEvent::Command(Command::KeepLocalCloudDraft))
+                                });
+                            },
+                        )
+                        .emphasis(),
+                    )
+                    .action(NoticeAction::new(
+                        "editor-session-reload",
+                        tr("native.editor.conflictAcceptRemote"),
+                        move |_, cx| {
+                            let _ = accept_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::ReloadCloudBaseline))
+                            });
+                        },
+                    ))
+                    .action(NoticeAction::new(
+                        "editor-conflict-save-copy",
+                        tr("native.editor.conflictSaveCopy"),
+                        move |_, cx| {
+                            let _ = copy_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::SaveConflictCopy))
+                            });
+                        },
+                    )),
+                )
+                .into_any_element(),
+            );
+        }
+
+        let mut items = Vec::new();
+
+        if docs.local_overwrite_notice.is_some() {
+            let undo_area = self.weak.clone();
+            let dismiss_area = self.weak.clone();
+            items.push(
+                FloatingNotice::new(
+                    "editor-local-overwrite-notice",
+                    tr("native.editor.updatedFromDiskUndo"),
+                )
+                .tone(NoticeTone::Neutral)
+                .action(NoticeAction::new(
+                    "editor-local-overwrite-undo",
+                    tr("native.editor.undo"),
+                    move |_, cx| {
+                        let _ = undo_area
+                            .update(cx, |_, cx| cx.emit(EditorEvent::Command(Command::Undo)));
+                    },
+                ))
+                .on_dismiss(move |_, cx| {
+                    let _ = dismiss_area.update(cx, |e, cx| {
+                        e.docs.update(cx, |d, _| d.dismiss_local_overwrite_notice());
+                        cx.notify();
+                    });
+                }),
+            );
+        }
+
+        if docs.recovered_draft_notice.is_some() {
+            let dismiss_area = self.weak.clone();
+            items.push(
+                FloatingNotice::new(
+                    "editor-draft-recovered-notice",
+                    tr("native.editor.draftRecovered"),
+                )
+                .tone(NoticeTone::Info)
+                .on_dismiss(move |_, cx| {
+                    let _ = dismiss_area.update(cx, |e, cx| {
+                        e.docs.update(cx, |d, _| d.dismiss_recovered_draft_notice());
+                        cx.notify();
+                    });
+                }),
+            );
+        }
+
+        if let Some(detail) = docs
+            .save_error
+            .clone()
+            .filter(|e| self.dismissed_save_error.as_ref() != Some(e))
+        {
+            let area = self.weak.clone();
+            let dismissed = detail.clone();
+            let message = crate::documents::localized_save_error(docs.save_error_kind, &detail);
+            items.push(
+                FloatingNotice::new("editor-save-failure", message)
                     .tone(NoticeTone::Danger)
                     .on_dismiss(move |_, cx| {
                         let _ = area.update(cx, |e, cx| {
@@ -482,8 +586,232 @@ impl EditorArea {
                             cx.notify();
                         });
                     }),
-                )
-                .into_any_element(),
+            );
+        }
+
+        if items.is_empty() {
+            return None;
+        }
+        Some(
+            NoticeStack::new(
+                NoticePlacement::TopEnd,
+                editor.y + 48.,
+                end + 12.,
+                (editor.w - 24.).min(420.),
+            )
+            .children(items)
+            .into_any_element(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        app::{Shell, bind_keys},
+        documents::Intent,
+        editor::workbench::runtime::Runtime,
+        workspace::{Workspace, testing::Memory},
+    };
+    use core::prelude::v1::test;
+    use std::sync::Arc;
+
+    fn setup_shell(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
+        cx.executor().allow_parking();
+        cx.update(|cx| {
+            bind_keys(cx);
+            crate::ui::input::bind_keys(cx);
+            crate::editor::view::bind_keys(cx);
+            crate::editor::csv::bind_keys(cx);
+            crate::editor::host::bind_keys(cx);
+        });
+        let mut content = None;
+        let (_, cx) = cx.add_window_view(|w, cx| {
+            let view = cx.new(|cx| Shell::new(w, cx));
+            content = Some(view.clone());
+            gpui_kit::base::Root::new(view, w, cx)
+        });
+        let view = content.unwrap();
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        (view, cx)
+    }
+
+    fn settle(
+        view: &Entity<Shell>,
+        cx: &mut VisualTestContext,
+        ready: impl Fn(&Shell, &App) -> bool,
+    ) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            if view.read_with(cx, |s, cx| ready(s, cx)) {
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline, "shell did not settle");
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+    }
+
+    #[gpui::test]
+    fn dp05_hosted_conflict_renders_four_exits_and_compare_modal_and_keep_mine(
+        cx: &mut TestAppContext,
+    ) {
+        let memory = Arc::new(Memory::new("memory://actor/project/"));
+        let ws = Workspace::from_provider(memory.clone()).unwrap();
+        let (view, cx) = setup_shell(cx);
+        view.update_in(cx, |s, w, cx| {
+            s.session.project.update(cx, |p, _| {
+                p.record.fixture = false;
+                p.home = false;
+            });
+            s.session.docs.update(cx, |d, _| {
+                let mut rt = Runtime::default();
+                rt.workspace = Some(ws);
+                d.replace(rt);
+                d.begin(Intent::OpenFile("note.md".into()));
+            });
+            s.receive(w, cx);
+        });
+        settle(&view, cx, |s, cx| s.files(cx).opened().is_some());
+
+        // Remote changes while user types locally and saves -> overlapping Cloud conflict!
+        *memory.text.lock().unwrap() = "remote version\n".into();
+        cx.simulate_input("my draft ");
+        view.update_in(cx, |s, w, cx| s.command(Command::Save, w, cx));
+        settle(&view, cx, |s, cx| s.files(cx).cloud_conflict());
+
+        // Verify EditorArea::notices builds the 4-exit notice cleanly.
+        view.read_with(cx, |s, cx| {
+            let rect = crate::geometry::Rect::new(0., 38., 800., 560.);
+            assert!(s.editor.read(cx).notices(rect, 0., cx).is_some());
+        });
+
+        // Exit 1: Compare opens the read-only conflict comparison dialog.
+        view.update_in(cx, |s, w, cx| {
+            s.command(Command::CompareCloudConflict, w, cx);
+        });
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        view.read_with(cx, |s, cx| {
+            assert!(s.editor.read(cx).comparing_conflict);
+            assert!(s.editor.read(cx).conflict_comparison_dialog(cx).is_some());
+        });
+
+        // Exit 2: Keep Mine closes comparison, rebases onto remote, and writes local draft!
+        view.update_in(cx, |s, w, cx| {
+            s.command(Command::KeepLocalCloudDraft, w, cx);
+        });
+        settle(&view, cx, |s, cx| {
+            !s.files(cx).cloud_conflict() && !s.files(cx).saving()
+        });
+        view.read_with(cx, |s, cx| {
+            assert!(!s.editor.read(cx).comparing_conflict);
+        });
+        assert!(memory.text.lock().unwrap().contains("my draft "));
+    }
+
+    #[gpui::test]
+    fn dp04_and_dp31_local_overwrite_undo_and_mixed_line_ending_normalize_in_shell(
+        cx: &mut TestAppContext,
+    ) {
+        let folder = tempfile::tempdir().unwrap();
+        std::fs::write(folder.path().join("mixed.md"), b"one\r\ntwo\nthree\r").unwrap();
+        std::fs::write(folder.path().join("note.md"), b"alpha\nbeta\n").unwrap();
+        let (view, cx) = setup_shell(cx);
+        view.update(cx, |s, cx| {
+            s.session.project.update(cx, |p, _| {
+                p.record.fixture = false;
+                p.home = false;
+            });
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFolder(folder.path().into())));
+        });
+        settle(&view, cx, |s, cx| s.files(cx).state().is_some());
+
+        // 1. DP-31: Mixed line endings open read-only with banner; NormalizeLineEndings thaws & writes.
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile("mixed.md".into())));
+        });
+        settle(&view, cx, |s, cx| {
+            s.files(cx)
+                .opened()
+                .is_some_and(|(_, p)| p == std::path::Path::new("mixed.md"))
+        });
+        assert!(cx.debug_bounds("document-readonly-banner").is_some());
+        assert!(cx.debug_bounds("normalize-line-endings-button").is_some());
+        view.update(cx, |s, cx| {
+            let id = s.files(cx).document.as_ref().unwrap().id.clone();
+            let front = s.editor.read(cx).front.clone();
+            front.update(cx, |_, cx| {
+                cx.emit(ClientMessage::NormalizeLineEndings { id });
+            });
+        });
+        cx.run_until_parked();
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.flush_pending_auto_save());
+        });
+        settle(&view, cx, |s, cx| !s.files(cx).saving());
+        assert!(cx.debug_bounds("document-readonly-banner").is_none());
+        assert_eq!(
+            std::fs::read(folder.path().join("mixed.md")).unwrap(),
+            b"one\ntwo\nthree\n"
+        );
+        // TODO-48: ReferencesChanged refreshes open hosts cleanly without panicking or dropping state.
+        view.update_in(cx, |s, w, cx| {
+            s.explorer_session_event(
+                &crate::app::explorer::SessionEvent::ReferencesChanged,
+                w,
+                cx,
+            );
+        });
+
+        // 2. DP-04: Overlapping disk overwrite surfaces neutral notice and Command::Undo restores local draft.
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile("note.md".into())));
+        });
+        settle(&view, cx, |s, cx| {
+            s.files(cx)
+                .opened()
+                .is_some_and(|(_, p)| p == std::path::Path::new("note.md"))
+        });
+        cx.simulate_input("MINE ");
+        std::fs::write(folder.path().join("note.md"), "DISK\nbeta\n").unwrap();
+        view.update_in(cx, |s, w, cx| {
+            s.command(Command::Save, w, cx);
+        });
+        settle(&view, cx, |s, cx| {
+            s.files(cx).local_overwrite_notice.is_some()
+        });
+        view.update_in(cx, |s, w, cx| {
+            s.command(Command::Undo, w, cx);
+        });
+        cx.run_until_parked();
+        view.read_with(cx, |s, cx| {
+            assert!(s.files(cx).local_overwrite_notice.is_none());
+            assert!(
+                s.editor
+                    .read(cx)
+                    .front
+                    .read(cx)
+                    .text(cx)
+                    .unwrap_or_default()
+                    .contains("MINE ")
+            );
+        });
     }
 }

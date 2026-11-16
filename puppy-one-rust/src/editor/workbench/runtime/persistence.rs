@@ -7,8 +7,13 @@ use std::time::{Duration, Instant};
 
 impl Runtime {
     pub fn native() -> Self {
+        let journal = crate::platform::draft_journal::DraftJournal::native();
+        let mut scratch = Documents::default();
+        scratch.set_draft_journal(Some(journal.clone()));
         Self {
+            scratch,
             storage: Some(Storage::native()),
+            draft_journal: Some(journal),
             ..Default::default()
         }
     }
@@ -52,7 +57,11 @@ impl Runtime {
                             continue;
                         }
                         self.serial += 1;
-                        let mut files = Documents::in_workspace(ws.clone());
+                        let mut files = Documents::in_workspace_with_journal(
+                            ws.clone(),
+                            self.draft_journal.clone(),
+                        );
+                        files.task_scope = self.scratch.task_scope.clone();
                         files.begin(Intent::OpenFile(path), wake);
                         host.slots.insert(
                             self.serial,

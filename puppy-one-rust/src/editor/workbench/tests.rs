@@ -5,6 +5,7 @@ use super::{
 };
 use crate::{
     documents::{ClientMessage, HostMessage, Intent},
+    editor::text::buffer::Buffer,
     wake::Wake,
 };
 use std::{
@@ -260,7 +261,7 @@ fn background_copy_saves_and_close_waits_for_its_own_snapshot_without_changing_f
             request,
             id: a_id.clone(),
             revision: 1,
-            text: "background".into(),
+            text: Buffer::new("background"),
         },
         &wake,
     );
@@ -289,7 +290,7 @@ fn background_copy_saves_and_close_waits_for_its_own_snapshot_without_changing_f
             request,
             id: a_id,
             revision: 1,
-            text: "background".into(),
+            text: Buffer::new("background"),
         },
         &wake,
     );
