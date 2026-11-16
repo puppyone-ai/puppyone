@@ -12,6 +12,14 @@ pub struct Metadata {
     pub remotes: Vec<Remote>,
     pub config: Option<Value>,
     pub hosting: Hosting,
+    /// Read-only refresh target; independent of push/pull authorization.
+    pub fetch_target: Option<FetchTarget>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FetchTarget {
+    pub remote: String,
+    pub branch: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
@@ -102,16 +110,26 @@ impl Metadata {
                 push_url: r.push_url.clone(),
             })
             .collect();
-        let hosting = resolve_hosting(
+        let (hosting, remote) = resolve_hosting(
             &remotes,
             snapshot.target.as_ref().map(|v| v.remote.as_str()),
             snapshot.upstream.as_deref(),
             config.as_ref(),
         );
+        let fetch_target = remote.map(|r| FetchTarget {
+            remote: r.name.clone(),
+            branch: snapshot
+                .target
+                .as_ref()
+                .map(|t| t.branch.as_str())
+                .or_else(|| snapshot.current_branch())
+                .map(str::to_owned),
+        });
         Self {
             remotes,
             config,
             hosting,
+            fetch_target,
         }
     }
 }
@@ -119,12 +137,12 @@ impl Metadata {
 /// The backend hosting classification is distinct from the renderer's unique
 /// Cloud identity. Match the established backend precedence, including GitHub
 /// before Cloud when both providers are present on the same candidate.
-fn resolve_hosting(
-    remotes: &[Remote],
+fn resolve_hosting<'a>(
+    remotes: &'a [Remote],
     target: Option<&str>,
     upstream: Option<&str>,
     config: Option<&Value>,
-) -> Hosting {
+) -> (Hosting, Option<&'a Remote>) {
     let configured = configured(
         config,
         &[
@@ -153,15 +171,23 @@ fn resolve_hosting(
             .any(|u| GITHUB.is_match(u))
     };
     if service == Some("puppyone")
-        && (remotes.iter().any(cloud)
-            || remotes
-                .iter()
-                .any(|r| r.name.eq_ignore_ascii_case("puppyone")))
+        && let Some(remote) = configured
+            .filter(|r| cloud(r))
+            .or_else(|| remotes.iter().find(|r| cloud(r)))
+            .or_else(|| {
+                remotes
+                    .iter()
+                    .find(|r| r.name.eq_ignore_ascii_case("puppyone"))
+            })
     {
-        return Hosting::Cloud;
+        return (Hosting::Cloud, Some(remote));
     }
-    if service == Some("github") && remotes.iter().any(github) {
-        return Hosting::Github;
+    if service == Some("github")
+        && let Some(remote) = configured
+            .filter(|r| github(r))
+            .or_else(|| remotes.iter().find(|r| github(r)))
+    {
+        return (Hosting::Github, Some(remote));
     }
     let upstream_remote = upstream
         .and_then(|s| s.split_once('/'))
@@ -176,18 +202,23 @@ fn resolve_hosting(
     .flatten()
     {
         if github(candidate) {
-            return Hosting::Github;
+            return (Hosting::Github, Some(candidate));
         }
         if cloud(candidate) {
-            return Hosting::Cloud;
+            return (Hosting::Cloud, Some(candidate));
         }
     }
-    if remotes.iter().any(github) {
-        Hosting::Github
-    } else if remotes.iter().any(cloud) {
-        Hosting::Cloud
+    if let Some(remote) = remotes.iter().find(|r| github(r)) {
+        (Hosting::Github, Some(remote))
+    } else if let Some(remote) = remotes.iter().find(|r| cloud(r)) {
+        (Hosting::Cloud, Some(remote))
     } else {
-        Hosting::Generic
+        // An explicitly present (but unresolved) target does not fall back.
+        let remote = match target {
+            Some(name) => remotes.iter().find(|r| r.name == name),
+            None => preferred(remotes, config),
+        };
+        (Hosting::Generic, remote)
     }
 }
 

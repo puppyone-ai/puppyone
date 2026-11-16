@@ -510,3 +510,271 @@ fn closing_releases_pending_read_owners_and_cancels_debounce_and_retry_timers(
         assert!(!reads.timed_out.load(Ordering::SeqCst));
     }
 }
+
+#[derive(Debug)]
+struct PendingFetch {
+    root: PathBuf,
+    remote: String,
+    reply: Option<mpsc::Sender<()>>,
+}
+impl Drop for PendingFetch {
+    fn drop(&mut self) {
+        if let Some(reply) = self.reply.take() {
+            let _ = reply.send(());
+        }
+    }
+}
+struct Fetches {
+    pending: mpsc::Receiver<PendingFetch>,
+    online: Arc<AtomicBool>,
+    started: Arc<AtomicUsize>,
+    timed_out: Arc<AtomicBool>,
+}
+impl Fetches {
+    fn install(f: &mut Fixture<'_>) -> Self {
+        let (tx, pending) = mpsc::channel();
+        let online = Arc::new(AtomicBool::new(true));
+        let probe = online.clone();
+        let started = Arc::new(AtomicUsize::new(0));
+        let count = started.clone();
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let timeout = timed_out.clone();
+        f.view.update(f.cx, |s, _| {
+            s.online_probe = Arc::new(move || Some(probe.load(Ordering::SeqCst)));
+            // Keep the actual owner, OS worker, completion channel and clock;
+            // only replace the network transport.
+            s.remote_fetcher = Arc::new(move |root, remote, cancel| {
+                count.fetch_add(1, Ordering::SeqCst);
+                let (reply, result) = mpsc::channel();
+                let _ = tx.send(PendingFetch {
+                    root,
+                    remote,
+                    reply: Some(reply),
+                });
+                if result.recv_timeout(Duration::from_secs(20)).is_err() {
+                    timeout.store(true, Ordering::SeqCst);
+                }
+                // All failures remain silent, including transport cancellation.
+                Err(if cancel.load(Ordering::Relaxed) {
+                    "cancelled"
+                } else {
+                    "offline transport"
+                }
+                .into())
+            });
+        });
+        Self {
+            pending,
+            online,
+            started,
+            timed_out,
+        }
+    }
+    fn request(&self, f: &mut Fixture<'_>) -> PendingFetch {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            f.cx.run_until_parked();
+            match self.pending.recv_timeout(Duration::from_millis(2)) {
+                Ok(request) => return request,
+                Err(mpsc::RecvTimeoutError::Timeout) if Instant::now() < deadline => {}
+                other => panic!(
+                    "expected remote fetch: {} started; {other:?}",
+                    self.started.load(Ordering::SeqCst)
+                ),
+            }
+        }
+    }
+    fn finish(&self, f: &mut Fixture<'_>, request: PendingFetch) {
+        drop(request);
+        f.settle(|s| !s.fetching);
+        assert!(f.view.read_with(f.cx, |s, _| s.error.is_none()));
+        assert!(!self.timed_out.load(Ordering::SeqCst));
+    }
+    fn no_fetch(&self, f: &mut Fixture<'_>, expected: usize) {
+        f.cx.run_until_parked();
+        assert!(!f.view.read_with(f.cx, |s, _| s.fetching));
+        assert_eq!(self.started.load(Ordering::SeqCst), expected);
+        assert!(matches!(
+            self.pending.try_recv(),
+            Err(mpsc::TryRecvError::Empty)
+        ));
+    }
+}
+fn remote_snapshot(remote: &str, branch: &str) -> Snapshot {
+    Snapshot {
+        branch: branch.into(),
+        target: Some(git::SyncTarget {
+            remote: "mutation-origin".into(),
+            branch: branch.into(),
+            exists: true,
+        }),
+        sync_metadata: git::sync_state::Metadata {
+            fetch_target: Some(git::sync_state::FetchTarget {
+                remote: remote.into(),
+                branch: Some(branch.into()),
+            }),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+#[gpui::test]
+fn remote_refresh_targets_hosting_and_reconciles_a_target_changed_during_fetch(
+    cx: &mut TestAppContext,
+) {
+    let mut f = Fixture::new(cx);
+    let fetches = Fetches::install(&mut f);
+    f.attach("a");
+    f.request()
+        .finish(Ok(remote_snapshot("cloud-hosting", "topic")));
+    let first = fetches.request(&mut f);
+    assert_eq!(first.remote, "cloud-hosting");
+    assert_eq!(first.root, f.roots.path().join("a"));
+    f.advance(Duration::from_secs(90));
+    f.view.update(f.cx, |s, cx| {
+        s.request_fetch(Duration::ZERO, cx);
+        s.apply_mutation_status(remote_snapshot("github-hosting", "other"), cx);
+        s.reconcile_fetch_target(cx);
+    });
+    assert_eq!(
+        fetches.started.load(Ordering::SeqCst),
+        1,
+        "one physical fetch at a time"
+    );
+    drop(first);
+    let second = fetches.request(&mut f);
+    assert_eq!(second.remote, "github-hosting");
+    fetches.finish(&mut f, second);
+    assert_eq!(
+        f.view.read_with(f.cx, |s, _| s
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .target
+            .as_ref()
+            .unwrap()
+            .remote
+            .clone()),
+        "mutation-origin"
+    );
+    f.no_read();
+    // The new target owns a new periodic schedule. The old project's tick
+    // cannot delay its next attempt by an extra interval.
+    f.advance(refresh::REMOTE_INTERVAL - Duration::from_secs(1));
+    fetches.no_fetch(&mut f, 2);
+    f.advance(Duration::from_secs(1));
+    let third = fetches.request(&mut f);
+    assert_eq!(third.remote, "github-hosting");
+    fetches.finish(&mut f, third);
+}
+
+#[gpui::test]
+fn remote_attempts_are_throttled_per_project_and_remote_across_switches_and_failures(
+    cx: &mut TestAppContext,
+) {
+    let mut f = Fixture::new(cx);
+    let fetches = Fetches::install(&mut f);
+    for (project, count) in [("a", 1), ("b", 2)] {
+        f.attach(project);
+        f.request().finish(Ok(remote_snapshot("origin", "topic")));
+        let request = fetches.request(&mut f);
+        assert_eq!(request.root, f.roots.path().join(project));
+        fetches.finish(&mut f, request);
+        fetches.no_fetch(&mut f, count);
+    }
+    f.attach("a");
+    f.request().finish(Ok(remote_snapshot("origin", "topic")));
+    f.settle_branch("topic");
+    fetches.no_fetch(&mut f, 2);
+    f.advance(Duration::from_secs(14));
+    f.view.update(f.cx, |s, cx| {
+        s.apply_mutation_status(remote_snapshot("origin", "new-branch"), cx);
+        s.reconcile_fetch_target(cx);
+    });
+    fetches.no_fetch(&mut f, 2);
+    f.advance(Duration::from_secs(1));
+    f.view.update(f.cx, |s, cx| {
+        s.apply_mutation_status(remote_snapshot("origin", "another-branch"), cx);
+        s.reconcile_fetch_target(cx);
+    });
+    let request = fetches.request(&mut f);
+    fetches.finish(&mut f, request);
+    assert_eq!(f.view.read_with(f.cx, |s, _| s.fetch_attempts.len()), 2);
+    f.view.update(f.cx, |s, cx| {
+        s.apply_mutation_status(remote_snapshot("new-remote", "another-branch"), cx);
+        s.reconcile_fetch_target(cx);
+    });
+    let request = fetches.request(&mut f);
+    assert_eq!(request.remote, "new-remote");
+    fetches.finish(&mut f, request);
+    fetches.no_fetch(&mut f, 4);
+}
+
+#[gpui::test]
+fn online_recovery_focus_and_interval_obey_distinct_gaps_and_close_stops_sampling(
+    cx: &mut TestAppContext,
+) {
+    let mut f = Fixture::new(cx);
+    let fetches = Fetches::install(&mut f);
+    fetches.online.store(false, Ordering::SeqCst);
+    f.attach("a");
+    f.request().finish(Ok(remote_snapshot("origin", "topic")));
+    f.settle_branch("topic");
+    fetches.no_fetch(&mut f, 0);
+    f.focus(false);
+    fetches.online.store(true, Ordering::SeqCst);
+    f.advance(refresh::ONLINE_POLL);
+    fetches.no_fetch(&mut f, 0);
+    f.focus(true);
+    let request = fetches.request(&mut f);
+    fetches.finish(&mut f, request);
+    // An online event before 15s cannot retry a failed transport.
+    fetches.online.store(false, Ordering::SeqCst);
+    f.advance(Duration::from_secs(1));
+    fetches.online.store(true, Ordering::SeqCst);
+    f.advance(Duration::from_secs(13));
+    fetches.no_fetch(&mut f, 1);
+    fetches.online.store(false, Ordering::SeqCst);
+    f.view.update(f.cx, |s, cx| s.check_online(cx));
+    fetches.online.store(true, Ordering::SeqCst);
+    f.advance(Duration::from_secs(1));
+    let request = fetches.request(&mut f);
+    fetches.finish(&mut f, request);
+    // A focus event uses 60s, while periodic refresh uses 180s.
+    f.advance(Duration::from_secs(59));
+    f.focus(false);
+    f.view.update(f.cx, |s, cx| {
+        s.last_successful_refresh = Some(cx.background_executor().now())
+    });
+    f.focus(true);
+    fetches.no_fetch(&mut f, 2);
+    f.advance(Duration::from_secs(1));
+    f.focus(false);
+    f.focus(true);
+    let request = fetches.request(&mut f);
+    fetches.finish(&mut f, request);
+    f.advance(refresh::REMOTE_INTERVAL - Duration::from_secs(1));
+    fetches.no_fetch(&mut f, 3);
+    // The interval's fixed cadence can fall before the attempt's quiet period;
+    // the next scheduled interval is the next eligible periodic trigger.
+    f.advance(refresh::REMOTE_INTERVAL);
+    let request = fetches.request(&mut f);
+    fetches.finish(&mut f, request);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let probe = calls.clone();
+    f.view.update(f.cx, |s, _| {
+        s.online_probe = Arc::new(move || {
+            probe.fetch_add(1, Ordering::SeqCst);
+            Some(true)
+        })
+    });
+    let cx = f.close();
+    cx.cx.executor().advance_clock(refresh::REMOTE_INTERVAL * 2);
+    cx.run_until_parked();
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "closed view has no online sampler"
+    );
+}

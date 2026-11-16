@@ -6,6 +6,7 @@ pub mod app_preview;
 pub mod application_identity;
 pub mod build_identity;
 pub mod cli_control;
+pub mod connectivity;
 pub mod database;
 pub mod desktop;
 pub mod diagnostics;

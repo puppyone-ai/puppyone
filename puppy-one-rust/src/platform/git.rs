@@ -354,7 +354,7 @@ fn cloud_locator(raw: &str) -> bool {
         return false;
     };
     match body.split('/').collect::<Vec<_>>().as_slice() {
-        ["ap", _] => true,
+        ["ap", key] => !key.is_empty(),
         [project] => id(project),
         [project, "scopes", scope] => id(project) && id(scope),
         _ => false,

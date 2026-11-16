@@ -3,7 +3,7 @@
 //! are debounced invalidations from the working tree and the Git metadata,
 //! plus a read on focus once stale; the sync remote is fetched only while the
 //! window is focused, every few minutes and on focus once stale.
-use super::{ResultValue, Snapshot, git, project_sections};
+use super::{ResultValue, Snapshot, project_sections};
 use gpui::Context;
 use std::{
     sync::{
@@ -24,14 +24,16 @@ pub const RETRY_MAX: Duration = Duration::from_secs(30);
 pub const REMOTE_INTERVAL: Duration = Duration::from_secs(180);
 pub const REMOTE_FOCUS_STALE: Duration = Duration::from_secs(60);
 pub const REMOTE_MIN_GAP: Duration = Duration::from_secs(15);
+pub const ONLINE_POLL: Duration = Duration::from_secs(1);
 
 /// `shouldFetchRemote`: a focused, online window, past the minimum gap.
 pub fn should_fetch_remote(
     focused: bool,
+    online: bool,
     since_last: Option<Duration>,
     minimum_gap: Duration,
 ) -> bool {
-    focused && since_last.is_none_or(|since| since >= minimum_gap)
+    focused && online && since_last.is_none_or(|since| since >= minimum_gap)
 }
 
 /// `shouldIgnoreMetadataChange`: lock files, objects and watcher cookies are
@@ -84,32 +86,63 @@ impl super::SourceControl {
         }
         self.request_fetch(REMOTE_FOCUS_STALE, cx);
     }
-    /// A silent fetch of the upstream's remote, past `gap` since the last
-    /// attempt; never for a local-only branch, never while unfocused.
-    pub(super) fn request_fetch(&mut self, gap: Duration, cx: &mut Context<Self>) {
-        // `getRemoteFetchTarget`: the sync target's remote; a local-only
-        // branch never touches the network.
-        let Some(remote) = self
+    /// The effective hosting remote can differ from the branch's mutation
+    /// target, and a detached checkout can still have a read-only fetch target.
+    pub(super) fn reconcile_fetch_target(&mut self, cx: &mut Context<Self>) {
+        let target = self
             .snapshot
             .as_ref()
-            .and_then(|s| s.target.as_ref())
-            .map(|t| t.remote.clone())
-        else {
+            .and_then(|s| s.sync_metadata.fetch_target.clone());
+        if !self.fetching && target != self.observed_fetch_target {
+            self.observed_fetch_target = target;
+            self.next_remote_tick = Some(cx.background_executor().now() + REMOTE_INTERVAL);
+            self.request_fetch(REMOTE_MIN_GAP, cx);
+        }
+    }
+    pub(super) fn check_online(&mut self, cx: &mut Context<Self>) {
+        if !self.focused || self.root.is_none() {
+            return;
+        }
+        let was_online = self.online;
+        self.online = (self.online_probe)().unwrap_or(true);
+        if self.online && !was_online {
+            self.request_fetch(REMOTE_MIN_GAP, cx);
+        }
+    }
+    /// Silent, foreground fetch. Attempts (including failures) are throttled
+    /// per workspace and remote, retaining the clock across workspace switches.
+    pub(super) fn request_fetch(&mut self, gap: Duration, cx: &mut Context<Self>) {
+        if self.fetching || !self.focused {
+            return;
+        }
+        let Some((root, remote)) = self.root.as_ref().zip(
+            self.snapshot
+                .as_ref()
+                .and_then(|s| s.sync_metadata.fetch_target.as_ref()),
+        ) else {
             return;
         };
-        if self.fetching
-            || !should_fetch_remote(
-                self.focused,
-                self.last_fetch
-                    .map(|at| cx.background_executor().now().saturating_duration_since(at)),
-                gap,
-            )
-        {
+        let key = (root.clone(), remote.remote.clone());
+        self.online = (self.online_probe)().unwrap_or(true);
+        let now = cx.background_executor().now();
+        // Entries older than every supported quiet period carry no policy
+        // information; keep recent entries even when another project opens.
+        self.fetch_attempts
+            .retain(|_, at| now.saturating_duration_since(*at) < REMOTE_INTERVAL);
+        if !should_fetch_remote(
+            self.focused,
+            self.online,
+            self.fetch_attempts
+                .get(&key)
+                .map(|at| now.saturating_duration_since(*at)),
+            gap,
+        ) {
             return;
         }
         self.fetching = true;
-        self.last_fetch = Some(cx.background_executor().now());
-        self.task(move |root, cancel| ResultValue::Fetched(git::fetch(&root, &remote, cancel)));
+        self.fetch_attempts.insert(key.clone(), now);
+        let fetcher = self.remote_fetcher.clone();
+        self.task(move |root, cancel| ResultValue::Fetched(fetcher(root, key.1, cancel)));
         cx.notify();
     }
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
@@ -221,11 +254,22 @@ mod tests {
     #[test]
     fn remote_fetches_need_focus_and_a_gap() {
         let s = Duration::from_secs;
-        assert!(should_fetch_remote(true, None, REMOTE_MIN_GAP));
-        assert!(!should_fetch_remote(false, None, REMOTE_MIN_GAP));
-        assert!(!should_fetch_remote(true, Some(s(10)), REMOTE_MIN_GAP));
-        assert!(should_fetch_remote(true, Some(s(15)), REMOTE_MIN_GAP));
-        assert!(!should_fetch_remote(true, Some(s(59)), REMOTE_FOCUS_STALE));
+        assert!(should_fetch_remote(true, true, None, REMOTE_MIN_GAP));
+        assert!(!should_fetch_remote(false, true, None, REMOTE_MIN_GAP));
+        assert!(!should_fetch_remote(true, false, None, REMOTE_MIN_GAP));
+        assert!(!should_fetch_remote(
+            true,
+            true,
+            Some(s(10)),
+            REMOTE_MIN_GAP
+        ));
+        assert!(should_fetch_remote(true, true, Some(s(15)), REMOTE_MIN_GAP));
+        assert!(!should_fetch_remote(
+            true,
+            true,
+            Some(s(59)),
+            REMOTE_FOCUS_STALE
+        ));
     }
 
     #[test]

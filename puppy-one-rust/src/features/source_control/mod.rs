@@ -317,8 +317,13 @@ pub struct SourceControl {
     debounce: Option<Task<()>>,
     focused: bool,
     fetching: bool,
-    last_fetch: Option<Instant>,
+    fetch_attempts: std::collections::HashMap<(PathBuf, String), Instant>,
+    observed_fetch_target: Option<git::sync_state::FetchTarget>,
+    remote_fetcher: RemoteFetcher,
+    online_probe: Arc<dyn Fn() -> Option<bool> + Send + Sync>,
+    online: bool,
     remote_loop: Option<Task<()>>,
+    next_remote_tick: Option<Instant>,
     history_open: bool,
     history_ticket: u64,
     history_cancel: Arc<AtomicBool>,
@@ -344,6 +349,7 @@ pub struct SourceControl {
     #[cfg(test)]
     painted_rows: usize,
 }
+type RemoteFetcher = Arc<dyn Fn(PathBuf, String, &AtomicBool) -> Result<(), String> + Send + Sync>;
 type StatusReader = Arc<dyn Fn(PathBuf, Arc<AtomicBool>) -> Result<Snapshot, String> + Send + Sync>;
 impl EventEmitter<SourceControlEvent> for SourceControl {}
 impl SourceControl {
@@ -410,8 +416,13 @@ impl SourceControl {
             debounce: None,
             focused: true,
             fetching: false,
-            last_fetch: None,
+            fetch_attempts: Default::default(),
+            observed_fetch_target: None,
+            remote_fetcher: Arc::new(|root, remote, cancel| git::fetch(&root, &remote, cancel)),
+            online_probe: Arc::new(crate::platform::connectivity::online),
+            online: true,
             remote_loop: None,
+            next_remote_tick: None,
             history_open: false,
             history_ticket: 0,
             history_cancel: Arc::new(AtomicBool::new(false)),
@@ -471,7 +482,8 @@ impl SourceControl {
         self.rebuild_timeline();
         self.sections.clear();
         self.fetching = false;
-        self.last_fetch = None;
+        self.observed_fetch_target = None;
+        self.next_remote_tick = Some(cx.background_executor().now() + refresh::REMOTE_INTERVAL);
         self.debounce = None;
         // Repository metadata invalidates through its own watcher; Git
         // resolves the directories, so the watch starts on a worker.
@@ -486,14 +498,20 @@ impl SourceControl {
                 .ok(),
             )
         });
-        // `REMOTE_FETCH_INTERVAL_MS`: the sync remote while focused.
+        // Read-only OS connectivity sampling replaces the browser's online
+        // event. It runs no network probe and only samples in the foreground.
         self.remote_loop = Some(cx.spawn(async move |this, cx| {
             loop {
-                cx.background_executor()
-                    .timer(refresh::REMOTE_INTERVAL)
-                    .await;
+                cx.background_executor().timer(refresh::ONLINE_POLL).await;
                 if this
-                    .update(cx, |s, cx| s.request_fetch(refresh::REMOTE_INTERVAL, cx))
+                    .update(cx, |s, cx| {
+                        s.check_online(cx);
+                        let now = cx.background_executor().now();
+                        if s.next_remote_tick.is_some_and(|at| now >= at) {
+                            s.next_remote_tick = Some(now + refresh::REMOTE_INTERVAL);
+                            s.request_fetch(refresh::REMOTE_INTERVAL, cx);
+                        }
+                    })
                     .is_err()
                 {
                     break;
@@ -637,9 +655,7 @@ impl SourceControl {
             self.request_read(self.dirty_immediate, cx);
         }
         // `requestFetch(REMOTE_FETCH_MIN_GAP_MS)` once a remote is known.
-        if self.last_fetch.is_none() {
-            self.request_fetch(refresh::REMOTE_MIN_GAP, cx);
-        }
+        self.reconcile_fetch_target(cx);
         cx.notify();
     }
     fn load_history(&mut self) {

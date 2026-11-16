@@ -3838,7 +3838,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -10578,7 +10578,7 @@
             },
             {
               "index": 14,
-              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A\u2192B\u2192A"
+              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A→B→A"
             }
           ]
         }
@@ -10676,7 +10676,7 @@
           "cases": [
             {
               "index": 2,
-              "name": "registered database DOM viewer > drops late opening results across A\u2192B\u2192A and releases every native lease"
+              "name": "registered database DOM viewer > drops late opening results across A→B→A and releases every native lease"
             },
             {
               "index": 3,
@@ -11277,11 +11277,11 @@
             },
             {
               "index": 2,
-              "name": "gitRefreshScheduler > discards delayed responses across A \u2192 B workspace switches"
+              "name": "gitRefreshScheduler > discards delayed responses across A → B workspace switches"
             },
             {
               "index": 3,
-              "name": "gitRefreshScheduler > discards a delayed B response after A \u2192 B \u2192 A"
+              "name": "gitRefreshScheduler > discards a delayed B response after A → B → A"
             },
             {
               "index": 4,
@@ -11479,6 +11479,85 @@
           "package": "po-app",
           "target": "puppy-one-rust",
           "test": "features::source_control::tests::one_primary_action_follows_the_collaboration_policy"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-git-remote-refresh-policy",
+      "acceptance": "All five frozen remote refresh policy cases: ready effective-hosting identity selects the GitHub, Cloud or generic remote, independently of mutation authorization; local-only/unresolved hosting never fetches. Detached branches retain read-only refresh authority. Actual Git status and fetch exercise a local bare hosting remote while a different publication remote remains untouched. Requests require focus and local online availability, deduplicate physical work, and retain per-project/per-remote attempt timestamps across switches and failed transports. Target changes during a fetch reconcile after settlement. Target/online, focus and interval triggers preserve 15/60/180 second quiet periods. Native foreground online sampling uses local interface state, makes no network probes, treats unknown optimistically, and stops on view close. GPUI clock tests replace only transport/OS query boundaries. Unix interface filtering and actual macOS enumeration are exercised; Windows GetIfTable2 runtime and OS-generated link transitions are not qualified by this host receipt.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/remoteRefreshPolicy.test.ts",
+          "sha256": "ba8ce80f879d164a371da0967dee6695549ff8b7404d32a2cb9b8048e1a8428d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "remote refresh policy > targets the effective github remote for the current workspace"
+            },
+            {
+              "index": 1,
+              "name": "remote refresh policy > targets the effective puppyone-cloud remote for the current workspace"
+            },
+            {
+              "index": 2,
+              "name": "remote refresh policy > targets the effective generic-git remote for the current workspace"
+            },
+            {
+              "index": 3,
+              "name": "remote refresh policy > does not fetch a local-only or unresolved remote"
+            },
+            {
+              "index": 4,
+              "name": "remote refresh policy > fetches only while foreground and after the trigger-specific quiet period"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::effective_fetch_target_keeps_provider_identity_and_detached_read_authority"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::an_empty_legacy_cloud_access_key_never_claims_cloud_hosting"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::real_fetch_updates_only_the_effective_hosting_remote_and_preserves_publication_target"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::real_git_status_keeps_remote_metadata_and_config_without_retargeting_the_branch"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::connectivity::tests::online_requires_an_active_non_loopback_ip_interface"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::connectivity::tests::real_interface_enumeration_returns_a_known_state_without_network_io"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::remote_refresh_targets_hosting_and_reconciles_a_target_changed_during_fetch"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::remote_attempts_are_throttled_per_project_and_remote_across_switches_and_failures"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh_tests::online_recovery_focus_and_interval_obey_distinct_gaps_and_close_stops_sampling"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh::tests::remote_fetches_need_focus_and_a_gap"
         }
       ],
       "environment": "local"

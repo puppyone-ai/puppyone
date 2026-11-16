@@ -72,6 +72,10 @@
     "electron/local-api/git/sync-target.mjs": "4e2863227b59bd3a91ce64e80f7a03db9569d019edc503d9e3cc7187ad053168",
     "tests/unit/source-control/status/gitRefreshScheduler.test.ts": "f41798c8a1765c88efd3b9147fe116290e8e0d9ffb0e5a9d16e1f918328b2f34",
     "tests/unit/source-control/status/gitSyncTarget.test.mjs": "379a42d5a9fc5a2c741060f3d666c7e3dca551c2fd78238608c2d2089e408685",
-    "tests/unit/source-control/status/sourceControlWorkflow.test.ts": "67b2cc5cb4eab38e201dc4db13cb3a44b7e13bfd691c3c79955b15593432ccc1"
+    "tests/unit/source-control/status/sourceControlWorkflow.test.ts": "67b2cc5cb4eab38e201dc4db13cb3a44b7e13bfd691c3c79955b15593432ccc1",
+    "tests/unit/source-control/status/remoteRefreshPolicy.test.ts": "ba8ce80f879d164a371da0967dee6695549ff8b7404d32a2cb9b8048e1a8428d",
+    "src/features/source-control/remoteRefreshPolicy.ts": "c1112ab282412f54e55c32ae63118d93465a07db4ea0b07df940f31dc0ce4619",
+    "src/features/source-control/useGitRepositoryLifecycle.ts": "48eba123809109e8696778176f64d62df3b3decfcf6a49f25a2aa0abc5eccad4",
+    "electron/local-api/workspace.mjs": "7e679a9ea7596ec31a16c981884c3b7e45c803a30ea2ed51b5d92b9cd69e5a78"
   }
 }

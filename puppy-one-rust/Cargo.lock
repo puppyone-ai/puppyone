@@ -6781,6 +6781,7 @@ dependencies = [
  "unicode-normalization",
  "url",
  "uuid",
+ "windows 0.61.3",
  "zed-reqwest",
 ]
 
