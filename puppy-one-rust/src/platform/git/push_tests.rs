@@ -76,8 +76,12 @@ fn every_production_push_site_preserves_the_reviewed_non_overwrite_contract() {
         .join("../..")
         .canonicalize()
         .unwrap();
-    let output = crate::platform::process::run_output(
-        Path::new(option_env!("CARGO").unwrap_or("cargo")),
+    // Exact gates execute libtest directly and may have no Rust tools on PATH.
+    // Keep the nested offline tool on the same toolchain that built this test.
+    let cargo = Path::new(env!("CARGO"));
+    let rustc = cargo.parent().unwrap().join("rustc");
+    let output = crate::platform::process::run_output_with(
+        cargo,
         &[
             "run",
             "--locked",
@@ -91,9 +95,12 @@ fn every_production_push_site_preserves_the_reviewed_non_overwrite_contract() {
         None,
         std::time::Duration::from_secs(120),
         &AtomicBool::new(false),
-        crate::platform::process::OutputLimits {
-            stdout: 16 * 1024 * 1024,
-            stderr: 1024 * 1024,
+        crate::platform::process::OutputOptions {
+            limits: crate::platform::process::OutputLimits {
+                stdout: 16 * 1024 * 1024,
+                stderr: 1024 * 1024,
+            },
+            environment: &[("RUSTC", rustc.to_str().unwrap())],
         },
     )
     .unwrap();
