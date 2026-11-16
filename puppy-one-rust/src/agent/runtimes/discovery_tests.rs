@@ -178,7 +178,15 @@ fn claude_version_and_capability_probes_use_private_disposable_profiles() {
             )
             .await
             .unwrap();
-            assert_eq!(readiness["version"], version);
+            assert_eq!(
+                readiness["version"],
+                version,
+                "status={} code={} diagnostic={} message={}",
+                readiness["status"],
+                readiness["code"],
+                readiness["diagnostic"],
+                readiness["message"]
+            );
             assert_eq!(
                 readiness["minimumVersion"],
                 json!(CLAUDE_CODE_TESTED_BASELINE)

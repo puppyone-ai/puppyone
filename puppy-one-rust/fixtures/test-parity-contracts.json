@@ -12529,6 +12529,7 @@
   "openAcceptance": [
     "Full assertion-level review of the remaining TS inventory",
     "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
-    "Real Cloud and cross-device deployment acceptance"
+    "Real Cloud and cross-device deployment acceptance",
+    "Resolve intermittent native Agent installation/version probe failures seen in full workspace runs; isolated and repeated same-feature passes do not establish a root cause or a fix"
   ]
 }

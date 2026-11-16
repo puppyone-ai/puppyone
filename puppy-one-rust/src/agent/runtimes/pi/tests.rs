@@ -552,7 +552,12 @@ fn requires_the_installed_executable_to_expose_the_official_rpc_mode() {
         let readiness = discover_pi_executable(options, None).await.unwrap();
         assert_eq!(
             *probes.borrow(),
-            vec![vec!["--version".to_string()], vec!["--help".to_string()]]
+            vec![vec!["--version".to_string()], vec!["--help".to_string()]],
+            "status={} code={} diagnostic={} message={}",
+            readiness["status"],
+            readiness["code"],
+            readiness["diagnostic"],
+            readiness["message"]
         );
         for (key, value) in [
             ("runtimeId", json!("pi")),
@@ -580,7 +585,11 @@ fn distinguishes_a_missing_runtime_from_an_installed_runtime_without_rpc_support
         let unsupported = discover_pi_executable(discovery_options(Some(executable)), None)
             .await
             .unwrap();
-        assert_eq!(unsupported["status"], "protocol-unavailable");
+        assert_eq!(
+            unsupported["status"], "protocol-unavailable",
+            "code={} diagnostic={} message={}",
+            unsupported["code"], unsupported["diagnostic"], unsupported["message"]
+        );
         assert_eq!(unsupported["code"], "PROTOCOL_UNAVAILABLE");
         assert_eq!(unsupported["compatibility"], "unavailable");
     });
