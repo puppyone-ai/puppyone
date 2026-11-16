@@ -568,11 +568,18 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     assert_eq!(live.size, size(px(48.), px(32.)));
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
 
-    // The card opens it over the main area again, on the same stream.
+    // The file's error is a modal over the window: once it is gone (and its
+    // notice with it) the card opens the screen over the main area again,
+    // on the same stream.
+    // (The fixture's file read ends in that error: let it arrive first.)
+    view.update_in(cx, |s, w, cx| s.receive(w, cx));
+    cx.run_until_parked();
     view.update(cx, |s, cx| {
         s.session.docs.update(cx, |d, _| d.error = None);
+        s.sync_dialog_status(cx);
     });
     draw(cx);
+    view.read_with(cx, |s, cx| assert!(!s.modal(cx)));
     click_selector(cx, "cloud-screen-card");
     view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
     let stage = cx.debug_bounds("cloud-screen-stage").unwrap();
