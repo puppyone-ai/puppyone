@@ -127,6 +127,11 @@
     "tests/component/ui-primitives/sidebar/sidebarPrimitives.test.tsx": "fe21654e39138588f310dd39b03429bc3a80f7a1cc39c0515e014c7f90fd4206",
     "src/features/source-control/sidebar/useGitSidebarPanelLayout.ts": "40b367c0d4693f94c25c9527b778ae8a546929641b12e69d6cec338e8dafad48",
     "src/shared-ui/primitives/usePaneResizeDrag.ts": "39d062fed8e738d5b4768ae38f991c9feb9d89f7ac73effe547e79223a06ecb7",
-    "src/shared-ui/sidebar/SidebarResizeHandle.tsx": "f91fb33ccd1cc409e1f6cdd361dcee571d56c9e2565714c6ea139575b2751607"
+    "src/shared-ui/sidebar/SidebarResizeHandle.tsx": "f91fb33ccd1cc409e1f6cdd361dcee571d56c9e2565714c6ea139575b2751607",
+    "tests/unit/source-control/diff/formatAwareDiffRegistry.test.ts": "f7b826e2cdb2a43f74862bd314c5c44eeea7a6eb18468939a20915bc4de8bfae",
+    "tests/component/source-control/diff/diffLifecycle.test.tsx": "70a3e894b1bbadf744c9f6b26953733255f76b7dc49be052c5b6c3eaf5223076",
+    "src/features/source-control/diff/core/registry.ts": "ac5b4ce97ffb5ccdae021db84aa48bf8301c6439d9fc9ef68887309171b9b9c0",
+    "src/features/source-control/diff/core/createAsyncDiffContribution.tsx": "d022826bc7b716af5f46ab94743b905942fc9f3bb7d733327b1e06000f442e5a",
+    "src/features/source-control/diff/contributions/docx-redline/contribution.tsx": "a7e4a3e3f11c7da78a9566bdc72354e4874f95f6fea98b0a57a1a1256f7bc9f4"
   }
 }

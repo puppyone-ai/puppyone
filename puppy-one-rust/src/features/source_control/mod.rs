@@ -9,6 +9,8 @@ mod backup_card;
 mod cloud_history;
 pub(crate) use cloud_history::{relative_time, short_date};
 mod diff;
+#[cfg(test)]
+mod diff_tests;
 mod failure;
 mod history;
 mod panel_layout;
@@ -89,9 +91,12 @@ enum DetailKind {
     Working(Selection),
     Commit(CommitSummary),
 }
+type DetailReader =
+    Arc<dyn Fn(PathBuf, &AtomicBool) -> Result<Vec<FileDiff>, String> + Send + Sync>;
 /// A file diff list (Changes detail or a History commit) and its rows.
 struct Detail {
     kind: DetailKind,
+    reader: Option<DetailReader>,
     /// `None` while Git reads it.
     files: Option<Result<Vec<FileDiff>, String>>,
     rows: Vec<diff::Row>,
@@ -102,6 +107,7 @@ impl Detail {
         let list = ListState::new(0, ListAlignment::Top, px(400.));
         let detail = Self {
             kind,
+            reader: None,
             files: None,
             rows: Vec::new(),
             list,
@@ -119,6 +125,15 @@ impl Detail {
     /// Rows above the diffs: a commit's summary.
     fn lead(&self) -> usize {
         usize::from(matches!(self.kind, DetailKind::Commit(_)))
+    }
+    fn failed(&self) -> bool {
+        match &self.files {
+            Some(Err(_)) => true,
+            Some(Ok(files)) => files
+                .iter()
+                .any(|file| matches!(file.redline, Some(Err(_)))),
+            None => false,
+        }
     }
     fn publish(&mut self, files: Result<Vec<FileDiff>, String>) {
         let density = self.density();
@@ -581,8 +596,7 @@ impl SourceControl {
         self.busy = true;
         self.running = Some(op.label());
         self.dismiss_failure(cx);
-        self.detail = None;
-        self.selection += 1;
+        self.close_detail();
         self.task(move |root, cancel| ResultValue::Status(git::operate(&root, &op, cancel)));
         cx.notify();
     }
@@ -702,20 +716,37 @@ impl SourceControl {
     fn open_detail(
         &mut self,
         kind: DetailKind,
-        read: impl FnOnce(PathBuf, &AtomicBool) -> Result<Vec<FileDiff>, String> + Send + 'static,
+        read: impl Fn(PathBuf, &AtomicBool) -> Result<Vec<FileDiff>, String> + Send + Sync + 'static,
         cx: &mut Context<Self>,
     ) {
         self.panel_layout.cancel();
         self.panel_layout.reconcile(&[]);
-        self.selection += 1;
+        self.start_detail(kind, Arc::new(read), cx);
+    }
+    fn start_detail(&mut self, kind: DetailKind, read: DetailReader, cx: &mut Context<Self>) {
+        self.close_detail();
         let selection = self.selection;
-        self.detail = Some(Detail::new(kind));
-        self.detail_cancel.store(true, Ordering::Relaxed);
+        let mut detail = Detail::new(kind);
+        detail.reader = Some(read.clone());
+        self.detail = Some(detail);
         self.detail_cancel = Arc::new(AtomicBool::new(false));
         self.task_with(self.detail_cancel.clone(), move |root, cancel| {
             ResultValue::Diff(read(root, cancel), selection)
         });
         cx.notify();
+    }
+    fn close_detail(&mut self) {
+        self.detail_cancel.store(true, Ordering::Relaxed);
+        self.selection += 1;
+        self.detail = None;
+    }
+    fn retry_detail(&mut self, cx: &mut Context<Self>) {
+        if let Some(detail) = &self.detail
+            && detail.failed()
+            && let Some(read) = detail.reader.clone()
+        {
+            self.start_detail(detail.kind.clone(), read, cx);
+        }
     }
     /// `selectWorkingFile`: the change's diff in its scope.
     fn select(&mut self, change: Change, staged: bool, cx: &mut Context<Self>) {
@@ -740,7 +771,7 @@ impl SourceControl {
     pub fn open_history(&mut self, cx: &mut Context<Self>) {
         self.panel_layout.cancel();
         self.panel_layout.reconcile(&[]);
-        self.detail = None;
+        self.close_detail();
         self.history_open = true;
         self.load_history();
         cx.emit(SourceControlEvent::Surface);
@@ -756,7 +787,7 @@ impl SourceControl {
             self.detail.as_ref().map(|d| &d.kind),
             Some(DetailKind::Commit(_))
         ) {
-            self.detail = None;
+            self.close_detail();
         }
         self.selection += 1;
         cx.emit(SourceControlEvent::Surface);
@@ -1685,11 +1716,25 @@ impl SourceControl {
         let Some(detail) = &self.detail else {
             return div().into_any_element();
         };
+        let retry = (detail.failed() && detail.reader.is_some()).then(|| {
+            h_flex()
+                .flex_none()
+                .px(px(detail.density().inline()))
+                .py(px(8.))
+                .child(
+                    Button::new("git-diff-retry")
+                        .debug_selector(|| "git-diff-retry".into())
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("common.action.retry"))
+                        .on_click(cx.listener(|s, _, _, cx| s.retry_detail(cx))),
+                )
+        });
         if matches!(&detail.files, Some(Ok(files)) if !files.is_empty()) {
             let host = cx.weak_entity();
             return gpui_kit::base::v_flex()
                 .flex_1()
                 .min_h_0()
+                .children(retry)
                 .child(
                     list(detail.list.clone(), move |i, _, cx| {
                         host.update(cx, |s, cx| s.detail_row(i, cx))
@@ -1753,6 +1798,7 @@ impl SourceControl {
             .min_h_0()
             .children(summary)
             .child(body)
+            .children(retry)
             .into_any_element()
     }
 }
@@ -1786,9 +1832,9 @@ impl Render for SourceControl {
                     tr("shared-ui.navigation.back"),
                     t,
                 )
+                .debug_selector(|| "git-diff-back".into())
                 .on_click(cx.listener(|s, _, _, cx| {
-                    s.detail = None;
-                    s.selection += 1;
+                    s.close_detail();
                     cx.notify();
                 })),
             );
@@ -1803,11 +1849,13 @@ impl Render for SourceControl {
                     tr("shared-ui.navigation.back"),
                     t,
                 )
+                .debug_selector(|| "git-diff-back".into())
                 .on_click(cx.listener(|s, _, _, cx| {
-                    if s.detail.take().is_none() {
+                    if s.detail.is_none() {
                         s.show_changes(cx);
+                    } else {
+                        s.close_detail();
                     }
-                    s.selection += 1;
                     cx.notify();
                 })),
             );

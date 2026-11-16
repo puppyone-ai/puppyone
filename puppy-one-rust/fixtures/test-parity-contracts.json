@@ -13421,6 +13421,119 @@
           "test": "app::tests::sidebar_surfaces::hiding_or_switching_the_changes_sidebar_rolls_back_its_section_drag"
         }
       ]
+    },
+    {
+      "id": "native-format-aware-diff-routing",
+      "acceptance": "Specialized DOCX, Git text, and total binary fallback stay in deterministic order. Canonical concrete extension distinguishes DOCX from legacy DOC even though both share the Word family. Word owned revision payloads route to the redline (including explained parser failures); no payload uses binary metadata. Known text with no lines and unknown extensions with actual Git text use unified rows; binary files never masquerade as text. Empty current paths use the old name.",
+      "environment": "Rust parses owned revision bytes in the detail worker before invoking native renderers, so JavaScript sync/async contribution tags and IPC resource handles are replaced by worker ownership. The same specialized/text/metadata precedence and fallback outcomes are verified; this row does not qualify resource broker quotas or cross-process lifecycle.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/diff/formatAwareDiffRegistry.test.ts",
+          "sha256": "f7b826e2cdb2a43f74862bd314c5c44eeea7a6eb18468939a20915bc4de8bfae",
+          "cases": [
+            {
+              "index": 0,
+              "name": "format-aware diff registry > has deterministic specialized, text, and total fallback ordering"
+            },
+            {
+              "index": 1,
+              "name": "format-aware diff registry > routes DOCX by the canonical format registry when a revision pair exists"
+            },
+            {
+              "index": 2,
+              "name": "format-aware diff registry > preserves unified text for known and Git-confirmed text files"
+            },
+            {
+              "index": 3,
+              "name": "format-aware diff registry > falls back honestly for unknown binary and DOCX without a revision pair"
+            },
+            {
+              "index": 4,
+              "name": "format-aware diff registry > does not send legacy binary .doc files to the OOXML DOCX parser"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff::tests::each_file_resolves_to_the_products_renderer"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff::tests::renderer_priority_is_specialized_then_text_then_a_total_fallback"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff::tests::unknown_extensions_use_git_text_evidence_and_binary_metadata_honestly"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff::tests::legacy_word_never_enters_the_ooxml_renderer_even_with_a_revision_payload"
+        }
+      ]
+    },
+    {
+      "id": "native-diff-loading-retry-and-cancellation",
+      "acceptance": "One detail loader owns loading, read errors, Word parser errors and Retry. A rendered Retry starts exactly one new attempt, clears the previous model and retry affordance while loading, and publishes recovered results. Superseding a selection cancels its actual reader; an old successful result delivered while the new request is blocked cannot publish any model. Back from working or commit detail and navigation to History cancel in-flight reads. A real malformed untracked DOCX is repaired on disk and recovered through the production Git reader and rendered Retry without reopening.",
+      "environment": "GPUI test platform, bounded controlled worker channels, real temporary Git and DOCX fixtures; no user repository or network. Rust worker cancellation flags and selection/workspace generations replace AbortSignal and React effect ownership. Existing stale workspace/history/diff result acceptance additionally verifies the generation fence.",
+      "typescript": [
+        {
+          "path": "tests/component/source-control/diff/diffLifecycle.test.tsx",
+          "sha256": "70a3e894b1bbadf744c9f6b26953733255f76b7dc49be052c5b6c3eaf5223076",
+          "cases": [
+            {
+              "index": 0,
+              "name": "format-aware async diff lifecycle > aborts superseded work and commits zero models from the previous identity"
+            },
+            {
+              "index": 1,
+              "name": "format-aware async diff lifecycle > exposes loading, error, and retry through one reusable lifecycle"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::superseded_diff_readers_are_cancelled_and_never_publish_their_models"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::failed_diff_reads_offer_one_retry_and_recover_through_the_same_loader"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::a_word_parser_failure_can_retry_without_reopening_the_file"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::repairing_a_real_word_file_recovers_via_the_rendered_retry"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::leaving_a_working_diff_for_history_cancels_its_reader"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::back_from_working_and_commit_details_cancels_the_read"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::stale_workspace_history_and_diff_results_cannot_publish"
+        }
+      ]
     }
   ],
   "openAcceptance": [

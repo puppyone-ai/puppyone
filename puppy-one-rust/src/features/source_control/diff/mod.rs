@@ -37,7 +37,12 @@ static VIEWERS: [DiffViewer; 3] = [
     DiffViewer {
         #[cfg(test)]
         id: "docx-redline",
-        matches: |file, format| format.id == "docx" && file.redline.is_some(),
+        matches: |file, format| {
+            format.id == "docx"
+                && formats::resolved_extension(Some(format_name(file)), None, format).as_deref()
+                    == Some("docx")
+                && file.redline.is_some()
+        },
         rows: docx_redline::rows,
     },
     DiffViewer {
@@ -57,17 +62,20 @@ static VIEWERS: [DiffViewer; 3] = [
 /// `resolveDiffViewer`: the file's format, then the first renderer that
 /// accepts it.
 pub fn resolve(file: &FileDiff) -> (&'static DiffViewer, &'static FileFormat) {
-    let name = if file.path.is_empty() {
-        file.old_path.as_deref().unwrap_or_default()
-    } else {
-        &file.path
-    };
-    let format = formats::of(name);
+    let format = formats::of(format_name(file));
     let viewer = VIEWERS
         .iter()
         .find(|v| (v.matches)(file, format))
         .unwrap_or(&VIEWERS[2]);
     (viewer, format)
+}
+
+fn format_name(file: &FileDiff) -> &str {
+    if file.path.is_empty() {
+        file.old_path.as_deref().unwrap_or_default()
+    } else {
+        &file.path
+    }
 }
 
 /// One row of the diff list.
@@ -446,6 +454,70 @@ mod tests {
         assert_eq!(resolve(&word).0.id, "docx-redline");
         // A text-like format with no textual lines still uses the unified view.
         assert_eq!(resolve(&file("notes.md", false, &[])).0.id, "text-unified");
+    }
+
+    #[test]
+    fn renderer_priority_is_specialized_then_text_then_a_total_fallback() {
+        assert_eq!(
+            VIEWERS.each_ref().map(|viewer| viewer.id),
+            ["docx-redline", "text-unified", "binary-summary"]
+        );
+        for path in ["unknown.bin", "main.ts", "Report.DOCX", "legacy.doc", ""] {
+            for binary in [false, true] {
+                let input = file(path, binary, &[]);
+                assert!((VIEWERS[2].matches)(&input, formats::of(path)));
+            }
+        }
+        let word = FileDiff {
+            // A readable or failed owned revision pair must beat a textual
+            // patch; Word parsing runs in the detail worker, before routing.
+            redline: Some(Err("Malformed package".into())),
+            ..file("Report.DOCX", false, &[(LineKind::Add, "patch")])
+        };
+        let (viewer, format) = resolve(&word);
+        assert_eq!((viewer.id, format.id.as_str()), ("docx-redline", "docx"));
+        let renamed = FileDiff {
+            path: String::new(),
+            old_path: Some("Report.docx".into()),
+            ..word
+        };
+        assert_eq!(resolve(&renamed).0.id, "docx-redline");
+    }
+
+    #[test]
+    fn unknown_extensions_use_git_text_evidence_and_binary_metadata_honestly() {
+        let text = file(
+            "README.unknown-extension",
+            false,
+            &[(LineKind::Add, "hello")],
+        );
+        assert_eq!(resolve(&text).0.id, "text-unified");
+        assert!(
+            rows(&[text], Density::Sidebar)
+                .iter()
+                .any(|row| matches!(row, Row::Line { .. }))
+        );
+        for path in ["archive.custom", "report.docx", "main.ts"] {
+            let binary = file(path, true, &[]);
+            assert_eq!(resolve(&binary).0.id, "binary-summary", "{path}");
+            assert!(
+                rows(&[binary], Density::Page)
+                    .iter()
+                    .any(|row| matches!(row, Row::Binary { .. }))
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_word_never_enters_the_ooxml_renderer_even_with_a_revision_payload() {
+        let legacy = FileDiff {
+            redline: Some(Err("must not render as OOXML".into())),
+            ..file("legacy.doc", true, &[])
+        };
+        assert_eq!(resolve(&legacy).0.id, "binary-summary");
+        let rows = rows(&[legacy], Density::Sidebar);
+        assert!(rows.iter().any(|row| matches!(row, Row::Binary { .. })));
+        assert!(!rows.iter().any(|row| matches!(row, Row::Redline { .. })));
     }
 
     #[test]
