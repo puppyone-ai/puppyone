@@ -6,7 +6,9 @@
 //! ([`SandboxedGit`]). Results are JSON in the shape the TypeScript host
 //! gives (`getWorkspaceGitStatus`), so either side can be either app.
 use super::{exec::FolderSandbox, protocol::relative_path};
+use crate::platform::git::runner::{self, Invocation, Kind};
 use serde_json::{Value, json};
+use std::sync::atomic::AtomicBool;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -47,7 +49,14 @@ impl Git for SandboxedGit {
     fn git(&self, root: &Path, args: &[&str], input: Option<&[u8]>) -> Result<Vec<u8>, String> {
         let prepared = self
             .0
-            .prepare_program("git", args.iter().map(|a| (*a).to_owned()).collect(), root)
+            .prepare_program(
+                "git",
+                runner::arguments(args)
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                root,
+            )
             .map_err(str::to_owned)?;
         run(
             &prepared.program,
@@ -55,6 +64,7 @@ impl Git for SandboxedGit {
             &prepared.env,
             root,
             input,
+            kind(args),
         )
     }
 }
@@ -62,8 +72,24 @@ impl Git for SandboxedGit {
 pub struct PlainGit;
 impl Git for PlainGit {
     fn git(&self, root: &Path, args: &[&str], input: Option<&[u8]>) -> Result<Vec<u8>, String> {
-        let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
-        run(Path::new("git"), &args, &[], root, input)
+        let kind = kind(args);
+        let args: Vec<String> = runner::arguments(args)
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        run(Path::new("git"), &args, &[], root, input, kind)
+    }
+}
+/// Only reads suppress optional index refresh locks. Repository mutations
+/// and network calls retain the same budgets as local Git.
+fn kind(args: &[&str]) -> Kind {
+    match args.first().copied() {
+        Some(
+            "rev-parse" | "status" | "diff" | "log" | "show" | "cat-file" | "rev-list"
+            | "for-each-ref" | "ls-tree",
+        ) => Kind::Read,
+        Some("pull" | "push" | "fetch") => Kind::Network,
+        _ => Kind::Mutation,
     }
 }
 fn run(
@@ -72,35 +98,33 @@ fn run(
     env: &[(String, String)],
     root: &Path,
     input: Option<&[u8]>,
+    kind: Kind,
 ) -> Result<Vec<u8>, String> {
-    use std::io::Write;
-    let mut child = std::process::Command::new(program)
-        .args(args)
-        .current_dir(root)
-        .envs(env.iter().cloned())
-        // Never prompt for credentials on a computer nobody is watching.
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    if let Some(mut stdin) = child.stdin.take()
-        && let Some(bytes) = input
-    {
-        let _ = stdin.write_all(bytes);
-    }
-    let output = child.wait_with_output().map_err(|e| e.to_string())?;
-    if output.status.success() {
-        Ok(output.stdout)
-    } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_owned())
-    }
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let environment: Vec<(&str, &str)> =
+        env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    runner::execute_prepared(
+        root,
+        Invocation {
+            program,
+            args: &args,
+            environment: &environment,
+        },
+        input,
+        &AtomicBool::new(false),
+        kind,
+        runner::MAX_BUFFER,
+    )
 }
 
-/// `gitPath`: folder-relative, the host file protocol's rules.
+/// `gitPath`: folder-relative. Unlike file navigation, Git rejects empty
+/// segments instead of normalizing them, and measures the TS UTF-16 limit.
 fn git_path(value: &str) -> Result<String, &'static str> {
+    if value.encode_utf16().count() > super::protocol::MAX_PATH_CHARACTERS
+        || value.split('/').any(str::is_empty)
+    {
+        return Err("invalid_path");
+    }
     relative_path(value, false).map_err(|_| "invalid_path")
 }
 fn git_paths(values: &[String]) -> Result<Vec<String>, &'static str> {
@@ -263,7 +287,7 @@ impl GitService {
             "discard" => with_paths(&["restore", "--worktree"], &git_paths(&request.paths)?),
             "commit" => {
                 let message = request.message.as_deref().unwrap_or_default();
-                if message.trim().is_empty() || message.chars().count() > 10_000 {
+                if message.trim().is_empty() || message.encode_utf16().count() > 10_000 {
                     return Err("invalid_content");
                 }
                 done(git.git(
@@ -381,3 +405,6 @@ mod tests {
         assert!(request("status").reads() && !request("commit").reads());
     }
 }
+
+#[cfg(test)]
+mod acceptance_tests;

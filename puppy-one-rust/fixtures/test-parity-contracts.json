@@ -3850,7 +3850,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -10594,7 +10594,7 @@
             },
             {
               "index": 14,
-              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A\u2192B\u2192A"
+              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A→B→A"
             }
           ]
         }
@@ -10692,7 +10692,7 @@
           "cases": [
             {
               "index": 2,
-              "name": "registered database DOM viewer > drops late opening results across A\u2192B\u2192A and releases every native lease"
+              "name": "registered database DOM viewer > drops late opening results across A→B→A and releases every native lease"
             },
             {
               "index": 3,
@@ -11293,11 +11293,11 @@
             },
             {
               "index": 2,
-              "name": "gitRefreshScheduler > discards delayed responses across A \u2192 B workspace switches"
+              "name": "gitRefreshScheduler > discards delayed responses across A → B workspace switches"
             },
             {
               "index": 3,
-              "name": "gitRefreshScheduler > discards a delayed B response after A \u2192 B \u2192 A"
+              "name": "gitRefreshScheduler > discards a delayed B response after A → B → A"
             },
             {
               "index": 4,
@@ -12642,6 +12642,57 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-host-git-execution",
+      "acceptance": "Actual JSONL host requests stage and commit in a private repository, reject paths/operations/empty messages, and re-read revoked Git consent. Actual macOS Seatbelt permits the hook inside the shared folder and refuses its outside write, without an unsandboxed fallback. Host Git shares bounded process I/O, literal pathspecs, read-only optional locks and per-kind deadlines with local Git; UTF-16 message/path limits and named local mutation behavior are exercised. The sandbox hook test is explicitly required, never qualified by an ignored result. Remote history, pull/push wire behavior, and non-macOS sandbox execution remain separate acceptance.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/execution/hostExecution.test.mjs",
+          "sha256": "5a0ca258f895db3e9e60bd663385c9b9fff9369561a72078f37688367b410695",
+          "cases": [
+            {
+              "index": 4,
+              "name": "host execution policy > runs Git and its hooks inside the folder sandbox"
+            },
+            {
+              "index": 7,
+              "name": "host Git service > runs named operations with this computer's Git only when allowed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::literal_file_names_cannot_stage_another_matching_path"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::host_git_keeps_binary_stdin_but_refuses_oversized_output"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::invalid_requests_are_refused_before_git_and_commit_limits_count_utf16"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::the_files_protocol_rechecks_git_consent_after_a_real_commit"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::git_hooks_in_the_actual_sandbox_cannot_write_outside_the_shared_folder"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::named_mutations_cover_unborn_unstage_diff_discard_and_explicit_index_updates"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::constructing_a_sandbox_adapter_cannot_run_git_and_missing_sandbox_has_no_fallback"
+        }
+      ],
+      "environment": "macos"
     }
   ],
   "openAcceptance": [

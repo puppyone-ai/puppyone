@@ -5,7 +5,7 @@
 //! repository's, with repository-relative paths. Mutations and file reads stay
 //! inside the opened folder: a change elsewhere in the repository is shown but
 //! cannot be staged, discarded or opened from here.
-mod runner;
+pub mod runner;
 pub mod sync_state;
 use std::{
     path::{Component, Path},

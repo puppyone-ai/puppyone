@@ -99,6 +99,9 @@
     "src/features/project-import/importSourceRegistry.ts": "44d119fcb2987affda9ae9c4cf752b06b94c812801d0597f526c86ce8fa7e457",
     "src/components/onboarding/OnboardingEntryActions.tsx": "d772760468022770e4a2574dd723deda5e87364b3d75bcfc93a3545eca6b44a3",
     "src/components/onboarding/ImportSourcePreview.tsx": "2223f29cbe352e2402f89198a141a96ed4221ebbd342c80c5650ea019f22c046",
-    "electron/main/project-import/app-folders.mjs": "a4d1ae45b5fbf0e64d8a12b6553c259a571647cb7ce25090ecbbaddf53baa7e7"
+    "electron/main/project-import/app-folders.mjs": "a4d1ae45b5fbf0e64d8a12b6553c259a571647cb7ce25090ecbbaddf53baa7e7",
+    "tests/unit/hosts/execution/hostExecution.test.mjs": "5a0ca258f895db3e9e60bd663385c9b9fff9369561a72078f37688367b410695",
+    "electron/main/hosts/host-git-service.mjs": "1533df959c884e2039da702d93115c6955bc6aa148a491eec2f810f977f1cb62",
+    "electron/host-service/sandboxed-git.mjs": "96ffa8227e8c98c8181e7cb87bef1630e1df63fbe66ac530bf7839f6a77c18d6"
   }
 }

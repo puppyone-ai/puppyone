@@ -4,10 +4,10 @@
 use crate::platform::process::{self, OutputLimits, OutputOptions};
 use std::{path::Path, sync::atomic::AtomicBool, time::Duration};
 
-pub(super) const MAX_BUFFER: usize = 4 * 1024 * 1024;
+pub const MAX_BUFFER: usize = 4 * 1024 * 1024;
 pub(super) const MAX_STREAM_BYTES: usize = 8 * 1024 * 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Kind {
+pub enum Kind {
     Read,
     Mutation,
     Network,
@@ -32,6 +32,24 @@ pub(super) fn execute(
     kind: Kind,
     max_bytes: usize,
 ) -> Result<Vec<u8>, String> {
+    let args = arguments(args);
+    execute_prepared(
+        root,
+        Invocation {
+            program: Path::new("/usr/bin/git"),
+            args: &args,
+            environment: &[],
+        },
+        input,
+        cancel,
+        kind,
+        max_bytes,
+    )
+}
+
+/// Git options belong inside any OS sandbox wrapper, before the subcommand.
+/// Paths remain literal even when a filename contains Git pathspec syntax.
+pub fn arguments<'a>(args: &[&'a str]) -> Vec<&'a str> {
     let mut all = vec![
         "--literal-pathspecs",
         "-c",
@@ -42,13 +60,32 @@ pub(super) fn execute(
         "core.pager=cat",
     ];
     all.extend(args);
-    let mut environment = vec![("LANG", "C"), ("GCM_INTERACTIVE", "never")];
+    all
+}
+
+/// A command already wrapped by the owner's execution policy. The wrapper's
+/// argv and environment are preserved; it cannot bypass the Git I/O budget.
+pub struct Invocation<'a> {
+    pub program: &'a Path,
+    pub args: &'a [&'a str],
+    pub environment: &'a [(&'a str, &'a str)],
+}
+pub fn execute_prepared(
+    root: &Path,
+    invocation: Invocation<'_>,
+    input: Option<&[u8]>,
+    cancel: &AtomicBool,
+    kind: Kind,
+    max_bytes: usize,
+) -> Result<Vec<u8>, String> {
+    let mut environment = invocation.environment.to_vec();
+    environment.extend([("LANG", "C"), ("GCM_INTERACTIVE", "never")]);
     if kind == Kind::Read {
         environment.push(("GIT_OPTIONAL_LOCKS", "0"));
     }
     process::run_output_with(
-        Path::new("/usr/bin/git"),
-        &all,
+        invocation.program,
+        invocation.args,
         root,
         input,
         kind.timeout(),
