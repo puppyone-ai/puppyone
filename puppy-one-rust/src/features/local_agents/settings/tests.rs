@@ -253,3 +253,36 @@ fn native_settings_show_fast_evidence_while_siblings_wait_and_view_closure_does_
     assert_eq!(calls.load(Ordering::SeqCst), 8);
     cx.update(App::shutdown);
 }
+
+#[gpui::test]
+fn native_windows_settle_a_panicking_discovery_factory_without_inventing_absence(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let (release, wait) = std::sync::mpsc::channel();
+    let (host, events) = crate::agent::host::InstallationHost::with_factory(move || {
+        wait.recv().unwrap();
+        panic!("injected factory failure");
+    });
+    let store = cx.update(|cx| discovery::install(host, events, cx));
+    let prefs = cx.new(|_| PreferencesStore::memory());
+    let first = cx.add_window(|window, cx| AgentSettings::new(prefs.clone(), window, cx));
+    let second = cx.add_window(|window, cx| AgentSettings::new(prefs.clone(), window, cx));
+    assert!(store.read_with(cx, |s, _| s.scanning));
+    release.send(()).unwrap();
+    until(cx, |cx| !store.read_with(cx, |s, _| s.scanning));
+    assert!(store.read_with(cx, |s, _| s.failed));
+    for window in [first, second] {
+        window
+            .update(cx, |s, _, _| {
+                assert!(!s.scanning);
+                let rows = s.installations.as_ref().unwrap();
+                assert_eq!(rows.len(), 1);
+                assert!(rows[0].bundled());
+            })
+            .unwrap();
+    }
+    assert!(store.read_with(cx, |s, _| s.inventory().observations.is_empty()));
+    cx.update(App::shutdown);
+}

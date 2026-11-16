@@ -7271,7 +7271,7 @@
     },
     {
       "id": "application-session-installation-discovery",
-      "acceptance": "One application-session installation service shares one immutable resolution context per scan, emits incremental path-free outcomes in registry order, replays progress to late subscribers, isolates resolver/observer failures, retains previously available evidence only across failed observations, and reuses empty/failed snapshots without a TTL. Ordinary reads during refresh return cached evidence immediately; a refresh during active work coalesces into one guaranteed subsequent scan. Disposal cancels work, rejects queued requests, and suppresses late publication. Native Settings, launchers, and Home consume the shared service; actual Settings windows verify incremental rows, cross-window refresh, view replacement, and app shutdown. Native terminal recipes preserve prefix arguments and environment, with real PTY proof of literal argument delivery. This does not claim setup-guide receipt parity, real OS window automation, or Windows execution acceptance.",
+      "acceptance": "One application-session installation service shares one immutable resolution context per scan, emits incremental path-free outcomes in registry order, replays progress to late subscribers, isolates resolver/observer failures, retains previously available evidence only across failed observations, and reuses empty/failed snapshots without a TTL. Ordinary reads during refresh return cached evidence immediately; a refresh during active work coalesces into one guaranteed subsequent scan. Disposal cancels work, rejects queued requests, and suppresses late publication. Native Settings, launchers, and Home consume the shared service; actual Settings windows verify incremental rows, cross-window refresh, view replacement, and app shutdown. Native terminal recipes preserve prefix arguments and environment, with real PTY proof of literal argument delivery. This does not claim setup-guide receipt parity, real OS window automation, or Windows execution acceptance. Native failure regressions additionally require factory/scan panic settlement, queued-refresh recovery without losing retained evidence, event-channel closure feedback, and nonblocking host retirement while an uninterruptible metadata worker finishes separately.",
       "typescript": [
         {
           "path": "tests/unit/platform/local-agent-installation/electron.local-agent-installation-service.test.mjs",
@@ -7375,6 +7375,32 @@
         {
           "package": "po-platform",
           "test": "platform::terminal::tests::verified_cli_arguments_and_environment_reach_the_real_pty_without_shell_interpolation"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::host::installation_host::tests::factory_panic_reports_unavailable_and_rejects_future_requests"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::host::installation_host::tests::closing_the_host_does_not_wait_for_an_uninterruptible_metadata_worker"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::a_panicking_scan_settles_and_does_not_poison_the_next_explicit_refresh"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::installation::installation_service::tests::a_failed_refresh_retains_previous_evidence_and_releases_one_queued_refresh"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::discovery::tests::disconnected_host_events_settle_scanning_as_failed"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::settings::discovery_tests::native_windows_settle_a_panicking_discovery_factory_without_inventing_absence"
         }
       ]
     },

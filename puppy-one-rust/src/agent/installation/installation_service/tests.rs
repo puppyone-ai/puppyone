@@ -490,3 +490,99 @@ fn context_and_product_panics_become_failed_observations_and_release_the_scan() 
         assert!(!service.is_scanning());
     });
 }
+
+#[test]
+fn a_panicking_scan_settles_and_does_not_poison_the_next_explicit_refresh() {
+    run(async {
+        let attempts = Rc::new(Cell::new(0));
+        let seen = attempts.clone();
+        let service = InstallationService::new(
+            DEFAULT_LOCAL_AGENT_INSTALLATION_REGISTRY.clone(),
+            Rc::new(|signal| Box::pin(async move { Ok(context(signal)) })),
+            immediate(|_| Ok(missing())),
+            Rc::new(move || {
+                let attempt = seen.get();
+                seen.set(attempt + 1);
+                assert_ne!(attempt, 0, "injected clock failure");
+                1_000
+            }),
+            None,
+        );
+        let initial = service.discover(false, None);
+        settle().await;
+        assert!(initial.await.is_err());
+        assert!(
+            !service.is_scanning(),
+            "a failed worker must release its active slot"
+        );
+        let refreshed = service.discover(true, None);
+        let refreshed = tokio::time::timeout(std::time::Duration::from_secs(2), refreshed)
+            .await
+            .expect("refresh must not queue behind a dead worker")
+            .unwrap();
+        assert_eq!(refreshed.results().len(), 8);
+        assert!(!service.is_scanning());
+    });
+}
+
+#[test]
+fn a_failed_refresh_retains_previous_evidence_and_releases_one_queued_refresh() {
+    run(async {
+        let fail = Rc::new(Cell::new(false));
+        let next_failure = fail.clone();
+        let gate = Rc::new(RefCell::new(None::<oneshot::Receiver<()>>));
+        let wait = gate.clone();
+        let (published, publish) = record();
+        let service = InstallationService::new(
+            DEFAULT_LOCAL_AGENT_INSTALLATION_REGISTRY.clone(),
+            Rc::new(move |signal| {
+                let pending = wait.borrow_mut().take();
+                Box::pin(async move {
+                    if let Some(pending) = pending {
+                        pending.await.unwrap();
+                    }
+                    Ok(context(signal))
+                })
+            }),
+            immediate(|id| Ok(found(id))),
+            Rc::new(move || {
+                assert!(
+                    !next_failure.replace(false),
+                    "private clock fixture failure"
+                );
+                1_000
+            }),
+            Some(publish),
+        );
+        let first = service.discover(false, None).await.unwrap();
+        let (release, pending) = oneshot::channel();
+        *gate.borrow_mut() = Some(pending);
+        fail.set(true);
+        let failed = service.discover(true, None);
+        let queued = service.discover(true, None);
+        let joined = service.discover(true, None);
+        assert!(queued.ptr_eq(&joined));
+        assert_eq!(
+            failed.await.unwrap_err().message,
+            "Local Agent installation scan failed."
+        );
+        assert!(service.is_scanning());
+        assert!(Arc::ptr_eq(&first, &service.get_snapshot().unwrap()));
+        assert_eq!(published.borrow().len(), 1);
+        assert!(queued.peek().is_none());
+        release.send(()).unwrap();
+        let refreshed = queued.await.unwrap();
+        assert_eq!(refreshed.generation(), 3);
+        assert_eq!(refreshed.available_agent_ids().len(), 8);
+        assert_eq!(
+            published
+                .borrow()
+                .iter()
+                .map(|s| s.generation())
+                .collect::<Vec<_>>(),
+            [1, 3]
+        );
+        assert!(!service.is_scanning());
+        assert_eq!(service.get_diagnostics().scan_count, 3);
+    });
+}

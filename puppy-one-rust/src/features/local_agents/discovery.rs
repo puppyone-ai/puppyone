@@ -65,6 +65,9 @@ pub(super) fn install(
                 break;
             }
         }
+        // Losing the host is a failed observation, never an indefinitely
+        // pending scan or evidence that an installation is absent.
+        let _ = weak.update(cx, |state, cx| state.accept(Event::Unavailable, cx));
     })
     .detach();
     let weak = entity.downgrade();
@@ -213,3 +216,6 @@ fn observation(result: &ProductResult) -> Observation {
         },
     }
 }
+
+#[cfg(test)]
+mod tests;

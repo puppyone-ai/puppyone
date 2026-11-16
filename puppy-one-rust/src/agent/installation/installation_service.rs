@@ -184,10 +184,17 @@ impl InstallationService {
         let service = self.clone();
         tokio::task::spawn_local(async move {
             let started = Instant::now();
-            let outcome = service.scan(generation).await.and_then(|snapshot| {
-                snapshot.validate()?;
-                Ok(Arc::new(snapshot))
-            });
+            // A failure outside an individual resolver (clock, validation or
+            // composition) must settle its receipt and release the scan slot.
+            let outcome = std::panic::AssertUnwindSafe(async {
+                service.scan(generation).await.and_then(|snapshot| {
+                    snapshot.validate()?;
+                    Ok(Arc::new(snapshot))
+                })
+            })
+            .catch_unwind()
+            .await
+            .unwrap_or_else(|_| Err(AgentError::new("Local Agent installation scan failed.")));
             let snapshot = outcome.as_ref().ok();
             let publish = {
                 let mut state = service.state.borrow_mut();
