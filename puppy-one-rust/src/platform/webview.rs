@@ -30,6 +30,10 @@ const ENTRY: &str = "__entry__";
 /// Relative resources that do not live in a local folder (a Cloud
 /// document's assets): `relative` is decoded and has only normal components.
 pub trait ResourceSource: Send + Sync {
+    /// Source authority also guards bundled resources and local projections.
+    fn is_live(&self) -> bool {
+        true
+    }
     fn read(&self, relative: &Path) -> Option<Vec<u8>>;
     fn size(&self, _relative: &Path) -> Option<u64> {
         None
@@ -39,6 +43,9 @@ pub trait ResourceSource: Send + Sync {
 #[derive(Clone)]
 pub struct Source(pub std::sync::Arc<dyn ResourceSource>);
 impl ResourceSource for Source {
+    fn is_live(&self) -> bool {
+        self.0.is_live()
+    }
     fn read(&self, relative: &Path) -> Option<Vec<u8>> {
         self.0.read(relative)
     }
@@ -70,6 +77,9 @@ impl<S> Budgeted<S> {
     }
 }
 impl<S: ResourceSource> ResourceSource for Budgeted<S> {
+    fn is_live(&self) -> bool {
+        self.inner.is_live()
+    }
     fn read(&self, relative: &Path) -> Option<Vec<u8>> {
         {
             let mut used = self.used.lock().ok()?;
@@ -152,6 +162,7 @@ impl PreparedContent {
     }
     fn is_live(&self) -> bool {
         self.live.load(std::sync::atomic::Ordering::Acquire)
+            && self.source.as_ref().is_none_or(ResourceSource::is_live)
     }
 }
 impl std::ops::Deref for PreparedContent {

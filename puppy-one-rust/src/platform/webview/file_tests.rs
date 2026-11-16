@@ -491,3 +491,65 @@ fn opened_resources_never_reopen_paths_and_budget_growth_remains_bounded() {
         Some((4 * 1024 * 1024 * 1024, vec![0]))
     );
 }
+
+#[test]
+fn provider_authority_is_rechecked_after_read_and_through_budgeted_sources() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
+    struct RetiringSource {
+        live: AtomicBool,
+        reads: AtomicUsize,
+    }
+    impl ResourceSource for RetiringSource {
+        fn is_live(&self) -> bool {
+            self.live.load(Ordering::Acquire)
+        }
+        fn read(&self, _: &Path) -> Option<Vec<u8>> {
+            self.reads.fetch_add(1, Ordering::Relaxed);
+            self.live.store(false, Ordering::Release);
+            Some(b"retired body".to_vec())
+        }
+    }
+    let root = tempfile::tempdir().unwrap();
+    let source = Arc::new(RetiringSource {
+        live: AtomicBool::new(true),
+        reads: AtomicUsize::new(0),
+    });
+    let mut spec = (*content(root.path(), 64)).clone();
+    spec.root = None;
+    spec.source = Some(Source(Arc::new(Budgeted::new(
+        Source(source.clone()),
+        1,
+        64,
+    ))));
+    let prepared = spec.prepare();
+    let reply = respond_request(
+        &prepared,
+        true,
+        "GET",
+        &local_url_for("file.txt"),
+        None,
+        None,
+    );
+    assert_eq!(reply.status, 403);
+    assert!(!reply.body.windows(12).any(|b| b == b"retired body"));
+    assert_eq!(
+        respond_request(
+            &prepared,
+            true,
+            "GET",
+            &local_url_for("file.txt"),
+            None,
+            None
+        )
+        .status,
+        403
+    );
+    assert_eq!(
+        respond_request(&prepared, false, "GET", &entry_url(), None, None).status,
+        403
+    );
+    assert_eq!(source.reads.load(Ordering::Relaxed), 1);
+}

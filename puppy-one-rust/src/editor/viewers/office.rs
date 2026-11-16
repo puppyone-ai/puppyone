@@ -13,7 +13,7 @@
 use super::{html_visual::script_json, web::WebFrame};
 use crate::{
     editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
-    platform::webview::{Content, Entry, Ipc, local_url_for, url_for},
+    platform::webview::{Content, Entry, Ipc, ResourceSource, Source, local_url_for, url_for},
     workspace::{PreviewData, PreviewResource},
 };
 use gpui::{prelude::*, *};
@@ -162,28 +162,34 @@ struct Served {
 }
 
 impl OfficeInput {
-    /// The file's folder and name, or a private copy of Cloud bytes.
-    fn source(&self) -> Result<(PathBuf, String, Option<tempfile::TempDir>), String> {
-        match self.resource.as_ref().map(|r| r.data()) {
-            Some(Ok(PreviewData::LocalFile(path))) => match (path.parent(), path.file_name()) {
-                (Some(dir), Some(file)) => {
-                    Ok((dir.to_path_buf(), file.to_string_lossy().into_owned(), None))
-                }
-                _ => Err("The Office document has no file name.".into()),
-            },
-            Some(Ok(PreviewData::Bytes { bytes, .. })) => {
-                let file = Path::new(&self.name)
-                    .file_name()
-                    .map(|f| f.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "document".into());
-                let (dir, path) = crate::platform::webview::private_copy(&file, bytes)
-                    .map_err(|e| e.to_string())?;
-                let folder = path.parent().map(Path::to_path_buf).unwrap_or_default();
-                Ok((folder, file, Some(dir)))
-            }
-            Some(Err(error)) => Err(error.to_string()),
-            None => Err("The Office document is unavailable.".into()),
+    /// Only a bounded provider snapshot enters the private serving directory.
+    fn source(&self, cancel: &AtomicBool) -> Result<(tempfile::TempDir, String), String> {
+        if cancel.load(Ordering::Acquire) {
+            return Err("Office preparation was cancelled.".into());
         }
+        let resource = self
+            .resource
+            .as_ref()
+            .ok_or("The Office document is unavailable.")?;
+        resource.data().map_err(|e| e.to_string())?;
+        let bytes = resource
+            .bytes(BUDGET)
+            .ok_or("The Office document is unavailable or exceeds its preview budget.")?;
+        if cancel.load(Ordering::Acquire) {
+            return Err("Office preparation was cancelled.".into());
+        }
+        let file = Path::new(&self.name)
+            .file_name()
+            .and_then(|f| f.to_str())
+            .ok_or("The Office document has no file name.")?
+            .to_owned();
+        let (dir, _) =
+            crate::platform::webview::private_copy(&file, &bytes).map_err(|e| e.to_string())?;
+        resource.data().map_err(|e| e.to_string())?;
+        if cancel.load(Ordering::Acquire) {
+            return Err("Office preparation was cancelled.".into());
+        }
+        Ok((dir, file))
     }
     fn serve(&self, cancel: &AtomicBool) -> Served {
         let empty = |error: Option<String>| Served {
@@ -195,15 +201,16 @@ impl OfficeInput {
             warnings: vec![],
             temporary: None,
         };
-        let (folder, file, temporary) = match self.source() {
+        let (temporary, file) = match self.source(cancel) {
             Ok(source) => source,
             Err(error) => return empty(Some(error)),
         };
+        let folder = temporary.path().to_path_buf();
         if !convertible(&self.extension) {
             return Served {
                 root: Some(folder),
                 file_url: Some(local_url_for(&file)),
-                temporary,
+                temporary: Some(temporary),
                 ..empty(None)
             };
         }
@@ -222,6 +229,11 @@ impl OfficeInput {
                     .map_err(|e| e.to_string())?;
                     Ok((dir, converted.warnings))
                 });
+        if cancel.load(Ordering::Acquire)
+            || self.resource.as_ref().is_none_or(|r| r.data().is_err())
+        {
+            return empty(Some("The Office document is no longer available.".into()));
+        }
         match converted {
             Ok((dir, warnings)) => Served {
                 root: Some(dir.path().to_path_buf()),
@@ -237,7 +249,29 @@ impl OfficeInput {
         }
     }
 }
+struct OfficeLease(PreviewResource);
+impl ResourceSource for OfficeLease {
+    fn read(&self, _: &Path) -> Option<Vec<u8>> {
+        None
+    }
+    fn is_live(&self) -> bool {
+        self.0.data().is_ok()
+    }
+}
 impl OfficeView {
+    fn resource_is_live(&self) -> bool {
+        self.resource.as_ref().is_none_or(|r| r.data().is_ok())
+    }
+    fn retire(&mut self) {
+        self.load_epoch += 1;
+        self.pending = None;
+        self._loading = None;
+        self._inbox = None;
+        self.frame = None;
+        self.root = None;
+        self._served = None;
+        self.boot = serde_json::Value::Null;
+    }
     /// Prepare bytes away from the UI thread; every revision owns its own
     /// cancellation token and only its matching completion can publish a page.
     fn load(&mut self, cx: &mut Context<Self>) {
@@ -253,16 +287,10 @@ impl OfficeView {
         F: FnOnce(Arc<AtomicBool>) -> Fut,
         Fut: std::future::Future<Output = Served> + Send + 'static,
     {
-        self.load_epoch += 1;
+        self.retire();
         let epoch = self.load_epoch;
         let cancel = Arc::new(AtomicBool::new(false));
         self.pending = Some(Pending(cancel.clone()));
-        self._loading = None;
-        self._inbox = None;
-        self.frame = None;
-        self.root = None;
-        self._served = None;
-        self.boot = serde_json::Value::Null;
         let task = cx.background_spawn(prepare(cancel));
         self._loading = Some(cx.spawn(async move |this, cx| {
             let served = task.await;
@@ -276,6 +304,11 @@ impl OfficeView {
         cx.notify();
     }
     fn finish_load(&mut self, served: Served, cx: &mut Context<Self>) {
+        if !self.resource_is_live() {
+            self.retire();
+            cx.notify();
+            return;
+        }
         let boot = serde_json::json!({
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
             "path": self.name,
@@ -298,12 +331,13 @@ impl OfficeView {
         self._served = served.temporary;
         self.show(cx);
     }
-    /// A new engine over the current boot fields in the current appearance.
-    fn show(&mut self, cx: &mut Context<Self>) {
-        let (tx, rx) = async_channel::unbounded::<String>();
-        let content = Content {
+    fn content(&self, ipc: Option<Ipc>) -> Content {
+        Content {
             root: self.root.clone(),
-            source: None,
+            source: self
+                .resource
+                .clone()
+                .map(|r| Source(Arc::new(OfficeLease(r)))),
             entry: Entry::Html(page(&self.boot, self.dark)),
             max_bytes: BUDGET,
             assets: vec![
@@ -313,19 +347,31 @@ impl OfficeView {
                 ("office-spreadsheet.worker.js", SPREADSHEET),
                 ("office-text.worker.js", TEXT),
             ],
-            ipc: Some(Ipc(tx)),
+            ipc,
             policy: None,
             frames: None,
             disk_assets: None,
             locked: false,
-        };
+        }
+    }
+    /// A new engine over the current boot fields in the current appearance.
+    fn show(&mut self, cx: &mut Context<Self>) {
+        if !self.resource_is_live() {
+            self.retire();
+            cx.notify();
+            return;
+        }
+        let (tx, rx) = async_channel::unbounded::<String>();
+        let content = self.content(Some(Ipc(tx)));
+        self.load_epoch += 1;
+        let epoch = self.load_epoch;
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
                 let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
                     continue;
                 };
-                let _ = this.update(cx, |view, cx| view.receive(message, cx));
+                let _ = this.update(cx, |view, cx| view.receive_for(epoch, message, cx));
             }
         }));
         cx.notify();
@@ -354,7 +400,13 @@ impl OfficeView {
             self.show(cx);
         }
     }
-    fn receive(&mut self, message: Inbound, cx: &mut Context<Self>) {
+    fn receive_for(&mut self, epoch: u64, message: Inbound, cx: &mut Context<Self>) {
+        if epoch != self.load_epoch {
+            return;
+        }
+        if !self.resource_is_live() && message != Inbound::Retry {
+            return;
+        }
         match message {
             Inbound::OpenExternal => {
                 if let Some(path) = self.local_path() {
@@ -409,7 +461,20 @@ fn page(boot: &serde_json::Value, dark: bool) -> String {
 }
 
 impl Render for OfficeView {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.resource_is_live() {
+            self.retire();
+            use crate::ui::appearance::ActiveAppearance;
+            let view = cx.weak_entity();
+            return super::image::resource_failure(
+                "office-retry",
+                crate::localization::t("editor.office.resourceUnavailable").into(),
+                cx.palette(),
+                move |_, cx| {
+                    let _ = view.update(cx, |_, cx| cx.emit(SurfaceEvent::RetryInput));
+                },
+            );
+        }
         div()
             .id("office-preview")
             .size_full()
@@ -424,6 +489,7 @@ impl Render for OfficeView {
                     .child(crate::localization::t("editor.preview.loading"))
             })
             .children(self.frame.clone())
+            .into_any_element()
     }
 }
 
@@ -603,3 +669,6 @@ mod lifetime_tests {
         assert!(!private.exists());
     }
 }
+
+#[cfg(test)]
+mod admission_tests;

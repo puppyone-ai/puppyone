@@ -482,10 +482,6 @@
           "sha256": "85e548b14beafb4fe5234086de43c1c49bbd4a5ddb14d1b324db5e10584810a3",
           "cases": [
             {
-              "index": 1,
-              "name": "file resource lease > 'html-artifact' reacquires only for its own external change and retires the previous lease"
-            },
-            {
               "index": 2,
               "name": "file resource lease > 'image-preview' reacquires only for its own external change and retires the previous lease"
             },
@@ -500,6 +496,10 @@
             {
               "index": 5,
               "name": "file resource lease > 'audio-preview' reacquires only for its own external change and retires the previous lease"
+            },
+            {
+              "index": 6,
+              "name": "file resource lease > 'video-preview' reacquires only for its own external change and retires the previous lease"
             },
             {
               "index": 7,
@@ -9733,7 +9733,7 @@
     },
     {
       "id": "native-office-conversion-lifetime",
-      "acceptance": "Native equivalents of conversion request/cancel identity, pre-abort without source or process lookup, successful bytes and warnings, waiting for actual child/group/pipe exit before temporary cleanup, and real macOS RTF conversion with source symlink rejection. Platform tests use actual isolated executable fixtures and textutil, including timeout, output overflow and invalid outputs. GPUI owner tests keep pending work off the foreground, apply current appearance, cancel the exact worker token on replacement/disposal, discard a queued old result and its temporary directory, and exercise the real resource-rebind bridge through conversion to DOCX. Native cancellation uses one Arc token per load instead of an Electron IPC request ID. This does not claim OS WebView/Office worker rendering or non-macOS conversion acceptance.",
+      "acceptance": "Native equivalents of conversion request/cancel identity, pre-abort without source or process lookup, successful bytes and warnings, waiting for actual child/group/pipe exit before temporary cleanup, and real macOS RTF conversion with source symlink rejection. Platform tests use actual isolated executable fixtures and textutil, including timeout, output overflow and invalid outputs. GPUI owner tests keep pending work off the foreground, apply current appearance, cancel the exact worker token on replacement/disposal, discard a queued old result and its temporary directory, and exercise the real resource-rebind bridge through conversion to DOCX. Native cancellation uses one Arc token per load instead of an Electron IPC request ID. This does not claim OS WebView/Office worker rendering or non-macOS conversion acceptance. All Office inputs first become provider-authorized private snapshots under the 25 MiB bound; sibling files are never granted. Projection requests and completion/IPC callbacks remain leased, so revocation discards late files, retires the frame, and exposes native Retry.",
       "typescript": [
         {
           "path": "tests/integration/editor/formats/office/officeConversionLifetime.test.mjs",
@@ -9838,6 +9838,34 @@
         {
           "package": "po-workspace",
           "test": "workspace::local_compatibility_tests::direct_symlink_mutations_are_rejected_without_removing_the_link_or_target"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_admission_grants_a_private_snapshot_without_sibling_file_access"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_admission_uses_the_retained_provider_root_and_never_reopens_the_display_path"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_admission_rejects_oversized_missing_revoked_and_precancelled_inputs_before_serving"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_private_protocol_serves_exact_bytes_ranges_and_retires_all_resources_with_the_lease"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_revocation_discards_a_completed_preparation_and_old_frame_ipc"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_revocation_shows_native_retry_and_a_fresh_provider_can_recover"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::provider_authority_is_rechecked_after_read_and_through_budgeted_sources"
         }
       ],
       "environment": "macos"
