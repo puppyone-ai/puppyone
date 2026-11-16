@@ -92,6 +92,8 @@
     "src/components/OnboardingImportDialog.tsx": "2b1858be9a20fa99456c43d4053f7d309cbb8e9a01e27750a34f0266e33e58e0",
     "tests/unit/source-control/status/gitMetadataSnapshot.test.mjs": "27f6fa2f41d72daf05be3b6342c0228033bd202b72cc7019a70778708e6b2db4",
     "electron/main/git-metadata-watch-service.mjs": "c19edd35bfcce36279d6e89b54c358a1c5da13a049a10a3ab5430aeabf2a4a14",
-    "electron/main/git-metadata-snapshot.mjs": "5d54e9c2092cfd4853834662f55eba9fa1332ff4092c6ba8fa1c50c1ea7d0851"
+    "electron/main/git-metadata-snapshot.mjs": "5d54e9c2092cfd4853834662f55eba9fa1332ff4092c6ba8fa1c50c1ea7d0851",
+    "tests/integration/workspace/projects/import-opening.test.mjs": "0ed2811190e838a98a2839df08992d9317cb8ed67055f1fb9e72ffed4634e74c",
+    "electron/main/project-import/opening.mjs": "c8d10373a47d731ca0d89d5bcf7cfdee134ecd3650e5adb3cdb8aa5adbadbb6c"
   }
 }

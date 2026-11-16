@@ -122,6 +122,22 @@ impl Shell {
             home::HomeEvent::OpenProject(path) => {
                 return self.open_project(path.clone(), window, cx);
             }
+            home::HomeEvent::OpenImported { path, attempt } => {
+                if !self.home.read(cx).owns_import_attempt(attempt) {
+                    return;
+                }
+                self.set_popover(None, cx);
+                let accepted = self.session.project.update(cx, |p, cx| {
+                    p.record.pending_import = Some((path.clone(), attempt.clone()));
+                    p.open_project(path.clone(), cx)
+                });
+                if !accepted {
+                    self.finish_import_opening(path, false, cx);
+                } else if self.workspace_root(cx).as_ref() == Some(path) {
+                    self.finish_import_opening(path, true, cx);
+                }
+                self.receive(window, cx);
+            }
             home::HomeEvent::OpenCloud(project) => {
                 self.set_popover(None, cx);
                 self.open_cloud(project.clone(), cx);

@@ -57,6 +57,8 @@ pub(super) struct WindowProject {
     pub open_first: Option<PathBuf>,
     /// Seeded local Agent session to open once `root` enters.
     pub pending_agent_start: Option<PendingAgentStart>,
+    /// A published import remains owned by its dialog until opening succeeds.
+    pub pending_import: Option<(PathBuf, Arc<std::sync::atomic::AtomicBool>)>,
     /// How many projects this window has entered (`workspaceEntryIntent`).
     pub entries: u64,
     /// `workspaceSurfaceError`: the workspace's change subscription failed.
@@ -267,7 +269,7 @@ impl ProjectLifecycle {
     }
     /// Switch to a remembered project (`onSelectProject`): the one shown
     /// leaves the Homepage; another starts opening.
-    pub fn open_project(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+    pub fn open_project(&mut self, path: PathBuf, cx: &mut Context<Self>) -> bool {
         let files = self.files(cx);
         if files
             .workspace
@@ -280,8 +282,11 @@ impl ProjectLifecycle {
             // still opening.
             self.docs
                 .update(cx, |d, _| d.begin(Intent::OpenFolder(path)));
+        } else {
+            return false;
         }
         cx.notify();
+        true
     }
     /// A project just created opens here on `open`.
     pub fn open_created(&mut self, path: PathBuf, open: Option<PathBuf>, cx: &mut Context<Self>) {

@@ -186,36 +186,78 @@ impl Homepage {
         };
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
-            let _ = this.update_in(cx, |s, _, cx| {
-                let Some(import) = s.import_state() else {
-                    return;
+            let prepared = this.update(cx, |s, cx| {
+                if !s.owns_import_attempt(&attempt) {
+                    return None;
+                }
+                let (can_open, path) = match result {
+                    Ok(value) => value,
+                    Err(error) => {
+                        let import = s.import.as_mut().unwrap();
+                        import.cloning = None;
+                        import.error = Some(error);
+                        cx.notify();
+                        return None;
+                    }
                 };
-                if attempt.load(std::sync::atomic::Ordering::Relaxed)
-                    || !import
-                        .cloning
-                        .as_ref()
-                        .is_some_and(|current| Arc::ptr_eq(current, &attempt))
-                {
+                // Publication is complete. Keep this exact project throughout
+                // persistence and opening failures, including a later retry.
+                s.import.as_mut().unwrap().imported = Some(path.clone());
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or_default();
+                let persisted = s.preferences.update(cx, |p, cx| {
+                    p.change(|p| p.remember_project(&path, now), cx);
+                    p.flush(cx)
+                });
+                cx.notify();
+                Some((can_open, path, persisted))
+            });
+            let Ok(Some((can_open, path, persisted))) = prepared else {
+                return;
+            };
+            let persisted = persisted.await;
+            let _ = this.update(cx, |s, cx| {
+                if !s.owns_import_attempt(&attempt) {
                     return;
                 }
-                import.cloning = None;
-                match result {
-                    Ok((true, path)) => {
-                        s.import = None;
-                        s.import_picker = None;
-                        s.close_dialog(DialogKey::ImportRepository, cx);
-                        s.open_project(path, cx);
-                    }
-                    Ok((false, path)) => {
-                        import.imported = Some(path);
-                        import.error = Some(tr("onboarding.entry.import.openFailed").into());
-                    }
-                    Err(error) => import.error = Some(error),
+                if persisted.is_err() || !can_open {
+                    s.finish_import_opening(&attempt, false, cx);
+                } else {
+                    cx.emit(HomeEvent::OpenImported { path, attempt });
                 }
-                cx.notify();
             });
         })
         .detach();
+    }
+    pub(in crate::app) fn owns_import_attempt(&self, attempt: &Arc<AtomicBool>) -> bool {
+        !attempt.load(std::sync::atomic::Ordering::Relaxed)
+            && self
+                .import
+                .as_ref()
+                .and_then(|i| i.cloning.as_ref())
+                .is_some_and(|current| Arc::ptr_eq(current, attempt))
+    }
+    pub(in crate::app) fn finish_import_opening(
+        &mut self,
+        attempt: &Arc<AtomicBool>,
+        opened: bool,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.owns_import_attempt(attempt) {
+            return;
+        }
+        if opened {
+            self.import = None;
+            self.import_picker = None;
+            self.close_dialog(DialogKey::ImportRepository, cx);
+        } else {
+            let import = self.import.as_mut().unwrap();
+            import.cloning = None;
+            import.error = Some(tr("onboarding.entry.import.openFailed").into());
+        }
+        cx.notify();
     }
     pub(in crate::app) fn import_dialog(
         &self,

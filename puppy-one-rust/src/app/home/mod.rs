@@ -85,6 +85,10 @@ pub(super) use template_import::TemplateImport;
 /// What the Homepage asks of the window.
 pub(in crate::app) enum HomeEvent {
     OpenProject(PathBuf),
+    OpenImported {
+        path: PathBuf,
+        attempt: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    },
     OpenCloud(String),
     OpenDevice(crate::workspace::cloud::catalog::RemoteFolder, String),
     OpenCreated {

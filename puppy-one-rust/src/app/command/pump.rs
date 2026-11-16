@@ -5,6 +5,30 @@ use super::super::*;
 /// What one pump of the runtime brought, to the owners that show it,
 /// and the window's close once nothing holds it.
 impl Shell {
+    pub(in crate::app) fn finish_import_opening(
+        &mut self,
+        path: &std::path::Path,
+        opened: bool,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let pending = self.session.project.update(cx, |p, _| {
+            if p.record
+                .pending_import
+                .as_ref()
+                .is_some_and(|(root, _)| root == path)
+            {
+                p.record.pending_import.take()
+            } else {
+                None
+            }
+        });
+        let Some((_, attempt)) = pending else {
+            return false;
+        };
+        self.home
+            .update(cx, |h, cx| h.finish_import_opening(&attempt, opened, cx));
+        true
+    }
     pub(in crate::app) fn route_pumped(
         &mut self,
         pumped: project::Pumped,
@@ -21,8 +45,10 @@ impl Shell {
                     p.record.pending_agent_start = None;
                 }
             });
-            self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
-            self.open_modal(Modal::ProjectFailure { path, message }, cx);
+            if !self.finish_import_opening(&path, false, cx) {
+                self.close_modal(|m| matches!(m, Modal::ProjectFailure { .. }), cx);
+                self.open_modal(Modal::ProjectFailure { path, message }, cx);
+            }
         }
         // A Cloud opening that failed says why (`ProjectNavigationFailure`).
         if let Some((project, failure)) = pumped.cloud_failure {
@@ -48,6 +74,9 @@ impl Shell {
             explorer.update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
         }
         if let Some((ws, nodes)) = pumped.entered {
+            if let Some(root) = ws.local_root() {
+                self.finish_import_opening(root, true, cx);
+            }
             self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
             explorer.update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
             // A lone file has no Git or Terminal; an HTML file window binds its

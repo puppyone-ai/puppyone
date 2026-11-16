@@ -11764,7 +11764,7 @@
     },
     {
       "id": "native-repository-import-ui-ownership",
-      "acceptance": "The actual GPUI import owner refuses unsupported or mismatched provider URLs before starting a clone, retains the published directory after an opening failure and retries only opening, preserving edits made since publication even without a valid URL. Controlled task completions exercise the real foreground callback and prove closed/replaced attempts cannot alter a new provider dialog, clear its worker, publish stale errors, retain a wrong project or navigate the window. Replacing/dropping the import owner cancels its worker. Native path-picker replies are fenced by dialog identity and idle state. These extra lifecycle tests strengthen the TS acceptance rather than mapping unrelated TS cases. This row does not qualify recent-project persistence failures or cancellation disabling during the publication phase.",
+      "acceptance": "The actual GPUI import owner refuses unsupported or mismatched provider URLs before starting a clone, retains the published directory after an opening failure and retries only opening, preserving edits made since publication even without a valid URL. Controlled task completions exercise the real foreground callback and prove closed/replaced attempts cannot alter a new provider dialog, clear its worker, publish stale errors, retain a wrong project or navigate the window. Replacing/dropping the import owner cancels its worker. Native path-picker replies are fenced by dialog identity and idle state. These extra lifecycle tests strengthen the TS acceptance rather than mapping unrelated TS cases. Recent-project persistence and actual opening failures are qualified separately by native-repository-import-opening-recovery; publication-phase cancellation disabling remains unqualified.",
       "typescript": [
         {
           "path": "tests/component/workspace/homepage/homepageImport.test.tsx",
@@ -12072,6 +12072,101 @@
             "dev-capture"
           ],
           "test": "features::source_control::refresh_tests::working_tree_writes_broadcast_before_the_local_refresh_debounce"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-repository-import-opening-recovery",
+      "acceptance": "After atomic publication, the actual GPUI import retains its project and waits for recent-project persistence before navigation. Preference acknowledgements are revision-scoped: earlier writes cannot release later requests, failures are reported, and retry persists the retained state. A real filesystem replacement failure prevents opening; recovery persists the recent entry and opens the same directory with post-import edits intact. Actual DocumentSession failure after an initially successful probe, and refused navigation, retain the imported path for opening-only retry. Only the current dialog attempt can consume late persistence or actual opening receipts. Successful opening closes the dialog; newer imports replace older pending UI ownership. Controlled acknowledgement tests exercise the production preference event path, while real disk and actual workspace-opening tests verify the integration. Publishing-phase cancellation disabling remains separately unqualified. A closed storage event channel fails in-flight acknowledgements and rejects retries instead of hanging the import or treating an unpersisted memory value as durable.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/import-opening.test.mjs",
+          "sha256": "0ed2811190e838a98a2839df08992d9317cb8ed67055f1fb9e72ffed4634e74c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "retries opening the published project without cloning again or losing the recent entry"
+            },
+            {
+              "index": 1,
+              "name": "retains the completed project if remembering it fails, and keeps only the latest pending import"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::retry_opens_the_published_project_and_preserves_edits_without_recloning"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::failed_recent_project_persistence_retains_publication_and_retry_opens_only_after_durable_ack"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::actual_open_failure_after_the_probe_keeps_a_durable_recent_and_retries_the_published_directory"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::refused_navigation_retains_the_published_project_for_retry"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::late_opening_receipts_cannot_finish_a_replaced_import"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::a_late_persistence_acknowledgement_cannot_open_or_mutate_a_replaced_import"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::settings::preferences_store::tests::durable_acknowledgements_wait_for_the_requested_revision_and_survive_later_edits"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::settings::preferences_store::tests::durable_acknowledgements_report_failure_retry_and_writer_shutdown"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::settings::preferences_store::tests::a_closed_storage_event_channel_releases_inflight_waiters_and_cannot_accept_retries"
         }
       ],
       "environment": "local"
