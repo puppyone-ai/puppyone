@@ -107,7 +107,7 @@ impl HostState {
     /// mask cuts, which AppKit's hit test never sees.
     #[cfg(target_os = "macos")]
     fn let_through(&self, holes: &[[f32; 5]]) {
-        let Some(clip) = self.clip.borrow().as_ref().map(|c| clip_key(c)) else {
+        let Some(clip) = self.clip.borrow().as_ref().map(clip_key) else {
             return;
         };
         let holes: Vec<[f32; 4]> = holes.iter().map(|&[x, y, w, h, _]| [x, y, w, h]).collect();
