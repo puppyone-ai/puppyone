@@ -39,11 +39,37 @@ struct Gate {
     wake: Condvar,
     drops: AtomicUsize,
     timed_out: AtomicBool,
+    block_validation: AtomicBool,
 }
 impl Gate {
     fn release(&self) {
         *self.released.lock().unwrap() = true;
         self.wake.notify_all();
+    }
+    fn arm_validation(&self) {
+        *self.released.lock().unwrap() = false;
+        self.entered.store(false, Ordering::Release);
+        self.block_validation.store(true, Ordering::Release);
+    }
+    fn wait(&self) -> std::io::Result<()> {
+        if !self.entered.swap(true, Ordering::AcqRel) {
+            let (released, waited) = self
+                .wake
+                .wait_timeout_while(
+                    self.released.lock().unwrap(),
+                    Duration::from_secs(5),
+                    |released| !*released,
+                )
+                .unwrap();
+            if waited.timed_out() && !*released {
+                self.timed_out.store(true, Ordering::Release);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "test gate",
+                ));
+            }
+        }
+        Ok(())
     }
 }
 struct GatedReader {
@@ -52,24 +78,7 @@ struct GatedReader {
 }
 impl std::io::Read for GatedReader {
     fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
-        if !self.gate.entered.swap(true, Ordering::AcqRel) {
-            let (released, waited) = self
-                .gate
-                .wake
-                .wait_timeout_while(
-                    self.gate.released.lock().unwrap(),
-                    Duration::from_secs(5),
-                    |released| !*released,
-                )
-                .unwrap();
-            if waited.timed_out() && !*released {
-                self.gate.timed_out.store(true, Ordering::Release);
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::TimedOut,
-                    "test gate",
-                ));
-            }
-        }
+        self.gate.wait()?;
         self.bytes.read(output)
     }
 }
@@ -116,6 +125,7 @@ impl ResourcePort for Provider {
         ))
     }
     fn preview_session_reader(&self, _: &RelativePath) -> SessionReadResult<SessionReader> {
+        let gate = self.gate.clone();
         Ok(SessionReader {
             source: ResourceReader {
                 length: self.bytes.len() as u64,
@@ -124,7 +134,13 @@ impl ResourcePort for Provider {
                     gate: self.gate.clone(),
                 }),
             },
-            validate: Arc::new(|| Ok(())),
+            validate: Arc::new(move || {
+                if gate.block_validation.swap(false, Ordering::AcqRel) {
+                    gate.wait()
+                        .map_err(|_| Error::new(ErrorKind::Io, "test gate expired"))?;
+                }
+                Ok(())
+            }),
         })
     }
 }
@@ -145,10 +161,13 @@ fn bytes(value: &str) -> Vec<u8> {
     std::fs::read(path).unwrap()
 }
 fn gated(value: &str) -> (Arc<Workspace>, Arc<Gate>) {
+    gated_bytes(bytes(value))
+}
+fn gated_bytes(bytes: Vec<u8>) -> (Arc<Workspace>, Arc<Gate>) {
     let gate = Arc::new(Gate::default());
     let provider = Arc::new(Provider {
         memory: Memory::new("memory://database-lifecycle/"),
-        bytes: bytes(value).into(),
+        bytes: bytes.into(),
         gate: gate.clone(),
     });
     (Workspace::from_provider(provider).unwrap(), gate)
@@ -559,4 +578,53 @@ fn changed_and_recovery_required_database_queries_clear_unsafe_pages_without_aut
         });
         assert!(cx.debug_bounds("database-retry").is_some());
     }
+}
+
+#[gpui::test]
+fn a_pending_database_page_ignores_duplicate_next_clicks_and_the_previous_idle_deadline(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("fixture.db");
+    fixture(&path, "first");
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.execute_batch("WITH RECURSIVE n(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM n WHERE i<60) INSERT INTO items SELECT 'row '||i FROM n;").unwrap();
+    drop(db);
+    let (ws, gate) = gated_bytes(std::fs::read(path).unwrap());
+    gate.release();
+    let resource = ws.resource(Path::new("fixture.db")).unwrap();
+    let (view, cx) = cx.add_window_view(|_, cx| {
+        let mut v = DatabaseView::new(Some(resource), false, Scale::default());
+        v.reload(cx);
+        v
+    });
+    settle(&view, cx);
+    cx.run_until_parked();
+    let epoch = view.read_with(cx, |v, _| v.page.as_ref().unwrap().epoch);
+    cx.cx.executor().advance_clock(Duration::from_secs(59));
+    cx.run_until_parked();
+    gate.arm_validation();
+    click("database-next", cx);
+    until(cx, |_| gate.entered.load(Ordering::Acquire));
+    view.read_with(cx, |v, _| assert!(v.busy));
+    click("database-next", cx);
+    cx.cx.executor().advance_clock(Duration::from_secs(2));
+    cx.run_until_parked();
+    view.read_with(cx, |v, _| {
+        assert!(v.busy && v.failure.is_none());
+        assert!(!v.cancel.load(Ordering::Acquire));
+        assert_eq!(v.page.as_ref().unwrap().offset, 0);
+    });
+    assert_eq!(gate.drops.load(Ordering::Acquire), 0);
+    gate.release();
+    settle(&view, cx);
+    view.read_with(cx, |v, _| {
+        let page = v.page.as_ref().unwrap();
+        assert_eq!(page.epoch, epoch);
+        assert_eq!(page.offset, 50);
+        assert_eq!(page.rows.len(), 11);
+        assert!(v.failure.is_none() && !v.restarted && v.session.is_some());
+    });
+    assert!(!gate.timed_out.load(Ordering::Acquire));
 }

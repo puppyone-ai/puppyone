@@ -10668,7 +10668,7 @@
     },
     {
       "id": "native-database-provider-sessions",
-      "acceptance": "SQLite previews read lazy provider-authorized pages without reopening display paths or copying hosted snapshots. A retained directory and file identity reject replacement, links, removal and recovery sidecars; cached pages remain lease-bound. The read-only VFS cannot attach ambient files or write, and propagates read errors instead of publishing partial results. Actual SQLite enforces bounded lossless pages, column windows, VM cancellation and deadlines. GPUI tests exercise pending and cached owner retirement, A-to-B-to-A replacement, actual Retry/Reload actions, virtual-time idle release with retained pages, name-based recovery after object reordering, input-generation invalidation and failure without automatic retry. This row does not qualify process isolation, forced blocked-read cancellation, host exit confirmation or quotas, absolute session expiry during a query, DuckDB, or Windows runtime behavior.",
+      "acceptance": "SQLite previews read lazy provider-authorized pages without reopening display paths or copying hosted snapshots. A retained directory and file identity reject replacement, links, removal and recovery sidecars; cached pages remain lease-bound. The read-only VFS cannot attach ambient files or write, and propagates read errors instead of publishing partial results. Actual SQLite enforces bounded lossless pages, column windows, VM cancellation and deadlines. GPUI tests exercise pending and cached owner retirement, A-to-B-to-A replacement, actual Retry/Reload actions, virtual-time idle release with retained pages, name-based recovery after object reordering, input-generation invalidation and failure without automatic retry. Actual repeated Next clicks during a blocked provider validation issue only one query; crossing the old idle deadline cannot retire that query or replay its cursor. This row does not qualify process isolation, forced blocked-read cancellation, host exit confirmation or quotas, absolute session expiry during a query, DuckDB, or Windows runtime behavior.",
       "typescript": [
         {
           "path": "tests/component/editor/formats/database/databaseViewer.test.tsx",
@@ -10693,6 +10693,10 @@
             {
               "index": 6,
               "name": "registered database DOM viewer > selects the requested table after idle recovery instead of defaulting to the first table"
+            },
+            {
+              "index": 7,
+              "name": "registered database DOM viewer > does not let the previous idle timer cancel a page query already in flight"
             },
             {
               "index": 9,
@@ -10843,6 +10847,10 @@
         {
           "package": "po-platform",
           "test": "platform::database::tests::signatures_sidecars_and_budgets_are_checked"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::a_pending_database_page_ignores_duplicate_next_clicks_and_the_previous_idle_deadline"
         }
       ],
       "environment": "local"
