@@ -136,6 +136,11 @@
     "tests/unit/source-control/history/gitRevisionSpecs.test.mjs": "e2130515e441628464d1f8cef5ade86feea6bce0d9adde53272599b5104a8a64",
     "tests/integration/source-control/status/workspace.git.integration.test.mjs": "24341b907c1dd60fa4a954d096232822ca3b4799cb6bef074a1fd1d20ec2b64d",
     "electron/local-api/git/revision-pair.mjs": "b702e284aec2c88f90b1cd271957e06a0a2c858fe2e096c739c95074fa338dc7",
-    "electron/local-api/git/revision-specs.mjs": "635d2e9f0884d7d1967dc984f3cda2da081d52c041c7583d4d24ddc4a00e7d4c"
+    "electron/local-api/git/revision-specs.mjs": "635d2e9f0884d7d1967dc984f3cda2da081d52c041c7583d4d24ddc4a00e7d4c",
+    "tests/unit/editor/formats/office/docxRedline.test.ts": "4f31afc491492fb9ab0c9d9682d0413e13f3ee269337fcbf23c0ad12811dda16",
+    "src/features/source-control/diff/contributions/docx-redline/worker/client.ts": "1a6d170aa11d78f5a3e7f7990f0b489de6cce4b463dd95a6dcd3a764faf87a4a",
+    "src/features/source-control/diff/contributions/docx-redline/worker/normalize.ts": "733e143bfa94d6fe2b727009ab1e54e255062de0b0f7ca1749fab822bc53429d",
+    "src/features/source-control/diff/contributions/docx-redline/worker/align.ts": "a57ff24aa4984a82ee097acba65e22f9bf21a36989cda612f5d0598491ebb3e8",
+    "src/features/source-control/diff/contributions/docx-redline/budget.ts": "47c88c0b89c5707ba137d864b8ef4ff1fe0b66727c79ff2e5b420d687fdc8fc8"
   }
 }

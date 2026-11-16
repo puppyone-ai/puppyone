@@ -13640,6 +13640,89 @@
           "test": "features::source_control::diff::binary_summary::tests::over_budget_revisions_keep_their_size_and_explain_unavailability"
         }
       ]
+    },
+    {
+      "id": "native-docx-semantic-processing",
+      "acceptance": "Canonical body blocks, strict OOXML namespace prefixes, tracked-deletion/move-from exclusion, DTD and malformed XML rejection, located word additions/removals, stable neighbors, one-sided documents, malformed/encrypted package errors, UTF-16 text and block expansion limits preserve TS semantic acceptance. Production Git diff readers pass their cancellation token into a single 20-second processing budget across package decompression, namespace-aware XML traversal, anchors, block alignment and word diff. Cancellation before processing avoids parsing; deterministic clocks exercise cancellation/deadlines after each heavy stage has begun, with errors instead of partial models. Declared ZIP entry/total sizes are checked before expansion; dishonest stored sizes are rejected; presentation truncation retains full statistics.",
+      "environment": "Native parser and actual deflate/OOXML fixtures, controlled monotonic clock and atomic cancellation. Checkpoints are cooperative; the bounded roxmltree parse call is checked before and after rather than forcibly terminated like a browser Worker. No cache or complete renderer-state qualification is implied by this parser row.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/office/docxRedline.test.ts",
+          "sha256": "4f31afc491492fb9ab0c9d9682d0413e13f3ee269337fcbf23c0ad12811dda16",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DOCX semantic redline > normalizes runs, headings, list items, and table rows into stable blocks"
+            },
+            {
+              "index": 1,
+              "name": "DOCX semantic redline > parses namespace-aware OOXML independently of the chosen prefix"
+            },
+            {
+              "index": 2,
+              "name": "DOCX semantic redline > omits tracked deletions and rejects DTDs and malformed XML"
+            },
+            {
+              "index": 3,
+              "name": "DOCX semantic redline > builds located paragraph and word-level additions and removals from validated fixtures"
+            },
+            {
+              "index": 4,
+              "name": "DOCX semantic redline > models one-sided added and deleted documents explicitly"
+            },
+            {
+              "index": 5,
+              "name": "DOCX semantic redline > aligns inserted blocks without turning stable neighbors into modifications"
+            },
+            {
+              "index": 6,
+              "name": "DOCX semantic redline > rejects malformed packages and reports worker failures without a partial model"
+            },
+            {
+              "index": 7,
+              "name": "DOCX semantic redline > reports encrypted Word containers explicitly"
+            },
+            {
+              "index": 8,
+              "name": "DOCX semantic redline > enforces semantic expansion budgets"
+            },
+            {
+              "index": 9,
+              "name": "DOCX semantic redline > honors cancellation before starting a worker"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::acceptance_tests::canonical_blocks_and_namespace_prefixes_preserve_word_semantics"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::acceptance_tests::deleted_content_and_malformed_packages_never_become_partial_models"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::acceptance_tests::located_word_changes_keep_insertions_and_one_sided_documents_distinct"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::acceptance_tests::semantic_character_and_block_budgets_reject_expansion"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::acceptance_tests::archive_claims_are_checked_before_expansion_and_presentation_is_capped"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::acceptance_tests::cancellation_precedes_package_parsing_and_processing_has_a_20_second_limit"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::acceptance_tests::decompression_normalization_and_alignment_stop_after_they_have_started"
+        }
+      ]
     }
   ],
   "openAcceptance": [

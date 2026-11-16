@@ -360,7 +360,7 @@ fn redline(
     let before = read(before)?;
     let after = read(after)?;
     working::check_cancel(cancel)?;
-    let model = super::docx_redline::build(before.as_deref(), after.as_deref());
+    let model = super::docx_redline::build_cancellable(before.as_deref(), after.as_deref(), cancel);
     working::check_cancel(cancel)?;
     model
 }
@@ -467,7 +467,11 @@ fn untracked(
         }
     };
     if word {
-        file.redline = Some(super::docx_redline::build(None, Some(&bytes)));
+        file.redline = Some(super::docx_redline::build_cancellable(
+            None,
+            Some(&bytes),
+            cancel,
+        ));
         working::check_cancel(cancel)?;
     }
     if bytes.len() as u64 > MAX_UNTRACKED_BYTES || bytes.contains(&0) {

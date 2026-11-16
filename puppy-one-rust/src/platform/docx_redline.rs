@@ -4,7 +4,11 @@
 //! unique anchors and a weighted edit distance, and changed blocks diffed
 //! word by word — all within the product's budgets (`budget.ts`). Body text
 //! only (`fidelity: "body-text-v1"`); no presentation.
-use std::{collections::HashMap, io::Read};
+#[cfg(test)]
+mod acceptance_tests;
+mod control;
+use control::Budget;
+use std::{collections::HashMap, io::Read, sync::atomic::AtomicBool};
 
 /// `DOCX_REDLINE_BUDGET`.
 const MAX_ENTRY_BYTES: u64 = 16 * 1024 * 1024;
@@ -99,13 +103,37 @@ pub struct Presentation {
 
 /// `buildDocxRedlinePresentation`: `None` is a missing side.
 pub fn build(before: Option<&[u8]>, after: Option<&[u8]>) -> Result<Presentation, String> {
+    build_cancellable(before, after, &AtomicBool::new(false))
+}
+
+/// The native worker shares the product's 20-second processing deadline.
+pub fn build_cancellable(
+    before: Option<&[u8]>,
+    after: Option<&[u8]>,
+    cancel: &AtomicBool,
+) -> Result<Presentation, String> {
+    build_with(before, after, &Budget::standard(cancel))
+}
+
+fn build_with(
+    before: Option<&[u8]>,
+    after: Option<&[u8]>,
+    budget: &Budget<'_>,
+) -> Result<Presentation, String> {
+    budget.check()?;
     if before.is_none() && after.is_none() {
         return Err("Both Word revisions are missing.".into());
     }
     // One revision at a time keeps the peak memory to one package.
-    let left = before.map(parse).transpose()?.unwrap_or_default();
-    let right = after.map(parse).transpose()?.unwrap_or_default();
-    let mut changes = align(&left, &right);
+    let left = before
+        .map(|bytes| parse_with(bytes, budget))
+        .transpose()?
+        .unwrap_or_default();
+    let right = after
+        .map(|bytes| parse_with(bytes, budget))
+        .transpose()?
+        .unwrap_or_default();
+    let mut changes = align_with(&left, &right, budget)?;
     let stats = summarize(&changes);
     let truncated = changes.len() > MAX_PRESENTED_CHANGES;
     let state = if before.is_none() {
@@ -118,6 +146,7 @@ pub fn build(before: Option<&[u8]>, after: Option<&[u8]>) -> Result<Presentation
         State::Ready
     };
     changes.truncate(MAX_PRESENTED_CHANGES);
+    budget.check()?;
     Ok(Presentation {
         state,
         stats,
@@ -128,12 +157,16 @@ pub fn build(before: Option<&[u8]>, after: Option<&[u8]>) -> Result<Presentation
 
 /// `parseDocxRevision`: the package's body blocks.
 pub fn parse(bytes: &[u8]) -> Result<Vec<Block>, String> {
+    parse_with(bytes, &Budget::unlimited())
+}
+fn parse_with(bytes: &[u8], budget: &Budget<'_>) -> Result<Vec<Block>, String> {
+    budget.check()?;
     // A Compound File: an encrypted (or legacy) Office document.
     if bytes.starts_with(&[0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) {
         return Err("Encrypted or password-protected Word documents cannot be compared.".into());
     }
-    let xml = document_xml(bytes)?;
-    normalize(&xml)
+    let xml = document_xml(bytes, budget)?;
+    normalize_with(&xml, budget)
 }
 
 fn u16_at(bytes: &[u8], at: usize) -> Option<usize> {
@@ -146,7 +179,8 @@ fn u32_at(bytes: &[u8], at: usize) -> Option<u64> {
 /// `word/document.xml` out of the ZIP package, after checking every
 /// entry's declared size against the budget
 /// (`validateOfficePackageDecompression`).
-fn document_xml(bytes: &[u8]) -> Result<String, String> {
+fn document_xml(bytes: &[u8], budget: &Budget<'_>) -> Result<String, String> {
+    budget.check()?;
     let structure = |what: &str| format!("The Word package is not a valid ZIP archive ({what}).");
     // End of central directory: 22 bytes plus a comment of up to 64 KiB.
     let floor = bytes.len().saturating_sub(22 + 0xffff);
@@ -166,6 +200,7 @@ fn document_xml(bytes: &[u8]) -> Result<String, String> {
     let mut total = 0;
     let mut document = None;
     for _ in 0..count {
+        budget.check()?;
         if !bytes
             .get(at..)
             .is_some_and(|b| b.starts_with(&[0x50, 0x4b, 0x01, 0x02]))
@@ -216,24 +251,46 @@ fn document_xml(bytes: &[u8]) -> Result<String, String> {
         .ok_or_else(|| structure("entry data"))?;
     let mut out = Vec::with_capacity(size as usize);
     match method {
-        0 => out.extend_from_slice(data),
-        // Never inflate past the declared size, or past the budget.
-        8 => {
-            flate2::read::DeflateDecoder::new(data)
-                .take(size.min(MAX_ENTRY_BYTES) + 1)
-                .read_to_end(&mut out)
-                .map_err(|_| structure("deflate"))?;
+        0 => {
+            if compressed != size {
+                return Err(structure("stored entry size"));
+            }
+            out.extend_from_slice(data);
         }
+        // Never inflate past the declared size, or past the budget.
+        8 => inflate(data, size, budget, &mut out)?,
         _ => return Err(structure("compression method")),
     }
     if out.len() as u64 != size {
         return Err("A Word package entry does not match its declared size.".into());
     }
+    budget.check()?;
     String::from_utf8(out).map_err(|_| "Word document XML is not UTF-8.".into())
+}
+
+fn inflate(data: &[u8], size: u64, budget: &Budget<'_>, out: &mut Vec<u8>) -> Result<(), String> {
+    let mut decoder = flate2::read::DeflateDecoder::new(data).take(size.min(MAX_ENTRY_BYTES) + 1);
+    let mut chunk = [0u8; 64 * 1024];
+    loop {
+        budget.check()?;
+        let read = decoder
+            .read(&mut chunk)
+            .map_err(|_| "The Word package has invalid deflate data.".to_owned())?;
+        budget.check()?;
+        if read == 0 {
+            break;
+        }
+        out.extend_from_slice(&chunk[..read]);
+    }
+    Ok(())
 }
 
 /// `normalizeDocxDocumentXml`.
 pub fn normalize(xml: &str) -> Result<Vec<Block>, String> {
+    normalize_with(xml, &Budget::unlimited())
+}
+fn normalize_with(xml: &str, budget: &Budget<'_>) -> Result<Vec<Block>, String> {
+    budget.check()?;
     let options = roxmltree::ParsingOptions {
         allow_dtd: false,
         nodes_limit: u32::try_from(MAX_XML_START_TAGS * 4).unwrap_or(u32::MAX),
@@ -248,6 +305,7 @@ pub fn normalize(xml: &str) -> Result<Vec<Block>, String> {
             format!("Word document XML is malformed: {e}")
         }
     })?;
+    budget.check()?;
     struct Paragraph {
         parts: String,
         style: String,
@@ -280,6 +338,7 @@ pub fn normalize(xml: &str) -> Result<Vec<Block>, String> {
     }
     let mut pending = vec![Edge::Open(document.root())];
     while let Some(edge) = pending.pop() {
+        budget.check()?;
         if let Edge::Open(node) = edge {
             pending.push(Edge::Close(node));
             let children: Vec<_> = node.children().collect();
@@ -441,27 +500,37 @@ fn normalize_text(value: &str) -> String {
 
 /// `alignDocxBlocks`.
 pub fn align(before: &[Block], after: &[Block]) -> Vec<Change> {
+    align_with(before, after, &Budget::unlimited())
+        .expect("unlimited alignment cannot be interrupted")
+}
+fn align_with(
+    before: &[Block],
+    after: &[Block],
+    budget: &Budget<'_>,
+) -> Result<Vec<Change>, String> {
+    budget.check()?;
     if before.is_empty() {
-        return after.iter().enumerate().map(|(i, b)| added(b, i)).collect();
+        return Ok(after.iter().enumerate().map(|(i, b)| added(b, i)).collect());
     }
     if after.is_empty() {
-        return before
+        return Ok(before
             .iter()
             .enumerate()
             .map(|(i, b)| deleted(b, i))
-            .collect();
+            .collect());
     }
     let mut changes = Vec::new();
     let (mut left, mut right) = (0, 0);
-    for (b, a) in unique_anchors(before, after)
+    for (b, a) in unique_anchors(before, after, budget)?
         .into_iter()
         .chain([(before.len(), after.len())])
     {
-        changes.extend(align_gap(before, after, left, b, right, a));
+        budget.check()?;
+        changes.extend(align_gap(before, after, left, b, right, a, budget)?);
         left = b + 1;
         right = a + 1;
     }
-    changes
+    Ok(changes)
 }
 
 /// `summarizeDocxChanges`.
@@ -487,15 +556,23 @@ pub fn summarize(changes: &[Change]) -> Stats {
 
 /// `findUniqueAnchors`: blocks that occur once on each side, kept in their
 /// longest increasing run on the after side.
-fn unique_anchors(before: &[Block], after: &[Block]) -> Vec<(usize, usize)> {
-    fn locations(blocks: &[Block]) -> HashMap<(BlockKind, &str), Vec<usize>> {
+fn unique_anchors(
+    before: &[Block],
+    after: &[Block],
+    budget: &Budget<'_>,
+) -> Result<Vec<(usize, usize)>, String> {
+    fn locations<'a>(
+        blocks: &'a [Block],
+        budget: &Budget<'_>,
+    ) -> Result<HashMap<(BlockKind, &'a str), Vec<usize>>, String> {
         let mut map: HashMap<(BlockKind, &str), Vec<usize>> = HashMap::new();
         for (i, b) in blocks.iter().enumerate() {
+            budget.check()?;
             map.entry((b.kind, b.text.as_str())).or_default().push(i);
         }
-        map
+        Ok(map)
     }
-    let (left, right) = (locations(before), locations(after));
+    let (left, right) = (locations(before, budget)?, locations(after, budget)?);
     let mut candidates: Vec<(usize, usize)> = left
         .iter()
         .filter_map(
@@ -511,6 +588,7 @@ fn unique_anchors(before: &[Block], after: &[Block]) -> Vec<(usize, usize)> {
     let mut tail_index: Vec<usize> = Vec::new();
     let mut previous = vec![usize::MAX; candidates.len()];
     for (index, &(_, value)) in candidates.iter().enumerate() {
+        budget.check()?;
         let low = tails.partition_point(|&t| t < value);
         if low == tails.len() {
             tails.push(value);
@@ -532,7 +610,7 @@ fn unique_anchors(before: &[Block], after: &[Block]) -> Vec<(usize, usize)> {
         cursor = previous[cursor];
     }
     result.reverse();
-    result
+    Ok(result)
 }
 
 /// `alignBlockGap`: a weighted edit distance between the blocks of one gap.
@@ -543,25 +621,27 @@ fn align_gap(
     before_end: usize,
     after_start: usize,
     after_end: usize,
-) -> Vec<Change> {
+    budget: &Budget<'_>,
+) -> Result<Vec<Change>, String> {
+    budget.check()?;
     let left = &before[before_start..before_end];
     let right = &after[after_start..after_end];
     if left.is_empty() {
-        return right
+        return Ok(right
             .iter()
             .enumerate()
             .map(|(i, b)| added(b, after_start + i))
-            .collect();
+            .collect());
     }
     if right.is_empty() {
-        return left
+        return Ok(left
             .iter()
             .enumerate()
             .map(|(i, b)| deleted(b, before_start + i))
-            .collect();
+            .collect());
     }
     if left.len() * right.len() > MAX_ALIGNMENT_CELLS {
-        return align_large_gap(left, right, before_start, after_start);
+        return align_large_gap(left, right, before_start, after_start, budget);
     }
     let columns = right.len() + 1;
     let mut directions = vec![0u8; (left.len() + 1) * columns];
@@ -570,6 +650,7 @@ fn align_gap(
         let mut current = vec![0f64; columns];
         current[0] = row as f64;
         for column in 1..columns {
+            budget.check()?;
             let (l, r) = (&left[row - 1], &right[column - 1]);
             let similarity = similarity(l, r);
             let diagonal = if l.kind == r.kind && similarity >= 0.2 {
@@ -596,6 +677,7 @@ fn align_gap(
     let mut reversed = Vec::new();
     let (mut row, mut column) = (left.len(), right.len());
     while row > 0 || column > 0 {
+        budget.check()?;
         let direction = if row == 0 {
             2
         } else if column == 0 {
@@ -612,7 +694,8 @@ fn align_gap(
                         a,
                         before_start + row - 1,
                         after_start + column - 1,
-                    ));
+                        budget,
+                    )?);
                 }
                 row -= 1;
                 column -= 1;
@@ -628,7 +711,7 @@ fn align_gap(
         }
     }
     reversed.reverse();
-    reversed
+    Ok(reversed)
 }
 
 /// `alignLargeGap`: pairwise by position when the gap is too large.
@@ -637,14 +720,16 @@ fn align_large_gap(
     after: &[Block],
     before_start: usize,
     after_start: usize,
-) -> Vec<Change> {
+    budget: &Budget<'_>,
+) -> Result<Vec<Change>, String> {
     let mut changes = Vec::new();
     let paired = before.len().min(after.len());
     for i in 0..paired {
+        budget.check()?;
         let (b, a) = (&before[i], &after[i]);
         if b.kind == a.kind && similarity(b, a) >= 0.35 {
             if b.text != a.text {
-                changes.push(modified(b, a, before_start + i, after_start + i));
+                changes.push(modified(b, a, before_start + i, after_start + i, budget)?);
             }
         } else {
             changes.push(deleted(b, before_start + i));
@@ -663,17 +748,24 @@ fn align_large_gap(
             .enumerate()
             .map(|(i, a)| added(a, after_start + paired + i)),
     );
-    changes
+    Ok(changes)
 }
 
-fn modified(before: &Block, after: &Block, b: usize, a: usize) -> Change {
-    Change {
+fn modified(
+    before: &Block,
+    after: &Block,
+    b: usize,
+    a: usize,
+    budget: &Budget<'_>,
+) -> Result<Change, String> {
+    budget.check()?;
+    Ok(Change {
         kind: ChangeKind::Modified,
         block: after.kind,
         before: Some(b),
         after: Some(a),
-        segments: diff_words(&before.text, &after.text),
-    }
+        segments: diff_words(&before.text, &after.text, budget)?,
+    })
 }
 fn added(block: &Block, a: usize) -> Change {
     Change {
@@ -702,7 +794,8 @@ fn deleted(block: &Block, b: usize) -> Change {
 
 /// `diffWords`: a longest-common-subsequence diff of word, space and
 /// punctuation runs.
-fn diff_words(before: &str, after: &str) -> Vec<Segment> {
+fn diff_words(before: &str, after: &str, budget: &Budget<'_>) -> Result<Vec<Segment>, String> {
+    budget.check()?;
     let left = tokenize(before);
     let right = tokenize(after);
     if left.len() * right.len() > MAX_WORD_DIFF_CELLS {
@@ -719,12 +812,13 @@ fn diff_words(before: &str, after: &str) -> Vec<Segment> {
                 text: after.to_owned(),
             });
         }
-        return compact(whole);
+        return Ok(compact(whole));
     }
     let columns = right.len() + 1;
     let mut lengths = vec![0u32; (left.len() + 1) * columns];
     for row in 1..=left.len() {
         for column in 1..columns {
+            budget.check()?;
             let offset = row * columns + column;
             lengths[offset] = if left[row - 1] == right[column - 1] {
                 lengths[(row - 1) * columns + column - 1] + 1
@@ -736,6 +830,7 @@ fn diff_words(before: &str, after: &str) -> Vec<Segment> {
     let mut reversed = Vec::new();
     let (mut row, mut column) = (left.len(), right.len());
     while row > 0 || column > 0 {
+        budget.check()?;
         if row > 0 && column > 0 && left[row - 1] == right[column - 1] {
             reversed.push(Segment {
                 kind: SegmentKind::Equal,
@@ -761,7 +856,8 @@ fn diff_words(before: &str, after: &str) -> Vec<Segment> {
         }
     }
     reversed.reverse();
-    compact(reversed)
+    budget.check()?;
+    Ok(compact(reversed))
 }
 
 fn compact(segments: Vec<Segment>) -> Vec<Segment> {
