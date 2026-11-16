@@ -55,6 +55,51 @@ fn start_command() -> Value {
 }
 
 #[test]
+fn rejects_malformed_native_identity_before_committing_or_notifying() {
+    for key in ["emittedAt", "providerSessionId", "turnId", "itemId"] {
+        for value in [json!(false), json!(7), json!({"invalid": true}), json!([])] {
+            let actor = actor();
+            append(&actor, native_event("turn.started", "turn", json!({})));
+            let before = actor.snapshot();
+            let events_before = actor.events();
+            let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+            let observed = calls.clone();
+            actor.subscribe(move |_| observed.set(observed.get() + 1));
+            let mut event = native_event("assistant.delta", "turn", json!({"delta": "Invalid"}));
+            event[key] = value.clone();
+            assert!(
+                actor
+                    .append_event(EventInput {
+                        session_id: "session-1".into(),
+                        runtime_id: "codex".into(),
+                        provider_session_id: Some("thread-1".into()),
+                        event,
+                    })
+                    .is_err(),
+                "{key}: {value}"
+            );
+            let after = actor.snapshot();
+            assert_eq!(after.cursor, before.cursor);
+            assert_eq!(after.control, before.control);
+            assert_eq!(after.display, before.display);
+            assert_eq!(actor.events(), events_before);
+            assert_eq!(calls.get(), 0);
+            append(
+                &actor,
+                json!({"type": "assistant.completed", "turnId": "turn",
+                "itemId": null, "providerSessionId": null, "emittedAt": null,
+                "payload": {"text": "Valid output"}}),
+            );
+            assert_eq!(calls.get(), 1);
+            assert_eq!(
+                actor.display().messages.last().unwrap()["text"],
+                "Valid output"
+            );
+        }
+    }
+}
+
+#[test]
 fn keeps_stale_terminal_facts_scoped_to_their_own_turn() {
     let actor = actor();
     append(&actor, native_event("turn.started", "A", json!({})));

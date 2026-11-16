@@ -15,3 +15,6 @@ mod discovery_tests;
 
 #[cfg(test)]
 mod file_change_tests;
+
+#[cfg(test)]
+mod display_acceptance_tests;

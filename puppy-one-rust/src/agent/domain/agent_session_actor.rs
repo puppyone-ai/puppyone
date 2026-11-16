@@ -264,6 +264,20 @@ impl AgentSessionActor {
 
     fn apply_event(&mut self, input: EventInput) -> Result<(Value, Commit), ActorError> {
         let event = associate_agent_user_message(&input.event, &self.control);
+        // Validate the dynamic adapter boundary before converting to the typed
+        // envelope. An invalid identity must not silently become an absent one:
+        // the journal needs this rejection to publish its recoverable diagnostic.
+        for key in ["emittedAt", "providerSessionId", "turnId", "itemId"] {
+            if event
+                .get(key)
+                .is_some_and(|value| !value.is_null() && !value.is_string())
+            {
+                return Err(ActorError(format!(
+                    "Invalid normalized AgentEvent: {}",
+                    event.event_type()
+                )));
+            }
+        }
         let string = |key: &str| event.get(key).and_then(Value::as_str).map(str::to_string);
         let envelope = create_agent_event_envelope(EnvelopeInput {
             sequence: self.sequence + 1,

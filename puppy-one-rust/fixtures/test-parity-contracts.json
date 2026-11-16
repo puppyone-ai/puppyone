@@ -8637,6 +8637,288 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "agent-native-display-contract",
+      "acceptance": "All 20 frozen TS cross-native display acceptance cases: Codex echo ordering, distinct submissions and admitted reference labels; Claude success and Pi success/exhausted retry settlement with exactly one queued successor; diagnostic codes and unknown history outcomes; structural patches and reentrant revisions; independent approval delivery; malformed-item diagnostics followed by valid output and native completion; structured failures across both native typed requests and JSON transport without private state; bounded history metadata and bytes. Additional native regression proves malformed identity/timestamp values cannot mutate or notify the actor before journal recovery. Queue ownership is also released after session exit.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/events/electron.agent-display-contract.test.mjs",
+          "sha256": "81dd36f85365d332f6fa4bf04791f230b3fd4feded00369f716f36716230e3c6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Main-owned Agent display contract across native adapters > keeps distinct client/native identities as one immutable input (start-first)"
+            },
+            {
+              "index": 1,
+              "name": "Main-owned Agent display contract across native adapters > keeps distinct client/native identities as one immutable input (echo-first)"
+            },
+            {
+              "index": 2,
+              "name": "Main-owned Agent display contract across native adapters > preserves admitted cross-root reference labels through native echo and display patches"
+            },
+            {
+              "index": 3,
+              "name": "Main-owned Agent display contract across native adapters > preserves distinct submissions with identical text and same-turn native follow-ups"
+            },
+            {
+              "index": 4,
+              "name": "Main-owned Agent display contract across native adapters > settles an upstream retry after a Claude success without changing local connectivity"
+            },
+            {
+              "index": 5,
+              "name": "Main-owned Agent display contract across native adapters > dispatches a queued Pi input after failed retries settle the preceding turn"
+            },
+            {
+              "index": 6,
+              "name": "Main-owned Agent display contract across native adapters > projects a recovered Pi model request as completed without a stale failure card"
+            },
+            {
+              "index": 7,
+              "name": "Main-owned Agent display contract across native adapters > does not reopen recovery presentation for an uncorrelated retry after completion"
+            },
+            {
+              "index": 8,
+              "name": "Main-owned Agent display contract across native adapters > keeps a transport recovery separate from a completed upstream turn"
+            },
+            {
+              "index": 9,
+              "name": "Main-owned Agent display contract across native adapters > preserves supported Claude assistant errors as native diagnostics"
+            },
+            {
+              "index": 10,
+              "name": "Main-owned Agent display contract across native adapters > does not invent a successful result from a claude history group"
+            },
+            {
+              "index": 11,
+              "name": "Main-owned Agent display contract across native adapters > does not invent a successful result from a pi history group"
+            },
+            {
+              "index": 12,
+              "name": "Main-owned Agent display contract across native adapters > reconstructs the exact committed display from structural patches"
+            },
+            {
+              "index": 13,
+              "name": "Main-owned Agent display contract across native adapters > publishes reentrant commits in revision order for every subscriber"
+            },
+            {
+              "index": 14,
+              "name": "Agent display failure and request isolation > tracks two replies independently and admits one effect per native request"
+            },
+            {
+              "index": 15,
+              "name": "Agent display failure and request isolation > displays a malformed-item diagnostic, accepts later output and preserves native completion"
+            },
+            {
+              "index": 16,
+              "name": "Agent display failure and request isolation > settles uncertain tool and assistant presentation without inventing a native outcome"
+            },
+            {
+              "index": 17,
+              "name": "Agent display failure and request isolation > keeps native diagnostic fields across the serialized IPC failure boundary"
+            },
+            {
+              "index": 18,
+              "name": "Agent display failure and request isolation > bounds historical turn metadata even when the source provides no renderable parts"
+            },
+            {
+              "index": 19,
+              "name": "Agent display failure and request isolation > bounds large content by bytes as well as entry count and keeps the active input"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::codex_native_echo_and_start_join_client_identity_in_either_order"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::native_echo_preserves_admitted_cross_root_reference_labels"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::identical_text_with_distinct_native_submissions_and_followups_remains_distinct"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::claude_success_settles_upstream_retry_without_losing_local_connectivity"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::pi_exhausted_retries_settle_the_turn_and_dispatch_its_queued_successor_once"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::recovered_pi_request_completes_without_a_stale_failure_card"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::does_not_reopen_recovery_presentation_for_an_uncorrelated_retry_after_completion"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::keeps_a_transport_recovery_separate_from_a_completed_upstream_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::claude_assistant_errors_preserve_native_diagnostic_codes"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::incomplete_claude_and_pi_history_never_invents_a_successful_native_outcome"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::reconstructs_the_exact_committed_display_from_structural_patches"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::publishes_reentrant_commits_in_revision_order_for_every_subscriber"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::tracks_two_replies_independently_and_admits_one_effect_per_native_request"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::malformed_display_items_keep_diagnostics_and_allow_later_native_completion"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::settles_uncertain_tool_and_assistant_presentation_without_inventing_a_native_outcome"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::structured_operation_failures_survive_transport_without_private_native_state"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::bounds_historical_turn_metadata_even_when_the_source_provides_no_renderable_parts"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::bounds_large_content_by_bytes_as_well_as_entry_count_and_keeps_the_active_input"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::rejects_malformed_native_identity_before_committing_or_notifying"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-provider-activity-routing",
+      "acceptance": "All 15 frozen TS activity-routing cases: notification severity/text survives sanitization, snapshot patches and replay without becoming history checkpoints; late/reused identities, bounded notices and legacy/future statuses remain separate from tools and turns; current Codex normalizers and old journals project compaction as system rows; parent completion does not invent compaction success; Claude authentication statuses stay session-scoped; Pi native history creates no transient notifications; malformed notification contracts are rejected.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/events/provider-activity-routing.test.mjs",
+          "sha256": "ab3a409ab14149878f5049734aac7d213d29dff0f317dd011e1dce71988c09d3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Provider activity routing > preserves info notification text through sanitization, snapshots and replay"
+            },
+            {
+              "index": 1,
+              "name": "Provider activity routing > preserves warning notification text through sanitization, snapshots and replay"
+            },
+            {
+              "index": 2,
+              "name": "Provider activity routing > preserves error notification text through sanitization, snapshots and replay"
+            },
+            {
+              "index": 3,
+              "name": "Provider activity routing > isolates late and reused notice identities without inventing turns or changing the active turn"
+            },
+            {
+              "index": 4,
+              "name": "Provider activity routing > bounds auxiliary notices without consuming transcript geometry or tool identity"
+            },
+            {
+              "index": 5,
+              "name": "Provider activity routing > routes legacy notifications and unrecognized provider statuses away from tools"
+            },
+            {
+              "index": 6,
+              "name": "Provider activity routing > routes Codex compaction started as a system activity, including older journals"
+            },
+            {
+              "index": 7,
+              "name": "Provider activity routing > routes Codex compaction completed as a system activity, including older journals"
+            },
+            {
+              "index": 8,
+              "name": "Provider activity routing > does not invent successful compaction from a completed parent turn or merge separate turns"
+            },
+            {
+              "index": 9,
+              "name": "Provider activity routing > routes Claude authentication running as session status"
+            },
+            {
+              "index": 10,
+              "name": "Provider activity routing > routes Claude authentication completed as session status"
+            },
+            {
+              "index": 11,
+              "name": "Provider activity routing > routes Claude authentication failed as session status"
+            },
+            {
+              "index": 12,
+              "name": "Provider activity routing > restores native Pi history without synthesizing transient notifications"
+            },
+            {
+              "index": 13,
+              "name": "Provider activity routing > rejects malformed notification contracts"
+            },
+            {
+              "index": 14,
+              "name": "Provider activity routing > rejects malformed notification contracts"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::preserves_notification_text_through_sanitization_snapshots_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::isolates_late_and_reused_notice_identities_without_inventing_turns_or_changing_the_active_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::bounds_auxiliary_notices_without_consuming_transcript_geometry_or_tool_identity"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::routes_legacy_notifications_and_unrecognized_provider_statuses_away_from_tools"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::current_and_legacy_codex_compaction_both_project_as_system_activity"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::does_not_invent_successful_compaction_from_a_completed_parent_turn_or_merge_separate_turns"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::claude_authentication_projects_as_session_status_for_every_outcome"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::restored_pi_history_does_not_synthesize_transient_notifications"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::rejects_malformed_notification_contracts"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

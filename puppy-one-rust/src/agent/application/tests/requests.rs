@@ -10,7 +10,7 @@ use crate::agent::connections::local_agent_inventory::{
 };
 use crate::agent::connections::tools::local_agent_tool_registry::LocalAgentToolDescriptor;
 use crate::agent::contract::operation_error::read_agent_operation_failure;
-use crate::agent::contract::protocol::AgentOperation;
+use crate::agent::contract::protocol::{AgentOperation, AgentRequest, CreateSession};
 use crate::agent::infrastructure::attachments::agent_attachment_store::{
     AgentAttachmentStore, AttachmentStoreOptions,
 };
@@ -31,6 +31,7 @@ struct FakeService {
     calls: Calls,
     start_turn: StartTurn,
     capabilities: Value,
+    create_error: Option<AgentError>,
 }
 
 impl FakeService {
@@ -44,6 +45,11 @@ impl FakeService {
         self.calls
             .borrow_mut()
             .push((method.into(), sender.id(), request.clone(), root));
+        if method == "createSession"
+            && let Some(error) = self.create_error.clone()
+        {
+            return Box::pin(async move { Err(error) });
+        }
         let value = match method {
             "createSession" | "resumeSession" => ipc_snapshot(),
             "openSession" => json!({ "status": "opened", "snapshot": ipc_snapshot() }),
@@ -261,9 +267,71 @@ fn fake_service(start_turn: StartTurn, capabilities: Value) -> (Rc<FakeService>,
             calls: calls.clone(),
             start_turn,
             capabilities,
+            create_error: None,
         }),
         calls,
     )
+}
+
+#[test]
+fn structured_operation_failures_survive_transport_without_private_native_state() {
+    run_local(async {
+        let (mut service, calls) = fake_service(
+            Rc::new(|_| Ok(json!({}))),
+            semantic_reference_capabilities(),
+        );
+        let mut error = AgentError::coded("AUTH_REQUIRED", "Please sign in");
+        error.runtime_id = Some("claude".into());
+        error.operation = Some("create".into());
+        error.stage = Some("authentication".into());
+        error.status = Some("unauthenticated".into());
+        error.retryable = Some(false);
+        error.actions = vec!["sign-in".into()];
+        error.extra = Some(json!({"privateNativeState": "do not expose"}));
+        Rc::get_mut(&mut service).unwrap().create_error = Some(error);
+        let handlers = handlers_for(service, None, None);
+        let owner = sender(7);
+        let native_failure = handlers
+            .handle(
+                &owner,
+                AgentRequest::CreateSession(CreateSession {
+                    root_path: "/workspace".into(),
+                    runtime_id: Some("claude".into()),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap_err();
+        let transport = handlers
+            .handle_value(
+                &owner,
+                AgentOperation::CreateSession,
+                &json!({"rootPath": "/workspace", "runtimeId": "claude"}),
+            )
+            .await;
+        let expected = json!({
+            "schemaVersion": 1, "code": "AUTH_REQUIRED", "message": "Please sign in",
+            "runtimeId": "claude", "operation": "create", "stage": "authentication",
+            "status": "unauthenticated", "retryable": false, "actions": ["sign-in"]
+        });
+        assert_eq!(serde_json::to_value(native_failure).unwrap(), expected);
+        let round_trip: Value =
+            serde_json::from_str(&serde_json::to_string(&transport).unwrap()).unwrap();
+        assert_eq!(round_trip, json!({"agentFailure": expected}));
+        assert_eq!(
+            read_agent_operation_failure(&round_trip).unwrap(),
+            Some(expected)
+        );
+        assert_eq!(calls.borrow().len(), 2);
+        assert!(
+            calls
+                .borrow()
+                .iter()
+                .all(|(method, sender, _, root)| method == "createSession"
+                    && *sender == 7
+                    && root.as_deref() == Some("/canonical/workspace"))
+        );
+    });
 }
 
 #[test]
