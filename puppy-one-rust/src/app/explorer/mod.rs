@@ -97,7 +97,8 @@ impl PaintedPreferences {
             show_file_icons: p.show_file_icons,
             create_new: p.create_new.clone(),
             puppy_flow_files: p.experimental.puppy_flow_files,
-            cloud_workspace: p.experimental.cloud_workspace,
+            // Computer Mode turns Cloud on as well (`flags::cloud_enabled`).
+            cloud_workspace: p.experimental.cloud_workspace || p.experimental.computer_mode,
             agent_file_activity_indicators: p.agent_file_activity_indicators,
             explorer_pins: p.explorer_pins.clone(),
         }

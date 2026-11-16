@@ -219,7 +219,7 @@ impl Lab {
                     let mut view = crate::app::Shell::new(window, cx);
                     view.lab_home(shell.starts_with("home-empty"), cx);
                     if shell.starts_with("home-projects") {
-                        view.lab_home_projects(shell, cx);
+                        view.lab_home_projects(shell, window, cx);
                     }
                     if shell.starts_with("cloud-screen") {
                         view.lab_cloud_screen(shell, cx);

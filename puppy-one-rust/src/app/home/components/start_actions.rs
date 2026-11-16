@@ -18,11 +18,21 @@ use std::rc::Rc;
 
 type ActionHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
+/// `New project`, or in Computer Mode `New computer` with a monitor.
+pub(in crate::app::home) fn create_action(computer_mode: bool) -> (&'static str, &'static str) {
+    if computer_mode {
+        ("monitor", "onboarding.computerMode.createAction")
+    } else {
+        ("file-plus-2", "onboarding.action.createLocalProject")
+    }
+}
+
 /// `OnboardingCreateProjectAction`: "New project", the default first-run path.
 #[derive(IntoElement)]
 pub(in crate::app::home) struct OnboardingCreateProjectAction {
     prominent: bool,
     busy: bool,
+    computer_mode: bool,
     on_click: ActionHandler,
 }
 
@@ -35,23 +45,29 @@ impl OnboardingCreateProjectAction {
         Self {
             prominent,
             busy,
+            computer_mode: false,
             on_click: Rc::new(on_click),
         }
+    }
+    pub fn computer_mode(mut self, on: bool) -> Self {
+        self.computer_mode = on;
+        self
     }
 }
 
 impl RenderOnce for OnboardingCreateProjectAction {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let on_click = self.on_click;
+        let (icon, label) = create_action(self.computer_mode);
         Button::new("home-create-project")
             .variant(if self.prominent {
                 ButtonVariant::PatternPrimary
             } else {
                 ButtonVariant::Pattern
             })
-            .icon(Icon::new("file-plus-2").small().stroke(1.85))
-            .label(tr("onboarding.action.createLocalProject"))
-            .accessibility_label(tr("onboarding.action.createLocalProject"))
+            .icon(Icon::new(icon).small().stroke(1.85))
+            .label(tr(label))
+            .accessibility_label(tr(label))
             .disabled(self.busy)
             .w_full()
             .text_size(px(theme::ty().ui.body))
@@ -159,6 +175,7 @@ impl RenderOnce for OnboardingEntryActions {
 #[derive(IntoElement)]
 pub(in crate::app::home) struct OnboardingStartActions {
     busy: bool,
+    computer_mode: bool,
     on_create: ActionHandler,
     on_open_folder: ActionHandler,
     on_import: ActionHandler,
@@ -174,6 +191,7 @@ impl OnboardingStartActions {
     ) -> Self {
         Self {
             busy,
+            computer_mode: false,
             on_create: Rc::new(on_create),
             on_open_folder: Rc::new(on_open_folder),
             on_import: Rc::new(on_import),
@@ -187,6 +205,10 @@ impl OnboardingStartActions {
         self.agents_menu = Some(menu.into_any_element());
         self
     }
+    pub fn computer_mode(mut self, on: bool) -> Self {
+        self.computer_mode = on;
+        self
+    }
 }
 
 impl RenderOnce for OnboardingStartActions {
@@ -198,12 +220,12 @@ impl RenderOnce for OnboardingStartActions {
         let on_open = self.on_open_folder;
         let on_import = self.on_import;
         let split = self.agents_menu.is_some();
-
+        let (icon, label) = create_action(self.computer_mode);
         let create = Button::new("home-create-project")
             .variant(ButtonVariant::PatternDeep)
-            .icon(Icon::new("file-plus-2").small().stroke(1.85))
-            .label(tr("onboarding.action.createLocalProject"))
-            .accessibility_label(tr("onboarding.action.createLocalProject"))
+            .icon(Icon::new(icon).small().stroke(1.85))
+            .label(tr(label))
+            .accessibility_label(tr(label))
             .disabled(busy)
             .when(split, |b| b.rounded_r(px(0.)))
             .on_click(move |ev, w, cx| on_create(ev, w, cx));

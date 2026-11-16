@@ -42,6 +42,10 @@ pub(in crate::app) struct CreateProject {
     pub(in crate::app) advanced_open: bool,
     /// The project's Cloud Computer comes with a desktop and its screen.
     pub(in crate::app) cloud_desktop: bool,
+    /// Computer Mode's "Create a computer" (`ComputerModeEntryDialog`):
+    /// where it runs instead of who can open it; one made on this computer
+    /// becomes one of its computers.
+    pub(in crate::app) computer: bool,
 }
 
 /// Who can open the new project: the Homepage's three audiences.
@@ -199,12 +203,26 @@ impl Homepage {
         cx: &mut Context<Self>,
     ) {
         let suffix = format!("{:04X}", rand_suffix());
+        let computer = crate::features::flags::computer_mode_enabled(&self.preferences, cx);
         let name = self.project_name_input(
-            format!("{} {suffix}", tr("onboarding.entry.create.defaultName")),
+            format!(
+                "{} {suffix}",
+                tr(if computer {
+                    "onboarding.computerMode.dialog.defaultName"
+                } else {
+                    "onboarding.entry.create.defaultName"
+                })
+            ),
             window,
             cx,
             Self::submit_create_project,
         );
+        // A computer runs in the Cloud when it can, on this computer otherwise.
+        let audience = if computer && !self.creatable_teams(cx).is_empty() {
+            Audience::Team
+        } else {
+            Audience::Local
+        };
         name.read(cx).focus_handle(cx).focus(window, cx);
         self.create = Some(CreateProject {
             destination: Destination {
@@ -213,12 +231,14 @@ impl Homepage {
                 choosing: false,
             },
             error: None,
-            audience: Audience::Local,
+            audience,
             team: None,
             cloud_operation: None,
             submitting: false,
             advanced_open: false,
-            cloud_desktop: false,
+            // A Cloud computer comes with its desktop and screen.
+            cloud_desktop: computer,
+            computer,
         });
         self.open_dialog(DialogKey::CreateProject, cx);
         cx.notify();
@@ -458,12 +478,21 @@ impl Homepage {
             return;
         };
         let devices = create.audience == Audience::Devices;
-        let created = validate_name(&value)
-            .and_then(|name| create_folder(&location, name, &crate::localization::current_code()));
+        let computer = create.computer;
+        let created = validate_name(&value).and_then(|name| {
+            create_folder(&location, name, &crate::localization::current_code())
+                .map(|(path, open)| (path, open, name.to_owned()))
+        });
         match created {
-            Ok((path, open)) => {
+            Ok((path, open, name)) => {
                 self.create = None;
                 self.close_dialog(DialogKey::CreateProject, cx);
+                // `registerComputer`: the new folder is one of this
+                // computer's computers, running.
+                if computer {
+                    crate::features::computer_mode::global(&self.preferences, cx)
+                        .update(cx, |c, cx| c.register(&path, Some(&name), cx));
+                }
                 self.open_created_project(path.clone(), open.map(PathBuf::from), false, cx);
                 // Offered from this window, as the folder it now shows.
                 if devices {
@@ -537,10 +566,19 @@ impl Homepage {
         locked: bool,
         cx: &mut Context<Self>,
     ) -> Div {
+        self.labelled_name_field(destination, locked, "onboarding.entry.create.nameLabel", cx)
+    }
+    fn labelled_name_field(
+        &self,
+        destination: &Destination,
+        locked: bool,
+        label: &'static str,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let t = cx.palette();
         v_flex()
             .gap(px(8.))
-            .child(self.field_label("onboarding.entry.create.nameLabel", cx))
+            .child(self.field_label(label, cx))
             .child(
                 self.field_box(locked, cx).px(px(8.)).child(
                     div()
@@ -808,6 +846,9 @@ impl Homepage {
         create: &CreateProject,
         cx: &mut Context<Self>,
     ) -> Dialog {
+        if create.computer {
+            return self.create_computer_dialog(create, cx);
+        }
         let t = cx.palette();
         let ty = theme::ty();
         let host = self.weak.clone();
@@ -883,6 +924,254 @@ impl Homepage {
                     .disabled(!can_create)
                     .on_click(cx.listener(|s, _, w, cx| s.submit_create_project(w, cx))),
             )
+    }
+}
+
+impl Homepage {
+    /// `ComputerModeEntryDialog`: where the computer runs, its name, and
+    /// its team or the folder it is kept in.
+    fn create_computer_dialog(&self, create: &CreateProject, cx: &mut Context<Self>) -> Dialog {
+        let t = cx.palette();
+        let ty = theme::ty();
+        let host = self.weak.clone();
+        let destination = &create.destination;
+        let teams = self.creatable_teams(cx);
+        let in_cloud = create.audience == Audience::Team && !teams.is_empty();
+        let busy = destination.choosing || create.submitting;
+        let can_create = !busy
+            && if in_cloud {
+                self.create_team(cx).is_some()
+            } else {
+                destination.location.is_some()
+            };
+        let ready = crate::features::computer_mode::read(cx).is_some_and(|c| c.runtime_available());
+        let cards = h_flex()
+            .gap(px(10.))
+            .items_stretch()
+            .child(self.computer_destination(
+                Audience::Team,
+                in_cloud,
+                busy || teams.is_empty(),
+                "onboarding.computerMode.dialog.cloudTitle",
+                if teams.is_empty() {
+                    "onboarding.computerMode.dialog.cloudUnavailable"
+                } else {
+                    "onboarding.computerMode.dialog.cloudDetail"
+                },
+                None,
+                cx,
+            ))
+            .child(self.computer_destination(
+                Audience::Local,
+                !in_cloud,
+                busy,
+                "onboarding.computerMode.dialog.onDeviceTitle",
+                "onboarding.computerMode.dialog.onDeviceDetail",
+                Some(if ready {
+                    "onboarding.computerMode.dialog.runtimeReady"
+                } else {
+                    "onboarding.computerMode.dialog.runtimeManaged"
+                }),
+                cx,
+            ));
+        let team = (in_cloud && teams.len() > 1).then(|| {
+            v_flex()
+                .gap(px(8.))
+                .child(self.field_label("onboarding.sharing.selectTeam", cx))
+                .child(h_flex().child(self.create_team_selector(
+                    teams.clone(),
+                    self.create_team(cx),
+                    create.submitting,
+                    cx,
+                )))
+        });
+        let location = (!in_cloud).then(|| {
+            self.location_field(
+                destination,
+                create.submitting,
+                "onboarding.entry.create.locationLabel",
+                cx,
+            )
+        });
+        Dialog::new("create-computer")
+            .width(460.)
+            .inset(24.)
+            .body_padding(10., 22.)
+            .leading(Icon::new("monitor").stroke(1.85), t.accent)
+            .title(tr("onboarding.computerMode.dialog.title"))
+            .on_close(move |w, cx| {
+                let _ = host.update(cx, |s, cx| s.close_create_project(w, cx));
+            })
+            .child(
+                v_flex()
+                    .child(
+                        v_flex()
+                            .gap(px(18.))
+                            .child(
+                                v_flex()
+                                    .gap(px(8.))
+                                    .child(self.field_label(
+                                        "onboarding.computerMode.dialog.whereLabel",
+                                        cx,
+                                    ))
+                                    .child(cards),
+                            )
+                            .child(self.labelled_name_field(
+                                destination,
+                                create.submitting,
+                                "onboarding.computerMode.dialog.nameLabel",
+                                cx,
+                            ))
+                            .children(team)
+                            .children(location),
+                    )
+                    .children(create.error.clone().map(|error| {
+                        div()
+                            .mt(px(8.))
+                            .text_size(px(ty.ui.meta))
+                            .line_height(px(18.))
+                            .text_color(t.danger)
+                            .child(error)
+                    })),
+            )
+            .footer(
+                Button::new("create-project-cancel")
+                    .variant(ButtonVariant::Secondary)
+                    .label(tr("common.action.cancel"))
+                    .disabled(busy)
+                    .on_click(cx.listener(|s, _, w, cx| s.close_create_project(w, cx))),
+            )
+            .footer(
+                Button::new("create-project-submit")
+                    .variant(ButtonVariant::Solid)
+                    .label(tr(if create.submitting {
+                        "onboarding.computerMode.dialog.submitting"
+                    } else {
+                        "onboarding.computerMode.dialog.submit"
+                    }))
+                    .disabled(!can_create)
+                    .on_click(cx.listener(|s, _, w, cx| s.submit_create_project(w, cx))),
+            )
+    }
+
+    /// `.computer-mode-destination-card`: one place a computer can run.
+    #[allow(clippy::too_many_arguments)]
+    fn computer_destination(
+        &self,
+        audience: Audience,
+        selected: bool,
+        disabled: bool,
+        title: &'static str,
+        detail: &'static str,
+        badge: Option<&'static str>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let ty = theme::ty().ui;
+        let cloud = audience == Audience::Team;
+        let key = if cloud { "cloud" } else { "on-device" };
+        let accent = t.accent;
+        v_flex()
+            .id(SharedString::from(format!("create-computer-{key}")))
+            .debug_selector(move || format!("create-computer:{key}"))
+            .flex_1()
+            .min_w_0()
+            .gap(px(6.))
+            .px(px(13.))
+            .py(px(12.))
+            .rounded(px(10.))
+            .border_1()
+            .map(|d| {
+                if selected {
+                    d.border_color(accent)
+                        .bg(theme::mix(accent, t.panel, 0.07))
+                        .shadow(vec![crate::ui::moments::paint::ring(
+                            theme::alpha(accent, 0.35),
+                            px(1.),
+                        )])
+                } else {
+                    d.border_color(t.border)
+                        .bg(theme::mix(t.panel, t.canvas, 0.75))
+                }
+            })
+            .when(disabled && !selected, |d| d.opacity(0.56))
+            .when(!disabled, |d| {
+                d.cursor(theme::clickable_cursor())
+                    .when(!selected, |d| {
+                        d.hover(|s| {
+                            s.border_color(theme::mix(t.text, t.border, 0.26))
+                                .bg(t.panel)
+                        })
+                    })
+                    .on_click(
+                        cx.listener(move |s, _, _, cx| {
+                            s.choose_create_audience(audience, None, cx)
+                        }),
+                    )
+            })
+            .child(
+                h_flex()
+                    .gap(px(8.))
+                    .items_center()
+                    .child(
+                        div()
+                            .size(px(26.))
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(7.))
+                            .bg(if cloud {
+                                theme::alpha(accent, 0.12)
+                            } else {
+                                theme::alpha(t.text, 0.07)
+                            })
+                            .child(
+                                if cloud {
+                                    Icon::product(crate::ui::components::ProductIcon::Cloud)
+                                } else {
+                                    Icon::new("cpu")
+                                }
+                                .with_size(px(16.))
+                                .stroke(1.8)
+                                .color(if cloud {
+                                    accent
+                                } else {
+                                    t.text
+                                }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .min_w_0()
+                            .text_size(px(ty.body))
+                            .line_height(px(18.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(t.text)
+                            .child(tr(title)),
+                    ),
+            )
+            .child(
+                div()
+                    .text_size(px(ty.meta))
+                    .line_height(relative(1.4))
+                    .text_color(t.muted)
+                    .child(tr(detail)),
+            )
+            .children(badge.map(|badge| {
+                div()
+                    .self_start()
+                    .mt(px(2.))
+                    .px(px(7.))
+                    .py(px(2.))
+                    .rounded_full()
+                    .bg(theme::alpha(t.text, 0.07))
+                    .text_size(px(ty.caption))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.muted)
+                    .child(tr(badge))
+            }))
+            .into_any_element()
     }
 }
 

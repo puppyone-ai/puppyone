@@ -146,11 +146,12 @@ impl Homepage {
             .child(
                 v_flex()
                     .gap(px(2.))
-                    .child(option(
-                        Route::Create,
-                        Icon::new("file-plus-2"),
-                        "onboarding.action.createLocalProject",
-                    ))
+                    .child({
+                        let (icon, label) = super::components::create_action(
+                            crate::features::flags::computer_mode_enabled(&self.preferences, cx),
+                        );
+                        option(Route::Create, Icon::new(icon), label)
+                    })
                     .child(option(
                         Route::OpenFolder,
                         Icon::product(ProductIcon::Folder),

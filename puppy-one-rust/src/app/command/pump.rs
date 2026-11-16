@@ -277,10 +277,16 @@ impl Shell {
         let sandbox = (!home && !self.file_mode())
             .then(|| self.files(cx).workspace.as_ref()?.sandbox_target())
             .flatten();
+        // Computer Mode: a local workspace may be one of this computer's
+        // computers, whose screen the window shows.
+        let local = (!home && !self.file_mode() && sandbox.is_none() && view.device.is_none())
+            .then(|| view.root.clone())
+            .flatten();
         self.cloud.update(cx, |c, cx| {
             c.set_session(view, cx);
             c.set_popover(popover, cx);
             c.set_screen_target(sandbox, cx);
+            c.set_screen_local(local, cx);
         });
         self.guard_cloud_history(cx);
     }

@@ -164,6 +164,9 @@ pub struct Experimental {
     pub other_app_imports: bool,
     pub cloud_workspace: bool,
     pub cloud_computer_screen: bool,
+    /// `enableComputerMode`: Cloud spaces and this computer's workspaces
+    /// shown as miniature computers with screens, plain folders kept quiet.
+    pub computer_mode: bool,
     pub payments: bool,
     pub puppy_flow_files: bool,
 }
@@ -177,6 +180,7 @@ impl Default for Experimental {
             other_app_imports: false,
             cloud_workspace: false,
             cloud_computer_screen: false,
+            computer_mode: false,
             // `DEFAULT_EXPERIMENTAL_SETTINGS.enablePayments`.
             payments: true,
             puppy_flow_files: false,

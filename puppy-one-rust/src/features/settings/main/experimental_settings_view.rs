@@ -40,6 +40,7 @@ fn groups(
     let mut cloud = vec![
         setting!("cloudWorkspace", experimental.cloud_workspace),
         setting!("cloudComputerScreen", experimental.cloud_computer_screen),
+        setting!("computerMode", experimental.computer_mode),
     ];
     if host_devices_available {
         // `useHostDevicesAvailable`: the owner's other computers.
@@ -187,6 +188,7 @@ mod tests {
             [
                 "cloudWorkspace",
                 "cloudComputerScreen",
+                "computerMode",
                 "payments",
                 "flowFiles"
             ]
@@ -196,6 +198,7 @@ mod tests {
             [
                 "cloudWorkspace",
                 "cloudComputerScreen",
+                "computerMode",
                 "hostDevices",
                 "payments",
                 "flowFiles"
@@ -203,7 +206,12 @@ mod tests {
         );
         assert_eq!(
             keys_in("cloud", false, false),
-            ["cloudWorkspace", "cloudComputerScreen", "flowFiles"]
+            [
+                "cloudWorkspace",
+                "cloudComputerScreen",
+                "computerMode",
+                "flowFiles"
+            ]
         );
     }
 }

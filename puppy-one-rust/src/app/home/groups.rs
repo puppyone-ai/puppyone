@@ -5,6 +5,10 @@
 //! reaches, each shown even when empty, then Cloud projects whose space is
 //! unknown, then the owner's other computers. A folder joins a space by
 //! being dragged onto it; New project starts one anywhere.
+//!
+//! Computer Mode (`useComputerModeHomepage`) turns the order round: the
+//! spaces lead, then the computers on this computer, then the other
+//! computers, and the plain folders last, quietly.
 use crate::localization::t as tr;
 use crate::workspace::cloud::{catalog::Item, spaces::Space};
 
@@ -14,6 +18,10 @@ pub(in crate::app) enum GroupId {
     Space(String),
     SharedUnresolved,
     OtherComputers,
+    /// Computer Mode: the computers on this computer.
+    LocalComputers,
+    /// Computer Mode: the folders that are not computers.
+    PlainFolders,
 }
 impl GroupId {
     /// `data-project-group`.
@@ -23,6 +31,8 @@ impl GroupId {
             Self::Space(id) => format!("space:{id}"),
             Self::SharedUnresolved => "shared-unresolved".into(),
             Self::OtherComputers => "other-computers".into(),
+            Self::LocalComputers => "local-computers".into(),
+            Self::PlainFolders => "plain-folders".into(),
         }
     }
     /// `placeGroupId`: the group a navigation place brings into view.
@@ -56,6 +66,8 @@ pub(in crate::app) struct DropTarget {
 pub(in crate::app) enum Mark {
     Computer,
     Space(Space),
+    /// The computers on this computer (`Cpu`).
+    Computers,
 }
 /// `OnboardingProjectGroup`.
 #[derive(Clone, Debug, PartialEq)]
@@ -78,6 +90,8 @@ pub(in crate::app) struct Group {
     /// This computer's sharing, said at the end of its heading
     /// (`ThisComputerDetail`), and whether it offers Resume.
     pub presence: Option<(String, bool)>,
+    /// New computer, at the end of the heading (or in the empty line).
+    pub create: bool,
 }
 impl Group {
     fn new(id: GroupId, title: String) -> Self {
@@ -94,6 +108,7 @@ impl Group {
             owner: false,
             manage: None,
             presence: None,
+            create: false,
         }
     }
 }
@@ -118,6 +133,11 @@ pub(in crate::app) struct Inputs<'a> {
     pub remote: Vec<Item>,
     /// This computer's sharing, when it shares anything.
     pub presence: Option<(String, bool)>,
+    /// Computer Mode: whether a local folder is one of this computer's
+    /// computers.
+    pub computers: Option<&'a dyn Fn(&Item) -> bool>,
+    /// A project (or a computer) can be started here.
+    pub can_create: bool,
 }
 
 /// The groups in page order, without the empty ones that do not stay.
@@ -129,7 +149,7 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
     let dragging = inputs.dragging_path.map(str::trim);
     let mut groups = vec![];
     // Every registered local folder stays on this computer.
-    if !local.is_empty() {
+    if !local.is_empty() && inputs.computers.is_none() {
         let mut group = Group::new(
             GroupId::LocalOnly,
             tr(if cfg!(target_os = "macos") {
@@ -141,7 +161,7 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
         );
         group.mark = Some(Mark::Computer);
         group.items = local.clone();
-        group.presence = inputs.presence;
+        group.presence = inputs.presence.clone();
         groups.push(group);
     }
     // `useCloudProjectGroups`: one group per space, always shown.
@@ -204,6 +224,34 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
         group.items = unknown;
         groups.push(group);
     }
+    // Computer Mode: the computers on this computer, after the spaces; the
+    // plain folders go last.
+    let plain = inputs.computers.map(|is_computer| {
+        let (computers, plain): (Vec<Item>, Vec<Item>) =
+            local.iter().cloned().partition(|item| is_computer(item));
+        if !computers.is_empty() || !plain.is_empty() {
+            let mut group = Group::new(
+                GroupId::LocalComputers,
+                tr(if cfg!(target_os = "macos") {
+                    "onboarding.computerMode.thisMacTitle"
+                } else {
+                    "onboarding.computerMode.thisComputerTitle"
+                })
+                .to_owned(),
+            );
+            group.mark = Some(Mark::Computers);
+            group.empty = computers.is_empty();
+            group.empty_text = group
+                .empty
+                .then(|| tr("onboarding.computerMode.emptyOnDevice").to_owned());
+            group.keep_empty = true;
+            group.items = computers;
+            group.presence = inputs.presence.clone();
+            group.create = inputs.can_create;
+            groups.push(group);
+        }
+        plain
+    });
     // `HomepageComputers`: my other computers' folders, and the place a
     // folder is dragged to open it to them.
     if !inputs.remote.is_empty() || inputs.local_share {
@@ -222,6 +270,14 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
             hint: tr("onboarding.drop.personal").to_owned(),
             action: DropAction::ShareDevices,
         });
+        groups.push(group);
+    }
+    if let Some(plain) = plain.filter(|plain| !plain.is_empty()) {
+        let mut group = Group::new(
+            GroupId::PlainFolders,
+            tr("onboarding.computerMode.plainFolders.title").to_owned(),
+        );
+        group.items = plain;
         groups.push(group);
     }
     groups
@@ -288,10 +344,66 @@ mod tests {
             local_share: false,
             remote: vec![],
             presence: None,
+            computers: None,
+            can_create: true,
         }
     }
     fn keys(groups: &[Group]) -> Vec<String> {
         groups.iter().map(|g| g.id.key()).collect()
+    }
+
+    /// `onboardingBaseGroups` in Computer Mode: the spaces lead, then this
+    /// computer's computers (with New computer), the other computers, and
+    /// the plain folders last; a folder still publishes by drag.
+    #[test]
+    fn computer_mode_leads_with_the_spaces_and_keeps_plain_folders_last() {
+        crate::localization::set_current("en");
+        let spaces = spaces();
+        let is_computer = |item: &Item| item.id == "linked";
+        let mut input = inputs(&spaces, items(), Some("/fixture/draft"));
+        input.computers = Some(&is_computer);
+        input.local_share = true;
+        let groups = groups(input);
+        assert_eq!(
+            keys(&groups),
+            [
+                "space:personal",
+                "space:team",
+                "space:read",
+                "local-computers",
+                "other-computers",
+                "plain-folders"
+            ]
+        );
+        let computers = &groups[3];
+        assert_eq!(computers.mark, Some(Mark::Computers));
+        assert!(computers.create);
+        assert_eq!(computers.items.len(), 1);
+        assert_eq!(groups[5].items[0].id, "local");
+        // The plain folder being dragged still publishes to a space.
+        assert!(groups[1].drop.as_ref().is_some_and(|d| d.enabled));
+        // No computers yet: the line says so, under its New computer.
+        let none = |_: &Item| false;
+        let mut input = inputs(&spaces, items(), None);
+        input.computers = Some(&none);
+        let groups = super::groups(input);
+        let computers = groups
+            .iter()
+            .find(|g| g.id == GroupId::LocalComputers)
+            .unwrap();
+        assert!(computers.items.is_empty());
+        assert_eq!(
+            computers.empty_text.as_deref(),
+            Some(tr("onboarding.computerMode.emptyOnDevice"))
+        );
+        // Nothing on this computer: no computers group at all.
+        let mut input = inputs(
+            &spaces,
+            vec![item("cloud", None, Some("p"), Some("team"))],
+            None,
+        );
+        input.computers = Some(&none);
+        assert!(!keys(&super::groups(input)).contains(&"local-computers".to_owned()));
     }
 
     /// `homepageCloudSpaces.test.tsx`: every space together, empty and

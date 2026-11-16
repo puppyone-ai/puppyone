@@ -8,6 +8,7 @@ mod across_windows;
 mod cloud_opening;
 mod cloud_screen;
 mod cloud_share;
+mod computer_mode;
 mod dialog_layer;
 mod editing;
 mod explorer_pane;

@@ -103,6 +103,40 @@ impl ScreenSocket {
             Self::from_channels(b_tx, a_rx),
         )
     }
+    /// The same channel over a plain TCP stream: an on-device computer's
+    /// VNC display on a loopback port. A reader and a writer thread carry
+    /// the bytes; closing either side ends both.
+    pub fn tcp(stream: std::net::TcpStream) -> std::io::Result<Self> {
+        use std::io::{Read, Write};
+        let (out_tx, out_rx) = async_channel::bounded::<Vec<u8>>(128);
+        let (in_tx, in_rx) = async_channel::bounded::<Vec<u8>>(128);
+        let mut reader = stream.try_clone()?;
+        let mut writer = stream;
+        std::thread::spawn(move || {
+            let mut buf = vec![0; 64 * 1024];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        if in_tx.send_blocking(buf[..n].to_vec()).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+            in_tx.close();
+            let _ = reader.shutdown(std::net::Shutdown::Both);
+        });
+        std::thread::spawn(move || {
+            while let Ok(bytes) = out_rx.recv_blocking() {
+                if writer.write_all(&bytes).is_err() {
+                    break;
+                }
+            }
+            let _ = writer.shutdown(std::net::Shutdown::Both);
+        });
+        Ok(Self::from_channels(out_tx, in_rx))
+    }
     pub async fn send(&self, bytes: Vec<u8>) -> Result<()> {
         self.tx.send(bytes).await.map_err(|_| Error::Unavailable)
     }

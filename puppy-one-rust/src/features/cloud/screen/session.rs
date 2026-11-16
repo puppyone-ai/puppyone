@@ -6,8 +6,10 @@ use super::{
     rfb::{self, Frame, FrameSlot, RfbCommand},
 };
 use crate::{
-    cloud::auth::Cancellation,
-    workspace::cloud::sandbox::{CLOUD_SCREEN_RECONNECTS, SandboxSettings, ScreenConnectError},
+    cloud::auth::{Cancellation, ScreenSocket},
+    workspace::cloud::sandbox::{
+        CLOUD_SCREEN_RECONNECTS, SandboxSettings, SandboxTarget, ScreenConnectError,
+    },
 };
 use gpui::{
     Bounds, Context, KeyDownEvent, KeyUpEvent, ModifiersChangedEvent, MouseDownEvent,
@@ -21,6 +23,29 @@ use std::{
     },
     time::Duration,
 };
+
+/// Where a session's display comes from: a Cloud Computer's screen
+/// session, or the loopback VNC port of a computer on this computer.
+#[derive(Clone)]
+enum Connector {
+    Cloud(SandboxTarget),
+    Local(u16),
+}
+impl Connector {
+    fn connect(&self, cancel: &Cancellation) -> Result<ScreenSocket, ScreenConnectError> {
+        match self {
+            Self::Cloud(target) => target.connect_screen(cancel),
+            Self::Local(port) => {
+                cancel.check().map_err(|_| ScreenConnectError::Failed)?;
+                let address = std::net::SocketAddr::from(([127, 0, 0, 1], *port));
+                let stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(3))
+                    .map_err(|_| ScreenConnectError::Failed)?;
+                let _ = stream.set_nodelay(true);
+                ScreenSocket::tcp(stream).map_err(|_| ScreenConnectError::Failed)
+            }
+        }
+    }
+}
 
 impl CloudScreen {
     pub(super) fn apply_setting(&mut self, patch: SandboxSettings, cx: &mut Context<Self>) {
@@ -51,8 +76,10 @@ impl CloudScreen {
     }
 
     pub(super) fn start_stream(&mut self, cx: &mut Context<Self>) {
-        let Some(target) = self.target.clone() else {
-            return;
+        let target = match (self.local_port(cx), self.target.clone()) {
+            (Some(port), _) => Connector::Local(port),
+            (None, Some(target)) if !self.is_local() => Connector::Cloud(target),
+            _ => return,
         };
         self.teardown_session(cx);
         self.generation = self.generation.wrapping_add(1);
@@ -82,7 +109,7 @@ impl CloudScreen {
                 let connect_cancel = stream_cancel.clone();
                 let opened = cx
                     .background_executor()
-                    .spawn(async move { connect_target.connect_screen(&connect_cancel) })
+                    .spawn(async move { connect_target.connect(&connect_cancel) })
                     .await;
                 let socket = match opened {
                     Ok(socket) => socket,

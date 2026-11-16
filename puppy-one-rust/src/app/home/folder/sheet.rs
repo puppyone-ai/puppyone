@@ -218,3 +218,74 @@ pub(super) fn render_compact_sheet(placement: (f32, f32), kind: PreviewKind, pap
                 }),
         )
 }
+
+/// The same layouts on a `22 × 30` sheet standing on a computer's screen
+/// (`.project-computer-preview`).
+fn screen_marks(kind: PreviewKind) -> Vec<Mark> {
+    match kind {
+        PreviewKind::Md => vec![
+            (3., 3., 9., 2., 1., true),
+            (3., 7., 16., 1.5, 0.75, false),
+            (3., 10., 16., 1.5, 0.75, false),
+            (3., 13., 11., 1.5, 0.75, false),
+            (3., 17., 16., 1.5, 0.75, false),
+        ],
+        PreviewKind::Csv => (0..5)
+            .flat_map(|row| {
+                (0..2).map(move |col| {
+                    let y = 3. + row as f32 * 4.;
+                    (3. + col as f32 * 8.5, y, 7.5, 2., 0.5, row == 0)
+                })
+            })
+            .collect(),
+        PreviewKind::Html => vec![
+            (3., 3., 1.6, 1.6, 0.8, true),
+            (5.6, 3., 1.6, 1.6, 0.8, true),
+            (8.2, 3., 1.6, 1.6, 0.8, true),
+            (3., 7., 16., 7., 1., false),
+            (3., 16., 7.5, 5., 1., false),
+            (11.5, 16., 7.5, 5., 1., false),
+        ],
+        PreviewKind::Other => vec![
+            (3., 4., 16., 1.5, 0.75, false),
+            (3., 7., 16., 1.5, 0.75, false),
+            (3., 10., 10., 1.5, 0.75, false),
+        ],
+    }
+}
+
+/// One `22 × 30` sheet at `(left, top)` on a computer's screen.
+pub(super) fn render_screen_sheet(left: f32, top: f32, kind: PreviewKind, paper: &Paper) -> Div {
+    let (strong, ink) = (paper.strong, paper.ink);
+    div()
+        .absolute()
+        .left(px(left))
+        .top(px(top))
+        .w(px(22.))
+        .h(px(30.))
+        .overflow_hidden()
+        .rounded(px(3.))
+        .bg(paper.fill)
+        .border_1()
+        .border_color(paper.edge)
+        .shadow(vec![crate::ui::moments::paint::shadow(
+            paper.shadow,
+            px(1.),
+            px(3.),
+            px(0.),
+        )])
+        .children(
+            screen_marks(kind)
+                .into_iter()
+                .map(move |(x, y, mw, mh, radius, is_strong)| {
+                    div()
+                        .absolute()
+                        .left(px(x - 1.))
+                        .top(px(y - 1.))
+                        .w(px(mw))
+                        .h(px(mh))
+                        .rounded(px(radius))
+                        .bg(if is_strong { strong } else { ink })
+                }),
+        )
+}

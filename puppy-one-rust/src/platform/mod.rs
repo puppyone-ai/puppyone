@@ -26,6 +26,7 @@ pub mod host_budget;
 pub mod html_page_store;
 pub mod image_transcode;
 pub mod local_agent_setup;
+pub mod local_computers;
 pub mod locale_format;
 pub mod office;
 pub mod paths;

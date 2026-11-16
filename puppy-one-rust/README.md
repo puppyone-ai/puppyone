@@ -258,6 +258,16 @@ cargo test -p po-workspace --features test-support -- workspace::acceptance --ig
 
 未做：系统睡眠 / 唤醒通知（靠 30 s 静默检测重连）、文件服务与终端放进独立的 utility 进程、Linux XDG / Windows 登录项、把 Git History（graph / commit_detail）开放给其他电脑。
 
+## 小电脑模式（Computer Mode，实验，qubits@c90253522）
+
+设置 → 实验性功能 → 小电脑模式（`experimental.computer_mode`，对应产品的 `enableComputerMode`，默认关闭；从 Electron 版导入时一并带过来）。它在 v0.4.4 基线之后进入 qubits，文案由 `tools/import-computer-mode.py` 从固定提交投影到 `assets/computer-mode.json`。打开它也就打开了 Cloud（`flags::cloud_enabled`）和云电脑屏幕（`flags::cloud_screen_enabled`），不用再勾另外两个开关。
+
+- Homepage：主入口变成"新建电脑"；空间里的云项目画成云端小电脑，这台电脑上登记过的工作区画成本机小电脑（`home/folder/computer.rs`，与文件夹同为 `104 × 78` / `34 × 26`，下巴灯表示运行、准备桌面、休眠），分组改为 空间 → 这台 Mac 上的电脑（带"新建电脑"）→ 其他电脑 → 普通文件夹（虚线分隔、可折叠、低对比度）。
+- 新建电脑（`create_project.rs` 的 `create_computer_dialog`）：运行位置选云端电脑（团队空间里的云项目，默认带桌面）或本机电脑（建好文件夹后登记为本机电脑，运行中）。
+- 本机电脑（`platform::local_computers` + `features::computer_mode`）：登记表在 `<数据目录>/local-computers/registry.v1.json`，从不写进工作区。桌面由 Lima 实例提供（`limactl`，macOS 上 VZ + VirtioFS，把工作区挂到 `/workspace`，Xvfb + x11vnc 转发到本机回环端口）；没有 Lima 时只是带屏幕预览的工作区。关闭开关会让所有运行中的电脑休眠；退出 app 时登记表立即记为休眠，各实例的 `limactl stop` 在 app 退出后继续完成。
+- 屏幕：本机电脑沿用云电脑屏幕的侧栏卡片 ↔ 主区域（`features/cloud/screen`），画面直接用原生 RFB 客户端连回环 VNC 端口（`ScreenSocket::tcp`，不经 WebSocket 中转）；休眠、准备中、尚无桌面时主区域给出唤醒 / 等待 / 启动桌面画面，画面上可"休眠电脑"。
+- 与 TS 的有意差异：屏幕不做右下角画中画（Rust 的屏幕已按 `workbench-redesign-v4` 去掉了）；TS 的 `computer-mode.css` 引用了未定义的 `--po-surface`，这里按设计意图取面板色（`panel`）。
+
 ## 第三方 crate 补丁（`vendor/`）
 
 三个 crate 以 crates.io 发布版为底，经 `Cargo.toml` 的 `[patch.crates-io]` 使用；改动都写在各自的 `PUPPYONE_PATCH.md` 里，其余与发布版相同：

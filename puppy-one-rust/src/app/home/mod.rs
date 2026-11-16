@@ -138,6 +138,8 @@ pub(in crate::app) struct Homepage {
     pub list_held_since: Option<Instant>,
     pub place_focus: Option<(groups::GroupId, Instant, Option<Instant>)>,
     pub drop_over: Option<groups::GroupId>,
+    /// Computer Mode's plain folders are folded away.
+    pub(in crate::app) plain_folders_closed: bool,
     pub(in crate::app::home) spaces_wait: Option<Instant>,
     pub(in crate::app) shared_ids: Option<std::collections::HashSet<String>>,
     pub(in crate::app) local_share: bool,
@@ -194,6 +196,9 @@ impl Homepage {
         cx.observe(&hosts, |h, _, cx| h.refresh(cx)).detach();
         let link = crate::features::hosts::host_link(cx);
         cx.observe(&link, |h, _, cx| h.refresh(cx)).detach();
+        // Computer Mode's computers: a computer made, woken or put to sleep.
+        let computers = crate::features::computer_mode::global(&preferences, cx);
+        cx.observe(&computers, |_, _, cx| cx.notify()).detach();
         let installations = crate::features::local_agents::installation_store(cx);
         cx.observe(&installations, |h, _, cx| {
             h.sync_local_agent_installations(cx)
@@ -276,6 +281,7 @@ impl Homepage {
             list_held_since: None,
             place_focus: None,
             drop_over: None,
+            plain_folders_closed: false,
             spaces_wait: None,
             shared_ids: None,
             local_share: false,
@@ -557,7 +563,11 @@ impl Homepage {
                 cx.listener(|s, _, _, cx| s.command(Command::OpenFolder, cx)),
                 cx.listener(|s, _, w, cx| s.begin_import(w, cx)),
             )
-            .agents_menu(self.new_project_menu(busy, cx));
+            .agents_menu(self.new_project_menu(busy, cx))
+            .computer_mode(crate::features::flags::computer_mode_enabled(
+                &self.preferences,
+                cx,
+            ));
             let view = (!list_held).then(|| self.project_toolbar(busy, cx));
             let head = OnboardingBrandLockup::projects(start_actions, view);
             let note = (crate::features::flags::cloud_enabled(&self.preferences, cx)
@@ -594,11 +604,16 @@ impl Homepage {
                 .mb(px(8.))
                 .rounded(px(metric::CARD_RADIUS))
                 .when(self.dragging, |d| d.bg(t.hover))
-                .child(OnboardingCreateProjectAction::new(
-                    true,
-                    busy,
-                    cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)),
-                ));
+                .child(
+                    OnboardingCreateProjectAction::new(
+                        true,
+                        busy,
+                        cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)),
+                    )
+                    .computer_mode(
+                        crate::features::flags::computer_mode_enabled(&self.preferences, cx),
+                    ),
+                );
             let actions = OnboardingEntryActions::new(
                 busy,
                 self.dragging,

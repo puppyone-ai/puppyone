@@ -129,6 +129,7 @@ impl Homepage {
         is_stop: bool,
         narrow: bool,
         busy: bool,
+        look: Look,
         keys: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -196,11 +197,30 @@ impl Homepage {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(
-                        ProjectFolderGlyph::compact(self.item_previews(item))
+                    .child(match look {
+                        Look::Computer(kind) => {
+                            let power = match kind {
+                                super::super::folder::ComputerKind::OnDevice => {
+                                    self.item_power(item, cx)
+                                }
+                                super::super::folder::ComputerKind::Cloud => {
+                                    super::super::folder::ComputerPower::Running
+                                }
+                            };
+                            super::super::folder::ProjectComputerGlyph::compact(
+                                kind,
+                                power,
+                                self.item_previews(item),
+                            )
                             .lit(lit)
-                            .fade(fade),
-                    ),
+                            .fade(fade)
+                            .into_any_element()
+                        }
+                        _ => ProjectFolderGlyph::compact(self.item_previews(item))
+                            .lit(lit)
+                            .fade(fade)
+                            .into_any_element(),
+                    }),
             )
             .child(
                 div()
