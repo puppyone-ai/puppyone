@@ -13,12 +13,18 @@
 //!
 //! The SDK's fonts (13 MB) are not embedded: they are served from disk
 //! ([`fonts_dir`]); without them the board's text uses the system's fonts.
-use super::{html_visual::script_json, web::WebFrame};
+use super::{
+    html_visual::script_json,
+    web::{WebFrame, parse_find_result},
+};
 use crate::{
     editor::registry::{AssetReader, DocumentAssets},
     editor::{
         navigation::{self, Reference, ReferenceContext},
-        registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
+        registry::{
+            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+        },
+        workbench::find::FindEvent,
     },
     platform::webview::{Content, DiskAssets, Entry, Ipc, ResourceSource, Source},
     typography::Scale,
@@ -75,10 +81,12 @@ pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn V
         .as_ref()
         .and_then(|w| w.local_root())
         .map(|r| r.to_string_lossy().into_owned());
-    let assets = crate::editor::registry::document_assets(request.id);
+    let assets = request.assets.clone();
+    let references = request.references.clone();
     let view = cx.new(|cx| {
         let mut view = WhiteboardView::new(request.name.to_owned(), root, text, request.dark);
         view.assets = assets;
+        view.references = references;
         view.show(cx);
         view
     });
@@ -101,6 +109,7 @@ impl ResourceSource for Workspace {
 enum Asked {
     Changed,
     Open(Vec<String>),
+    FindResult { current: usize, total: usize },
 }
 
 struct WhiteboardView {
@@ -174,6 +183,10 @@ impl WhiteboardView {
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
+                if let Some((current, total)) = parse_find_result(&body) {
+                    let _ = this.update(cx, |_, cx| cx.emit(Asked::FindResult { current, total }));
+                    continue;
+                }
                 let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
                     continue;
                 };
@@ -321,6 +334,13 @@ impl ViewerSurface for WhiteboardSurface {
             cx.subscribe(&self.view, move |_, asked: &Asked, cx| match asked {
                 Asked::Changed => events(SurfaceEvent::Changed, cx),
                 Asked::Open(paths) => events(SurfaceEvent::OpenPaths(paths.clone()), cx),
+                Asked::FindResult { current, total } => events(
+                    SurfaceEvent::FindResult {
+                        current: *current,
+                        total: *total,
+                    },
+                    cx,
+                ),
             }),
         )
     }
@@ -340,6 +360,16 @@ impl ViewerSurface for WhiteboardSurface {
     fn apply(&self, read_only: bool, dark: bool, _: Scale, _: &mut Window, cx: &mut App) {
         self.view
             .update(cx, |view, cx| view.apply(read_only, dark, cx));
+    }
+    fn pane(&self, _: &App) -> PaneEntries {
+        PaneEntries {
+            find: true,
+            ..Default::default()
+        }
+    }
+    fn find(&self, event: FindEvent, _: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
+        let frame = self.view.read(cx).frame.clone()?;
+        frame.read(cx).find(event, cx)
     }
 }
 

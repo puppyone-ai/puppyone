@@ -3,21 +3,43 @@
 //! (`normalizePresetViewerContribution`, `normalizeEditorProviderPolicy`).
 use super::{
     manifest::{Capability, Source, SurfaceIsolation, ViewerDefinition, ViewerManifest},
-    surface::{SurfaceRequest, ViewerSurface},
+    request::SurfaceRequest,
+    surface::ViewerSurface,
 };
 use crate::formats::FileFormat;
 use gpui::{App, Window};
 
-/// `DocumentSourceKind`: plugin routing fails closed for anything but local.
+/// `DocumentSourceKind` (`RG-11`): plugin routing and local OS actions check real origin.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SourceKind {
     Local,
-    /// Cloud workspaces are not native yet; routing already refuses them
-    /// (only its tests name one).
-    #[cfg(test)]
     Cloud,
+    RemoteDevice,
     #[default]
     Unknown,
+}
+
+impl SourceKind {
+    /// Classifies the origin of a [`crate::workspace::Workspace`] (`RG-11`).
+    pub fn from_workspace(ws: &crate::workspace::Workspace) -> Self {
+        if ws.local_root().is_some() {
+            return Self::Local;
+        }
+        if let Ok(root) = ws.resource_id(std::path::Path::new("")) {
+            let storage = root.storage.as_str();
+            if storage.starts_with("puppyone-device://") {
+                return Self::RemoteDevice;
+            }
+            if storage.starts_with("file://") {
+                return Self::Local;
+            }
+        }
+        Self::Cloud
+    }
+
+    pub const fn is_local(self) -> bool {
+        matches!(self, Self::Local)
+    }
 }
 
 /// `EditorDocument`: what the host knows about a document before opening it.
@@ -35,14 +57,25 @@ pub struct EditorDocument {
 impl EditorDocument {
     /// A local workspace file, typed by the format registry.
     pub fn local(path: &str) -> Self {
+        Self::with_source(path, SourceKind::Local)
+    }
+
+    /// A document with an explicit [`SourceKind`] (`RG-11`).
+    pub fn with_source(path: &str, source_kind: SourceKind) -> Self {
         let name = path.rsplit(['/', '\\']).next().unwrap_or(path).to_owned();
         Self {
             kind: crate::formats::semantic_kind(path, None, None),
             path: path.to_owned(),
             name,
             mime: None,
-            source_kind: SourceKind::Local,
+            source_kind,
         }
+    }
+
+    /// A document classified from its owning [`crate::workspace::Workspace`] (`RG-11`).
+    pub fn for_workspace(path: &str, workspace: Option<&crate::workspace::Workspace>) -> Self {
+        let source_kind = workspace.map_or(SourceKind::Local, SourceKind::from_workspace);
+        Self::with_source(path, source_kind)
     }
 }
 

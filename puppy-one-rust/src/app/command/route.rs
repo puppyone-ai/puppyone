@@ -44,6 +44,7 @@ impl Shell {
                     | Command::Settings
                     | Command::Feedback
                     | Command::CloseFile
+                    | Command::CloseBackgroundProject
             )
         {
             return;
@@ -267,7 +268,10 @@ impl Shell {
                     p.home = true;
                 });
             }
-            // With no dialog open, Escape closes a menu or the Cloud conflict comparison.
+            // With no dialog open, Escape closes a menu, external drop prompt, or Cloud conflict comparison.
+            Command::Escape if self.editor.read(cx).pending_external_drop.is_some() => {
+                self.editor.update(cx, |e, cx| e.dismiss_external_drop(cx));
+            }
             Command::Escape if self.editor.read(cx).comparing_conflict => {
                 self.editor
                     .update(cx, |e, cx| e.close_conflict_comparison(cx));
@@ -345,11 +349,18 @@ impl Shell {
                         editors.len() - 1
                     };
                     let next = (active + step) % editors.len();
-                    self.session
-                        .docs
-                        .update(cx, |d, _| d.activate(&editors[next]));
+                    self.session.docs.update(cx, |d, _| {
+                        let wake = d.wake().clone();
+                        d.activate_with_wake(&editors[next], &wake);
+                    });
                     self.sync_editor(window, cx);
                 }
+            }
+            Command::CloseBackgroundProject => {
+                self.session.docs.update(cx, |d, _| {
+                    let wake = d.wake().clone();
+                    let _ = d.close_oldest_background_project(&wake);
+                });
             }
             Command::ToggleFullScreen => window.toggle_fullscreen(),
             Command::RetryFileOperation => {

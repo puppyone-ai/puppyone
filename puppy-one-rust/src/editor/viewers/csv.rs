@@ -1,13 +1,18 @@
 //! `csv-table`: the CSV table editor (`editor::csv`).
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+use crate::editor::registry::SurfaceTestProbe;
 use crate::{
     editor::{
         csv::{CsvEditor, CsvEvent},
         registry::{
-            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+            HostCommand, PaneEntries, PaneItemId, SurfaceEvent, SurfaceEvents, SurfaceInput,
+            SurfaceRequest, ViewerSurface,
         },
+        text::selection::Selection,
         workbench::{
             find::FindEvent,
             pane::{Item, ItemKind},
+            view_state::SurfaceViewState,
         },
     },
     typography::Scale,
@@ -28,10 +33,18 @@ pub struct CsvSurface {
     pub editor: Entity<CsvEditor>,
 }
 
-impl ViewerSurface for CsvSurface {
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for CsvSurface {
     #[cfg(feature = "test-support")]
     fn csv_editor(&self) -> Option<Entity<CsvEditor>> {
         Some(self.editor.clone())
+    }
+}
+
+impl ViewerSurface for CsvSurface {
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
     }
     fn set_reference_context(
         &self,
@@ -88,18 +101,63 @@ impl ViewerSurface for CsvSurface {
     fn scroll_state(&self, cx: &App) -> (f32, bool) {
         self.editor.read(cx).scroll_state(cx)
     }
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let ed = self.editor.read(cx);
+        if ed.is_live() {
+            let (scroll_x, scroll_y) = ed.view_scroll();
+            Some(SurfaceViewState {
+                selection: None,
+                scroll_y,
+                scroll_x,
+                mode: Some("live".into()),
+                zoom: None,
+                folds: Vec::new(),
+            })
+        } else {
+            let (selection, scroll_y) = ed
+                .source_editor_entity()
+                .map(|src| {
+                    let s = src.read(cx);
+                    let sel = s.state().selection;
+                    (Some((sel.anchor, sel.head)), s.scroll_top())
+                })
+                .unwrap_or((None, 0.0));
+            Some(SurfaceViewState {
+                selection,
+                scroll_y,
+                scroll_x: 0.0,
+                mode: Some("source".into()),
+                zoom: None,
+                folds: Vec::new(),
+            })
+        }
+    }
+    fn restore_view_state(&self, state: &SurfaceViewState, window: &mut Window, cx: &mut App) {
+        let want_live = state.mode.as_deref() != Some("source");
+        self.editor.update(cx, |e, cx| {
+            e.set_live(want_live, window, cx);
+            if want_live {
+                e.set_view_scroll(state.scroll_x, state.scroll_y, cx);
+            } else if let Some(source) = e.source_editor_entity() {
+                source.update(cx, |src, cx| {
+                    if let Some((anchor, head)) = state.clamped_selection(src.text()) {
+                        src.set_selection(Selection::range(anchor, head), cx);
+                    }
+                });
+            }
+        });
+    }
     fn apply(&self, read_only: bool, dark: bool, scale: Scale, _: &mut Window, cx: &mut App) {
         self.editor.update(cx, |e, cx| {
             e.set_read_only(read_only, cx);
             e.set_appearance(dark, scale, cx);
         });
     }
-    fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
-        match name {
-            "source" => self.editor.update(cx, |e, cx| e.toggle_mode(window, cx)),
-            "undo" | "redo" => self
-                .editor
-                .update(cx, |e, cx| e.undo(name == "redo", window, cx)),
+    fn command(&self, cmd: HostCommand, window: &mut Window, cx: &mut App) {
+        match cmd {
+            HostCommand::Source => self.editor.update(cx, |e, cx| e.toggle_mode(window, cx)),
+            HostCommand::Undo => self.editor.update(cx, |e, cx| e.undo(false, window, cx)),
+            HostCommand::Redo => self.editor.update(cx, |e, cx| e.undo(true, window, cx)),
             _ => {}
         }
     }
@@ -128,9 +186,9 @@ impl ViewerSurface for CsvSurface {
             find: true,
         }
     }
-    fn pane_item(&self, id: &'static str, window: &mut Window, cx: &mut App) {
+    fn pane_item(&self, item: PaneItemId, window: &mut Window, cx: &mut App) {
         self.editor
-            .update(cx, |c, cx| c.view_command(id, window, cx));
+            .update(cx, |c, cx| c.view_command(item.as_wire(), window, cx));
     }
     fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
         // `CS-12`: when in Source mode (`!is_live()`), delegate Find directly to `self.source`!
@@ -162,11 +220,9 @@ impl ViewerSurface for CsvSurface {
                 Some((r.current, r.total))
             }
             FindEvent::Close => {
-                // `closeFind`: focus the current match's cell, then clear.
-                self.editor.update(cx, |c, cx| {
-                    c.find_focus_editor(window, cx);
-                    c.find_clear(cx);
-                });
+                self.editor.update(cx, |c, cx| c.find_clear(cx));
+                let focus = self.editor.read(cx).focus_target(cx);
+                focus.focus(window, cx);
                 None
             }
         }

@@ -10,18 +10,27 @@
 //! Interact ([`html_interact`]).
 use super::{
     code,
-    html_interact::{Access, BUDGET, Interact},
+    html_interact::{Access, Interact},
     html_tools::{HtmlToolAction, HtmlToolMode, HtmlToolSnapshot},
     html_visual,
     source_split::SourceSplit,
     structured::theme_update_script,
     text::{DOCUMENT_EDITING_TOGGLE_ID, DOCUMENT_SOURCE_PANEL_TOGGLE_ID},
 };
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+use crate::editor::registry::SurfaceTestProbe;
 use crate::{
     editor::{
         navigation::ReferenceContext,
-        registry::{PaneEntries, SurfaceEvents, SurfaceRequest, ViewerSurface},
-        workbench::pane::{Item, ItemKind, Segment, Segmented, Switch},
+        registry::{
+            HostCommand, HtmlWindowTools, PaneEntries, PaneItemId, PaneSegmentId, SurfaceEvents,
+            SurfaceRequest, ViewerSurface, viewer_budget,
+        },
+        workbench::{
+            find::FindEvent,
+            pane::{Item, ItemKind, Segment, Segmented, Switch},
+            view_state::SurfaceViewState,
+        },
     },
     localization::t,
     theme,
@@ -141,6 +150,12 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
                         window.refresh();
                     })
                 };
+                let on_find: html_visual::FindCallback = {
+                    let interact = interact_ref.clone();
+                    Rc::new(move |current, total, cx| {
+                        interact.emit_find_result(current, total, cx);
+                    })
+                };
                 let session = html_visual::Session::start(
                     html_visual::Params {
                         text,
@@ -149,12 +164,13 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
                         assets: interact_ref.assets(),
                         dark: dark.get(),
                         enabled: !read_only.get(),
-                        budget: BUDGET,
+                        budget: viewer_budget("html-artifact"),
                         initial_scroll: scroll_ratio.get(),
                     },
                     source,
                     scroll_ratio,
                     unavailable,
+                    on_find,
                     window,
                     cx,
                 );
@@ -330,6 +346,12 @@ impl HtmlSurface {
                 window.refresh();
             })
         };
+        let on_find: html_visual::FindCallback = {
+            let interact = self.interact.clone();
+            Rc::new(move |current, total, cx| {
+                interact.emit_find_result(current, total, cx);
+            })
+        };
         let session = html_visual::Session::start(
             html_visual::Params {
                 text,
@@ -338,12 +360,13 @@ impl HtmlSurface {
                 assets: self.interact.assets(),
                 dark: self.dark.get(),
                 enabled: !self.read_only.get(),
-                budget: BUDGET,
+                budget: viewer_budget("html-artifact"),
                 initial_scroll: self.scroll_ratio.get(),
             },
             self.source.clone(),
             self.scroll_ratio.clone(),
             unavailable,
+            on_find,
             window,
             cx,
         );
@@ -546,17 +569,60 @@ impl ViewerSurface for HtmlSurface {
         }
     }
 
-    fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
-        if name == "html-reload" {
-            self.interact.frame.update(cx, |f, _| f.reload());
-        } else if name == "prepare" {
-            if let Some(session) = self.visual.borrow().as_ref() {
-                session.prepare(window, cx, |_, _| {});
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let mut base = self.source.view_state(cx).unwrap_or_default();
+        let mode = match self.mode.get() {
+            Mode::Preview => "preview",
+            Mode::Edit => "edit",
+            Mode::Source => "source",
+        };
+        base.mode = Some(mode.to_owned());
+        if self.mode.get() != Mode::Source {
+            base.scroll_y = self.scroll_ratio.get().clamp(0.0, 1.0);
+        }
+        Some(base)
+    }
+
+    fn restore_view_state(&self, state: &SurfaceViewState, window: &mut Window, cx: &mut App) {
+        self.source.restore_view_state(state, window, cx);
+        match state.mode.as_deref() {
+            Some("source") => {
+                self.pane_segment(PaneSegmentId::Source, window, cx);
             }
-        } else if name == "source" && self.file_mode {
-            self.set_source_panel(!self.source_panel.get(), window, cx);
-        } else {
-            self.source.command(name, window, cx);
+            Some("edit") => {
+                let ratio = state.scroll_y.clamp(0.0, 1.0);
+                self.scroll_ratio.set(ratio);
+                self.pane_segment(PaneSegmentId::Edit, window, cx);
+            }
+            _ => {
+                let ratio = state.scroll_y.clamp(0.0, 1.0);
+                if (ratio - self.scroll_ratio.get()).abs() > f32::EPSILON {
+                    self.scroll_ratio.set(ratio);
+                    self.interact.refresh(cx);
+                }
+                if self.mode.get() != Mode::Preview {
+                    self.pane_segment(PaneSegmentId::Preview, window, cx);
+                }
+            }
+        }
+    }
+
+    fn command(&self, cmd: HostCommand, window: &mut Window, cx: &mut App) {
+        match cmd {
+            HostCommand::HtmlReload => {
+                self.interact.frame.update(cx, |f, _| f.reload());
+            }
+            HostCommand::Prepare => {
+                if let Some(session) = self.visual.borrow().as_ref() {
+                    session.prepare(window, cx, |_, _| {});
+                }
+            }
+            HostCommand::Source if self.file_mode => {
+                self.set_source_panel(!self.source_panel.get(), window, cx);
+            }
+            other => {
+                self.source.command(other, window, cx);
+            }
         }
     }
 
@@ -597,12 +663,15 @@ impl ViewerSurface for HtmlSurface {
                 segmented: None,
                 toggles,
                 items,
-                find: self.source_panel.get(),
+                find: true,
             };
         }
         let mut entries = match self.mode.get() {
             Mode::Source => self.source.pane(cx),
-            Mode::Preview | Mode::Edit => PaneEntries::default(),
+            Mode::Preview | Mode::Edit => PaneEntries {
+                find: true,
+                ..Default::default()
+            },
         };
         let mut options = vec![Segment {
             id: "preview",
@@ -634,10 +703,10 @@ impl ViewerSurface for HtmlSurface {
         entries
     }
 
-    fn pane_segment(&self, id: &'static str, window: &mut Window, cx: &mut App) {
-        let next = match id {
-            "source" => Mode::Source,
-            "edit" => Mode::Edit,
+    fn pane_segment(&self, segment: PaneSegmentId, window: &mut Window, cx: &mut App) {
+        let next = match segment {
+            PaneSegmentId::Source => Mode::Source,
+            PaneSegmentId::Edit => Mode::Edit,
             _ => Mode::Preview,
         };
         if next == self.mode.get() || next == Mode::Edit && !self.can_visual_edit() {
@@ -671,27 +740,60 @@ impl ViewerSurface for HtmlSurface {
         }
     }
 
-    fn pane_item(&self, id: &'static str, window: &mut Window, cx: &mut App) {
-        match id {
-            FOLDER_ACCESS => {
+    fn pane_item(&self, item: PaneItemId, window: &mut Window, cx: &mut App) {
+        match item {
+            PaneItemId::HtmlFolderAccess => {
                 let allowed = self.interact.access() == Access::Allowed;
                 self.interact.set_allowed(!allowed, cx);
             }
-            DOCUMENT_EDITING_TOGGLE_ID => {
+            PaneItemId::DocumentEditing => {
                 let next = if self.mode.get() == Mode::Edit {
-                    "preview"
+                    PaneSegmentId::Preview
                 } else {
-                    "edit"
+                    PaneSegmentId::Edit
                 };
                 self.pane_segment(next, window, cx);
             }
-            DOCUMENT_SOURCE_PANEL_TOGGLE_ID => {
+            PaneItemId::DocumentSourcePanel => {
                 self.set_source_panel(!self.source_panel.get(), window, cx);
             }
-            _ => self.source.pane_item(id, window, cx),
+            other => self.source.pane_item(other, window, cx),
         }
     }
 
+    fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
+        if self.mode.get() == Mode::Source
+            || (self.file_mode
+                && self.source_panel.get()
+                && self
+                    .source
+                    .focus_handle(cx)
+                    .is_some_and(|h| h.is_focused(window)))
+        {
+            return self.source.find(event, window, cx);
+        }
+        match self.mode.get() {
+            Mode::Edit => self
+                .visual
+                .borrow()
+                .as_ref()
+                .and_then(|session| session.frame.read(cx).find(event, cx)),
+            Mode::Preview => self.interact.frame.read(cx).find(event, cx),
+            Mode::Source => self.source.find(event, window, cx),
+        }
+    }
+
+    fn as_html_tools(&self) -> Option<&dyn HtmlWindowTools> {
+        Some(self)
+    }
+
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
+    }
+}
+
+impl HtmlWindowTools for HtmlSurface {
     fn html_tool_state(&self) -> Option<HtmlToolSnapshot> {
         self.file_mode.then(|| {
             self.interact
@@ -738,7 +840,10 @@ impl ViewerSurface for HtmlSurface {
         }
         self.interact.trigger_tool_action(action, cx);
     }
+}
 
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for HtmlSurface {
     #[cfg(test)]
     fn html_visual_deliver(&self, body: &str) -> bool {
         self.visual
@@ -755,7 +860,7 @@ impl ViewerSurface for HtmlSurface {
 
     #[cfg(test)]
     fn code_editor(&self) -> Option<Entity<code::CodeView>> {
-        self.source.code_editor()
+        self.source.as_test_probe()?.code_editor()
     }
 }
 
@@ -791,7 +896,7 @@ impl Render for EmptyPage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::registry::{EditorDocument, SurfaceInput, resolve, set_document_folder};
+    use crate::editor::registry::{EditorDocument, SourceKind, SurfaceInput, resolve};
     use core::prelude::v1::test;
 
     #[test]
@@ -823,6 +928,7 @@ mod tests {
         name: &str,
         text: &str,
         workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
+        folder: Option<std::path::PathBuf>,
         window: &mut Window,
         cx: &mut App,
     ) -> HtmlSurface {
@@ -838,6 +944,11 @@ mod tests {
             scale: Scale::default(),
             workspace,
             file_mode: false,
+            folder,
+            web_source: None,
+            assets: None,
+            references: None,
+            source_kind: SourceKind::Local,
         };
         let source: Rc<dyn ViewerSurface> =
             Rc::from(code::open_with(&request, None, false, window, cx));
@@ -886,6 +997,7 @@ mod tests {
                 "site/index.html",
                 text,
                 None,
+                None,
                 window,
                 cx,
             ))
@@ -896,7 +1008,7 @@ mod tests {
             surface.html_page_deliver(r#"{"type":"scroll","ratio":0.62}"#, cx);
             assert!((surface.scroll_ratio() - 0.62).abs() < 0.001);
         });
-        cx.update(|window, cx| surface.pane_segment("edit", window, cx));
+        cx.update(|window, cx| surface.pane_segment(PaneSegmentId::Edit, window, cx));
         assert!(cx.update(|_, _| surface.html_visual_deliver(r#"{"type":"ready"}"#)));
         cx.run_until_parked();
 
@@ -906,7 +1018,7 @@ mod tests {
         assert!((surface.scroll_ratio() - 0.78).abs() < 0.001);
 
         // 2. Request switching out of Edit -> Preview: Session stays alive until `prepared`!
-        cx.update(|window, cx| surface.pane_segment("preview", window, cx));
+        cx.update(|window, cx| surface.pane_segment(PaneSegmentId::Preview, window, cx));
         cx.update(|_, cx| {
             assert_eq!(surface.pane(cx).segmented.unwrap().value, "edit");
             assert!(surface.composing(cx));
@@ -956,7 +1068,6 @@ mod tests {
         std::fs::create_dir(&site).unwrap();
         std::fs::write(site.join("before.html"), "<body><p>Hello</p></body>").unwrap();
         let ws = crate::workspace::Workspace::open(&root).unwrap();
-        set_document_folder("html-rename", Some(site));
 
         let (_, cx) = cx.add_window_view(|_, _| EmptyPage);
         let surface: Rc<HtmlSurface> = cx.update(|window, cx| {
@@ -965,6 +1076,7 @@ mod tests {
                 "site/before.html",
                 "<!doctype html><html><body><p>Hello</p></body></html>",
                 Some(ws),
+                Some(site),
                 window,
                 cx,
             ))
@@ -982,6 +1094,5 @@ mod tests {
             );
             assert!(!html_after.contains("before.html"));
         });
-        set_document_folder("html-rename", None);
     }
 }

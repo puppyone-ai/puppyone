@@ -7,7 +7,14 @@
 //! (`web_host::MAX_LIVE_WEBVIEWS_PER_WINDOW`, `VW-20`): hidden unpinned frames
 //! whose native host was evicted retain their `Content` and restore script so
 //! they seamlessly recreate their `WebHost` when rendered again.
+//!
+//! `WebFrame::find` (`WB-20`) provides a zero-dependency in-page text search
+//! adapter using DOM `TreeWalker` + CSS Custom Highlights (`CSS.highlights`) so
+//! live DOM nodes are never mutated, posting `{"type":"poFindResult","current":c,"total":t}`
+//! back over `window.ipc.postMessage`.
+use super::html_visual::script_json;
 use crate::{
+    editor::workbench::find::FindEvent,
     localization::t,
     platform::webview::{Content, Entry},
     theme,
@@ -15,9 +22,149 @@ use crate::{
     web_host::WebHost,
 };
 use gpui::{prelude::*, *};
+use serde::Deserialize;
 use std::rc::Rc;
 
 pub type OnRecreated = Rc<dyn Fn(&mut App)>;
+
+#[derive(Deserialize)]
+struct FindWire {
+    #[serde(rename = "type")]
+    kind: String,
+    current: usize,
+    total: usize,
+}
+
+/// Parses an inbound IPC payload emitted by [`WebFrame::find`] (`WB-20`).
+pub fn parse_find_result(body: &str) -> Option<(usize, usize)> {
+    let wire = serde_json::from_str::<FindWire>(body).ok()?;
+    (wire.kind == "poFindResult").then_some((wire.current, wire.total))
+}
+
+/// Builds the self-contained in-page find script for `event` (`WB-20`).
+pub fn web_find_script(event: &FindEvent) -> String {
+    let payload = match event {
+        FindEvent::Query(query) => {
+            serde_json::json!({ "action": "query", "query": query })
+        }
+        FindEvent::Move { forward } => {
+            serde_json::json!({ "action": "move", "forward": forward })
+        }
+        FindEvent::Close => {
+            serde_json::json!({ "action": "close" })
+        }
+    };
+    format!(
+        r#"(function(cmd){{
+  var H = typeof CSS !== "undefined" && CSS.highlights ? CSS.highlights : null;
+  function ensureStyle(){{
+    if (!document.head || document.getElementById("po-webview-find-style")) return;
+    var s = document.createElement("style");
+    s.id = "po-webview-find-style";
+    s.textContent = "::highlight(po-find){{background-color:color-mix(in srgb,var(--po-warning,gold) 36%,transparent);color:inherit}}::highlight(po-find-active){{background-color:color-mix(in srgb,var(--po-warning,orange) 76%,transparent);color:inherit}}";
+    document.head.appendChild(s);
+  }}
+  function clearAll(){{
+    if (H) {{ H.delete("po-find"); H.delete("po-find-active"); }}
+    window.__poWebFind = null;
+  }}
+  function report(current, total){{
+    if (window.ipc && typeof window.ipc.postMessage === "function") {{
+      window.ipc.postMessage(JSON.stringify({{ type: "poFindResult", current: current, total: total }}));
+    }}
+  }}
+  function collectRanges(needle){{
+    var out = [];
+    if (!needle || !document.body) return out;
+    var lower = needle.toLowerCase();
+    var qLen = lower.length;
+    if (!qLen) return out;
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {{
+      acceptNode: function(node){{
+        var p = node.parentElement;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        var tag = p.tagName;
+        if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "TEMPLATE") {{
+          return NodeFilter.FILTER_REJECT;
+        }}
+        return NodeFilter.FILTER_ACCEPT;
+      }}
+    }});
+    var node;
+    while ((node = walker.nextNode())) {{
+      var text = node.nodeValue;
+      if (!text) continue;
+      var hay = text.toLowerCase();
+      var from = 0;
+      while (from <= hay.length - qLen) {{
+        var idx = hay.indexOf(lower, from);
+        if (idx < 0) break;
+        if (idx + qLen <= text.length) {{
+          var r = document.createRange();
+          r.setStart(node, idx);
+          r.setEnd(node, idx + qLen);
+          out.push(r);
+        }}
+        from = idx + qLen;
+      }}
+    }}
+    return out;
+  }}
+  function applyState(state){{
+    if (!state || !state.ranges.length) {{
+      if (H) {{ H.delete("po-find"); H.delete("po-find-active"); }}
+      report(0, 0);
+      return;
+    }}
+    ensureStyle();
+    var idx = ((state.index % state.ranges.length) + state.ranges.length) % state.ranges.length;
+    state.index = idx;
+    var active = state.ranges[idx];
+    if (H && typeof Highlight !== "undefined") {{
+      H.set("po-find", new Highlight.apply ? new Highlight() : (function(){{ var hl = new Highlight(); for (var i = 0; i < state.ranges.length; i++) hl.add(state.ranges[i]); return hl; }})());
+      var ahl = new Highlight();
+      ahl.add(active);
+      H.set("po-find-active", ahl);
+    }}
+    var el = active.startContainer && active.startContainer.parentElement;
+    if (el && typeof el.scrollIntoView === "function") {{
+      el.scrollIntoView({{ block: "center", inline: "nearest" }});
+    }}
+    report(idx + 1, state.ranges.length);
+  }}
+  if (cmd.action === "close") {{
+    clearAll();
+    return;
+  }}
+  if (cmd.action === "query") {{
+    if (!cmd.query) {{
+      clearAll();
+      report(0, 0);
+      return;
+    }}
+    var ranges = collectRanges(cmd.query);
+    window.__poWebFind = {{ query: cmd.query, ranges: ranges, index: 0 }};
+    applyState(window.__poWebFind);
+    return;
+  }}
+  if (cmd.action === "move") {{
+    var st = window.__poWebFind;
+    if (!st || !st.query) {{
+      report(0, 0);
+      return;
+    }}
+    st.ranges = collectRanges(st.query);
+    if (!st.ranges.length) {{
+      applyState(st);
+      return;
+    }}
+    st.index = st.index + (cmd.forward ? 1 : -1);
+    applyState(st);
+  }}
+}})({payload})"#,
+        payload = script_json(&payload),
+    )
+}
 
 pub struct WebFrame {
     content: Option<Content>,
@@ -120,6 +267,27 @@ impl WebFrame {
                 true
             }
             _ => false,
+        }
+    }
+
+    /// Dispatches an in-page text find command to the WebView (`WB-20`).
+    ///
+    /// Match counts arrive asynchronously over IPC (`poFindResult` ->
+    /// `SurfaceEvent::FindResult`); `Close` returns `None` so the host closes
+    /// the find bar, and an empty query returns `Some((0, 0))` immediately.
+    pub fn find(&self, event: FindEvent, _cx: &App) -> Option<(usize, usize)> {
+        let script = web_find_script(&event);
+        let evaluated = self.evaluate(&script);
+        match event {
+            FindEvent::Close => None,
+            FindEvent::Query(q) if q.is_empty() => Some((0, 0)),
+            FindEvent::Query(_) | FindEvent::Move { .. } => {
+                if !evaluated {
+                    Some((0, 0))
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -286,6 +454,33 @@ mod tests {
         }
     }
 
+    #[gpui::test]
+    fn wb20_webframe_find_evaluates_treewalker_search_and_parses_ipc_results(
+        cx: &mut TestAppContext,
+    ) {
+        let (frame, cx) =
+            cx.add_window_view(|_, _| WebFrame::new(Some(dummy_content("hello world")), false));
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        frame.read_with(cx, |f, cx| {
+            assert_eq!(f.find(FindEvent::Query("hello".into()), cx), None);
+            assert_eq!(f.find(FindEvent::Move { forward: true }, cx), None);
+            assert_eq!(f.find(FindEvent::Close, cx), None);
+            let scripts = f.evaluated_scripts();
+            assert_eq!(scripts.len(), 3);
+            assert!(scripts[0].contains(r#""action":"query""#));
+            assert!(scripts[0].contains(r#""query":"hello""#));
+            assert!(scripts[1].contains(r#""action":"move""#));
+            assert!(scripts[2].contains(r#""action":"close""#));
+        });
+        assert_eq!(
+            parse_find_result(r#"{"type":"poFindResult","current":2,"total":5}"#),
+            Some((2, 5))
+        );
+        assert_eq!(parse_find_result(r#"{"type":"ready"}"#), None);
+    }
+
     /// `VW-20` & `VW-40`: Opening > 6 `WebFrame`s in a window caps resident
     /// `WebHost`s at `MAX_LIVE_WEBVIEWS_PER_WINDOW` (`6`), never evicts pinned
     /// frames, and seamlessly recreates evicted frames with restore state when
@@ -310,7 +505,6 @@ mod tests {
                             })));
                         }
                         if i == 1 {
-                            // Frame 1 has uncommitted draft / active playback: must NEVER be evicted.
                             f.set_pinned(true);
                         }
                         f
@@ -336,7 +530,6 @@ mod tests {
             cx.run_until_parked();
         }
 
-        // Frame 0 (oldest unpinned) was evicted, while Frame 1 (pinned) stayed resident!
         switcher.read_with(cx, |s, cx| {
             assert!(!s.frames[0].read(cx).is_resident());
             assert!(s.frames[1].read(cx).is_resident());
@@ -344,7 +537,6 @@ mod tests {
             assert!(s.frames[8].read(cx).is_resident());
         });
 
-        // Re-showing Frame 0 seamlessly recreates its WebHost and replays its restore script.
         switcher.update(cx, |s, cx| {
             s.active = 0;
             cx.notify();

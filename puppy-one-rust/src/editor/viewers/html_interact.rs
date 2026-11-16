@@ -19,10 +19,7 @@ use super::{
 use crate::{
     editor::{
         navigation::{self, Reference, ReferenceContext, Status},
-        registry::{
-            SurfaceEvent, SurfaceEvents, SurfaceRequest, ViewerSurface, document_folder,
-            document_source,
-        },
+        registry::{SurfaceEvent, SurfaceEvents, SurfaceRequest, ViewerSurface, viewer_budget},
     },
     localization::{t, tf},
     platform::{
@@ -43,8 +40,6 @@ use std::{
 };
 
 const INTERACTION_CSS: &str = include_str!("../../../assets/web/html-preview-interaction.css");
-/// `html-artifact` resourcePolicy.maxSourceBytes.
-pub(super) const BUDGET: u64 = 4 * 1024 * 1024;
 /// `projectCloudHtml`: a hosted document's assets come through its
 /// provider, at most 64 references and 4 MiB per projection.
 const MAX_REFERENCES: usize = 64;
@@ -146,9 +141,13 @@ impl Interact {
         window: &Window,
         cx: &mut App,
     ) -> Self {
-        let (folder, assets) = (document_folder(request.id), document_source(request.id));
+        let (folder, assets) = (request.folder.clone(), request.web_source.clone());
         let workspace = request.workspace.clone();
         let (name, dark) = (request.name.to_owned(), request.dark);
+        let state = State {
+            references: request.references.clone(),
+            ..State::default()
+        };
         Self(Rc::new(Inner {
             source,
             frame: cx.new(|_| WebFrame::new(None, dark)),
@@ -164,7 +163,7 @@ impl Interact {
             scroll_ratio,
             window: window.window_handle(),
             notice: Rc::default(),
-            state: RefCell::default(),
+            state: RefCell::new(state),
         }))
     }
     pub fn folder(&self) -> Option<PathBuf> {
@@ -454,16 +453,17 @@ impl Interact {
                 html_preview::INTERACTIVE_HEADER,
             )
         };
+        let budget = viewer_budget("html-artifact");
         let (tx, rx) = async_channel::unbounded::<String>();
         let content = Content {
             source: self
                 .assets
                 .clone()
                 .filter(|_| self.folder.is_none())
-                .map(|source| Source(Arc::new(Budgeted::new(source, MAX_REFERENCES, BUDGET)))),
+                .map(|source| Source(Arc::new(Budgeted::new(source, MAX_REFERENCES, budget)))),
             root: self.folder.clone(),
             entry: Entry::Html(preview_html(text, csp, &scripts)),
-            max_bytes: BUDGET,
+            max_bytes: budget,
             assets: vec![],
             ipc: Some(Ipc(tx)),
             policy: Some(policy),
@@ -567,6 +567,12 @@ impl Interact {
                     );
                 }
             }
+        }
+    }
+    pub fn emit_find_result(&self, current: usize, total: usize, cx: &mut App) {
+        let events = self.state.borrow().events.clone();
+        if let Some(events) = events {
+            events(SurfaceEvent::FindResult { current, total }, cx);
         }
     }
     fn emit_tool(&self, event: HtmlToolEvent, cx: &mut App) {
@@ -797,6 +803,11 @@ impl Interact {
         cx: &mut App,
     ) {
         match message["type"].as_str() {
+            Some("poFindResult") => {
+                let current = message["current"].as_u64().unwrap_or(0) as usize;
+                let total = message["total"].as_u64().unwrap_or(0) as usize;
+                self.emit_find_result(current, total, cx);
+            }
             Some("edit") => {
                 if let Some(on_edit) = self.state.borrow().on_edit.clone() {
                     on_edit(cx);

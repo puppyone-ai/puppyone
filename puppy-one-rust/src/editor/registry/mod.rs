@@ -1,34 +1,43 @@
 //! The viewer registry: a port of `src/shared-ui/editor/registry`.
 //!
 //! ```text
-//! formats            which format a file is (crate::formats)
+//! formats            which format a file is (crate::formats, incl. RG-01 sniffing)
 //! manifest.rs        what each preset viewer may do (presetViewerManifest.json)
-//! contribution.rs    what a viewer implementation adds, validated against it
-//! surface.rs         the hooks an open viewer gives the document host
+//! admission.rs       stat-first admission, read-only large text & oversized cards (RG-02..RG-04)
+//! request.rs         per-instance SurfaceRequest & DocumentContext (RG-10, RG-11)
+//! actions.rs         typed HostCommand, PaneItemId & PaneSegmentId (RG-21)
+//! contribution.rs    what a viewer implementation adds, validated against manifest
+//! surface.rs         slim ViewerSurface + optional capability sub-traits (RG-20)
 //! builtin.rs         the built-in contributions, in match order (the only list)
 //! packs/             external Viewer Packs: manifests, routing, the host port
 //! ```
-//!
-//! Resolution (`resolveEditorViewer`): the document's format, then the first
-//! contribution whose `matches` accepts it, else the placeholder fallback.
-//! The host (`editor::host`) opens the resolved viewer's surface and never
-//! names a concrete viewer. Placeholder-grade documents are the surface an
-//! external Viewer Pack may claim.
+
+pub mod actions;
+pub mod admission;
 mod builtin;
 mod contribution;
 mod manifest;
 pub mod normalize;
 pub mod packs;
+pub mod request;
 mod surface;
 
+pub use actions::{HostCommand, MarkdownCommand, PaneItemId, PaneSegmentId};
+pub use admission::{Admission, READ_ONLY_TEXT_MAX_BYTES};
 pub use contribution::{
-    EditorDocument, Presentation, PresetViewer, ViewerImplementation, ViewerMatch,
+    EditorDocument, Presentation, PresetViewer, SourceKind, SurfaceFactory, ViewerImplementation,
+    ViewerMatch,
 };
 pub use manifest::{Source, ViewerManifest, manifest};
+pub use request::{AssetReader, DocumentAssets, DocumentContext, SurfaceInput, SurfaceRequest};
+#[cfg(test)]
+pub use surface::SpecialSurfaceProbe;
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+pub use surface::SurfaceTestProbe;
 pub use surface::{
-    PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceHistory, SurfaceHtmlJsError,
-    SurfaceHtmlToolAction, SurfaceHtmlToolEvent, SurfaceHtmlToolMode, SurfaceHtmlToolSnapshot,
-    SurfaceInput, SurfaceRequest, ViewerSurface,
+    CompanionHistory, HtmlWindowTools, PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceHistory,
+    SurfaceHtmlJsError, SurfaceHtmlToolAction, SurfaceHtmlToolEvent, SurfaceHtmlToolMode,
+    SurfaceHtmlToolSnapshot, ViewerSurface,
 };
 
 use crate::formats::{self, FileFormat};
@@ -121,14 +130,29 @@ impl Resolved {
     }
 }
 
-/// `resolveEditorViewer`.
+/// `resolveEditorViewer` by name and optional MIME.
 pub fn resolve(document: &EditorDocument) -> Resolved {
+    resolve_with_head(document, None)
+}
+
+/// `resolveEditorViewer` with bounded head-byte content sniffing when name and
+/// MIME resolve to `unknown` (`RG-01`).
+///
+/// Known extensions are never overridden by sniffing, and sniffing never
+/// selects content-executing viewers (`html-artifact`, `app-preview`).
+pub fn resolve_with_head(document: &EditorDocument, head: Option<&[u8]>) -> Resolved {
     let format_path = if document.path.is_empty() {
         &document.name
     } else {
         &document.path
     };
-    let format = formats::resolve(Some(format_path), document.mime.as_deref());
+    let format = formats::resolve_with_sniff(Some(format_path), document.mime.as_deref(), head);
+    resolve_with_format(document, format)
+}
+
+/// Resolves a viewer using a pre-computed [`FileFormat`] (e.g. a sniffed format
+/// delivered on [`DocumentContext`]).
+pub fn resolve_with_format(document: &EditorDocument, format: &'static FileFormat) -> Resolved {
     let resolved_extension =
         formats::resolved_extension(Some(&document.name), document.mime.as_deref(), format);
     let m = ViewerMatch { document, format };
@@ -139,81 +163,15 @@ pub fn resolve(document: &EditorDocument) -> Resolved {
     }
 }
 
-thread_local! {
-    static FOLDERS: std::cell::RefCell<std::collections::HashMap<String, std::path::PathBuf>> =
-        std::cell::RefCell::new(Default::default());
-}
-/// The local folder a document's relative resources resolve in.
-pub fn set_document_folder(id: &str, folder: Option<std::path::PathBuf>) {
-    FOLDERS.with(|f| match folder {
-        Some(folder) => {
-            f.borrow_mut().insert(id.to_owned(), folder);
-        }
-        None => {
-            f.borrow_mut().remove(id);
-        }
-    });
-}
-thread_local! {
-    static SOURCES: std::cell::RefCell<std::collections::HashMap<String, crate::platform::webview::Source>> =
-        std::cell::RefCell::new(Default::default());
-}
-/// Where a document without a local folder (a Cloud document) reads its
-/// relative resources.
-pub fn set_document_source(id: &str, source: Option<crate::platform::webview::Source>) {
-    SOURCES.with(|f| match source {
-        Some(source) => {
-            f.borrow_mut().insert(id.to_owned(), source);
-        }
-        None => {
-            f.borrow_mut().remove(id);
-        }
-    });
-}
-pub fn document_source(id: &str) -> Option<crate::platform::webview::Source> {
-    SOURCES.with(|f| f.borrow().get(id).cloned())
-}
-pub fn document_folder(id: &str) -> Option<std::path::PathBuf> {
-    FOLDERS.with(|f| f.borrow().get(id).cloned())
+/// Returns the canonical `resourcePolicy.maxSourceBytes` declared in
+/// `preset-viewers.json` for `viewer_id` (`RG-04`).
+pub fn viewer_budget(viewer_id: &str) -> u64 {
+    manifest()
+        .definition(viewer_id)
+        .map(|def| def.resource_policy.max_source_bytes)
+        .unwrap_or(0)
 }
 
-/// What a Markdown document's media resolve against: its own
-/// workspace-relative path, and a reader of workspace files (local or
-/// hosted) by workspace-relative path, which refuses paths outside it.
-/// Reads a workspace file by its workspace-relative path.
-pub type AssetReader = std::sync::Arc<dyn Fn(&std::path::Path) -> Option<Vec<u8>> + Send + Sync>;
-#[derive(Clone)]
-pub struct DocumentAssets {
-    /// The workspace's identity (its root's resource key).
-    pub workspace: String,
-    pub document: std::path::PathBuf,
-    pub read: AssetReader,
-}
-impl std::fmt::Debug for DocumentAssets {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DocumentAssets")
-            .field("workspace", &self.workspace)
-            .field("document", &self.document)
-            .finish_non_exhaustive()
-    }
-}
-thread_local! {
-    static ASSETS: std::cell::RefCell<std::collections::HashMap<String, DocumentAssets>> =
-        std::cell::RefCell::new(Default::default());
-}
-pub fn set_document_assets(id: &str, assets: Option<DocumentAssets>) {
-    ASSETS.with(|f| match assets {
-        Some(assets) => {
-            f.borrow_mut().insert(id.to_owned(), assets);
-        }
-        None => {
-            f.borrow_mut().remove(id);
-        }
-    });
-}
-pub fn document_assets(id: &str) -> Option<DocumentAssets> {
-    ASSETS.with(|f| f.borrow().get(id).cloned())
-}
 /// The resolved viewer's `resourcePolicy.maxSourceBytes` for `path`.
 pub fn source_budget(path: &str) -> u64 {
     resolve(&EditorDocument::local(path))
@@ -222,7 +180,8 @@ pub fn source_budget(path: &str) -> u64 {
         .resource_policy
         .max_source_bytes
 }
-/// `formatByteLimit`: whole MB when exact, otherwise rounded-up KB.
+
+/// `formatByteLimit`: whole GB / MB when exact, otherwise rounded-up MB / KB.
 pub fn format_byte_limit(bytes: u64) -> String {
     const MB: u64 = 1024 * 1024;
     if bytes >= MB && bytes.is_multiple_of(MB) {
@@ -231,6 +190,7 @@ pub fn format_byte_limit(bytes: u64) -> String {
         format!("{} KB", bytes.div_ceil(1024))
     }
 }
+
 /// `getEditorSourceRequirement`: what the host reads to open a file.
 pub fn source_requirement(path: &str) -> Source {
     resolve(&EditorDocument::local(path)).viewer.source()
@@ -252,9 +212,142 @@ mod tests {
         assert_eq!(source_budget("a.csv"), 8 * 1024 * 1024);
         assert_eq!(source_budget("a.json"), 8 * 1024 * 1024);
         assert_eq!(source_budget("a.html"), 4 * 1024 * 1024);
+        assert_eq!(viewer_budget("office-preview"), 25 * 1024 * 1024);
+        assert_eq!(viewer_budget("database-preview"), 8 * 1024 * 1024 * 1024);
+        assert_eq!(viewer_budget("audio-preview"), 512 * 1024 * 1024);
+        assert_eq!(viewer_budget("video-preview"), 2 * 1024 * 1024 * 1024);
         assert_eq!(format_byte_limit(8 * 1024 * 1024), "8 MB");
         assert_eq!(format_byte_limit(1500), "2 KB");
     }
+
+    #[test]
+    fn rg30_viewer_and_platform_modules_hold_no_duplicate_source_budget_constants() {
+        // Every manifest viewer id resolves through viewer_budget.
+        for def in &manifest().viewers {
+            assert_eq!(
+                viewer_budget(&def.id),
+                def.resource_policy.max_source_bytes,
+                "viewer_budget mismatch for {}",
+                def.id
+            );
+        }
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .expect("workspace root");
+        let viewers_dir = repo_root.join("src/editor/viewers");
+        let mut files = vec![repo_root.join("src/platform/database.rs")];
+        for entry in std::fs::read_dir(&viewers_dir).expect("read viewers dir") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|s| s.to_str()) == Some("rs") {
+                files.push(path);
+            }
+        }
+        let forbidden_patterns = [
+            "const BUDGET:",
+            "const MAX_SOURCE_BYTES:",
+            "25 * 1024 * 1024",
+            "512 * 1024 * 1024",
+            "2 * 1024 * 1024 * 1024",
+            "8 * 1024 * 1024 * 1024",
+        ];
+        for path in files {
+            let raw = std::fs::read_to_string(&path).expect("read source file");
+            // Strip trailing #[cfg(test)] mod tests section.
+            let prod = raw.split("#[cfg(test)]\nmod tests").next().unwrap_or(&raw);
+            for pattern in forbidden_patterns {
+                assert!(
+                    !prod.contains(pattern),
+                    "RG-30 violation: {} contains duplicate budget constant pattern `{pattern}`; read manifest via registry::viewer_budget instead",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rg31_content_sniffing_routes_extensionless_magic_and_utf8_without_overriding_extensions_or_executing_html()
+     {
+        let sniff_viewer = |path: &str, head: &[u8]| -> &'static str {
+            resolve_with_head(&EditorDocument::local(path), Some(head))
+                .viewer
+                .id
+        };
+        // Magic numbers on extensionless files.
+        assert_eq!(
+            sniff_viewer("README_IMAGE", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"),
+            "image-preview"
+        );
+        assert_eq!(
+            sniff_viewer("photo_blob", b"\xFF\xD8\xFF\xE0\x00\x10JFIF"),
+            "image-preview"
+        );
+        assert_eq!(
+            sniff_viewer("anim_blob", b"GIF89a\x01\x00"),
+            "image-preview"
+        );
+        assert_eq!(
+            sniff_viewer("webp_blob", b"RIFF\x24\x00\x00\x00WEBPVP8 "),
+            "image-preview"
+        );
+        assert_eq!(sniff_viewer("manual_blob", b"%PDF-1.7\n%"), "pdf-preview");
+        assert_eq!(
+            sniff_viewer("cache_data", b"SQLite format 3\x00\x10\x00"),
+            "database-preview"
+        );
+        assert_eq!(
+            sniff_viewer("track_blob", b"ID3\x04\x00\x00\x00\x00\x00\x00"),
+            "audio-preview"
+        );
+        assert_eq!(sniff_viewer("ogg_blob", b"OggS\x00\x02"), "audio-preview");
+        assert_eq!(
+            sniff_viewer("wav_blob", b"RIFF\x24\x00\x00\x00WAVEfmt "),
+            "audio-preview"
+        );
+        assert_eq!(
+            sniff_viewer("clip_blob", b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00"),
+            "video-preview"
+        );
+        assert_eq!(
+            sniff_viewer("gzip_blob", b"\x1f\x8b\x08\x00\x00\x00\x00\x00"),
+            "document-placeholder"
+        );
+        assert_eq!(
+            sniff_viewer("wasm_blob", b"\0asm\x01\x00\x00\x00"),
+            "document-placeholder"
+        );
+        assert_eq!(
+            sniff_viewer("archive_blob", b"PK\x03\x04\x14\x00\x00\x00"),
+            "document-placeholder"
+        );
+
+        // UTF-8 text vs non-UTF-8 / NUL binary.
+        assert_eq!(
+            sniff_viewer("AUTHORS_NOTES", "Hello 世界!\nLine two.\n".as_bytes()),
+            "text"
+        );
+        assert_eq!(
+            sniff_viewer("raw_dump", b"\x00\xFF\xFE\x80\x01\x02"),
+            "document-placeholder"
+        );
+
+        // Known extensions are NEVER overridden by sniffing (disguised extension).
+        assert_eq!(
+            sniff_viewer("disguised.txt", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"),
+            "text"
+        );
+        assert_eq!(sniff_viewer("notes.md", b"%PDF-1.7\n"), "markdown");
+
+        // Sniffing NEVER selects executable HTML or App Preview viewers.
+        let html_sniffed = sniff_viewer(
+            "untrusted_payload",
+            b"<!DOCTYPE html><html><body><script>alert(1)</script></body></html>",
+        );
+        assert_eq!(html_sniffed, "text");
+        assert_ne!(html_sniffed, "html-artifact");
+        assert_ne!(html_sniffed, "app-preview");
+    }
+
     #[test]
     fn documents_resolve_to_the_product_viewers() {
         assert_eq!(viewer("notes/README.md"), "markdown");

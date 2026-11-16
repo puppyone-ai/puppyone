@@ -85,6 +85,8 @@ pub enum Command {
     Minimize,
     Zoom,
     CloseExecutions,
+    /// `WB-02`: explicitly unload a clean background project without closing the window.
+    CloseBackgroundProject,
 }
 impl Command {
     /// The editor host protocol names pane-menu commands (`ClientMessage::Action`).
@@ -147,6 +149,7 @@ shell_actions! {
     NextEditor => NextEditor,
     PreviousEditor => PreviousEditor,
     ToggleFullScreen => ToggleFullScreen,
+    CloseBackgroundProject => CloseBackgroundProject,
 }
 
 /// The Dock menu (`createDockMenuTemplate`).

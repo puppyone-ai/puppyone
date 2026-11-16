@@ -9,7 +9,7 @@ const MAX_QUEUED: usize = 256;
 
 /// An operation waiting for an overlapping one to finish.
 pub(super) struct Queued {
-    owner: String,
+    pub(super) owner: String,
     operation: Operation,
 }
 
@@ -27,7 +27,7 @@ fn overlaps(left: &[std::path::PathBuf], right: &[std::path::PathBuf]) -> bool {
 }
 
 pub(super) struct Mutation {
-    owner: String,
+    pub(super) owner: String,
     workspace: Arc<workspace::Workspace>,
     operation: Operation,
     slots: Vec<SlotId>,
@@ -155,11 +155,13 @@ impl Runtime {
             return Err("Wait for the opening documents to finish loading".into());
         }
         if operation.changes_identity()
-            && host.slots.values().any(|slot| {
+            && (host.slots.values().any(|slot| {
                 slot.files.opened().is_some_and(|(_, path)| {
                     !affected(path) && destinations.iter().any(|p| path.starts_with(p))
                 })
-            })
+            }) || host.hibernated.values().any(|hib| {
+                !affected(&hib.path) && destinations.iter().any(|p| hib.path.starts_with(p))
+            }))
         {
             return Err("The destination already has an open document".into());
         }
@@ -359,6 +361,7 @@ impl Runtime {
                         .resource_id(&path)
                         .expect("admitted path"),
                 );
+                host.view_states.rename(&slot.key, key.clone());
                 host.state.rebind(
                     &slot.key,
                     Input {
@@ -373,8 +376,64 @@ impl Runtime {
                 slot.key = key;
             } else {
                 slot.files.remove_after_operation(wake);
+                host.view_states.remove(&slot.key);
                 host.state.close(&slot.key);
                 host.slots.remove(&id);
+            }
+        }
+        // Reconcile any hibernated clean tabs affected by the mutation (`WB-01`).
+        let hib_keys: Vec<(String, std::path::PathBuf)> = host
+            .hibernated
+            .iter()
+            .map(|(k, v)| (k.clone(), v.path.clone()))
+            .collect();
+        for (old_key, old_path) in hib_keys {
+            if completed
+                .outcome
+                .removed
+                .iter()
+                .any(|rem| old_path.starts_with(rem))
+            {
+                host.hibernated.remove(&old_key);
+                host.view_states.remove(&old_key);
+                host.state.close(&old_key);
+                continue;
+            }
+            if let Some((from, to)) = completed
+                .outcome
+                .moved
+                .iter()
+                .find(|(from, _)| old_path.starts_with(from))
+                && let Ok(rest) = old_path.strip_prefix(from)
+            {
+                let new_path = if rest.as_os_str().is_empty() {
+                    to.clone()
+                } else {
+                    to.join(rest)
+                };
+                if let Ok(res_id) = mutation.workspace.resource_id(&new_path) {
+                    let new_key = resource_key(&res_id);
+                    host.hibernated.remove(&old_key);
+                    host.hibernated.insert(
+                        new_key.clone(),
+                        super::super::retention::HibernatedSlot {
+                            path: new_path.clone(),
+                            failed_at_navigation: None,
+                        },
+                    );
+                    host.view_states.rename(&old_key, new_key.clone());
+                    host.state.rebind(
+                        &old_key,
+                        Input {
+                            id: new_key,
+                            label: new_path
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .into_owned(),
+                        },
+                    );
+                }
             }
         }
         for id in &mutation.slots {

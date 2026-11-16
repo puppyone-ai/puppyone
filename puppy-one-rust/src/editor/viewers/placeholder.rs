@@ -1,13 +1,18 @@
 //! `DocumentPreview` (`document-preview.css`): the fallback surface for files
-//! without a built-in viewer (`VW-30`).
+//! without a built-in viewer (`VW-30`), plus in-pane oversized explanation cards
+//! (`RG-02`) and panic-isolated viewer fault recovery cards (`RG-23`).
 //!
 //! Local files first request a bounded, timeout-protected Quick Look preview or
 //! system thumbnail on a background worker (`<= 400ms`), showing the preview
 //! alongside file format/size summary and "Open in default app" before falling
 //! back to the striped summary card.
+#[cfg(test)]
+use crate::editor::registry::SpecialSurfaceProbe;
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+use crate::editor::registry::SurfaceTestProbe;
 use crate::{
-    editor::registry::{SurfaceInput, SurfaceRequest, ViewerSurface, document_folder},
-    localization::t,
+    editor::registry::{SurfaceInput, SurfaceRequest, ViewerSurface, format_byte_limit},
+    localization::{t, tf},
     platform::image_transcode::{self, QUICK_LOOK_TIMEOUT, ThumbnailKind},
     theme,
     ui::{
@@ -19,6 +24,7 @@ use crate::{
 use gpui::{prelude::*, *};
 use std::{
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
     time::Duration,
 };
@@ -33,10 +39,10 @@ pub fn open_binary(
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
     let (local_path, known_bytes) = resolve_local_and_size(
-        request.id,
         request.name,
         request.input,
         request.workspace.as_ref(),
+        request.folder.as_deref(),
     );
     let label: SharedString = t("editor.preview.binaryFile").to_owned().into();
     let name = request.name.to_owned();
@@ -49,11 +55,46 @@ pub fn open_binary(
     Box::new(PlaceholderSurface { view })
 }
 
+/// Options for [`open_oversized`] (`RG-02`).
+pub struct OversizedOptions {
+    pub name: String,
+    pub size_bytes: u64,
+    pub limit_bytes: u64,
+    pub local_path: Option<PathBuf>,
+    pub can_reveal_in_finder: bool,
+}
+
+/// Opens an in-pane explanation card when a file exceeds its viewer's manifest
+/// budget (`RG-02`), without reading the file body or dropping the slot.
+pub fn open_oversized(options: OversizedOptions, cx: &mut App) -> Box<dyn ViewerSurface> {
+    let view = cx.new(|_| OversizedCard { options });
+    Box::new(OversizedSurface { view })
+}
+
+pub type FaultActionCallback = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// Options for [`open_faulted`] (`RG-23`).
+pub struct FaultedOptions {
+    pub name: String,
+    pub diagnostic: String,
+    pub local_path: Option<PathBuf>,
+    pub can_switch_plain_text: bool,
+    pub on_close: FaultActionCallback,
+    pub on_switch_plain_text: Option<FaultActionCallback>,
+}
+
+/// Opens an in-pane recovery card when a viewer panics during factory open,
+/// event dispatch, or rendering (`RG-23`).
+pub fn open_faulted(options: FaultedOptions, cx: &mut App) -> Box<dyn ViewerSurface> {
+    let view = cx.new(|_| FaultedCard { options });
+    Box::new(FaultedSurface { view })
+}
+
 fn resolve_local_and_size(
-    id: &str,
     name: &str,
     input: SurfaceInput<'_>,
     workspace: Option<&Arc<Workspace>>,
+    folder: Option<&Path>,
 ) -> (Option<PathBuf>, Option<u64>) {
     if let SurfaceInput::Resource(resource) = input {
         match resource.data() {
@@ -67,7 +108,7 @@ fn resolve_local_and_size(
     {
         return (Some(abs), None);
     }
-    if let Some(folder) = document_folder(id)
+    if let Some(folder) = folder
         && let Some(file_name) = Path::new(name).file_name()
     {
         return (Some(folder.join(file_name)), None);
@@ -98,6 +139,291 @@ pub fn format_file_size(bytes: u64) -> String {
         format!("{:.1} MB", bytes as f64 / MB)
     } else {
         format!("{:.2} GB", bytes as f64 / GB)
+    }
+}
+
+struct OversizedSurface {
+    view: Entity<OversizedCard>,
+}
+
+impl ViewerSurface for OversizedSurface {
+    fn element(&self) -> AnyElement {
+        self.view.clone().into_any_element()
+    }
+
+    fn rebind_name(&self, name: &str, cx: &mut App) {
+        let name = name.to_owned();
+        self.view.update(cx, |v, cx| {
+            v.options.name = name;
+            cx.notify();
+        });
+    }
+
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
+    }
+}
+
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for OversizedSurface {
+    #[cfg(test)]
+    fn special_surface(&self, cx: &App) -> Option<SpecialSurfaceProbe> {
+        let o = &self.view.read(cx).options;
+        Some(SpecialSurfaceProbe {
+            kind: "oversized",
+            size_bytes: Some(o.size_bytes),
+            limit_bytes: Some(o.limit_bytes),
+            can_open_default_app: o.local_path.is_some(),
+            can_reveal_in_finder: o.can_reveal_in_finder && o.local_path.is_some(),
+            can_switch_plain_text: false,
+            detail: format!(
+                "{} / {}",
+                format_file_size(o.size_bytes),
+                format_byte_limit(o.limit_bytes)
+            ),
+        })
+    }
+}
+
+struct OversizedCard {
+    options: OversizedOptions,
+}
+
+impl Render for OversizedCard {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t_ = cx.palette();
+        let data_size = theme::ty().editor.data;
+        let limit_text = format_byte_limit(self.options.limit_bytes);
+        let explanation = tf(
+            "editor.unavailable.resourceLimit",
+            &[("limit", limit_text.clone().into())],
+        );
+        let mut details = Vec::new();
+        if let Some(ext) = file_type(&self.options.name) {
+            details.push(ext);
+        }
+        details.push(format_file_size(self.options.size_bytes));
+        let summary = details.join(" · ");
+
+        let local_for_open = self.options.local_path.clone();
+        let local_for_reveal = self
+            .options
+            .local_path
+            .clone()
+            .filter(|_| self.options.can_reveal_in_finder);
+
+        let mut actions: Vec<AnyElement> = Vec::new();
+        if let Some(path) = local_for_open {
+            actions.push(
+                Button::new("oversized-open-default")
+                    .variant(ButtonVariant::Secondary)
+                    .label(t("editor.openDefaultApp"))
+                    .on_click(move |_, _, _| {
+                        let _ = crate::platform::desktop::open(&path);
+                    })
+                    .into_any_element(),
+            );
+        }
+        if let Some(path) = local_for_reveal {
+            actions.push(
+                Button::new("oversized-reveal-finder")
+                    .variant(ButtonVariant::Secondary)
+                    .label(t("workspace.node.revealInFinder"))
+                    .on_click(move |_, _, _| {
+                        let _ = crate::platform::desktop::reveal(&path);
+                    })
+                    .into_any_element(),
+            );
+        }
+
+        div()
+            .id("oversized-document-surface")
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .overflow_hidden()
+            .p(px(32.))
+            .bg(t_.canvas)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(12.))
+                    .max_w(px(460.))
+                    .px(px(28.))
+                    .py(px(22.))
+                    .rounded(px(theme::metric::CARD_RADIUS))
+                    .border_1()
+                    .border_color(t_.border_subtle)
+                    .bg(t_.panel_raised)
+                    .child(
+                        div()
+                            .max_w_full()
+                            .truncate()
+                            .text_size(px(theme::ty().ui.body))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(t_.text)
+                            .child(display_name(&self.options.name)),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(data_size))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t_.muted)
+                            .child(summary),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(data_size))
+                            .line_height(relative(1.45))
+                            .text_color(t_.subtle)
+                            .text_center()
+                            .child(explanation),
+                    )
+                    .when(!actions.is_empty(), |d| {
+                        d.child(
+                            div()
+                                .flex()
+                                .flex_wrap()
+                                .items_center()
+                                .justify_center()
+                                .gap(px(8.))
+                                .children(actions),
+                        )
+                    }),
+            )
+    }
+}
+
+struct FaultedSurface {
+    view: Entity<FaultedCard>,
+}
+
+impl ViewerSurface for FaultedSurface {
+    fn element(&self) -> AnyElement {
+        self.view.clone().into_any_element()
+    }
+
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
+    }
+}
+
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for FaultedSurface {
+    #[cfg(test)]
+    fn special_surface(&self, cx: &App) -> Option<SpecialSurfaceProbe> {
+        let o = &self.view.read(cx).options;
+        Some(SpecialSurfaceProbe {
+            kind: "faulted",
+            size_bytes: None,
+            limit_bytes: None,
+            can_open_default_app: o.local_path.is_some(),
+            can_reveal_in_finder: false,
+            can_switch_plain_text: o.can_switch_plain_text && o.on_switch_plain_text.is_some(),
+            detail: o.diagnostic.clone(),
+        })
+    }
+}
+
+struct FaultedCard {
+    options: FaultedOptions,
+}
+
+impl Render for FaultedCard {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t_ = cx.palette();
+        let data_size = theme::ty().editor.data;
+        let on_close = self.options.on_close.clone();
+        let local_for_open = self.options.local_path.clone();
+        let switch_plain = self
+            .options
+            .on_switch_plain_text
+            .clone()
+            .filter(|_| self.options.can_switch_plain_text);
+
+        let mut actions: Vec<AnyElement> = Vec::new();
+        if let Some(switch_cb) = switch_plain {
+            actions.push(
+                Button::new("faulted-switch-plain-text")
+                    .variant(ButtonVariant::Secondary)
+                    .label("Switch to Plain Text")
+                    .on_click(move |_, window, cx| switch_cb(window, cx))
+                    .into_any_element(),
+            );
+        }
+        if let Some(path) = local_for_open {
+            actions.push(
+                Button::new("faulted-open-default")
+                    .variant(ButtonVariant::Secondary)
+                    .label(t("editor.openDefaultApp"))
+                    .on_click(move |_, _, _| {
+                        let _ = crate::platform::desktop::open(&path);
+                    })
+                    .into_any_element(),
+            );
+        }
+        actions.push(
+            Button::new("faulted-close")
+                .variant(ButtonVariant::Secondary)
+                .label(t("common.action.close"))
+                .on_click(move |_, window, cx| on_close(window, cx))
+                .into_any_element(),
+        );
+
+        div()
+            .id("faulted-viewer-surface")
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .overflow_hidden()
+            .p(px(32.))
+            .bg(t_.canvas)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(12.))
+                    .max_w(px(460.))
+                    .px(px(28.))
+                    .py(px(22.))
+                    .rounded(px(theme::metric::CARD_RADIUS))
+                    .border_1()
+                    .border_color(t_.border_subtle)
+                    .bg(t_.panel_raised)
+                    .child(
+                        div()
+                            .max_w_full()
+                            .truncate()
+                            .text_size(px(theme::ty().ui.body))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(t_.text)
+                            .child(display_name(&self.options.name)),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(data_size))
+                            .line_height(relative(1.45))
+                            .text_color(t_.danger)
+                            .text_center()
+                            .child(self.options.diagnostic.clone()),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .items_center()
+                            .justify_center()
+                            .gap(px(8.))
+                            .children(actions),
+                    ),
+            )
     }
 }
 
@@ -421,8 +747,6 @@ mod tests {
             .unwrap();
         let raw = buf.into_inner();
         let expected_len = raw.len() as u64;
-        // Write valid image bytes under an unknown binary extension so QuickLook/ImageIO
-        // can generate a preview thumbnail for the placeholder surface.
         std::fs::write(dir.path().join("asset.qqqq"), &raw).unwrap();
         let ws = Workspace::open(dir.path()).unwrap();
         let resource = ws.resource(Path::new("asset.qqqq")).unwrap();

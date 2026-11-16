@@ -1007,6 +1007,30 @@ impl CsvEditor {
             cx.notify();
         }
     }
+    /// Current `(scroll_x, scroll_y)` of the CSV grid (`WB-10`).
+    pub fn view_scroll(&self) -> (f32, f32) {
+        (self.port.scroll.x, self.port.scroll.y)
+    }
+
+    /// Restores `(scroll_x, scroll_y)` on the CSV grid, clamping when viewport size is known (`WB-10`, `WB-11`).
+    pub fn set_view_scroll(&mut self, scroll_x: f32, scroll_y: f32, cx: &mut Context<Self>) {
+        let x = if scroll_x.is_finite() && scroll_x >= 0. {
+            scroll_x
+        } else {
+            0.
+        };
+        let y = if scroll_y.is_finite() && scroll_y >= 0. {
+            scroll_y
+        } else {
+            0.
+        };
+        self.port.scroll = point(x, y);
+        if self.port.size.width > 0. && self.port.size.height > 0. {
+            self.clamp_scroll();
+        }
+        cx.notify();
+    }
+
     /// How far the table (or the source) is scrolled, and whether its top
     /// edge is the pinned header row.
     pub fn scroll_state(&self, cx: &App) -> (f32, bool) {

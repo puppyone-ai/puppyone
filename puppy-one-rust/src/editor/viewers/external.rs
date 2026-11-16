@@ -1,13 +1,17 @@
 //! `ExternalViewerChooser`: several installed Viewer Packs match a document
 //! equally; the user picks one and its host surface opens in place.
-use crate::workspace::PreviewResource;
+use crate::workspace::{PreviewResource, Workspace};
 use crate::{
-    editor::registry::{
-        SurfaceInput, SurfaceRequest, ViewerSurface,
-        packs::{ExternalSurfaceFactory, PackContribution},
+    editor::{
+        navigation::ReferenceContext,
+        registry::{
+            DocumentAssets, SourceKind, SurfaceInput, SurfaceRequest, ViewerSurface,
+            packs::{ExternalSurfaceFactory, PackContribution},
+        },
     },
     formats::FileFormat,
     localization::tf,
+    platform::webview,
     theme,
     typography::Scale,
     ui::{
@@ -16,6 +20,7 @@ use crate::{
     },
 };
 use gpui::{prelude::*, *};
+use std::{path::PathBuf, sync::Arc};
 
 pub fn chooser(
     request: &SurfaceRequest,
@@ -34,6 +39,12 @@ pub fn chooser(
         format: request.format,
         dark: request.dark,
         scale: request.scale,
+        workspace: request.workspace.clone(),
+        folder: request.folder.clone(),
+        web_source: request.web_source.clone(),
+        assets: request.assets.clone(),
+        references: request.references.clone(),
+        source_kind: request.source_kind,
         candidates,
         render,
         opened: None,
@@ -57,6 +68,12 @@ struct Chooser {
     format: &'static FileFormat,
     dark: bool,
     scale: Scale,
+    workspace: Option<Arc<Workspace>>,
+    folder: Option<PathBuf>,
+    web_source: Option<webview::Source>,
+    assets: Option<DocumentAssets>,
+    references: Option<ReferenceContext>,
+    source_kind: SourceKind,
     candidates: Vec<PackContribution>,
     render: ExternalSurfaceFactory,
     opened: Option<Box<dyn ViewerSurface>>,
@@ -75,8 +92,13 @@ impl Chooser {
             resolved_extension: None,
             dark: self.dark,
             scale: self.scale,
-            workspace: None,
+            workspace: self.workspace.clone(),
             file_mode: false,
+            folder: self.folder.clone(),
+            web_source: self.web_source.clone(),
+            assets: self.assets.clone(),
+            references: self.references.clone(),
+            source_kind: self.source_kind,
         };
         self.opened = Some((self.render)(&request, &self.candidates[index], window, cx));
         cx.notify();
@@ -99,8 +121,8 @@ impl Render for Chooser {
             .id("external-viewer-chooser")
             .size_full()
             .flex()
-            .flex_col()
             .items_center()
+            .flex_col()
             .justify_center()
             .gap(px(12.))
             .p(px(32.))

@@ -134,7 +134,12 @@ fn markdown_contributes_its_mode_segments(cx: &mut TestAppContext) {
             v.contribution(cx).segmented.map(|s| s.value),
             Some("source")
         );
-        let editor = v.surface.as_ref().and_then(|s| s.editor_view()).unwrap();
+        let editor = v
+            .surface
+            .as_ref()
+            .and_then(|s| s.as_test_probe())
+            .and_then(|p| p.editor_view())
+            .unwrap();
         assert!(
             !editor
                 .read(cx)
@@ -156,7 +161,11 @@ fn find_marks_and_selects_matches_in_text_editors(cx: &mut TestAppContext) {
     cx.run_until_parked();
     bar.update(cx, |b, _| assert_eq!((b.current, b.total), (1, 3)));
     let editor = view.update(cx, |v, _| {
-        v.surface.as_ref().and_then(|s| s.editor_view()).unwrap()
+        v.surface
+            .as_ref()
+            .and_then(|s| s.as_test_probe())
+            .and_then(|p| p.editor_view())
+            .unwrap()
     });
     editor.update(cx, |e, _| {
         assert_eq!(e.find_marks().matches, vec![0..5, 11..16, 23..28]);
@@ -179,7 +188,11 @@ fn a_snapshot_waits_for_the_composition_and_resumes_when_it_ends(cx: &mut TestAp
     use gpui::EntityInputHandler;
     let (view, messages, cx) = setup(cx, "notes.md", "a");
     let editor = view.update(cx, |v, _| {
-        v.surface.as_ref().and_then(|s| s.editor_view()).unwrap()
+        v.surface
+            .as_ref()
+            .and_then(|s| s.as_test_probe())
+            .and_then(|p| p.editor_view())
+            .unwrap()
     });
     let dirty = |messages: &Rc<RefCell<Vec<ClientMessage>>>| {
         messages
@@ -336,7 +349,13 @@ fn code_snapshot_defers_during_ime_and_freezes_until_thawed(cx: &mut TestAppCont
     use gpui::EntityInputHandler;
     let (view, messages, cx) = setup(cx, "data.json", "");
     let editor = view.update(cx, |v, _| {
-        v.surface.as_ref().unwrap().code_editor().unwrap()
+        v.surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .code_editor()
+            .unwrap()
     });
     editor.update_in(cx, |e, w, cx| {
         e.replace_and_mark_text_in_range(None, "ni", Some(2..2), w, cx)
@@ -541,7 +560,12 @@ fn html_edit_mode_applies_page_edits_to_the_source_and_its_history(cx: &mut Test
     let (view, messages, cx) = setup(cx, "site/page.html", text);
     let deliver = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext, body: &str| {
         let delivered = view.update(cx, |v, _| {
-            v.surface.as_ref().unwrap().html_visual_deliver(body)
+            v.surface
+                .as_ref()
+                .unwrap()
+                .as_test_probe()
+                .unwrap()
+                .html_visual_deliver(body)
         });
         cx.run_until_parked();
         delivered
@@ -620,7 +644,6 @@ fn an_html_page_asks_before_it_uses_its_folder(cx: &mut TestAppContext) {
     let workspace = crate::workspace::Workspace::open(&root).unwrap();
     let page = "<!doctype html><html><head></head><body><a href=\"https://example.test/\">x</a>\
         <script>showDirectoryPicker()</script></body></html>";
-    crate::editor::registry::set_document_folder("doc-html-folder", Some(folder.clone()));
     let (view, messages, cx) = setup_with(
         cx,
         "doc-html-folder",
@@ -649,7 +672,12 @@ fn an_html_page_asks_before_it_uses_its_folder(cx: &mut TestAppContext) {
     // Allowed, it runs offline: a clicked link only says why it stays.
     let link = r#"{"type":"link","href":"https://example.test/"}"#;
     let notice = view.update(cx, |v, cx| {
-        v.surface.as_ref().unwrap().html_page_deliver(link, cx)
+        v.surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .html_page_deliver(link, cx)
     });
     assert_eq!(
         notice.as_deref(),
@@ -663,7 +691,12 @@ fn an_html_page_asks_before_it_uses_its_folder(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(toggle(&view, cx), Some(ItemKind::Toggle(false)));
     view.update(cx, |v, cx| {
-        v.surface.as_ref().unwrap().html_page_deliver(link, cx)
+        v.surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .html_page_deliver(link, cx)
     });
     assert_eq!(cx.opened_url().as_deref(), Some("https://example.test/"));
     // A file the Explorer has not loaded yet still opens; nothing there
@@ -681,11 +714,21 @@ fn an_html_page_asks_before_it_uses_its_folder(cx: &mut TestAppContext) {
     let follow = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext, href: &str| {
         let body = format!(r#"{{"type":"link","href":"{href}"}}"#);
         view.update(cx, |v, cx| {
-            v.surface.as_ref().unwrap().html_page_deliver(&body, cx)
+            v.surface
+                .as_ref()
+                .unwrap()
+                .as_test_probe()
+                .unwrap()
+                .html_page_deliver(&body, cx)
         });
         cx.run_until_parked();
         view.update(cx, |v, cx| {
-            v.surface.as_ref().unwrap().html_page_deliver("{}", cx)
+            v.surface
+                .as_ref()
+                .unwrap()
+                .as_test_probe()
+                .unwrap()
+                .html_page_deliver("{}", cx)
         })
     };
     follow(&view, cx, "tasks.md");
@@ -719,14 +762,19 @@ fn an_html_page_asks_before_it_uses_its_folder(cx: &mut TestAppContext) {
     cx.simulate_prompt_answer(t("editor.html.folderAccessDecline"));
     cx.run_until_parked();
     assert_eq!(toggle(&view, cx), Some(ItemKind::Toggle(false)));
-    crate::editor::registry::set_document_folder("doc-html-folder", None);
 }
 
 #[gpui::test]
 fn a_new_extension_moves_the_working_copy_to_its_viewer(cx: &mut TestAppContext) {
     let (view, messages, cx) = setup(cx, "notes/draft.txt", "# Title\n");
     let code = view.update(cx, |v, _| {
-        v.surface.as_ref().unwrap().code_editor().unwrap()
+        v.surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .code_editor()
+            .unwrap()
     });
     view.update_in(cx, |v, w, cx| {
         assert!(
@@ -750,7 +798,13 @@ fn a_new_extension_moves_the_working_copy_to_its_viewer(cx: &mut TestAppContext)
         );
     });
     let same = view.update(cx, |v, _| {
-        v.surface.as_ref().unwrap().code_editor().unwrap()
+        v.surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .code_editor()
+            .unwrap()
     });
     assert_eq!(same.entity_id(), code.entity_id());
     // Markdown: its own viewer over the unsaved text, still dirty.
@@ -833,7 +887,11 @@ fn mixed_line_ending_policy_freezes_editor_shows_banner_and_emits_normalize(
         .expect("Normalize line endings button visible");
     // Typing while read-only is blocked.
     let editor = view.update(cx, |v, _| {
-        v.surface.as_ref().and_then(|s| s.editor_view()).unwrap()
+        v.surface
+            .as_ref()
+            .and_then(|s| s.as_test_probe())
+            .and_then(|p| p.editor_view())
+            .unwrap()
     });
     editor.update_in(cx, |e, w, cx| {
         e.replace_text_in_range(None, "blocked", w, cx);
@@ -879,7 +937,11 @@ fn external_minimal_diff_reconcile_is_undoable_to_prior_draft(cx: &mut TestAppCo
     use gpui::EntityInputHandler;
     let (view, _, cx) = setup(cx, "notes.md", "line1\nline2\n");
     let editor = view.update(cx, |v, _| {
-        v.surface.as_ref().and_then(|s| s.editor_view()).unwrap()
+        v.surface
+            .as_ref()
+            .and_then(|s| s.as_test_probe())
+            .and_then(|p| p.editor_view())
+            .unwrap()
     });
     editor.update_in(cx, |e, w, cx| {
         e.set_selection(crate::editor::text::selection::Selection::cursor(0), cx);
@@ -921,5 +983,438 @@ fn external_minimal_diff_reconcile_is_undoable_to_prior_draft(cx: &mut TestAppCo
     cx.run_until_parked();
     view.update(cx, |v, cx| {
         assert_eq!(v.text(cx).as_deref(), Some("mine line1\nline2\n"));
+    });
+}
+
+#[gpui::test]
+fn rg02_rg03_oversized_opens_in_pane_card_and_large_text_locks_readonly_banner(
+    cx: &mut TestAppContext,
+) {
+    use gpui::EntityInputHandler;
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    std::fs::write(root.join("giant.pdf"), b"%PDF-1.7\n").unwrap();
+    let ws = crate::workspace::Workspace::open(&root).unwrap();
+
+    // 1. Local oversized file shows Open in Default App + Reveal in Finder (`RG-02`).
+    let (view, _, cx) = setup_with(cx, "doc-over", Some(ws), "notes.md", "hi");
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Oversized {
+                id: "over-local".into(),
+                name: "giant.pdf".into(),
+                size_bytes: 700 * 1024 * 1024,
+                limit_bytes: 512 * 1024 * 1024,
+                can_reveal_in_finder: true,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |v, cx| {
+        let probe = v
+            .surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .special_surface(cx)
+            .unwrap();
+        assert_eq!(probe.kind, "oversized");
+        assert_eq!(probe.size_bytes, Some(700 * 1024 * 1024));
+        assert!(probe.can_open_default_app);
+        assert!(probe.can_reveal_in_finder);
+    });
+
+    // 2. Cloud oversized file omits Reveal in Finder (`RG-02`).
+    let cloud_ws = crate::workspace::Workspace::from_provider(std::sync::Arc::new(
+        crate::workspace::testing::Memory::new("memory://cloud/proj/"),
+    ))
+    .unwrap();
+    view.update_in(cx, |v, w, cx| {
+        v.set_workspace(Some(cloud_ws));
+        v.receive(
+            &HostMessage::Context {
+                id: "over-cloud".into(),
+                context: crate::editor::registry::DocumentContext {
+                    source_kind: crate::editor::registry::SourceKind::Cloud,
+                    ..Default::default()
+                },
+            },
+            w,
+            cx,
+        );
+        v.receive(
+            &HostMessage::Oversized {
+                id: "over-cloud".into(),
+                name: "cloud-video.mp4".into(),
+                size_bytes: 3 * 1024 * 1024 * 1024,
+                limit_bytes: 2 * 1024 * 1024 * 1024,
+                can_reveal_in_finder: false,
+            },
+            w,
+            cx,
+        );
+    });
+    view.read_with(cx, |v, cx| {
+        let probe = v
+            .surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .special_surface(cx)
+            .unwrap();
+        assert_eq!(probe.kind, "oversized");
+        assert!(!probe.can_open_default_app);
+        assert!(!probe.can_reveal_in_finder);
+    });
+
+    // 3. Large text within 64 MiB opens read-only with explanation banner (`RG-03`).
+    view.update_in(cx, |v, w, cx| {
+        v.set_workspace(None);
+        v.receive(
+            &HostMessage::Open {
+                id: "large-txt".into(),
+                name: "trace.md".into(),
+                text: "bounded read-only log\n".into(),
+                revision: 0,
+                external: false,
+            },
+            w,
+            cx,
+        );
+        v.receive(
+            &HostMessage::ReadOnlyLarge {
+                id: "large-txt".into(),
+                size_bytes: 20 * 1024 * 1024,
+                edit_limit_bytes: 16 * 1024 * 1024,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    assert!(cx.debug_bounds("document-readonly-banner").is_some());
+    let ed = view.update(cx, |v, _| {
+        assert!(v.is_read_only_large());
+        v.surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .editor_view()
+            .unwrap()
+    });
+    ed.update_in(cx, |e, w, cx| {
+        e.replace_text_in_range(None, "blocked edit", w, cx);
+    });
+    view.read_with(cx, |v, cx| {
+        assert_eq!(v.text(cx).as_deref(), Some("bounded read-only log\n"));
+    });
+}
+
+#[gpui::test]
+fn rg10_rg11_instance_context_drops_on_close_and_cloud_source_blocks_external_packs(
+    cx: &mut TestAppContext,
+) {
+    use crate::editor::registry::{
+        DocumentAssets, DocumentContext, SourceKind,
+        packs::{ExtensionHost, Snapshot, route::tests::pack},
+    };
+    let (view, _, cx) = setup(cx, "notes.md", "# hi\n");
+
+    let reader_arc: crate::editor::registry::AssetReader =
+        std::sync::Arc::new(|_| Some(vec![1, 2, 3]));
+    assert_eq!(std::sync::Arc::strong_count(&reader_arc), 1);
+
+    let ctx_msg = HostMessage::Context {
+        id: "ctx-doc".into(),
+        context: DocumentContext {
+            folder: None,
+            web_source: None,
+            assets: Some(DocumentAssets {
+                workspace: "memory://cloud/ws/".into(),
+                document: "sub/doc.md".into(),
+                read: reader_arc.clone(),
+            }),
+            source_kind: SourceKind::Cloud,
+            sniffed_format: None,
+        },
+    };
+
+    view.update_in(cx, |v, w, cx| {
+        v.receive(&ctx_msg, w, cx);
+        v.receive(
+            &HostMessage::Open {
+                id: "ctx-doc".into(),
+                name: "sub/doc.md".into(),
+                text: "![img](a.png)\n".into(),
+                revision: 0,
+                external: false,
+            },
+            w,
+            cx,
+        );
+    });
+    drop(ctx_msg);
+    // Held by active_context + MarkdownExtension on the open surface (> 1).
+    assert!(std::sync::Arc::strong_count(&reader_arc) >= 2);
+
+    // Closing the document (`HostMessage::Clear`) deterministically drops all references!
+    view.update_in(cx, |v, w, cx| {
+        v.receive(&HostMessage::Clear, w, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        std::sync::Arc::strong_count(&reader_arc),
+        1,
+        "RG-10: closing surface must release per-instance DocumentAssets Arc"
+    );
+
+    // RG-11: Cloud documents carry SourceKind::Cloud and fail closed for external Viewer Packs!
+    PACK_SURFACES.with(|s| s.borrow_mut().clear());
+    let cloud_ws = crate::workspace::Workspace::from_provider(std::sync::Arc::new(
+        crate::workspace::testing::Memory::new("memory://cloud/packs/"),
+    ))
+    .unwrap();
+    let cloud_res = cloud_ws
+        .resource(std::path::Path::new("scene.glb"))
+        .unwrap();
+    view.update_in(cx, |v, w, cx| {
+        v.set_workspace(Some(cloud_ws));
+        v.set_extension_host(Some(ExtensionHost {
+            snapshot: Snapshot {
+                sequence: 1,
+                contributions: vec![pack("test.glb", &[".glb"], &[])],
+            },
+            surface: Some(|request, pack, _, _| {
+                PACK_SURFACES.with(|s| {
+                    s.borrow_mut()
+                        .push(format!("{}:{}", pack.plugin_id, request.name))
+                });
+                Box::new(PackProbe)
+            }),
+        }));
+        v.receive(
+            &HostMessage::OpenResource {
+                id: "cloud-glb".into(),
+                name: "scene.glb".into(),
+                path: cloud_res,
+            },
+            w,
+            cx,
+        );
+    });
+    PACK_SURFACES.with(|s| {
+        assert!(
+            s.borrow().is_empty(),
+            "RG-11: Cloud document must NOT activate external Viewer Pack"
+        );
+    });
+}
+
+struct PanickingViewer {
+    text: RefCell<String>,
+    events: RefCell<Option<crate::editor::registry::SurfaceEvents>>,
+    panic_on_render: std::cell::Cell<bool>,
+}
+
+impl crate::editor::registry::ViewerSurface for PanickingViewer {
+    fn element(&self) -> gpui::AnyElement {
+        use gpui::prelude::*;
+        if self.panic_on_render.get() {
+            panic!("simulated render explosion");
+        }
+        gpui::div().size_full().into_any_element()
+    }
+    fn subscribe(
+        &self,
+        events: crate::editor::registry::SurfaceEvents,
+        _cx: &mut gpui::App,
+    ) -> Option<gpui::Subscription> {
+        *self.events.borrow_mut() = Some(events);
+        None
+    }
+    fn text(&self, _: &gpui::App) -> Option<String> {
+        Some(self.text.borrow().clone())
+    }
+    fn edit_utf16(
+        &self,
+        edits: &[(std::ops::Range<usize>, String)],
+        _: &mut gpui::Window,
+        cx: &mut gpui::App,
+    ) -> bool {
+        if let Some((_, replacement)) = edits.first() {
+            *self.text.borrow_mut() = replacement.clone();
+            if let Some(cb) = self.events.borrow().as_ref() {
+                cb(crate::editor::registry::SurfaceEvent::Changed, cx);
+            }
+            return true;
+        }
+        false
+    }
+    fn command(
+        &self,
+        cmd: crate::editor::registry::HostCommand,
+        _: &mut gpui::Window,
+        _: &mut gpui::App,
+    ) {
+        if cmd == crate::editor::registry::HostCommand::Source {
+            panic!("simulated viewer command panic");
+        }
+    }
+}
+
+fn panicking_factory(
+    request: &crate::editor::registry::SurfaceRequest,
+    _: &mut gpui::Window,
+    _: &mut gpui::App,
+) -> Box<dyn crate::editor::registry::ViewerSurface> {
+    let initial = match request.input {
+        crate::editor::registry::SurfaceInput::Text(t) => t.to_owned(),
+        _ => String::new(),
+    };
+    Box::new(PanickingViewer {
+        text: RefCell::new(initial),
+        events: RefCell::new(None),
+        panic_on_render: std::cell::Cell::new(false),
+    })
+}
+
+#[gpui::test]
+fn rg23_panicking_viewer_surface_degrades_only_its_pane_and_preserves_unsaved_working_copy(
+    cx: &mut TestAppContext,
+) {
+    use crate::documents::{Documents, Intent};
+    use crate::wake::Wake;
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    std::fs::write(root.join("crashy.txt"), "baseline\n").unwrap();
+    std::fs::write(root.join("healthy.md"), "# Healthy Pane\n").unwrap();
+    let ws = crate::workspace::Workspace::open(&root).unwrap();
+
+    let wake = Wake::default();
+    let mut docs = Documents::in_workspace(ws.clone());
+    docs.begin(Intent::OpenFile("crashy.txt".into()), &wake);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while docs.document.is_none() {
+        docs.poll(&wake);
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+
+    let (healthy_pane, _, cx) = setup_with(
+        cx,
+        "healthy-1",
+        Some(ws.clone()),
+        "healthy.md",
+        "# Healthy Pane\n",
+    );
+    let pane = cx.update(|_, cx| {
+        use gpui::AppContext as _;
+        cx.new(|cx| {
+            let mut host = DocumentEditor::new(cx);
+            host.workbench = true;
+            host.set_workspace(Some(ws));
+            host.set_test_surface_factory(Some(panicking_factory));
+            host
+        })
+    });
+    let client_events: Rc<RefCell<Vec<ClientMessage>>> = Rc::default();
+    let sink = client_events.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&pane, move |_, msg: &ClientMessage, _| {
+            sink.borrow_mut().push(msg.clone());
+        })
+        .detach();
+    });
+
+    // Deliver initial open messages from Documents to `pane`.
+    let outgoing = std::mem::take(&mut docs.outgoing);
+    pane.update_in(cx, |p, w, cx| {
+        for msg in &outgoing {
+            for reply in p.receive(msg, w, cx) {
+                docs.client(reply, &wake);
+            }
+        }
+    });
+
+    // Make an unsaved edit in `pane` BEFORE triggering the panic!
+    pane.update_in(cx, |p, w, cx| {
+        assert!(p.surface.as_ref().unwrap().edit_utf16(
+            &[(0..9, "unsaved precious draft\n".into())],
+            w,
+            cx
+        ));
+    });
+    cx.run_until_parked();
+    for ev in client_events.borrow_mut().drain(..) {
+        docs.client(ev, &wake);
+    }
+    assert!(docs.dirty);
+
+    // Trigger a panic inside `PanickingViewer::command(HostCommand::Source)`.
+    pane.update_in(cx, |p, w, cx| {
+        p.command(crate::editor::registry::HostCommand::Source, w, cx);
+    });
+    cx.run_until_parked();
+
+    // 1. `pane` degraded to FaultedSurface with Switch to Plain Text + Open in Default App.
+    pane.read_with(cx, |p, cx| {
+        assert!(p.is_faulted());
+        let probe = p
+            .surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .special_surface(cx)
+            .unwrap();
+        assert_eq!(probe.kind, "faulted");
+        assert!(probe.can_switch_plain_text);
+        assert!(probe.can_open_default_app);
+        assert!(probe.detail.contains("simulated viewer command panic"));
+    });
+
+    // 2. Sibling `healthy_pane` is completely unaffected!
+    healthy_pane.read_with(cx, |h, cx| {
+        assert!(!h.is_faulted());
+        assert_eq!(h.text(cx).as_deref(), Some("# Healthy Pane\n"));
+    });
+
+    // 3. `Documents` still snapshots and saves the unsaved draft from the faulted pane!
+    docs.begin(Intent::Save, &wake);
+    let snap_msgs = std::mem::take(&mut docs.outgoing);
+    pane.update_in(cx, |p, w, cx| {
+        for msg in &snap_msgs {
+            for reply in p.receive(msg, w, cx) {
+                docs.client(reply, &wake);
+            }
+        }
+    });
+    let save_deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while docs.dirty || docs.saving() {
+        docs.poll(&wake);
+        assert!(std::time::Instant::now() < save_deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(
+        std::fs::read_to_string(root.join("crashy.txt")).unwrap(),
+        "unsaved precious draft\n"
+    );
+
+    // 4. Switching the faulted pane to Plain Text restores editing over the preserved draft!
+    pane.update_in(cx, |p, w, cx| {
+        p.switch_faulted_to_plain_text(w, cx);
+    });
+    pane.read_with(cx, |p, cx| {
+        assert!(!p.is_faulted());
+        assert_eq!(p.text(cx).as_deref(), Some("unsaved precious draft\n"));
     });
 }

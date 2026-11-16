@@ -9,13 +9,11 @@
 //! session starts over from the first page and says so.
 use crate::{
     editor::{
-        registry::{SurfaceInput, SurfaceRequest, ViewerSurface},
+        registry::{SurfaceInput, SurfaceRequest, ViewerSurface, viewer_budget},
         tokens::Tokens,
     },
     localization::t,
-    platform::database::{
-        CellKind, Failure, IDLE, MAX_SOURCE_BYTES, Object, PAGE_COLUMNS, Page, Session,
-    },
+    platform::database::{CellKind, Failure, IDLE, Object, PAGE_COLUMNS, Page, Session},
     theme,
     typography::Scale,
     ui::{appearance::ActiveAppearance, components::Icon, loading::LoadingMark},
@@ -181,8 +179,9 @@ impl DatabaseView {
         };
         self.source = Some(path.clone());
         let remembered = self.remembered.clone();
+        let max_bytes = viewer_budget("database-preview");
         let task = cx.background_executor().spawn(async move {
-            let session = Session::open(&path, MAX_SOURCE_BYTES)?;
+            let session = Session::open(&path, max_bytes)?;
             let objects = session.objects().to_vec();
             let readable = |o: &Object| o.unreadable.is_none();
             let Some(selected) = objects
@@ -282,10 +281,11 @@ impl DatabaseView {
             .as_ref()
             .filter(|_| next)
             .map(|p| (p.epoch, p.offset + p.rows.len()));
+        let max_bytes = viewer_budget("database-preview");
         let task = cx.background_executor().spawn(async move {
             let session = match session.filter(|s| !s.lock().unwrap().ended()) {
                 Some(session) => session,
-                None => Arc::new(Mutex::new(Session::open(&source, MAX_SOURCE_BYTES)?)),
+                None => Arc::new(Mutex::new(Session::open(&source, max_bytes)?)),
             };
             let (objects, selected, page, continued) = {
                 let current = session.lock().unwrap();

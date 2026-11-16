@@ -47,8 +47,29 @@ pub const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(5);
 const MARKDOWN_ASSET_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 pub(super) enum CopyCompleted {
-    File(workspace::Result<(Document, Option<DraftEntry>)>),
-    Resource(PathBuf, workspace::Result<workspace::PreviewResource>),
+    File {
+        result: workspace::Result<(Document, Option<DraftEntry>)>,
+        sniffed: Option<&'static crate::formats::FileFormat>,
+    },
+    Resource {
+        relative: PathBuf,
+        result: workspace::Result<workspace::PreviewResource>,
+        sniffed: Option<&'static crate::formats::FileFormat>,
+    },
+    ReadOnlyLarge {
+        relative: PathBuf,
+        text: String,
+        size_bytes: u64,
+        edit_limit_bytes: u64,
+        sniffed: Option<&'static crate::formats::FileFormat>,
+    },
+    Oversized {
+        relative: PathBuf,
+        size_bytes: u64,
+        limit_bytes: u64,
+        can_reveal_in_finder: bool,
+        sniffed: Option<&'static crate::formats::FileFormat>,
+    },
     Save {
         id: String,
         sequence: u64,
@@ -76,6 +97,26 @@ pub(super) enum CopyCompleted {
     DraftPersisted,
 }
 
+/// Bounded read-only text document opened above editable budget (`RG-03`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReadOnlyLargeText {
+    pub id: String,
+    pub relative: PathBuf,
+    pub text: String,
+    pub size_bytes: u64,
+    pub edit_limit_bytes: u64,
+}
+
+/// Oversized file admitted as an in-pane explanation card without reading the body (`RG-02`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OversizedFile {
+    pub id: String,
+    pub relative: PathBuf,
+    pub size_bytes: u64,
+    pub limit_bytes: u64,
+    pub can_reveal_in_finder: bool,
+}
+
 pub struct WorkingCopy {
     /// Window/task admission scope (`EditorTaskOwner.scope`).
     pub task_scope: String,
@@ -85,6 +126,12 @@ pub struct WorkingCopy {
     pub document: Option<Document>,
     /// Open non-text preview resource (mutually exclusive with `document`).
     pub resource: Option<Resource>,
+    /// Open bounded read-only large text (`RG-03`).
+    pub read_only_large: Option<ReadOnlyLargeText>,
+    /// Open oversized explanation state (`RG-02`).
+    pub oversized: Option<OversizedFile>,
+    /// Sniffed format when extension/MIME resolved to `unknown` (`RG-01`).
+    pub sniffed_format: Option<&'static crate::formats::FileFormat>,
     pub dirty: bool,
     pub revision: u64,
     pub phase: Phase,
@@ -134,6 +181,9 @@ impl Default for WorkingCopy {
             workspace: None,
             document: None,
             resource: None,
+            read_only_large: None,
+            oversized: None,
+            sniffed_format: None,
             dirty: false,
             revision: 0,
             phase: Phase::Idle,
@@ -197,6 +247,10 @@ impl WorkingCopy {
         self.drafts.inflight > 0
     }
 
+    pub fn has_unflushable_draft(&self) -> bool {
+        self.draft_saving() || self.drafts.has_entry_on_disk
+    }
+
     /// Background persistence does not block keyboard input or native commands.
     pub fn busy(&self) -> bool {
         !matches!(self.phase, Phase::Idle | Phase::AwaitComposition { .. })
@@ -204,10 +258,16 @@ impl WorkingCopy {
 
     /// The open file's session id and workspace-relative path, text or not.
     pub fn opened(&self) -> Option<(&str, &Path)> {
-        match (&self.document, &self.resource) {
-            (Some(doc), _) => Some((&doc.id, &doc.relative)),
-            (None, Some(resource)) => Some((&resource.id, &resource.relative)),
-            (None, None) => None,
+        if let Some(doc) = &self.document {
+            Some((&doc.id, &doc.relative))
+        } else if let Some(ro) = &self.read_only_large {
+            Some((&ro.id, &ro.relative))
+        } else if let Some(resource) = &self.resource {
+            Some((&resource.id, &resource.relative))
+        } else if let Some(oversized) = &self.oversized {
+            Some((&oversized.id, &oversized.relative))
+        } else {
+            None
         }
     }
 
@@ -661,6 +721,20 @@ impl WorkingCopy {
                 name: resource.relative.to_string_lossy().into_owned(),
                 resource: Some(preview),
             });
+        } else if let Some(oversized) = &mut self.oversized {
+            oversized.relative = relative;
+            self.outgoing.push(HostMessage::Rebind {
+                id: oversized.id.clone(),
+                name: oversized.relative.to_string_lossy().into_owned(),
+                resource: None,
+            });
+        } else if let Some(ro) = &mut self.read_only_large {
+            ro.relative = relative;
+            self.outgoing.push(HostMessage::Rebind {
+                id: ro.id.clone(),
+                name: ro.relative.to_string_lossy().into_owned(),
+                resource: None,
+            });
         }
     }
 
@@ -737,26 +811,26 @@ impl WorkingCopy {
         ctx.after(SNAPSHOT_TIMEOUT);
     }
 
-    fn open_message(&self, doc: &Document, shown_text: &str, external: bool) -> HostMessage {
+    /// Builds per-instance [`crate::editor::registry::DocumentContext`] (`RG-10`, `RG-11`)
+    /// without mutating global or thread-local tables.
+    pub fn build_context(&self, relative: &Path) -> crate::editor::registry::DocumentContext {
         let folder = self
             .workspace
             .as_ref()
             .filter(|ws| ws.local_root().is_some())
-            .and_then(|ws| ws.absolute(&doc.relative).ok())
+            .and_then(|ws| ws.absolute(relative).ok())
             .and_then(|p| p.parent().map(PathBuf::from));
-        crate::editor::registry::set_document_folder(&doc.id, folder);
 
-        let source = self
+        let web_source = self
             .workspace
             .as_ref()
             .filter(|ws| ws.local_root().is_none() && ws.capabilities().preview)
             .map(|ws| {
                 crate::platform::webview::Source(Arc::new(WorkspaceAssets {
                     workspace: ws.clone(),
-                    base: doc.relative.parent().map(PathBuf::from).unwrap_or_default(),
+                    base: relative.parent().map(PathBuf::from).unwrap_or_default(),
                 }))
             });
-        crate::editor::registry::set_document_source(&doc.id, source);
 
         let assets = self
             .workspace
@@ -767,14 +841,38 @@ impl WorkingCopy {
                 let ws = ws.clone();
                 Some(crate::editor::registry::DocumentAssets {
                     workspace: crate::editor::workbench::catalog::resource_key(&root),
-                    document: doc.relative.clone(),
+                    document: relative.to_path_buf(),
                     read: Arc::new(move |path: &Path| {
                         ws.resource(path).ok()?.bytes(MARKDOWN_ASSET_MAX_BYTES)
                     }),
                 })
             });
-        crate::editor::registry::set_document_assets(&doc.id, assets);
 
+        let source_kind = self
+            .workspace
+            .as_ref()
+            .map_or(crate::editor::registry::SourceKind::Local, |ws| {
+                crate::editor::registry::SourceKind::from_workspace(ws)
+            });
+
+        crate::editor::registry::DocumentContext {
+            folder,
+            web_source,
+            assets,
+            source_kind,
+            sniffed_format: self.sniffed_format,
+        }
+    }
+
+    fn push_context(&mut self, id: &str, relative: &Path) {
+        let context = self.build_context(relative);
+        self.outgoing.push(HostMessage::Context {
+            id: id.to_owned(),
+            context,
+        });
+    }
+
+    fn open_message(&self, doc: &Document, shown_text: &str, external: bool) -> HostMessage {
         HostMessage::Open {
             id: doc.id.clone(),
             name: doc.relative.to_string_lossy().into_owned(),
@@ -797,21 +895,43 @@ impl WorkingCopy {
     }
 
     pub(crate) fn show_document(&mut self) {
-        let (message, policy_doc) = match (&self.document, &self.resource) {
-            (Some(doc), _) => (self.open_message(doc, &doc.text, false), Some(doc.clone())),
-            (None, Some(resource)) => (
-                HostMessage::OpenResource {
-                    id: resource.id.clone(),
-                    name: resource.relative.to_string_lossy().into_owned(),
-                    path: resource.preview.clone(),
-                },
-                None,
-            ),
-            (None, None) => (HostMessage::Clear, None),
-        };
-        self.outgoing.push(message);
-        if let Some(doc) = policy_doc {
+        if let Some(doc) = self.document.clone() {
+            self.push_context(&doc.id, &doc.relative);
+            let msg = self.open_message(&doc, &doc.text, false);
+            self.outgoing.push(msg);
             self.push_policy_if_needed(&doc);
+        } else if let Some(ro) = self.read_only_large.clone() {
+            self.push_context(&ro.id, &ro.relative);
+            self.outgoing.push(HostMessage::Open {
+                id: ro.id.clone(),
+                name: ro.relative.to_string_lossy().into_owned(),
+                text: ro.text,
+                revision: 0,
+                external: false,
+            });
+            self.outgoing.push(HostMessage::ReadOnlyLarge {
+                id: ro.id,
+                size_bytes: ro.size_bytes,
+                edit_limit_bytes: ro.edit_limit_bytes,
+            });
+        } else if let Some(resource) = self.resource.clone() {
+            self.push_context(&resource.id, &resource.relative);
+            self.outgoing.push(HostMessage::OpenResource {
+                id: resource.id,
+                name: resource.relative.to_string_lossy().into_owned(),
+                path: resource.preview,
+            });
+        } else if let Some(oversized) = self.oversized.clone() {
+            self.push_context(&oversized.id, &oversized.relative);
+            self.outgoing.push(HostMessage::Oversized {
+                id: oversized.id,
+                name: oversized.relative.to_string_lossy().into_owned(),
+                size_bytes: oversized.size_bytes,
+                limit_bytes: oversized.limit_bytes,
+                can_reveal_in_finder: oversized.can_reveal_in_finder,
+            });
+        } else {
+            self.outgoing.push(HostMessage::Clear);
         }
     }
 
@@ -825,6 +945,7 @@ impl WorkingCopy {
             .retain(|m| !matches!(m, HostMessage::Snapshot { .. } | HostMessage::Saved { .. }));
         if let Some(doc) = &self.document {
             let doc_clone = doc.clone();
+            self.push_context(&doc_clone.id, &doc_clone.relative);
             let message = self.open_message(&doc_clone, &doc_clone.text, true);
             self.outgoing.push(message);
             if let Some(base_text) = baseline_override {
@@ -1152,18 +1273,18 @@ impl WorkingCopy {
                 };
                 self.phase = Phase::Working;
                 self.status = "Reading file…".into();
-                let content = crate::editor::registry::source_requirement(&path.to_string_lossy())
-                    .reads_content();
                 let tx = self.copy_tx.clone();
                 let wake = ctx.clone();
-                let budget = read_budget(&path.to_string_lossy(), &ws);
+                let admission_ceiling = read_budget(&path.to_string_lossy(), &ws)
+                    .max(crate::editor::registry::READ_ONLY_TEXT_MAX_BYTES)
+                    .max(1);
                 let journal = self.drafts.journal.clone();
                 let owner = self.task_owner(path.to_string_lossy(), self.read_generation);
                 io::submit_admitted(
                     owner,
                     "document-read",
                     0,
-                    budget,
+                    admission_ceiling,
                     IoLane::InteractiveOpen,
                     move |lease_res| {
                         let lease = match lease_res {
@@ -1173,7 +1294,10 @@ impl WorkingCopy {
                                     workspace::ErrorKind::Unsupported,
                                     rejection.to_string(),
                                 );
-                                let _ = tx.send(CopyCompleted::File(Err(error)));
+                                let _ = tx.send(CopyCompleted::File {
+                                    result: Err(error),
+                                    sniffed: None,
+                                });
                                 wake.notify();
                                 return;
                             }
@@ -1181,32 +1305,191 @@ impl WorkingCopy {
                         if lease.cancelled() {
                             return;
                         }
+
+                        // 1. Stat-first metadata probe (`RG-02`). Providers without `stat_entry`
+                        // (`ErrorKind::Unsupported`) fall through to bounded read checks.
+                        let stat_size = match ws.stat_entry(&path) {
+                            Ok(stat) => Some(stat.size),
+                            Err(err) if err.kind == workspace::ErrorKind::Unsupported => None,
+                            Err(err) => {
+                                drop(lease);
+                                let _ = tx.send(CopyCompleted::File {
+                                    result: Err(err),
+                                    sniffed: None,
+                                });
+                                wake.notify();
+                                return;
+                            }
+                        };
+
+                        // 2. Format resolution + bounded head-byte content sniffing when
+                        // extension/name resolves to `unknown` (`RG-01`).
+                        let path_str = path.to_string_lossy().into_owned();
+                        let doc_meta = crate::editor::registry::EditorDocument::for_workspace(
+                            &path_str,
+                            Some(&ws),
+                        );
+                        let by_name = crate::formats::resolve(Some(&path_str), None);
+                        let mut sniffed: Option<&'static crate::formats::FileFormat> = None;
+                        let resolved = if by_name.id == "unknown" {
+                            let head = if stat_size == Some(0) {
+                                Some(Vec::new())
+                            } else {
+                                ws.read_head(&path, crate::formats::SNIFF_HEAD_BYTES).ok()
+                            };
+                            let res = crate::editor::registry::resolve_with_head(
+                                &doc_meta,
+                                head.as_deref(),
+                            );
+                            if res.format.id != "unknown" {
+                                sniffed = Some(res.format);
+                            }
+                            res
+                        } else {
+                            crate::editor::registry::resolve_with_format(&doc_meta, by_name)
+                        };
+
+                        let can_reveal =
+                            ws.capabilities().local_actions && ws.local_root().is_some();
+                        let can_preview_large = ws.capabilities().preview;
+                        let manifest_budget =
+                            resolved.viewer.definition.resource_policy.max_source_bytes;
+                        let edit_budget = if resolved.viewer.source().reads_content() {
+                            manifest_budget.min(ws.text_limit() as u64)
+                        } else {
+                            manifest_budget
+                        };
+
+                        // 3. Stat-first admission (`RG-02` oversized card, `RG-03` read-only large text).
+                        if let Some(size_bytes) = stat_size {
+                            match crate::editor::registry::admission::decide(
+                                &resolved,
+                                size_bytes,
+                                Some(ws.text_limit() as u64),
+                                can_preview_large,
+                            ) {
+                                crate::editor::registry::Admission::Oversized {
+                                    size_bytes,
+                                    limit_bytes,
+                                } => {
+                                    drop(lease);
+                                    let _ = tx.send(CopyCompleted::Oversized {
+                                        relative: path,
+                                        size_bytes,
+                                        limit_bytes,
+                                        can_reveal_in_finder: can_reveal,
+                                        sniffed,
+                                    });
+                                    wake.notify();
+                                    return;
+                                }
+                                crate::editor::registry::Admission::ReadOnlyText {
+                                    size_bytes,
+                                    edit_limit_bytes,
+                                } => {
+                                    let completed = match ws.resource(&path) {
+                                        Ok(preview) => match preview
+                                            .bytes(crate::editor::registry::READ_ONLY_TEXT_MAX_BYTES)
+                                        {
+                                            Some(raw) => {
+                                                let decoded = String::from_utf8(raw).unwrap_or_else(
+                                                    |err| {
+                                                        String::from_utf8_lossy(&err.into_bytes())
+                                                            .into_owned()
+                                                    },
+                                                );
+                                                let normalized = if decoded.contains('\r') {
+                                                    decoded.replace("\r\n", "\n").replace('\r', "\n")
+                                                } else {
+                                                    decoded
+                                                };
+                                                CopyCompleted::ReadOnlyLarge {
+                                                    relative: path,
+                                                    text: normalized,
+                                                    size_bytes,
+                                                    edit_limit_bytes,
+                                                    sniffed,
+                                                }
+                                            }
+                                            None => CopyCompleted::Oversized {
+                                                relative: path,
+                                                size_bytes: size_bytes.max(
+                                                    crate::editor::registry::READ_ONLY_TEXT_MAX_BYTES
+                                                        + 1,
+                                                ),
+                                                limit_bytes:
+                                                    crate::editor::registry::READ_ONLY_TEXT_MAX_BYTES,
+                                                can_reveal_in_finder: can_reveal,
+                                                sniffed,
+                                            },
+                                        },
+                                        Err(error) => CopyCompleted::File {
+                                            result: Err(error),
+                                            sniffed,
+                                        },
+                                    };
+                                    drop(lease);
+                                    let _ = tx.send(completed);
+                                    wake.notify();
+                                    return;
+                                }
+                                crate::editor::registry::Admission::Admit => {}
+                            }
+                        }
+
+                        if lease.cancelled() {
+                            return;
+                        }
+
+                        let content = resolved.viewer.source().reads_content();
                         let completed = if content {
-                            CopyCompleted::File(ws.read(&path).and_then(|doc| {
-                                if doc.text.len() as u64 > budget {
-                                    Err(workspace::Error::new(
-                                        workspace::ErrorKind::Unsupported,
-                                        crate::localization::tf(
-                                            "editor.unavailable.resourceLimit",
-                                            &[(
-                                                "limit",
-                                                crate::editor::registry::format_byte_limit(budget)
-                                                    .into(),
-                                            )],
-                                        ),
-                                    ))
-                                } else {
-                                    // `DP-11`: check local draft journal without blocking open on error.
+                            match ws.read(&path) {
+                                Ok(doc) if doc.text.len() as u64 > edit_budget => {
+                                    CopyCompleted::Oversized {
+                                        relative: path,
+                                        size_bytes: doc.text.len() as u64,
+                                        limit_bytes: edit_budget,
+                                        can_reveal_in_finder: can_reveal,
+                                        sniffed,
+                                    }
+                                }
+                                Ok(doc) => {
                                     let entry = journal.as_ref().and_then(|j| {
                                         let (ws_key, res_key) = drafts::journal_keys(&doc);
                                         j.read_entry(&ws_key, &res_key).ok().flatten()
                                     });
-                                    Ok((doc, entry))
+                                    CopyCompleted::File {
+                                        result: Ok((doc, entry)),
+                                        sniffed,
+                                    }
                                 }
-                            }))
+                                Err(error) => CopyCompleted::File {
+                                    result: Err(error),
+                                    sniffed,
+                                },
+                            }
                         } else {
                             let result = ws.resource(&path);
-                            CopyCompleted::Resource(path, result)
+                            if resolved.viewer.source() != crate::editor::registry::Source::None
+                                && let Ok(ref preview) = result
+                                && let Ok(workspace::PreviewData::Bytes { bytes, .. }) =
+                                    preview.data()
+                                && bytes.len() as u64 > edit_budget
+                            {
+                                CopyCompleted::Oversized {
+                                    relative: path,
+                                    size_bytes: bytes.len() as u64,
+                                    limit_bytes: edit_budget,
+                                    can_reveal_in_finder: can_reveal,
+                                    sniffed,
+                                }
+                            } else {
+                                CopyCompleted::Resource {
+                                    relative: path,
+                                    result,
+                                    sniffed,
+                                }
+                            }
                         };
                         if lease.cancelled() {
                             return;
@@ -1223,6 +1506,9 @@ impl WorkingCopy {
                 self.document = None;
                 self.deferred_document = None;
                 self.resource = None;
+                self.read_only_large = None;
+                self.oversized = None;
+                self.sniffed_format = None;
                 self.dirty = false;
                 self.revision = 0;
                 self.phase = Phase::Idle;
@@ -1262,6 +1548,8 @@ impl WorkingCopy {
             .is_some_and(|ws| ws.local_root().is_none());
 
         self.resource = None;
+        self.read_only_large = None;
+        self.oversized = None;
         self.session = None;
         self.deferred_document = None;
         self.save_error = None;
@@ -1544,18 +1832,36 @@ impl WorkingCopy {
     }
 
     pub fn presentation_key(&self) -> PresentationKey {
+        let identity = self
+            .document
+            .as_ref()
+            .map(|d| (d.id.clone(), blake3::hash(d.text.as_bytes())))
+            .or_else(|| {
+                self.read_only_large.as_ref().map(|ro| {
+                    (
+                        ro.id.clone(),
+                        blake3::hash(ro.relative.as_os_str().as_encoded_bytes()),
+                    )
+                })
+            })
+            .or_else(|| {
+                self.resource.as_ref().map(|r| {
+                    (
+                        r.id.clone(),
+                        blake3::hash(r.relative.as_os_str().as_encoded_bytes()),
+                    )
+                })
+            })
+            .or_else(|| {
+                self.oversized.as_ref().map(|o| {
+                    (
+                        o.id.clone(),
+                        blake3::hash(o.relative.as_os_str().as_encoded_bytes()),
+                    )
+                })
+            });
         (
-            self.document
-                .as_ref()
-                .map(|d| (d.id.clone(), blake3::hash(d.text.as_bytes())))
-                .or_else(|| {
-                    self.resource.as_ref().map(|r| {
-                        (
-                            r.id.clone(),
-                            blake3::hash(r.relative.as_os_str().as_encoded_bytes()),
-                        )
-                    })
-                }),
+            identity,
             self.revision,
             self.dirty,
             self.busy(),
@@ -1598,19 +1904,101 @@ impl WorkingCopy {
 
         while let Ok(message) = self.copy_rx.try_recv() {
             match message {
-                CopyCompleted::File(Ok((doc, entry))) => {
+                CopyCompleted::File {
+                    result: Ok((doc, entry)),
+                    sniffed,
+                } => {
+                    self.sniffed_format = sniffed;
                     self.apply_opened_document(doc, entry, ctx);
                 }
-                CopyCompleted::File(Err(error)) | CopyCompleted::Resource(_, Err(error)) => {
+                CopyCompleted::File {
+                    result: Err(error), ..
+                }
+                | CopyCompleted::Resource {
+                    result: Err(error), ..
+                } => {
                     self.fail(error.to_string());
                 }
-                CopyCompleted::Resource(relative, Ok(preview)) => {
+                CopyCompleted::Resource {
+                    relative,
+                    result: Ok(preview),
+                    sniffed,
+                } => {
                     self.document = None;
                     self.deferred_document = None;
+                    self.read_only_large = None;
+                    self.oversized = None;
+                    self.sniffed_format = sniffed;
                     self.resource = Some(Resource {
                         id: uuid::Uuid::new_v4().to_string(),
                         relative,
                         preview,
+                    });
+                    self.watch = None;
+                    self.session = None;
+                    self.dirty = false;
+                    self.revision = 0;
+                    self.phase = Phase::Idle;
+                    self.error = None;
+                    self.save_error = None;
+                    self.save_error_kind = None;
+                    self.local_overwrite_notice = None;
+                    self.recovered_draft_notice = None;
+                    self.drafts.reset();
+                    self.status = "Opened".into();
+                    self.show_document();
+                }
+                CopyCompleted::ReadOnlyLarge {
+                    relative,
+                    text,
+                    size_bytes,
+                    edit_limit_bytes,
+                    sniffed,
+                } => {
+                    self.document = None;
+                    self.deferred_document = None;
+                    self.resource = None;
+                    self.oversized = None;
+                    self.sniffed_format = sniffed;
+                    self.read_only_large = Some(ReadOnlyLargeText {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        relative,
+                        text,
+                        size_bytes,
+                        edit_limit_bytes,
+                    });
+                    self.watch = None;
+                    self.session = None;
+                    self.dirty = false;
+                    self.revision = 0;
+                    self.phase = Phase::Idle;
+                    self.error = None;
+                    self.save_error = None;
+                    self.save_error_kind = None;
+                    self.local_overwrite_notice = None;
+                    self.recovered_draft_notice = None;
+                    self.drafts.reset();
+                    self.status = "Opened".into();
+                    self.show_document();
+                }
+                CopyCompleted::Oversized {
+                    relative,
+                    size_bytes,
+                    limit_bytes,
+                    can_reveal_in_finder,
+                    sniffed,
+                } => {
+                    self.document = None;
+                    self.deferred_document = None;
+                    self.resource = None;
+                    self.read_only_large = None;
+                    self.sniffed_format = sniffed;
+                    self.oversized = Some(OversizedFile {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        relative,
+                        size_bytes,
+                        limit_bytes,
+                        can_reveal_in_finder,
                     });
                     self.watch = None;
                     self.session = None;

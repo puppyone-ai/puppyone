@@ -16,7 +16,8 @@ use super::{html_visual::script_json, web::WebFrame};
 use crate::{
     editor::{
         registry::{
-            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+            PaneEntries, PaneItemId, PaneSegmentId, SurfaceEvent, SurfaceEvents, SurfaceInput,
+            SurfaceRequest, ViewerSurface,
         },
         workbench::pane::{Item, ItemKind, Segment, Segmented},
     },
@@ -617,11 +618,13 @@ impl ViewerSurface for StructuredSurface {
     fn pane(&self, cx: &App) -> PaneEntries {
         self.view.read(cx).pane_entries()
     }
-    fn pane_segment(&self, id: &'static str, _: &mut Window, cx: &mut App) {
-        self.view.update(cx, |view, cx| view.pane_segment(id, cx));
+    fn pane_segment(&self, segment: PaneSegmentId, _: &mut Window, cx: &mut App) {
+        self.view
+            .update(cx, |view, cx| view.pane_segment(segment.as_wire(), cx));
     }
-    fn pane_item(&self, id: &'static str, _: &mut Window, cx: &mut App) {
-        self.view.update(cx, |view, cx| view.pane_item(id, cx));
+    fn pane_item(&self, item: PaneItemId, _: &mut Window, cx: &mut App) {
+        self.view
+            .update(cx, |view, cx| view.pane_item(item.as_wire(), cx));
     }
     fn rebind_name(&self, name: &str, cx: &mut App) {
         let name = name.to_owned();

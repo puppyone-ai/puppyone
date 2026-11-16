@@ -7,9 +7,9 @@
 //! Supports the async `prepare` flush barrier (`VW-22`) before leaving Edit
 //! mode or snapshotting, and normalized cross-mode `viewportState` scroll
 //! progress (`VW-23`).
-use super::web::WebFrame;
+use super::web::{WebFrame, parse_find_result};
 use crate::{
-    editor::registry::ViewerSurface,
+    editor::registry::{HostCommand, ViewerSurface},
     platform::webview::{Content, Entry, Ipc, Source, import_image, local_url_for},
 };
 use gpui::{prelude::*, *};
@@ -45,6 +45,7 @@ pub fn admits(name: &str, text: &str) -> bool {
 
 /// Runs when the page cannot map the document.
 pub type Unavailable = Rc<dyn Fn(&mut Window, &mut App)>;
+pub type FindCallback = Rc<dyn Fn(usize, usize, &mut App)>;
 
 /// What a session needs from its viewer.
 pub struct Params {
@@ -123,6 +124,7 @@ impl Session {
         source: Rc<dyn ViewerSurface>,
         scroll_ratio: Rc<Cell<f32>>,
         on_unavailable: Unavailable,
+        on_find: FindCallback,
         window: &mut Window,
         cx: &mut App,
     ) -> Self {
@@ -169,6 +171,11 @@ impl Session {
             frame.update(cx, |_, cx| {
                 cx.spawn_in(window, async move |_, cx| {
                     while let Ok(body) = rx.recv().await {
+                        if let Some((current, total)) = parse_find_result(&body) {
+                            let on_find = on_find.clone();
+                            let _ = cx.update(|_, cx| on_find(current, total, cx));
+                            continue;
+                        }
                         let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
                             continue;
                         };
@@ -446,7 +453,15 @@ fn history(
         }
         s.last_history = Some(now);
     }
-    source.command(if redo { "replay-redo" } else { "replay-undo" }, window, cx);
+    source.command(
+        if redo {
+            HostCommand::ReplayRedo
+        } else {
+            HostCommand::ReplayUndo
+        },
+        window,
+        cx,
+    );
     let text = source.text(cx).unwrap_or_default();
     sync(state, frame, &text, cx);
 }

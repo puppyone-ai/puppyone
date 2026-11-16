@@ -51,6 +51,11 @@ pub enum Intent {
 /// What the document session asks the editor host (`editor::host`) to do.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HostMessage {
+    /// Per-open-instance document context delivered before `Open` / `OpenResource` / `Oversized` (`RG-10`, `RG-11`, `RG-01`).
+    Context {
+        id: String,
+        context: crate::editor::registry::DocumentContext,
+    },
     /// Show a document's text. `external`: storage content was reconciled into
     /// the open document via minimal diff (`DP-02`).
     Open {
@@ -65,6 +70,22 @@ pub enum HostMessage {
         id: String,
         name: String,
         path: workspace::PreviewResource,
+    },
+    /// Plain-text or code file opened bounded read-only above its editable
+    /// `maxSourceBytes` budget (`RG-03`).
+    ReadOnlyLarge {
+        id: String,
+        size_bytes: u64,
+        edit_limit_bytes: u64,
+    },
+    /// File exceeds its viewer's `maxSourceBytes` (or `64 MiB` read-only text
+    /// ceiling): open an in-pane explanation card without reading the body (`RG-02`).
+    Oversized {
+        id: String,
+        name: String,
+        size_bytes: u64,
+        limit_bytes: u64,
+        can_reveal_in_finder: bool,
     },
     /// No document is open.
     Clear,
@@ -484,6 +505,9 @@ impl Documents {
                     self.copy.document = None;
                     self.copy.deferred_document = None;
                     self.copy.resource = None;
+                    self.copy.read_only_large = None;
+                    self.copy.oversized = None;
+                    self.copy.sniffed_format = None;
                     self.copy.session = None;
                     self.copy.dirty = false;
                     self.copy.revision = 0;

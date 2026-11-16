@@ -3,7 +3,7 @@ use super::{
     ViewerSurface,
 };
 use crate::editor::{
-    registry::{self, EditorDocument},
+    registry::{self, EditorDocument, SourceKind},
     view::style,
 };
 use gpui::{Entity, EntityInputHandler, Focusable, TestAppContext, VisualTestContext};
@@ -36,6 +36,11 @@ fn setup<'a>(
                 scale: Scale::Medium,
                 workspace: None,
                 file_mode: false,
+                folder: None,
+                web_source: None,
+                assets: None,
+                references: None,
+                source_kind: SourceKind::Local,
             },
             w,
             cx,

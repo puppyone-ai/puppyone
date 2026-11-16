@@ -28,10 +28,10 @@ pub enum Kind {
 }
 impl Kind {
     fn budget(self) -> u64 {
-        match self {
-            Self::Audio => 512 * 1024 * 1024,
-            Self::Video => 2 * 1024 * 1024 * 1024,
-        }
+        crate::editor::registry::viewer_budget(match self {
+            Self::Audio => "audio-preview",
+            Self::Video => "video-preview",
+        })
     }
     fn label_key(self) -> &'static str {
         match self {

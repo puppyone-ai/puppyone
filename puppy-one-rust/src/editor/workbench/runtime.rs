@@ -29,12 +29,15 @@ struct Slot {
     closing: bool,
     reported_error: Option<String>,
     restoring: bool,
+    rehydrating: Option<PathBuf>,
     drop_target: Option<drops::Target>,
 }
 struct Host {
     empty: Documents,
     state: Workbench,
     slots: BTreeMap<SlotId, Slot>,
+    hibernated: BTreeMap<String, super::retention::HibernatedSlot>,
+    view_states: super::view_state::ViewStateStore,
     rows: Vec<Node>,
     interacted: bool,
     restore: Option<serde_json::Value>,
@@ -94,6 +97,19 @@ pub struct Runtime {
     pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
     /// Changes outside the focused document also invalidate tabs/layout once.
     pub generation: u64,
+    /// Optional override for live slot LRU cap (`WB-01`, defaults to `MAX_LIVE_SLOTS`).
+    max_live_slots: Option<usize>,
+    /// Optional override for background project `Host` cap (`WB-02`, defaults to `MAX_BACKGROUND_HOSTS`).
+    max_background_hosts: Option<usize>,
+    /// Most-recently-active workspace keys (`0` = most recent, `WB-02`).
+    host_mru: Vec<String>,
+    /// Slots currently in active IME composition reported by `EditorArea` (`WB-01`).
+    composing_slots: std::collections::BTreeSet<SlotId>,
+    /// Saved `SurfaceViewState`s queued to restore when `EditorArea` opens/rehydrates a slot (`WB-10`).
+    pending_view_restores: BTreeMap<SlotId, super::view_state::SurfaceViewState>,
+    /// Mapping of recently hibernated `SlotId -> (workspace_key, resource_key)` so `EditorArea::sync`
+    /// can capture one final `SurfaceViewState` right before dropping `DocumentEditor` (`WB-01`, `WB-10`).
+    evicted_slot_keys: BTreeMap<SlotId, (String, String)>,
 }
 impl Deref for Runtime {
     type Target = Documents;
@@ -260,6 +276,7 @@ impl Runtime {
                 .slots
                 .values()
                 .filter_map(|s| s.files.opened().map(|(_, p)| p.to_owned()))
+                .chain(host.hibernated.values().map(|h| h.path.clone()))
                 .collect(),
             None => self
                 .scratch
@@ -417,9 +434,11 @@ impl Runtime {
                 }
                 let host = self.hosts.get_mut(self.active.as_ref().unwrap()).unwrap();
                 host.interact();
+                host.hibernated.remove(&key);
                 if let Some(slot) = host.slots.values_mut().find(|s| s.key == key) {
                     slot.opening = self.navigation;
                     slot.restoring = false;
+                    slot.rehydrating = None;
                     slot.drop_target = None;
                     return;
                 }
@@ -439,12 +458,23 @@ impl Runtime {
                         closing: false,
                         reported_error: None,
                         restoring: false,
+                        rehydrating: None,
                         drop_target: None,
                     },
                 );
             }
             Intent::CloseFile => {
                 let id = self.active_slot();
+                if id == 0
+                    && let Some(key) = self
+                        .state()
+                        .and_then(|s| s.layout.active_editor())
+                        .map(str::to_owned)
+                    && self.is_hibernated_or_loading(&key)
+                {
+                    self.close_editor_key(&key, wake);
+                    return;
+                }
                 self.close_slot(id, wake);
             }
             Intent::Quit => {
@@ -478,6 +508,11 @@ impl Runtime {
         }
         self.generation += 1;
     }
+    pub fn activate_with_wake(&mut self, key: &str, wake: &Wake) {
+        self.activate(key);
+        self.rehydrate_visible_hibernated(wake);
+        wake.notify();
+    }
     pub fn focus(&mut self, pane: &str) {
         if self.quitting {
             return;
@@ -487,6 +522,31 @@ impl Runtime {
             state.focus(pane);
         }
         self.generation += 1;
+    }
+    pub fn close_editor_key(&mut self, key: &str, wake: &Wake) {
+        if self.quitting {
+            return;
+        }
+        if let Some(id) = self.slot_for_key(key) {
+            self.close_slot(id, wake);
+            return;
+        }
+        if let Some(active_ws) = self.active.clone()
+            && let Some(host) = self.hosts.get_mut(&active_ws)
+        {
+            if let Some((_, slot)) = host.slots.iter().find(|(_, s)| s.key == key)
+                && slot.files.busy()
+            {
+                return;
+            }
+            host.slots.retain(|_, s| s.key != key);
+            host.hibernated.remove(key);
+            host.state.close(key);
+            host.sync_panes();
+            self.generation += 1;
+        }
+        self.rehydrate_visible_hibernated(wake);
+        wake.notify();
     }
     pub fn close_slot(&mut self, id: SlotId, wake: &Wake) {
         if self.quitting {
@@ -516,6 +576,8 @@ impl Runtime {
     }
     fn activate_workspace(&mut self, key: String) {
         self.pause_hidden_cloud();
+        self.host_mru.retain(|k| k != &key);
+        self.host_mru.insert(0, key.clone());
         let host = &self.hosts[&key];
         self.tree_update = Some(host.rows.clone());
         self.active = Some(key);
@@ -623,6 +685,7 @@ impl Runtime {
             self.resume_visible_cloud(wake);
         }
         self.poll_metadata(wake);
+        self.rehydrate_visible_hibernated(wake);
         let scratch_notices = self.scratch.notice_state_key();
         self.scratch.poll(wake);
         if self.scratch.notice_state_key() != scratch_notices {
@@ -682,6 +745,8 @@ impl Runtime {
                             empty,
                             state: Workbench::default(),
                             slots: BTreeMap::new(),
+                            hibernated: BTreeMap::new(),
+                            view_states: super::view_state::ViewStateStore::new(),
                             rows,
                             interacted: false,
                             restore: None,
@@ -729,6 +794,15 @@ impl Runtime {
                         slot.reported_error = Some(error.clone());
                     }
                     if !slot.admitted {
+                        if let Some(path) = slot.rehydrating.take() {
+                            host.hibernated.insert(
+                                slot.key.clone(),
+                                super::retention::HibernatedSlot {
+                                    path,
+                                    failed_at_navigation: Some(self.navigation),
+                                },
+                            );
+                        }
                         remove.push(*id);
                     }
                     if !slot.files.busy() && slot.files.opened().is_some() {
@@ -762,12 +836,38 @@ impl Runtime {
                         if host.restore.is_none() {
                             remove.push(*id);
                         }
+                    } else if slot.rehydrating.take().is_some() {
+                        if let Some(existing) = host
+                            .state
+                            .catalog
+                            .editors
+                            .iter_mut()
+                            .find(|e| e.id == input.id)
+                        {
+                            *existing = input;
+                        } else {
+                            host.state.open(input);
+                        }
+                        host.view_states.touch(&slot.key);
                     } else if slot.opening == self.navigation && self.active.as_ref() == Some(key) {
                         host.state.open(input);
+                    } else if let Some(existing) = host
+                        .state
+                        .catalog
+                        .editors
+                        .iter_mut()
+                        .find(|e| e.id == input.id)
+                    {
+                        *existing = input;
                     } else {
                         host.state.catalog.editors.push(input);
                     }
                     slot.admitted = true;
+                    if !slot.restoring
+                        && let Some(vs) = host.view_states.get(&slot.key).cloned()
+                    {
+                        self.pending_view_restores.insert(*id, vs);
+                    }
                     self.generation += 1;
                 }
                 if slot.closing && !slot.files.busy() && slot.files.opened().is_none() {
@@ -798,6 +898,11 @@ impl Runtime {
         }
         self.poll_mutations(wake);
         self.poll_metadata(wake);
+        if !self.quitting {
+            self.enforce_slot_retention();
+            self.rehydrate_visible_hibernated(wake);
+            self.enforce_background_host_limit(wake);
+        }
         self.persist_metadata(wake, self.quitting);
         if self.abandoned {
             self.allow_quit = true;
@@ -819,6 +924,371 @@ impl Runtime {
             for slot in host.slots.values_mut() {
                 slot.files.flush_pending_auto_save(wake);
             }
+        }
+    }
+
+    /// Configures the per-workspace live slot LRU cap (`WB-01`, `WB-30`).
+    pub fn set_max_live_slots(&mut self, max_live_slots: usize) {
+        self.max_live_slots = Some(max_live_slots.max(1));
+    }
+
+    pub fn effective_max_live_slots(&self) -> usize {
+        self.max_live_slots
+            .unwrap_or(super::retention::MAX_LIVE_SLOTS)
+            .max(1)
+    }
+
+    /// Configures the per-window background project `Host` cap (`WB-02`).
+    pub fn set_max_background_hosts(&mut self, max_background_hosts: usize) {
+        self.max_background_hosts = Some(max_background_hosts);
+    }
+
+    pub fn effective_max_background_hosts(&self) -> usize {
+        self.max_background_hosts
+            .unwrap_or(super::retention::MAX_BACKGROUND_HOSTS)
+    }
+
+    /// Marks whether `slot` currently has active IME composition (`WB-01`).
+    pub fn set_slot_composing(&mut self, slot: SlotId, composing: bool) {
+        if composing {
+            self.composing_slots.insert(slot);
+        } else {
+            self.composing_slots.remove(&slot);
+        }
+    }
+
+    /// Records `state` into the owning workspace's bounded `ViewStateStore` (`WB-10`).
+    pub fn record_view_state(&mut self, slot: SlotId, state: super::view_state::SurfaceViewState) {
+        if slot == 0 {
+            return;
+        }
+        for host in self.hosts.values_mut() {
+            if let Some(s) = host.slots.get(&slot) {
+                host.view_states.insert(s.key.clone(), state);
+                return;
+            }
+        }
+        if let Some((ws_key, res_key)) = self.evicted_slot_keys.remove(&slot)
+            && let Some(host) = self.hosts.get_mut(&ws_key)
+        {
+            host.view_states.insert(res_key, state);
+        }
+    }
+
+    /// Records `state` directly by `resource_key` for the active workspace (`WB-10`).
+    pub fn record_view_state_for_key(
+        &mut self,
+        resource_key: &str,
+        state: super::view_state::SurfaceViewState,
+    ) {
+        if let Some(active_ws) = self.active.clone()
+            && let Some(host) = self.hosts.get_mut(&active_ws)
+        {
+            host.view_states.insert(resource_key.to_owned(), state);
+        }
+    }
+
+    /// Reads the stored `SurfaceViewState` for `resource_key` in the active workspace (`WB-10`).
+    pub fn view_state_for_key(
+        &self,
+        resource_key: &str,
+    ) -> Option<super::view_state::SurfaceViewState> {
+        self.active
+            .as_ref()
+            .and_then(|ws| self.hosts.get(ws))
+            .and_then(|h| h.view_states.get(resource_key).cloned())
+    }
+
+    /// Takes a queued `SurfaceViewState` to restore on `slot` after opening (`WB-10`).
+    pub fn take_pending_view_restore(
+        &mut self,
+        slot: SlotId,
+    ) -> Option<super::view_state::SurfaceViewState> {
+        self.pending_view_restores.remove(&slot)
+    }
+
+    /// Number of live admitted non-closing slots in the active workspace (`WB-01`, `WB-30`).
+    pub fn live_slot_count(&self) -> usize {
+        self.active
+            .as_ref()
+            .and_then(|ws| self.hosts.get(ws))
+            .map_or(0, |h| {
+                h.slots
+                    .values()
+                    .filter(|s| s.admitted && !s.closing && !s.restoring)
+                    .count()
+            })
+    }
+
+    /// Returns `true` if `resource_key` is currently hibernated in the active workspace (`WB-01`).
+    pub fn is_hibernated(&self, resource_key: &str) -> bool {
+        self.active
+            .as_ref()
+            .and_then(|ws| self.hosts.get(ws))
+            .is_some_and(|h| h.hibernated.contains_key(resource_key))
+    }
+
+    fn is_hibernated_or_loading(&self, resource_key: &str) -> bool {
+        self.active
+            .as_ref()
+            .and_then(|ws| self.hosts.get(ws))
+            .is_some_and(|h| {
+                h.hibernated.contains_key(resource_key)
+                    || h.slots
+                        .values()
+                        .any(|s| !s.admitted && s.key == resource_key)
+            })
+    }
+
+    /// Returns background workspace keys ordered MRU-first (`WB-02`).
+    pub fn background_host_keys(&self) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .host_mru
+            .iter()
+            .filter(|k| self.active.as_ref() != Some(*k) && self.hosts.contains_key(*k))
+            .cloned()
+            .collect();
+        for key in self.hosts.keys() {
+            if self.active.as_ref() != Some(key) && !out.contains(key) {
+                out.push(key.clone());
+            }
+        }
+        out
+    }
+
+    /// Hibernates clean idle hidden slots exceeding `effective_max_live_slots()` (`WB-01`).
+    pub fn enforce_slot_retention(&mut self) {
+        let max_live = self.effective_max_live_slots();
+        let Some(ws_key) = self.active.clone() else {
+            return;
+        };
+        let Some(host) = self.hosts.get(&ws_key) else {
+            return;
+        };
+        if host.restore.is_some() {
+            return;
+        }
+        let visible_keys: std::collections::HashSet<&str> = host
+            .state
+            .layout
+            .root
+            .panes()
+            .into_iter()
+            .filter_map(|(_, k)| k)
+            .collect();
+
+        let candidates: Vec<super::retention::SlotCandidate> = host
+            .slots
+            .iter()
+            .map(|(id, slot)| super::retention::SlotCandidate {
+                id: *id,
+                key: slot.key.clone(),
+                visible: visible_keys.contains(slot.key.as_str()),
+                admitted: slot.admitted,
+                closing: slot.closing,
+                restoring: slot.restoring,
+                dirty: slot.files.dirty,
+                saving_or_busy: slot.files.saving() || slot.files.busy(),
+                cloud_conflict: slot.files.cloud_conflict(),
+                unflushable_draft: slot.files.has_unflushable_draft(),
+                owned_by_mutation: self.mutation_owns_slot(*id),
+                composing: self.composing_slots.contains(id),
+            })
+            .collect();
+
+        let to_hibernate = super::retention::select_slots_to_hibernate(
+            &candidates,
+            &host.state.catalog.mru,
+            max_live,
+        );
+        if to_hibernate.is_empty() {
+            return;
+        }
+        let host = self.hosts.get_mut(&ws_key).unwrap();
+        for slot_id in to_hibernate {
+            let Some(mut slot) = host.slots.remove(&slot_id) else {
+                continue;
+            };
+            let Some((_, path)) = slot.files.opened() else {
+                continue;
+            };
+            let rel = path.to_path_buf();
+            slot.files.pause_watch();
+            self.composing_slots.remove(&slot_id);
+            self.pending_view_restores.remove(&slot_id);
+            if self.evicted_slot_keys.len() >= 128
+                && let Some(first) = self.evicted_slot_keys.keys().next().copied()
+            {
+                self.evicted_slot_keys.remove(&first);
+            }
+            self.evicted_slot_keys
+                .insert(slot_id, (ws_key.clone(), slot.key.clone()));
+            host.hibernated.insert(
+                slot.key,
+                super::retention::HibernatedSlot {
+                    path: rel,
+                    failed_at_navigation: None,
+                },
+            );
+            self.generation += 1;
+        }
+    }
+
+    /// Re-hydrates any visible pane whose editor key is currently hibernated (`WB-01`).
+    fn rehydrate_visible_hibernated(&mut self, wake: &Wake) {
+        if self.quitting {
+            return;
+        }
+        let Some(ws_key) = self.active.clone() else {
+            return;
+        };
+        let visible_keys: Vec<String> = match self.hosts.get(&ws_key) {
+            Some(host) if host.restore.is_none() => host
+                .state
+                .layout
+                .root
+                .panes()
+                .into_iter()
+                .filter_map(|(_, k)| k.map(str::to_owned))
+                .collect(),
+            _ => return,
+        };
+        for vis_key in visible_keys {
+            let blocked_or_missing = {
+                let host = &self.hosts[&ws_key];
+                if host.slots.values().any(|s| s.key == vis_key) {
+                    true
+                } else if let Some(entry) = host.hibernated.get(&vis_key) {
+                    entry.failed_at_navigation == Some(self.navigation)
+                        || self.mutation_blocks(&entry.path)
+                } else {
+                    true
+                }
+            };
+            if blocked_or_missing {
+                continue;
+            }
+            let host = self.hosts.get_mut(&ws_key).unwrap();
+            let Some(ws) = host.empty.workspace.clone() else {
+                continue;
+            };
+            let Some(entry) = host.hibernated.remove(&vis_key) else {
+                continue;
+            };
+            self.serial += 1;
+            let mut files = Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
+            files.task_scope = self.scratch.task_scope.clone();
+            files.file_window = self.file_window;
+            files.begin(Intent::OpenFile(entry.path.clone()), wake);
+            host.slots.insert(
+                self.serial,
+                Slot {
+                    key: vis_key,
+                    files,
+                    admitted: false,
+                    opening: self.navigation,
+                    closing: false,
+                    reported_error: None,
+                    restoring: false,
+                    rehydrating: Some(entry.path),
+                    drop_target: None,
+                },
+            );
+            self.generation += 1;
+        }
+    }
+
+    fn host_has_unsaved_or_busy_slots(host: &Host) -> bool {
+        host.slots.values().any(|slot| {
+            !slot.admitted
+                || slot.closing
+                || slot.restoring
+                || slot.files.dirty
+                || slot.files.saving()
+                || slot.files.busy()
+                || slot.files.cloud_conflict()
+                || slot.files.has_unflushable_draft()
+        })
+    }
+
+    fn host_has_pending_mutations(&self, workspace_key: &str) -> bool {
+        self.mutations.iter().any(|m| m.owner == workspace_key)
+            || self.queued.iter().any(|q| q.owner == workspace_key)
+    }
+
+    /// Explicitly unloads a clean background project `Host` without closing the window (`WB-02`).
+    /// Returns `false` if `workspace_key` is active, unknown, or owns unsaved/busy/conflicted state.
+    pub fn close_background_project(&mut self, workspace_key: &str, wake: &Wake) -> bool {
+        if self.quitting || self.active.as_deref() == Some(workspace_key) {
+            return false;
+        }
+        let can_unload = self.hosts.get(workspace_key).is_some_and(|host| {
+            host.metadata_loaded
+                && host.restore.is_none()
+                && !Self::host_has_unsaved_or_busy_slots(host)
+                && !self.host_has_pending_mutations(workspace_key)
+        });
+        if !can_unload {
+            return false;
+        }
+        self.persist_metadata(wake, true);
+        let Some(mut host) = self.hosts.remove(workspace_key) else {
+            return false;
+        };
+        for slot in host.slots.values_mut() {
+            slot.files.pause_watch();
+        }
+        if let Some(ws) = host.empty.workspace.take() {
+            ws.revoke();
+        }
+        self.host_mru.retain(|k| k != workspace_key);
+        self.evicted_slot_keys
+            .retain(|_, (ws_k, _)| ws_k != workspace_key);
+        self.generation += 1;
+        true
+    }
+
+    /// Unloads the oldest clean background project `Host`, if any (`WB-02`).
+    pub fn close_oldest_background_project(&mut self, wake: &Wake) -> Option<String> {
+        let candidates = self.background_host_candidates();
+        let target = super::retention::select_background_hosts_to_unload(
+            &candidates,
+            &self.host_mru,
+            candidates
+                .iter()
+                .filter(|c| !c.active)
+                .count()
+                .saturating_sub(1),
+        )
+        .into_iter()
+        .next()?;
+        self.close_background_project(&target, wake)
+            .then_some(target)
+    }
+
+    fn background_host_candidates(&self) -> Vec<super::retention::BackgroundHostCandidate> {
+        self.hosts
+            .iter()
+            .map(|(key, host)| super::retention::BackgroundHostCandidate {
+                key: key.clone(),
+                active: self.active.as_ref() == Some(key),
+                restoring_or_loading_metadata: !host.metadata_loaded || host.restore.is_some(),
+                has_unsaved_or_busy_slots: Self::host_has_unsaved_or_busy_slots(host),
+                has_pending_mutations: self.host_has_pending_mutations(key),
+            })
+            .collect()
+    }
+
+    pub(super) fn enforce_background_host_limit(&mut self, wake: &Wake) {
+        let max_bg = self.effective_max_background_hosts();
+        let candidates = self.background_host_candidates();
+        let to_unload = super::retention::select_background_hosts_to_unload(
+            &candidates,
+            &self.host_mru,
+            max_bg,
+        );
+        for key in to_unload {
+            let _ = self.close_background_project(&key, wake);
         }
     }
 }

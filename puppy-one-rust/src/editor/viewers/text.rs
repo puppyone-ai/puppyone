@@ -3,14 +3,21 @@
 #[path = "text_tests.rs"]
 mod tests;
 use super::source_split::SourceSplit;
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+use crate::editor::registry::SurfaceTestProbe;
 use crate::{
     editor::{
         markdown::MarkdownExtension,
-        registry::{PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceRequest, ViewerSurface},
+        registry::{
+            HostCommand, MarkdownCommand, PaneEntries, PaneItemId, PaneSegmentId, SurfaceEvent,
+            SurfaceEvents, SurfaceRequest, ViewerSurface,
+        },
+        text::selection::Selection,
         view::{EditorView, editor::EditorEvent, extension::EditIntent},
         workbench::{
             find::FindEvent,
             pane::{Segment, Segmented, Switch},
+            view_state::SurfaceViewState,
         },
     },
     localization::t,
@@ -36,7 +43,8 @@ pub fn open_markdown(
     if request.name.to_ascii_lowercase().ends_with(".mdx") {
         markdown = markdown.mdx();
     }
-    markdown.assets = crate::editor::registry::document_assets(request.id);
+    markdown.assets = request.assets.clone();
+    markdown.references = request.references.clone();
     if request.file_mode {
         markdown.read_only = true;
     }
@@ -72,14 +80,16 @@ pub fn open_markdown(
         ));
         let history_editor = editor.clone();
         let history_gate = host_read_only.clone();
-        source.set_history_owner(
-            Rc::new(move |redo, cx| {
-                if !history_gate.get() {
-                    history_editor.update(cx, |e, cx| e.replay_history(redo, cx));
-                }
-            }),
-            cx,
-        );
+        if let Some(companion) = source.as_companion_history() {
+            companion.set_history_owner(
+                Rc::new(move |redo, cx| {
+                    if !history_gate.get() {
+                        history_editor.update(cx, |e, cx| e.replay_history(redo, cx));
+                    }
+                }),
+                cx,
+            );
+        }
         let source_for_editor = source.clone();
         let syncing_for_editor = syncing.clone();
         subscriptions.push(window.subscribe(
@@ -149,6 +159,7 @@ pub fn open_markdown(
         editing,
         host_read_only,
         source_panel,
+        restored_scroll_y: Cell::new(None),
         syncing,
         events: events_slot,
         source,
@@ -163,6 +174,7 @@ pub struct TextSurface {
     editing: Rc<Cell<bool>>,
     host_read_only: Rc<Cell<bool>>,
     source_panel: Rc<Cell<bool>>,
+    restored_scroll_y: Cell<Option<f32>>,
     syncing: Rc<Cell<bool>>,
     events: Rc<RefCell<Option<SurfaceEvents>>>,
     source: Option<Rc<dyn ViewerSurface>>,
@@ -318,21 +330,61 @@ impl ViewerSurface for TextSurface {
             source.apply(read_only, dark, scale, window, cx);
         }
     }
-    fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
-        match name {
-            "source" => {
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let ed = self.editor.read(cx);
+        let sel = ed.state().selection;
+        let scroll_y = if ed.scroll_top() > 0.0 {
+            self.restored_scroll_y.set(None);
+            ed.scroll_top()
+        } else {
+            self.restored_scroll_y.get().unwrap_or(0.0)
+        };
+        let mode = self
+            .markdown_live(cx)
+            .map(|live| if live { "live".into() } else { "source".into() });
+        Some(SurfaceViewState {
+            selection: Some((sel.anchor, sel.head)),
+            scroll_y,
+            scroll_x: 0.0,
+            mode,
+            zoom: None,
+            folds: Vec::new(),
+        })
+    }
+    fn restore_view_state(&self, state: &SurfaceViewState, window: &mut Window, cx: &mut App) {
+        if let Some(mode) = state.mode.as_deref()
+            && !self.file_mode
+            && let Some(live) = self.markdown_live(cx)
+            && live != (mode != "source")
+        {
+            self.toggle_live(cx);
+        }
+        let (_, scroll_y) = state.clamped_scroll(None, None);
+        self.restored_scroll_y.set(Some(scroll_y));
+        self.editor.update(cx, |e, cx| {
+            if let Some((anchor, head)) = state.clamped_selection(e.text()) {
+                e.set_selection(Selection::range(anchor, head), cx);
+            }
+        });
+        if let Some(source) = &self.source {
+            source.restore_view_state(state, window, cx);
+        }
+    }
+    fn command(&self, cmd: HostCommand, window: &mut Window, cx: &mut App) {
+        match cmd {
+            HostCommand::Source => {
                 if self.file_mode {
                     self.toggle_source_panel(window, cx);
                 } else {
                     self.toggle_live(cx);
                 }
             }
-            "undo" => self.undo(false, window, cx),
-            "redo" => self.undo(true, window, cx),
-            "bold" => self
+            HostCommand::Undo => self.undo(false, window, cx),
+            HostCommand::Redo => self.undo(true, window, cx),
+            HostCommand::Format(MarkdownCommand::Bold) => self
                 .editor
                 .update(cx, |e, cx| e.edit_intent(EditIntent::Bold, cx)),
-            "italic" => self
+            HostCommand::Format(MarkdownCommand::Italic) => self
                 .editor
                 .update(cx, |e, cx| e.edit_intent(EditIntent::Italic, cx)),
             _ => {}
@@ -393,28 +445,24 @@ impl ViewerSurface for TextSurface {
             find: true,
         }
     }
-    fn pane_segment(&self, id: &'static str, _: &mut Window, cx: &mut App) {
+    fn pane_segment(&self, segment: PaneSegmentId, _: &mut Window, cx: &mut App) {
         if self
             .markdown_live(cx)
-            .is_some_and(|live| live != (id == "live"))
+            .is_some_and(|live| live != (segment == PaneSegmentId::Live))
         {
             self.toggle_live(cx);
         }
     }
-    fn pane_item(&self, id: &'static str, window: &mut Window, cx: &mut App) {
-        match id {
-            DOCUMENT_EDITING_TOGGLE_ID => self.toggle_editing(window, cx),
-            DOCUMENT_SOURCE_PANEL_TOGGLE_ID => self.toggle_source_panel(window, cx),
+    fn pane_item(&self, item: PaneItemId, window: &mut Window, cx: &mut App) {
+        match item {
+            PaneItemId::DocumentEditing => self.toggle_editing(window, cx),
+            PaneItemId::DocumentSourcePanel => self.toggle_source_panel(window, cx),
             _ => {}
         }
     }
     #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
-    fn editor_view(&self) -> Option<Entity<EditorView>> {
-        Some(self.editor.clone())
-    }
-    #[cfg(test)]
-    fn code_editor(&self) -> Option<Entity<super::code::CodeView>> {
-        self.source.as_ref().and_then(|s| s.code_editor())
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
     }
     /// The CodeMirror adapter: the view searches and marks.
     fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
@@ -432,5 +480,16 @@ impl ViewerSurface for TextSurface {
                 None
             }
         }
+    }
+}
+
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for TextSurface {
+    fn editor_view(&self) -> Option<Entity<EditorView>> {
+        Some(self.editor.clone())
+    }
+    #[cfg(test)]
+    fn code_editor(&self) -> Option<Entity<super::code::CodeView>> {
+        self.source.as_ref()?.as_test_probe()?.code_editor()
     }
 }

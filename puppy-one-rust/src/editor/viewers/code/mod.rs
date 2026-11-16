@@ -9,14 +9,16 @@ mod style;
 #[cfg(test)]
 mod tests;
 
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+use crate::editor::registry::SurfaceTestProbe;
 use crate::{
     editor::{
         code::language::Language,
         registry::{
-            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceHistory, SurfaceInput, SurfaceRequest,
-            ViewerSurface,
+            CompanionHistory, HostCommand, PaneEntries, SurfaceEvent, SurfaceEvents,
+            SurfaceHistory, SurfaceInput, SurfaceRequest, ViewerSurface,
         },
-        workbench::find::FindEvent,
+        workbench::{find::FindEvent, view_state::SurfaceViewState},
     },
     typography::Scale,
 };
@@ -45,6 +47,7 @@ pub struct CodeView {
     passive_key: Option<(usize, std::ops::Range<usize>, usize)>,
     /// Visual-editor active element highlight in the split source panel.
     visual_highlight: gpui_kit::component::input::RangeDecorationCollection,
+    restored_scroll: Option<(f32, f32)>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -124,6 +127,7 @@ impl CodeView {
             passive,
             passive_key: None,
             visual_highlight,
+            restored_scroll: None,
             _subscriptions: vec![changed, observed],
         }
     }
@@ -630,15 +634,49 @@ impl ViewerSurface for CodeSurface {
     fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
         self.view.update(cx, |v, cx| v.history(redo, window, cx));
     }
-    fn set_history_owner(&self, history: SurfaceHistory, cx: &mut App) {
-        self.view.update(cx, |v, _| v.history_owner = Some(history));
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let v = self.view.read(cx);
+        let s = v.field.read(cx);
+        let range = s.selected_range();
+        let off = s.scroll_offset();
+        let live_x = (-f32::from(off.x)).max(0.0);
+        let live_y = (-f32::from(off.y)).max(0.0);
+        let (scroll_x, scroll_y) = if live_x > 0.0 || live_y > 0.0 || s.line_height().is_some() {
+            (live_x, live_y)
+        } else {
+            v.restored_scroll.unwrap_or((0.0, 0.0))
+        };
+        Some(SurfaceViewState {
+            selection: Some((range.start, range.end)),
+            scroll_y,
+            scroll_x,
+            mode: None,
+            zoom: None,
+            folds: Vec::new(),
+        })
     }
-    fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
-        match name {
-            "undo" | "redo" => self.undo(name == "redo", window, cx),
-            "replay-undo" | "replay-redo" => self
-                .view
-                .update(cx, |v, cx| v.replay(name == "replay-redo", window, cx)),
+    fn restore_view_state(&self, state: &SurfaceViewState, _: &mut Window, cx: &mut App) {
+        self.view.update(cx, |v, cx| {
+            let clamped_sel = state.clamped_selection(&v.committed);
+            let (sx, sy) = state.clamped_scroll(None, None);
+            v.restored_scroll = Some((sx, sy));
+            v.field.update(cx, |s, cx| {
+                if let Some((start, end)) = clamped_sel {
+                    let lo = start.min(end);
+                    let hi = start.max(end);
+                    s.set_selected_range(lo..hi, cx);
+                }
+                s.set_scroll_offset(point(px(-sx), px(-sy)), cx);
+            });
+            v.refresh_passive(cx);
+        });
+    }
+    fn command(&self, cmd: HostCommand, window: &mut Window, cx: &mut App) {
+        match cmd {
+            HostCommand::Undo => self.undo(false, window, cx),
+            HostCommand::Redo => self.undo(true, window, cx),
+            HostCommand::ReplayUndo => self.view.update(cx, |v, cx| v.replay(false, window, cx)),
+            HostCommand::ReplayRedo => self.view.update(cx, |v, cx| v.replay(true, window, cx)),
             _ => {}
         }
     }
@@ -675,6 +713,23 @@ impl ViewerSurface for CodeSurface {
     fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
         self.view.update(cx, |v, cx| v.find(event, window, cx))
     }
+    fn as_companion_history(&self) -> Option<&dyn CompanionHistory> {
+        Some(self)
+    }
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
+    }
+}
+
+impl CompanionHistory for CodeSurface {
+    fn set_history_owner(&self, history: SurfaceHistory, cx: &mut App) {
+        self.view.update(cx, |v, _| v.history_owner = Some(history));
+    }
+}
+
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for CodeSurface {
     #[cfg(test)]
     fn code_editor(&self) -> Option<Entity<CodeView>> {
         Some(self.view.clone())

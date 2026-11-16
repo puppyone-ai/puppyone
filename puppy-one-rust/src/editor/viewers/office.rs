@@ -10,9 +10,18 @@
 //! product's loader sends first), converts .doc / .rtf to DOCX with `textutil`
 //! (`convertOfficeDocumentToDocx`) and owns what leaves the page: opening the
 //! file in its default application, opening links, and Retry.
-use super::{html_visual::script_json, web::WebFrame};
+use super::{
+    html_visual::script_json,
+    web::{WebFrame, parse_find_result},
+};
 use crate::{
-    editor::registry::{SurfaceInput, SurfaceRequest, ViewerSurface},
+    editor::{
+        registry::{
+            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+            viewer_budget,
+        },
+        workbench::find::FindEvent,
+    },
     platform::webview::{Content, Entry, Ipc, local_url_for, url_for},
     workspace::{PreviewData, PreviewResource},
 };
@@ -20,8 +29,6 @@ use gpui::{prelude::*, *};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
-/// `office-preview` resourcePolicy.maxSourceBytes.
-pub const BUDGET: u64 = 25 * 1024 * 1024;
 const SCRIPT: &[u8] = include_bytes!("../../../assets/web/office-viewer.js");
 const STYLE: &[u8] = include_bytes!("../../../assets/web/office-viewer.css");
 const VALIDATION: &[u8] = include_bytes!("../../../assets/web/office-validation.worker.js");
@@ -85,6 +92,14 @@ impl ViewerSurface for OfficeSurface {
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
+    fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
+        Some(cx.subscribe(
+            &self.view,
+            move |_, &(current, total): &(usize, usize), cx| {
+                events(SurfaceEvent::FindResult { current, total }, cx);
+            },
+        ))
+    }
     fn rebind_resource(&self, resource: &PreviewResource, cx: &mut App) {
         let resource = resource.clone();
         self.view.update(cx, |view, cx| {
@@ -103,7 +118,18 @@ impl ViewerSurface for OfficeSurface {
     ) {
         self.view.update(cx, |view, cx| view.set_dark(dark, cx));
     }
+    fn pane(&self, _: &App) -> PaneEntries {
+        PaneEntries {
+            find: true,
+            ..Default::default()
+        }
+    }
+    fn find(&self, event: FindEvent, _: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
+        let frame = self.view.read(cx).frame.clone()?;
+        frame.read(cx).find(event, cx)
+    }
 }
+impl EventEmitter<(usize, usize)> for OfficeView {}
 struct OfficeView {
     name: String,
     extension: String,
@@ -235,7 +261,7 @@ impl OfficeView {
             root: self.root.clone(),
             source: None,
             entry: Entry::Html(page(&self.boot, self.dark)),
-            max_bytes: BUDGET,
+            max_bytes: viewer_budget("office-preview"),
             assets: vec![
                 ("office-viewer.js", SCRIPT),
                 ("office-viewer.css", STYLE),
@@ -252,6 +278,10 @@ impl OfficeView {
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
+                if let Some(found) = parse_find_result(&body) {
+                    let _ = this.update(cx, |_, cx| cx.emit(found));
+                    continue;
+                }
                 let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
                     continue;
                 };

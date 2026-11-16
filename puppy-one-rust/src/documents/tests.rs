@@ -603,7 +603,9 @@ fn a_rebind_holds_newer_remote_text_back_under_unsaved_input() {
 
 #[test]
 fn hosted_documents_read_relative_assets_through_their_provider() {
-    use crate::{platform::webview::ResourceSource, workspace::testing::Memory};
+    use crate::{
+        editor::registry::SourceKind, platform::webview::ResourceSource, workspace::testing::Memory,
+    };
     let memory = Arc::new(Memory::new("memory://actor/project/"));
     let ws = Workspace::from_provider(memory.clone()).unwrap();
     let ctx = Wake::default();
@@ -612,15 +614,41 @@ fn hosted_documents_read_relative_assets_through_their_provider() {
     wait(&mut d, &ctx);
     assert!(d.error.is_none(), "{:?}", d.error);
     let id = d.document.as_ref().expect("a text document").id.clone();
-    let source = crate::editor::registry::document_source(&id).expect("a provider source");
+    let context = d
+        .outgoing
+        .iter()
+        .find_map(|m| match m {
+            HostMessage::Context {
+                id: msg_id,
+                context,
+            } if msg_id == &id => Some(context.clone()),
+            _ => None,
+        })
+        .expect("per-instance DocumentContext emitted");
+    assert_eq!(context.source_kind, SourceKind::Cloud);
+    let source = context.web_source.expect("a provider source");
     assert!(source.read(Path::new("logo.png")).is_some());
-    assert!(crate::editor::registry::document_folder(&id).is_none());
+    assert!(context.folder.is_none());
     // A local document keeps its folder and has no provider source.
-    let (_temp, mut local, ctx) = setup();
+    let (_temp, preset, ctx) = setup();
+    let mut local = Documents::in_workspace(preset.workspace.clone().unwrap());
     local.begin(Intent::OpenFile("a.md".into()), &ctx);
     wait(&mut local, &ctx);
     let id = local.document.as_ref().unwrap().id.clone();
-    assert!(crate::editor::registry::document_source(&id).is_none());
+    let local_ctx = local
+        .outgoing
+        .iter()
+        .find_map(|m| match m {
+            HostMessage::Context {
+                id: msg_id,
+                context,
+            } if msg_id == &id => Some(context.clone()),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(local_ctx.source_kind, SourceKind::Local);
+    assert!(local_ctx.folder.is_some());
+    assert!(local_ctx.web_source.is_none());
 }
 
 #[test]
@@ -1539,4 +1567,79 @@ fn dp41_dp42_bounded_executor_thread_ceiling_and_exact_deadline_scheduling() {
     d.poll_at(&probe_wake, Instant::now() + Duration::from_millis(250));
     assert!(matches!(d.phase, Phase::Snapshot { .. }));
     assert!(d.error.is_none());
+}
+
+#[test]
+fn rg01_rg02_rg03_sniffing_oversized_in_pane_card_and_readonly_large_text() {
+    let temp = tempfile::tempdir().unwrap();
+    // 1. Extensionless PNG & UTF-8 text files route via content sniffing (`RG-01`).
+    std::fs::write(
+        temp.path().join("README_PNG"),
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01",
+    )
+    .unwrap();
+    std::fs::write(temp.path().join("NOTES_PLAIN"), "sniffed utf8 line\n").unwrap();
+    // 2. Oversized HTML (> 4 MiB) opens `HostMessage::Oversized` without failing `d.error` (`RG-02`).
+    let over_html = std::fs::File::create(temp.path().join("huge.html")).unwrap();
+    over_html.set_len(5 * 1024 * 1024).unwrap();
+    // 3. Large plain text (17 MiB > 16 MiB edit budget, <= 64 MiB ceiling) opens ReadOnlyLarge (`RG-03`).
+    let mut big_txt = vec![b'a'; 17 * 1024 * 1024];
+    big_txt[0..5].copy_from_slice(b"HEAD:");
+    std::fs::write(temp.path().join("server.log"), &big_txt).unwrap();
+
+    let ws = Workspace::open(temp.path()).unwrap();
+    let ctx = Wake::default();
+    let mut d = Documents::in_workspace(ws);
+
+    d.begin(Intent::OpenFile("README_PNG".into()), &ctx);
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none());
+    assert!(d.resource.is_some());
+    assert_eq!(d.sniffed_format.map(|f| f.id.as_str()), Some("png"));
+
+    d.outgoing.clear();
+    d.begin(Intent::OpenFile("NOTES_PLAIN".into()), &ctx);
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none());
+    assert_eq!(d.document.as_ref().unwrap().text, "sniffed utf8 line\n");
+    assert_eq!(
+        d.sniffed_format.map(|f| f.id.as_str()),
+        Some("text-unknown")
+    );
+
+    d.outgoing.clear();
+    d.begin(Intent::OpenFile("huge.html".into()), &ctx);
+    // Drain open first if previous doc was open.
+    if let Some(req) = d.outgoing.iter().find_map(|m| match m {
+        HostMessage::Snapshot { request, .. } => Some(*request),
+        _ => None,
+    }) {
+        reply(&mut d, &ctx, req, 0, "sniffed utf8 line\n");
+    }
+    wait(&mut d, &ctx);
+    assert!(
+        d.error.is_none(),
+        "RG-02 must NOT fail with workspace error"
+    );
+    assert_eq!(d.opened().map(|(_, p)| p), Some(Path::new("huge.html")));
+    assert!(d.outgoing.iter().any(|m| matches!(
+        m,
+        HostMessage::Oversized {
+            size_bytes: 5_242_880,
+            limit_bytes: 4_194_304,
+            can_reveal_in_finder: true,
+            ..
+        }
+    )));
+
+    d.outgoing.clear();
+    d.begin(Intent::OpenFile("server.log".into()), &ctx);
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none());
+    assert!(d.read_only_large.is_some());
+    assert!(
+        d.outgoing
+            .iter()
+            .any(|m| matches!(m, HostMessage::ReadOnlyLarge { .. }))
+    );
 }

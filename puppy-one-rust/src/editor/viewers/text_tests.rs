@@ -1,6 +1,6 @@
 use super::*;
 use crate::editor::{
-    registry::{self, EditorDocument, SurfaceInput},
+    registry::{self, EditorDocument, HostCommand, PaneItemId, SourceKind, SurfaceInput},
     view::style,
 };
 use core::prelude::v1::test;
@@ -39,6 +39,11 @@ fn setup<'a>(
                 scale: Scale::Medium,
                 workspace: None,
                 file_mode: true,
+                folder: None,
+                web_source: None,
+                assets: None,
+                references: None,
+                source_kind: SourceKind::Local,
             },
             w,
             cx,
@@ -53,7 +58,7 @@ fn setup<'a>(
                 cx,
             )
             .unwrap();
-        surface.command("source", w, cx);
+        surface.command(HostCommand::Source, w, cx);
         Host {
             surface,
             _subscription: subscription,
@@ -71,7 +76,7 @@ fn draw(cx: &mut VisualTestContext) {
 fn assert_text(host: &Entity<Host>, text: &str, cx: &mut VisualTestContext) {
     host.read_with(cx, |h, cx| {
         assert_eq!(h.surface.text(cx).as_deref(), Some(text));
-        let source = h.surface.code_editor().unwrap();
+        let source = h.surface.as_test_probe().unwrap().code_editor().unwrap();
         assert_eq!(source.read(cx).field.read(cx).value().to_string(), text);
     });
 }
@@ -85,6 +90,8 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     let (host, count, cx) = setup(cx, "");
     host.update_in(cx, |h, w, cx| {
         h.surface
+            .as_test_probe()
+            .unwrap()
             .code_editor()
             .unwrap()
             .update(cx, |v, cx| v.replace_text_in_range(None, "source", w, cx));
@@ -99,8 +106,10 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     draw(cx);
     assert_text(&host, "source", cx);
     host.update_in(cx, |h, w, cx| {
-        h.surface.pane_item(DOCUMENT_EDITING_TOGGLE_ID, w, cx);
+        h.surface.pane_item(PaneItemId::DocumentEditing, w, cx);
         h.surface
+            .as_test_probe()
+            .unwrap()
             .editor_view()
             .unwrap()
             .update(cx, |v, cx| v.focus(w, cx));
@@ -113,13 +122,13 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     cx.simulate_keystrokes("cmd-shift-z");
     draw(cx);
     assert_text(&host, "source", cx);
-    host.update_in(cx, |h, w, cx| h.surface.command("undo", w, cx));
+    host.update_in(cx, |h, w, cx| h.surface.command(HostCommand::Undo, w, cx));
     draw(cx);
     assert_text(&host, "", cx);
     // A new edit in either view retires the one shared redo branch.
     cx.simulate_input("page");
     draw(cx);
-    host.update_in(cx, |h, w, cx| h.surface.command("redo", w, cx));
+    host.update_in(cx, |h, w, cx| h.surface.command(HostCommand::Redo, w, cx));
     draw(cx);
     assert_text(&host, "page", cx);
 }
@@ -130,7 +139,7 @@ fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
 ) {
     let (host, count, cx) = setup(cx, "");
     host.update_in(cx, |h, w, cx| {
-        h.surface.pane_item(DOCUMENT_EDITING_TOGGLE_ID, w, cx)
+        h.surface.pane_item(PaneItemId::DocumentEditing, w, cx)
     });
     let mut expected = String::new();
     for index in 0..50 {
@@ -138,13 +147,23 @@ fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
         host.update_in(cx, |h, w, cx| {
             let at = expected.encode_utf16().count();
             if index % 2 == 0 {
-                h.surface.code_editor().unwrap().update(cx, |v, cx| {
-                    v.replace_text_in_range(Some(at..at), &insert, w, cx)
-                });
+                h.surface
+                    .as_test_probe()
+                    .unwrap()
+                    .code_editor()
+                    .unwrap()
+                    .update(cx, |v, cx| {
+                        v.replace_text_in_range(Some(at..at), &insert, w, cx)
+                    });
             } else {
-                h.surface.editor_view().unwrap().update(cx, |v, cx| {
-                    v.replace_text_in_range(Some(at..at), &insert, w, cx)
-                });
+                h.surface
+                    .as_test_probe()
+                    .unwrap()
+                    .editor_view()
+                    .unwrap()
+                    .update(cx, |v, cx| {
+                        v.replace_text_in_range(Some(at..at), &insert, w, cx)
+                    });
             }
         });
         expected.push_str(&insert);
@@ -159,6 +178,8 @@ fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
     host.update_in(cx, |h, w, cx| {
         h.surface.apply(true, true, Scale::Medium, w, cx);
         h.surface
+            .as_test_probe()
+            .unwrap()
             .code_editor()
             .unwrap()
             .update(cx, |v, cx| v.replace_text_in_range(None, "blocked", w, cx));

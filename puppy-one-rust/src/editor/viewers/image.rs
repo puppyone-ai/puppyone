@@ -6,9 +6,13 @@ use crate::workspace::{PreviewData, PreviewResource};
 use crate::{
     editor::{
         registry::{
-            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+            PaneEntries, PaneItemId, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest,
+            ViewerSurface,
         },
-        workbench::pane::{Item, ItemKind},
+        workbench::{
+            pane::{Item, ItemKind},
+            view_state::SurfaceViewState,
+        },
     },
     localization::{t, tf},
     platform::image_transcode::{
@@ -85,12 +89,45 @@ impl ViewerSurface for ImageSurface {
         self.view.update(cx, |v, cx| v.load(Some(resource), cx));
     }
 
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let v = self.view.read(cx);
+        let (mode, zoom) = match v.zoom {
+            ZoomMode::Fit => ("fit", None),
+            ZoomMode::Manual(z) => ("manual", Some(z)),
+        };
+        Some(SurfaceViewState {
+            selection: None,
+            scroll_x: v.pan.0.max(0.0),
+            scroll_y: v.pan.1.max(0.0),
+            mode: Some(mode.into()),
+            zoom,
+            folds: Vec::new(),
+        })
+    }
+
+    fn restore_view_state(&self, state: &SurfaceViewState, _: &mut Window, cx: &mut App) {
+        self.view.update(cx, |v, cx| {
+            if state.mode.as_deref() == Some("manual")
+                && let Some(z) = state.zoom.filter(|z| z.is_finite() && *z > 0.)
+            {
+                v.set_zoom_manual(z, cx);
+                let (px_x, px_y) = state.clamped_scroll(None, None);
+                v.pan = (px_x, px_y);
+                v.clamp_pan();
+                cx.notify();
+            } else {
+                v.set_zoom_fit(cx);
+            }
+        });
+    }
+
     fn pane(&self, cx: &App) -> PaneEntries {
         self.view.read(cx).pane_entries()
     }
 
-    fn pane_item(&self, id: &'static str, _: &mut Window, cx: &mut App) {
-        self.view.update(cx, |v, cx| v.run_pane_item(id, cx));
+    fn pane_item(&self, item: PaneItemId, _: &mut Window, cx: &mut App) {
+        self.view
+            .update(cx, |v, cx| v.run_pane_item(item.as_wire(), cx));
     }
 }
 

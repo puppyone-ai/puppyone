@@ -5,11 +5,13 @@
 use crate::{
     editor::{
         registry::{
-            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+            HostCommand, PaneEntries, PaneItemId, SurfaceEvent, SurfaceEvents, SurfaceInput,
+            SurfaceRequest, ViewerSurface,
         },
         workbench::{
             find::FindEvent,
             pane::{Item, ItemKind},
+            view_state::SurfaceViewState,
         },
     },
     localization::{t, tf},
@@ -126,8 +128,40 @@ impl ViewerSurface for PdfSurface {
         Some(self.view.read(cx).focus.clone())
     }
 
-    fn command(&self, name: &str, _: &mut Window, cx: &mut App) {
-        if name == "copy" {
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let v = self.view.read(cx);
+        Some(SurfaceViewState {
+            selection: None,
+            scroll_y: v.current_scroll_top(),
+            scroll_x: 0.0,
+            mode: Some(if v.zoom.is_some() {
+                "manual".into()
+            } else {
+                "fit".into()
+            }),
+            zoom: v.zoom,
+            folds: Vec::new(),
+        })
+    }
+
+    fn restore_view_state(&self, state: &SurfaceViewState, _: &mut Window, cx: &mut App) {
+        self.view.update(cx, |v, cx| {
+            let next_zoom = if state.mode.as_deref() == Some("fit") {
+                None
+            } else {
+                state
+                    .zoom
+                    .filter(|z| z.is_finite() && *z > 0.)
+                    .map(|z| z.clamp(ZOOM_STEPS[0], *ZOOM_STEPS.last().unwrap_or(&4.0)))
+            };
+            v.set_zoom(next_zoom, cx);
+            let (_, clamped_y) = state.clamped_scroll(None, None);
+            v.set_scroll_top(clamped_y, cx);
+        });
+    }
+
+    fn command(&self, cmd: HostCommand, _: &mut Window, cx: &mut App) {
+        if cmd == HostCommand::Copy {
             self.view.update(cx, |v, cx| {
                 v.copy_selection(cx);
             });
@@ -138,17 +172,19 @@ impl ViewerSurface for PdfSurface {
         self.view.read(cx).pane_entries()
     }
 
-    fn pane_item(&self, id: &'static str, _: &mut Window, cx: &mut App) {
-        if id == "pdf-reload" {
-            self.view.update(cx, |v, cx| v.reload(cx));
-        } else if let Some(rest) = id.strip_prefix(OUTLINE_PREFIX)
-            && let Ok(index) = rest.parse::<usize>()
-        {
-            self.view.update(cx, |v, cx| {
-                if let Some(bm) = v.bookmarks.get(index).cloned() {
-                    v.scroll_to_page(bm.page, cx);
-                }
-            });
+    fn pane_item(&self, item: PaneItemId, _: &mut Window, cx: &mut App) {
+        match item {
+            PaneItemId::PdfReload => {
+                self.view.update(cx, |v, cx| v.reload(cx));
+            }
+            PaneItemId::PdfOutline(index) => {
+                self.view.update(cx, |v, cx| {
+                    if let Some(bm) = v.bookmarks.get(index).cloned() {
+                        v.scroll_to_page(bm.page, cx);
+                    }
+                });
+            }
+            _ => {}
         }
     }
 
@@ -1912,7 +1948,7 @@ mod tests {
         let entries = cx.update(|_, cx| surface.pane(cx));
         assert!(entries.find);
         assert_eq!(entries.items.len(), 3); // Reload + 2 bookmarks
-        cx.update(|w, cx| surface.pane_item("pdf-outline-1", w, cx));
+        cx.update(|w, cx| surface.pane_item(PaneItemId::PdfOutline(1), w, cx));
         assert_eq!(
             *view.read_with(cx, |v, _| v.visible_page_range()).start(),
             3

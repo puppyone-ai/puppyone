@@ -48,6 +48,15 @@ pub(super) enum EditorEvent {
     Pump,
 }
 
+/// Pending external Finder file drop outside the active local workspace (`WB-21`).
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct PendingExternalDrop {
+    pub path: std::path::PathBuf,
+    pub pane: String,
+    pub direction: crate::editor::workbench::layout::Direction,
+    pub placement: crate::editor::workbench::layout::Placement,
+}
+
 pub(super) struct EditorArea {
     pub(super) docs: Entity<DocumentSession>,
     pub(super) explorer: Entity<ExplorerSession>,
@@ -75,6 +84,8 @@ pub(super) struct EditorArea {
     pub dismissed_save_error: Option<String>,
     /// Whether the read-only Cloud conflict comparison dialog is open (`DP-05`).
     pub comparing_conflict: bool,
+    /// Pending prompt for a Finder file dropped from outside this workspace (`WB-21`).
+    pub pending_external_drop: Option<PendingExternalDrop>,
     /// Re-renders once a transient "Saved" status lapses.
     pub saved_refresh: Option<Task<()>>,
     /// Where each pane and split was painted, in window coordinates: what
@@ -160,6 +171,7 @@ impl EditorArea {
             tab_focus: Default::default(),
             dismissed_save_error: None,
             comparing_conflict: false,
+            pending_external_drop: None,
             saved_refresh: None,
             pane_bounds: Default::default(),
             split_bounds: Default::default(),
@@ -204,6 +216,58 @@ impl EditorArea {
             cx.notify();
         }
     }
+    pub fn dismiss_external_drop(&mut self, cx: &mut Context<Self>) {
+        if self.pending_external_drop.take().is_some() {
+            cx.notify();
+        }
+    }
+    /// `WB-21` choice 1: copy the dropped external file into the workspace root and open it.
+    pub fn confirm_external_drop_copy_to_workspace(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(drop) = self.pending_external_drop.take() else {
+            return;
+        };
+        let Some(ws) = self.docs.read(cx).workspace.clone() else {
+            cx.notify();
+            return;
+        };
+        match ws.import_external(&drop.path, std::path::Path::new("")) {
+            Ok(imported) => {
+                let listing = ws.list(std::path::Path::new("")).ok();
+                self.explorer.update(cx, |e, cx| {
+                    e.entry_created(std::path::Path::new(""), listing, &imported, cx);
+                });
+                self.docs.update(cx, |d, _| {
+                    d.open_at_edge(imported, &drop.pane, drop.direction, drop.placement);
+                });
+                self.sync(window, cx);
+                cx.emit(EditorEvent::Pump);
+            }
+            Err(err) => {
+                self.docs.update(cx, |d, _| d.error = Some(err.to_string()));
+                cx.emit(EditorEvent::Pump);
+            }
+        }
+        cx.notify();
+    }
+    /// `WB-21` choice 2: open the dropped external file in a standalone File Window.
+    pub fn confirm_external_drop_open_file_window(&mut self, cx: &mut Context<Self>) {
+        let Some(drop) = self.pending_external_drop.take() else {
+            return;
+        };
+        let docs = self.docs.downgrade();
+        let area = self.weak.clone();
+        cx.defer(move |cx| {
+            if let Err(err) = super::windows::open_file(drop.path, cx) {
+                let _ = docs.update(cx, |d, _| d.error = Some(err.to_string()));
+                let _ = area.update(cx, |_, cx| cx.emit(EditorEvent::Pump));
+            }
+        });
+        cx.notify();
+    }
     /// Refreshes workspace link reference contexts across all open editor hosts (`TODO-48`).
     pub fn refresh_references(&mut self, cx: &mut Context<Self>) {
         let hosts: Vec<_> = self.hosts.iter().map(|(s, e)| (*s, e.clone())).collect();
@@ -243,7 +307,28 @@ impl EditorArea {
     /// new slot) and their answers back, drops the hosts of closed slots,
     /// and holds the editors behind the gate.
     pub fn sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.docs.update(cx, |d, _| d.persist_metadata(false));
+        let sampled: Vec<(
+            u64,
+            bool,
+            Option<crate::editor::workbench::view_state::SurfaceViewState>,
+        )> = self
+            .hosts
+            .iter()
+            .filter(|(slot, _)| **slot != 0)
+            .map(|(slot, editor)| {
+                let s = editor.read(cx);
+                (*slot, s.composing(cx), s.view_state(cx))
+            })
+            .collect();
+        self.docs.update(cx, |d, _| {
+            for (slot, composing, vs) in sampled {
+                d.set_slot_composing(slot, composing);
+                if let Some(vs) = vs {
+                    d.record_view_state(slot, vs);
+                }
+            }
+            d.persist_metadata(false);
+        });
         let active = self.docs.read(cx).active_slot();
         let mut focus_native = self.hosts.get(&active).is_some_and(|e| e != &self.front);
         for _ in 0..4 {
@@ -256,10 +341,19 @@ impl EditorArea {
                     let editor = self.new_host(slot, window, cx);
                     self.hosts.insert(slot, editor);
                 }
+                let opened_fresh = matches!(
+                    message,
+                    HostMessage::Open {
+                        external: false,
+                        ..
+                    } | HostMessage::OpenResource { .. }
+                );
                 focus_native |= slot == active
                     && matches!(
                         message,
-                        HostMessage::Open { .. } | HostMessage::OpenResource { .. }
+                        HostMessage::Open { .. }
+                            | HostMessage::OpenResource { .. }
+                            | HostMessage::Oversized { .. }
                     );
                 let references = self.references(slot, cx);
                 let workspace = self
@@ -272,6 +366,14 @@ impl EditorArea {
                     s.set_workspace(workspace);
                     s.receive(&message, window, cx)
                 });
+                if opened_fresh
+                    && let Some(saved_vs) = self
+                        .docs
+                        .update(cx, |d, _| d.take_pending_view_restore(slot))
+                {
+                    self.hosts[&slot]
+                        .update(cx, |s, cx| s.restore_view_state(&saved_vs, window, cx));
+                }
                 self.docs.update(cx, |d, _| {
                     for reply in replies {
                         d.client_for(slot, reply);
@@ -280,6 +382,25 @@ impl EditorArea {
             }
         }
         let retained = self.docs.read(cx).retained_slots();
+        let evicted_final: Vec<(
+            u64,
+            Option<crate::editor::workbench::view_state::SurfaceViewState>,
+        )> = self
+            .hosts
+            .iter()
+            .filter(|(id, _)| **id != 0 && !retained.contains(id))
+            .map(|(id, editor)| (*id, editor.read(cx).view_state(cx)))
+            .collect();
+        if !evicted_final.is_empty() {
+            self.docs.update(cx, |d, _| {
+                for (id, vs) in evicted_final {
+                    d.set_slot_composing(id, false);
+                    if let Some(vs) = vs {
+                        d.record_view_state(id, vs);
+                    }
+                }
+            });
+        }
         self.hosts.retain(|id, _| retained.contains(id));
         self.tab_focus.retain(|id, _| retained.contains(id));
         if let Some(editor) = self.hosts.get(&active) {
@@ -437,6 +558,9 @@ impl Render for EditorArea {
             );
         }
         if let Some(dialog) = self.conflict_comparison_dialog(cx) {
+            canvas = canvas.child(dialog);
+        }
+        if let Some(dialog) = self.external_drop_dialog(cx) {
             canvas = canvas.child(dialog);
         }
         canvas
@@ -813,5 +937,116 @@ mod tests {
                     .contains("MINE ")
             );
         });
+    }
+
+    #[gpui::test]
+    fn wb21_external_finder_drop_prompts_and_executes_copy_to_workspace_and_open_file_window(
+        cx: &mut TestAppContext,
+    ) {
+        use crate::editor::workbench::layout::{Direction, Placement};
+        let folder = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(folder.path().join("inside.md"), "inside\n").unwrap();
+        let ext_a = outside.path().join("external_a.md");
+        let ext_b = outside.path().join("external_b.md");
+        std::fs::write(&ext_a, "outside alpha\n").unwrap();
+        std::fs::write(&ext_b, "outside beta\n").unwrap();
+
+        let (view, cx) = setup_shell(cx);
+        view.update(cx, |s, cx| {
+            s.session.project.update(cx, |p, _| {
+                p.record.fixture = false;
+                p.home = false;
+            });
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFolder(folder.path().into())));
+        });
+        settle(&view, cx, |s, cx| s.files(cx).state().is_some());
+
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile("inside.md".into())));
+        });
+        settle(&view, cx, |s, cx| {
+            s.files(cx)
+                .opened()
+                .is_some_and(|(_, p)| p == std::path::Path::new("inside.md"))
+        });
+
+        let active_pane = view.read_with(cx, |s, cx| {
+            s.files(cx).state().unwrap().layout.active.clone()
+        });
+
+        // 1. Drop outside file `external_a.md` -> opens WB-21 delivery prompt dialog.
+        view.update(cx, |s, cx| {
+            let paths = ExternalPaths(vec![ext_a.clone()].into());
+            let handled = s.editor.update(cx, |e, cx| {
+                e.handle_external_paths_drop(
+                    &paths,
+                    &active_pane,
+                    Direction::Horizontal,
+                    Placement::Second,
+                    cx,
+                )
+            });
+            assert!(handled);
+        });
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        cx.run_until_parked();
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        view.read_with(cx, |s, cx| {
+            assert!(s.editor.read(cx).pending_external_drop.is_some());
+            assert!(s.editor.read(cx).external_drop_dialog(cx).is_some());
+        });
+        assert!(cx.debug_bounds("external-file-drop-body").is_some());
+
+        // Choice A: "Copy to Workspace" imports into workspace root and opens in pane!
+        view.update_in(cx, |s, w, cx| {
+            s.editor.update(cx, |e, cx| {
+                e.confirm_external_drop_copy_to_workspace(w, cx);
+            });
+        });
+        settle(&view, cx, |s, cx| {
+            s.files(cx)
+                .opened()
+                .is_some_and(|(_, p)| p == std::path::Path::new("external_a.md"))
+        });
+        assert_eq!(
+            std::fs::read_to_string(folder.path().join("external_a.md")).unwrap(),
+            "outside alpha\n"
+        );
+        view.read_with(cx, |s, cx| {
+            assert!(s.editor.read(cx).pending_external_drop.is_none());
+        });
+
+        // 2. Drop outside file `external_b.md` -> Choice B: "Open in File Window".
+        let initial_windows = cx.read(|app| app.windows().len());
+        view.update(cx, |s, cx| {
+            let paths = ExternalPaths(vec![ext_b.clone()].into());
+            let handled = s.editor.update(cx, |e, cx| {
+                e.handle_external_paths_drop(
+                    &paths,
+                    &active_pane,
+                    Direction::Horizontal,
+                    Placement::Second,
+                    cx,
+                )
+            });
+            assert!(handled);
+        });
+        view.update(cx, |s, cx| {
+            s.editor.update(cx, |e, cx| {
+                e.confirm_external_drop_open_file_window(cx);
+            });
+        });
+        cx.run_until_parked();
+        assert!(!folder.path().join("external_b.md").exists());
+        assert_eq!(cx.read(|app| app.windows().len()), initial_windows + 1);
     }
 }

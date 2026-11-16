@@ -18,8 +18,6 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-/// `DATABASE_BUDGET`.
-pub const MAX_SOURCE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 pub const MAX_OBJECTS: usize = 512;
 pub const MAX_COLUMNS: usize = 128;
 pub const PAGE_ROWS: usize = 50;

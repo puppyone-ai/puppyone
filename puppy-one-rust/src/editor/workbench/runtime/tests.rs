@@ -803,3 +803,244 @@ fn abandon_unsaved_persists_unflushable_draft_to_journal_and_reopen_recovers_it(
         .unwrap();
     assert_eq!(opened_text, "unflushable draft");
 }
+
+#[test]
+fn wb30_live_slot_lru_cap_hibernates_clean_slots_preserves_dirty_and_restores_view_state() {
+    use super::super::view_state::SurfaceViewState;
+    let root = tempfile::tempdir().unwrap();
+    for name in ["d1.md", "d2.md", "d3.md", "d4.md", "d5.md"] {
+        std::fs::write(root.path().join(name), format!("content of {name}\n")).unwrap();
+    }
+    let mut r = Runtime::default();
+    r.set_max_live_slots(3);
+    open_root(&mut r, root.path());
+
+    // Open d1.md and mark it dirty so it MUST stay pinned across all evictions.
+    open(&mut r, "d1.md");
+    let d1_slot = r.active_slot();
+    let d1_key = r
+        .state()
+        .unwrap()
+        .layout
+        .active_editor()
+        .unwrap()
+        .to_owned();
+    let d1_doc_id = r
+        .slot(d1_slot)
+        .unwrap()
+        .document
+        .as_ref()
+        .unwrap()
+        .id
+        .clone();
+    r.client_for(
+        d1_slot,
+        ClientMessage::Dirty {
+            id: d1_doc_id,
+            revision: 1,
+            dirty: true,
+        },
+        &Wake::default(),
+    );
+
+    // Open d2.md (clean) and record its SurfaceViewState before navigating further.
+    open(&mut r, "d2.md");
+    let d2_slot = r.active_slot();
+    let d2_key = r
+        .state()
+        .unwrap()
+        .layout
+        .active_editor()
+        .unwrap()
+        .to_owned();
+    let saved_d2_state = SurfaceViewState {
+        selection: Some((3, 10)),
+        scroll_y: 88.5,
+        scroll_x: 4.0,
+        mode: Some("live".into()),
+        zoom: None,
+        folds: vec![(0, true)],
+    };
+    r.record_view_state(d2_slot, saved_d2_state.clone());
+
+    // Open d3.md, d4.md, d5.md sequentially.
+    open(&mut r, "d3.md");
+    let d3_key = r
+        .state()
+        .unwrap()
+        .layout
+        .active_editor()
+        .unwrap()
+        .to_owned();
+    open(&mut r, "d4.md");
+    open(&mut r, "d5.md");
+
+    // All 5 references stay in the Catalog, while live slots stay <= 3.
+    assert_eq!(r.state().unwrap().catalog.editors.len(), 5);
+    assert_eq!(r.live_slot_count(), 3);
+    assert_eq!(
+        r.slot_for_key(&d1_key),
+        Some(d1_slot),
+        "dirty slot must never hibernate"
+    );
+    assert!(
+        r.is_hibernated(&d2_key),
+        "oldest clean slot d2.md must hibernate"
+    );
+    assert!(
+        r.is_hibernated(&d3_key),
+        "older clean slot d3.md must hibernate"
+    );
+
+    // Re-activating hibernated d2.md transparently re-hydrates it and queues its ViewState.
+    r.activate(&d2_key);
+    wait(&mut r, |r| r.slot_for_key(&d2_key).is_some());
+    assert_eq!(r.live_slot_count(), 3);
+    assert_eq!(
+        r.slot_for_key(&d1_key),
+        Some(d1_slot),
+        "dirty slot still preserved after re-hydration"
+    );
+    let rehydrated_slot = r.slot_for_key(&d2_key).unwrap();
+    assert_eq!(
+        r.take_pending_view_restore(rehydrated_slot),
+        Some(saved_d2_state)
+    );
+}
+
+#[test]
+fn wb31_view_state_persists_across_restart_and_clamps_to_shrunk_document() {
+    use super::super::view_state::SurfaceViewState;
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("a.md"),
+        "hello world\nsecond line\nthird line\n",
+    )
+    .unwrap();
+    std::fs::write(root.path().join("b.md"), "other\n").unwrap();
+
+    let mut r = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    let a_slot = r.active_slot();
+    let a_key = r
+        .state()
+        .unwrap()
+        .layout
+        .active_editor()
+        .unwrap()
+        .to_owned();
+    let original_vs = SurfaceViewState {
+        selection: Some((20, 32)),
+        scroll_y: 144.0,
+        scroll_x: 12.0,
+        mode: Some("source".into()),
+        zoom: Some(1.25),
+        folds: vec![(0, true), (2, true)],
+    };
+    r.record_view_state(a_slot, original_vs.clone());
+    open(&mut r, "b.md");
+    r.activate(&a_key);
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| {
+        r.metadata_inflight == 0 && r.hosts.values().all(|h| h.metadata_due.is_none())
+    });
+    drop(r);
+
+    // Shrink a.md on disk before reopening so WB-11 clamping is exercised.
+    std::fs::write(root.path().join("a.md"), "short\n").unwrap();
+
+    let mut restored = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    open_root(&mut restored, root.path());
+    wait(&mut restored, |r| {
+        r.state().is_some_and(|s| s.catalog.editors.len() == 2)
+    });
+    let restored_a_slot = restored.slot_for_key(&a_key).expect("a.md restored");
+    let restored_vs = restored
+        .take_pending_view_restore(restored_a_slot)
+        .expect("persisted SurfaceViewState queued on restore");
+    assert_eq!(restored_vs, original_vs);
+    assert_eq!(restored_vs.clamped_selection("short\n"), Some((6, 6)));
+    assert_eq!(restored_vs.clamped_folds(1), vec![(0, true)]);
+}
+
+#[test]
+fn wb02_background_project_cap_and_explicit_close_unload_clean_hosts_and_protect_dirty_hosts() {
+    let p1 = tempfile::tempdir().unwrap();
+    let p2 = tempfile::tempdir().unwrap();
+    let p3 = tempfile::tempdir().unwrap();
+    let p4 = tempfile::tempdir().unwrap();
+    std::fs::write(p1.path().join("draft.md"), "p1\n").unwrap();
+    std::fs::write(p2.path().join("clean.md"), "p2\n").unwrap();
+    std::fs::write(p3.path().join("clean.md"), "p3\n").unwrap();
+    std::fs::write(p4.path().join("clean.md"), "p4\n").unwrap();
+
+    let mut r = Runtime::default();
+    r.set_max_background_hosts(2);
+
+    let switch_root = |r: &mut Runtime, path: &std::path::Path| {
+        r.begin(Intent::OpenFolder(path.into()), &Wake::default());
+        wait(r, |r| {
+            !r.opening_root() && r.active.is_some() && r.hosts.values().all(|h| h.metadata_loaded)
+        });
+    };
+
+    // p1: open and mark dirty (must never be evicted!).
+    switch_root(&mut r, p1.path());
+    let p1_key = r.workspace_key().unwrap().to_owned();
+    open(&mut r, "draft.md");
+    let slot = r.active_slot();
+    let doc_id = r.slot(slot).unwrap().document.as_ref().unwrap().id.clone();
+    r.client_for(
+        slot,
+        ClientMessage::Dirty {
+            id: doc_id,
+            revision: 1,
+            dirty: true,
+        },
+        &Wake::default(),
+    );
+
+    // p2, p3, p4: clean projects.
+    switch_root(&mut r, p2.path());
+    let p2_key = r.workspace_key().unwrap().to_owned();
+    open(&mut r, "clean.md");
+
+    switch_root(&mut r, p3.path());
+    let p3_key = r.workspace_key().unwrap().to_owned();
+    open(&mut r, "clean.md");
+
+    switch_root(&mut r, p4.path());
+    let p4_key = r.workspace_key().unwrap().to_owned();
+    assert_eq!(r.workspace_key(), Some(p4_key.as_str()));
+
+    // With max_background_hosts == 2, p1 (dirty) is protected so p2 (oldest clean) was unloaded!
+    let bg = r.background_host_keys();
+    assert_eq!(bg.len(), 2);
+    assert!(
+        bg.contains(&p1_key),
+        "dirty background host p1 must stay retained"
+    );
+    assert!(
+        bg.contains(&p3_key),
+        "recent clean background host p3 stays retained"
+    );
+    assert!(
+        !bg.contains(&p2_key),
+        "oldest clean background host p2 must unload"
+    );
+
+    // Explicit unload refuses active or dirty hosts, and unloads clean background host p3.
+    let wake = Wake::default();
+    assert!(!r.close_background_project(&p4_key, &wake));
+    assert!(!r.close_background_project(&p1_key, &wake));
+    assert!(r.close_background_project(&p3_key, &wake));
+    assert_eq!(r.background_host_keys(), vec![p1_key]);
+}
