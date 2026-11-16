@@ -1,5 +1,8 @@
-use super::{PreparedContent, ResourceSource, files, mime_for, range::ByteRange, relative_path};
-use std::{io::Read, path::Path};
+use super::{
+    PreparedContent, PreparedResponse, ResourceSource, ResourceStream, files, mime_for,
+    range::ByteRange, relative_path,
+};
+use std::path::Path;
 
 #[cfg(not(target_os = "windows"))]
 pub const ENTRY_ORIGIN: &str = "puppyone-preview://local";
@@ -9,7 +12,7 @@ pub const ENTRY_ORIGIN: &str = "puppyone-preview://local";
 pub const ENTRY_ORIGIN: &str = "http://puppyone-preview.local";
 
 /// Transport-neutral response; the native adapter supplies security/CORS
-/// headers and consumes the bounded body. Wry currently buffers that body.
+/// headers. Streaming transports use this as metadata with an empty body.
 pub struct ProtocolResponse {
     pub status: u16,
     pub mime: &'static str,
@@ -79,30 +82,46 @@ pub fn respond_request(
     origin: Option<&str>,
     range: Option<&str>,
 ) -> ProtocolResponse {
+    let mut response = prepare_request(content, local, method, uri, origin, range).collect();
+    if method == "HEAD" {
+        response.body.clear();
+    }
+    response
+}
+
+pub fn prepare_request(
+    content: &PreparedContent,
+    local: bool,
+    method: &str,
+    uri: &str,
+    origin: Option<&str>,
+    range: Option<&str>,
+) -> PreparedResponse {
     let head = method == "HEAD";
+    let immediate = |response| PreparedResponse::bytes(content, response);
     let mut result = if !matches!(method, "GET" | "HEAD" | "OPTIONS") {
-        ProtocolResponse::error(405, "Method not allowed")
+        immediate(ProtocolResponse::error(405, "Method not allowed"))
     } else if !content.is_live() || origin.is_some_and(|o| o != ENTRY_ORIGIN) {
-        ProtocolResponse::error(403, "Forbidden")
+        immediate(ProtocolResponse::error(403, "Forbidden"))
     } else if let Some(path) = request_path(uri, local) {
         if method == "OPTIONS" {
             let mut result = ProtocolResponse::metadata("text/plain", 0);
             result.status = 204;
             result.length = None;
             result.accept_ranges = false;
-            result
+            immediate(result)
         } else {
             resource(content, local, path, head, range)
         }
     } else {
-        ProtocolResponse::error(403, "Forbidden")
+        immediate(ProtocolResponse::error(403, "Forbidden"))
     };
     if !content.is_live() {
-        result = ProtocolResponse::error(403, "Forbidden");
+        result = immediate(ProtocolResponse::error(403, "Forbidden"));
     }
-    result.cors = origin == Some(ENTRY_ORIGIN);
+    result.metadata.cors = origin == Some(ENTRY_ORIGIN);
     if head {
-        result.body.clear();
+        result.body = immediate(ProtocolResponse::metadata("text/plain", 0)).body;
     }
     result
 }
@@ -129,18 +148,24 @@ fn resource(
     path: &str,
     head: bool,
     range: Option<&str>,
-) -> ProtocolResponse {
+) -> PreparedResponse {
+    let immediate = |response| PreparedResponse::bytes(content, response);
     let path = path.trim_start_matches('/');
     if path == super::ENTRY || path.is_empty() {
         if local {
-            return ProtocolResponse::error(404, "Not found");
+            return immediate(ProtocolResponse::error(404, "Not found"));
         }
         let super::Entry::Html(html) = &content.entry;
-        return ProtocolResponse::bytes("text/html; charset=utf-8", html.as_bytes(), head, range);
+        return immediate(ProtocolResponse::bytes(
+            "text/html; charset=utf-8",
+            html.as_bytes(),
+            head,
+            range,
+        ));
     }
     if let Some(name) = path.strip_prefix("__assets__/") {
         if local {
-            return ProtocolResponse::error(404, "Not found");
+            return immediate(ProtocolResponse::error(404, "Not found"));
         }
         if let Some(disk) = &content.disk_assets
             && let Some(relative) = name
@@ -156,47 +181,60 @@ fn resource(
                 range,
             );
         }
-        return content
-            .assets
-            .iter()
-            .find(|(n, _)| *n == name)
-            .map(|(name, bytes)| {
-                ProtocolResponse::bytes(mime_for(Path::new(name)), bytes, head, range)
-            })
-            .unwrap_or_else(|| ProtocolResponse::error(404, "Not found"));
+        return immediate(
+            content
+                .assets
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(name, bytes)| {
+                    ProtocolResponse::bytes(mime_for(Path::new(name)), bytes, head, range)
+                })
+                .unwrap_or_else(|| ProtocolResponse::error(404, "Not found")),
+        );
     }
     if content.root.is_none()
         && let Some(source) = &content.source
     {
         let Some(relative) = relative_path(path) else {
-            return ProtocolResponse::error(404, "Not found");
+            return immediate(ProtocolResponse::error(404, "Not found"));
         };
         let mime = source
             .mime(&relative)
             .unwrap_or_else(|| mime_for(&relative));
         match source.open(&relative) {
             Ok(Some(stream)) => {
-                return super::stream::response(content, stream, mime, head, range);
+                return super::stream::response(
+                    content,
+                    stream,
+                    mime,
+                    head,
+                    range,
+                    content.max_bytes,
+                );
             }
-            Err(error) => return super::stream::error(error),
+            Err(error) => return immediate(super::stream::error(error)),
             Ok(None) => {}
         }
         if head {
             // A provider must explicitly support metadata. Never disguise a
             // complete body fetch as a metadata-only HEAD.
-            return source
-                .0
-                .size(&relative)
-                .map(|size| ProtocolResponse::metadata(mime, size))
-                .unwrap_or_else(|| ProtocolResponse::error(501, "Provider metadata unavailable"));
+            return immediate(
+                source
+                    .0
+                    .size(&relative)
+                    .map(|size| ProtocolResponse::metadata(mime, size))
+                    .unwrap_or_else(|| {
+                        ProtocolResponse::error(501, "Provider metadata unavailable")
+                    }),
+            );
         }
-        return match source.read(&relative) {
+        return immediate(match source.read(&relative) {
             Some(bytes) if bytes.len() as u64 <= content.max_bytes => {
                 ProtocolResponse::bytes(mime, &bytes, false, range)
             }
             Some(_) => ProtocolResponse::error(413, "Resource exceeds its preview budget"),
             None => ProtocolResponse::error(404, "Not found"),
-        };
+        });
     }
     file(
         content,
@@ -215,47 +253,24 @@ fn file(
     max: u64,
     head: bool,
     range: Option<&str>,
-) -> ProtocolResponse {
+) -> PreparedResponse {
     let Some(opened) = root.and_then(|r| r.file(&relative_path(path)?).ok()) else {
-        return ProtocolResponse::error(404, "Not found");
+        return PreparedResponse::bytes(content, ProtocolResponse::error(404, "Not found"));
     };
+    let mime = mime_for(&opened.relative);
     let size = opened.size;
-    let mut result = ProtocolResponse::metadata(mime_for(&opened.relative), size);
-    if head {
-        return result;
-    }
-    let bytes = match ByteRange::parse(range, size) {
-        ByteRange::Whole => opened.read_bounded(max),
-        ByteRange::Unsatisfiable => {
-            result.unsatisfiable(size);
-            return result;
-        }
-        ByteRange::Part { start, end } => {
-            result.partial(start, end, size);
-            let length = end - start + 1;
-            if length > max {
-                return ProtocolResponse::error(413, "Resource exceeds its preview budget");
-            }
-            opened
-                .stream(start, length, content.live.clone())
-                .and_then(|mut stream| {
-                    let mut bytes = Vec::new();
-                    stream.read_to_end(&mut bytes)?;
-                    if bytes.len() as u64 != length {
-                        return Err(std::io::Error::other("Resource changed while reading"));
-                    }
-                    Ok(bytes)
-                })
-        }
-    };
-    match bytes {
-        Ok(bytes) => {
-            result.body = bytes;
-            result
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::FileTooLarge => {
-            ProtocolResponse::error(413, "Resource exceeds its preview budget")
-        }
-        Err(_) => ProtocolResponse::error(404, "Not found"),
+    match opened.reader() {
+        Ok(reader) => super::stream::response(
+            content,
+            ResourceStream {
+                length: size,
+                reader: Box::new(reader),
+            },
+            mime,
+            head,
+            range,
+            max,
+        ),
+        Err(error) => PreparedResponse::bytes(content, super::stream::error(error)),
     }
 }

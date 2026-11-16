@@ -1,15 +1,20 @@
 //! Native web content hosts (`wry` child WebViews) for viewers; the
 //! protocol, path policy and MIME table live in `platform::webview`.
 #![cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
+#[cfg(target_os = "windows")]
+use crate::platform::webview::LOCAL_SCHEME;
 use crate::platform::webview::{
-    Content, ENTRY_ORIGIN, LOCAL_SCHEME, PreparedContent, ProtocolResponse, SCHEME, entry_url,
-    respond_request,
+    Content, ENTRY_ORIGIN, PreparedContent, PreparedResponse, ProtocolResponse, SCHEME, entry_url,
+    prepare_request,
 };
 use std::{
     borrow::Cow,
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
 };
+#[cfg(target_os = "macos")]
+#[path = "web_host/macos.rs"]
+mod macos;
 #[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
 #[path = "web_host/protocol_tests.rs"]
 mod protocol_tests;
@@ -24,6 +29,8 @@ struct Cut {
 /// Shared visibility state of one host (main thread only).
 struct HostState {
     resources: PreparedContent,
+    #[cfg(target_os = "macos")]
+    protocol: macos::Owner,
     window: u64,
     painted: Cell<bool>,
     #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -167,6 +174,8 @@ impl Drop for HostState {
     fn drop(&mut self) {
         self.resources.revoke();
         #[cfg(target_os = "macos")]
+        self.protocol.retire();
+        #[cfg(target_os = "macos")]
         if let Some(clip) = self.clip.borrow_mut().take() {
             // SAFETY: a live NSView on the main thread.
             unsafe {
@@ -242,6 +251,7 @@ impl WebHost {
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub fn new(window: &gpui::Window, content: Content, dark: bool) -> Result<Self, String> {
         let served = content.clone().prepare();
+        #[cfg(target_os = "windows")]
         let local = served.clone();
         let resources = served.clone();
         #[cfg(target_os = "macos")]
@@ -264,26 +274,39 @@ impl WebHost {
             };
             builder = builder.with_background_color(background);
         }
+        #[cfg(target_os = "macos")]
+        let (configuration, protocol) = macos::configuration(served)?;
+        #[cfg(target_os = "macos")]
+        {
+            use wry::WebViewBuilderExtMacos;
+            builder = builder.with_webview_configuration(configuration);
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // WebView2's Wry adapter still requires a complete response.
+            builder = builder
+                .with_asynchronous_custom_protocol(SCHEME.into(), move |_, request, responder| {
+                    let served = served.clone();
+                    std::thread::spawn(move || {
+                        responder.respond(protocol_response(&served, false, &request))
+                    });
+                })
+                .with_asynchronous_custom_protocol(
+                    LOCAL_SCHEME.into(),
+                    move |_, request, responder| {
+                        let served = local.clone();
+                        std::thread::spawn(move || {
+                            responder.respond(protocol_response(&served, true, &request))
+                        });
+                    },
+                );
+        }
         let view = builder
             .with_url(entry_url())
             .with_incognito(true)
             .with_devtools(false)
             .with_clipboard(true)
             .with_visible(false)
-            // Resources are read off the main thread: a folder read or a
-            // Cloud provider request never stalls drawing.
-            .with_asynchronous_custom_protocol(SCHEME.into(), move |_, request, responder| {
-                let served = served.clone();
-                std::thread::spawn(move || {
-                    responder.respond(protocol_response(&served, false, &request));
-                });
-            })
-            .with_asynchronous_custom_protocol(LOCAL_SCHEME.into(), move |_, request, responder| {
-                let served = local.clone();
-                std::thread::spawn(move || {
-                    responder.respond(protocol_response(&served, true, &request));
-                });
-            })
             // OS file drags over web content never load the file into the
             // page (`acquireNativeSurfaceOcclusionLease` keeps them for the
             // pane in the product): the view takes no drags (below), and
@@ -348,6 +371,8 @@ impl WebHost {
         }
         let state = Rc::new(HostState {
             resources,
+            #[cfg(target_os = "macos")]
+            protocol,
             window: window_key(window),
             painted: Cell::new(false),
             view,
@@ -672,11 +697,24 @@ fn reconcile(key: u64) {
 }
 
 /// Shared by the two Wry handlers, so method/origin/range checks cannot drift.
+#[cfg(any(target_os = "windows", test))]
 fn protocol_response(
     content: &PreparedContent,
     local: bool,
     request: &wry::http::Request<Vec<u8>>,
 ) -> wry::http::Response<Cow<'static, [u8]>> {
+    let mut reply = prepare_protocol_response(content, local, request).collect();
+    if request.method() == "HEAD" {
+        reply.body.clear();
+    }
+    response(reply, content.policy)
+}
+
+fn prepare_protocol_response(
+    content: &PreparedContent,
+    local: bool,
+    request: &wry::http::Request<Vec<u8>>,
+) -> PreparedResponse {
     let header = |name| {
         let mut values = request.headers().get_all(name).iter();
         let first = values.next()?;
@@ -686,15 +724,14 @@ fn protocol_response(
             first.to_str().unwrap_or("\0")
         })
     };
-    let reply = respond_request(
+    prepare_request(
         content,
         local,
         request.method().as_str(),
         &request.uri().to_string(),
         header("origin"),
         header("range"),
-    );
-    response(reply, content.policy)
+    )
 }
 
 fn response(
@@ -886,6 +923,12 @@ pub fn snapshots(window: &gpui::Window) -> Vec<Snapshot> {
             }
         })
         .collect()
+}
+
+/// Runs the isolated native WebKit acceptance executable.
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub fn run_stream_probe() {
+    macos::run_probe();
 }
 
 #[cfg(test)]

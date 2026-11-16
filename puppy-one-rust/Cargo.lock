@@ -1818,6 +1818,7 @@ checksum = "1e0e367e4e7da84520dedcac1901e4da967309406d1e51017ae1abfb97adbd38"
 dependencies = [
  "bitflags 2.13.2",
  "block2 0.6.2",
+ "libc",
  "objc2 0.6.4",
 ]
 
@@ -6711,6 +6712,7 @@ dependencies = [
  "base64",
  "blake3",
  "block2 0.6.2",
+ "dispatch2",
  "gpui-base",
  "gpui-component",
  "gpui-kit",
@@ -6719,6 +6721,8 @@ dependencies = [
  "icu_normalizer",
  "image",
  "objc2 0.6.4",
+ "objc2-foundation 0.3.2",
+ "objc2-web-kit",
  "po-contracts",
  "po-platform",
  "po-ui",

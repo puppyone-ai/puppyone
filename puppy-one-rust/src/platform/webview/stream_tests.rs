@@ -246,3 +246,132 @@ fn cumulative_projection_budgets_charge_actual_range_bytes_and_refuse_new_refere
     assert_eq!(count.bytes, 5);
     assert_eq!(count.drops, count.opens);
 }
+
+#[test]
+fn prepared_responses_deliver_the_first_chunk_without_consuming_the_remaining_gigabytes() {
+    for (range, start, status) in [(None, 0_u64, 200), (Some("bytes=123-"), 123_u64, 206)] {
+        let source = Arc::new(Provider::new(2 * 1024 * 1024 * 1024));
+        let content = content(source.clone(), source.length);
+        let mut response =
+            prepare_request(&content, true, "GET", &local_url_for("movie"), None, range);
+        assert_eq!(response.metadata.status, status);
+        assert_eq!(response.metadata.length, Some(source.length - start));
+        if range.is_some() {
+            assert_eq!(
+                response.metadata.content_range.as_deref(),
+                Some("bytes 123-2147483647/2147483648")
+            );
+        }
+        assert!(response.metadata.body.is_empty());
+        assert_eq!(source.counts.lock().unwrap().reads, 0);
+        let mut buffer = vec![0; CHUNK_BYTES * 2];
+        assert_eq!(response.body.read(&mut buffer).unwrap(), CHUNK_BYTES);
+        assert_eq!(buffer[0], (start % 251) as u8);
+        assert_eq!(
+            buffer[CHUNK_BYTES - 1],
+            ((start + CHUNK_BYTES as u64 - 1) % 251) as u8
+        );
+        assert_eq!(source.counts.lock().unwrap().bytes, CHUNK_BYTES);
+        drop(response);
+        let count = source.counts.lock().unwrap();
+        assert_eq!((count.reads, count.drops), (1, 1));
+    }
+}
+
+#[test]
+fn prepared_ranges_are_exact_and_released_even_when_the_transport_never_reads_them() {
+    let source = Arc::new(Provider::new(100));
+    let content = content(source.clone(), 100);
+    let mut response = prepare_request(
+        &content,
+        true,
+        "GET",
+        &local_url_for("movie"),
+        Some(ENTRY_ORIGIN),
+        Some("bytes=10-14"),
+    );
+    assert_eq!(response.metadata.status, 206);
+    assert_eq!(
+        response.metadata.content_range.as_deref(),
+        Some("bytes 10-14/100")
+    );
+    assert!(response.metadata.cors);
+    let mut buffer = [0; 3];
+    assert_eq!(response.body.read(&mut buffer).unwrap(), 3);
+    assert_eq!(buffer, [10, 11, 12]);
+    assert_eq!(response.body.read(&mut buffer).unwrap(), 2);
+    assert_eq!(&buffer[..2], [13, 14]);
+    assert_eq!(response.body.read(&mut buffer).unwrap(), 0);
+    assert_eq!(source.counts.lock().unwrap().drops, 1);
+    let unread = prepare_request(&content, true, "GET", &local_url_for("movie"), None, None);
+    drop(unread);
+    let count = source.counts.lock().unwrap();
+    assert_eq!((count.reads, count.bytes, count.drops), (2, 5, 2));
+}
+
+#[test]
+fn streamed_body_revocation_and_short_reads_are_terminal_and_erase_unpublished_data() {
+    for during in [false, true] {
+        let mut provider = Provider::new(100);
+        provider.revoke_during_read = during;
+        let source = Arc::new(provider);
+        let content = content(source.clone(), 100);
+        let mut response =
+            prepare_request(&content, true, "GET", &local_url_for("movie"), None, None);
+        if !during {
+            content.revoke();
+        }
+        let mut buffer = [255; 8];
+        assert_eq!(
+            response.body.read(&mut buffer).unwrap_err().kind(),
+            io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(buffer, [0; 8]);
+        assert_eq!(source.counts.lock().unwrap().drops, 1);
+        assert_eq!(source.counts.lock().unwrap().reads, usize::from(during));
+    }
+    let mut provider = Provider::new(8);
+    provider.physical = 3;
+    let source = Arc::new(provider);
+    let content = content(source.clone(), 8);
+    let mut response = prepare_request(&content, true, "GET", &local_url_for("movie"), None, None);
+    let mut buffer = [255; 8];
+    assert_eq!(response.body.read(&mut buffer).unwrap(), 3);
+    assert_eq!(
+        response.body.read(&mut buffer).unwrap_err().kind(),
+        io::ErrorKind::UnexpectedEof
+    );
+    assert_eq!(buffer, [0; 8]);
+    assert_eq!(
+        response.body.read(&mut buffer).unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(source.counts.lock().unwrap().drops, 1);
+}
+
+#[test]
+fn streamed_local_files_keep_opened_authority_but_fail_if_the_admitted_contents_change() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("video.mp4");
+    std::fs::write(&path, b"abcdefgh").unwrap();
+    let mut config = content(Arc::new(Provider::new(0)), 8).content;
+    config.source = None;
+    config.root = Some(root.path().to_path_buf());
+    let content = config.prepare();
+    let mut response = prepare_request(
+        &content,
+        true,
+        "GET",
+        &local_url_for("video.mp4"),
+        None,
+        None,
+    );
+    std::fs::rename(&path, root.path().join("original")).unwrap();
+    std::fs::write(&path, b"replaced").unwrap();
+    let mut buffer = [0; 3];
+    assert_eq!(response.body.read(&mut buffer).unwrap(), 3);
+    assert_eq!(&buffer, b"abc");
+    std::fs::write(root.path().join("original"), b"short").unwrap();
+    assert!(response.body.read(&mut buffer).is_err());
+    assert_eq!(buffer, [0; 3]);
+}

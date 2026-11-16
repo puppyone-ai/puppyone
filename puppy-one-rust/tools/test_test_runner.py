@@ -85,3 +85,41 @@ class ApplicationDataIsolation(unittest.TestCase):
             with isolated_test_environment({'PUPPYONE_RUST_DATA_DIR': profile}) as env:
                 self.assertEqual(env['PUPPYONE_RUST_DATA_DIR'], profile)
             self.assertTrue(Path(profile).is_dir())
+
+class NativeFixtureEvidence(unittest.TestCase):
+    def test_feature_gated_integration_tests_record_their_real_support_binary(self):
+        import hashlib
+        import json
+        from test_runner import run_gate
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            harness, probe = root / 'integration', root / 'native-probe'
+            harness.write_bytes(b'libtest fixture')
+            probe.write_bytes(b'native executable fixture')
+            artifacts = '\n'.join(json.dumps({
+                'reason': 'compiler-artifact', 'profile': {'test': is_test},
+                'target': {'name': name}, 'executable': str(path),
+            }) for name, path, is_test in [
+                ('native_integration', harness, True), ('native-probe', probe, False),
+            ])
+            calls = []
+            def execute_fixture(command, **kwargs):
+                calls.append(command)
+                if '--no-run' in command:
+                    self.assertEqual(command[-2:], ['--features', 'dev-capture'])
+                    return 0, artifacts
+                if '--list' in command:
+                    self.assertEqual(command[0], str(harness))
+                    return 0, 'real_native: test\n'
+                self.assertEqual(command[0], str(harness))
+                self.assertIn('--include-ignored', command)
+                return 0, 'test real_native ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored;'
+            with patch('test_runner.ROOT', root), patch('test_runner.source_hashes', return_value={'fixture': 'identity'}), patch('test_runner.execute', side_effect=execute_fixture):
+                receipt = run_gate('native', [{
+                    'package': 'po-editor', 'target': 'native_integration',
+                    'features': ['dev-capture'], 'test': 'real_native',
+                }])
+            self.assertTrue(receipt['passed'])
+            self.assertEqual(receipt['features'], ['dev-capture'])
+            self.assertEqual(receipt['supportBinaryHashes'], {'native-probe': hashlib.sha256(probe.read_bytes()).hexdigest()})
+            self.assertEqual(len(calls), 3)

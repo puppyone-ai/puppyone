@@ -26,65 +26,136 @@ pub(super) fn error(error: io::Error) -> ProtocolResponse {
     }
 }
 
+/// A prepared response owns its admitted reader but does not read any body
+/// bytes until the transport asks. Metadata is separate from the body so a
+/// native transport never needs to collect a whole selected range.
+pub struct PreparedResponse {
+    pub metadata: ProtocolResponse,
+    pub body: ResponseBody,
+}
+impl PreparedResponse {
+    pub(super) fn bytes(content: &PreparedContent, mut metadata: ProtocolResponse) -> Self {
+        let bytes = std::mem::take(&mut metadata.body);
+        let length = bytes.len() as u64;
+        Self::reader(content, metadata, Box::new(io::Cursor::new(bytes)), length)
+    }
+    fn reader(
+        content: &PreparedContent,
+        metadata: ProtocolResponse,
+        reader: Box<dyn Read + Send>,
+        length: u64,
+    ) -> Self {
+        Self {
+            metadata,
+            body: ResponseBody {
+                content: content.clone(),
+                reader: Some(reader),
+                remaining: length,
+            },
+        }
+    }
+    /// Compatibility for transports that only accept a complete body. Native
+    /// streaming adapters consume `body` directly instead.
+    pub fn collect(mut self) -> ProtocolResponse {
+        let mut bytes = Vec::new();
+        let mut buffer = [0; CHUNK_BYTES];
+        loop {
+            match self.body.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(n) => bytes.extend_from_slice(&buffer[..n]),
+                Err(reason) => {
+                    let mut response = error(reason);
+                    response.cors = self.metadata.cors;
+                    return response;
+                }
+            }
+        }
+        self.metadata.body = bytes;
+        self.metadata
+    }
+}
+pub const CHUNK_BYTES: usize = 64 * 1024;
+
+/// The fixed admitted extent and owner authority are checked around every
+/// read. An error is terminal, clears the caller's buffer and closes the
+/// reader; even a misbehaving provider cannot leak a revoked chunk.
+pub struct ResponseBody {
+    content: PreparedContent,
+    reader: Option<Box<dyn Read + Send>>,
+    remaining: u64,
+}
+impl Read for ResponseBody {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        let result = (|| {
+            if !self.content.is_live() {
+                return Err(io::ErrorKind::PermissionDenied.into());
+            }
+            if self.remaining == 0 || buffer.is_empty() {
+                return Ok(0);
+            }
+            let wanted = self.remaining.min(buffer.len().min(CHUNK_BYTES) as u64) as usize;
+            let reader = self.reader.as_mut().ok_or(io::ErrorKind::BrokenPipe)?;
+            let n = reader.read(&mut buffer[..wanted])?;
+            if !self.content.is_live() {
+                return Err(io::ErrorKind::PermissionDenied.into());
+            }
+            if n > wanted {
+                return Err(io::Error::other("Provider exceeded the requested range"));
+            }
+            if n == 0 {
+                return Err(io::ErrorKind::UnexpectedEof.into());
+            }
+            self.remaining -= n as u64;
+            Ok(n)
+        })();
+        if result.is_err() {
+            buffer.fill(0);
+            self.reader.take();
+        } else if self.remaining == 0 {
+            self.reader.take();
+        }
+        result
+    }
+}
+
 pub(super) fn response(
     content: &PreparedContent,
     mut stream: ResourceStream,
     mime: &'static str,
     head: bool,
     range: Option<&str>,
-) -> ProtocolResponse {
+    max: u64,
+) -> PreparedResponse {
     let size = stream.length;
-    let mut response = ProtocolResponse::metadata(mime, size);
+    let mut metadata = ProtocolResponse::metadata(mime, size);
     if head {
-        return response;
+        return PreparedResponse::bytes(content, metadata);
     }
     let (start, length) = match ByteRange::parse(range, size) {
         ByteRange::Whole => (0, size),
         ByteRange::Part { start, end } => {
-            response.partial(start, end, size);
+            metadata.partial(start, end, size);
             (start, end - start + 1)
         }
         ByteRange::Unsatisfiable => {
-            response.unsatisfiable(size);
-            return response;
+            metadata.unsatisfiable(size);
+            return PreparedResponse::bytes(content, metadata);
         }
     };
-    if length > content.max_bytes {
-        return error(io::ErrorKind::FileTooLarge.into());
+    if length > max {
+        return PreparedResponse::bytes(content, error(io::ErrorKind::FileTooLarge.into()));
     }
-    let bytes = (|| -> io::Result<Vec<u8>> {
-        if stream.reader.seek(SeekFrom::Start(start))? != start {
-            return Err(io::Error::other(
+    match stream.reader.seek(SeekFrom::Start(start)) {
+        Ok(actual) if actual == start => {
+            PreparedResponse::reader(content, metadata, stream.reader, length)
+        }
+        Ok(_) => PreparedResponse::bytes(
+            content,
+            error(io::Error::other(
                 "Provider did not seek to the selected range",
-            ));
-        }
-        let mut bytes = Vec::new();
-        let mut buffer = [0; 64 * 1024];
-        while bytes.len() as u64 != length {
-            if !content.is_live() {
-                return Err(io::ErrorKind::PermissionDenied.into());
-            }
-            let wanted = (length - bytes.len() as u64).min(buffer.len() as u64) as usize;
-            let n = stream.reader.read(&mut buffer[..wanted])?;
-            if n > wanted {
-                return Err(io::Error::other("Provider exceeded the requested range"));
-            }
-            if !content.is_live() {
-                return Err(io::ErrorKind::PermissionDenied.into());
-            }
-            if n == 0 {
-                return Err(io::ErrorKind::UnexpectedEof.into());
-            }
-            bytes.extend_from_slice(&buffer[..n]);
-        }
-        Ok(bytes)
-    })();
-    match bytes {
-        Ok(bytes) => {
-            response.body = bytes;
-            response
-        }
-        Err(reason) => error(reason),
+            )),
+        ),
+        Err(reason) => PreparedResponse::bytes(content, error(reason)),
     }
 }
 

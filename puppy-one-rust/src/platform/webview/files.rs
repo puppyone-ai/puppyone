@@ -1,15 +1,14 @@
 //! Read authority is a retained directory handle, never a canonical path that
 //! can be replaced before a later ambient open.
 use cap_std::fs::{Dir, OpenOptions};
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     ffi::OsString,
     fs::File,
     io::{self, Read, Seek, SeekFrom},
     path::{Component, Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::Arc,
 };
 use unicode_normalization::UnicodeNormalization;
 
@@ -132,9 +131,17 @@ fn display_key(value: &str) -> String {
 }
 
 impl OpenedFile {
+    pub fn reader(self) -> io::Result<SnapshotReader> {
+        let before = self.file.metadata()?;
+        Ok(SnapshotReader {
+            file: self.file,
+            before,
+        })
+    }
     /// Own the admitted descriptor, seek once and cap each subsequent read at
     /// the admitted end. Appends cannot extend this stream. Dropping it closes
     /// the file; revocation prevents subsequent chunks from being delivered.
+    #[cfg(test)]
     pub fn stream(
         mut self,
         start: u64,
@@ -151,6 +158,7 @@ impl OpenedFile {
         })
     }
 
+    #[cfg(test)]
     pub fn read_bounded(self, max: u64) -> io::Result<Vec<u8>> {
         if self.size > max {
             return Err(io::Error::new(
@@ -179,10 +187,12 @@ impl OpenedFile {
     }
 }
 
+#[cfg(test)]
 pub(super) struct FileStream {
     reader: io::Take<File>,
     live: Arc<AtomicBool>,
 }
+#[cfg(test)]
 impl Read for FileStream {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
         if !self.live.load(Ordering::Acquire) {
@@ -193,5 +203,37 @@ impl Read for FileStream {
             return Err(refused());
         }
         Ok(read)
+    }
+}
+
+/// The descriptor remains authoritative across path replacement. In-place
+/// truncation or writes invalidate it rather than silently completing a body
+/// whose Content-Length or bytes no longer match the admitted file.
+pub(super) struct SnapshotReader {
+    file: File,
+    before: std::fs::Metadata,
+}
+impl SnapshotReader {
+    fn validate(&self) -> io::Result<()> {
+        let now = self.file.metadata()?;
+        if now.len() != self.before.len() || now.modified().ok() != self.before.modified().ok() {
+            Err(io::Error::other("Resource changed while reading"))
+        } else {
+            Ok(())
+        }
+    }
+}
+impl Read for SnapshotReader {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        self.validate()?;
+        let n = self.file.read(buffer)?;
+        self.validate()?;
+        Ok(n)
+    }
+}
+impl Seek for SnapshotReader {
+    fn seek(&mut self, seek: SeekFrom) -> io::Result<u64> {
+        self.validate()?;
+        self.file.seek(seek)
     }
 }

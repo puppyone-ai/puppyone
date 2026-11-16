@@ -21,8 +21,8 @@ mod request;
 mod stream;
 #[cfg(test)]
 mod stream_tests;
-pub use request::{ENTRY_ORIGIN, ProtocolResponse, respond_request};
-pub use stream::{ReadSeek, ResourceStream};
+pub use request::{ENTRY_ORIGIN, ProtocolResponse, prepare_request, respond_request};
+pub use stream::{CHUNK_BYTES, PreparedResponse, ReadSeek, ResourceStream, ResponseBody};
 
 pub const SCHEME: &str = "puppyone-preview";
 /// The product's resource scheme (`puppyone-local:`): the same granted
@@ -209,7 +209,7 @@ impl PreparedContent {
     pub fn revoke(&self) {
         self.live.store(false, std::sync::atomic::Ordering::Release);
     }
-    fn is_live(&self) -> bool {
+    pub fn is_live(&self) -> bool {
         self.live.load(std::sync::atomic::Ordering::Acquire)
             && self.source.as_ref().is_none_or(ResourceSource::is_live)
     }

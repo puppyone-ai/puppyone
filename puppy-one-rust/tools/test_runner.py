@@ -86,16 +86,23 @@ def run_gate(name, required, *, env=None, metadata=None):
     command = [CARGO, 'test', '--locked', '--offline', '--no-run', '--message-format=json']
     for package in packages:
         command += ['-p', package]
+    features = sorted({feature for item in required for feature in item.get('features', [])})
+    if features:
+        command += ['--features', ','.join(features)]
     code, output = execute(command, env=env, timeout=1200)
     (out / 'build.log').write_text(output)
     binaries = {}
+    support_binaries = {}
     if code == 0:
         for line in output.splitlines():
             if not line.startswith('{'):
                 continue
             row = json.loads(line)
-            if row.get('reason') == 'compiler-artifact' and row.get('profile', {}).get('test') and row.get('executable'):
-                binaries[row['target']['name']] = row['executable']
+            if row.get('reason') == 'compiler-artifact' and row.get('executable'):
+                if row.get('profile', {}).get('test'):
+                    binaries[row['target']['name']] = row['executable']
+                else:
+                    support_binaries[row['target']['name']] = row['executable']
     listings = {}
     binary_hashes = {}
     for target, binary in binaries.items():
@@ -128,6 +135,9 @@ def run_gate(name, required, *, env=None, metadata=None):
               'passed': bool(checks) and all(c['passed'] for c in checks) and unchanged,
               'checks': checks, 'sourceHashes': before,
               'binaryHashes': binary_hashes,
+              'supportBinaryHashes': {name: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+                                      for name, path in support_binaries.items()},
+              'features': features,
               'sourceUnchangedDuringVerification': unchanged,
               'testDataIsolation': 'temporary-per-test-unless-explicit', **(metadata or {})}
     receipt.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
