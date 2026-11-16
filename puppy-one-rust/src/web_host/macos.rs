@@ -45,7 +45,11 @@ struct State {
     id: u64,
     content: PreparedContent,
     tasks: RefCell<HashMap<usize, Task>>,
+    #[cfg(feature = "dev-capture")]
+    request_observer: RefCell<Option<RequestObserver>>,
 }
+#[cfg(feature = "dev-capture")]
+type RequestObserver = Rc<dyn Fn(&str)>;
 impl Drop for State {
     fn drop(&mut self) {
         self.tasks.get_mut().clear();
@@ -56,6 +60,10 @@ impl Drop for State {
 /// host invalidates its workers before destroying the native WebView.
 pub(super) struct Owner(Rc<State>);
 impl Owner {
+    #[cfg(feature = "dev-capture")]
+    fn observe_requests(&self, observer: RequestObserver) {
+        *self.0.request_observer.borrow_mut() = Some(observer);
+    }
     pub fn retire(&self) {
         self.0.content.revoke();
         self.0.tasks.borrow_mut().clear();
@@ -120,6 +128,8 @@ pub(super) fn configuration(
         id: NEXT.fetch_add(1, Ordering::Relaxed),
         content,
         tasks: RefCell::default(),
+        #[cfg(feature = "dev-capture")]
+        request_observer: RefCell::default(),
     });
     OWNERS.with(|owners| owners.borrow_mut().insert(state.id, Rc::downgrade(&state)));
     // SAFETY: a fresh configuration is created on the main thread.
@@ -157,6 +167,10 @@ impl State {
             fail(object);
             return;
         };
+        #[cfg(feature = "dev-capture")]
+        if let Some(observer) = self.request_observer.borrow().as_ref() {
+            observer(&url.to_string());
+        }
         let method = request
             .HTTPMethod()
             .map(|m| m.to_string())
@@ -342,4 +356,12 @@ mod probe;
 #[cfg(feature = "dev-capture")]
 pub(super) fn run_probe() {
     probe::run();
+}
+
+#[cfg(feature = "dev-capture")]
+#[path = "macos_whiteboard_probe.rs"]
+mod whiteboard_probe;
+#[cfg(feature = "dev-capture")]
+pub(super) fn run_whiteboard_probe(root: &std::path::Path) {
+    whiteboard_probe::run(root);
 }

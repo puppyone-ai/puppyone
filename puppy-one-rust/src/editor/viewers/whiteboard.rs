@@ -215,6 +215,22 @@ impl WhiteboardView {
             cx.notify();
             return;
         };
+        let (tx, rx) = async_channel::unbounded::<String>();
+        let content = self.content(pack, Ipc(tx));
+        self.ready = false;
+        self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
+        self._inbox = Some(cx.spawn(async move |this, cx| {
+            while let Ok(body) = rx.recv().await {
+                let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
+                    continue;
+                };
+                let _ = this.update(cx, |view, cx| view.receive(message, cx));
+            }
+        }));
+        cx.notify();
+    }
+
+    fn content(&self, pack: ExcalidrawPack, ipc: Ipc) -> Content {
         let boot = serde_json::json!({
             "text": self.text,
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -227,8 +243,7 @@ impl WhiteboardView {
             "messages": crate::localization::messages(&["editor.whiteboard.", "common.", "shared-ui.", "editor.html."]),
             "assets": self.assets.is_some(),
         });
-        let (tx, rx) = async_channel::unbounded::<String>();
-        let content = Content {
+        Content {
             root: None,
             source: self
                 .assets
@@ -237,7 +252,7 @@ impl WhiteboardView {
             entry: Entry::Html(page(&boot, self.dark)),
             max_bytes: EMBED_MAX_BYTES,
             assets: Vec::new(),
-            ipc: Some(Ipc(tx)),
+            ipc: Some(ipc),
             policy: None,
             frames: None,
             disk_assets: Some(DiskAssets {
@@ -249,18 +264,7 @@ impl WhiteboardView {
                 ],
             }),
             locked: false,
-        };
-        self.ready = false;
-        self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
-        self._inbox = Some(cx.spawn(async move |this, cx| {
-            while let Ok(body) = rx.recv().await {
-                let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
-                    continue;
-                };
-                let _ = this.update(cx, |view, cx| view.receive(message, cx));
-            }
-        }));
-        cx.notify();
+        }
     }
 
     fn start_load(
@@ -460,6 +464,12 @@ fn theme_css(dark: bool) -> String {
         .collect();
     let scheme = if dark { "dark" } else { "light" };
     format!(":root:root:root{{{tokens}color-scheme:{scheme}}}")
+}
+
+/// The native acceptance process uses the same boot document and assets as the viewer.
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub(crate) fn probe_content(pack: ExcalidrawPack, text: String, ipc: Ipc) -> Content {
+    WhiteboardView::new("board.excalidraw".into(), None, text, false).content(pack, ipc)
 }
 
 fn page(boot: &serde_json::Value, dark: bool) -> String {

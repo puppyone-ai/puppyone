@@ -12980,6 +12980,28 @@
           "test": "editor::viewers::whiteboard::tests::the_installed_sdk_has_every_host_patch_and_executes_resize_callbacks"
         }
       ]
+    },
+    {
+      "id": "native-whiteboard-webkit-runtime",
+      "acceptance": "Real installed production SDK in the production macOS Wry host and IPC channel: opening preserves original bytes; AppKit pointer events create a rectangle with product defaults; read-only prevents changes; external replacement clears prior scene/history; native theme and resize commands preserve source; undo/redo work after theme changes; 560px stays desktop and 440px switches mobile; invalid source remains unwritten; a requested SDK font loads through the installed local asset protocol. Isolated ephemeral store and temporary pack directory. Native input driver supplies pressedMouseButtons as WebKit automation does. This is partial coverage of the TS smoke: full app persistence, Chinese IME, menu geometry/portals, embedding, watchers and file-tab transitions remain unqualified.",
+      "environment": "macOS WebKit; pinned Viewer Pack built by tools/verify-viewer-pack.py; dev-capture isolated process with offscreen AppKit window",
+      "typescript": [
+        {
+          "path": "tests/e2e/editor/formats/excalidraw/editor-whiteboard.smoke.mjs",
+          "sha256": "c0eb261291c2bd944c2e993fe439e837e2ecf6e3e2def7508460c95ac98775f9"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "target": "webview_whiteboard_native",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "real_webkit_whiteboard_draws_and_preserves_document_boundaries",
+          "timeout": 120
+        }
+      ]
     }
   ],
   "openAcceptance": [

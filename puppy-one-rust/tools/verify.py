@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproducible GPUI migration checks (no windows are opened)."""
+"""Reproducible migration checks, including isolated offscreen native fixtures."""
 import argparse
 from datetime import datetime
 import hashlib

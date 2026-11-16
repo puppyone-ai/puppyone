@@ -204,19 +204,19 @@ impl Fixture {
         assert_eq!(count.drops, 0);
     }
 }
-fn tick() {
+pub(super) fn tick() {
     autoreleasepool(|_| {
         NSRunLoop::currentRunLoop().runUntilDate(&NSDate::dateWithTimeIntervalSinceNow(0.005))
     });
 }
-fn wait(label: &str, mut condition: impl FnMut() -> bool) {
+pub(super) fn wait(label: &str, mut condition: impl FnMut() -> bool) {
     let until = Instant::now() + Duration::from_secs(15);
     while !condition() {
         assert!(Instant::now() < until, "native probe timed out: {label}");
         tick();
     }
 }
-fn eval(view: &WKWebView, script: &str) -> String {
+pub(super) fn eval(view: &WKWebView, script: &str) -> String {
     let result = Rc::new(RefCell::new(None));
     let complete = result.clone();
     let callback = block2::RcBlock::new(move |value: *mut AnyObject, error: *mut NSError| {

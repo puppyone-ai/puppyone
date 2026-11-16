@@ -359,6 +359,15 @@ impl WebHost {
     /// Creates the WebView hidden; it shows once its element paints.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub fn new(window: &gpui::Window, content: Content, dark: bool) -> Result<Self, String> {
+        Self::new_child(window, window_key(window), content, dark)
+    }
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    fn new_child(
+        window: &impl wry::raw_window_handle::HasWindowHandle,
+        window_id: u64,
+        content: Content,
+        dark: bool,
+    ) -> Result<Self, String> {
         let served = content.clone().prepare();
         #[cfg(target_os = "windows")]
         let local = served.clone();
@@ -482,7 +491,7 @@ impl WebHost {
             resources,
             #[cfg(target_os = "macos")]
             protocol,
-            window: window_key(window),
+            window: window_id,
             painted: Cell::new(false),
             view,
             visible: Cell::new(false),
@@ -1042,6 +1051,12 @@ pub fn snapshots(window: &gpui::Window) -> Vec<Snapshot> {
 #[cfg(all(target_os = "macos", feature = "dev-capture"))]
 pub fn run_stream_probe() {
     macos::run_probe();
+}
+
+/// Runs the installed whiteboard in the production native host and IPC channel.
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub fn run_whiteboard_probe(root: &std::path::Path) {
+    macos::run_whiteboard_probe(root);
 }
 
 #[cfg(test)]

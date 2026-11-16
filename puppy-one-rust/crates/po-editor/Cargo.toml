@@ -69,3 +69,10 @@ path = "bin/webview-stream-probe.rs"
 required-features = ["dev-capture"]
 test = false
 bench = false
+
+[[bin]]
+name = "webview-whiteboard-probe"
+path = "bin/webview-whiteboard-probe.rs"
+required-features = ["dev-capture"]
+test = false
+bench = false

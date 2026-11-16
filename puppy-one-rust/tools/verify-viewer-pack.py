@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build the pinned pack without changing source receipts, then require real installation."""
+"""Require pinned pack installation and, on macOS, its real WebKit runtime."""
 import hashlib
 import json
 from pathlib import Path
+import platform
 import subprocess
 import sys
 from source_identity import source_hashes
@@ -23,12 +24,23 @@ def main():
         raise RuntimeError('Pack packaging changed verified source files')
     spec = json.loads((ROOT / 'assets/web/excalidraw-fonts.json').read_text())
     archive = ROOT / f'artifacts/viewer-packs/puppyone.excalidraw-{spec["version"]}.tar.gz'
-    report = run_gate('viewer-pack-verification', [{
+    required = [{
         'package': 'po-platform',
         'test': 'platform::viewer_packs::tests::the_actual_pinned_pack_installs_all_sdk_fonts_without_network_fallback',
-    }], metadata={'archiveSha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
-                  'fontCount': len(spec['fonts']), 'baseCommit': subprocess.check_output(
-                      ['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()})
+    }]
+    if platform.system() == 'Darwin':
+        required.append({
+            'package': 'po-editor', 'target': 'webview_whiteboard_native',
+            'features': ['dev-capture'], 'timeout': 120,
+            'test': 'real_webkit_whiteboard_draws_and_preserves_document_boundaries',
+        })
+    report = run_gate('viewer-pack-verification', required, metadata={
+        'archiveSha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
+        'nativeWebKitRequired': platform.system() == 'Darwin',
+        'fontCount': len(spec['fonts']),
+        'baseCommit': subprocess.check_output(
+            ['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+    })
     return 0 if report['passed'] else 1
 
 
