@@ -3,7 +3,9 @@
 //! three spaces (the personal one, a team, and an empty one this account
 //! owns), Cloud projects with root files and connected Agents, and Local
 //! Agents to start a project with. `-list` shows the List layout, `-agents`
-//! opens New project's Agents and `-account` the account menu.
+//! opens New project's Agents and `-account` the account menu;
+//! `-computers` turns Computer Mode on with `puppy-issues` one of this
+//! computer's computers, and `-create` opens New project (New computer).
 use crate::app::*;
 
 /// The fixture account's spaces and Cloud projects.
@@ -35,7 +37,7 @@ fn responder() -> crate::cloud::auth::Responder {
 }
 
 impl Shell {
-    pub fn lab_home_projects(&mut self, case: &str, cx: &mut Context<Self>) {
+    pub fn lab_home_projects(&mut self, case: &str, window: &mut Window, cx: &mut Context<Self>) {
         let root = crate::platform::data_dir().join("lab-projects");
         let folders: [(&str, &[&str]); 2] = [
             ("puppy-issues", &["README.md", "roadmap.md", "index.html"]),
@@ -48,6 +50,8 @@ impl Shell {
         for (name, files) in folders {
             let folder = root.join(name);
             let _ = std::fs::create_dir_all(&folder);
+            // Remembered as opened: by its canonical path.
+            let folder = folder.canonicalize().unwrap_or(folder);
             for file in files {
                 let _ = std::fs::write(folder.join(file), "# Fixture\n");
             }
@@ -66,6 +70,18 @@ impl Shell {
         if case.ends_with("-list") {
             self.prefs.store.update(cx, |p, _| {
                 p.state.homepage_project_layout = crate::features::settings::HomepageLayout::List
+            });
+        }
+        if case.contains("-computers") {
+            self.prefs
+                .store
+                .update(cx, |p, _| p.state.experimental.computer_mode = true);
+            crate::features::computer_mode::global(&self.prefs.store, cx)
+                .update(cx, |c, cx| c.register(&paths[0], None, cx));
+        }
+        if case.ends_with("-create") {
+            self.home.update(cx, |h, cx| {
+                h.capture_create_project("My computer 1A2B".into(), window, cx)
             });
         }
         if case.ends_with("-account") {
