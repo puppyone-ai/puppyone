@@ -87,6 +87,13 @@ impl Failure {
     pub fn recommends_pull(&self) -> bool {
         self.code == Code::PushRejected
     }
+    fn action_variant(&self) -> ButtonVariant {
+        if self.recommends_pull() {
+            ButtonVariant::Solid
+        } else {
+            ButtonVariant::Secondary
+        }
+    }
     /// `buildGitFixPrompt`.
     pub fn prompt(&self) -> String {
         let mut lines = vec![
@@ -275,7 +282,8 @@ impl SourceControl {
             dialog
                 .footer(
                     Button::new("git-error-pull")
-                        .variant(ButtonVariant::Solid)
+                        .debug_selector(|| "git-error-pull".into())
+                        .variant(failure.action_variant())
                         .label(tr("source-control.sync.pull"))
                         .on_click(move |_, _, cx| {
                             let _ = host.update(cx, |s, cx| {
@@ -289,7 +297,8 @@ impl SourceControl {
             dialog
                 .footer(
                     Button::new("git-error-close")
-                        .variant(ButtonVariant::Secondary)
+                        .debug_selector(|| "git-error-close".into())
+                        .variant(failure.action_variant())
                         .label(tr("common.action.close"))
                         .on_click(move |_, _, cx| {
                             let _ = host.update(cx, |s, cx| s.dismiss_failure(cx));
@@ -318,6 +327,94 @@ impl SourceControl {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    // Use the production dialog and its pointer listeners. With no workspace
+    // attached, SourceControl records dispatch without starting a Git process.
+    struct FailureSurface(Entity<SourceControl>);
+    impl Render for FailureSurface {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            self.0.update(cx, |view, cx| view.failure_dialog(cx))
+        }
+    }
+    fn draw(cx: &mut VisualTestContext) {
+        cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.refresh();
+            let _ = window.draw(cx);
+        });
+    }
+    #[gpui::test]
+    fn a_rejected_push_renders_primary_pull_and_dispatches_it_once(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let (surface, cx) = cx.add_window_view(|window, cx| {
+            FailureSurface(cx.new(|cx| SourceControl::new(window, cx)))
+        });
+        let view = surface.read_with(cx, |surface, _| surface.0.clone());
+        let dismissed = std::rc::Rc::new(std::cell::Cell::new(0));
+        let count = dismissed.clone();
+        let _subscription = cx.update(|_, cx| {
+            cx.subscribe(&view, move |_, _: &super::super::SourceControlEvent, _| {
+                count.set(count.get() + 1);
+            })
+        });
+        view.update(cx, |view, _| {
+            let failure = Failure::new("push", "! [rejected] main -> main (fetch first)", None);
+            assert_eq!(failure.action_variant(), ButtonVariant::Solid);
+            view.failure = Some(failure);
+        });
+        draw(cx);
+        assert!(cx.debug_bounds("git-error-close").is_none());
+        let pull = cx
+            .debug_bounds("git-error-pull")
+            .expect("Pull action is visible");
+        cx.simulate_click(pull.center(), Modifiers::default());
+        draw(cx);
+        view.read_with(cx, |view, _| {
+            assert!(!view.has_failure());
+            assert_eq!(view.running, Some("pull"));
+            assert!(view.queued_operation.is_none());
+        });
+        assert_eq!(dismissed.get(), 1);
+        assert!(cx.debug_bounds("git-error-pull").is_none());
+        cx.simulate_click(pull.center(), Modifiers::default());
+        view.read_with(cx, |view, _| assert!(view.queued_operation.is_none()));
+        assert_eq!(dismissed.get(), 1);
+    }
+
+    #[gpui::test]
+    fn a_pull_conflict_renders_neutral_close_without_dispatching_an_operation(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(gpui_kit::init);
+        let (surface, cx) = cx.add_window_view(|window, cx| {
+            FailureSurface(cx.new(|cx| SourceControl::new(window, cx)))
+        });
+        let view = surface.read_with(cx, |surface, _| surface.0.clone());
+        view.update(cx, |view, _| {
+            let failure = Failure::new(
+                "pull",
+                "CONFLICT (content): Merge conflict in shared.md\nerror: could not apply abc123",
+                None,
+            );
+            assert_eq!(failure.code, Code::PullConflict);
+            assert_eq!(failure.action_variant(), ButtonVariant::Secondary);
+            assert!(failure.message().contains("Resolve the conflicted files"));
+            view.failure = Some(failure);
+        });
+        draw(cx);
+        assert!(cx.debug_bounds("git-error-pull").is_none());
+        let close = cx
+            .debug_bounds("git-error-close")
+            .expect("Close action is visible");
+        cx.simulate_click(close.center(), Modifiers::default());
+        draw(cx);
+        view.read_with(cx, |view, _| {
+            assert!(!view.has_failure());
+            assert!(view.running.is_none());
+            assert!(!view.busy);
+            assert!(view.queued_operation.is_none());
+        });
+    }
 
     /// `gitOperationErrorDialog.test.tsx` and `classifyGitOperationError`.
     #[test]

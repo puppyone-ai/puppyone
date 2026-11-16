@@ -120,6 +120,13 @@
     "electron/local-api/git/sync-config.mjs": "97a363230cfcdbd58024a06f3e06d94685ad4e6587ca59c7cd38d0af8ca89748",
     "tests/unit/source-control/operations/gitOperationCoordinator.test.mjs": "66d6155ef68336e9fcfd584326bfff1ef45b82989b809f605fc0c0089cb5860d",
     "electron/main/git-operation-coordinator.mjs": "bdff310d12cfb8f822d15d2bac7ccc4d41ea3c789ea3ea7f4f204257181f2f38",
-    "electron/main/ipc/workspace-git-ipc.mjs": "f2bf544215d0b0b9ae3baadef399fdb2a426ad6b7188bf868ea291df528cf1d6"
+    "electron/main/ipc/workspace-git-ipc.mjs": "f2bf544215d0b0b9ae3baadef399fdb2a426ad6b7188bf868ea291df528cf1d6",
+    "tests/component/source-control/operations/gitOperationErrorDialog.test.tsx": "2d2f7474d88deb1200bf5f06536011566468c3272a0d51f22e0429db53d8c267",
+    "src/features/source-control/operationDialogs.tsx": "22a782b1d7c42ba51e6b04ff18d5789e490c3d3bc6c2e5804400ee498abcf1c0",
+    "tests/component/source-control/status/sourceControlSidebar.test.tsx": "26c962c5c4809fb9bfa48431a9acbced095d8e961b35dd6bebef2cc43d5635c4",
+    "tests/component/ui-primitives/sidebar/sidebarPrimitives.test.tsx": "fe21654e39138588f310dd39b03429bc3a80f7a1cc39c0515e014c7f90fd4206",
+    "src/features/source-control/sidebar/useGitSidebarPanelLayout.ts": "40b367c0d4693f94c25c9527b778ae8a546929641b12e69d6cec338e8dafad48",
+    "src/shared-ui/primitives/usePaneResizeDrag.ts": "39d062fed8e738d5b4768ae38f991c9feb9d89f7ac73effe547e79223a06ecb7",
+    "src/shared-ui/sidebar/SidebarResizeHandle.tsx": "f91fb33ccd1cc409e1f6cdd361dcee571d56c9e2565714c6ea139575b2751607"
   }
 }

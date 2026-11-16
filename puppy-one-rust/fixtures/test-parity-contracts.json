@@ -13313,6 +13313,114 @@
           "test": "cloud::publication::tests::publication_context_owns_the_same_repository_domain_as_local_git"
         }
       ]
+    },
+    {
+      "id": "native-git-error-dialog-interaction",
+      "acceptance": "Paused rebase output is classified as a recoverable Pull conflict. The production GPUI failure dialog renders only primary Pull after a rejected Push; one pointer activation dismisses the failure and dispatches Pull once, with no queued duplicate after the dialog disappears. Ordinary conflicts show their resolution summary and a neutral Close that does not start Git. The production button paint policy preserves primary fill versus neutral dismissal in light and dark themes; shell Escape dismisses the same failure owner.",
+      "environment": "GPUI test platform draws the production dialog and dispatches pointer events. An unattached workspace records dispatch without accessing a repository or network; this does not qualify OS accessibility or real native focus traversal.",
+      "typescript": [
+        {
+          "path": "tests/component/source-control/operations/gitOperationErrorDialog.test.tsx",
+          "sha256": "2d2f7474d88deb1200bf5f06536011566468c3272a0d51f22e0429db53d8c267",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git operation recovery dialog > classifies a paused rebase as a resolvable Pull conflict"
+            },
+            {
+              "index": 1,
+              "name": "Git operation recovery dialog > recommends Pull after a non-fast-forward Push instead of emphasizing dismissal"
+            },
+            {
+              "index": 2,
+              "name": "Git operation recovery dialog > keeps ordinary error dismissal visually neutral"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::failure::tests::failures_are_classified_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::failure::tests::a_rejected_push_renders_primary_pull_and_dispatches_it_once"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::failure::tests::a_pull_conflict_renders_neutral_close_without_dispatching_an_operation"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::button::tests::dialog_recovery_is_solid_while_dismissal_stays_neutral_in_both_themes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::a_git_failure_is_its_dialog_until_dismissed"
+        }
+      ]
+    },
+    {
+      "id": "native-git-section-resize-interaction",
+      "acceptance": "Changes sections use real draggable boundaries instead of decorative dividers. Pointer movement adjusts only the adjacent panels, preserving their total and current content limits; release includes the latest pointer location. Keyboard Up/Down uses 8 px, Shift uses 32 px, Home/End clamp to both limits. Escape, window focus/visibility loss, lost left-button state, History, panel removal, and closing/switching the owning sidebar roll back the preview; late releases cannot commit it. Collapsed panels keep only their header and reopening restores their prior size.",
+      "environment": "GPUI test platform renders the production Changes surface and full Shell, with controlled status snapshots and actual pointer/keyboard events. File-only TS citations qualify the section boundary and keyboard mechanism; they do not close the complete sidebar visual or OS accessibility contracts.",
+      "typescript": [
+        {
+          "path": "tests/component/source-control/status/sourceControlSidebar.test.tsx",
+          "sha256": "26c962c5c4809fb9bfa48431a9acbced095d8e961b35dd6bebef2cc43d5635c4"
+        },
+        {
+          "path": "tests/component/ui-primitives/sidebar/sidebarPrimitives.test.tsx",
+          "sha256": "fe21654e39138588f310dd39b03429bc3a80f7a1cc39c0515e014c7f90fd4206"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::setup"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::dragging_a_section_boundary_resizes_only_its_adjacent_panels"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::escape_focus_loss_visibility_and_lost_buttons_roll_back_the_drag"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::keyboard_resize_uses_small_accelerated_and_limit_steps"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::release_uses_its_latest_position_and_extreme_drags_respect_both_limits"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::collapsing_a_group_hides_its_rows_and_restores_its_resized_height"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::switching_to_history_cancels_a_preview_and_ignores_late_release"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::hiding_or_switching_the_changes_sidebar_rolls_back_its_section_drag"
+        }
+      ]
     }
   ],
   "openAcceptance": [

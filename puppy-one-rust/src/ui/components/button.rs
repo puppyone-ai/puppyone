@@ -342,6 +342,31 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn dialog_recovery_is_solid_while_dismissal_stays_neutral_in_both_themes() {
+        for dark in [false, true] {
+            let theme = theme::pack_theme("default-neutral", dark);
+            let primary = paint(ButtonVariant::Solid, false, false, false, theme);
+            let neutral = paint(ButtonVariant::Secondary, false, false, false, theme);
+            assert_eq!(primary.bg, theme.text);
+            assert_eq!(primary.fg, theme.text_inverse);
+            assert_eq!(neutral.bg.a, 0.);
+            assert_eq!(neutral.fg, theme.muted);
+            assert_ne!(primary.bg, neutral.bg);
+            for variant in [ButtonVariant::Solid, ButtonVariant::Secondary] {
+                let disabled = paint(variant, false, false, true, theme);
+                assert_eq!(disabled.bg, theme.control);
+                assert_eq!(disabled.fg, theme.text_disabled);
+            }
+        }
+    }
+}
 /// Control heights: `xsmall` 22, `small` 24, medium 28, `large` 32.
 fn height(size: Size) -> Pixels {
     match size {

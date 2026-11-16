@@ -3,6 +3,72 @@ use super::*;
 use core::prelude::v1::test;
 
 #[gpui::test]
+fn hiding_or_switching_the_changes_sidebar_rolls_back_its_section_drag(cx: &mut TestAppContext) {
+    use crate::platform::git::{Change, Snapshot};
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(500.)));
+    let sidebar = view.read_with(cx, |s, _| s.sidebar.clone());
+    let git = sidebar.read_with(cx, |s, _| s.source_control.clone());
+    git.update(cx, |s, cx| {
+        s.receive_snapshot_for_test(
+            Snapshot {
+                head: "fixture-head".into(),
+                branch: "main".into(),
+                changes: (0..30)
+                    .flat_map(|i| {
+                        [
+                            Change {
+                                path: format!("staged-{i}.md"),
+                                original: None,
+                                index: 'M',
+                                worktree: ' ',
+                            },
+                            Change {
+                                path: format!("working-{i}.md"),
+                                original: None,
+                                index: ' ',
+                                worktree: 'M',
+                            },
+                        ]
+                    })
+                    .collect(),
+                ..Default::default()
+            },
+            cx,
+        )
+    });
+    sidebar.update(cx, |s, cx| s.toggle_git(cx));
+    cx.run_until_parked();
+    draw(cx);
+    let height = |cx: &mut VisualTestContext| {
+        f32::from(cx.debug_bounds("git-panel-Staged").unwrap().size.height)
+    };
+    for switch_surface in [false, true] {
+        let before = height(cx);
+        let at = cx.debug_bounds("git-section-resize").unwrap().center();
+        cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::default());
+        let end = at + point(px(0.), px(25.));
+        cx.simulate_mouse_move(end, Some(MouseButton::Left), Modifiers::default());
+        draw(cx);
+        assert!(height(cx) > before + 20.);
+        sidebar.update(cx, |s, cx| {
+            if switch_surface {
+                s.toggle_agent(cx);
+            } else {
+                s.toggle_git(cx);
+            }
+        });
+        draw(cx);
+        cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::default());
+        sidebar.update(cx, |s, cx| s.toggle_git(cx));
+        cx.run_until_parked();
+        draw(cx);
+        assert!((height(cx) - before).abs() <= 1.);
+    }
+}
+
+#[gpui::test]
 fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
     cx: &mut TestAppContext,
 ) {

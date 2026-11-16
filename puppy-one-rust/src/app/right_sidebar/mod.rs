@@ -146,6 +146,13 @@ impl RightSidebar {
         })
         .detach();
         cx.observe(&source_control, |_, _, cx| cx.notify()).detach();
+        cx.observe(&panes, |s, _, cx| {
+            if !s.shows(Surface::Git, cx) {
+                s.source_control
+                    .update(cx, |git, cx| git.cancel_panel_resize(cx));
+            }
+        })
+        .detach();
         // Each surface takes its part of the preferences when it changes.
         observe_slice(
             &preferences,
@@ -199,6 +206,10 @@ impl RightSidebar {
         self.panes.read(cx).right().open
     }
     fn set_open(&self, open: bool, cx: &mut App) {
+        if !open || self.surface != Surface::Git {
+            self.source_control
+                .update(cx, |git, cx| git.cancel_panel_resize(cx));
+        }
         self.panes.update(cx, |p, cx| p.set_right_open(open, cx));
     }
     /// The sidebar, open or not, shows `surface`.
@@ -234,6 +245,8 @@ impl RightSidebar {
     /// Binds only the local Agent workbench to an HTML File Mode window's
     /// parent folder (never Git source control or stored surface switches).
     pub fn enter_file_mode(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        self.source_control
+            .update(cx, |git, cx| git.cancel_panel_resize(cx));
         self.file_mode = true;
         self.restored = true;
         self.surface = Surface::Agent;

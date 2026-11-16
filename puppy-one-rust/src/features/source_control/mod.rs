@@ -11,9 +11,12 @@ pub(crate) use cloud_history::{relative_time, short_date};
 mod diff;
 mod failure;
 mod history;
+mod panel_layout;
 mod refresh;
 #[cfg(test)]
 mod refresh_tests;
+#[cfg(test)]
+mod sidebar_tests;
 
 pub use cloud_history::{CloudHistory, CloudHistoryEvent};
 
@@ -174,6 +177,11 @@ struct Section {
 }
 /// Merge, staged and unstaged resources; untracked files join "Unstaged".
 impl SourceControl {
+    /// Feed a backend result through the same status projection in shell tests.
+    #[cfg(test)]
+    pub(crate) fn receive_snapshot_for_test(&mut self, snapshot: Snapshot, cx: &mut Context<Self>) {
+        self.publish_status(snapshot, cx);
+    }
     /// The opened folder's place in its repository (empty at the root).
     fn prefix(&self) -> &str {
         self.snapshot.as_ref().map_or("", |s| s.prefix.as_str())
@@ -337,6 +345,7 @@ pub struct SourceControl {
     timeline_list: ListState,
     /// Each status panel's list scroller (Merge, Committed, Staged, Unstaged).
     panel_scroll: [UniformListScrollHandle; 4],
+    panel_layout: panel_layout::Layout,
     /// Collapsed days of the timeline (local `YYYY-MM-DD`).
     collapsed_days: std::collections::HashSet<String>,
     /// The commit id just copied (its icon reads "copied" briefly).
@@ -369,6 +378,7 @@ impl SourceControl {
         }
     }
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        panel_layout::install(window, cx);
         let (wake, rx) = Wake::channel();
         let (tx, results) = mpsc::channel();
         cx.spawn_in(window, async move |this, cx| {
@@ -435,6 +445,7 @@ impl SourceControl {
             timeline: vec![],
             timeline_list: ListState::new(0, ListAlignment::Top, px(400.)),
             panel_scroll: Default::default(),
+            panel_layout: panel_layout::Layout::new(cx),
             collapsed_days: Default::default(),
             copied: None,
             sections: vec![],
@@ -451,6 +462,8 @@ impl SourceControl {
         if self.root.as_ref() == Some(&root) {
             return;
         }
+        self.panel_layout.cancel();
+        self.panel_layout.reconcile(&[]);
         self.cancel.store(true, Ordering::Relaxed);
         if let Some(cancel) = self.read_cancel.take() {
             cancel.store(true, Ordering::Relaxed);
@@ -692,6 +705,8 @@ impl SourceControl {
         read: impl FnOnce(PathBuf, &AtomicBool) -> Result<Vec<FileDiff>, String> + Send + 'static,
         cx: &mut Context<Self>,
     ) {
+        self.panel_layout.cancel();
+        self.panel_layout.reconcile(&[]);
         self.selection += 1;
         let selection = self.selection;
         self.detail = Some(Detail::new(kind));
@@ -723,6 +738,8 @@ impl SourceControl {
     }
     /// `onOpenHistory`.
     pub fn open_history(&mut self, cx: &mut Context<Self>) {
+        self.panel_layout.cancel();
+        self.panel_layout.reconcile(&[]);
         self.detail = None;
         self.history_open = true;
         self.load_history();
@@ -996,7 +1013,7 @@ impl SourceControl {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let host = cx.weak_entity();
-        SectionHeader::new(
+        let header = SectionHeader::new(
             SharedString::from(format!("git-section-{panel:?}")),
             tr(if panel == Panel::Unstaged && count == 0 {
                 "source-control.label.changes"
@@ -1016,45 +1033,63 @@ impl SourceControl {
         .when_some(action, |h, action| h.action(action))
         .on_toggle(move |_, cx| {
             let _ = host.update(cx, |s, cx| {
+                s.panel_layout.cancel();
                 if !s.collapsed.remove(&panel) {
                     s.collapsed.insert(panel);
                 }
                 cx.notify();
             });
         })
-        .into_any_element()
+        .into_any_element();
+        div()
+            .debug_selector(move || format!("git-section-{panel:?}"))
+            .child(header)
+            .into_any_element()
     }
-    /// A `desktop-git-resizable-section`: grows by its weight up to its rows
-    /// (at most nine), never below 72px, or a single header row collapsed.
+    /// Automatic row-based sizing until a boundary is resized. Explicit
+    /// heights retain the same minimum/maximum and can shrink with the window.
     fn panel(&self, panel: Panel, rows: f32, header: AnyElement, body: AnyElement) -> Div {
         let row_h = theme::control();
-        if self.collapsed.contains(&panel) {
-            return v_flex()
-                .flex_none()
-                .h(px(row_h))
-                .overflow_hidden()
-                .child(header);
-        }
-        let visible = rows.min(MAX_VISIBLE_ROWS as f32);
-        let max_h = row_h * (visible + 1.) + SECTION_BODY_TOP_GAP + visible * 2.;
+        let collapsed = self.collapsed.contains(&panel);
+        let visible = rows.clamp(0., MAX_VISIBLE_ROWS as f32);
+        let max = if collapsed || visible == 0. {
+            row_h
+        } else {
+            row_h * (visible + 1.) + SECTION_BODY_TOP_GAP + visible * 2.
+        };
+        let min = if collapsed { row_h } else { 72f32.min(max) };
+        let measured = self.panel_layout.geometry.clone();
         v_flex()
-            .flex_grow(panel.grow())
-            .flex_shrink(1.)
-            .flex_basis(px(0.))
-            .min_h(px(72f32.min(max_h)))
-            .max_h(px(max_h))
+            .debug_selector(move || format!("git-panel-{panel:?}"))
+            .relative()
+            .when(collapsed, |d| d.flex_none().h(px(row_h)))
+            .when(!collapsed, |d| {
+                d.flex_grow(panel.grow())
+                    .flex_shrink(1.)
+                    .flex_basis(px(0.))
+                    .when_some(self.panel_layout.heights[panel as usize], |d, height| {
+                        d.flex_grow(0.).flex_basis(px(height))
+                    })
+            })
+            .min_h(px(min))
+            .max_h(px(max))
             .overflow_hidden()
             .child(header)
-            .child(body)
-    }
-    /// `.desktop-git-section-resizer`: 12px with a 1px line 5px down.
-    fn section_divider(t: Theme) -> Div {
-        div()
-            .flex_shrink_0()
-            .h(px(SECTION_DIVIDER_HEIGHT))
-            .pt(px(5.))
-            .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
-            .child(div().h(px(1.)).w_full().bg(t.sidebar_divider))
+            .when(!collapsed, |d| d.child(body))
+            .child(
+                canvas(
+                    move |bounds, _, _| {
+                        measured.borrow_mut()[panel as usize] = Some(panel_layout::Geometry {
+                            height: bounds.size.height.into(),
+                            min,
+                            max,
+                        });
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .size_full(),
+            )
     }
     fn file_list(&self, panel: Panel, count: usize, cx: &mut Context<Self>) -> AnyElement {
         let scroll = self.panel_scroll[panel as usize].clone();
@@ -1182,7 +1217,12 @@ impl SourceControl {
     }
     /// The Changes list (`GitSidebar`): priority notice, resizable panels and
     /// the fixed region with errors.
-    fn changes_list(&self, snapshot: &Snapshot, cx: &mut Context<Self>) -> Div {
+    fn changes_list(
+        &mut self,
+        snapshot: &Snapshot,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let t = cx.palette();
         let has = |panel| self.sections.iter().any(|s: &Section| s.panel == panel);
         let conflicts = has(Panel::Merge);
@@ -1207,7 +1247,7 @@ impl SourceControl {
             stage_and_commit: has(Panel::Unstaged) && !blocked,
         });
         let mut stack = v_flex().flex_1().min_h_0().overflow_hidden();
-        let mut panels: Vec<Div> = vec![];
+        let mut panels: Vec<(Panel, Div)> = vec![];
         if conflicts || operation {
             let count = self
                 .sections
@@ -1224,7 +1264,10 @@ impl SourceControl {
             } else {
                 div().into_any_element()
             };
-            panels.push(self.panel(Panel::Merge, count as f32, header, body));
+            panels.push((
+                Panel::Merge,
+                self.panel(Panel::Merge, count as f32, header, body),
+            ));
         }
         if ahead > 0 || committed.is_some() {
             let action = committed.map(|(kind, disabled)| {
@@ -1287,7 +1330,10 @@ impl SourceControl {
                 },
                 t,
             );
-            panels.push(self.panel(Panel::Committed, 1.5, header, note));
+            panels.push((
+                Panel::Committed,
+                self.panel(Panel::Committed, 1.5, header, note),
+            ));
         }
         if let Some(section) = self.sections.iter().find(|s| s.panel == Panel::Staged) {
             let count = section.changes.len();
@@ -1312,11 +1358,14 @@ impl SourceControl {
                 Some(action.into_any_element()),
                 cx,
             );
-            panels.push(self.panel(
+            panels.push((
                 Panel::Staged,
-                count as f32,
-                header,
-                self.file_list(Panel::Staged, count, cx),
+                self.panel(
+                    Panel::Staged,
+                    count as f32,
+                    header,
+                    self.file_list(Panel::Staged, count, cx),
+                ),
             ));
         }
         if let Some(section) = self.sections.iter().find(|s| s.panel == Panel::Unstaged) {
@@ -1341,24 +1390,34 @@ impl SourceControl {
                 Some(action.into_any_element()),
                 cx,
             );
-            panels.push(self.panel(
+            panels.push((
                 Panel::Unstaged,
-                count as f32,
-                header,
-                self.file_list(Panel::Unstaged, count, cx),
+                self.panel(
+                    Panel::Unstaged,
+                    count as f32,
+                    header,
+                    self.file_list(Panel::Unstaged, count, cx),
+                ),
             ));
         }
         if panels.is_empty() {
             // `showCleanSection`: a "Changes" panel with the empty note.
             let header = self.section_header(Panel::Unstaged, 0, false, None, cx);
             let note = Self::section_note(tr("source-control.status.noLocalChanges"), t);
-            panels.push(self.panel(Panel::Unstaged, 1.5, header, note));
+            panels.push((
+                Panel::Unstaged,
+                self.panel(Panel::Unstaged, 1.5, header, note),
+            ));
         }
-        for (index, panel) in panels.into_iter().enumerate() {
-            if index > 0 {
-                stack = stack.child(Self::section_divider(t));
+        self.panel_layout
+            .reconcile(&panels.iter().map(|(id, _)| *id).collect::<Vec<_>>());
+        let mut previous = None;
+        for (id, panel) in panels {
+            if let Some(previous) = previous {
+                stack = stack.child(self.section_resize_handle(previous, id, window, cx));
             }
             stack = stack.child(panel);
+            previous = Some(id);
         }
         let mut list = v_flex()
             .flex_1()
@@ -1698,7 +1757,7 @@ impl SourceControl {
     }
 }
 impl Render for SourceControl {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         #[cfg(test)]
         {
             self.painted_rows = 0;
@@ -1775,7 +1834,7 @@ impl Render for SourceControl {
                 .on_click(cx.listener(|s, _, _, cx| s.open_history(cx))),
             );
         }
-        let pane = pane.child(header);
+        let pane = pane.child(header).child(self.section_resize_tracking(cx));
         if self.detail.is_some() {
             return pane.child(self.detail_view(cx));
         }
@@ -1783,7 +1842,7 @@ impl Render for SourceControl {
             return pane.child(self.history_view(cx));
         }
         if let Some(snapshot) = self.snapshot.clone() {
-            return pane.child(self.changes_list(&snapshot, cx));
+            return pane.child(self.changes_list(&snapshot, window, cx));
         }
         let not_repo = self.root.is_some() && self.repository_absent;
         if not_repo {
