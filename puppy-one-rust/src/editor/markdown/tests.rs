@@ -1,10 +1,14 @@
-//! Markdown in a live `EditorView` (GPUI test platform): typing, reveal,
-//! the composing block line, task toggling and history.
+//! Markdown in a live `EditorView` (GPUI test platform): typing, two-layer
+//! reveal (`TA-11`), first-class `InlineWidget`s (`TA-12`), incremental
+//! `HeightMap` & `ParagraphCache` (`TA-13`), stable `BlockId` (`TA-14`),
+//! incremental `Syntax` & `Plans` (`TA-31`, `TA-32`), full panic isolation
+//! (`TA-33`), per-feature state across undo/redo (`TA-06`, `TA-40`), and
+//! read-only transaction filtering (`TA-07`).
 use super::{MarkdownExtension, features::task};
 use crate::{
     editor::{
         text::selection::Selection,
-        view::{EditorView, bind_keys, style},
+        view::{EditorView, bind_keys, extension::config_transaction, style},
     },
     typography::Scale,
 };
@@ -209,11 +213,11 @@ fn inline_html_tags_hide_and_style_their_content(cx: &mut TestAppContext) {
     view.update(cx, |v, _| {
         let d = v.decorations();
         assert!(d.marks.iter().any(|m| m.range == (5..9) && m.style.bold));
-        // A `q` shows its quotation marks for its tags.
+        // A `q` shows its quotation marks as first-class Text InlineWidgets (`TA-12`).
         let quotes: Vec<_> = d
-            .replaced
+            .inline_widgets
             .iter()
-            .map(|(r, s)| (r.clone(), s.to_string()))
+            .filter_map(|w| w.as_text().map(|s| (w.range.clone(), s.to_string())))
             .collect();
         assert_eq!(
             quotes,
@@ -246,15 +250,19 @@ fn an_image_line_shows_its_images_and_reveals_on_request(cx: &mut TestAppContext
                 .collect::<Vec<_>>()
         })
     };
-    // Images (and a linked one) fill the first line; one beside text sits
-    // in the text, its alt text standing in until it decodes.
     assert_eq!(embeds(&view, cx), vec![true, false, false]);
     assert!(hidden(&view, cx).contains(&(0..41)));
     view.update(cx, |v, _| {
         let d = v.decorations();
-        let images: Vec<_> = d.inline_images.iter().map(|i| i.range.clone()).collect();
-        assert_eq!(images, vec![50..61]);
-        assert!(d.replaced.iter().any(|(r, s)| *r == (50..61) && s == "c"));
+        let images: Vec<_> = d
+            .inline_widgets
+            .iter()
+            .filter_map(|w| {
+                w.as_image()
+                    .map(|(fb, img)| (img.range.clone(), fb.to_string()))
+            })
+            .collect();
+        assert_eq!(images, vec![(50..61, "c".into())]);
     });
     view.update_in(cx, |v, w, cx| {
         v.run_command(
@@ -294,20 +302,16 @@ fn an_html_block_renders_until_its_source_is_shown(cx: &mut TestAppContext) {
 #[gpui::test]
 fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppContext) {
     use super::core::commands::block_move;
-    use crate::editor::view::extension::EditorExtension;
     let text = "# A\n\npara\n\nlast";
     let (view, cx) = setup(cx, text);
     block_move::set_enabled(true);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
     cx.simulate_keystrokes("cmd-shift-down");
     view.update(cx, |v, _| assert_eq!(v.text(), "para\n\n# A\n\nlast"));
-    // The handle's drop moves the block it dragged.
+    // The handle's drop moves the block it dragged via `addons::block_drag`.
     view.update_in(cx, |v, _, cx| {
-        let mut md = super::MarkdownExtension::new(true, Scale::Medium);
-        let block = md.movable_block(v.state(), 13).unwrap();
-        assert_eq!((block.index, block.group.len()), (2, 3));
-        v.begin_block_drag_for_tests(block, 0);
-        v.finish_block_drag_for_tests(cx);
+        assert!(super::begin_block_drag_for_tests(v, 13, 0));
+        super::finish_block_drag_for_tests(v, cx);
     });
     view.update(cx, |v, _| assert_eq!(v.text(), "last\n\npara\n\n# A"));
     block_move::set_enabled(false);
@@ -336,12 +340,13 @@ fn missing_and_ambiguous_link_targets_are_underlined(cx: &mut TestAppContext) {
     ]);
     let (view, cx) = setup(cx, text);
     view.update_in(cx, |v, _, cx| {
-        if let Some(md) = v.extension_mut::<MarkdownExtension>() {
-            md.references = Some(ReferenceContext {
+        v.dispatch(
+            config_transaction(super::SetReferences(Some(ReferenceContext {
                 source: "note.md".into(),
                 index: std::sync::Arc::new(index),
-            });
-        }
+            }))),
+            cx,
+        );
         v.set_selection(Selection::cursor(text.len()), cx)
     });
     cx.update(|w, cx| {
@@ -459,8 +464,8 @@ fn random_markdown_and_edits_never_panic_the_pipeline() {
     let theme = MarkdownTheme::resolve(true, Scale::Medium);
 
     let check = |state: &EditorState, preview: &PreviewState, features: Features, live: bool| {
-        let syntax = Syntax::parse(&state.doc);
-        let compiled = plans::compile(&state.doc, &syntax, &preview.callout_folds, features);
+        let syntax = Syntax::parse_with(&state.doc, features);
+        let compiled = plans::compile(&state.doc, &syntax, &preview.features, features);
         let composing = preview.composing.map(|c| state.doc.line_index(c));
         let rhythm = block_rhythm(&state.doc, &syntax, composing);
         let _ = decorations::decorate(&DecorateCx {
@@ -509,12 +514,12 @@ fn random_markdown_and_edits_never_panic_the_pipeline() {
                     },
                 );
                 if let Some(applied) = state.apply(tr) {
-                    let syntax = Syntax::parse(&state.doc);
+                    let syntax = Syntax::parse_with(&state.doc, features);
                     preview.applied(&applied, &state, &syntax, true, false);
                 }
                 let head = state.doc.clamp(caret);
                 let _ = state.apply(Transaction::select(Selection::cursor(head)));
-                let syntax = Syntax::parse(&state.doc);
+                let syntax = Syntax::parse_with(&state.doc, features);
                 preview.selection_changed(&state, &syntax, true, step % 5 == 0, step % 7 == 0);
                 check(&state, &preview, features, step % 11 != 0);
             }
@@ -522,18 +527,538 @@ fn random_markdown_and_edits_never_panic_the_pipeline() {
     }
 }
 
+#[test]
+fn incremental_syntax_and_plans_match_full_parse_across_random_edits() {
+    use super::{
+        composition::{FEATURES, MDX_FEATURES},
+        core::{
+            plans::{self, PlanCache},
+            state::FeatureStateStore,
+            syntax::Syntax,
+        },
+    };
+    use crate::editor::text::{
+        change::ChangeSet,
+        state::{EditorState, Transaction, UserEvent},
+    };
+
+    const BLOCK_POOL: &[&str] = &[
+        "# Heading One\n\n",
+        "Paragraph with **bold**, *italic*, $x^2 + 1$, and [ref][k].\n\n",
+        "[k]: https://example.com\n\n",
+        "- [ ] first task\n- [x] second task\n\n",
+        "1. ordered alpha\n2. ordered beta\n\n",
+        "> [!note]+ Callout\n> quoted body [^1]\n\n",
+        "[^1]: footnote body\n\n",
+        "```rust\nfn main() {}\n```\n\n",
+        "$$\n\\sum_{i=1}^n i\n$$\n\n",
+        "| col1 | col2 |\n| --- | --- |\n| val1 | val2 |\n\n",
+        "<Tabs>\n<Tab label=\"One\">\nBody 1\n</Tab>\n<Tab label=\"Two\">\nBody 2\n</Tab>\n</Tabs>\n\n",
+    ];
+
+    let mut seed = 0x71a2_94b3_c5d6_e701u64;
+    let mut next_usize = |bound: usize| -> usize {
+        seed = seed.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = seed;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        ((z ^ (z >> 31)) as usize) % bound.max(1)
+    };
+
+    let mut incremental_hits = 0usize;
+    for features in [FEATURES, MDX_FEATURES] {
+        for _case in 0..40 {
+            let mut text = String::new();
+            for _ in 0..18 {
+                text.push_str(BLOCK_POOL[next_usize(BLOCK_POOL.len())]);
+            }
+            let mut state = EditorState::new(&text);
+            let folds = FeatureStateStore::default();
+            let mut cur_syntax = Syntax::parse_with(&state.doc, features);
+            let mut plan_cache = PlanCache::default();
+            let mut cur_plans = plans::compile(&state.doc, &cur_syntax, &folds, features);
+
+            for _step in 0..10 {
+                let a = state.doc.clamp(next_usize(state.doc.len() + 1));
+                let b = state.doc.clamp((a + next_usize(24)).min(state.doc.len()));
+                let range = a.min(b)..a.max(b);
+                let replacement = match next_usize(6) {
+                    0 => "word",
+                    1 => "**strong**",
+                    2 => "$a+b$",
+                    3 => "\nnew line\n",
+                    4 => "",
+                    _ => BLOCK_POOL[next_usize(BLOCK_POOL.len())],
+                };
+                let tr = Transaction::edit(
+                    ChangeSet::replace(range, replacement),
+                    None,
+                    UserEvent::Input,
+                );
+                let Some(applied) = state.apply(tr) else {
+                    continue;
+                };
+                let full_syntax = Syntax::parse_with(&state.doc, features);
+                let full_plans = plans::compile(&state.doc, &full_syntax, &folds, features);
+                let prev_element_count = cur_syntax.elements.len();
+
+                if let Some((inc_syntax, splice)) = Syntax::try_parse_incremental(
+                    &state.doc,
+                    &applied.before_doc,
+                    &cur_syntax,
+                    &applied.changes,
+                    features,
+                ) {
+                    incremental_hits += 1;
+                    assert_eq!(
+                        inc_syntax, full_syntax,
+                        "incremental Syntax diverged from full Syntax::parse_with"
+                    );
+                    let inc_plans = plans::compile_incremental(
+                        &state.doc,
+                        &inc_syntax,
+                        &cur_plans,
+                        prev_element_count,
+                        &splice,
+                        &folds,
+                        features,
+                        &mut plan_cache,
+                    );
+                    let mut refreshed_plans = inc_plans.clone();
+                    plans::refresh_shifted_block_plans(
+                        &state.doc,
+                        &inc_syntax,
+                        &folds,
+                        features,
+                        &mut refreshed_plans,
+                        0..state.doc.len(),
+                    );
+                    assert_eq!(
+                        refreshed_plans, full_plans,
+                        "incremental Plans diverged from full plans::compile"
+                    );
+                    cur_syntax = inc_syntax;
+                    cur_plans = inc_plans;
+                } else {
+                    cur_syntax = full_syntax;
+                    plan_cache = PlanCache::default();
+                    cur_plans = full_plans;
+                }
+            }
+        }
+    }
+    assert!(
+        incremental_hits >= 200,
+        "expected majority of localized edits to take incremental path, got {incremental_hits}"
+    );
+}
+
+#[gpui::test]
+fn cursor_movement_rebuilds_zero_document_layer_blocks_and_zero_full_height_plans(
+    cx: &mut TestAppContext,
+) {
+    let text = concat!(
+        "# Heading Alpha\n\n",
+        "First paragraph with **bold words**, *emphasis*, and $E = mc^2$ inline math.\n\n",
+        "> [!note]+ Callout Title\n> Inside callout body\n\n",
+        "```rust\nfn demo() -> i32 { 42 }\n```\n\n",
+        "| k | v |\n| - | - |\n| 1 | 2 |\n\n",
+        "Final prose line with `inline code`.\n",
+    );
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+
+    let (rebuilds_before, full_plans_before) =
+        view.read_with(cx, |v, _| (v.doc_layer_rebuilds(), v.height_map_stats().0));
+    assert_eq!(rebuilds_before, 1);
+
+    for chord in [
+        "down", "down", "right", "right", "right", "down", "down", "up",
+    ] {
+        cx.simulate_keystrokes(chord);
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+    }
+
+    let (rebuilds_after, full_plans_after) =
+        view.read_with(cx, |v, _| (v.doc_layer_rebuilds(), v.height_map_stats().0));
+    assert_eq!(
+        rebuilds_after, rebuilds_before,
+        "ArrowDown/ArrowRight MUST rebuild 0 Document-Layer decoration snapshots"
+    );
+    assert_eq!(
+        full_plans_after, full_plans_before,
+        "ArrowDown/ArrowRight MUST rebuild 0 full HeightMap plans"
+    );
+}
+
+#[gpui::test]
+fn typing_on_upper_line_preserves_paragraph_cache_hits_for_lines_below(cx: &mut TestAppContext) {
+    let mut initial = String::from("editable first line\n\n");
+    for idx in 0..12 {
+        initial.push_str(&format!("unchanged prose line number {idx}\n\n"));
+    }
+    let (view, cx) = setup(cx, &initial);
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(8), cx));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+
+    let (hits_before, misses_before) = view.read_with(cx, |v, _| v.paragraph_cache_stats());
+    cx.simulate_input("X");
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    let (hits_after, misses_after) = view.read_with(cx, |v, _| v.paragraph_cache_stats());
+    let new_hits = hits_after - hits_before;
+    let new_misses = misses_after - misses_before;
+    assert!(
+        new_hits >= 10,
+        "unchanged lines below edit should hit ParagraphCache (new_hits={new_hits}, new_misses={new_misses})"
+    );
+    assert!(
+        new_misses <= 2,
+        "only the edited line should miss ParagraphCache, got new_misses={new_misses}"
+    );
+}
+
+#[gpui::test]
+fn block_id_remains_stable_across_prefix_edits_and_reuses_unchanged_widget_rc(
+    cx: &mut TestAppContext,
+) {
+    use crate::editor::view::decoration::Block;
+    use std::rc::Rc;
+
+    let text = "header line\n\n$$\na = 1\n$$\n\n```rust\nlet x = 1;\n```\n";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+
+    let before_widgets: Vec<_> = view.update(cx, |v, _| {
+        v.decorations()
+            .blocks
+            .iter()
+            .filter_map(|b| match b {
+                Block::Widget { id, widget, .. } => Some((id.raw(), Rc::clone(widget))),
+                Block::Line { .. } => None,
+            })
+            .collect()
+    });
+    assert_eq!(before_widgets.len(), 2);
+
+    // Edit line 0 above both block widgets.
+    cx.simulate_input("updated ");
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+
+    let after_widgets: Vec<_> = view.update(cx, |v, _| {
+        v.decorations()
+            .blocks
+            .iter()
+            .filter_map(|b| match b {
+                Block::Widget { id, widget, .. } => Some((id.raw(), Rc::clone(widget))),
+                Block::Line { .. } => None,
+            })
+            .collect()
+    });
+    assert_eq!(after_widgets.len(), 2);
+    assert_eq!(
+        before_widgets[0].0, after_widgets[0].0,
+        "MathBlock BlockId must stay stable"
+    );
+    assert_eq!(
+        before_widgets[1].0, after_widgets[1].0,
+        "CodeBlock BlockId must stay stable"
+    );
+}
+
+#[gpui::test]
+fn callout_fold_and_mdx_tabs_map_accurately_across_edits_undo_and_redo(cx: &mut TestAppContext) {
+    use super::features::{callout, mdx};
+    use crate::editor::view::command::Command;
+
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        cx.text_system().add_fonts(style::font_bytes()).unwrap();
+        bind_keys(cx);
+    });
+
+    let text = concat!(
+        "top\n\n",
+        "> [!tip]+ Folded Callout\n> hidden line\n\n",
+        "<Tabs>\n<Tab label=\"First\">\none\n</Tab>\n<Tab label=\"Second\">\ntwo\n</Tab>\n</Tabs>\n",
+    );
+    let callout_at = text.find("[!tip]+").unwrap();
+    let tabs_at = text.find("<Tabs>").unwrap();
+
+    let (view, cx) = cx.add_window_view(move |_, cx| {
+        EditorView::new(
+            text,
+            Box::new(MarkdownExtension::new(true, Scale::Medium).mdx()),
+            cx,
+        )
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.focus(w, cx);
+        v.set_selection(Selection::cursor(text.len()), cx);
+        v.run_command(
+            &Command::new(
+                callout::ID,
+                callout::Fold {
+                    at: callout_at,
+                    folded: true,
+                },
+            ),
+            w,
+            cx,
+        );
+        v.run_command(
+            &Command::new(
+                mdx::ID,
+                mdx::Action::Select {
+                    at: tabs_at,
+                    tab: 1,
+                },
+            ),
+            w,
+            cx,
+        );
+    });
+    let _ = blocks(&view, cx);
+
+    // Insert 2 new lines at the very top of the document!
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
+    cx.simulate_input("inserted\nlines\n");
+    let _ = blocks(&view, cx);
+
+    let check_mapped_state =
+        |view: &Entity<EditorView>, cx: &mut VisualTestContext, shift: usize| {
+            view.read_with(cx, |v, _| {
+                let md = v.extension::<MarkdownExtension>().unwrap();
+                let tabs_state = md.preview.state::<mdx::TabsState>(mdx::ID).unwrap();
+                assert_eq!(
+                    tabs_state.get(tabs_at + shift),
+                    1,
+                    "active <Tabs> selection must map by +{shift} bytes"
+                );
+                let folds_state = md
+                    .preview
+                    .state::<callout::CalloutFoldState>(callout::ID)
+                    .unwrap();
+                assert_eq!(
+                    folds_state.get(callout_at + shift),
+                    Some(true),
+                    "callout fold must map by +{shift} bytes"
+                );
+            });
+        };
+
+    let shift = "inserted\nlines\n".len();
+    check_mapped_state(&view, cx, shift);
+
+    // TA-06: Undo goes through `EditorView::dispatch` and maps feature state back to original offsets!
+    cx.simulate_keystrokes("cmd-z");
+    let _ = blocks(&view, cx);
+    check_mapped_state(&view, cx, 0);
+
+    // TA-06: Redo goes through `EditorView::dispatch` and maps feature state forward again!
+    cx.simulate_keystrokes("cmd-shift-z");
+    let _ = blocks(&view, cx);
+    check_mapped_state(&view, cx, shift);
+}
+
+#[gpui::test]
+fn read_only_filter_strips_edits_while_preserving_selection_and_effects(cx: &mut TestAppContext) {
+    use crate::editor::text::{
+        change::ChangeSet,
+        state::{StateEffect, Transaction, UserEvent},
+    };
+
+    let text = "# Heading\n\nParagraph body";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| v.set_read_only(true, cx));
+
+    view.update_in(cx, |v, _, cx| {
+        let mut tr = Transaction::edit(
+            ChangeSet::replace(0..9, "# Mutated"),
+            Some(Selection::cursor(11)),
+            UserEvent::Input,
+        );
+        tr.effects
+            .push(StateEffect::new(super::SetLivePreview(false)));
+        v.dispatch(tr, cx);
+    });
+
+    view.read_with(cx, |v, _| {
+        assert_eq!(
+            v.text(),
+            text,
+            "TA-07: read_only filter must strip tr.changes"
+        );
+        assert_eq!(
+            v.state().selection,
+            Selection::cursor(11),
+            "TA-07: read_only filter must preserve tr.selection"
+        );
+        assert!(
+            !v.extension::<MarkdownExtension>().unwrap().live,
+            "TA-07: read_only filter must preserve tr.effects"
+        );
+    });
+}
+
+#[gpui::test]
+fn run_command_commits_active_ime_composition_before_executing_command(cx: &mut TestAppContext) {
+    use gpui::EntityInputHandler as _;
+    let (view, cx) = setup(cx, "prefix ");
+    view.update_in(cx, |v, w, cx| {
+        v.set_selection(Selection::cursor(7), cx);
+        v.replace_and_mark_text_in_range(None, "汉字", None, w, cx);
+        assert!(v.composing());
+        v.run_command(&super::format_command(super::FormatCommand::Bold), w, cx);
+    });
+    view.read_with(cx, |v, _| {
+        assert!(
+            !v.composing(),
+            "TODO-92: run_command must commit active IME composition first"
+        );
+        assert_eq!(v.text(), "prefix **汉字**");
+    });
+}
+
+#[gpui::test]
+fn revealed_code_and_table_lines_carry_source_classes_and_setext_gets_heading_style(
+    cx: &mut TestAppContext,
+) {
+    use super::features::html;
+    use crate::editor::view::{command::Command, decoration::Block};
+
+    let text = concat!(
+        "Setext Title\n============\n\n",
+        "plain body\n\n",
+        "```md\n# Not A Heading\n```\n\n",
+        "| c1 | c2 |\n| -- | -- |\n| v1 | v2 |\n",
+    );
+    let code_hash_at = text.find("# Not A Heading").unwrap();
+    let table_at = text.find("| c1 | c2 |").unwrap();
+    let table_end = text.len() - 1;
+    let (view, cx) = setup(cx, text);
+
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(
+                html::ID,
+                html::ShowSource(text.find("```md").unwrap()..text.find("```\n\n").unwrap() + 3),
+            ),
+            w,
+            cx,
+        );
+        v.set_selection(Selection::cursor(code_hash_at), cx);
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+
+    view.update(cx, |v, _| {
+        let decos = v.decorations();
+        let line_style = |line_idx: usize| {
+            decos.blocks.iter().find_map(|b| match b {
+                Block::Line { line, style } if *line == line_idx => Some(style.clone()),
+                _ => None,
+            })
+        };
+        let setext_style = line_style(0).expect("Setext title line");
+        let body_style = line_style(3).expect("plain body line");
+        let code_line_style = line_style(6).expect("revealed `# Not A Heading` code line");
+        assert!(
+            setext_style.text.size > body_style.text.size,
+            "TODO-45: Setext title must receive heading font size ({} > {})",
+            setext_style.text.size,
+            body_style.text.size
+        );
+        assert!(
+            code_line_style.text.size <= body_style.text.size,
+            "TODO-45: `# Not A Heading` inside revealed code fence must NOT get heading size"
+        );
+        assert_ne!(
+            code_line_style.text.family(),
+            body_style.text.family(),
+            "TODO-44: revealed code block line must carry monospace CODE_BLOCK_LINE styling"
+        );
+    });
+
+    // Reveal the table as source and verify `TABLE_LINE` monospace styling (`TODO-44`).
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(html::ID, html::ShowSource(table_at..table_end)),
+            w,
+            cx,
+        );
+        v.set_selection(Selection::cursor(table_at), cx);
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.update(cx, |v, _| {
+        let decos = v.decorations();
+        let table_line_idx = v.state().doc.line_index(table_at);
+        let body_style = decos
+            .blocks
+            .iter()
+            .find_map(|b| match b {
+                Block::Line { line: 3, style } => Some(style.clone()),
+                _ => None,
+            })
+            .unwrap();
+        let tbl_style = decos
+            .blocks
+            .iter()
+            .find_map(|b| match b {
+                Block::Line { line, style } if *line == table_line_idx => Some(style.clone()),
+                _ => None,
+            })
+            .expect("revealed table source line");
+        assert_ne!(
+            tbl_style.text.family(),
+            body_style.text.family(),
+            "TODO-44: revealed table line must carry monospace TABLE_LINE styling"
+        );
+    });
+}
+
 #[gpui::test]
 fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppContext) {
     use super::{
         core::{
-            decorations::BlockDecoration,
-            feature::{CompileCx, FEATURE_PANIC_EVENT, Features, MarkdownFeature, WidgetFactoryCx},
+            decorations::{BlockDecoration, LineDecoration},
+            feature::{
+                CommandCx, CompileCx, FEATURE_PANIC_EVENT, Features, MarkdownFeature,
+                WidgetFactoryCx,
+            },
             plans::{BlockEmbed, Plan, Presentation},
+            state::PreviewState,
             syntax::{Element, Kind},
         },
         features::math,
     };
-    use crate::editor::view::{decoration::Block, widget::BlockWidget};
+    use crate::editor::{
+        text::state::{EditorState, Transaction},
+        view::{
+            command::Command,
+            decoration::Block,
+            widget::{BlockWidget, WidgetCx},
+        },
+    };
+    use gpui::AnyElement;
     use std::rc::Rc;
 
     struct PanicElement;
@@ -573,7 +1098,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
         }
         fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
             for line in 0..cx.doc.line_count() {
-                if cx.doc.line(line) == ":::panic" {
+                if cx.doc.line_cow(line) == ":::panic" {
                     let range = cx.doc.line_range(line);
                     out.push(Plan {
                         element: None,
@@ -597,13 +1122,81 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
         }
     }
 
+    struct PanicRenderWidget;
+    impl BlockWidget for PanicRenderWidget {
+        fn render(&self, _: &mut WidgetCx) -> (AnyElement, f32) {
+            panic!("boom in BlockWidget::render");
+        }
+    }
+
+    struct PanicHooks;
+    impl MarkdownFeature for PanicHooks {
+        fn id(&self) -> &'static str {
+            "test-panic-hooks"
+        }
+        fn recognize_inline(&self, _line_start: usize, line_text: &str, out: &mut Vec<Element>) {
+            if line_text.contains("bad-bounds") {
+                // Deliberately emit an out-of-bounds span; `Syntax` clamps it (`TA-33`).
+                out.push(Element::new(
+                    Kind::FeatureInline("bad"),
+                    999_999..1_000_005,
+                    Vec::new(),
+                    None,
+                ));
+            }
+        }
+        fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
+            for line in 0..cx.doc.line_count() {
+                if cx.doc.line_cow(line) == ":::panic-render" {
+                    let range = cx.doc.line_range(line);
+                    out.push(Plan {
+                        element: None,
+                        source: range.clone(),
+                        presentation: Presentation::BlockAtom(BlockEmbed::new(
+                            "test-panic-hooks",
+                            range,
+                        )),
+                        delete_units: Vec::new(),
+                    });
+                }
+            }
+        }
+        fn block_widget(&self, _: &BlockEmbed, _: &WidgetFactoryCx) -> Option<Rc<dyn BlockWidget>> {
+            Some(Rc::new(PanicRenderWidget))
+        }
+        fn decorate_block(&self, _: &BlockEmbed, _: &mut BlockDecoration) {
+            panic!("boom in decorate_block");
+        }
+        fn decorate_line(&self, d: &mut LineDecoration) {
+            if d.doc.slice_cow(d.range.clone()).contains("panic-line") {
+                panic!("boom in decorate_line");
+            }
+        }
+        fn view_command(
+            &self,
+            cmd: &Command,
+            _: &mut PreviewState,
+            _: &EditorState,
+        ) -> Option<Transaction> {
+            if cmd.payload::<&'static str>() == Some(&"panic-view") {
+                panic!("boom in view_command");
+            }
+            None
+        }
+        fn command(&self, _: &Command, _: &CommandCx) -> Option<Transaction> {
+            panic!("boom in command");
+        }
+    }
+
     static PANIC_ELEMENT: PanicElement = PanicElement;
     static PANIC_BLOCKS: PanicBlocks = PanicBlocks;
     static PANIC_WIDGET: PanicWidget = PanicWidget;
+    static PANIC_HOOKS: PanicHooks = PanicHooks;
     static TEST_FEATURES: Features = &[
         &PANIC_ELEMENT,
         &PANIC_BLOCKS,
         &PANIC_WIDGET,
+        &PANIC_HOOKS,
         &math::FEATURE,
         &task::FEATURE,
     ];
@@ -615,7 +1208,14 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
         cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
-    let text = "---\n\n:::panic\n\n$$\nE = mc^2\n$$\n\n- [ ] healthy\n";
+    let text = concat!(
+        "---\n\n",
+        ":::panic\n\n",
+        ":::panic-render\n\n",
+        "panic-line and bad-bounds\n\n",
+        "$$\nE = mc^2\n$$\n\n",
+        "- [ ] healthy\n",
+    );
     let (view, cx) = cx.add_window_view(move |_, cx| {
         let mut md = MarkdownExtension::new(true, Scale::Medium);
         md.features = TEST_FEATURES;
@@ -624,13 +1224,14 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
     view.update_in(cx, |v, w, cx| {
         v.focus(w, cx);
         v.set_selection(Selection::cursor(text.len()), cx);
+        // Panicking `view_command` and `command` must be isolated (`TA-33`).
+        v.run_command(&Command::new("test-panic-hooks", "panic-view"), w, cx);
+        v.run_command(&Command::new("test-panic-hooks", "panic-cmd"), w, cx);
     });
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
 
-    // Only the healthy math block becomes a Block::Widget; `---` and `:::panic`
-    // degrade to visible source lines, and partial output from `PanicBlocks` is discarded.
     view.update(cx, |v, _| {
         let decos = v.decorations();
         let widgets: Vec<_> = decos
@@ -641,7 +1242,9 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
                 Block::Line { .. } => None,
             })
             .collect();
-        assert_eq!(widgets, vec![4..7], "only healthy math widget should mount");
+        // `:::panic-render` mounts its widget (which falls back safely during `render`)
+        // alongside the healthy math widget `8..11`.
+        assert_eq!(widgets, vec![4..5, 8..11]);
         let panic_line = v.state().doc.line_range(2);
         assert!(
             !decos
@@ -653,7 +1256,6 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
         );
     });
 
-    // Remaining features and editing continue to work across multiple cycles.
     let task_offset = text.find("- [ ] healthy").unwrap();
     view.update_in(cx, |v, w, cx| {
         let task_line = v.state().doc.line_index(task_offset);
@@ -675,14 +1277,13 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
     ] {
         let matching: Vec<_> = events
             .iter()
-            .filter(|e| e["fields"]["feature"] == id)
+            .filter(|e| e["fields"]["feature"] == id && e["fields"]["stage"] == stage)
             .collect();
         assert_eq!(
             matching.len(),
             1,
-            "feature {id} should be logged once per session, got {matching:?}"
+            "feature {id}/{stage} should be logged once per session, got {matching:?}"
         );
-        assert_eq!(matching[0]["fields"]["stage"], stage);
     }
 }
 
@@ -713,8 +1314,7 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
     let table_at = text.find("| a | b |").unwrap();
 
     let (view, cx) = cx.add_window_view(move |_, cx| {
-        let mut md = MarkdownExtension::new(true, Scale::Medium);
-        md.read_only = true;
+        let md = MarkdownExtension::new(true, Scale::Medium);
         let mut v = EditorView::new(text, Box::new(md), cx);
         v.set_read_only(true, cx);
         v
@@ -724,7 +1324,6 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
         v.set_selection(Selection::cursor(text.len()), cx);
     });
     let initial_blocks = blocks(&view, cx);
-    // Initially front matter (0..3) is a widget and callout lines (4, 5) are separate lines.
     assert!(initial_blocks.contains(&(0..3)), "{initial_blocks:?}");
     assert!(initial_blocks.contains(&(5..6)), "{initial_blocks:?}");
 
@@ -732,8 +1331,12 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
     let key_before = view.update(cx, |v, _| {
         use crate::editor::view::extension::EditorExtension;
         let md = v.extension::<MarkdownExtension>().unwrap();
-        assert_eq!(md.preview.diagrams.get(mermaid_at).zoom, None);
-        assert!(!md.preview.diagrams.get(mermaid_at).activated);
+        let d = md
+            .preview
+            .state::<mermaid::MermaidState>(mermaid::ID)
+            .map_or_else(Default::default, |s| s.get(mermaid_at));
+        assert_eq!(d.zoom, None);
+        assert!(!d.activated);
         md.decoration_key()
     });
     view.update_in(cx, |v, w, cx| {
@@ -757,7 +1360,11 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
     let key_after = view.update(cx, |v, _| {
         use crate::editor::view::extension::EditorExtension;
         let md = v.extension::<MarkdownExtension>().unwrap();
-        let d = md.preview.diagrams.get(mermaid_at);
+        let d = md
+            .preview
+            .state::<mermaid::MermaidState>(mermaid::ID)
+            .unwrap()
+            .get(mermaid_at);
         assert_eq!(d.zoom, Some(150));
         assert!(d.activated);
         md.decoration_key()
@@ -823,10 +1430,10 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
         assert_eq!(v.state().revision, rev_before);
     });
 
-    // Positive control: once read-only is lifted, those exact commands mutate the document.
+    // Positive control: once read-only is lifted via single-source `set_read_only`,
+    // those exact commands mutate the document (`TA-21`).
     view.update_in(cx, |v, w, cx| {
         v.set_read_only(false, cx);
-        v.extension_mut::<MarkdownExtension>().unwrap().read_only = false;
         v.run_command(&task::toggle_command(task_line), w, cx);
         v.run_command(
             &table::structure_command(table_at, Operation::InsertRowAbove, 1, 0),

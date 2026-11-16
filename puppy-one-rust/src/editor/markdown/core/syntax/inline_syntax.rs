@@ -87,6 +87,7 @@ pub fn highlights(text: &str) -> Vec<(usize, usize)> {
     out
 }
 
+#[cfg(test)]
 fn escaped(bytes: &[u8], at: usize) -> bool {
     bytes[..at]
         .iter()
@@ -96,9 +97,8 @@ fn escaped(bytes: &[u8], at: usize) -> bool {
         % 2
         == 1
 }
-/// `$formula$` on one line (`scanInlineMath`): no `$$`, no space just
-/// inside either `$`, and not a price range such as `$5-$10`.
-/// (opening, closing) byte offsets of the two `$`.
+
+#[cfg(test)]
 pub fn inline_math(text: &str) -> Vec<(usize, usize)> {
     let bytes = text.as_bytes();
     let space = |i: usize| bytes.get(i).is_none_or(|b| b.is_ascii_whitespace());

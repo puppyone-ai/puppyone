@@ -11,7 +11,6 @@ use super::{
     BlockKind, Element, Hl, Kind, List, ListItem, Paragraph, Span, Syntax, TaskLine, autolink,
     inline_syntax,
 };
-use crate::editor::text::buffer::Buffer;
 use pulldown_cmark::{CodeBlockKind, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 /// A Lezer node that carries (or blocks) a highlight class.
@@ -250,7 +249,7 @@ impl<'a> Walker<'a> {
                 }
                 self.push(Frame::Paragraph, HlNode::new(range, Hl::NONE, false));
             }
-            Tag::Heading { .. } => {
+            Tag::Heading { level, .. } => {
                 let range = trim(doc, range);
                 let atx = doc[range.clone()].trim_start_matches(' ').starts_with('#');
                 if matches!(self.stack.last(), Some((Frame::Item { .. }, _))) {
@@ -265,6 +264,23 @@ impl<'a> Walker<'a> {
                     if let Some(e) = heading_element(doc, marks[0].clone(), line) {
                         self.syntax.elements.push(e);
                     }
+                } else {
+                    // Setext heading: emit `Kind::Heading` with `line = None`
+                    // and empty prefix markers so `Headings` (`TA-34`) and
+                    // `decorations/lines` (`TODO-45`) derive Setext headings
+                    // directly from `Syntax` without affecting ATX prefix rules.
+                    let text_slice = &doc[range.clone()];
+                    let title_len = text_slice.rfind('\n').map_or(text_slice.len(), |i| {
+                        text_slice[..i].trim_end_matches('\r').len()
+                    });
+                    let mut e = Element::new(
+                        Kind::Heading,
+                        range.clone(),
+                        Vec::new(),
+                        Some(range.start..range.start + title_len),
+                    );
+                    e.level = level as u8;
+                    self.syntax.elements.push(e);
                 }
                 let mut node = HlNode::new(range.clone(), Hl::HEADING, true);
                 for mark in marks {
@@ -968,15 +984,95 @@ fn flatten(node: &HlNode, inherited: Hl, out: &mut Vec<(Span, Hl)>) {
     emit(pos..node.range.end.max(pos), cls, out);
 }
 
-pub(super) fn walk(buffer: &Buffer) -> Syntax {
-    let doc = buffer.as_str();
+fn shift_span(span: &mut Span, delta: usize) {
+    span.start += delta;
+    span.end += delta;
+}
+
+fn shift_syntax_base(syntax: &mut Syntax, base: usize) {
+    if base == 0 {
+        return;
+    }
+    for e in &mut syntax.elements {
+        shift_span(&mut e.range, base);
+        for m in &mut e.markers {
+            shift_span(m, base);
+        }
+        if let Some(c) = &mut e.content {
+            shift_span(c, base);
+        }
+        if let Some(l) = &mut e.line {
+            shift_span(l, base);
+        }
+    }
+    for item in &mut syntax.items {
+        shift_span(&mut item.range, base);
+        item.marker_from += base;
+        item.marker_to += base;
+        item.content_from += base;
+        if let Some(task) = &mut item.task {
+            shift_span(&mut task.line, base);
+            shift_span(&mut task.checkbox, base);
+            task.prefix_to += base;
+        }
+        for (_, r) in &mut item.blocks {
+            shift_span(r, base);
+        }
+    }
+    for list in &mut syntax.lists {
+        shift_span(&mut list.range, base);
+    }
+    for p in &mut syntax.paragraphs {
+        shift_span(&mut p.range, base);
+    }
+    for (r, _) in &mut syntax.highlights {
+        shift_span(r, base);
+    }
+    for r in &mut syntax.tables {
+        shift_span(r, base);
+    }
+    for n in &mut syntax.note_definitions {
+        *n += base;
+    }
+    for r in &mut syntax.inline_tags {
+        shift_span(r, base);
+    }
+    for r in &mut syntax.html_blocks {
+        shift_span(r, base);
+    }
+    for r in &mut syntax.top_blocks {
+        shift_span(r, base);
+    }
+}
+
+/// Parse a slice `doc_slice` starting at byte `base` in the document, supplying
+/// `extra_link_defs` (newline-separated external `[label]: url` definitions) so
+/// reference links inside the slice resolve identically to a full parse (`TA-31`).
+pub(super) fn walk_slice(
+    doc_slice: &str,
+    base: usize,
+    extra_link_defs: &str,
+) -> (Syntax, Vec<(Span, String)>) {
+    let slice_len = doc_slice.len();
+    let combined_storage: String;
+    let parse_input: &str = if extra_link_defs.is_empty() {
+        doc_slice
+    } else {
+        combined_storage = format!("{doc_slice}\n\n{extra_link_defs}");
+        &combined_storage
+    };
+
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_STRIKETHROUGH);
     options.insert(Options::ENABLE_TASKLISTS);
-    let mut w = Walker::new(doc);
-    let mut events = Parser::new_ext(doc, options).into_offset_iter();
+    let mut w = Walker::new(doc_slice);
+    let mut events = Parser::new_ext(parse_input, options).into_offset_iter();
     for (event, range) in &mut events {
+        if range.start >= slice_len {
+            continue;
+        }
+        let range = range.start..range.end.min(slice_len);
         match event {
             Event::Start(tag) => w.start(tag, range),
             Event::End(tag) => w.end(tag),
@@ -994,11 +1090,11 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
             }
             Event::Rule => {
                 w.end_implicit();
-                let range = trim(doc, range);
+                let range = trim(doc_slice, range);
                 if w.stack.len() == 1 {
                     w.syntax.top_blocks.push(range.clone());
                 }
-                let line = line_start(doc, range.start)..line_end(doc, range.start);
+                let line = line_start(doc_slice, range.start)..line_end(doc_slice, range.start);
                 let mut e = Element::new(Kind::Rule, range.clone(), vec![range.clone()], None);
                 e.line = Some(line);
                 w.syntax.elements.push(e);
@@ -1022,10 +1118,13 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
             }
         }
     }
-    // `LinkReference`: a definition's label and colon, not a footnote's.
+    let mut link_defs = Vec::new();
     for (_, definition) in events.reference_definitions().iter() {
         let span = definition.span.clone();
-        let source = &doc[span.clone()];
+        if span.end > slice_len {
+            continue;
+        }
+        let source = &doc_slice[span.clone()];
         let Some(open) = source.find('[') else {
             continue;
         };
@@ -1036,6 +1135,7 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
             w.syntax.note_definitions.push(span.start + open);
             continue;
         }
+        link_defs.push((base + span.start..base + span.end, source.to_owned()));
         let (open, close) = (span.start + open, span.start + close);
         w.syntax.elements.push(Element::new(
             Kind::LinkDefinition,
@@ -1044,6 +1144,7 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
             Some(open + 1..close),
         ));
     }
+    link_defs.sort_by_key(|(r, _)| (r.start, r.end));
     while w.stack.len() > 1 {
         w.pop();
     }
@@ -1051,5 +1152,6 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
     let mut highlights = Vec::new();
     flatten(&root, Hl::NONE, &mut highlights);
     w.syntax.highlights = highlights;
-    w.syntax
+    shift_syntax_base(&mut w.syntax, base);
+    (w.syntax, link_defs)
 }

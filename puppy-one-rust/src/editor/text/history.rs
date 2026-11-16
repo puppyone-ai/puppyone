@@ -12,10 +12,14 @@
 use super::{
     buffer::Buffer,
     change::ChangeSet,
+    rope::Rope,
     selection::Selection,
     state::{Annotation, Applied, EditorState, Transaction, UserEvent},
 };
-use std::time::{Duration, Instant};
+use std::{
+    ops::Range,
+    time::{Duration, Instant},
+};
 
 /// CodeMirror `newGroupDelay`.
 pub const GROUP_DELAY: Duration = Duration::from_millis(500);
@@ -73,15 +77,25 @@ pub struct History {
     composing: Option<Composing>,
 }
 
+/// Ticket returned by [`History::begin_step`] so undo/redo transactions can
+/// pass through `EditorView::dispatch` (`TA-06`) and commit or roll back cleanly.
+pub struct StepTicket {
+    step: Step,
+    redo: bool,
+}
+
 /// The single replacement turning `before` into `after` (common prefix and
 /// suffix trimmed on character boundaries in `O(log n + |changed|)` without
 /// materialising `flat`); `None` when they are equal.
-fn replacement(before: &Buffer, after: &Buffer) -> Option<ChangeSet> {
+pub fn minimal_diff_buffers(before: &Buffer, after: &Buffer) -> Option<ChangeSet> {
     if before == after {
         return None;
     }
     let raw_prefix = before.rope().common_prefix_bytes(after.rope());
-    let prefix = before.clamp(raw_prefix);
+    let mut prefix = before.clamp(raw_prefix.min(before.len()).min(after.len()));
+    while prefix > 0 && after.clamp(prefix) != prefix {
+        prefix = before.clamp(prefix - 1);
+    }
     let room = before.len().min(after.len()) - prefix;
     let mut suffix = before.rope().common_suffix_bytes(after.rope(), room);
     while suffix > 0
@@ -97,6 +111,34 @@ fn replacement(before: &Buffer, after: &Buffer) -> Option<ChangeSet> {
     ))
 }
 
+/// Minimal `ChangeSet` turning `before` into `after` without materialising
+/// `before`'s flat buffer (`TA-70`, `TA-71`, `DP-02`).
+pub fn minimal_diff(before: &Buffer, after: &str) -> Option<ChangeSet> {
+    if before.eq_str(after) {
+        return None;
+    }
+    let after_buf = Buffer::from_rope(Rope::from_text(after));
+    minimal_diff_buffers(before, &after_buf)
+}
+
+/// Minimal UTF-16 `(range, insert)` turning `before` into `after` (`TA-70`
+/// companion pane sync without full-document replacement).
+pub fn minimal_diff_utf16(before: &str, after: &Buffer) -> Option<(Range<usize>, String)> {
+    if after.eq_str(before) {
+        return None;
+    }
+    let before_buf = Buffer::from_rope(Rope::from_text(before));
+    let cs = minimal_diff_buffers(&before_buf, after)?;
+    let ch = cs.changes().first()?;
+    let start = before_buf.byte_to_utf16(ch.range.start);
+    let end = before_buf.byte_to_utf16(ch.range.end);
+    Some((start..end, ch.insert.clone()))
+}
+
+fn replacement(before: &Buffer, after: &Buffer) -> Option<ChangeSet> {
+    minimal_diff_buffers(before, after)
+}
+
 impl History {
     pub fn record(&mut self, applied: &Applied, after: &EditorState, now: Instant) {
         let at = applied.timestamp().unwrap_or(now);
@@ -108,10 +150,19 @@ impl History {
             return;
         }
         if applied.is_annotation(Annotation::EXTERNAL) {
-            // Storage adoption is not undoable and invalidates position-based steps.
-            self.undo.clear();
-            self.redo.clear();
+            // DP-03: external adoption is recorded as its own sealed undoable step
+            // so `⌘Z` recovers overwritten local input while preserving earlier steps.
             self.composing = None;
+            self.redo.clear();
+            self.push(Step {
+                changes: applied.changes.clone(),
+                inverse: applied.inverse.clone(),
+                selection_before: applied.before_selection,
+                selection_after: after.selection,
+                group: None,
+                at,
+                sealed: true,
+            });
             return;
         }
         if self.composing.is_some() {
@@ -150,6 +201,12 @@ impl History {
     fn push(&mut self, step: Step) {
         self.undo.push(step);
         self.trim();
+    }
+
+    pub fn clear(&mut self) {
+        self.undo.clear();
+        self.redo.clear();
+        self.composing = None;
     }
 
     /// `trimHistory`: the newest steps are kept within both the step and
@@ -207,44 +264,68 @@ impl History {
         true
     }
 
+    /// Drop the open composition without recording a step, returning the
+    /// pre-composition `(doc, selection)` snapshot so callers replacing the
+    /// document externally revert uncommitted marked text before diffing.
+    pub fn take_abandoned_composition(&mut self) -> Option<(Buffer, Selection)> {
+        self.composing.take().map(|c| (c.doc, c.selection))
+    }
+
     /// Drop the open composition without a step (the document is being
     /// replaced from storage).
     pub fn abandon_composition(&mut self) {
         self.composing = None;
     }
 
-    #[cfg(test)]
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }
 
-    #[cfg(test)]
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }
 
-    /// Apply one undo (`redo == false`) or redo step to `state` in a single
-    /// `Transaction` (`TA-02`).
-    pub fn step(&mut self, state: &mut EditorState, redo: bool) -> bool {
-        let Some(step) = (if redo {
-            self.redo.pop()
+    #[cfg(test)]
+    pub(crate) fn last_undo_weight(&self) -> Option<usize> {
+        self.undo.last().map(|s| s.changes.weight())
+    }
+
+    /// Pop one undo (`redo == false`) or redo (`redo == true`) step and build
+    /// its `Transaction` annotated with `Annotation::UNDO` or `Annotation::REDO`
+    /// (`TA-06`). Pair with [`Self::finish_step`].
+    pub fn begin_step(&mut self, redo: bool) -> Option<(StepTicket, Transaction)> {
+        let step = if redo {
+            self.redo.pop()?
         } else {
-            self.undo.pop()
-        }) else {
-            return false;
+            self.undo.pop()?
         };
         let (changes, selection, event) = if redo {
             (step.changes.clone(), step.selection_after, UserEvent::Redo)
         } else {
             (step.inverse.clone(), step.selection_before, UserEvent::Undo)
         };
-        state.apply(Transaction::edit(changes, Some(selection), event));
-        if redo {
-            self.undo.push(step);
-        } else {
-            self.redo.push(step);
+        let tr = Transaction::edit(changes, Some(selection), event);
+        Some((StepTicket { step, redo }, tr))
+    }
+
+    /// Commit (`applied == true`) or roll back (`applied == false`) a popped
+    /// history step from [`Self::begin_step`].
+    pub fn finish_step(&mut self, ticket: StepTicket, applied: bool) {
+        match (ticket.redo, applied) {
+            (true, true) | (false, false) => self.undo.push(ticket.step),
+            (false, true) | (true, false) => self.redo.push(ticket.step),
         }
-        true
+    }
+
+    /// Apply one undo (`redo == false`) or redo step to `state` in a single
+    /// `Transaction` (`TA-02`, `TA-06`).
+    pub fn step(&mut self, state: &mut EditorState, redo: bool) -> bool {
+        let Some((ticket, tr)) = self.begin_step(redo) else {
+            return false;
+        };
+        let applied = state.apply(tr).is_some();
+        self.finish_step(ticket, applied);
+        applied
     }
 }
 
@@ -467,5 +548,70 @@ mod tests {
             (0..2, "粤")
         );
         assert!(replacement(&before, &before).is_none());
+    }
+
+    #[test]
+    fn external_adoption_is_its_own_sealed_undoable_step_and_preserves_prior_history() {
+        let mut state = EditorState::new("hello world");
+        state.selection = Selection::cursor(11);
+        let mut history = History::default();
+        let t0 = Instant::now();
+
+        type_at(&mut state, &mut history, 11, "!", t0);
+        assert_eq!(state.doc.as_str(), "hello world!");
+
+        // External agent/disk rewrite changes prefix and suffix minimally.
+        let ext = minimal_diff(&state.doc, "hello rust world!").unwrap();
+        assert_eq!(ext.changes().len(), 1);
+        assert_eq!(ext.changes()[0].range, 6..6);
+        assert_eq!(ext.changes()[0].insert, "rust ");
+
+        let applied = state
+            .apply(Transaction::edit(ext, None, UserEvent::External))
+            .unwrap();
+        history.record(&applied, &state, t0 + Duration::from_millis(50));
+        assert_eq!(state.doc.as_str(), "hello rust world!");
+        assert_eq!(state.selection, Selection::cursor(17));
+
+        // Typing immediately after external adoption does NOT merge into the external step.
+        type_at(
+            &mut state,
+            &mut history,
+            17,
+            "?",
+            t0 + Duration::from_millis(80),
+        );
+        assert_eq!(state.doc.as_str(), "hello rust world!?");
+
+        // 1st undo removes "?"
+        assert!(history.step(&mut state, false));
+        assert_eq!(state.doc.as_str(), "hello rust world!");
+
+        // 2nd undo recovers the pre-adoption local state ("hello world!") in one step (DP-03)
+        let (ticket, tr) = history.begin_step(false).unwrap();
+        assert!(tr.is_annotation(Annotation::UNDO));
+        let applied = state.apply(tr).is_some();
+        history.finish_step(ticket, applied);
+        assert_eq!(state.doc.as_str(), "hello world!");
+        assert_eq!(state.selection, Selection::cursor(12));
+
+        // 3rd undo still undoes the earlier local typing step ("hello world")
+        assert!(history.step(&mut state, false));
+        assert_eq!(state.doc.as_str(), "hello world");
+
+        // Redo replays forward cleanly through both local and external steps
+        assert!(history.step(&mut state, true));
+        assert_eq!(state.doc.as_str(), "hello world!");
+        assert!(history.step(&mut state, true));
+        assert_eq!(state.doc.as_str(), "hello rust world!");
+    }
+
+    #[test]
+    fn minimal_diff_utf16_handles_emoji_surrogates_without_full_replace() {
+        let after = Buffer::new("a😀b猫c");
+        let (range, insert) = minimal_diff_utf16("a😀x猫c", &after).unwrap();
+        // 'a' = 1 UTF-16 unit, '😀' = 2 UTF-16 units => 'x' is at 3..4.
+        assert_eq!(range, 3..4);
+        assert_eq!(insert, "b");
     }
 }

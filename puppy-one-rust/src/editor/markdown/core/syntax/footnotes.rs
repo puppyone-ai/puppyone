@@ -1,14 +1,14 @@
-//! Footnotes (features/footnote/footnoteModel.ts): `[^id]:` opening a
+//! Footnotes (`features/footnote/footnoteModel.ts`): `[^id]:` opening a
 //! paragraph or a link reference definition defines a note, and `[^id]`
-//! elsewhere refers to it. Notes are numbered by first reference — the
-//! order a reader meets them — and only defined notes have references.
+//! elsewhere refers to it. Uses `Buffer` rope line slices without materialising
+//! `doc.flat` (`TA-01`, `TA-31`).
 use super::{Element, Kind, Span, Syntax};
 use crate::editor::{markdown::core::links, text::buffer::Buffer};
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Range};
 
 /// `[^id]` at `at` in `text` (`/^\[\^([^\]\s]+)\]/`): the id's length.
 fn marker(text: &str, at: usize) -> Option<usize> {
-    let rest = text[at..].strip_prefix("[^")?;
+    let rest = text.get(at..)?.strip_prefix("[^")?;
     let len = rest.find(|c: char| c == ']' || c.is_whitespace())?;
     (len > 0 && rest[len..].starts_with(']')).then_some(len)
 }
@@ -21,24 +21,35 @@ pub struct Footnotes {
     pub first_references: HashMap<String, usize>,
 }
 
-/// Index the notes and add their marker elements to `syntax`. `blocks` are
-/// the source lines block features own (code, tables).
-pub(super) fn add(doc: &Buffer, blocks: &[std::ops::Range<usize>], syntax: &mut Syntax) {
-    let text = doc.as_str();
+/// Scan footnote definitions and references across `line_window` without
+/// materialising `doc.flat`.
+pub(super) fn add_in_lines(
+    doc: &Buffer,
+    line_window: Range<usize>,
+    blocks: &[Range<usize>],
+    syntax: &mut Syntax,
+) {
     let mut starts: Vec<usize> = syntax.paragraphs.iter().map(|p| p.range.start).collect();
     starts.extend(syntax.note_definitions.iter().copied());
     starts.sort_unstable();
+    starts.dedup();
     let mut definitions: Vec<(String, Span)> = Vec::new();
     for at in starts {
-        if let Some(len) = marker(text, at)
-            && text[at + len + 3..].starts_with(':')
+        let probe = doc.slice_cow(at..doc.len().min(at + 256));
+        if let Some(len) = marker(&probe, 0)
+            && probe.get(len + 3..).is_some_and(|r| r.starts_with(':'))
         {
-            let id = text[at + 2..at + 2 + len].to_owned();
+            let id = probe[2..2 + len].to_owned();
             if !definitions.iter().any(|(d, _)| *d == id) {
                 definitions.push((id, at..at + len + 4));
             }
         }
     }
+    if definitions.is_empty() {
+        syntax.footnotes = Footnotes::default();
+        return;
+    }
+
     let code: Vec<Span> = syntax
         .elements
         .iter()
@@ -47,7 +58,8 @@ pub(super) fn add(doc: &Buffer, blocks: &[std::ops::Range<usize>], syntax: &mut 
         .collect();
     let mut references: Vec<(String, Span)> = Vec::new();
     let mut block = blocks.iter().peekable();
-    for line in 0..doc.line_count() {
+    let end_limit = line_window.end.min(doc.line_count());
+    for line in line_window.start..end_limit {
         while block.peek().is_some_and(|b| b.end <= line) {
             block.next();
         }
@@ -55,8 +67,12 @@ pub(super) fn add(doc: &Buffer, blocks: &[std::ops::Range<usize>], syntax: &mut 
             continue;
         }
         let base = doc.line_range(line).start;
-        let source = doc.line(line);
+        let source_cow = doc.line_cow(line);
+        let source = source_cow.as_ref();
         let bytes = source.as_bytes();
+        if !source.contains("[^") {
+            continue;
+        }
         let mut i = 0;
         while let Some(found) = source[i..].find("[^") {
             let at = i + found;
@@ -65,7 +81,6 @@ pub(super) fn add(doc: &Buffer, blocks: &[std::ops::Range<usize>], syntax: &mut 
                 continue;
             };
             let range = base + at..base + at + len + 3;
-            // A link's text (`[^1](url)`, `[^1][ref]`) is no reference.
             let linked = matches!(bytes.get(at + len + 3), Some(b'(' | b'['));
             if links::is_escaped(bytes, at)
                 || linked
@@ -114,8 +129,54 @@ pub(super) fn add(doc: &Buffer, blocks: &[std::ops::Range<usize>], syntax: &mut 
 }
 
 impl Footnotes {
-    /// Where a footnote marker jumps: a reference to its definition, a
-    /// definition to its first reference.
+    pub fn is_empty(&self) -> bool {
+        self.definitions.is_empty() && self.first_references.is_empty()
+    }
+
+    pub fn shift_in_place(&mut self, after_byte: usize, byte_delta: isize) {
+        if self.is_empty() || byte_delta == 0 {
+            return;
+        }
+        let shift = |v: usize| {
+            if v >= after_byte {
+                ((v as isize) + byte_delta) as usize
+            } else {
+                v
+            }
+        };
+        for r in self.definitions.values_mut() {
+            *r = shift(r.start)..shift(r.end);
+        }
+        for off in self.first_references.values_mut() {
+            *off = shift(*off);
+        }
+    }
+
+    pub fn shifted(&self, after_byte: usize, byte_delta: isize) -> Self {
+        if self.is_empty() || byte_delta == 0 {
+            return self.clone();
+        }
+        let shift = |v: usize| {
+            if v >= after_byte {
+                ((v as isize) + byte_delta) as usize
+            } else {
+                v
+            }
+        };
+        Self {
+            definitions: self
+                .definitions
+                .iter()
+                .map(|(k, r)| (k.clone(), shift(r.start)..shift(r.end)))
+                .collect(),
+            first_references: self
+                .first_references
+                .iter()
+                .map(|(k, &off)| (k.clone(), shift(off)))
+                .collect(),
+        }
+    }
+
     pub fn target(&self, element: &Element) -> Option<usize> {
         let id = element.href.as_deref()?;
         match element.kind {
@@ -150,21 +211,25 @@ mod tests {
             vec![
                 ("[^b]", "1".into()),
                 ("[^a]", "2".into()),
-                ("[^b]", "1".into())
+                ("[^b]", "1".into()),
             ]
         );
         assert_eq!(
             shown(Kind::FootnoteDefinition),
             vec![("[^a]:", "2".into()), ("[^b]:", "1".into())]
         );
-        let b = s
+        let first_b = s
             .elements
             .iter()
             .find(|e| e.kind == Kind::FootnoteReference)
             .unwrap();
-        assert_eq!(
-            s.footnotes.target(b),
-            Some(doc.as_str().find("[^b]:").unwrap())
-        );
+        let def_b = s
+            .elements
+            .iter()
+            .filter(|e| e.kind == Kind::FootnoteDefinition)
+            .nth(1)
+            .unwrap();
+        assert_eq!(s.footnotes.target(first_b), Some(def_b.range.start));
+        assert_eq!(s.footnotes.target(def_b), Some(first_b.range.start));
     }
 }

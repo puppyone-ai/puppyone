@@ -149,7 +149,7 @@ impl Ime<'_> {
         self.view.update(self.cx, |v, _| v.composing())
     }
     fn discards(&mut self) -> usize {
-        self.view.update(self.cx, |v, _| v.discard_requests)
+        self.view.update(self.cx, |v, _| v.ime.discard_requests)
     }
     fn changes(&self) -> usize {
         self.events
@@ -521,7 +521,11 @@ fn replacing_the_document_abandons_the_composition(cx: &mut TestAppContext) {
             0,
             "{format:?}: nothing reported for the abandoned text"
         );
-        assert!(!ime.view.update(ime.cx, |v, _| v.can_undo()), "{format:?}");
+        // DP-03: external adoption is undoable, and undoing recovers the
+        // pre-composition "draft" rather than uncommitted "draftni" preedit!
+        assert!(ime.view.update(ime.cx, |v, _| v.can_undo()), "{format:?}");
+        assert_eq!(ime.undo(false), "draft", "{format:?}");
+        assert_eq!(ime.undo(true), "from disk", "{format:?}");
     });
 }
 
@@ -686,7 +690,7 @@ fn character_index_for_point_and_ime_queries_clamp_stale_multibyte_offsets_witho
     let ime = open(cx, Format::Plain, initial, 0);
 
     let (byte_two_pt, far_right_pt) = ime.view.read_with(ime.cx, |v, _| {
-        let layout = v.layout.as_ref().unwrap();
+        let layout = v.caches.layout.as_ref().unwrap();
         (
             layout.range_boxes(1..2)[0].right_center(),
             layout.range_boxes(30..35)[0].center(),
@@ -698,7 +702,7 @@ fn character_index_for_point_and_ime_queries_clamp_stale_multibyte_offsets_witho
     // (mid-emoji '😀' = 0..4) and `far_right_pt` lands past EOF (> 30)!
     ime.view.update_in(ime.cx, |v, w, cx| {
         v.replace_text("😀中文", cx);
-        assert_ne!(v.layout.as_ref().unwrap().revision, v.state.revision);
+        assert_ne!(v.caches.layout.as_ref().unwrap().revision, v.state.revision);
 
         let idx_mid = v.character_index_for_point(byte_two_pt, w, cx).unwrap();
         assert!(idx_mid <= 4);

@@ -20,10 +20,11 @@ use crate::editor::{
     text::buffer::Buffer,
     view::{
         command::Command,
-        decoration::{Decorations, Superscript},
+        decoration::{LayeredDecorations, Superscript},
         editor::EditorView,
         projection::LeafText,
         style::{Align, LineStyle, Paint, Rect, TextStyle},
+        widget::{BlockId, WidgetStateStore, render_line_embed_safely},
     },
 };
 use baseline::round_half_down;
@@ -47,11 +48,13 @@ pub struct Room {
 }
 
 pub struct RenderCx<'a> {
+    pub revision: u64,
     pub doc: &'a Buffer,
-    pub decorations: &'a Decorations,
+    pub decorations: &'a LayeredDecorations,
     pub leaves: Vec<LeafEntry>,
     pub cache: &'a RefCell<ParagraphCache>,
     pub measures: &'a RefCell<MeasureCache>,
+    pub widget_states: &'a RefCell<WidgetStateStore>,
     pub kit: &'a RenderContext,
     pub view: WeakEntity<EditorView>,
     /// Device pixels per CSS pixel.
@@ -245,13 +248,12 @@ impl RenderCx<'_> {
         }
     }
 
-    /// The key of the leaf showing `source`. It follows the source, not the
-    /// leaf's place in the frame: a frame builds only the blocks near the
-    /// viewport, so scrolling changes which leaves come first, and a
-    /// positional key would hand every paragraph a new identity (and Kit
-    /// would shape it again).
-    fn leaf_key(&mut self, source: &Range<usize>) -> u64 {
-        let mut key = ((source.start as u64) << 32) ^ source.end as u64;
+    /// Content-and-style-derived leaf key (`TA-13`): independent of absolute
+    /// `source.start` so typing earlier in the document preserves shaped Kit
+    /// paragraphs on untouched lines below, while disambiguating duplicate
+    /// visible lines within the same frame via `self.keys`.
+    fn leaf_key(&mut self, content_hash: u64, style_hash: u64) -> u64 {
+        let mut key = content_hash ^ style_hash.rotate_left(23);
         while !self.keys.insert(key) {
             key = key.wrapping_add(0x9E37_79B9_7F4A_7C15);
         }
@@ -328,34 +330,35 @@ impl RenderCx<'_> {
         align: TextAlign,
     ) -> (AnyElement, f32) {
         let d = self.decorations;
-        // A ready inline image shows as the room it is painted over.
-        let roomed: Vec<(Range<usize>, SharedString)>;
-        let replaced = if self.rooms.is_empty() {
-            d.replaced_in(&source)
-        } else {
-            roomed = d
-                .replaced_in(&source)
-                .iter()
-                .map(|(range, text)| {
-                    let room = self.rooms.iter().find(|r| r.range == *range);
-                    (range.clone(), room.map_or(text.clone(), |r| r.text.clone()))
-                })
-                .collect();
-            &roomed
-        };
-        let leaf = LeafText::build_replaced(
-            self.doc.as_str(),
+        let widgets = d.inline_widgets_in(&source);
+        // A ready inline image shows as the room it is painted over; otherwise
+        // every inline widget contributes its `display_text()` (`TA-12`).
+        let replaced: Vec<(Range<usize>, SharedString)> = widgets
+            .iter()
+            .map(|w| {
+                let text = self
+                    .rooms
+                    .iter()
+                    .find(|r| r.range == w.range)
+                    .map_or_else(|| w.display_text().clone(), |r| r.text.clone());
+                (w.range.clone(), text)
+            })
+            .collect();
+        let hidden = d.hidden_in(&source);
+        let marks = d.marks_in(&source);
+        let leaf = LeafText::build_from_buffer(
+            self.doc,
             source.clone(),
-            d.hidden_in(&source),
-            replaced,
-            d.marks_in(&source),
+            &hidden,
+            &replaced,
+            &marks,
             strike,
         );
         let wrap = wrap.map(|w| self.snap(w));
         let (measure_key, metrics) = self.measure(&leaf, style, wrap);
         self.text_end = (metrics.rows, metrics.end);
-        let key = self.leaf_key(&source);
-        let (paragraph, text) = self.cache.borrow_mut().get(&leaf, key);
+        let key = self.leaf_key(leaf.content_hash(), measure_key);
+        let (paragraph, text) = self.cache.borrow_mut().get(leaf, key);
         let code = text.marks.iter().any(|(_, m)| m.code);
         self.leaves.push(LeafEntry {
             key,
@@ -415,9 +418,12 @@ impl RenderCx<'_> {
         width: f32,
         highlight: impl FnOnce(&str) -> std::sync::Arc<Vec<(Range<usize>, HighlightStyle)>>,
     ) -> (AnyElement, f32) {
-        let key = self.leaf_key(&source);
         let leaf =
-            LeafText::build_with_tabs(self.doc.as_str(), source, &[], &[], &[], false, tab_size);
+            LeafText::build_buffer_with_tabs(self.doc, source, &[], &[], &[], false, tab_size);
+        let key = self.leaf_key(
+            leaf.content_hash(),
+            style.size.to_bits() as u64 ^ (tab_size as u64),
+        );
         let styles = highlight(&leaf.text);
         let rows = leaf.text.split('\n').count();
         let (ascent, descent) = self.primary_metrics(style);
@@ -590,15 +596,12 @@ impl RenderCx<'_> {
         background: Option<Rgba>,
         width: f32,
     ) -> Vec<Room> {
-        let d = self.decorations;
-        let first = d
-            .inline_images
-            .partition_point(|i| i.range.start < source.start);
-        let found: Vec<_> = d.inline_images[first..]
+        let found: Vec<_> = self
+            .decorations
+            .inline_widgets_in(source)
             .iter()
-            .take_while(|i| i.range.start < source.end)
-            .filter(|i| i.range.end <= source.end)
-            .cloned()
+            .filter(|w| w.range.start >= source.start && w.range.end <= source.end)
+            .filter_map(|w| w.as_image().map(|(_, img)| img.clone()))
             .collect();
         let mut rooms = Vec::new();
         for image in found {
@@ -723,15 +726,11 @@ impl RenderCx<'_> {
 
     /// The shifted texts (`<sup>`, `<sub>`) fully inside `source`.
     fn shifted_in(&self, source: &Range<usize>) -> Vec<Superscript> {
-        let d = self.decorations;
-        let first = d
-            .superscripts
-            .partition_point(|s| s.range.start < source.start);
-        d.superscripts[first..]
+        self.decorations
+            .inline_widgets_in(source)
             .iter()
-            .take_while(|s| s.range.start < source.end)
-            .filter(|s| s.range.end <= source.end)
-            .cloned()
+            .filter(|w| w.range.start >= source.start && w.range.end <= source.end)
+            .filter_map(|w| w.as_superscript().cloned())
             .collect()
     }
 
@@ -879,16 +878,20 @@ impl RenderCx<'_> {
         let (image_lift, image_drop) = self.image_growth(&style.text);
         let (lift, drop) = (lift.max(image_lift), drop.max(image_drop));
         let y = b.top + p.top + lift;
-        let embed = style.embed.as_ref().map(|embed| {
+        let embed = style.embed.as_ref().and_then(|embed| {
             let inner = (width - x - p.right - b.right).max(0.);
-            let (element, height) = embed.content.render(&mut super::widget::WidgetCx {
-                source: source.clone(),
-                top: top + y,
-                left: 0.,
-                width: inner,
-                state,
-                render: self,
-            });
+            let (element, height) = render_line_embed_safely(
+                embed.content.as_ref(),
+                &mut super::widget::WidgetCx {
+                    block_id: BlockId::for_line_embed(source.start, self.revision),
+                    source: source.clone(),
+                    top: top + y,
+                    left: 0.,
+                    width: inner,
+                    state,
+                    render: self,
+                },
+            )?;
             let placed = div()
                 .absolute()
                 .left(px(x))
@@ -896,7 +899,7 @@ impl RenderCx<'_> {
                 .w(px(inner))
                 .h(px(height))
                 .child(element);
-            (placed, height)
+            Some((placed, height))
         });
         let wrap = (!style.nowrap).then(|| (width - x - p.right - b.right).max(0.));
         let (text, text_height) = self.text(

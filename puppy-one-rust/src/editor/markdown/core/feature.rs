@@ -1,18 +1,23 @@
-//! The Markdown feature contract (core/features/markdownFeatureContract.ts).
+//! The Markdown feature contract (`TA-30`, `TA-33`, `TA-40`,
+//! `core/features/markdownFeatureContract.ts`).
 //!
-//! Each complex capability (code blocks, tables, rules, tasks, …) is a
-//! vertical slice in `features/<name>/`: its model refinement, plan
-//! compiler, decorations, widget, commands and style live together, and it
-//! plugs into the pipeline only through this trait. The built-in list lives
-//! in `markdown/composition.rs`; core never names a feature, and a feature
-//! never imports composition, so dependencies run Composition → Feature →
-//! core contracts.
+//! Each capability is a vertical slice in `features/<name>/` and plugs into the
+//! pipeline exclusively through [`MarkdownFeature`]:
+//! - Syntax extensions (`recognize_inline`, `recognize_blocks`) producing
+//!   feature-owned `Kind::FeatureInline(id)` / `Kind::FeatureBlock(id)` elements
+//! - Plan compilation (`compile_element`, `compile_blocks`)
+//! - Typed per-feature state slots in [`super::state::FeatureStateStore`]
+//! - Block widgets (`block_widget`) and first-class inline widgets
+//!   (`inline_widget`)
+//! - Document commands (`command`), view commands (`view_command`), and keymap
+//!   contributions (`keybindings`).
 //!
-//! Every committed edit stays one editor transaction: widgets and hotspots
-//! send `Command`s, which the owning feature turns into source changes.
+//! Note: this module is pure (`R10`: zero `gpui` references).
 use super::{
+    classes::Class,
     decorations::{BlockDecoration, LineDecoration},
     plans::{BlockEmbed, Plan},
+    state::{FeatureStateStore, PreviewState},
     syntax::{Element, Kind, Syntax},
 };
 use crate::editor::{
@@ -21,19 +26,25 @@ use crate::editor::{
         buffer::Buffer,
         state::{EditorState, Transaction},
     },
-    view::{command::Command, widget::BlockWidget},
+    view::{command::Command, decoration::InlineWidget, widget::BlockWidget},
 };
-use std::rc::Rc;
+use std::{ops::Range, rc::Rc};
 
-/// What plan compilation sees.
+/// What plan compilation sees (`folds` carries the pane's [`FeatureStateStore`]
+/// while keeping the field name expected by untouched feature unit tests).
 pub struct CompileCx<'a> {
     pub doc: &'a Buffer,
     pub syntax: &'a Syntax,
-    /// The pane's callout folds (a folded body leaves the flow).
-    pub folds: &'a super::state::CalloutFolds,
+    pub folds: &'a FeatureStateStore,
 }
 
-/// What a widget factory sees.
+impl<'a> CompileCx<'a> {
+    pub fn state<T: 'static>(&self, feature_id: &'static str) -> Option<&'a T> {
+        self.folds.get::<T>(feature_id)
+    }
+}
+
+/// What a block widget factory sees.
 pub struct WidgetFactoryCx<'a> {
     pub doc: &'a Buffer,
     pub syntax: &'a Syntax,
@@ -42,13 +53,33 @@ pub struct WidgetFactoryCx<'a> {
     pub assets: Option<&'a crate::editor::registry::DocumentAssets>,
     /// How wiki targets resolve (an embed's file by name).
     pub references: Option<&'a crate::editor::navigation::ReferenceContext>,
-    /// The pane's MDX tabs shown, by block start.
-    pub tabs: &'a std::collections::BTreeMap<usize, usize>,
-    /// The pane's diagram zoom and deferred renders.
-    pub diagrams: &'a super::state::DiagramViews,
+    /// Per-feature pane state store (`TA-40`).
+    pub state: &'a FeatureStateStore,
 }
 
-/// What a command sees.
+impl<'a> WidgetFactoryCx<'a> {
+    pub fn feature_state<T: 'static>(&self, feature_id: &'static str) -> Option<&'a T> {
+        self.state.get::<T>(feature_id)
+    }
+}
+
+/// Pure context passed to [`MarkdownFeature::inline_widget`] (`TA-30`, `TA-40`).
+pub struct InlineWidgetCx<'a> {
+    pub doc: &'a Buffer,
+    pub theme: &'a MarkdownTheme,
+    pub assets: Option<&'a crate::editor::registry::DocumentAssets>,
+    pub references: Option<&'a crate::editor::navigation::ReferenceContext>,
+    pub state: &'a FeatureStateStore,
+}
+
+/// Declarative keybinding contributed by a feature (`TA-40`).
+#[derive(Clone, Copy)]
+pub struct FeatureKeybinding {
+    pub chord: &'static str,
+    pub command: fn() -> Command,
+}
+
+/// What a document command sees.
 pub struct CommandCx<'a> {
     pub state: &'a EditorState,
     pub syntax: &'a Syntax,
@@ -58,6 +89,33 @@ pub struct CommandCx<'a> {
 pub trait MarkdownFeature: Sync {
     /// Stable identity (`Command::feature`, `BlockEmbed::feature`).
     fn id(&self) -> &'static str;
+
+    /// Line-level inline syntax extension (`TA-30`, `TA-40`), e.g. `$formula$`
+    /// in `features/math`. Called per non-code/non-table line; ranges are
+    /// validated and clamped to `doc` boundaries (`TA-33`).
+    fn recognize_inline(&self, _line_start: usize, _line_text: &str, _out: &mut Vec<Element>) {}
+
+    /// Block-level syntax extension (`TA-30`, `TA-40`), returning line ranges
+    /// owned by feature blocks that suppress inner line-level inline scanning.
+    fn recognize_blocks(
+        &self,
+        _doc: &Buffer,
+        _code_lines: &[Range<usize>],
+        _out: &mut Vec<Range<usize>>,
+    ) {
+    }
+
+    /// Record byte offsets of multi-block delimiters inside `line_window`
+    /// (`TA-30`–`TA-32`), allowing incremental plan compilation to detect
+    /// straddling block constructs in `O(log N)` without naming features in `core/`.
+    fn scan_block_delimiters(
+        &self,
+        _doc: &Buffer,
+        _line_window: Range<usize>,
+        _code_lines: &[Range<usize>],
+        _out: &mut Vec<usize>,
+    ) {
+    }
 
     /// Semantic element kinds this feature compiles (`semanticKinds`).
     fn semantic_kinds(&self) -> &'static [Kind] {
@@ -82,6 +140,17 @@ pub trait MarkdownFeature: Sync {
         None
     }
 
+    /// First-class [`InlineWidget`] and optional CSS [`Class`] for a feature's
+    /// unrevealed inline element (`TA-12`, `TA-30`, `TA-40`).
+    fn inline_widget(
+        &self,
+        _element: &Element,
+        _plan: &Plan,
+        _cx: &InlineWidgetCx,
+    ) -> Option<(InlineWidget, Class)> {
+        None
+    }
+
     /// Decorations its block adds besides the widget (atomic source, the
     /// inline marks of text the widget shows).
     fn decorate_block(&self, _embed: &BlockEmbed, _cx: &mut BlockDecoration) {}
@@ -89,18 +158,22 @@ pub trait MarkdownFeature: Sync {
     /// Decorations it adds to a line box (overlays, hotspots).
     fn decorate_line(&self, _cx: &mut LineDecoration) {}
 
-    /// A command from its widgets or hotspots.
+    /// Declarative keymap contributions (`TA-40`).
+    fn keybindings(&self) -> &'static [FeatureKeybinding] {
+        &[]
+    }
+
+    /// A command from its widgets, keybindings or hotspots.
     fn command(&self, _command: &Command, _cx: &CommandCx) -> Option<Transaction> {
         None
     }
 
-    /// A command that changes the pane's view state (a fold, a revealed
-    /// source) rather than the document; the transaction (a caret, or the
-    /// selection as it is) redraws the pane.
+    /// A command that changes the pane's view state (a fold, zoom, tab, or
+    /// revealed source) rather than the document (`TA-22`, `TA-40`).
     fn view_command(
         &self,
         _command: &Command,
-        _preview: &mut super::state::PreviewState,
+        _preview: &mut PreviewState,
         _state: &EditorState,
     ) -> Option<Transaction> {
         None
@@ -115,12 +188,14 @@ pub fn find(features: Features, id: &str) -> Option<&'static dyn MarkdownFeature
     features.iter().copied().find(|f| f.id() == id)
 }
 
-/// Diagnostic event emitted when a feature panics at a pure pipeline boundary.
+/// Diagnostic event emitted when a feature panics at a pipeline boundary.
 pub const FEATURE_PANIC_EVENT: &str = "[markdown-editor] feature panicked";
 
-/// Isolates a pure `MarkdownFeature` callback (`compile_element`,
-/// `compile_blocks`, `block_widget`). On panic, discards partial output and
-/// logs one diagnostic per feature ID per process session.
+/// Isolates a `MarkdownFeature` callback (`recognize_inline`, `recognize_blocks`,
+/// `compile_element`, `compile_blocks`, `block_widget`, `inline_widget`,
+/// `decorate_block`, `decorate_line`, `view_command`, `command`, `TA-33`).
+/// On panic, discards partial output and logs one diagnostic per feature ID per
+/// process session.
 pub fn catch_feature_panic<T>(
     feature: &'static str,
     stage: &'static str,

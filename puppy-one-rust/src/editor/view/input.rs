@@ -153,7 +153,7 @@ impl EntityInputHandler for EditorView {
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
-        let layout = self.layout.as_ref()?;
+        let layout = self.caches.layout.as_ref()?;
         let r = self.range_from_utf16(&range);
         // The input method asks right after an edit, before the next frame:
         // an older layout is only exact before the edit, so anchor at the
@@ -176,7 +176,7 @@ impl EntityInputHandler for EditorView {
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<usize> {
-        let layout = self.layout.as_ref()?;
+        let layout = self.caches.layout.as_ref()?;
         let (offset, _) = layout.offset_at(layout.to_layout(p, self.scroll_y));
         Some(self.state.doc.byte_to_utf16(offset))
     }

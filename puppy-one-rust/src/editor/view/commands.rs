@@ -1,10 +1,11 @@
 //! Default commands (CodeMirror `@codemirror/commands` standard keymap):
 //! cursor motion by character, group, visual line, page and document; deletion;
-//! line breaks; clipboard. A format extension may intercept editing intents.
+//! line breaks; clipboard. A format extension may intercept generic editing
+//! intents.
 //!
 //! While a composition is open, keys go to the input method first; a key it
 //! hands back (`doCommandBySelector:`) commits the marked text and then runs
-//! as usual, as in AppKit text views.
+//! as usual, as in AppKit text views (`TA-16`).
 use super::{editor::EditorView, extension::EditIntent};
 use crate::editor::text::{
     change::ChangeSet,
@@ -84,14 +85,9 @@ impl EditorView {
     }
 
     /// Positions strictly inside an atomic range jump to its edge in the
-    /// direction of motion (CodeMirror atomicRanges).
+    /// direction of motion in `O(log N)` (CodeMirror `atomicRanges`, `TA-13`).
     pub(super) fn skip_atomic(&self, pos: usize, forward: bool) -> usize {
-        match self
-            .decorations
-            .atomic
-            .iter()
-            .find(|r| r.start < pos && pos < r.end)
-        {
+        match self.caches.decorations.atomic_containing(pos) {
             Some(r) if forward => r.end,
             Some(r) => r.start,
             None => pos,
@@ -105,21 +101,21 @@ impl EditorView {
             let r = doc.line_range(doc.line_index(s.head));
             (if end { r.end } else { r.start }, false)
         };
-        self.layout
+        self.caches
+            .layout
             .as_ref()
             .and_then(|l| l.row_edge(s.head, s.upstream, end))
             .unwrap_or_else(fallback)
     }
 
     /// Up / down by source lines, for a caret or target outside the
-    /// laid-out blocks (the caret was scrolled away): the layout has no rows
-    /// there. The reveal that follows brings the caret into view.
+    /// laid-out blocks (the caret was scrolled away).
     fn vertical_by_lines(&self, motion: Motion, s: Selection) -> (usize, Option<f32>, bool) {
         let doc = &self.state.doc;
         let line = doc.line_index(s.head);
         let column = s.head - doc.line_range(line).start;
         let last = doc.line_count().saturating_sub(1);
-        let page = self.layout.as_ref().map_or(20, |l| {
+        let page = self.caches.layout.as_ref().map_or(20, |l| {
             (f32::from(l.bounds.size.height) / 24.).max(1.) as usize
         });
         let target = match motion {
@@ -139,7 +135,7 @@ impl EditorView {
 
     fn vertical(&self, motion: Motion, s: Selection) -> (usize, Option<f32>, bool) {
         let doc = &self.state.doc;
-        let Some(layout) = &self.layout else {
+        let Some(layout) = &self.caches.layout else {
             return (s.head, None, false);
         };
         if !layout.covers(s.head) {
@@ -189,7 +185,6 @@ impl EditorView {
             if moved {
                 return (pos, Some(goal), upstream);
             }
-            // Landed in the padding of the same box: step past the box.
             match layout
                 .blocks
                 .iter()
@@ -218,24 +213,11 @@ impl EditorView {
     /// marker); otherwise the motion runs.
     pub fn intent_or_motion(&mut self, intent: EditIntent, motion: Motion, cx: &mut Context<Self>) {
         self.commit_composition(cx);
-        if let Some(tr) = self.extension.intercept(intent, &self.state) {
+        if let Some(tr) = self.extensions.intercept(intent, &self.state) {
             self.dispatch(tr, cx);
             return;
         }
         self.motion(motion, false, cx);
-    }
-
-    /// `intent_or_motion` for a selecting motion; read-only editors only
-    /// select.
-    pub fn intent_or_select(&mut self, intent: EditIntent, motion: Motion, cx: &mut Context<Self>) {
-        self.commit_composition(cx);
-        if !self.read_only
-            && let Some(tr) = self.extension.intercept(intent, &self.state)
-        {
-            self.dispatch(tr, cx);
-            return;
-        }
-        self.motion(motion, true, cx);
     }
 
     pub fn select_all(&mut self, cx: &mut Context<Self>) {
@@ -245,10 +227,20 @@ impl EditorView {
 
     fn try_intercept(&mut self, intent: EditIntent, cx: &mut Context<Self>) -> bool {
         self.commit_composition(cx);
-        if self.read_only {
+        if intent == EditIntent::Escape {
+            let mut consumed = false;
+            for plugin in &mut self.extensions.plugins {
+                consumed |= plugin.on_escape(&self.state);
+            }
+            if consumed {
+                cx.notify();
+                return true;
+            }
+        }
+        if self.read_only && intent != EditIntent::Escape {
             return true;
         }
-        if let Some(tr) = self.extension.intercept(intent, &self.state) {
+        if let Some(tr) = self.extensions.intercept(intent, &self.state) {
             self.dispatch(tr, cx);
             return true;
         }

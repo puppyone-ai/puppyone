@@ -1,5 +1,5 @@
-//! Inline marks: class spans and syntax-highlight classes resolved, per line
-//! and in that line's inline context, into the Kit marks the view draws.
+//! Inline marks: class spans and syntax-highlight classes resolved per line in
+//! `self.line_window` into Kit marks (`TA-13`, `TA-01`).
 use super::builder::Builder;
 use crate::editor::{
     markdown::{core::classes::Class, style::marks as mark_style},
@@ -8,13 +8,15 @@ use crate::editor::{
 use gpui::SharedString;
 
 impl Builder<'_> {
-    /// Resolve class spans and highlight classes into Kit marks, per line.
+    /// Resolve class spans and highlight classes into Kit marks, per line in
+    /// `self.line_window`.
     pub fn marks(&mut self) -> Vec<Mark> {
         let cx = self.cx;
         self.spans.sort_by_key(|s| s.range.start);
         let mut out: Vec<Mark> = Vec::new();
-        for (line, context) in self.contexts.iter().enumerate() {
+        for (local, context) in self.contexts.iter().enumerate() {
             let Some(context) = context else { continue };
+            let line = self.line_window.start + local;
             let range = cx.doc.line_range(line);
             if range.is_empty() {
                 continue;
@@ -57,15 +59,16 @@ impl Builder<'_> {
                         href = s.href.clone();
                     }
                 }
-                for (r, h) in hl
+                for (_, h) in hl
                     .iter()
                     .filter(|(r, _)| r.start <= seg.start && r.end >= seg.end)
                 {
-                    let _ = r;
                     classes |= Class::from_hl(*h);
                 }
                 if classes.has(Class::SYNTAX_LINK) && href.is_none() {
-                    href = Some(SharedString::from(cx.doc.slice(seg.clone()).to_owned()));
+                    href = Some(SharedString::from(
+                        cx.doc.slice_cow(seg.clone()).into_owned(),
+                    ));
                 }
                 let mut style =
                     mark_style::marks(cx.theme, classes, context, href.as_ref(), cx.live);
