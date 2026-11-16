@@ -358,23 +358,46 @@ impl<T: Clone> Flights<T> {
             }
         });
     }
+    /// Reads `key` once for every caller asking at the same time. A change
+    /// that lands while the read is in flight supersedes it: the read runs
+    /// again (`cloudWorkspaceFiles` drops such a read from its caches and a
+    /// watcher reads again), so no caller is handed bytes a change replaced,
+    /// and none sees the race unless the path keeps changing through every
+    /// attempt.
     fn run(
         &self,
         key: String,
         check: impl Fn() -> Result<()>,
-        work: impl FnOnce() -> Result<T>,
+        work: impl Fn() -> Result<T>,
     ) -> Result<T> {
+        for _ in 0..READ_ATTEMPTS {
+            if let Some(value) = self.attempt(&key, &check, &work)? {
+                return Ok(value);
+            }
+        }
+        Err(Error::new(
+            ErrorKind::Io,
+            "Cloud files changed during the read; revalidate",
+        ))
+    }
+    /// One coalesced read; `None` when a change superseded it.
+    fn attempt(
+        &self,
+        key: &str,
+        check: &impl Fn() -> Result<()>,
+        work: &impl Fn() -> Result<T>,
+    ) -> Result<Option<T>> {
         check()?;
         let (flight, leader) = {
             let mut state = self.state.lock().unwrap();
             if state.subscriptions > 0
-                && let Some(value) = state.cached.get(&key)
+                && let Some(value) = state.cached.get(key)
             {
-                return Ok(value.clone());
+                return Ok(Some(value.clone()));
             }
             let pending = &mut state.pending;
             pending.retain(|_, v| v.strong_count() > 0);
-            if let Some(active) = pending.get(&key).and_then(Weak::upgrade) {
+            if let Some(active) = pending.get(key).and_then(Weak::upgrade) {
                 (active, false)
             } else {
                 if pending.len() >= 128 {
@@ -388,7 +411,7 @@ impl<T: Clone> Flights<T> {
                     ready: Condvar::new(),
                     invalidated: AtomicBool::new(false),
                 });
-                pending.insert(key.clone(), Arc::downgrade(&active));
+                pending.insert(key.to_owned(), Arc::downgrade(&active));
                 (active, true)
             }
         };
@@ -399,17 +422,17 @@ impl<T: Clone> Flights<T> {
                 if state.subscriptions > 0
                     && let Ok(value) = &result
                 {
-                    if !state.cached.contains_key(&key) {
-                        state.order.push_back(key.clone());
+                    if !state.cached.contains_key(key) {
+                        state.order.push_back(key.to_owned());
                     }
-                    state.cached.insert(key.clone(), value.clone());
+                    state.cached.insert(key.to_owned(), value.clone());
                     while state.order.len() > 128 {
                         if let Some(oldest) = state.order.pop_front() {
                             state.cached.remove(&oldest);
                         }
                     }
                 }
-                state.pending.remove(&key);
+                state.pending.remove(key);
             }
             *flight.value.lock().unwrap() = Some(result);
             flight.ready.notify_all();
@@ -425,15 +448,12 @@ impl<T: Clone> Flights<T> {
         }
         check()?;
         let value = result.as_ref().unwrap().clone()?;
-        if flight.invalidated.load(Ordering::Acquire) {
-            return Err(Error::new(
-                ErrorKind::Io,
-                "Cloud files changed during the read; revalidate",
-            ));
-        }
-        Ok(value)
+        Ok((!flight.invalidated.load(Ordering::Acquire)).then_some(value))
     }
 }
+/// A read a change superseded runs this many times in all
+/// (`readDocumentStorageSnapshot` reads a straddled document up to 8 times).
+const READ_ATTEMPTS: usize = 8;
 
 #[cfg(test)]
 mod tests {
@@ -486,34 +506,60 @@ mod tests {
         }
     }
     #[test]
-    fn scoped_invalidation_fences_old_reads_without_discarding_unrelated_reads() {
+    fn a_change_during_a_read_reads_again_without_discarding_unrelated_reads() {
         for changed in ["a.md", "b.md"] {
             let cache = Arc::new(Flights::default());
             cache.state.lock().unwrap().subscriptions = 1;
             let worker = cache.clone();
             let (started, start) = mpsc::channel();
             let (release, held) = mpsc::channel();
+            let reads = Arc::new(AtomicU64::new(0));
+            let counted = reads.clone();
             let task = thread::spawn(move || {
                 worker.run(
                     "a.md".into(),
                     || Ok(()),
                     || {
-                        started.send(()).unwrap();
-                        held.recv_timeout(Duration::from_secs(2)).unwrap();
-                        Ok(1)
+                        // The first read is held while the change lands; a
+                        // second one sees the changed bytes.
+                        if counted.fetch_add(1, Ordering::AcqRel) == 0 {
+                            started.send(()).unwrap();
+                            held.recv_timeout(Duration::from_secs(2)).unwrap();
+                            Ok(1)
+                        } else {
+                            Ok(2)
+                        }
                     },
                 )
             });
             start.recv_timeout(Duration::from_secs(2)).unwrap();
             cache.invalidate(|key| key == changed);
             release.send(()).unwrap();
-            let result = task.join().unwrap();
-            assert_eq!(result.is_err(), changed == "a.md");
+            let superseded = changed == "a.md";
+            assert_eq!(task.join().unwrap(), Ok(if superseded { 2 } else { 1 }));
             assert_eq!(
-                read(&cache, "a.md", 2),
-                if changed == "a.md" { 2 } else { 1 }
+                reads.load(Ordering::Acquire),
+                if superseded { 2 } else { 1 }
             );
+            // What was read last is what the cache keeps.
+            assert_eq!(read(&cache, "a.md", 3), if superseded { 2 } else { 1 });
         }
+    }
+    #[test]
+    fn a_path_that_keeps_changing_through_every_attempt_reports_the_race() {
+        let cache = Flights::<u32>::default();
+        let reads = AtomicU64::new(0);
+        let result = cache.run(
+            "a.md".into(),
+            || Ok(()),
+            || {
+                reads.fetch_add(1, Ordering::AcqRel);
+                cache.invalidate(|key| key == "a.md");
+                Ok(1)
+            },
+        );
+        assert_eq!(result.unwrap_err().kind, ErrorKind::Io);
+        assert_eq!(reads.load(Ordering::Acquire), READ_ATTEMPTS as u64);
     }
     #[test]
     fn errors_are_not_cached_and_authority_is_checked_even_on_cache_hits() {

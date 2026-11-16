@@ -1006,7 +1006,7 @@ fn permission_loss_revokes_previously_acquired_preview_access() {
     }
 }
 #[test]
-fn concurrent_reads_coalesce_and_invalidation_fences_an_old_result() {
+fn concurrent_reads_coalesce_and_a_change_mid_read_reads_again() {
     let f = Fixture::new();
     let (ws, shared) = f.scoped();
     f.state.read.held.store(true, Ordering::SeqCst);
@@ -1036,10 +1036,14 @@ fn concurrent_reads_coalesce_and_invalidation_fences_an_old_result() {
     let task = thread::spawn(move || worker.read(p("live.md")));
     wait(|| f.state.read.arrived.load(Ordering::SeqCst) >= 2);
     let before = count.load(Ordering::SeqCst);
+    let reads = f.state.count("GET", "/file");
     f.state.reset();
     wait(|| count.load(Ordering::SeqCst) > before);
     f.state.read.release();
-    assert!(task.join().unwrap().is_err());
+    // The change superseded the held read: it is read again, never handed
+    // back stale or reported to the reader.
+    assert!(task.join().unwrap().is_ok());
+    assert_eq!(f.state.count("GET", "/file"), reads + 1);
     assert!(ws.read(p("live.md")).is_ok());
 }
 #[test]
@@ -1082,9 +1086,19 @@ fn reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease() {
     let (ws, shared) = f.scoped();
     let preview = ws.resource(p("image.png")).unwrap();
     let (watch, _) = subscription(&ws);
+    // A drop the stream recovers from is a revalidation, never a failure
+    // (`reconnecting`), however often the watcher looks in meanwhile.
+    let mut heard = vec![];
     wait(|| {
+        heard.extend(watch.next());
         f.state.stream_count.load(Ordering::SeqCst) >= 2 && shared.epoch.load(Ordering::SeqCst) >= 5
     });
+    heard.extend(watch.next());
+    assert!(!heard.is_empty());
+    assert!(
+        heard.iter().all(|e| matches!(e, WatchEvent::Invalidated)),
+        "{heard:?}"
+    );
     assert!(ws.read(p("live.md")).is_ok());
     assert_eq!(f.state.count("POST", "/workbench"), 0);
     f.state

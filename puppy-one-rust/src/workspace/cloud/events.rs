@@ -209,9 +209,9 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
         if !transient || delay.is_none() {
             break map_error(failure);
         }
-        if let Some(hub) = hub.upgrade() {
-            hub.publish(run, WatchEvent::Failed(map_error(failure)));
-        }
+        // `reconnecting`: what was read may have missed a change, so the
+        // caches go; watchers hear nothing until the stream is back
+        // (`Connected` revalidates them) or gives up (`finish`).
         shared.invalidate();
         attempts += 1;
         let until = Instant::now() + Duration::from_millis(delay.unwrap());
