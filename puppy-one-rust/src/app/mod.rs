@@ -624,13 +624,6 @@ impl Shell {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::platform::watchdog::activity("shell.render");
-        // Native web content draws above GPUI: a dialog or the Cloud screen
-        // hides it, and only surfaces painted in this frame stay visible. A
-        // menu, popover or tooltip is cut out of it instead, so the page
-        // around it stays (`ui::native_cover`).
-        let overlay = !self.dialogs.read(cx).is_empty() || self.cloud.read(cx).screen_shown(cx);
-        crate::web_host::set_overlay(window, overlay);
-        crate::web_host::frame_drawn(window);
         #[cfg(test)]
         {
             self.frame.frames += 1;
@@ -654,14 +647,33 @@ impl Render for Shell {
         } else {
             panes.layout
         };
-        if panes.running {
+        let (t, home) = (cx.palette(), self.home_visible(cx));
+        let plane = (!home && panes.start.is_some()).then(|| self.frame.layout.explorer_plane());
+        // The Cloud Computer's screen: its card atop the Explorer, the main
+        // area, or on its way between them.
+        let screen = (!home && !file && !self.opening(cx)).then(|| {
+            let (editor, animate) = (self.frame.layout.editor, !cfg!(test) && !cx.reduce_motion());
+            self.cloud
+                .read(cx)
+                .screen_layout(plane, editor, animate, cx)
+        });
+        let crossing = screen.as_ref().is_some_and(|s| s.crossing());
+        if panes.running || screen.as_ref().is_some_and(|s| s.moving()) {
             window.request_animation_frame();
         }
+        // Native web content draws above GPUI: a dialog or the Cloud screen
+        // (open, or on its way to or from the main area) hides it, and only
+        // surfaces painted in this frame stay visible. A menu, popover or
+        // tooltip is cut out of it instead, so the page around it stays
+        // (`ui::native_cover`).
+        let overlay =
+            !self.dialogs.read(cx).is_empty() || self.cloud.read(cx).screen_shown(cx) || crossing;
+        crate::web_host::set_overlay(window, overlay);
+        crate::web_host::frame_drawn(window);
         // A capture steps its scenario after each frame, then is taken.
         if !self.frame.captured && std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
             cx.defer_in(window, |s, w, cx| s.capture_tick(w, cx));
         }
-        let (t, home) = (cx.palette(), self.home_visible(cx));
         let mut root = div()
             .id("gpui-shell")
             .when(home, |d| d.key_context("Homepage"))
@@ -682,16 +694,12 @@ impl Render for Shell {
                 .unwrap_or_else(|| Empty.into_any_element())
         } else {
             let mut stack = PaneStack::new();
-            if !home && panes.start.is_some() {
-                let (explorer, footer) = (self.frame.layout.explorer, self.frame.layout.footer);
-                let plane = Rect::new(
-                    explorer.x,
-                    explorer.y,
-                    explorer.w,
-                    footer.bottom() - explorer.y,
-                );
+            if let Some(plane) = plane {
+                let card = screen
+                    .as_ref()
+                    .and_then(|screen| self.cloud.read(cx).screen_card(screen, cx));
                 let column = ExplorerColumn::new(self.explorer.view.clone())
-                    .companion(self.cloud.read(cx).screen_thumbnail(cx))
+                    .companion(card)
                     .footer(self.footer(cx));
                 stack = stack.start(plane, column);
             }
@@ -700,19 +708,22 @@ impl Render for Shell {
                 // content starts at the divider like the product's.
                 stack = stack.end(self.frame.layout.auxiliary, self.sidebar.clone());
             }
-            let editor_rect = self.frame.layout.editor;
-            let pip = (!home && !self.opening(cx))
-                .then(|| self.cloud.read(cx).screen_pip(editor_rect, cx))
-                .flatten();
             let main = if !home && self.cloud.read(cx).screen_shown(cx) {
                 self.cloud.read(cx).screen.clone().into_any_element()
             } else {
                 self.editor.clone().into_any_element()
             };
             stack
-                .main(at(editor_rect).child(main).children(pip))
+                .main(at(self.frame.layout.editor).child(main))
                 .into_any_element()
         });
+        // The live screen above the panes, under the Header and the edges;
+        // on its way to or from the main area, over the edges too.
+        let live = screen
+            .as_ref()
+            .and_then(|screen| self.cloud.read(cx).screen_live(screen, cx));
+        let (live, flying) = if crossing { (None, live) } else { (live, None) };
+        root = root.children(live);
         let weak = cx.weak_entity();
         root = on_shell_actions(root, move |command, window, cx| {
             let _ = weak.update(cx, |s, cx| s.command(command, window, cx));
@@ -747,6 +758,7 @@ impl Render for Shell {
         if (!home && !opening && !file) || (file && !opening && html_chat_shown) {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }
+        root = root.children(flying);
         // `FloatingNoticeStack`s over the workspace: its own notices and
         // the editor's (save failure, held-back Cloud conflict).
         if !home && !opening {

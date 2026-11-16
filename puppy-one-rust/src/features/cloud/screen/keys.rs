@@ -1,7 +1,7 @@
 //! Aspect-fit screen geometry and GPUI keyboard/mouse translation to X11
 //! keysyms and RFB button masks (`RFC 6143` §7.5.4–7.5.5).
 use super::rfb::RfbCommand;
-use gpui::{Bounds, Keystroke, Modifiers, MouseButton, Pixels, Point, px};
+use gpui::{Bounds, Keystroke, Modifiers, MouseButton, Pixels, Point};
 
 pub(super) const XK_SHIFT_L: u32 = 0xffe1;
 pub(super) const XK_CONTROL_L: u32 = 0xffe3;
@@ -53,25 +53,6 @@ pub(super) fn map_pointer(
         .floor()
         .clamp(0., (fh.saturating_sub(1)) as f32) as u16;
     Some((rx, ry))
-}
-
-pub(super) fn fit_bounds(bounds: Bounds<Pixels>, fw: u32, fh: u32) -> Option<Bounds<Pixels>> {
-    let fit = fit_rect(
-        f32::from(bounds.size.width),
-        f32::from(bounds.size.height),
-        fw,
-        fh,
-    )?;
-    Some(Bounds {
-        origin: Point {
-            x: bounds.origin.x + px(fit.x),
-            y: bounds.origin.y + px(fit.y),
-        },
-        size: gpui::Size {
-            width: px(fit.width),
-            height: px(fit.height),
-        },
-    })
 }
 
 pub(super) fn button_bit(button: MouseButton) -> Option<u8> {
@@ -267,7 +248,7 @@ fn unicode_to_keysym(ch: char) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::Size;
+    use gpui::{Size, px};
 
     #[test]
     fn fit_rect_and_pointer_mapping_letterbox_accurately() {

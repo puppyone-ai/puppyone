@@ -107,8 +107,8 @@ pub fn screen_thumb_window(live: bool) -> Rgba {
         rgba(0xffffff2e)
     }
 }
-/// `.cloud-screen-stage-pill` & `.cloud-screen-pip-badge` (`src/styles/cloud-computer-screen.css`):
-/// dark translucent glass controls over live desktop video regardless of shell theme.
+/// `.pill` (`workbench-redesign-v4.html`): dark translucent glass controls
+/// over the live desktop picture regardless of shell theme.
 pub fn screen_overlay_surface() -> Rgba {
     rgba(0x161618de)
 }
@@ -124,11 +124,13 @@ pub fn screen_overlay_muted() -> Rgba {
 pub fn screen_overlay_border() -> Rgba {
     rgba(0xffffff24)
 }
-pub fn screen_pip_surface() -> Rgba {
-    rgb(0x101012)
+/// `.pill`'s `0 10px 30px rgba(0, 0, 0, .35)`.
+pub fn screen_pill_shadow() -> Rgba {
+    rgba(0x00000059)
 }
-pub fn screen_pip_shadow() -> Rgba {
-    rgba(0x00000085)
+/// `.veil` on hover: the open screen dims under `Take control`.
+pub fn screen_veil() -> Rgba {
+    rgba(0x00000024)
 }
 /// `--po-control-size-large`.
 pub fn control_large() -> f32 {

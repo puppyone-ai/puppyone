@@ -94,7 +94,7 @@ impl ScreenSocket {
     ) -> Self {
         Self { tx, rx }
     }
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(any(test, feature = "test-support", feature = "dev-capture"))]
     pub fn pair() -> (Self, Self) {
         let (a_tx, a_rx) = async_channel::bounded(128);
         let (b_tx, b_rx) = async_channel::bounded(128);

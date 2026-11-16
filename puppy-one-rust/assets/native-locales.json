@@ -139,7 +139,11 @@
       "fileMode.html.promptFixErrors": "The page threw {count} runtime script error(s). Please diagnose and fix them in this HTML file:\n{errors}",
       "native.create.advanced": "Advanced settings",
       "native.create.cloudDesktop": "Cloud Computer desktop",
-      "native.create.cloudDesktopHelp": "A desktop with a browser, and its screen in this app. The Cloud Computer is larger."
+      "native.create.cloudDesktopHelp": "A desktop with a browser, and its screen in this app. The Cloud Computer is larger.",
+      "native.screen.operating": "{name} is using it",
+      "native.screen.disconnected": "Disconnected",
+      "native.screen.unfold": "Show live preview",
+      "native.screen.fold": "Hide live preview"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -279,7 +283,11 @@
       "fileMode.html.promptFixErrors": "页面运行时捕获到以下 {count} 个脚本报错，请定位原因并修复该 HTML 文件：\n{errors}",
       "native.create.advanced": "高级设置",
       "native.create.cloudDesktop": "云电脑桌面",
-      "native.create.cloudDesktopHelp": "带浏览器的桌面，可以在 App 里看到它的屏幕。云电脑的配置更高。"
+      "native.create.cloudDesktopHelp": "带浏览器的桌面，可以在 App 里看到它的屏幕。云电脑的配置更高。",
+      "native.screen.operating": "{name} 正在操作",
+      "native.screen.disconnected": "已断开",
+      "native.screen.unfold": "展开预览",
+      "native.screen.fold": "收起预览"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -419,7 +427,11 @@
       "fileMode.html.promptFixErrors": "ページで {count} 件のスクリプト実行エラーが発生しました。原因を特定してこの HTML ファイルを修正してください：\n{errors}",
       "native.create.advanced": "詳細設定",
       "native.create.cloudDesktop": "Cloud Computer のデスクトップ",
-      "native.create.cloudDesktopHelp": "ブラウザ付きのデスクトップと、その画面をこのアプリで表示します。Cloud Computer の構成が大きくなります。"
+      "native.create.cloudDesktopHelp": "ブラウザ付きのデスクトップと、その画面をこのアプリで表示します。Cloud Computer の構成が大きくなります。",
+      "native.screen.operating": "{name} が操作中",
+      "native.screen.disconnected": "切断",
+      "native.screen.unfold": "プレビューを表示",
+      "native.screen.fold": "プレビューを隠す"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -559,7 +571,11 @@
       "fileMode.html.promptFixErrors": "페이지에서 런타임 스크립트 오류 {count}개가 발생했습니다. 원인을 찾아 이 HTML 파일을 수정해 주세요:\n{errors}",
       "native.create.advanced": "고급 설정",
       "native.create.cloudDesktop": "Cloud Computer 데스크톱",
-      "native.create.cloudDesktopHelp": "브라우저가 있는 데스크톱과 그 화면을 이 앱에서 보여 줍니다. Cloud Computer 사양이 더 커집니다."
+      "native.create.cloudDesktopHelp": "브라우저가 있는 데스크톱과 그 화면을 이 앱에서 보여 줍니다. Cloud Computer 사양이 더 커집니다.",
+      "native.screen.operating": "{name} 사용 중",
+      "native.screen.disconnected": "연결 끊김",
+      "native.screen.unfold": "미리보기 펼치기",
+      "native.screen.fold": "미리보기 접기"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -699,7 +715,11 @@
       "fileMode.html.promptFixErrors": "La página generó {count} error(es) de script en ejecución. Diagnostica y corrígelos en este archivo HTML:\n{errors}",
       "native.create.advanced": "Configuración avanzada",
       "native.create.cloudDesktop": "Escritorio del Cloud Computer",
-      "native.create.cloudDesktopHelp": "Un escritorio con navegador y su pantalla en esta app. El Cloud Computer es más grande."
+      "native.create.cloudDesktopHelp": "Un escritorio con navegador y su pantalla en esta app. El Cloud Computer es más grande.",
+      "native.screen.operating": "{name} lo está usando",
+      "native.screen.disconnected": "Desconectado",
+      "native.screen.unfold": "Mostrar vista previa",
+      "native.screen.fold": "Ocultar vista previa"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -839,7 +859,11 @@
       "fileMode.html.promptFixErrors": "A página apresentou {count} erro(s) de script em execução. Diagnostique e corrija-os neste arquivo HTML:\n{errors}",
       "native.create.advanced": "Configurações avançadas",
       "native.create.cloudDesktop": "Desktop do Cloud Computer",
-      "native.create.cloudDesktopHelp": "Um desktop com navegador e a tela dele neste app. O Cloud Computer é maior."
+      "native.create.cloudDesktopHelp": "Um desktop com navegador e a tela dele neste app. O Cloud Computer é maior.",
+      "native.screen.operating": "{name} está usando",
+      "native.screen.disconnected": "Desconectado",
+      "native.screen.unfold": "Mostrar prévia",
+      "native.screen.fold": "Ocultar prévia"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -979,7 +1003,11 @@
       "fileMode.html.promptFixErrors": "La page a généré {count} erreur(s) de script à l’exécution. Veuillez diagnostiquer et corriger ce fichier HTML :\n{errors}",
       "native.create.advanced": "Paramètres avancés",
       "native.create.cloudDesktop": "Bureau du Cloud Computer",
-      "native.create.cloudDesktopHelp": "Un bureau avec navigateur, et son écran dans cette app. Le Cloud Computer est plus grand."
+      "native.create.cloudDesktopHelp": "Un bureau avec navigateur, et son écran dans cette app. Le Cloud Computer est plus grand.",
+      "native.screen.operating": "{name} l’utilise",
+      "native.screen.disconnected": "Déconnecté",
+      "native.screen.unfold": "Afficher l’aperçu",
+      "native.screen.fold": "Masquer l’aperçu"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1119,7 +1147,11 @@
       "fileMode.html.promptFixErrors": "Auf der Seite sind {count} Laufzeit-Skriptfehler aufgetreten. Bitte analysiere und behebe sie in dieser HTML-Datei:\n{errors}",
       "native.create.advanced": "Erweiterte Einstellungen",
       "native.create.cloudDesktop": "Cloud Computer-Desktop",
-      "native.create.cloudDesktopHelp": "Ein Desktop mit Browser und seinem Bildschirm in dieser App. Der Cloud Computer ist größer."
+      "native.create.cloudDesktopHelp": "Ein Desktop mit Browser und seinem Bildschirm in dieser App. Der Cloud Computer ist größer.",
+      "native.screen.operating": "{name} arbeitet hier",
+      "native.screen.disconnected": "Getrennt",
+      "native.screen.unfold": "Vorschau einblenden",
+      "native.screen.fold": "Vorschau ausblenden"
     }
   }
 }

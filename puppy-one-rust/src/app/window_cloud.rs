@@ -23,6 +23,7 @@ use crate::features::cloud::CloudPublish;
 use crate::features::cloud::CloudScreen;
 use crate::features::cloud::CloudScreenEvent;
 use crate::features::cloud::RepositoryCloud;
+use crate::features::cloud::ScreenLayout;
 use crate::features::settings::{Page, PreferencesStore};
 use crate::features::source_control::SourceControl;
 use crate::workspace::cloud::opening::Failure;
@@ -443,11 +444,22 @@ impl WindowCloud {
     }
 
     // --------------------------------------------------------- computer screen
-    pub fn screen_thumbnail(&self, cx: &App) -> Option<AnyElement> {
-        self.screen.read(cx).render_thumbnail(&self.screen, cx)
+    /// Where the screen is this frame (sampled once per frame): its card at
+    /// the top of the Explorer's `plane`, the main area at `stage`.
+    pub fn screen_layout(
+        &self,
+        plane: Option<crate::geometry::Rect>,
+        stage: crate::geometry::Rect,
+        animate: bool,
+        cx: &App,
+    ) -> ScreenLayout {
+        self.screen.read(cx).layout(plane, stage, animate, cx)
     }
-    pub fn screen_pip(&self, editor: crate::geometry::Rect, cx: &App) -> Option<AnyElement> {
-        self.screen.read(cx).render_pip(&self.screen, editor, cx)
+    pub fn screen_card(&self, layout: &ScreenLayout, cx: &App) -> Option<AnyElement> {
+        self.screen.read(cx).render_card(&self.screen, layout, cx)
+    }
+    pub fn screen_live(&self, layout: &ScreenLayout, cx: &App) -> Option<AnyElement> {
+        self.screen.read(cx).render_live(&self.screen, layout, cx)
     }
     pub fn screen_shown(&self, cx: &App) -> bool {
         self.screen.read(cx).is_shown(cx)

@@ -221,6 +221,9 @@ impl Lab {
                     if shell.starts_with("home-projects") {
                         view.lab_home_projects(shell, cx);
                     }
+                    if shell.starts_with("cloud-screen") {
+                        view.lab_cloud_screen(shell, cx);
+                    }
                     view
                 });
                 cx.observe(&shell_view, |_, _, cx| cx.notify()).detach();
@@ -291,6 +294,16 @@ impl Render for Lab {
         }
         let assets_ready = !matches!(self.surface, Surface::Assets(_))
             || crate::ui::asset_gallery::AssetGallery::ready(window, cx);
+        // A shell case that waits on its project captures once it settled.
+        let assets_ready = assets_ready
+            && match &self.surface {
+                Surface::Shell(shell) => std::env::var("PUPPYONE_LAB")
+                    .ok()
+                    .and_then(|lab| lab.strip_prefix("shell-").map(str::to_owned))
+                    .filter(|case| case.starts_with("cloud-screen"))
+                    .is_none_or(|case| shell.read(cx).lab_cloud_screen_ready(&case, cx)),
+                _ => true,
+            };
         if self.frames < 3 || !assets_ready {
             window.request_animation_frame();
         } else if !self.captured
