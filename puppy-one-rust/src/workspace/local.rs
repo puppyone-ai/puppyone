@@ -12,7 +12,7 @@ use uuid::Uuid;
 mod adapter;
 mod rename;
 mod session_reader;
-pub(super) use adapter::open;
+pub(super) use adapter::{open, open_file_parent};
 
 use super::MAX_TEXT_BYTES;
 
@@ -42,6 +42,7 @@ pub struct Workspace {
     /// A file window's folder (`decodesLegacyText`): text that is not UTF-8
     /// is decoded for reading instead of refused.
     legacy_text: bool,
+    text_limit: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Version {
@@ -156,6 +157,9 @@ impl Workspace {
         }
     }
     pub fn open_with(path: &Path, legacy_text: bool) -> Result<Arc<Self>> {
+        Self::open_with_limit(path, legacy_text, MAX_TEXT_BYTES)
+    }
+    fn open_with_limit(path: &Path, legacy_text: bool, text_limit: usize) -> Result<Arc<Self>> {
         let path = std::fs::canonicalize(path).map_err(io)?;
         let dir = Dir::open_ambient_dir(&path, cap_std::ambient_authority()).map_err(io)?;
         Ok(Arc::new(Self {
@@ -163,6 +167,7 @@ impl Workspace {
             id: Uuid::new_v4(),
             dir,
             legacy_text,
+            text_limit,
         }))
     }
     fn directory(&self, relative: &Path) -> Result<Dir> {
@@ -231,8 +236,8 @@ impl Workspace {
             PathBuf::from(name),
         ))
     }
-    fn read_from(dir: &Dir, name: &Path) -> Result<(Vec<u8>, Metadata)> {
-        Self::read_bounded(dir, name, MAX_TEXT_BYTES as u64)
+    fn read_from(&self, dir: &Dir, name: &Path) -> Result<(Vec<u8>, Metadata)> {
+        Self::read_bounded(dir, name, self.text_limit as u64)
     }
     fn open_regular(dir: &Dir, name: &Path) -> Result<(cap_std::fs::File, Metadata)> {
         let meta = dir.symlink_metadata(name).map_err(io)?;
@@ -274,7 +279,7 @@ impl Workspace {
     }
     pub fn read(&self, relative: &Path) -> Result<Document> {
         let (dir, name) = self.parent(relative)?;
-        let (bytes, meta) = Self::read_from(&dir, &name)?;
+        let (bytes, meta) = self.read_from(&dir, &name)?;
         let version = Version::new(&bytes, &meta);
         let bom = bytes.starts_with(&[0xef, 0xbb, 0xbf]);
         let (text, encoding) = match std::str::from_utf8(if bom { &bytes[3..] } else { &bytes }) {
@@ -604,7 +609,7 @@ impl Workspace {
         }
         let lock = write_lock(self.path.join(&document.relative));
         let _write = lock.lock().unwrap_or_else(|e| e.into_inner());
-        if text.len() > MAX_TEXT_BYTES || text.contains(['\0', '\r']) {
+        if text.len() > self.text_limit || text.contains(['\0', '\r']) {
             return Err(crate::localization::t("native.workspace.invalidText").into());
         }
         // A wrong guess must never be saved (`decodeTextFile`).
@@ -615,7 +620,7 @@ impl Workspace {
             ));
         }
         let (dir, name) = self.parent(&document.relative)?;
-        let (current, meta) = Self::read_from(&dir, &name)?;
+        let (current, meta) = self.read_from(&dir, &name)?;
         if Version::new(&current, &meta) != document.version {
             return self.storage_update(document);
         }
@@ -642,7 +647,7 @@ impl Workspace {
         } else {
             bytes.extend_from_slice(text.as_bytes());
         }
-        if bytes.len() > MAX_TEXT_BYTES {
+        if bytes.len() > self.text_limit {
             return Err(crate::localization::t("native.workspace.encodedTooLarge").into());
         }
         if bytes == current {
@@ -663,7 +668,7 @@ impl Workspace {
             file.set_permissions(meta.permissions()).map_err(io)?;
             file.sync_all().map_err(io)?;
             drop(file);
-            let (latest, latest_meta) = Self::read_from(&dir, &name)?;
+            let (latest, latest_meta) = self.read_from(&dir, &name)?;
             if Version::new(&latest, &latest_meta) != document.version {
                 return self.storage_update(document);
             }

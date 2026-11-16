@@ -3,7 +3,7 @@ use super::*;
 use crate::workspace::TextEncoding;
 use core::prelude::v1::test;
 
-fn bind(view: &Entity<Shell>, cx: &mut VisualTestContext, path: PathBuf) {
+pub(super) fn bind(view: &Entity<Shell>, cx: &mut VisualTestContext, path: PathBuf) {
     view.update_in(cx, |s, w, cx| {
         s.session
             .project

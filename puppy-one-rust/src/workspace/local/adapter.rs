@@ -59,10 +59,26 @@ struct LocalProvider {
 pub(in crate::workspace) fn open(path: &Path, legacy_text: bool) -> Result<Arc<dyn Provider>> {
     let inner = Workspace::open_with(path, legacy_text)?;
     let markdown_dialect = inner.markdown_dialect()?;
+    provider(inner, Limits::LOCAL, markdown_dialect)
+}
+/// Only the scoped file provider may use this adapter. Do not inspect the
+/// parent folder's project metadata while opening a standalone document.
+pub(in crate::workspace) fn open_file_parent(path: &Path) -> Result<Arc<dyn Provider>> {
+    provider(
+        Workspace::open_with_limit(path, true, Limits::FILE_WINDOW_BYTES)?,
+        Limits::FILE_WINDOW,
+        None,
+    )
+}
+fn provider(
+    inner: Arc<Workspace>,
+    limits: Limits,
+    markdown_dialect: Option<crate::formats::markdown::MarkdownDialect>,
+) -> Result<Arc<dyn Provider>> {
     let uri = url::Url::from_directory_path(&inner.path)
         .map_err(|_| Error::from("Invalid local workspace root"))?;
     let descriptor = Descriptor {
-        limits: Limits::LOCAL,
+        limits,
         storage: StorageId::new(uri.as_str())?,
         name: inner
             .path

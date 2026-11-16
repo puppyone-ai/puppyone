@@ -17,6 +17,9 @@ impl Runtime {
             match event {
                 Event::Saved => self.metadata_inflight = self.metadata_inflight.saturating_sub(1),
                 Event::Loaded(key, value) => {
+                    if self.file_window {
+                        continue;
+                    }
                     let Some(host) = self.hosts.get_mut(&key) else {
                         continue;
                     };
@@ -71,6 +74,9 @@ impl Runtime {
                     host.restore = Some(value);
                 }
             }
+        }
+        if self.file_window {
+            return;
         }
         for host in self.hosts.values_mut() {
             if host.restore.is_some() && host.slots.values().all(|s| s.admitted) {
@@ -134,7 +140,7 @@ impl Runtime {
     /// chrome changes without a storage notification. Quit waits for accepted
     /// writes, but metadata failure never blocks editing or fabricates a save.
     pub fn persist_metadata(&mut self, wake: &Wake, flush: bool) {
-        if self.metadata_suspended {
+        if self.metadata_suspended || self.file_window {
             return;
         }
         let Some(storage) = &self.storage else {

@@ -817,8 +817,7 @@ impl Shell {
         crate::features::telemetry::note_foreground(cx);
         // A returning window may probe the Cloud association once.
         self.cloud.update(cx, |c, cx| c.probe(cx));
-        // A file window watches nothing: the file is read again when the
-        // window comes back (FileModeDocument's `focus`).
+        // Focus revalidation complements the bound file's subscription.
         if self.file_mode() {
             self.session.docs.update(cx, |d, _| d.revalidate());
             self.receive(window, cx);

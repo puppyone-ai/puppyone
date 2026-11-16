@@ -25,6 +25,8 @@ use std::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Intent {
     OpenFolder(PathBuf),
+    /// A standalone document, without its parent's project capabilities.
+    OpenSingleFile(PathBuf),
     OpenFile(PathBuf),
     Reload,
     CloseFile,
@@ -652,7 +654,7 @@ impl Documents {
                     workspace: crate::editor::workbench::catalog::resource_key(&root),
                     document: doc.relative.clone(),
                     read: Arc::new(move |path: &std::path::Path| {
-                        ws.resource(path).ok()?.bytes(MARKDOWN_ASSET_MAX_BYTES)
+                        ws.markdown_asset_bytes(path, MARKDOWN_ASSET_MAX_BYTES).ok()
                     }),
                 })
             });
@@ -910,15 +912,23 @@ impl Documents {
             self.clear_observation_retry();
         }
         match intent {
-            Intent::OpenFolder(path) => {
+            Intent::OpenFolder(_) | Intent::OpenSingleFile(_) => {
                 self.phase = Phase::Working;
                 self.status = "Opening folder…".into();
                 let tx = self.tx.clone();
                 let ctx = ctx.clone();
                 let legacy_text = self.file_window;
                 crate::localization::spawn(move || {
-                    let result = Workspace::open_with(&path, legacy_text)
-                        .and_then(|ws| ws.list(std::path::Path::new("")).map(|rows| (ws, rows)));
+                    let result = match intent {
+                        Intent::OpenSingleFile(path) => {
+                            Workspace::open_file(&path).map(|ws| (ws, vec![]))
+                        }
+                        Intent::OpenFolder(path) => Workspace::open_with(&path, legacy_text)
+                            .and_then(|ws| {
+                                ws.list(std::path::Path::new("")).map(|rows| (ws, rows))
+                            }),
+                        _ => unreachable!(),
+                    };
                     let _ = tx.send(Completed::Root(result));
                     ctx.notify();
                 });

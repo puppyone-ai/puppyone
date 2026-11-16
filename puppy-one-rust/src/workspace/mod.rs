@@ -5,6 +5,7 @@ mod acceptance;
 pub mod cloud;
 pub mod hosts;
 pub use po_contracts::workspace::contracts;
+mod file_window;
 mod local;
 #[cfg(test)]
 #[path = "local_tests.rs"]
@@ -145,6 +146,10 @@ impl Workspace {
     /// A local folder; `legacy_text` for a file window's (`decodesLegacyText`).
     pub fn open_with(path: &Path, legacy_text: bool) -> Result<Arc<Self>> {
         Self::from_provider(local::open(path, legacy_text)?)
+    }
+    /// A standalone file grants no general access to its parent directory.
+    pub fn open_file(path: &Path) -> Result<Arc<Self>> {
+        Self::from_provider(file_window::open(path)?)
     }
     pub fn from_provider(provider: Arc<dyn Provider>) -> Result<Arc<Self>> {
         provider.check_authority()?;
@@ -453,6 +458,18 @@ impl Workspace {
             data,
             lease: self.lease.clone(),
         })
+    }
+    pub fn markdown_asset_bytes(&self, relative: &Path, max: u64) -> Result<Vec<u8>> {
+        self.admit(self.capabilities().preview)?;
+        let path = Self::entry_path(relative)?;
+        let bytes = self.finish(self.provider.markdown_asset_bytes(&path, max))?;
+        if bytes.len() as u64 > max {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Media exceeds its byte limit",
+            ));
+        }
+        Ok(bytes)
     }
     pub fn absolute(&self, relative: &Path) -> Result<PathBuf> {
         self.admit(self.capabilities().local_actions)?;

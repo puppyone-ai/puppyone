@@ -13,6 +13,7 @@ mod dialog_layer;
 mod editing;
 mod explorer_pane;
 mod file_window;
+mod file_window_access;
 mod file_window_parity;
 mod folder_availability;
 mod home_groups;

@@ -80,6 +80,9 @@ pub struct Runtime {
     abandoned: bool,
     /// A file window's documents (`Documents::file_window`).
     pub file_window: bool,
+    /// Immutable across failed admission and retry. A generic folder retry
+    /// must never replace a single-file grant with project authority.
+    bound_file: Option<PathBuf>,
     /// A close that a document could not finish (`finishInterceptedClose`
     /// with a failed flush); the shell asks whether to close anyway.
     pub close_refused: bool,
@@ -218,6 +221,9 @@ impl Runtime {
                 .and_then(|key| self.hosts.get(key))
                 .is_some_and(|host| host.slots.values().any(|s| transitioning(&s.files)))
     }
+    pub fn file_window_open_failed(&self) -> bool {
+        self.bound_file.is_some() && !self.busy() && self.opened().is_none()
+    }
     /// Busy with something a new project choice must wait for: quitting,
     /// or a document in a transition. A project still being prepared is
     /// not one; the new choice replaces it.
@@ -338,24 +344,52 @@ impl Runtime {
         self.active = None;
         self.generation += 1;
     }
-    pub fn begin(&mut self, intent: Intent, wake: &Wake) {
+    pub fn begin(&mut self, mut intent: Intent, wake: &Wake) {
         if self.quitting {
             return;
         }
+        if let Some(bound) = &self.bound_file {
+            let allowed = match &intent {
+                Intent::OpenFolder(root) => bound.parent() == Some(root.as_path()),
+                Intent::OpenSingleFile(path) => path == bound,
+                _ => true,
+            };
+            if !allowed {
+                self.error = Some("This window is bound to a single file".into());
+                wake.notify();
+                return;
+            }
+            if matches!(intent, Intent::OpenFolder(_)) {
+                intent = Intent::OpenSingleFile(bound.clone());
+            }
+        }
+        if let Intent::OpenSingleFile(path) = &intent {
+            self.bound_file = Some(path.clone());
+            self.file_window = true;
+        }
         match intent {
-            Intent::OpenFolder(path) => {
+            Intent::OpenFolder(_) | Intent::OpenSingleFile(_) => {
+                let path = match &intent {
+                    Intent::OpenFolder(path) => path.clone(),
+                    Intent::OpenSingleFile(path) => match path.parent() {
+                        Some(root) => root.to_path_buf(),
+                        None => return,
+                    },
+                    _ => unreachable!(),
+                };
                 self.navigation += 1;
                 // Reuse only an already-admitted local root. No I/O on a hit.
-                if let Some(key) = self
-                    .hosts
-                    .iter()
-                    .find(|(_, h)| {
-                        h.empty
-                            .workspace
-                            .as_ref()
-                            .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
-                    })
-                    .map(|(key, _)| key.clone())
+                if matches!(intent, Intent::OpenFolder(_))
+                    && let Some(key) = self
+                        .hosts
+                        .iter()
+                        .find(|(_, h)| {
+                            h.empty
+                                .workspace
+                                .as_ref()
+                                .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
+                        })
+                        .map(|(key, _)| key.clone())
                 {
                     self.revoke_preparing();
                     self.activate_workspace(key);
@@ -366,7 +400,7 @@ impl Runtime {
                 let mut preparing = Documents::default();
                 preparing.file_window = self.file_window;
                 self.preparing_root = Some(path.clone());
-                preparing.begin(Intent::OpenFolder(path), wake);
+                preparing.begin(intent, wake);
                 self.preparing = Some(preparing);
             }
             Intent::OpenFile(path) => {
@@ -641,10 +675,11 @@ impl Runtime {
                             rows,
                             interacted: false,
                             restore: None,
-                            metadata_loaded: self
-                                .storage
-                                .as_ref()
-                                .is_none_or(|store| !store.load(key.clone(), wake)),
+                            metadata_loaded: self.file_window
+                                || self
+                                    .storage
+                                    .as_ref()
+                                    .is_none_or(|store| !store.load(key.clone(), wake)),
                             metadata_value: None,
                             metadata_due: None,
                             pane_lifetimes: BTreeMap::new(),

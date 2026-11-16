@@ -14669,6 +14669,153 @@
           "test": "workspace::local_watch_parity_tests::single_file_watch_tracks_metadata_content_identity_and_recovery_then_releases_its_worker"
         }
       ]
+    },
+    {
+      "id": "native-file-window-scoped-authority",
+      "acceptance": "Actual file windows receive a bound-document provider, not the parent project grant: text read/write/general preview/path/watch stay bound; folder listing/mutations/import/root-watch are refused; Markdown media has a separate MIME-filtered read port, lease checks before and after dispatch, retained directory identity and symlink refusal. Opening does not enumerate the parent or inspect its project metadata. Physical reads and encoded writes remain <=1 MiB after preflight; legacy UTF-8 decoding may expand to <=3 MiB while remaining read-only. Post-admission file-read failure renders unavailable. Regular project providers remain unchanged. Native window/terminal/Agent/system-open command parity and full Electron IPC parity are not claimed by this row. Failed parent admission remains unavailable after the error is dismissed; retry retains the immutable file binding and cannot upgrade to a parent project grant. Standalone file windows neither restore nor overwrite the parent project's persisted tabs and pane layout; switching the immutable file target is rejected.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/ipc/electron.file-mode.test.mjs",
+          "sha256": "558ca9cc7e0d45dd2b7b79e13aac0ee77c49014d392170cb960a2eb30abf6e64",
+          "cases": [
+            {
+              "index": 0,
+              "name": "File Mode IPC gate > leaves project windows untouched"
+            },
+            {
+              "index": 2,
+              "name": "File Mode IPC gate > limits workspace:create-preview-document to the bound file"
+            },
+            {
+              "index": 3,
+              "name": "File Mode IPC gate > limits workspace:read-file to the bound file"
+            },
+            {
+              "index": 4,
+              "name": "File Mode IPC gate > limits workspace:resolve-node to the bound file"
+            },
+            {
+              "index": 5,
+              "name": "File Mode IPC gate > limits workspace:write-file to the bound file"
+            },
+            {
+              "index": 6,
+              "name": "File Mode IPC gate > gives resource URLs to the bound file and to Markdown media only"
+            },
+            {
+              "index": 7,
+              "name": "File Mode IPC gate > refuses resource URLs for anything else next to the file"
+            },
+            {
+              "index": 8,
+              "name": "File Mode IPC gate > refuses workspace:list-folder-children"
+            },
+            {
+              "index": 9,
+              "name": "File Mode IPC gate > refuses workspace:create-entry"
+            },
+            {
+              "index": 10,
+              "name": "File Mode IPC gate > refuses workspace:rename-entry"
+            },
+            {
+              "index": 11,
+              "name": "File Mode IPC gate > refuses workspace:move-entry"
+            },
+            {
+              "index": 12,
+              "name": "File Mode IPC gate > refuses workspace:copy-entry"
+            },
+            {
+              "index": 13,
+              "name": "File Mode IPC gate > refuses workspace:delete-entry"
+            },
+            {
+              "index": 14,
+              "name": "File Mode IPC gate > refuses workspace:import-entries"
+            },
+            {
+              "index": 15,
+              "name": "File Mode IPC gate > refuses workspace:watch-start"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/file-mode/fileModeApp.test.tsx",
+          "sha256": "f05c0289e66afc517f2d235db12eaa0ab3569026223c02a2207ffd3abd171152",
+          "cases": [
+            {
+              "index": 19,
+              "name": "FileModeApp > explains itself when reading fails"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_access_refuses_neighbour_reads_and_general_previews"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_access_refuses_folder_operations_and_root_watches"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_markdown_assets_allow_only_media_and_the_bound_document"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_growth_after_preflight_never_opens_an_oversized_document"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_read_failure_after_preflight_shows_an_unavailable_document"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::project_grants_keep_directory_and_neighbour_access"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::bound_provider_checks_the_path_before_every_read_write_preview_and_watch"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::physical_file_limit_survives_growth_and_bom_or_crlf_expansion_on_save"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::legacy_decoding_can_expand_within_the_physical_file_limit_and_remains_read_only"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::scoped_media_keeps_its_admitted_directory_and_refuses_retargeted_symlinks"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::media_port_enforces_its_byte_budget_and_fences_revocation_before_and_after_dispatch"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_parent_admission_failure_remains_unavailable_after_dismissing_the_error"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_retry_never_upgrades_to_a_parent_project_grant"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::standalone_file_runtime_neither_restores_nor_overwrites_its_parent_project_layout"
+        }
+      ]
     }
   ],
   "openAcceptance": [

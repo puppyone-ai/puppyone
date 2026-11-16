@@ -90,7 +90,7 @@ pub const FILE_WINDOW_SIZE: (f32, f32) = (860., 760.);
 /// `EditorViewModeMenu` `MENU_MAX_HEIGHT`.
 const VIEW_MENU_MAX_HEIGHT: f32 = 320.;
 /// `MAX_EDITOR_BYTES`: a file window opens nothing larger.
-pub const MAX_EDITOR_BYTES: u64 = 1024 * 1024;
+pub const MAX_EDITOR_BYTES: u64 = crate::workspace::contracts::Limits::FILE_WINDOW_BYTES as u64;
 /// `.file-mode-window__notice { padding: 8px 16px }` around one header line.
 const NOTICE_PADDING: (f32, f32) = (8., 16.);
 /// `.editor-state--stacked`: `gap: 7px; padding: 24px`, lines at most 520px.
@@ -572,10 +572,12 @@ fn setting_rows<F: Fn(&mut Window, &mut App) + 'static>(
 
 impl FileWindow {
     pub(super) fn shown(&self, cx: &App) -> Shown {
+        let docs = self.docs.read(cx);
         match self.target.admission {
             Admission::Unavailable => Shown::Unavailable(None),
             Admission::TooLarge => Shown::Unavailable(Some(MAX_EDITOR_BYTES)),
-            _ if self.docs.read(cx).workspace.is_none() => Shown::Loading,
+            _ if docs.file_window_open_failed() => Shown::Unavailable(None),
+            _ if docs.opened().is_none() => Shown::Loading,
             _ => Shown::Document,
         }
     }

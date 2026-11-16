@@ -165,6 +165,15 @@ impl Limits {
         text_bytes: 16 * 1024 * 1024,
         directory_entries: 2_000,
     };
+    /// Physical bytes admitted or saved by a standalone file window.
+    pub const FILE_WINDOW_BYTES: usize = 1024 * 1024;
+    /// Legacy decoding can expand each source byte into a three-byte UTF-8
+    /// replacement character. The local adapter separately enforces the
+    /// physical limit before reading and before publishing encoded bytes.
+    pub const FILE_WINDOW: Self = Self {
+        text_bytes: 3 * Self::FILE_WINDOW_BYTES,
+        directory_entries: 1,
+    };
     pub const CLOUD: Self = Self {
         text_bytes: 8 * 1024 * 1024,
         directory_entries: 10_000,

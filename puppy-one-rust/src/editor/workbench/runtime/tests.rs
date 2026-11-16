@@ -721,3 +721,89 @@ fn a_close_a_document_cannot_save_for_is_refused_until_abandoned() {
     assert!(r.allow_quit && !r.close_refused);
     lock(0o644);
 }
+
+#[test]
+fn standalone_file_runtime_neither_restores_nor_overwrites_its_parent_project_layout() {
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let mut project = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    open_root(&mut project, root.path());
+    open(&mut project, "a.md");
+    project
+        .state_mut()
+        .unwrap()
+        .split(super::super::layout::Direction::Horizontal);
+    open(&mut project, "b.md");
+    project
+        .state_mut()
+        .unwrap()
+        .layout
+        .resize("editor-split-1", 0.72);
+    let expected = project.state().unwrap().clone();
+    project.persist_metadata(&Wake::default(), true);
+    wait(&mut project, |r| {
+        r.metadata_inflight == 0 && r.hosts.values().all(|h| h.metadata_due.is_none())
+    });
+    let key = project.active.clone().unwrap();
+    let metadata = profile
+        .path()
+        .join(format!("{}.json", blake3::hash(key.as_bytes()).to_hex()));
+    let original = std::fs::read_to_string(&metadata).unwrap();
+    drop(project);
+
+    let mut file = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    file.begin(
+        Intent::OpenSingleFile(root.path().join("a.md")),
+        &Wake::default(),
+    );
+    wait(&mut file, |r| {
+        r.active.is_some() && r.hosts.values().all(|h| h.metadata_loaded)
+    });
+    let restored_project_slots = file
+        .hosts
+        .values()
+        .any(|h| !h.slots.is_empty() || h.restore.is_some());
+    open(&mut file, "a.md");
+    for intent in [
+        Intent::OpenSingleFile(root.path().join("b.md")),
+        Intent::OpenFolder(profile.path().into()),
+    ] {
+        file.begin(intent, &Wake::default());
+        assert!(file.error.take().is_some());
+        assert_eq!(file.opened().unwrap().1, std::path::Path::new("a.md"));
+        assert_eq!(file.hosts.len(), 1);
+    }
+    file.persist_metadata(&Wake::default(), true);
+    wait(&mut file, |r| {
+        r.metadata_inflight == 0 && r.hosts.values().all(|h| h.metadata_due.is_none())
+    });
+    assert_eq!(
+        std::fs::read_to_string(&metadata).unwrap(),
+        original,
+        "a file window overwrote its parent's project layout"
+    );
+    assert!(
+        !restored_project_slots,
+        "a file window loaded parent project editors"
+    );
+    drop(file);
+
+    let mut restored = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    open_root(&mut restored, root.path());
+    wait(&mut restored, |r| {
+        r.state().unwrap().catalog.editors.len() == 2
+    });
+    assert_eq!(restored.state(), Some(&expected));
+}

@@ -78,7 +78,9 @@ impl Shell {
                 self.finish_import_opening(root, true, cx);
             }
             self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
-            explorer.update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
+            if !self.file_mode() {
+                explorer.update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
+            }
             // A lone file has no Git or Terminal; an HTML file window binds its
             // parent folder only for the on-demand Local Agent Chat drawer.
             if !self.file_mode() {
@@ -208,10 +210,10 @@ impl Shell {
             self.session.project.update(cx, |p, _| {
                 p.record.open_first = Some(PathBuf::from(&file.name))
             });
-            let root = file.root.clone();
+            let path = file.path.clone();
             self.session
                 .docs
-                .update(cx, |d, _| d.begin(Intent::OpenFolder(root)));
+                .update(cx, |d, _| d.begin(Intent::OpenSingleFile(path)));
         }
         let (docs, editor, prefs, sidebar, panes, cloud) = (
             self.session.docs.clone(),

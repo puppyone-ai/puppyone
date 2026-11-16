@@ -65,6 +65,18 @@ pub trait DocumentStoragePort: Send + Sync {
 }
 pub trait ResourcePort: Send + Sync {
     fn preview(&self, path: &RelativePath) -> Result<PreviewData>;
+    /// A document's Markdown media request has a narrower purpose than a
+    /// general preview. Scoped providers may enforce that purpose separately.
+    fn markdown_asset_bytes(&self, path: &RelativePath, max: u64) -> Result<Vec<u8>> {
+        match self.preview(path)? {
+            PreviewData::Bytes { bytes, .. } if bytes.len() as u64 <= max => Ok(bytes.to_vec()),
+            PreviewData::Bytes { .. } => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Media exceeds its byte limit",
+            )),
+            PreviewData::LocalFile(_) => self.preview_bytes(path, max),
+        }
+    }
     /// Deferred local bytes are opened by the admitted provider, never by
     /// treating the display/platform path in PreviewData as read authority.
     fn preview_bytes(&self, _path: &RelativePath, _max: u64) -> Result<Vec<u8>> {
