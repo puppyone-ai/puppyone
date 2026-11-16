@@ -43,6 +43,7 @@ pub(in crate::app) struct ImportPicker {
     identity: Arc<()>,
     visible_other_apps: bool,
     first_source_focus: FocusHandle,
+    focused_initial: bool,
 }
 
 /// `statusOf`: why a source cannot be chosen now, if it cannot.
@@ -92,6 +93,7 @@ impl Homepage {
             identity: Arc::new(()),
             visible_other_apps: false,
             first_source_focus: cx.focus_handle(),
+            focused_initial: false,
         });
         self.list_app_folders(cx);
         self.open_dialog(DialogKey::ImportRepository, cx);
@@ -101,6 +103,40 @@ impl Homepage {
             .first_source_focus
             .focus(window, cx);
         cx.notify();
+    }
+    pub(super) fn focus_source_list_after_mount(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.import.is_some() {
+            return;
+        }
+        let Some(picker) = self
+            .import_picker
+            .as_mut()
+            .filter(|p| p.source.is_none() && !p.focused_initial)
+        else {
+            return;
+        };
+        picker.focused_initial = true;
+        let focus = picker.first_source_focus.clone();
+        // This handle identifies the mounted picker independently of the
+        // visibility policy that retires its folder reads.
+        // Focus after the new controls join the rendered focus tree.
+        cx.on_next_frame(window, move |s, window, cx| {
+            if s.top_dialog(cx) != Some(DialogKey::ImportRepository) {
+                return;
+            }
+            if s.import.is_none()
+                && let Some(picker) = s
+                    .import_picker
+                    .as_ref()
+                    .filter(|p| p.source.is_none() && p.first_source_focus == focus)
+            {
+                picker.first_source_focus.focus(window, cx);
+            }
+        });
     }
     /// The visible sources, by experiment.
     pub(in crate::app) fn import_sources(&self, cx: &App) -> Vec<&'static Source> {
@@ -161,6 +197,7 @@ impl Homepage {
         picker.error = None;
         if picker.source.is_some_and(|s| !s.ready && !visible) {
             picker.source = None;
+            picker.focused_initial = false;
         }
         self.list_app_folders(cx);
     }
@@ -198,6 +235,7 @@ impl Homepage {
         self.import = None;
         if let Some(picker) = self.import_picker.as_mut() {
             picker.source = None;
+            picker.focused_initial = false;
             picker.error = None;
             picker.first_source_focus.focus(window, cx);
         }
@@ -289,6 +327,7 @@ impl Homepage {
             .when(chosen, |d| {
                 d.child(
                     IconButton::new("import-back", "arrow-left")
+                        .debug_selector(|| "import-back".into())
                         .label(tr("onboarding.entry.import.back"))
                         .with_size(px(24.))
                         .color(t.muted)
@@ -600,18 +639,17 @@ impl Homepage {
         picker: &ImportPicker,
         cx: &mut Context<Self>,
     ) -> Dialog {
-        let t = cx.palette();
         let host = self.weak.clone();
         let dialog = Dialog::new("import-sources")
             .width(420.)
             .inset(24.)
             .body_padding(10., 22.)
-            .leading(Icon::new("download").stroke(1.8), t.accent)
             .on_close(move |w, cx| {
                 let _ = host.update(cx, |s, cx| s.close_import(w, cx));
             });
         let Some(source) = picker.source.filter(|s| s.mode == Mode::App) else {
             return dialog
+                .accessibility_label(tr("onboarding.entry.import.title"))
                 .heading(self.import_heading(tr("onboarding.entry.import.title").to_owned(), cx))
                 .child(self.import_sources_list(picker, cx));
         };
@@ -622,6 +660,7 @@ impl Homepage {
         let (body, selected) = self.app_folders_step(picker, source, cx);
         let adding = picker.adding;
         dialog
+            .accessibility_label(title.clone())
             .heading(self.import_heading(title, cx))
             .child(body)
             .footer(

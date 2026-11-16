@@ -397,6 +397,10 @@ impl Homepage {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if key == DialogKey::ImportRepository {
+            self.focus_source_list_after_mount(window, cx);
+            self.focus_repository_after_mount(window, cx);
+        }
         match key {
             DialogKey::CreateProject => self
                 .create

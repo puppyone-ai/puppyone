@@ -22,6 +22,7 @@ pub struct Dialog {
     id: ElementId,
     width: Pixels,
     title: Option<SharedString>,
+    accessibility_label: Option<SharedString>,
     heading: Option<AnyElement>,
     leading: Option<(Icon, Hsla)>,
     inset: Option<f32>,
@@ -44,6 +45,7 @@ impl Dialog {
             id: id.into(),
             width: px(420.),
             title: None,
+            accessibility_label: None,
             heading: None,
             leading: None,
             inset: None,
@@ -69,6 +71,10 @@ impl Dialog {
     }
     pub fn title(mut self, title: impl Into<SharedString>) -> Self {
         self.title = Some(title.into());
+        self
+    }
+    pub fn accessibility_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.accessibility_label = Some(label.into());
         self
     }
     /// A heading drawn by the dialog's owner instead of the muted title
@@ -163,6 +169,7 @@ impl RenderOnce for Dialog {
         let viewport = window.viewport_size();
         let close = self.on_close.clone();
         let cancel = close.clone();
+        let accessibility_label = self.accessibility_label.or_else(|| self.title.clone());
         let heading = self.heading;
         let header = (self.title.is_some() || heading.is_some() || close.is_some()).then(|| {
             div()
@@ -194,6 +201,7 @@ impl RenderOnce for Dialog {
                             div()
                                 .flex()
                                 .flex_shrink_0()
+                                .debug_selector(|| "dialog-leading".into())
                                 .size(px(28.))
                                 .items_center()
                                 .justify_center()
@@ -261,6 +269,9 @@ impl RenderOnce for Dialog {
             })
             .refine_style(&self.style);
         BaseDialog::new(cx)
+            .when_some(accessibility_label, |dialog, label| {
+                dialog.accessibility_label(label)
+            })
             .focus_handle(focus)
             .close_on_escape(self.close_on_escape)
             .close_on_backdrop_press(self.close_on_backdrop)

@@ -23,13 +23,18 @@ pub(in crate::app) struct ImportRepository {
     pub(in crate::app) url: Entity<TextInput>,
     location: Option<PathBuf>,
     choosing: bool,
+    focused_initial: bool,
     /// The clone in flight and its cancellation.
     cloning: Option<Arc<AtomicBool>>,
     publication: Option<Arc<repository_import::Publication>>,
     /// Imported, but its folder could not be opened: Import opens it again.
     pub(in crate::app) imported: Option<PathBuf>,
     error: Option<String>,
+    #[cfg(test)]
+    clone_transport: Option<TestCloneTransport>,
 }
+#[cfg(test)]
+type TestCloneTransport = Arc<dyn Fn(&Path, &str, &AtomicBool) -> Result<(), String> + Send + Sync>;
 
 impl Drop for ImportRepository {
     fn drop(&mut self) {
@@ -79,12 +84,40 @@ impl Homepage {
             url,
             location: self.project_locations.default_location(),
             choosing: false,
+            focused_initial: false,
             cloning: None,
             publication: None,
             imported: None,
             error: None,
+            #[cfg(test)]
+            clone_transport: None,
         });
         cx.notify();
+    }
+    pub(super) fn focus_repository_after_mount(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(import) = self.import.as_mut().filter(|i| !i.focused_initial) else {
+            return;
+        };
+        import.focused_initial = true;
+        let owner = import.url.entity_id();
+        // Focus after the new controls join the rendered focus tree.
+        cx.on_next_frame(window, move |s, window, cx| {
+            if s.top_dialog(cx) != Some(DialogKey::ImportRepository) {
+                return;
+            }
+            if let Some(import) = s.import.as_ref().filter(|i| {
+                i.url.entity_id() == owner
+                    && i.cloning.is_none()
+                    && !i.choosing
+                    && i.imported.is_none()
+            }) {
+                import.url.read(cx).focus_handle(cx).focus(window, cx);
+            }
+        });
     }
     pub(in crate::app) fn repository_busy(&self) -> bool {
         self.import
@@ -198,9 +231,21 @@ impl Homepage {
         import.publication = Some(publication.clone());
         import.cloning = Some(cancel.clone());
         import.error = None;
+        #[cfg(test)]
+        let clone_transport = import.clone_transport.clone();
         self.observe_import_publication(cancel, progress, cx);
         cx.notify();
         let task = cx.background_executor().spawn(async move {
+            #[cfg(test)]
+            if let Some(transport) = clone_transport {
+                return repository_import::clone_with_test_transport(
+                    &location,
+                    &repository,
+                    &publication,
+                    |path, url, cancel| transport(path, url, cancel),
+                )
+                .map(|path| (opens(&path), path));
+            }
             repository_import::clone_with_publication(&location, &repository, &publication)
                 .map(|path| (opens(&path), path))
         });
@@ -380,7 +425,27 @@ impl Homepage {
             .child(
                 v_flex()
                     .gap(px(8.))
-                    .child(label("onboarding.entry.clone.urlLabel"))
+                    .child(
+                        h_flex()
+                            .justify_between()
+                            .child(label("onboarding.entry.clone.urlLabel"))
+                            .child(
+                                div()
+                                    .debug_selector(move || match import.provider {
+                                        Provider::GitHub => "import-provider-github".into(),
+                                        Provider::GitLab => "import-provider-gitlab".into(),
+                                    })
+                                    .child(
+                                        svg()
+                                            .path(match import.provider {
+                                                Provider::GitHub => "integrations/github.svg",
+                                                Provider::GitLab => "integrations/gitlab.svg",
+                                            })
+                                            .size(px(18.))
+                                            .text_color(t.text),
+                                    ),
+                            ),
+                    )
                     .child(
                         field()
                             .px(px(8.))
@@ -454,7 +519,7 @@ impl Homepage {
             .width(420.)
             .inset(24.)
             .body_padding(10., 22.)
-            .leading(Icon::new("download").stroke(1.8), t.accent)
+            .accessibility_label(title.clone())
             .heading(self.import_heading(title, cx))
             .on_close(move |w, cx| {
                 let _ = host.update(cx, |s, cx| s.close_import(w, cx));

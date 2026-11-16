@@ -125,6 +125,7 @@ pub struct Dialog {
     style: StyleRefinement,
     focus: FocusHandle,
     role: Role,
+    accessibility_label: Option<gpui::SharedString>,
     layer: usize,
     keyboard: bool,
     overlay_closable: bool,
@@ -426,6 +427,7 @@ impl Dialog {
             style: StyleRefinement::default(),
             focus: cx.focus_handle(),
             role: Role::Dialog,
+            accessibility_label: None,
             layer: 0,
             keyboard: true,
             overlay_closable: true,
@@ -442,6 +444,11 @@ impl Dialog {
             open: true,
             on_open_change: None,
         }
+    }
+    /// Name the dialog on the same native node that owns modal semantics.
+    pub fn accessibility_label(mut self, label: impl Into<gpui::SharedString>) -> Self {
+        self.accessibility_label = Some(label.into());
+        self
     }
     pub fn open(mut self, open: bool) -> Self {
         self.open = open;
@@ -561,6 +568,7 @@ impl RenderOnce for Dialog {
                     .items_center()
                     .justify_center()
                     .role(self.role)
+                    .when_some(self.accessibility_label, |d, label| d.aria_label(label))
                     .track_focus(&self.focus)
                     .focus_trap(format!("dialog-{}", self.layer), &self.focus)
                     .when(self.keyboard, |this| this.key_context(CONTEXT))

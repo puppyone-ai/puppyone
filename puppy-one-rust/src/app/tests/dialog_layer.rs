@@ -135,6 +135,18 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
             .update(cx, |d, cx| d.rename(path, false, false, w, cx));
     });
     draw(cx);
+    cx.update(|w, _| {
+        let snapshots = gpui_kit::base::test_support::snapshots(w);
+        let dialogs: Vec<_> = snapshots
+            .iter()
+            .filter(|s| s.role() == Some(Role::Dialog))
+            .collect();
+        assert_eq!(dialogs.len(), 1);
+        assert_eq!(
+            dialogs[0].label(),
+            Some(crate::localization::t("workspace.node.rename"))
+        );
+    });
     view.update(cx, |s, cx| {
         assert!(s.has_dialog("Rename", cx) && s.modal(cx))
     });

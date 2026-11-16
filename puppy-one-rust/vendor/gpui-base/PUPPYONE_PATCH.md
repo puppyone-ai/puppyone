@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with seven additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with eight additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -467,3 +467,10 @@ diff -ru registry/gpui-base-0.8.0/src/input/mod.rs vendor/gpui-base/src/input/mo
  pub use highlighting::{
      DiagnosticColors, FoldIconRenderer, HighlightStyleResolver, InputEditorStyle, InputHighlighter,
 ```
+
+## The patch: dialog accessible name
+
+`Dialog::accessibility_label` names the existing native modal node without
+creating a second dialog or focus scope. The application wrapper uses the title
+by default, and custom headings explicitly supply the same label. Rendered
+Homepage import-dialog tests inspect the native Dialog role and label.

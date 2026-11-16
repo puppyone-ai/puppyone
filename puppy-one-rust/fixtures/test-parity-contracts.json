@@ -12524,6 +12524,93 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-repository-import-success-and-dialog-semantics",
+      "acceptance": "Actual Homepage pointer and keyboard dispatch opens one named Import dialog with two labelled source buttons and no redundant leading glyph. A disabled entry remains inert through its label and marks. Mounted source and repository steps acquire initial focus after frame delivery, preserve later Tab navigation, restore the first source on Back, and fence closed, replaced or covered modal callbacks. The shared Dialog uses its title as the native modal name, or an explicit name for custom headings, verified by import and rename consumers. GitHub and GitLab forms expose the selected provider mark, provider-specific title, URL role and placeholder, and the initially disabled Import action without a standing hint. Success tests redirect only Git transport to a real local committed repository: actual production staging, exclusive publication, durable preferences acknowledgement and workspace opening run unchanged. GitHub uses the owned default location without prompting; GitLab with no default asks once for a directory, preserves the trimmed SSH URL and publishes under its derived repository name. Both verify HEAD, file contents, one durable recent, closed dialog and absence of staging residue. Accessibility evidence covers rendered native nodes in the GPUI test platform, not VoiceOver or other operating-system sessions. Runtime verification is macOS; remote SaaS adapters and non-macOS runtime qualification remain outside this contract.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageImport.test.tsx",
+          "sha256": "6cb534890273fc07778dc64261486bff9b302d70c46bfb5dd86c2c5dca0ff001",
+          "cases": [
+            {
+              "index": 3,
+              "name": "importing from the Homepage > hides experimental sources by default"
+            },
+            {
+              "index": 9,
+              "name": "importing from the Homepage > keeps the label and source marks disabled when import is unavailable"
+            },
+            {
+              "index": 14,
+              "name": "importing from the Homepage > imports a GitHub repository into the default location without a folder picker"
+            },
+            {
+              "index": 15,
+              "name": "importing from the Homepage > auto-detects a GitLab URL and passes a null grant when no default location exists"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::github_import_uses_the_default_location_and_opens_the_durably_recorded_clone"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::gitlab_import_chooses_a_missing_destination_and_opens_the_durably_recorded_clone"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::the_default_picker_is_one_named_dialog_with_two_labelled_source_buttons"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::an_unavailable_import_entry_keeps_its_label_and_brand_marks_inert"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::mounted_import_steps_focus_once_and_return_to_the_first_source"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::retired_import_frame_callbacks_cannot_steal_focus"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::tests::dialog_layer::rename_dialog_focuses_its_name_and_escape_cancels"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

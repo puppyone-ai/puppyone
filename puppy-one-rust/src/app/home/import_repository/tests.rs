@@ -553,7 +553,14 @@ fn show_url_dialog(
         s.command(Command::Home, w, cx);
         s.home.update(cx, |h, cx| {
             h.begin_import(w, cx);
-            h.begin_repository_import(provider, w, cx);
+            h.choose_import_source(
+                match provider {
+                    Provider::GitHub => "github",
+                    Provider::GitLab => "gitlab",
+                },
+                w,
+                cx,
+            );
         });
     });
     crate::app::tests::settle_cloud(shell, cx, "URL dialog", &|s, cx| {
@@ -815,4 +822,200 @@ fn create_and_import_share_an_owned_test_destination_without_opening_a_picker(
                 .contains("already exists")
         )
     });
+}
+
+fn successful_repository_entry(
+    cx: &mut TestAppContext,
+    provider: Provider,
+    default_location: bool,
+) {
+    let (shell, cx) = crate::app::tests::setup(cx);
+    let fixture = tempfile::tempdir().unwrap();
+    let root = fixture.path().canonicalize().unwrap();
+    let source = root.join("source");
+    let profile = root.join("profile");
+    let chosen = root.join("chosen");
+    for dir in [&source, &profile, &chosen] {
+        std::fs::create_dir(dir).unwrap();
+    }
+    let git = |dir: &Path, args: &[&str]| {
+        crate::platform::process::run(
+            Path::new("/usr/bin/git"),
+            args,
+            dir,
+            None,
+            std::time::Duration::from_secs(10),
+            &AtomicBool::new(false),
+        )
+        .unwrap()
+    };
+    git(&source, &["init", "-q", "-b", "main"]);
+    std::fs::write(
+        source.join("README.md"),
+        "# Imported\n\nLocal transport fixture.\n",
+    )
+    .unwrap();
+    git(&source, &["add", "README.md"]);
+    git(
+        &source,
+        &[
+            "-c",
+            "user.name=Import Test",
+            "-c",
+            "user.email=import@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "commit",
+            "-q",
+            "-m",
+            "fixture",
+        ],
+    );
+    let original_head = git(&source, &["rev-parse", "HEAD"]);
+    shell.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            *p = PreferencesStore::isolated(profile.clone(), cx)
+        })
+    });
+    crate::app::tests::settle_cloud(&shell, cx, "shared isolated preferences", &|s, cx| {
+        s.prefs.store.read(cx).loaded
+    });
+    show_url_dialog(&shell, cx, provider);
+    let (url, name, mark, placeholder) = match provider {
+        Provider::GitHub => (
+            "https://github.com/owner/repository.git",
+            "repository",
+            "import-provider-github",
+            "https://github.com/owner/repository.git",
+        ),
+        Provider::GitLab => (
+            "git@gitlab.com:group/sub/knowledge-base.git",
+            "knowledge-base",
+            "import-provider-gitlab",
+            "https://gitlab.com/owner/repository.git",
+        ),
+    };
+    assert!(cx.debug_bounds(mark).is_some());
+    assert!(cx.debug_bounds("dialog-leading").is_none());
+    assert!(cx.debug_bounds("import-url-hint").is_none());
+    cx.update(|w, _| {
+        let snapshots = gpui_kit::base::test_support::snapshots(w);
+        let dialog = snapshots
+            .iter()
+            .find(|s| s.role() == Some(gpui::Role::Dialog))
+            .expect("native modal node");
+        assert_eq!(
+            dialog.label(),
+            Some(
+                tf(
+                    "onboarding.entry.import.repository.title",
+                    &[("provider", provider.label().into())]
+                )
+                .as_str()
+            )
+        );
+        let submit = snapshots
+            .iter()
+            .find(|s| s.path().contains(&ElementId::from("import-submit")))
+            .unwrap();
+        assert_eq!(submit.label(), Some(tr("onboarding.entry.clone.submit")));
+        assert_eq!(submit.disabled(), Some(true));
+    });
+    shell.read_with(cx, |s, cx| {
+        let input = s.home.read(cx).import.as_ref().unwrap().url.read(cx);
+        let node = input.accessibility_node.as_ref().unwrap();
+        assert_eq!(node.placeholder(), Some(placeholder));
+        assert_eq!(node.role(), gpui::Role::UrlInput);
+    });
+    let parent = if default_location {
+        shell.read_with(cx, |s, cx| {
+            s.home
+                .read(cx)
+                .import
+                .as_ref()
+                .unwrap()
+                .location
+                .clone()
+                .unwrap()
+        })
+    } else {
+        shell.update(cx, |s, cx| {
+            s.home
+                .update(cx, |h, _| h.import.as_mut().unwrap().location = None)
+        });
+        chosen.clone()
+    };
+    let target = parent.join(name);
+    let requests = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    shell.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| {
+            let (source, target, requests) = (source.clone(), target.clone(), requests.clone());
+            h.import.as_mut().unwrap().clone_transport =
+                Some(Arc::new(move |staging, requested_url, cancel| {
+                    requests.lock().unwrap().push(requested_url.to_owned());
+                    assert_eq!(
+                        requested_url, url,
+                        "only the transport URL is redirected to the local fixture"
+                    );
+                    assert!(!target.exists(), "publication has not happened");
+                    crate::platform::process::run(
+                        Path::new("/usr/bin/git"),
+                        &["clone", "--quiet", "--", source.to_str().unwrap(), "."],
+                        staging,
+                        None,
+                        std::time::Duration::from_secs(10),
+                        cancel,
+                    )?;
+                    Ok(())
+                }));
+        })
+    });
+    type_url(&shell, cx, &format!("  {url}  "));
+    click_import(cx);
+    if default_location {
+        assert!(!cx.did_prompt_for_paths());
+    } else {
+        assert!(cx.did_prompt_for_paths());
+        cx.simulate_path_prompt_response(|options| {
+            assert!(options.directories && !options.files && !options.multiple);
+            Some(vec![chosen])
+        });
+    }
+    crate::app::tests::settle_cloud(&shell, cx, "published imported project opened", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(target.as_path())
+            && s.home.read(cx).import.is_none()
+            && s.prefs.store.read(cx).drained()
+    });
+    assert_eq!(*requests.lock().unwrap(), [url.to_owned()]);
+    assert_eq!(git(&target, &["rev-parse", "HEAD"]), original_head);
+    assert_eq!(
+        std::fs::read(target.join("README.md")).unwrap(),
+        std::fs::read(source.join("README.md")).unwrap()
+    );
+    let stored: crate::features::settings::Preferences =
+        serde_json::from_slice(&std::fs::read(profile.join("preferences.json")).unwrap()).unwrap();
+    assert_eq!(stored.recent_projects.len(), 1);
+    assert_eq!(stored.recent_projects[0].path, target);
+    assert_eq!(
+        std::fs::read_dir(parent).unwrap().count(),
+        1,
+        "no staging directories survive"
+    );
+    shell.read_with(cx, |s, cx| {
+        assert!(!s.home.read(cx).dialog_open(DialogKey::ImportRepository, cx))
+    });
+}
+#[gpui::test]
+fn github_import_uses_the_default_location_and_opens_the_durably_recorded_clone(
+    cx: &mut TestAppContext,
+) {
+    successful_repository_entry(cx, Provider::GitHub, true);
+}
+#[gpui::test]
+fn gitlab_import_chooses_a_missing_destination_and_opens_the_durably_recorded_clone(
+    cx: &mut TestAppContext,
+) {
+    successful_repository_entry(cx, Provider::GitLab, false);
 }

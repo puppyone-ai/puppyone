@@ -57,6 +57,8 @@ fn draw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
         let _ = w.draw(cx);
+        w.simulate_next_frame(cx);
+        let _ = w.draw(cx);
     });
 }
 fn click(cx: &mut VisualTestContext, selector: &'static str) {
@@ -478,4 +480,247 @@ fn import_entry_icon_label_and_preview_marks_open_the_same_source_picker(cx: &mu
         draw(cx);
         shell.read_with(cx, |s, cx| assert!(s.home.read(cx).import_picker.is_none()));
     }
+}
+
+#[gpui::test]
+fn the_default_picker_is_one_named_dialog_with_two_labelled_source_buttons(
+    cx: &mut TestAppContext,
+) {
+    let (shell, cx) = setup(cx);
+    show_home(&shell, cx);
+    click(cx, "home-import");
+    // The initial focus is assigned after the new modal has joined the focus tree.
+    draw(cx);
+    assert!(cx.debug_bounds("dialog-leading").is_none());
+    assert!(!cx.did_prompt_for_paths());
+    shell.update_in(cx, |s, w, cx| {
+        let home = s.home.read(cx);
+        let picker = home.import_picker.as_ref().unwrap();
+        assert!(home.import.is_none() && picker.source.is_none());
+        assert!(
+            picker.first_source_focus.is_focused(w),
+            "wanted {:?}, actual {:?}, initial {}, dialog {:?}, home {}",
+            picker.first_source_focus,
+            w.focused(cx),
+            picker.focused_initial,
+            home.top_dialog(cx),
+            s.home_visible(cx)
+        );
+        assert_eq!(
+            home.import_sources(cx)
+                .iter()
+                .map(|s| s.id)
+                .collect::<Vec<_>>(),
+            ["github", "gitlab"]
+        );
+        let snapshots = gpui_kit::base::test_support::snapshots(w);
+        let dialogs: Vec<_> = snapshots
+            .iter()
+            .filter(|s| s.role() == Some(gpui::Role::Dialog))
+            .collect();
+        assert_eq!(dialogs.len(), 1);
+        assert_eq!(
+            dialogs[0].label(),
+            Some(tr("onboarding.entry.import.title"))
+        );
+        for (id, label) in [
+            ("import-source-github", "GitHub"),
+            ("import-source-gitlab", "GitLab"),
+        ] {
+            let sources: Vec<_> = snapshots
+                .iter()
+                .filter(|s| s.path().contains(&ElementId::from(id)))
+                .collect();
+            assert_eq!(sources.len(), 1, "source has no nested controls");
+            assert_eq!(sources[0].role(), Some(gpui::Role::Button));
+            assert_eq!(sources[0].label(), Some(label));
+            assert_ne!(sources[0].disabled(), Some(true));
+        }
+    });
+}
+
+#[gpui::test]
+fn mounted_import_steps_focus_once_and_return_to_the_first_source(cx: &mut TestAppContext) {
+    let (shell, cx) = setup(cx);
+    show_home(&shell, cx);
+    click(cx, "home-import");
+    // Activate the initial button through the native keyboard path.
+    let keystroke = Keystroke::parse("enter").unwrap();
+    cx.simulate_event(KeyDownEvent {
+        keystroke: keystroke.clone(),
+        is_held: false,
+        prefer_character_input: false,
+    });
+    cx.simulate_event(KeyUpEvent { keystroke });
+    draw(cx);
+    shell.update_in(cx, |s, w, cx| {
+        let import = s.home.read(cx).import.as_ref().unwrap();
+        assert_eq!(
+            s.home
+                .read(cx)
+                .import_picker
+                .as_ref()
+                .unwrap()
+                .source
+                .unwrap()
+                .id,
+            "github"
+        );
+        assert!(import.url.read(cx).focus_handle(cx).is_focused(w));
+    });
+    cx.simulate_input("https://github.com/owner/repository.git");
+    cx.simulate_keystrokes("tab");
+    let tabbed = cx.update(|w, cx| w.focused(cx).unwrap());
+    draw(cx);
+    shell.update_in(cx, |s, w, cx| {
+        let input = s.home.read(cx).import.as_ref().unwrap().url.read(cx);
+        assert!(!input.focus_handle(cx).is_focused(w));
+        assert!(
+            tabbed.is_focused(w),
+            "rerender must not restart initial focus"
+        );
+        assert_eq!(input.text(), "https://github.com/owner/repository.git");
+    });
+    click(cx, "import-back");
+    shell.update_in(cx, |s, w, cx| {
+        let home = s.home.read(cx);
+        assert!(home.import.is_none());
+        assert!(
+            home.import_picker
+                .as_ref()
+                .unwrap()
+                .first_source_focus
+                .is_focused(w)
+        );
+    });
+    click(cx, "import-source-gitlab");
+    shell.update_in(cx, |s, w, cx| {
+        let import = s.home.read(cx).import.as_ref().unwrap();
+        assert_eq!(
+            s.home
+                .read(cx)
+                .import_picker
+                .as_ref()
+                .unwrap()
+                .source
+                .unwrap()
+                .id,
+            "gitlab"
+        );
+        assert!(import.url.read(cx).focus_handle(cx).is_focused(w));
+    });
+}
+
+#[gpui::test]
+fn retired_import_frame_callbacks_cannot_steal_focus(cx: &mut TestAppContext) {
+    let (shell, cx) = setup(cx);
+    for repository in [false, true] {
+        shell.update_in(cx, |s, w, cx| {
+            s.home.update(cx, |h, cx| {
+                h.begin_import(w, cx);
+                if repository {
+                    h.choose_import_source("github", w, cx);
+                    h.focus_repository_after_mount(w, cx);
+                } else {
+                    h.focus_source_list_after_mount(w, cx);
+                }
+                h.close_import(w, cx);
+            });
+            s.frame.focus.focus(w, cx);
+        });
+        draw(cx);
+        shell.update_in(cx, |s, w, cx| {
+            assert!(s.home.read(cx).import_picker.is_none());
+            assert!(s.frame.focus.is_focused(w));
+        });
+    }
+    shell.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| {
+            h.begin_import(w, cx);
+            h.focus_source_list_after_mount(w, cx);
+            h.choose_import_source("github", w, cx);
+            h.focus_repository_after_mount(w, cx);
+            h.close_import(w, cx);
+            h.begin_import(w, cx);
+            h.choose_import_source("gitlab", w, cx);
+        });
+    });
+    draw(cx);
+    shell.update_in(cx, |s, w, cx| {
+        let home = s.home.read(cx);
+        assert_eq!(
+            home.import_picker.as_ref().unwrap().source.unwrap().id,
+            "gitlab"
+        );
+        assert!(
+            home.import
+                .as_ref()
+                .unwrap()
+                .url
+                .read(cx)
+                .focus_handle(cx)
+                .is_focused(w)
+        );
+    });
+    // A still-live import under another modal must not take its keyboard.
+    shell.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| {
+            h.begin_import(w, cx);
+            h.focus_source_list_after_mount(w, cx);
+        });
+        s.show_error("another modal", cx);
+        s.frame.focus.focus(w, cx);
+    });
+    draw(cx);
+    shell.update_in(cx, |s, w, cx| {
+        assert!(s.home.read(cx).import_picker.is_some());
+        assert!(s.frame.focus.is_focused(w));
+    });
+}
+#[gpui::test]
+fn an_unavailable_import_entry_keeps_its_label_and_brand_marks_inert(cx: &mut TestAppContext) {
+    let (shell, cx) = setup(cx);
+    show_home(&shell, cx);
+    shell.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            h.session.busy = true;
+            cx.notify();
+        })
+    });
+    draw(cx);
+    cx.update(|w, _| {
+        let snapshots = gpui_kit::base::test_support::snapshots(w);
+        let entry: Vec<_> = snapshots
+            .iter()
+            .filter(|s| s.path().contains(&ElementId::from("home-import")))
+            .collect();
+        assert_eq!(
+            entry.len(),
+            1,
+            "label and marks cannot be nested controls or focus stops"
+        );
+        assert_eq!(entry[0].role(), Some(gpui::Role::Button));
+        assert_eq!(entry[0].disabled(), Some(true));
+    });
+    for selector in [
+        "home-import-label",
+        "home-import-icon",
+        "import-preview-github",
+        "import-preview-gitlab",
+    ] {
+        click(cx, selector);
+        shell.read_with(cx, |s, cx| {
+            let h = s.home.read(cx);
+            assert!(h.import_picker.is_none() && h.import.is_none());
+        });
+        assert!(!cx.did_prompt_for_paths());
+    }
+    shell.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            h.session.busy = false;
+            cx.notify();
+        })
+    });
+    click(cx, "home-import-label");
+    shell.read_with(cx, |s, cx| assert!(s.home.read(cx).import_picker.is_some()));
 }

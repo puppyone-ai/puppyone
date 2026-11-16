@@ -144,6 +144,24 @@ pub fn clone_with_publication(
     )
 }
 
+/// Override only Git's transport in tests; staging, cancellation, publication,
+/// destination checks and error handling remain the production coordinator.
+#[cfg(any(test, feature = "test-support"))]
+pub fn clone_with_test_transport(
+    parent: &Path,
+    repository: &Repository,
+    publication: &Publication,
+    transport: impl FnOnce(&Path, &str, &AtomicBool) -> Result<(), String>,
+) -> Result<PathBuf, String> {
+    clone_into_using(
+        parent,
+        repository,
+        publication.cancellation(),
+        transport,
+        Some(publication),
+    )
+}
+
 fn clone_into_with(
     parent: &Path,
     repository: &Repository,
