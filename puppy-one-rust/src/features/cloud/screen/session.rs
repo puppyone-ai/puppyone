@@ -3,6 +3,7 @@
 use super::{
     CloudScreen, StreamPhase,
     keys::button_bit,
+    motion,
     rfb::{self, Frame, FrameSlot, RfbCommand},
 };
 use crate::{
@@ -16,12 +17,9 @@ use gpui::{
     MouseMoveEvent, MouseUpEvent, Pixels, RenderImage, ScrollWheelEvent, Window, px,
 };
 use image::{Frame as ImageFrame, RgbaImage};
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Duration,
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
 /// Where a session's display comes from: a Cloud Computer's screen
@@ -144,8 +142,8 @@ impl CloudScreen {
                         }
                         s.command_tx = Some(cmd_tx.clone());
                         s.phase = StreamPhase::Connecting;
-                        s.last_sent_size = None;
-                        s.shown.then(|| s.viewport_pixel_size()).flatten()
+                        // One fixed desktop, whatever the window.
+                        Some(motion::DESKTOP)
                     })
                     .ok()
                     .flatten();
@@ -250,8 +248,6 @@ impl CloudScreen {
         self.release_inputs();
         self.interactive = false;
         self.command_tx = None;
-        self.resize_task = None;
-        self.last_sent_size = None;
         if let Some(cancel) = self.stream_cancel.take() {
             cancel.cancel();
         }
@@ -280,50 +276,10 @@ impl CloudScreen {
         }
     }
 
-    pub(super) fn viewport_pixel_size(&self) -> Option<(u16, u16)> {
-        let bounds = self.viewport_bounds?;
-        let w = (f32::from(bounds.size.width).round() as u16) & !1;
-        let h = (f32::from(bounds.size.height).round() as u16) & !1;
-        (w >= 320 && h >= 240).then_some((w.min(4096), h.min(4096)))
-    }
-
-    pub(super) fn update_viewport_bounds(
-        &mut self,
-        bounds: Bounds<Pixels>,
-        cx: &mut Context<Self>,
-    ) {
-        if !self.shown {
-            return;
-        }
-        if self.viewport_bounds == Some(bounds) && self.last_sent_size.is_some() {
-            return;
-        }
+    /// Where the main area is, so the pointer lands on the right desktop
+    /// pixel. The desktop never follows it: its size is [`motion::DESKTOP`].
+    pub(super) fn update_viewport_bounds(&mut self, bounds: Bounds<Pixels>, _: &mut Context<Self>) {
         self.viewport_bounds = Some(bounds);
-        let Some(size) = self.viewport_pixel_size() else {
-            return;
-        };
-        if self.last_sent_size == Some(size) || self.command_tx.is_none() {
-            return;
-        }
-        self.resize_task = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor()
-                .timer(Duration::from_millis(120))
-                .await;
-            let _ = this.update(cx, |s, _| {
-                if !s.shown {
-                    return;
-                }
-                if let Some(next) = s.viewport_pixel_size()
-                    && s.last_sent_size != Some(next)
-                {
-                    s.last_sent_size = Some(next);
-                    s.send_cmd(RfbCommand::Resize {
-                        width: next.0,
-                        height: next.1,
-                    });
-                }
-            });
-        }));
     }
 
     pub(super) fn on_mouse_down(
@@ -354,7 +310,11 @@ impl CloudScreen {
         if !self.interactive || !self.shown {
             return;
         }
-        if let Some(bit) = button_bit(e.button) {
+        // Only a press the desktop saw is released there (not one in the
+        // margin around it).
+        if let Some(bit) = button_bit(e.button)
+            && self.input.buttons & bit != 0
+        {
             self.input.buttons &= !bit;
             let (x, y) = self.pointer_at(e.position).unwrap_or(self.input.last_pos);
             self.input.last_pos = (x, y);

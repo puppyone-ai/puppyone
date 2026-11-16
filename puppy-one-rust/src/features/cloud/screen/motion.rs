@@ -107,6 +107,46 @@ impl Card {
     }
 }
 
+/// The Cloud Computer's desktop: one fixed 16:10 resolution (WXGA, the
+/// size computer-use Agents see best at), never the window's. A window
+/// resize only scales the picture, so its shape never changes and an
+/// Agent at work never has the desktop reflow under it.
+pub const DESKTOP: (u16, u16) = (1280, 800);
+/// The open screen keeps this margin from the main area's edges.
+pub const STAGE_MARGIN: f32 = 32.;
+pub const STAGE_RADIUS: f32 = 12.;
+
+/// Height over width of the desktop as it is shown: the picture's own when
+/// there is one (a server that cannot resize keeps its own), else
+/// [`DESKTOP`]'s, kept between 2:1 and 4:3.
+pub fn aspect(frame: Option<(u32, u32)>) -> f32 {
+    let (w, h) = match frame {
+        Some((w, h)) if w > 0 && h > 0 => (w as f32, h as f32),
+        _ => (f32::from(DESKTOP.0), f32::from(DESKTOP.1)),
+    };
+    (h / w).clamp(0.5, 0.75)
+}
+
+/// The open screen on the main area at `stage`: as large as fits inside the
+/// margin at `aspect`, centred.
+pub fn on_stage(stage: Rect, aspect: f32) -> Rect {
+    let (room_w, room_h) = (
+        (stage.w - 2. * STAGE_MARGIN).max(1.),
+        (stage.h - 2. * STAGE_MARGIN).max(1.),
+    );
+    let (w, h) = if room_h / room_w > aspect {
+        (room_w, room_w * aspect)
+    } else {
+        (room_h / aspect, room_h)
+    };
+    Rect::new(
+        (stage.x + (stage.w - w) / 2.).round(),
+        (stage.y + (stage.h - h) / 2.).round(),
+        w.round(),
+        h.round(),
+    )
+}
+
 /// Where the screen belongs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Place {
@@ -129,17 +169,18 @@ pub struct Pose {
     pub unfold: f32,
     pub opacity: f32,
     /// How the picture fills `rect`: 0 covers it (a thumbnail crops), 1
-    /// shows all of it (the main area letterboxes).
+    /// shows all of it. It is also how far the screen stands on the main
+    /// area (its shadow).
     pub fit: f32,
 }
 impl Pose {
     /// Where `place` puts the screen: `card` when the Explorer shows,
-    /// `stage` the main area.
-    pub fn at(place: Place, card: Option<Card>, stage: Rect) -> Self {
+    /// `stage` the main area, the desktop at `aspect`.
+    pub fn at(place: Place, card: Option<Card>, stage: Rect, aspect: f32) -> Self {
         match (place, card) {
             (Place::Stage, _) => Self {
-                rect: stage,
-                radius: 0.,
+                rect: on_stage(stage, aspect),
+                radius: STAGE_RADIUS,
                 unfold: 0.,
                 opacity: 1.,
                 fit: 1.,
@@ -304,13 +345,13 @@ mod tests {
         let card = Some(card());
         let mut motion = ScreenMotion::default();
         let start = Instant::now();
-        let row = Pose::at(Place::Card { unfolded: false }, card, STAGE);
+        let row = Pose::at(Place::Card { unfolded: false }, card, STAGE, 0.625);
         let shown = motion.frame(Place::Card { unfolded: false }, row, true, start);
         assert_eq!(shown.pose, row);
         assert!(!shown.moving);
 
         // Opening: the first frame still shows the row, then it flies.
-        let stage = Pose::at(Place::Stage, card, STAGE);
+        let stage = Pose::at(Place::Stage, card, STAGE, 0.625);
         let first = motion.frame(Place::Stage, stage, true, start);
         assert_eq!(first.pose, row);
         assert!(first.moving && first.crosses);
@@ -340,9 +381,9 @@ mod tests {
         let card = Some(card());
         let mut motion = ScreenMotion::default();
         let now = Instant::now();
-        let row = Pose::at(Place::Card { unfolded: false }, card, STAGE);
+        let row = Pose::at(Place::Card { unfolded: false }, card, STAGE, 0.625);
         motion.frame(Place::Card { unfolded: false }, row, false, now);
-        let stage = Pose::at(Place::Stage, card, STAGE);
+        let stage = Pose::at(Place::Stage, card, STAGE, 0.625);
         let shown = motion.frame(Place::Stage, stage, false, now);
         assert_eq!(shown.pose, stage);
         assert!(!shown.moving);
@@ -350,21 +391,47 @@ mod tests {
 
     #[test]
     fn a_thumbnail_crops_the_picture_and_the_main_area_shows_all_of_it() {
-        let row = Pose::at(Place::Card { unfolded: false }, Some(card()), STAGE);
+        let row = Pose::at(Place::Card { unfolded: false }, Some(card()), STAGE, 0.625);
         // 16:10 into 3:2: cover crops the sides.
         let cropped = row.picture(1600, 1000).unwrap();
         assert_eq!(cropped.h, row.rect.h);
         assert!(cropped.w > row.rect.w);
-        let stage = Pose::at(Place::Stage, None, STAGE);
-        let whole = stage.picture(1600, 1000).unwrap();
-        assert_eq!(whole.w, STAGE.w);
-        assert!(whole.h < STAGE.h);
-        assert_eq!(whole.y, STAGE.y + (STAGE.h - whole.h) / 2.);
+        // A 4:3 picture on a 16:10 screen shows all of it, centred.
+        let stage = Pose::at(Place::Stage, None, STAGE, 0.625);
+        let whole = stage.picture(1200, 900).unwrap();
+        assert_eq!(whole.h, stage.rect.h);
+        assert!(whole.w < stage.rect.w);
+        assert_eq!(whole.x, stage.rect.x + (stage.rect.w - whole.w) / 2.);
+    }
+
+    #[test]
+    fn the_open_screen_keeps_its_shape_and_margin_whatever_the_window() {
+        // Wide, tall and square main areas: always 16:10, centred, inside
+        // the margin, touching it on the tighter side.
+        for stage in [
+            STAGE,
+            Rect::new(260., 40., 700., 900.),
+            Rect::new(0., 40., 1800., 600.),
+        ] {
+            let screen = on_stage(stage, aspect(None));
+            assert!((screen.h / screen.w - 0.625).abs() < 0.01, "{screen:?}");
+            assert!(screen.x >= stage.x + STAGE_MARGIN - 0.5);
+            assert!(screen.y >= stage.y + STAGE_MARGIN - 0.5);
+            assert!(screen.right() <= stage.right() - STAGE_MARGIN + 0.5);
+            assert!(screen.bottom() <= stage.bottom() - STAGE_MARGIN + 0.5);
+            let (left, top) = (screen.x - stage.x, screen.y - stage.y);
+            assert!((left - (stage.right() - screen.right())).abs() <= 1.);
+            assert!((top - (stage.bottom() - screen.bottom())).abs() <= 1.);
+            assert!((left - STAGE_MARGIN).abs() <= 0.5 || (top - STAGE_MARGIN).abs() <= 0.5);
+        }
+        // The desktop's own shape wins when the server keeps one.
+        assert_eq!(aspect(Some((1024, 768))), 0.75);
+        assert_eq!(aspect(Some((1280, 800))), 0.625);
     }
 
     #[test]
     fn without_a_card_the_screen_leaves_toward_the_windows_start_and_fades() {
-        let away = Pose::at(Place::Away, None, STAGE);
+        let away = Pose::at(Place::Away, None, STAGE, 0.625);
         assert!(away.rect.right() < STAGE.x);
         assert_eq!(away.opacity, 0.);
     }
