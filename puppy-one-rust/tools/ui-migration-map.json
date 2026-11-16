@@ -2467,17 +2467,23 @@
         "assets/web/excalidraw.json",
         "src/editor/registry/builtin.rs",
         "src/platform/webview.rs",
-        "src/features/create_new/create_entry_menu_registry.rs"
+        "src/features/create_new/create_entry_menu_registry.rs",
+        "tools/native-whiteboard-bridge.ts",
+        "tools/verify-whiteboard-bridge.mjs",
+        "tools/verify-viewer-pack.py"
       ],
       "evidence": [
-        "test:board_edits_become_the_document_and_links_open_their_documents",
-        "test:the_bundle_rewrites_the_font_fallback_and_carries_the_host_patches",
+        "test:only_the_current_ready_board_can_open_workspace_links",
+        "test:the_actual_pinned_pack_installs_all_sdk_fonts_without_network_fallback",
         "test:the_page_carries_the_board_and_names_the_sdk_assets",
-        "test:tampered_or_traversing_archives_are_rejected_and_missing_root_returns_none",
+        "test:tampered_scripts_are_rejected_and_missing_root_returns_none",
         "test:disk_assets_serve_their_folder_only_and_never_as_resources",
-        "test:a_layout_saved_before_the_whiteboard_offers_it_before_custom_files"
+        "test:a_layout_saved_before_the_whiteboard_offers_it_before_custom_files",
+        "test:an_external_replacement_rejects_content_already_queued_by_the_previous_scene",
+        "test:the_bundled_bridge_and_real_product_model_preserve_scene_acceptance",
+        "test:source_mode_retires_board_writes_and_returns_the_latest_json"
       ],
-      "remaining": "The Excalidraw whiteboard ships as the on-demand puppyone.excalidraw Viewer Pack (built by tools/release/package-excalidraw-pack.py and SHA-256 verified file-by-file by platform::viewer_packs before mounting in WKWebView) rather than embedding 21.5 MiB of JS and fonts in the base binary/bundle; when uninstalled, opening .excalidraw offers one-click pack installation or direct JSON source editing."
+      "remaining": "The fixed on-demand Excalidraw pack and native document-generation ownership are qualified by actual archive/model tests and GPUI transport acceptance. Real OS canvas drawing, IME, undo keyboard handling and embedded HTML interaction remain unqualified; loading all fonts remains synchronous, without a main-thread budget acceptance. Third-party pack activation, signatures and uninstall are separate."
     },
     {
       "name": "Context Map viewer",
