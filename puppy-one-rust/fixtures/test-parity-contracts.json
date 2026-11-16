@@ -8422,6 +8422,221 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "agent-file-change-evidence-pipeline",
+      "acceptance": "All 28 frozen TS edit-evidence cases: nine native protocol fixtures pass through their real normalizers, workspace path admission, SessionActor display projection and journal replay with exact path/count/diff/block assertions. Pi batch edits preserve literal @@ text and strip legacy display line numbers; ACP distinguishes missing diff fields from explicit clearing. Pure evidence cases cover changed-line counts, blank versus absent sides, separate regions, unknown/binary/replace-all counts, total preview and block bounds, redaction, legacy multi-file enrichment and unchanged recorded journal events. As in TS, the builtin fixture here uses ACP; this does not claim live vendor CLI or builtin kernel transport acceptance.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/references/electron.agent-file-change-evidence.test.mjs",
+          "sha256": "d391d678556ee7978e136db7298e72e2f0b70242df6eee5910517224dd371b90",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Shared edit display evidence > preserves codex edits through Main and replay"
+            },
+            {
+              "index": 1,
+              "name": "Shared edit display evidence > preserves claude edits through Main and replay"
+            },
+            {
+              "index": 2,
+              "name": "Shared edit display evidence > preserves pi edits through Main and replay"
+            },
+            {
+              "index": 3,
+              "name": "Shared edit display evidence > preserves cursor edits through Main and replay"
+            },
+            {
+              "index": 4,
+              "name": "Shared edit display evidence > preserves opencode-native edits through Main and replay"
+            },
+            {
+              "index": 5,
+              "name": "Shared edit display evidence > preserves workbuddy-china edits through Main and replay"
+            },
+            {
+              "index": 6,
+              "name": "Shared edit display evidence > preserves workbuddy-international edits through Main and replay"
+            },
+            {
+              "index": 7,
+              "name": "Shared edit display evidence > preserves hermes edits through Main and replay"
+            },
+            {
+              "index": 8,
+              "name": "Shared edit display evidence > preserves puppyone-agent edits through Main and replay"
+            },
+            {
+              "index": 9,
+              "name": "Shared edit display evidence > computes real changed lines without counting unchanged context"
+            },
+            {
+              "index": 10,
+              "name": "Shared edit display evidence > computes real changed lines without counting unchanged context"
+            },
+            {
+              "index": 11,
+              "name": "Shared edit display evidence > computes real changed lines without counting unchanged context"
+            },
+            {
+              "index": 12,
+              "name": "Shared edit display evidence > computes real changed lines without counting unchanged context"
+            },
+            {
+              "index": 13,
+              "name": "Shared edit display evidence > preserves whitespace and does not invent absolute line numbers for fragments"
+            },
+            {
+              "index": 14,
+              "name": "Shared edit display evidence > keeps separate changed regions paired without painting unchanged context"
+            },
+            {
+              "index": 15,
+              "name": "Shared edit display evidence > distinguishes an edited blank line from an absent side: +"
+            },
+            {
+              "index": 16,
+              "name": "Shared edit display evidence > distinguishes an edited blank line from an absent side: -"
+            },
+            {
+              "index": 17,
+              "name": "Shared edit display evidence > distinguishes an edited blank line from an absent side: +added"
+            },
+            {
+              "index": 18,
+              "name": "Shared edit display evidence > distinguishes an edited blank line from an absent side: -removed"
+            },
+            {
+              "index": 19,
+              "name": "Shared edit display evidence > leaves unknown Write bodies and binary evidence neutral"
+            },
+            {
+              "index": 20,
+              "name": "Shared edit display evidence > distinguishes diff file headers from content beginning with triple signs"
+            },
+            {
+              "index": 21,
+              "name": "Shared edit display evidence > keeps unknown counts absent for path-only, overwritten Write and replace-all requests"
+            },
+            {
+              "index": 22,
+              "name": "Shared edit display evidence > bounds large work and marks omitted previews without claiming a partial count as the total"
+            },
+            {
+              "index": 23,
+              "name": "Shared edit display evidence > redacts secrets in generated previews"
+            },
+            {
+              "index": 24,
+              "name": "Shared edit display evidence > accepts Pi batch input and legacy numbered output without leaking display line numbers"
+            },
+            {
+              "index": 25,
+              "name": "Shared edit display evidence > enriches older multi-file diffs without changing their counts or clearing semantics"
+            },
+            {
+              "index": 26,
+              "name": "Shared edit display evidence > handles ACP diff creation, omitted fields and explicit clearing"
+            },
+            {
+              "index": 27,
+              "name": "Shared edit display evidence > preserves old journal edit fragments in Main without changing the recorded event"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::codex_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::claude_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::pi_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::cursor_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::opencode_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::workbuddy_china_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::workbuddy_international_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::hermes_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::builtin_acp_fixture_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::pi_batch_edits_and_legacy_numbered_output_preserve_the_same_blocks"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::acp_diff_creation_omitted_fields_and_explicit_clearing_are_distinct"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::computes_real_changed_lines_without_counting_unchanged_context"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::preserves_whitespace_and_does_not_invent_absolute_line_numbers_for_fragments"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::keeps_separate_changed_regions_paired_without_painting_unchanged_context"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::distinguishes_an_edited_blank_line_from_an_absent_side"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::leaves_unknown_write_bodies_and_binary_evidence_neutral"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::distinguishes_diff_file_headers_from_content_beginning_with_triple_signs"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::keeps_unknown_counts_absent_for_path_only_overwritten_write_and_replace_all_requests"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::bounds_large_work_and_marks_omitted_previews_without_claiming_a_partial_count_as_the_total"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::agent_file_change_evidence::tests::redacts_secrets_in_generated_previews"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::migrations::legacy_file_change_evidence::tests::enriches_older_multi_file_diffs_without_changing_their_counts_or_clearing_semantics"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::preserves_old_journal_edit_fragments_in_main_without_changing_the_recorded_event"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

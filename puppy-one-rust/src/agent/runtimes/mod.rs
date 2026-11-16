@@ -12,3 +12,6 @@ pub mod workbuddy;
 
 #[cfg(test)]
 mod discovery_tests;
+
+#[cfg(test)]
+mod file_change_tests;
