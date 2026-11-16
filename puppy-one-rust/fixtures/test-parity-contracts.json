@@ -13002,6 +13002,57 @@
           "timeout": 120
         }
       ]
+    },
+    {
+      "id": "native-git-non-overwrite-pushes",
+      "acceptance": "AST discovery covers every current production push argument array (ordinary push, first branch publication, Host Git and first Cloud publication); unknown/new argument shapes, force flags or replacing refspecs fail review. The only force lease is explicitly empty for refs/heads/main and sends the immutable journal commit. Guard mutations prove rejection. Real permissive bare repositories reject ordinary/publish/Host pushes after concurrent remote commits; a loopback stock Git smart-HTTP backend executes the actual Cloud Cli, verifying pinned content, an identical retry without re-upload, refusal of a competing main and refusal even when existing main could fast-forward. Private positive controls demonstrate the servers would accept the prohibited update. This does not certify Cloud API/TLS/deployment or arbitrary user Git configuration/hooks.",
+      "environment": "Actual git CLI and private local repositories; Cloud Git transport fixture binds loopback only and uses a disposable credential store. AST tool builds offline in its own workspace.",
+      "typescript": [
+        {
+          "path": "tests/architecture/source-control/sync/noForcePushArchitecture.test.ts",
+          "sha256": "e3d0de8f26eeb10d4c2324d67afb2530d9f72269f3a7000ec06984b4be7fa03d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "what Desktop pushes to a remote > finds the pushes it guards"
+            },
+            {
+              "index": 1,
+              "name": "what Desktop pushes to a remote > never forces a push, except creating main while it is absent"
+            },
+            {
+              "index": 2,
+              "name": "what Desktop pushes to a remote > never pushes a refspec that replaces whatever the remote has"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::push_tests::every_production_push_site_preserves_the_reviewed_non_overwrite_contract"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::push_tests::pushing_and_publishing_cannot_replace_a_remote_commit_that_arrived_after_refresh"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::a_host_push_preserves_remote_changes_that_arrived_after_its_last_status"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_sends_the_pinned_commit_and_reconciles_an_identical_retry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_refuses_a_competing_main_even_when_the_server_allows_forcing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_requires_absence_even_when_updating_main_would_be_a_fast_forward"
+        }
+      ]
     }
   ],
   "openAcceptance": [

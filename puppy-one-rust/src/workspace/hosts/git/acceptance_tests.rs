@@ -28,6 +28,64 @@ fn repository(root: &Path) {
 }
 
 #[test]
+fn a_host_push_preserves_remote_changes_that_arrived_after_its_last_status() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("work");
+    let bare = temp.path().join("remote.git");
+    let peer = temp.path().join("peer");
+    std::fs::create_dir(&root).unwrap();
+    repository(&root);
+    invoke(
+        &PlainGit,
+        temp.path(),
+        &["init", "-q", "--bare", "-b", "main", "remote.git"],
+    );
+    let commit = |cwd: &Path, name: &str| {
+        std::fs::write(cwd.join(name), name).unwrap();
+        invoke(&PlainGit, cwd, &["add", "--", name]);
+        invoke(
+            &PlainGit,
+            cwd,
+            &[
+                "-c",
+                "user.name=Fixture",
+                "-c",
+                "user.email=fixture@example.invalid",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-qm",
+                name,
+            ],
+        );
+        invoke(&PlainGit, cwd, &["rev-parse", "HEAD"])
+    };
+    commit(&root, "base.md");
+    invoke(
+        &PlainGit,
+        &root,
+        &["remote", "add", "origin", bare.to_str().unwrap()],
+    );
+    invoke(&PlainGit, &root, &["push", "-qu", "origin", "main"]);
+    invoke(
+        &PlainGit,
+        temp.path(),
+        &["clone", "-q", bare.to_str().unwrap(), "peer"],
+    );
+    let local = commit(&root, "local.md");
+    let service = GitService::new(Arc::new(PlainGit));
+    service.run(&root, &request("status")).unwrap();
+    let remote = commit(&peer, "remote.md");
+    invoke(&PlainGit, &peer, &["push", "-q"]);
+    assert!(service.run(&root, &request("push")).is_err());
+    assert_eq!(invoke(&PlainGit, &bare, &["rev-parse", "main"]), remote);
+    assert_eq!(invoke(&PlainGit, &root, &["rev-parse", "HEAD"]), local);
+    assert!(invoke(&PlainGit, &root, &["status", "--porcelain"]).is_empty());
+    invoke(&PlainGit, &root, &["push", "--force", "origin", "main"]);
+    assert_eq!(invoke(&PlainGit, &bare, &["rev-parse", "main"]), local);
+}
+
+#[test]
 fn literal_file_names_cannot_stage_another_matching_path() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();

@@ -113,6 +113,7 @@
     "electron/local-api/files/file-format-policy.mjs": "cbf117385d004620c845211032193159a4dd558139a80e447f9ca4e03e174f53",
     "tests/unit/editor/runtime/excalidrawHostIntegrationPatch.test.mjs": "836fd0257ca8712ad716b54d5418e12ea35e64c3bf72afd821562aa549b8db40",
     "scripts/patch-excalidraw-host-integration.mjs": "dbb7de8dc397615a9b8e683ecfa3c90b181190adee7ec20364aa0b16fe1abafb",
-    "tests/e2e/editor/formats/excalidraw/editor-whiteboard.smoke.mjs": "c0eb261291c2bd944c2e993fe439e837e2ecf6e3e2def7508460c95ac98775f9"
+    "tests/e2e/editor/formats/excalidraw/editor-whiteboard.smoke.mjs": "c0eb261291c2bd944c2e993fe439e837e2ecf6e3e2def7508460c95ac98775f9",
+    "tests/architecture/source-control/sync/noForcePushArchitecture.test.ts": "e3d0de8f26eeb10d4c2324d67afb2530d9f72269f3a7000ec06984b4be7fa03d"
   }
 }

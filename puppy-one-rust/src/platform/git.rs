@@ -5,6 +5,9 @@
 //! repository's, with repository-relative paths. Mutations and file reads stay
 //! inside the opened folder: a change elsewhere in the repository is shown but
 //! cannot be staged, discarded or opened from here.
+#[cfg(test)]
+#[path = "git/push_tests.rs"]
+mod push_tests;
 pub mod runner;
 pub mod sync_state;
 use std::{

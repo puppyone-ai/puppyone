@@ -45,6 +45,26 @@ struct Index {
     depth: usize,
     namespace: PathBuf,
     modules: Vec<(PathBuf, bool, bool)>,
+    pushes: Vec<Value>,
+    push_bindings: Vec<Value>,
+}
+// Keep expressions structural: an added flag/refspec or a different dynamic
+// argument cannot disappear behind whitespace or a source-text regex.
+fn argument(expr: &syn::Expr) -> Value {
+    match expr {
+        syn::Expr::Lit(lit) => match &lit.lit {
+            syn::Lit::Str(text) => json!(text.value()),
+            _ => json!({"dynamic": true}),
+        },
+        syn::Expr::Reference(reference) => json!({"borrow": argument(&reference.expr)}),
+        syn::Expr::Path(path) => {
+            json!({"path": path.path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("::")})
+        }
+        syn::Expr::Macro(mac) => {
+            json!({"macro": mac.mac.path.segments.last().unwrap().ident.to_string(), "tokens": mac.mac.tokens.to_string()})
+        }
+        _ => json!({"dynamic": true}),
+    }
 }
 impl Index {
     fn exclude(&mut self, node: &impl Spanned, reason: &str) {
@@ -52,8 +72,45 @@ impl Index {
         self.excluded
             .push(json!({"start":span.start().line,"end":span.end().line,"reason":reason}));
     }
+    fn push_array<'a>(&mut self, line: usize, args: impl Iterator<Item = &'a syn::Expr>) {
+        let args: Vec<_> = args.map(argument).collect();
+        if args.iter().take(4).any(|v| v == "push") && !args.iter().any(|v| v == "stash") {
+            self.pushes.push(json!({"line":line,"args":args}));
+        }
+    }
 }
 impl<'ast> Visit<'ast> for Index {
+    fn visit_expr_array(&mut self, node: &'ast syn::ExprArray) {
+        self.push_array(node.span().start().line, node.elems.iter());
+        visit::visit_expr_array(self, node);
+    }
+    fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
+        if node.mac.path.is_ident("vec") {
+            use syn::parse::Parser;
+            let parser = syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
+            if let Ok(args) = parser.parse2(node.mac.tokens.clone()) {
+                self.push_array(node.span().start().line, args.iter());
+            } else if node.mac.tokens.to_string().contains("\"push\"") {
+                self.pushes.push(json!({"line":node.span().start().line,"args":[{"unreviewedMacro":node.mac.tokens.to_string()}]}));
+            }
+        }
+        visit::visit_expr_macro(self, node);
+    }
+    fn visit_local(&mut self, node: &'ast syn::Local) {
+        if let syn::Pat::Ident(name) = &node.pat
+            && matches!(name.ident.to_string().as_str(), "lease" | "refspec")
+            && let Some(init) = &node.init
+        {
+            self.push_bindings.push(json!({"line":node.span().start().line,"name":name.ident.to_string(),"value":argument(&init.expr)}));
+        }
+        visit::visit_local(self, node);
+    }
+    fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
+        if node.ident == "DESTINATION_REF" {
+            self.push_bindings.push(json!({"line":node.span().start().line,"name":node.ident.to_string(),"value":argument(&node.expr)}));
+        }
+        visit::visit_item_const(self, node);
+    }
     fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
         let excluded = test_only(&node.attrs);
         if excluded {
@@ -155,7 +212,7 @@ fn walk(root: &Path, directory: &Path, files: &mut Vec<Value>) {
                 json!({"start":1,"end":text.lines().count(),"reason":"dedicated test source"}),
             );
         }
-        files.push(json!({"path":path.strip_prefix(root).unwrap().to_str().unwrap(),"lines":text.lines().count(),"excluded":index.excluded,"tests":index.tests,"modules":modules,"verificationOnly":dedicated}));
+        files.push(json!({"path":path.strip_prefix(root).unwrap().to_str().unwrap(),"lines":text.lines().count(),"excluded":index.excluded,"tests":index.tests,"modules":modules,"verificationOnly":dedicated,"pushes":index.pushes,"pushBindings":index.push_bindings}));
     }
 }
 fn main() {
@@ -200,6 +257,40 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn push_inventory_uses_syntax_and_retains_flags_refs_and_test_spans() {
+        let source = r#"
+fn send() {
+    // ["push", "--force"] is a comment, not a command.
+    let explanation = "[\"push\", \"--force\"]";
+    call(&["push", "--force", "+HEAD:main"]);
+    let lease = format!("--force-with-lease={DESTINATION_REF}:");
+    let refspec = format!("{}:{DESTINATION_REF}", oid);
+    let args = vec!["-c", config, "push", &lease, &refspec];
+    call(&["stash", "push"]);
+}
+#[test]
+fn fixture() { call(&["push", "--force"]); }
+"#;
+        let mut index = Index::default();
+        index.visit_file(&syn::parse_file(source).unwrap());
+        assert_eq!(index.pushes.len(), 3);
+        assert_eq!(
+            index.pushes[0]["args"],
+            json!(["push", "--force", "+HEAD:main"])
+        );
+        assert_eq!(index.pushes[1]["args"][2], "push");
+        assert_eq!(index.push_bindings.len(), 2);
+        assert!(
+            index
+                .excluded
+                .iter()
+                .any(|span| span["start"].as_u64().unwrap()
+                    <= index.pushes[2]["line"].as_u64().unwrap()
+                    && span["end"].as_u64().unwrap() >= index.pushes[2]["line"].as_u64().unwrap())
+        );
+    }
 
     #[test]
     fn cfg_logic_does_not_exclude_production_enabled_alternatives() {

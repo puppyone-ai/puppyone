@@ -18,6 +18,9 @@
 //! | User signs out after link | `app::tests::cloud_opening::signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project` |
 //! | Cleanup fails | `cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything`, `workspace::cloud::publish` derivation |
 //! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `app::tests::cloud_opening::a_vanished_cloud_projects_link_is_ended_from_its_notice` |
+#[path = "git_push_tests.rs"]
+mod git_push_tests;
+
 use super::fixtures::*;
 use super::{
     git::{Cli, GitOps, Remote},
