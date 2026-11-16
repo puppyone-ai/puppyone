@@ -11830,6 +11830,172 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-git-metadata-watch-recovery",
+      "acceptance": "Git-resolved absolute worktree/git/common identity, absent-to-repository promotion, cold native streams and recoverable watcher failures converge through the production native worker. Initial arm failure keeps the subscription alive; retries start at 250 ms, double to 30 seconds, and reset on successful installation. Pending identity is checked again after arming. Two-second reconciliation observes real commits, index stage/unstage, soft reset, identical-tree branch switches, packed/nested refs, remote-tracking refs/config, and actual merge/cherry-pick/rebase conflicts and aborts. Native status and repository metadata confirm the resulting state. Controlled time verifies no early retries, bounded first-event 120 ms coalescing, one queued notification per native handle, and stale generation rejection; real OS watches and drop-owned handle release remain tested. Ref-only/silent-stream changes also rearm the native watcher. This row does not qualify shared subscription/reference counting, common-dir fanout, renderer-owned immediate invalidation, cross-platform runtime behavior, or native reason-string wire format. Those remaining cases stay unmapped.",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/status/electron.git-metadata-watch.integration.test.mjs",
+          "sha256": "c4d466aa99926ceb0dc951730ea672cfb1b31c1e4f1b64cc0c6b112934885d75",
+          "cases": [
+            {
+              "index": 0,
+              "name": "resolveGitRepositoryIdentity > returns absolute worktree, git-dir, and common-dir for a repository"
+            },
+            {
+              "index": 1,
+              "name": "resolveGitRepositoryIdentity > reports repository=false for a non-repository folder"
+            },
+            {
+              "index": 2,
+              "name": "git metadata watch service > reconciles a cold external commit and ref change when native events are silent"
+            },
+            {
+              "index": 3,
+              "name": "git metadata watch service > promotes a cold non-repository after git init without a native event"
+            },
+            {
+              "index": 5,
+              "name": "git metadata watch service > delivers a metadata invalidation and converges to a clean snapshot with a new HEAD after an external add + commit"
+            },
+            {
+              "index": 7,
+              "name": "git metadata watch service > re-arms and keeps reporting after a ref-only update (branch switch on identical trees)"
+            },
+            {
+              "index": 8,
+              "name": "git metadata watch service > invalidates on external stage/unstage without another working-tree edit"
+            },
+            {
+              "index": 9,
+              "name": "git metadata watch service > invalidates on external reset --soft"
+            },
+            {
+              "index": 10,
+              "name": "git metadata watch service > promotes a pending non-repo subscription after git init"
+            },
+            {
+              "index": 11,
+              "name": "git metadata watch service > rechecks repository identity after arming a pending root watcher"
+            },
+            {
+              "index": 13,
+              "name": "git metadata watch service > invalidates on packed-refs and nested branch names"
+            },
+            {
+              "index": 14,
+              "name": "git metadata watch service > invalidates on merge/rebase/cherry-pick state files and config changes"
+            },
+            {
+              "index": 15,
+              "name": "git metadata watch service > invalidates after updating a remote-tracking ref (fetch-like)"
+            },
+            {
+              "index": 17,
+              "name": "git metadata watch service > re-arms after a recoverable watcher failure and keeps delivering events"
+            },
+            {
+              "index": 18,
+              "name": "git metadata watch service > invalidates on cherry-pick and rebase state files"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::tests::ref_changes_invalidate_and_lock_files_do_not"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::tests::the_metadata_snapshot_moves_with_refs_and_not_with_locks"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::tests::a_later_git_init_is_noticed"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::failed_native_arms_back_off_to_thirty_seconds_and_success_resets_the_budget"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::continuous_events_are_bounded_and_publish_from_the_first_event_deadline"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::silent_streams_reconcile_real_metadata_and_rearm_without_worktree_noise"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::pending_identity_is_rechecked_after_arming_and_drop_releases_native_handles"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::cold_external_commits_index_changes_and_refs_converge_without_native_events"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::real_merge_cherry_pick_and_rebase_state_remains_observable_through_recovery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::cold_non_repository_promotes_on_reconciliation_without_native_events"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::repository_identity_uses_absolute_top_level_git_and_linked_common_directories"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-git-metadata-snapshot",
+      "acceptance": "The production metadata snapshot observes Git refs but ignores worktree/object/log/lock/cookie activity, never recursively follows metadata symlinks, refuses incomplete fingerprints when the entry budget is exhausted, and returns no snapshot when cancelled before the first path. The directory entry vector is bounded while reading, rather than after collecting all children. Directory identity and canonical location are checked around enumeration; unexpected filesystem errors conservatively invalidate. Worker drop now also marks snapshot cancellation. Tests run on the Unix/macOS implementation; the non-Unix fallback and actual Windows filesystem runtime are explicitly not qualified.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/gitMetadataSnapshot.test.mjs",
+          "sha256": "27f6fa2f41d72daf05be3b6342c0228033bd202b72cc7019a70778708e6b2db4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "detects metadata changes while ignoring worktree, object, log and lock activity"
+            },
+            {
+              "index": 1,
+              "name": "does not follow metadata symlinks"
+            },
+            {
+              "index": 2,
+              "name": "fails conservatively at the metadata entry budget"
+            },
+            {
+              "index": 3,
+              "name": "does no further work after cancellation"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::snapshot::tests::snapshots_ignore_worktree_objects_logs_locks_and_cookies_but_observe_refs"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::snapshot::tests::snapshot_never_follows_metadata_symlinks"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::snapshot::tests::entry_budget_refuses_the_scan_instead_of_returning_a_partial_fingerprint"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::snapshot::tests::cancelled_snapshots_do_not_inspect_even_the_first_path"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
