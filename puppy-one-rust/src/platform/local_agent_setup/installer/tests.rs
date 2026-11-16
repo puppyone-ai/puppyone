@@ -891,3 +891,69 @@ fn the_artifact_http_policy_rejects_redirects_and_does_not_retain_response_cooki
             .all(|r| r["cookie"].is_null() && r["authorization"].is_null())
     );
 }
+
+#[test]
+fn actual_typescript_archive_bytes_preserve_format_validation_and_zero_write_failures() {
+    use base64::Engine as _;
+    use std::collections::BTreeMap;
+    fn files(root: &Path, relative: &Path, output: &mut BTreeMap<String, String>) {
+        for entry in std::fs::read_dir(root.join(relative)).unwrap() {
+            let entry = entry.unwrap();
+            let name = relative.join(entry.file_name());
+            let kind = entry.file_type().unwrap();
+            if kind.is_dir() {
+                files(root, &name, output);
+            } else {
+                assert!(
+                    kind.is_file(),
+                    "an archive may not create a link or special file"
+                );
+                output.insert(
+                    name.to_str().unwrap().into(),
+                    base64::engine::general_purpose::STANDARD
+                        .encode(std::fs::read(entry.path()).unwrap()),
+                );
+            }
+        }
+    }
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../fixtures/activation-archive-oracle.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        oracle["sourceCommit"],
+        "dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2"
+    );
+    let cases = oracle["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 49);
+    let directory = tempfile::tempdir().unwrap();
+    let mut differences = vec![];
+    for (index, case) in cases.iter().enumerate() {
+        let name = case["name"].as_str().unwrap();
+        let archive = directory.path().join(format!("{index}.bin"));
+        let output = directory.path().join(format!("output-{index}"));
+        std::fs::write(
+            &archive,
+            base64::engine::general_purpose::STANDARD
+                .decode(case["archive"].as_str().unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        std::fs::create_dir(&output).unwrap();
+        let result = extract(&archive, &output, &AtomicBool::new(false));
+        if result.is_ok() != case["accepted"].as_bool().unwrap() {
+            differences.push(format!("{name}: acceptance differs ({result:?})"));
+        }
+        let mut extracted = BTreeMap::new();
+        files(&output, Path::new(""), &mut extracted);
+        if serde_json::to_value(extracted).unwrap() != case["files"] {
+            differences.push(format!("{name}: extracted bytes differ"));
+        }
+        if !case["accepted"].as_bool().unwrap()
+            && std::fs::read_dir(output).unwrap().next().is_some()
+        {
+            differences.push(format!("{name}: invalid archive wrote output"));
+        }
+    }
+    assert!(differences.is_empty(), "{}", differences.join("\n"));
+}

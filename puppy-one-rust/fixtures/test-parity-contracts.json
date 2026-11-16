@@ -6947,7 +6947,7 @@
     },
     {
       "id": "local-agent-managed-installation-lifetime",
-      "acceptance": "Validate the entire archive including gzip trailer before any write; unsafe paths and vendor links leave zero extracted files. Atomic installation downloads once, commits once per explicit reuse, and does not change PATH or home configuration. Download cancellation cleans staging and excludes concurrent installers. Real version children obey time/output/environment limits; cancellation remains live after parent exit while descendants own pipes. A compromised lease cancels download/extraction/verification and remains a typed installation-busy failure; retired owners cannot remove replacement leases.",
+      "acceptance": "Validate the entire archive including gzip trailer before any write; unsafe paths and vendor links leave zero extracted files. Atomic installation downloads once, commits once per explicit reuse, and does not change PATH or home configuration. Download cancellation cleans staging and excludes concurrent installers. Real version children obey time/output/environment limits; cancellation remains live after parent exit while descendants own pipes. A compromised lease cancels download/extraction/verification and remains a typed installation-busy failure; retired owners cannot remove replacement leases. Forty-nine actual TS-generated raw/gzip archive byte streams also verify signature-based format selection, legacy regular entries, Unicode paths, duplicate separators, special members, and complete validation of concatenated gzip members before any write.",
       "typescript": [
         {
           "path": "tests/unit/platform/local-agent-activation/managed-installer.test.mjs",
@@ -7050,6 +7050,10 @@
         {
           "package": "po-platform",
           "test": "platform::local_agent_setup::activation::tests::installation_failure_is_a_typed_receipt_and_never_marks_the_cli_installed"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::actual_typescript_archive_bytes_preserve_format_validation_and_zero_write_failures"
         }
       ]
     },

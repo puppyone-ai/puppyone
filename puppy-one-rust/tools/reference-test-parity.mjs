@@ -237,3 +237,12 @@ const journalFile=path.join(root,'fixtures/activation-journal-oracle.json');
 if(process.argv.includes('--check')) {if(await readFile(journalFile,'utf8')!==journalOutput)throw Error('Stale TS activation journal oracle');}
 else await writeFile(journalFile,journalOutput);
 console.log(`${journalCases.length} TS activation journal and live-schema cases verified`);
+
+const {activationArchiveCases} = await import('./reference-activation-archives.mjs');
+const archiveCases = await activationArchiveCases(reference);
+const archiveOutput = JSON.stringify({sourceCommit: receipt.commit, cases: archiveCases}) + '\n';
+const archiveFile = path.join(root, 'fixtures/activation-archive-oracle.json');
+if (process.argv.includes('--check')) {
+  if (await readFile(archiveFile, 'utf8') !== archiveOutput) throw Error('Stale TS activation archive oracle');
+} else await writeFile(archiveFile, archiveOutput);
+console.log(`${archiveCases.length} TS archive byte streams and extraction outcomes verified`);
