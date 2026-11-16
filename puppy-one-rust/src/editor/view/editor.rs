@@ -229,17 +229,17 @@ impl EditorView {
     /// Replace the whole document from storage (not undoable).
     pub fn replace_text(&mut self, text: &str, cx: &mut Context<Self>) {
         self.abandon_composition(cx);
-        if text == self.text() {
+        if self.state.doc.eq_str(text) {
             return;
         }
         let end = self.state.doc.len();
         let head = self.state.selection.head.min(text.len());
-        let tr = Transaction {
-            changes: ChangeSet::replace(0..end, text),
-            selection: Some(Selection::cursor(head)),
-            event: UserEvent::External,
-            scroll_into_view: false,
-        };
+        let tr = Transaction::edit(
+            ChangeSet::replace(0..end, text),
+            Some(Selection::cursor(head)),
+            UserEvent::External,
+        )
+        .with_scroll_into_view(false);
         self.dispatch(tr, cx);
     }
 
@@ -247,19 +247,19 @@ impl EditorView {
     /// joins history even while the live view itself is not in edit mode.
     pub fn sync_text(&mut self, text: &str, cx: &mut Context<Self>) {
         self.abandon_composition(cx);
-        if text == self.text() {
+        if self.state.doc.eq_str(text) {
             return;
         }
         let end = self.state.doc.len();
         let head = self.state.selection.head.min(text.len());
         let read_only = self.read_only;
         self.read_only = false;
-        let tr = Transaction {
-            changes: ChangeSet::replace(0..end, text),
-            selection: Some(Selection::cursor(head)),
-            event: UserEvent::Input,
-            scroll_into_view: false,
-        };
+        let tr = Transaction::edit(
+            ChangeSet::replace(0..end, text),
+            Some(Selection::cursor(head)),
+            UserEvent::Input,
+        )
+        .with_scroll_into_view(false);
         self.dispatch(tr, cx);
         self.read_only = read_only;
     }

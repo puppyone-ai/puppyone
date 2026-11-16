@@ -9,7 +9,7 @@ use super::{editor::EditorView, extension::EditIntent};
 use crate::editor::text::{
     change::ChangeSet,
     selection::Selection,
-    state::{Transaction, UserEvent},
+    state::{Annotation, Transaction, UserEvent},
     words,
 };
 use gpui::{ClipboardItem, Context, Window, point, px};
@@ -33,7 +33,7 @@ pub enum Motion {
 impl EditorView {
     fn target(&self, motion: Motion, extend: bool) -> Selection {
         let s = self.state.selection;
-        let text = self.state.doc.as_str();
+        let doc = &self.state.doc;
         let head = s.head;
         // A collapsing horizontal move lands on the selection edge.
         if !extend && !s.is_empty() {
@@ -45,27 +45,27 @@ impl EditorView {
         }
         let (pos, goal, upstream) = match motion {
             Motion::CharLeft => (
-                self.skip_atomic(words::previous_grapheme(text, head), false),
+                self.skip_atomic(words::previous_grapheme_in(doc, head), false),
                 None,
                 false,
             ),
             Motion::CharRight => (
-                self.skip_atomic(words::next_grapheme(text, head), true),
+                self.skip_atomic(words::next_grapheme_in(doc, head), true),
                 None,
                 false,
             ),
             Motion::GroupLeft => (
-                self.skip_atomic(words::previous_group(text, head), false),
+                self.skip_atomic(words::previous_group_in(doc, head), false),
                 None,
                 false,
             ),
             Motion::GroupRight => (
-                self.skip_atomic(words::next_group(text, head), true),
+                self.skip_atomic(words::next_group_in(doc, head), true),
                 None,
                 false,
             ),
             Motion::DocStart => (0, None, false),
-            Motion::DocEnd => (text.len(), None, false),
+            Motion::DocEnd => (doc.len(), None, false),
             Motion::LineStart | Motion::LineEnd => {
                 let (pos, upstream) = self.visual_line_edge(s, motion == Motion::LineEnd);
                 (pos, None, upstream)
@@ -133,10 +133,7 @@ impl EditorView {
             return (if up { 0 } else { doc.len() }, s.goal_x, false);
         };
         let r = doc.line_range(target);
-        let mut pos = (r.start + column).min(r.end);
-        while !doc.as_str().is_char_boundary(pos) {
-            pos -= 1;
-        }
+        let pos = doc.clamp((r.start + column).min(r.end));
         (pos, s.goal_x, false)
     }
 
@@ -288,11 +285,17 @@ impl EditorView {
         if range.is_empty() {
             return;
         }
+        let tag = if backward {
+            Annotation::DELETE_BACKWARD
+        } else {
+            Annotation::DELETE_FORWARD
+        };
         let tr = Transaction::edit(
             ChangeSet::replace(range.clone(), ""),
             Some(Selection::cursor(range.start)),
             UserEvent::Delete,
-        );
+        )
+        .with_annotation(tag);
         self.dispatch(tr, cx);
     }
 
@@ -314,7 +317,7 @@ impl EditorView {
             return;
         }
         cx.write_to_clipboard(ClipboardItem::new_string(
-            self.state.doc.slice(range.clone()).to_owned(),
+            self.state.doc.slice_cow(range.clone()).into_owned(),
         ));
         if cut && !self.read_only {
             self.dispatch(

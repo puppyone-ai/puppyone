@@ -42,6 +42,9 @@ security-framework = "3.7"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[dev-dependencies]
+po-platform = { path = "../po-platform", features = ["test-support"] }
+
 [features]
 dev-capture = ["po-platform/dev-capture"]
 test-support = ["po-platform/test-support"]

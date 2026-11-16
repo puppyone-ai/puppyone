@@ -1,7 +1,11 @@
 //! Pointer selection (click, shift-click, double/triple click, drag by
 //! granularity) and wheel scrolling. Hotspots handle their own presses.
 use super::editor::{Drag, EditorView, Granularity};
-use crate::editor::text::{selection::Selection, state::Transaction, words};
+use crate::editor::text::{
+    selection::Selection,
+    state::{Annotation, Transaction},
+    words,
+};
 use gpui::*;
 
 pub(super) struct LinkPress {
@@ -73,10 +77,9 @@ impl EditorView {
                     anchor: self.state.selection.anchor,
                 });
         }
-        let text = self.state.doc.as_str();
         let granularity = match event.click_count {
             2 => {
-                let r = words::group_at(text, offset);
+                let r = words::group_at_in(&self.state.doc, offset);
                 Granularity::Word(r.start, r.end)
             }
             n if n >= 3 => {
@@ -110,7 +113,10 @@ impl EditorView {
             anchor,
             granularity,
         });
-        self.dispatch(Transaction::select(selection), cx);
+        self.dispatch(
+            Transaction::select(selection).with_annotation(Annotation::SELECT_POINTER),
+            cx,
+        );
     }
 
     pub(super) fn mouse_move(
@@ -147,9 +153,8 @@ impl EditorView {
             },
             Granularity::Word(a, b) | Granularity::Line(a, b) => {
                 let (a, b) = (self.state.doc.clamp(a), self.state.doc.clamp(b));
-                let text = self.state.doc.as_str();
                 let unit = match drag.granularity {
-                    Granularity::Word(..) => words::group_at(text, offset),
+                    Granularity::Word(..) => words::group_at_in(&self.state.doc, offset),
                     _ => {
                         let line = self.state.doc.line_index(offset);
                         let r = self.state.doc.line_range(line);
@@ -169,8 +174,9 @@ impl EditorView {
             }
         };
         if selection != self.state.selection {
-            let mut tr = Transaction::select(selection);
-            tr.scroll_into_view = true;
+            let tr = Transaction::select(selection)
+                .with_annotation(Annotation::SELECT_POINTER)
+                .with_scroll_into_view(true);
             self.dispatch(tr, cx);
         }
     }
