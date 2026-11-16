@@ -18,7 +18,11 @@ mod file_tests;
 mod files;
 mod range;
 mod request;
+mod stream;
+#[cfg(test)]
+mod stream_tests;
 pub use request::{ENTRY_ORIGIN, ProtocolResponse, respond_request};
+pub use stream::{ReadSeek, ResourceStream};
 
 pub const SCHEME: &str = "puppyone-preview";
 /// The product's resource scheme (`puppyone-local:`): the same granted
@@ -35,6 +39,14 @@ pub trait ResourceSource: Send + Sync {
         true
     }
     fn read(&self, relative: &Path) -> Option<Vec<u8>>;
+    /// None means this provider only supports the legacy bounded byte API.
+    /// An error is terminal: never fall back to an ambient read after denial.
+    fn open(&self, _relative: &Path) -> std::io::Result<Option<ResourceStream>> {
+        Ok(None)
+    }
+    fn mime(&self, _relative: &Path) -> Option<&'static str> {
+        None
+    }
     fn size(&self, _relative: &Path) -> Option<u64> {
         None
     }
@@ -43,6 +55,12 @@ pub trait ResourceSource: Send + Sync {
 #[derive(Clone)]
 pub struct Source(pub std::sync::Arc<dyn ResourceSource>);
 impl ResourceSource for Source {
+    fn mime(&self, relative: &Path) -> Option<&'static str> {
+        self.0.mime(relative)
+    }
+    fn open(&self, relative: &Path) -> std::io::Result<Option<ResourceStream>> {
+        self.0.open(relative)
+    }
     fn is_live(&self) -> bool {
         self.0.is_live()
     }
@@ -64,7 +82,7 @@ pub struct Budgeted<S> {
     inner: S,
     max_references: usize,
     max_bytes: u64,
-    used: std::sync::Mutex<(std::collections::HashSet<PathBuf>, u64)>,
+    used: std::sync::Arc<std::sync::Mutex<(std::collections::HashSet<PathBuf>, u64)>>,
 }
 impl<S> Budgeted<S> {
     pub fn new(inner: S, max_references: usize, max_bytes: u64) -> Self {
@@ -77,6 +95,37 @@ impl<S> Budgeted<S> {
     }
 }
 impl<S: ResourceSource> ResourceSource for Budgeted<S> {
+    fn mime(&self, relative: &Path) -> Option<&'static str> {
+        self.inner.mime(relative)
+    }
+    fn open(&self, relative: &Path) -> std::io::Result<Option<ResourceStream>> {
+        {
+            let used = self
+                .used
+                .lock()
+                .map_err(|_| std::io::Error::other("Budget lock unavailable"))?;
+            if !used.0.contains(relative) && used.0.len() >= self.max_references {
+                return Err(std::io::ErrorKind::NotFound.into());
+            }
+        }
+        let Some(stream) = self.inner.open(relative)? else {
+            return Ok(None);
+        };
+        let mut used = self
+            .used
+            .lock()
+            .map_err(|_| std::io::Error::other("Budget lock unavailable"))?;
+        if !used.0.contains(relative) && used.0.len() >= self.max_references {
+            return Err(std::io::ErrorKind::NotFound.into());
+        }
+        used.0.insert(relative.to_path_buf());
+        drop(used);
+        Ok(Some(stream::budgeted(
+            stream,
+            self.used.clone(),
+            self.max_bytes,
+        )))
+    }
     fn is_live(&self) -> bool {
         self.inner.is_live()
     }

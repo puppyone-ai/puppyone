@@ -3,8 +3,8 @@
 //! the product's Chromium controls, not a pixel contract). The audio card
 //! around them — 54 px file icon and name — is native chrome.
 //!
-//! Local files stream from the document's folder; Cloud bytes are written to
-//! a private temporary folder for the surface's lifetime. Budgets follow the
+//! Each surface grants one provider resource. HEAD and byte ranges use its
+//! bounded, revocable reader without a whole-file copy. Budgets follow the
 //! product manifest (audio 512 MiB, video 2 GiB). A media element that
 //! cannot load reports it, and the surface shows the product's failure with
 //! Retry (`onRetryInput`), which reads the resource again.
@@ -12,13 +12,21 @@ use super::{image::resource_failure, web::WebFrame};
 use crate::{
     editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
     localization::{t, tf},
-    platform::webview::{Content, Entry, Ipc, url_for},
+    platform::webview::{
+        Content, Entry, Ipc, ResourceSource, ResourceStream, Source as WebSource, url_for,
+    },
     theme,
     ui::{appearance::ActiveAppearance, components::FileIcon},
     workspace::{PreviewData, PreviewResource},
 };
 use gpui::{prelude::*, *};
-use std::path::{Path, PathBuf};
+use std::{
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -99,28 +107,90 @@ fn escape(text: &str) -> String {
 }
 
 struct Source {
-    folder: PathBuf,
     file: String,
-    _temporary: Option<tempfile::TempDir>,
+    protocol: WebSource,
+    live: Arc<AtomicBool>,
 }
-fn source(resource: &PreviewResource, name: &str) -> Option<Source> {
-    match resource.data().ok()? {
-        PreviewData::LocalFile(path) => Some(Source {
-            folder: path.parent()?.to_path_buf(),
-            file: path.file_name()?.to_string_lossy().into_owned(),
-            _temporary: None,
-        }),
-        PreviewData::Bytes { bytes, .. } => {
-            let dir = tempfile::tempdir().ok()?;
-            let file = Path::new(name).file_name()?.to_string_lossy().into_owned();
-            crate::platform::webview::write_private(&dir.path().join(&file), bytes).ok()?;
-            Some(Source {
-                folder: dir.path().to_path_buf(),
-                file,
-                _temporary: Some(dir),
-            })
-        }
+impl Drop for Source {
+    fn drop(&mut self) {
+        self.live.store(false, Ordering::Release);
     }
+}
+struct MediaResource {
+    resource: PreviewResource,
+    file: String,
+    budget: u64,
+    mime: &'static str,
+    live: Arc<AtomicBool>,
+}
+impl ResourceSource for MediaResource {
+    fn is_live(&self) -> bool {
+        self.live.load(Ordering::Acquire) && self.resource.data().is_ok()
+    }
+    fn read(&self, _: &Path) -> Option<Vec<u8>> {
+        None
+    }
+    fn mime(&self, relative: &Path) -> Option<&'static str> {
+        (relative == Path::new(&self.file)).then_some(self.mime)
+    }
+    fn open(&self, relative: &Path) -> std::io::Result<Option<ResourceStream>> {
+        if !self.is_live() {
+            return Err(std::io::ErrorKind::PermissionDenied.into());
+        }
+        if relative != Path::new(&self.file) {
+            return Err(std::io::ErrorKind::NotFound.into());
+        }
+        let reader = self.resource.reader().map_err(|e| {
+            use crate::workspace::ErrorKind;
+            let kind = match e.kind {
+                ErrorKind::StaleLease
+                | ErrorKind::ForeignResource
+                | ErrorKind::PermissionDenied => std::io::ErrorKind::PermissionDenied,
+                ErrorKind::NotFound => std::io::ErrorKind::NotFound,
+                ErrorKind::Unsupported => std::io::ErrorKind::Unsupported,
+                _ => std::io::ErrorKind::Other,
+            };
+            std::io::Error::new(kind, e.to_string())
+        })?;
+        if reader.len() > self.budget {
+            return Err(std::io::ErrorKind::FileTooLarge.into());
+        }
+        Ok(Some(ResourceStream {
+            length: reader.len(),
+            reader: Box::new(reader),
+        }))
+    }
+}
+fn source(resource: &PreviewResource, name: &str, budget: u64) -> Option<Source> {
+    let mime = match resource.data().ok()? {
+        PreviewData::Bytes { bytes, mime } => {
+            if bytes.len() as u64 > budget {
+                return None;
+            }
+            Some(mime.as_str())
+        }
+        PreviewData::LocalFile(_) => None,
+    };
+    let format = crate::formats::resolve(Some(name), mime);
+    let mime = crate::formats::of(name)
+        .is_known()
+        .then(|| crate::formats::preferred_mime(name))
+        .flatten()
+        .or_else(|| format.mime_types.first().map(String::as_str))
+        .unwrap_or("application/octet-stream");
+    let file = Path::new(name).file_name()?.to_string_lossy().into_owned();
+    let live = Arc::new(AtomicBool::new(true));
+    Some(Source {
+        file: file.clone(),
+        protocol: WebSource(Arc::new(MediaResource {
+            resource: resource.clone(),
+            file,
+            budget,
+            mime,
+            live: live.clone(),
+        })),
+        live,
+    })
 }
 
 fn open(request: &SurfaceRequest, kind: Kind, cx: &mut App) -> Box<dyn ViewerSurface> {
@@ -130,17 +200,7 @@ fn open(request: &SurfaceRequest, kind: Kind, cx: &mut App) -> Box<dyn ViewerSur
     };
     let (path, dark) = (request.name.to_owned(), request.dark);
     let view = cx.new(|cx| {
-        let mut view = MediaView {
-            kind,
-            name: path.rsplit('/').next().unwrap_or(&path).to_owned().into(),
-            path,
-            dark,
-            resource,
-            frame: None,
-            failed: false,
-            _source: None,
-            _failures: None,
-        };
+        let mut view = MediaView::new(path, kind, resource, dark);
         view.load(cx);
         view
     });
@@ -181,46 +241,83 @@ struct MediaView {
     failed: bool,
     _source: Option<Source>,
     _failures: Option<Task<()>>,
+    generation: u64,
 }
 impl MediaView {
+    fn new(path: String, kind: Kind, resource: Option<PreviewResource>, dark: bool) -> Self {
+        Self {
+            name: path.rsplit('/').next().unwrap_or(&path).to_owned().into(),
+            path,
+            kind,
+            resource,
+            dark,
+            frame: None,
+            failed: false,
+            _source: None,
+            _failures: None,
+            generation: 0,
+        }
+    }
+    fn content(&self, source: &Source, ipc: Option<Ipc>, cx: &App) -> Content {
+        let palette = cx.palette();
+        Content {
+            root: None,
+            source: Some(source.protocol.clone()),
+            entry: Entry::Html(media_page(
+                self.kind,
+                &url_for(&source.file),
+                &theme::css_hex(palette.canvas),
+                &theme::css_hex(palette.inset),
+                t(self.kind.unsupported_key()),
+            )),
+            max_bytes: self.kind.budget(),
+            assets: vec![],
+            ipc,
+            policy: None,
+            frames: None,
+            disk_assets: None,
+            locked: false,
+        }
+    }
+    fn resource_is_live(&self) -> bool {
+        self.resource.as_ref().is_some_and(|r| r.data().is_ok())
+    }
+    fn retire(&mut self) {
+        self.generation += 1;
+        self._failures = None;
+        self.frame = None;
+        self._source = None;
+        self.failed = true;
+    }
+    fn receive_failure(&mut self, generation: u64, cx: &mut Context<Self>) {
+        if generation != self.generation {
+            return;
+        }
+        self.retire();
+        cx.notify();
+    }
     /// A fresh engine over the resource (opening, a new input or Retry).
     fn load(&mut self, cx: &mut Context<Self>) {
+        self.generation += 1;
+        let generation = self.generation;
+        self._failures = None;
+        self.frame = None;
+        self._source = None;
         self.failed = false;
         let resolved = self
             .resource
             .as_ref()
-            .and_then(|resource| source(resource, &self.path));
-        let palette = cx.palette();
+            .and_then(|resource| source(resource, &self.path, self.kind.budget()));
         let (tx, rx) = async_channel::unbounded::<String>();
-        self.frame = resolved.as_ref().map(|s| {
-            let content = Content {
-                root: Some(s.folder.clone()),
-                source: None,
-                entry: Entry::Html(media_page(
-                    self.kind,
-                    &url_for(&s.file),
-                    &theme::css_hex(palette.canvas),
-                    &theme::css_hex(palette.inset),
-                    t(self.kind.unsupported_key()),
-                )),
-                max_bytes: self.kind.budget(),
-                assets: vec![],
-                ipc: Some(Ipc(tx)),
-                policy: None,
-                frames: None,
-                disk_assets: None,
-                locked: false,
-            };
+        self.frame = resolved.as_ref().map(|source| {
+            let content = self.content(source, Some(Ipc(tx)), cx);
             cx.new(|_| WebFrame::new(Some(content), self.dark))
         });
         self._source = resolved;
         self._failures = Some(cx.spawn(async move |this, cx| {
             while let Ok(message) = rx.recv().await {
                 if message == "failed" {
-                    let _ = this.update(cx, |view, cx| {
-                        view.failed = true;
-                        cx.notify();
-                    });
+                    let _ = this.update(cx, |view, cx| view.receive_failure(generation, cx));
                 }
             }
         }));
@@ -229,6 +326,9 @@ impl MediaView {
 }
 impl Render for MediaView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.resource_is_live() {
+            self.retire();
+        }
         let p = cx.palette();
         let unavailable = tf(
             "editor.resource.unavailable",
@@ -241,7 +341,7 @@ impl Render for MediaView {
             .justify_center()
             .p(px(24.))
             .bg(p.canvas);
-        if self.failed {
+        if self.failed || self.frame.is_none() {
             let view = cx.weak_entity();
             return shell
                 .child(resource_failure(
@@ -254,27 +354,7 @@ impl Render for MediaView {
                 ))
                 .into_any_element();
         }
-        let Some(frame) = self.frame.clone() else {
-            // `ResourcePreviewState`: a failed input names its reason.
-            let message = match self.resource.as_ref().map(|r| r.data()) {
-                Some(Err(error)) => tf(
-                    "editor.resource.loadFailed",
-                    &[
-                        ("kind", t(self.kind.label_key()).into()),
-                        (
-                            "detail",
-                            crate::localization::bidi_isolate(&error.to_string()).into(),
-                        ),
-                    ],
-                ),
-                _ => unavailable,
-            };
-            return shell
-                .text_size(px(theme::ty().ui.meta))
-                .text_color(p.danger)
-                .child(message)
-                .into_any_element();
-        };
+        let frame = self.frame.clone().expect("live media frame");
         match self.kind {
             Kind::Video => shell
                 .child(div().size_full().child(frame))
@@ -308,23 +388,4 @@ impl Render for MediaView {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-
-    #[test]
-    fn media_pages_reference_the_served_file_with_controls() {
-        let page = media_page(
-            Kind::Video,
-            "puppyone-preview://local/a%20b.mp4",
-            "BG",
-            "INSET",
-            "No <video>",
-        );
-        assert!(page.contains(r#"<video controls preload="auto""#) && page.contains("a%20b.mp4"));
-        assert!(page.contains("No &lt;video&gt;</video>"));
-        assert!(page.contains(r#"postMessage("failed")"#));
-        assert!(media_page(Kind::Audio, "x", "BG", "INSET", "").contains("<audio controls"));
-        assert_eq!(Kind::Video.budget(), 2 * 1024 * 1024 * 1024);
-    }
-}
+mod tests;

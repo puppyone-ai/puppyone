@@ -20,7 +20,7 @@ pub struct ProtocolResponse {
     pub cors: bool,
 }
 impl ProtocolResponse {
-    fn error(status: u16, text: &'static str) -> Self {
+    pub(super) fn error(status: u16, text: &'static str) -> Self {
         Self {
             status,
             mime: "text/plain",
@@ -45,7 +45,7 @@ impl ProtocolResponse {
         }
         result
     }
-    fn metadata(mime: &'static str, size: u64) -> Self {
+    pub(super) fn metadata(mime: &'static str, size: u64) -> Self {
         Self {
             status: 200,
             mime,
@@ -56,12 +56,12 @@ impl ProtocolResponse {
             cors: false,
         }
     }
-    fn partial(&mut self, start: u64, end: u64, size: u64) {
+    pub(super) fn partial(&mut self, start: u64, end: u64, size: u64) {
         self.status = 206;
         self.length = Some(end - start + 1);
         self.content_range = Some(format!("bytes {start}-{end}/{size}"));
     }
-    fn unsatisfiable(&mut self, size: u64) {
+    pub(super) fn unsatisfiable(&mut self, size: u64) {
         self.status = 416;
         self.length = Some(0);
         self.content_range = Some(format!("bytes */{size}"));
@@ -171,18 +171,28 @@ fn resource(
         let Some(relative) = relative_path(path) else {
             return ProtocolResponse::error(404, "Not found");
         };
+        let mime = source
+            .mime(&relative)
+            .unwrap_or_else(|| mime_for(&relative));
+        match source.open(&relative) {
+            Ok(Some(stream)) => {
+                return super::stream::response(content, stream, mime, head, range);
+            }
+            Err(error) => return super::stream::error(error),
+            Ok(None) => {}
+        }
         if head {
             // A provider must explicitly support metadata. Never disguise a
             // complete body fetch as a metadata-only HEAD.
             return source
                 .0
                 .size(&relative)
-                .map(|size| ProtocolResponse::metadata(mime_for(&relative), size))
+                .map(|size| ProtocolResponse::metadata(mime, size))
                 .unwrap_or_else(|| ProtocolResponse::error(501, "Provider metadata unavailable"));
         }
         return match source.read(&relative) {
             Some(bytes) if bytes.len() as u64 <= content.max_bytes => {
-                ProtocolResponse::bytes(mime_for(&relative), &bytes, false, range)
+                ProtocolResponse::bytes(mime, &bytes, false, range)
             }
             Some(_) => ProtocolResponse::error(413, "Resource exceeds its preview budget"),
             None => ProtocolResponse::error(404, "Not found"),

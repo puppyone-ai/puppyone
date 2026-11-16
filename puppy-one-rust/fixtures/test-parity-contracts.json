@@ -475,7 +475,7 @@
     },
     {
       "id": "binary-preview-invalidation",
-      "acceptance": "Image, PDF, Office, audio and video reacquire only on own/ancestor or unknown changes, publish the replacement and release the old native snapshot. Hidden and rebound reads are fenced; failed refresh preserves the shown snapshot and Retry reacquires from the provider. Native Arc ownership replaces TS URL revocation. Image admission consumes provider-authorized bounded snapshots off the UI thread; replacement, revocation and disposal cancel owned work, fence replies and evict stale decode assets. AVIF conversion has bounded input/output, deadlines and child-process cleanup; actual Retry and damaged-image decoding are exercised.",
+      "acceptance": "Image, PDF, Office, audio and video reacquire only on own/ancestor or unknown changes, publish the replacement and release the old native snapshot. Hidden and rebound reads are fenced; failed refresh preserves the shown snapshot and Retry reacquires from the provider. Native Arc ownership replaces TS URL revocation. Image admission consumes provider-authorized bounded snapshots off the UI thread; replacement, revocation and disposal cancel owned work, fence replies and evict stale decode assets. AVIF conversion has bounded input/output, deadlines and child-process cleanup; actual Retry and damaged-image decoding are exercised. Media surfaces grant one provider resource, use leased readers for HEAD and Range without whole-file copies, preserve registered MIME for extensionless inputs, and retire protocol clones and stale frame IPC on replacement, failure, revocation or disposal.",
       "typescript": [
         {
           "path": "tests/component/editor/resources/fileResourceLease.test.tsx",
@@ -580,6 +580,58 @@
         {
           "package": "po-platform",
           "test": "platform::image_transcode::tests::avif_is_transcoded_to_png_through_imageio"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::media::tests::media_pages_reference_the_served_file_with_controls"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::media::tests::media_ranges_keep_provider_directory_authority_and_never_grant_sibling_files"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::media::tests::media_manifest_limits_are_checked_before_reading_sparse_audio_or_video"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::media::tests::hosted_media_keeps_the_acquired_snapshot_and_retired_sources_reject_cloned_protocols"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::media::tests::extensionless_media_preserves_the_provider_mime_without_copying_to_a_file"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::media::tests::media_rebinding_and_disposal_retire_protocols_and_ignore_old_frame_failures"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::media::tests::a_current_media_failure_retires_its_requests_and_retry_rebinds_a_fresh_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::media::tests::revoked_media_clears_the_frame_and_exposes_native_retry"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::stream_tests::provider_head_and_small_ranges_never_buffer_the_whole_admitted_resource"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::stream_tests::provider_ranges_respect_suffixes_empty_files_and_budget_before_body_reads"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::stream_tests::provider_stream_errors_and_wrong_extents_never_publish_partial_bytes_or_fall_back"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::stream_tests::revocation_inside_a_provider_read_stops_delivery_and_closes_the_reader"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::stream_tests::cumulative_projection_budgets_charge_actual_range_bytes_and_refuse_new_references_before_open"
         }
       ],
       "environment": "local"
