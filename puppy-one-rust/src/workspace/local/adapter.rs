@@ -172,6 +172,12 @@ impl ResourcePort for LocalProvider {
     fn preview_reader(&self, path: &RelativePath) -> Result<super::super::ports::ResourceReader> {
         self.inner.preview_reader(path.as_path())
     }
+    fn preview_session_reader(
+        &self,
+        path: &RelativePath,
+    ) -> super::super::ports::SessionReadResult<super::super::ports::SessionReader> {
+        self.inner.preview_session_reader(path.as_path())
+    }
     fn platform_path(&self, path: &RelativePath) -> Result<std::path::PathBuf> {
         self.inner.absolute(path.as_path())
     }

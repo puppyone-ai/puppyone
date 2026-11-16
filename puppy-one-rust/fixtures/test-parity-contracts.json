@@ -10665,6 +10665,187 @@
           "test": "platform::pdf::resource_tests::dropping_a_pdf_document_closes_publication_while_provider_admission_is_pending"
         }
       ]
+    },
+    {
+      "id": "native-database-provider-sessions",
+      "acceptance": "SQLite previews read lazy provider-authorized pages without reopening display paths or copying hosted snapshots. A retained directory and file identity reject replacement, links, removal and recovery sidecars; cached pages remain lease-bound. The read-only VFS cannot attach ambient files or write, and propagates read errors instead of publishing partial results. Actual SQLite enforces bounded lossless pages, column windows, VM cancellation and deadlines. GPUI tests exercise pending and cached owner retirement, A-to-B-to-A replacement, actual Retry/Reload actions, virtual-time idle release with retained pages, name-based recovery after object reordering, input-generation invalidation and failure without automatic retry. This row does not qualify process isolation, forced blocked-read cancellation, host exit confirmation or quotas, absolute session expiry during a query, DuckDB, or Windows runtime behavior.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/database/databaseViewer.test.tsx",
+          "sha256": "8e29122f6162df7fd6de8f2df6558b69aafa479423b28432f9318ca68e2eac9c",
+          "cases": [
+            {
+              "index": 2,
+              "name": "registered database DOM viewer > drops late opening results across A→B→A and releases every native lease"
+            },
+            {
+              "index": 3,
+              "name": "registered database DOM viewer > reopens on input generation change but not unrelated parent renders"
+            },
+            {
+              "index": 4,
+              "name": "registered database DOM viewer > releases an idle native lease without clearing the page or repeatedly reopening while reading"
+            },
+            {
+              "index": 5,
+              "name": "registered database DOM viewer > reconnects on next-page intent, remaps object IDs, and never replays an old cursor"
+            },
+            {
+              "index": 6,
+              "name": "registered database DOM viewer > selects the requested table after idle recovery instead of defaulting to the first table"
+            },
+            {
+              "index": 9,
+              "name": "registered database DOM viewer > clears unsafe results and does not automatically retry stale-input"
+            },
+            {
+              "index": 10,
+              "name": "registered database DOM viewer > clears unsafe results and does not automatically retry permission-denied"
+            },
+            {
+              "index": 11,
+              "name": "registered database DOM viewer > clears unsafe results and does not automatically retry recovery-required"
+            },
+            {
+              "index": 17,
+              "name": "registered database DOM viewer > invalidates a retained page on real input-generation change even after the connection is asleep"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/editor/formats/databasePreview.test.mjs",
+          "sha256": "16c898a23893bb79a160d158fdcd04de44221e3df0cda8e5f208f75eeb135c67",
+          "cases": [
+            {
+              "index": 1,
+              "name": "real isolated database engines > sqlite: detects .db content, pages losslessly and leaves source unchanged"
+            },
+            {
+              "index": 3,
+              "name": "real isolated database engines > rejects unknown, symlink and WAL sources without trying to repair them"
+            },
+            {
+              "index": 16,
+              "name": "real isolated database engines > rejects a real active WAL snapshot rather than displaying stale checkpointed rows"
+            },
+            {
+              "index": 18,
+              "name": "real isolated database engines > sqlite: projects wide tables in bounded column windows"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::rebinding_during_a_provider_read_cancels_and_drops_the_old_session_without_replacing_the_new_page"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::revoked_pending_and_cached_database_sessions_clear_rows_and_drop_the_reader"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::closing_a_database_preview_cancels_pending_work_and_releases_open_cached_sessions"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::database_retry_and_reload_clicks_request_fresh_input_and_display_the_rebound_snapshot"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::database_queries_use_the_admitted_provider_root_after_the_display_path_is_replaced"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::database_idle_expiry_keeps_the_page_and_schema_then_reacquires_on_user_intent"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::database_next_page_after_idle_restarts_and_table_intent_survives_object_reordering"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::changed_and_recovery_required_database_queries_clear_unsafe_pages_without_automatic_retry"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::sqlite_reads_provider_pages_lazily_without_buffering_a_multigigabyte_extent"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::sqlite_cannot_write_attach_an_ambient_file_or_create_output_through_the_provider_vfs"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::cached_sqlite_pages_still_require_live_authority_and_io_errors_never_become_partial_success"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::database_admission_checks_budget_cancel_and_header_before_opening_an_engine"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::cancellation_during_provider_admission_drops_the_reader_without_publishing_a_session"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::the_actual_sqlite_vm_obeys_cancellation_and_query_deadlines"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::sqlite_lossless_pages_and_quoted_column_windows_leave_source_and_directory_unchanged"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::an_active_wal_is_refused_without_checkpointing_or_mutating_its_bytes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::object_limits_and_typed_values_are_enforced_by_the_real_sqlite_engine"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::session_readers_keep_provider_roots_and_validate_identity_without_loading_the_file"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::session_readers_reject_atomic_replacement_even_when_length_and_mtime_match"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::session_readers_refuse_links_and_recheck_new_or_dangling_recovery_sidecars"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::hosted_session_readers_keep_the_admitted_snapshot_and_revoke_cached_authority"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::removing_a_session_source_expires_it_even_when_its_descriptor_remains_readable"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::tests::a_sqlite_file_lists_tables_and_pages_rows"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::tests::next_pages_continue_on_their_snapshot_and_restart_on_a_new_one"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::tests::sqlite_tables_page_read_only_and_expire_on_change"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::tests::long_values_wide_tables_and_generated_columns_follow_the_budget"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::tests::signatures_sidecars_and_budgets_are_checked"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

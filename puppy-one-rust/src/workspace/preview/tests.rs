@@ -260,3 +260,129 @@ fn cached_snapshot_reader_preserves_its_input_version_and_checks_lease_on_seek()
     assert!(reader.read(&mut [0; 1]).is_err());
     assert!(reader.seek(SeekFrom::End(0)).is_err());
 }
+
+#[test]
+fn session_readers_keep_provider_roots_and_validate_identity_without_loading_the_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("workspace");
+    std::fs::create_dir(&root).unwrap();
+    let file = std::fs::File::create(root.join("large.db")).unwrap();
+    file.set_len(8 * 1024 * 1024 * 1024).unwrap();
+    let ws = Workspace::open(&root).unwrap();
+    let resource = ws.resource(Path::new("large.db")).unwrap();
+    std::fs::rename(&root, temp.path().join("admitted")).unwrap();
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("large.db"), b"foreign").unwrap();
+    let mut session = resource.session_reader().unwrap();
+    assert_eq!(session.source.length, 8 * 1024 * 1024 * 1024);
+    (session.validate)().unwrap();
+    let mut first = [255; 16];
+    session.source.reader.read_exact(&mut first).unwrap();
+    assert_eq!(first, [0; 16]);
+    file.set_len(1).unwrap();
+    assert!(matches!(
+        (session.validate)(),
+        Err(SessionReadFailure::Changed)
+    ));
+}
+
+#[test]
+fn session_readers_reject_atomic_replacement_even_when_length_and_mtime_match() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("snapshot.db");
+    std::fs::write(&path, b"original").unwrap();
+    let before = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let ws = Workspace::open(temp.path()).unwrap();
+    let session = ws
+        .resource(Path::new("snapshot.db"))
+        .unwrap()
+        .session_reader()
+        .unwrap();
+    let replacement = temp.path().join("replacement");
+    std::fs::write(&replacement, b"replaced").unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&replacement)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(before))
+        .unwrap();
+    std::fs::rename(replacement, &path).unwrap();
+    assert!(matches!(
+        (session.validate)(),
+        Err(SessionReadFailure::Changed)
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn session_readers_refuse_links_and_recheck_new_or_dangling_recovery_sidecars() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("snapshot.db");
+    std::fs::write(&path, b"original").unwrap();
+    let ws = Workspace::open(temp.path()).unwrap();
+    let resource = ws.resource(Path::new("snapshot.db")).unwrap();
+    for suffix in ["-journal", "-wal", "-shm"] {
+        let session = resource.session_reader().unwrap();
+        let sidecar = temp.path().join(format!("snapshot.db{suffix}"));
+        std::os::unix::fs::symlink("missing", &sidecar).unwrap();
+        assert!(matches!(
+            (session.validate)(),
+            Err(SessionReadFailure::Recovery)
+        ));
+        assert!(matches!(
+            resource.session_reader(),
+            Err(SessionReadFailure::Recovery)
+        ));
+        std::fs::remove_file(sidecar).unwrap();
+    }
+    std::fs::rename(&path, temp.path().join("original.db")).unwrap();
+    std::os::unix::fs::symlink("original.db", &path).unwrap();
+    assert!(resource.session_reader().is_err());
+}
+
+#[test]
+fn hosted_session_readers_keep_the_admitted_snapshot_and_revoke_cached_authority() {
+    let provider = Arc::new(crate::workspace::testing::Resources::default());
+    provider
+        .bytes
+        .lock()
+        .unwrap()
+        .insert("snapshot.db".into(), b"original".to_vec());
+    let ws = Workspace::from_provider(provider.clone()).unwrap();
+    let resource = ws.resource(Path::new("snapshot.db")).unwrap();
+    provider
+        .bytes
+        .lock()
+        .unwrap()
+        .insert("snapshot.db".into(), b"replaced".to_vec());
+    let mut session = resource.session_reader().unwrap();
+    let mut bytes = Vec::new();
+    session.source.reader.read_to_end(&mut bytes).unwrap();
+    assert_eq!(bytes, b"original");
+    (session.validate)().unwrap();
+    ws.revoke();
+    assert!(matches!(
+        (session.validate)(),
+        Err(SessionReadFailure::Resource(Error {
+            kind: ErrorKind::StaleLease,
+            ..
+        }))
+    ));
+    assert!(session.source.reader.seek(SeekFrom::Start(0)).is_err());
+    assert!(resource.session_reader().is_err());
+}
+
+#[test]
+fn removing_a_session_source_expires_it_even_when_its_descriptor_remains_readable() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("snapshot.db");
+    std::fs::write(&path, b"original").unwrap();
+    let ws = Workspace::open(temp.path()).unwrap();
+    let resource = ws.resource(Path::new("snapshot.db")).unwrap();
+    let session = resource.session_reader().unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert!(matches!(
+        (session.validate)(),
+        Err(SessionReadFailure::Changed)
+    ));
+}

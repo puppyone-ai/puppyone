@@ -1,6 +1,9 @@
 //! A preview reader owns its admitted provider stream. A path is never read
 //! authority, and cached bytes do not bypass lease checks after acquisition.
-use super::{Lease, PreviewData, PreviewResource, Result, ports::ResourceReader};
+use super::{
+    Lease, PreviewData, PreviewResource, Result,
+    ports::{ResourceReader, SessionReadResult, SessionReader},
+};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 
 pub struct PreviewReader {
@@ -9,6 +12,58 @@ pub struct PreviewReader {
     position: u64,
 }
 impl PreviewResource {
+    /// A lazy, read-only database session. Local inputs must be opened by
+    /// their provider with sidecar and identity validation; hosted bytes
+    /// remain the already admitted snapshot without another full copy.
+    pub fn session_reader(&self) -> SessionReadResult<SessionReader> {
+        let SessionReader {
+            mut source,
+            validate,
+        } = match self.data()? {
+            PreviewData::Bytes { bytes, .. } => SessionReader {
+                source: ResourceReader {
+                    length: bytes.len() as u64,
+                    reader: Box::new(Cursor::new(bytes.clone())),
+                },
+                validate: std::sync::Arc::new(|| Ok(())),
+            },
+            PreviewData::LocalFile(_) => self
+                .lease
+                .provider
+                .preview_session_reader(&self.binding.path)?,
+        };
+        let lease = self.lease.clone();
+        let validate: std::sync::Arc<dyn Fn() -> SessionReadResult<()> + Send + Sync> =
+            std::sync::Arc::new(move || {
+                lease.check()?;
+                validate()
+            });
+        validate()?;
+        if source
+            .reader
+            .seek(SeekFrom::Start(0))
+            .map_err(|error| super::Error::new(super::ErrorKind::Io, error.to_string()))?
+            != 0
+        {
+            return Err(super::Error::new(
+                super::ErrorKind::Io,
+                "Provider did not rewind the session",
+            )
+            .into());
+        }
+        validate()?;
+        Ok(SessionReader {
+            source: ResourceReader {
+                length: source.length,
+                reader: Box::new(PreviewReader {
+                    source,
+                    lease: self.lease.clone(),
+                    position: 0,
+                }),
+            },
+            validate,
+        })
+    }
     /// Open without buffering. Consumers check `len()` against their format's
     /// budget before reading. The admitted extent cannot grow after opening.
     pub fn reader(&self) -> Result<PreviewReader> {

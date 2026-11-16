@@ -2,7 +2,7 @@
 //! `shared/database-preview/contract.mjs`): read-only SQLite preview, detected
 //! by file signature, never repaired or written.
 //!
-//! SQLite base tables open through an immutable read-only connection on a
+//! SQLite base tables open through an owned provider reader and read-only VFS on a
 //! worker thread; DuckDB files (`.duckdb`, `.ddb`) route to the binary
 //! placeholder card (`binary-placeholder`), and non-SQLite signatures return
 //! `Failure::Unsupported`. A SQLite WAL-mode header or any `-journal` / `-wal` / `-shm` sidecar needs
@@ -11,11 +11,19 @@
 //! pages are bounded by the product budget, and a changed file expires the
 //! session. Each open is a new snapshot epoch: a cursor never continues
 //! across reopenings.
-use rusqlite::{Connection, OpenFlags, types::ValueRef};
+mod source;
+mod vfs;
+use rusqlite::{Connection, types::ValueRef};
+use source::Guard;
+pub use source::{Input, OPEN_TIMEOUT, QUERY_TIMEOUT, ReadSeek};
+#[cfg(test)]
+use std::path::{Path, PathBuf};
 use std::{
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
-    time::{Duration, Instant, SystemTime},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
 };
 
 /// `DATABASE_BUDGET`.
@@ -146,92 +154,80 @@ pub struct Page {
 
 static EPOCH: AtomicU64 = AtomicU64::new(1);
 
+/// Blocking provider and engine work owns a separate thread, so a slow file
+/// read cannot occupy the UI executor. Dropping the receiver discards and
+/// releases its result; the view also cancels the source guard on retirement.
+pub fn run<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, Failure> + Send + 'static,
+) -> impl std::future::Future<Output = Result<T, Failure>> {
+    let (send, receive) = async_channel::bounded(1);
+    let _ = std::thread::Builder::new()
+        .name("database-preview".into())
+        .spawn(move || {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
+                .unwrap_or(Err(Failure::Unavailable));
+            let _ = send.try_send(result);
+        });
+    async move { receive.recv().await.unwrap_or(Err(Failure::Unavailable)) }
+}
+
 pub struct Session {
-    path: PathBuf,
-    stamp: Option<(u64, SystemTime)>,
+    // Declaration order matters: close SQLite before retiring its VFS source.
     connection: Connection,
+    _registration: vfs::Registration,
+    guard: Arc<Guard>,
     objects: Vec<Object>,
     pub epoch: u64,
     opened: Instant,
 }
-fn stamp(path: &Path) -> Option<(u64, SystemTime)> {
-    let meta = std::fs::metadata(path).ok()?;
-    Some((meta.len(), meta.modified().ok()?))
-}
 fn quote(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
 }
+#[cfg(test)]
 fn sidecar(path: &Path, suffix: &str) -> PathBuf {
     let mut name = path.as_os_str().to_owned();
     name.push(suffix);
     PathBuf::from(name)
 }
 impl Session {
+    #[cfg(test)]
     pub fn open(path: &Path, max_bytes: u64) -> Result<Self, Failure> {
-        let meta = std::fs::symlink_metadata(path).map_err(|e| match e.kind() {
-            std::io::ErrorKind::PermissionDenied => Failure::Permission,
-            _ => Failure::Unavailable,
-        })?;
-        if meta.file_type().is_symlink() {
-            return Err(Failure::Permission);
-        }
-        if meta.len() > max_bytes {
-            return Err(Failure::Budget);
-        }
-        let mut head = [0u8; 100];
-        let n = {
-            use std::io::Read;
-            let mut file = std::fs::File::open(path).map_err(|_| Failure::Unavailable)?;
-            file.read(&mut head).map_err(|_| Failure::Unavailable)?
-        };
-        match detect(&head[..n]) {
-            Some(Engine::Sqlite { wal: true }) => return Err(Failure::Recovery),
-            Some(Engine::Sqlite { wal: false }) => {}
-            None => return Err(Failure::Unsupported),
-        }
-        // Opening a live log read-only can still write sidecars; never show
-        // an incomplete main file.
-        if ["-journal", "-wal", "-shm"]
-            .iter()
-            .any(|suffix| std::fs::symlink_metadata(sidecar(path, suffix)).is_ok())
-        {
-            return Err(Failure::Recovery);
-        }
-        let uri = format!(
-            "file:{}?mode=ro&immutable=1",
-            url::form_urlencoded::byte_serialize(path.to_string_lossy().as_bytes())
-                .collect::<String>()
-                .replace("%2F", "/")
-        );
-        let connection = Connection::open_with_flags(
-            uri,
-            OpenFlags::SQLITE_OPEN_READ_ONLY
-                | OpenFlags::SQLITE_OPEN_URI
-                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        Self::open_reader(
+            source::file(path)?,
+            max_bytes,
+            Arc::new(AtomicBool::new(false)),
         )
-        .map_err(|_| Failure::Unavailable)?;
+    }
+    pub fn open_reader(
+        mut input: Input,
+        max_bytes: u64,
+        cancel: Arc<AtomicBool>,
+    ) -> Result<Self, Failure> {
+        let guard = Guard::new(&input, cancel);
+        source::admit(&mut input, max_bytes, &guard)?;
+        let (connection, registration) = vfs::open(input, guard.clone())?;
+        let progress = guard.clone();
+        connection.progress_handler(1000, Some(move || progress.check().is_err()));
         connection
             .execute_batch(
                 "PRAGMA trusted_schema=OFF; PRAGMA query_only=ON; PRAGMA mmap_size=0; \
                  PRAGMA cache_size=-8192; PRAGMA temp_store=MEMORY; PRAGMA hard_heap_limit=134217728;",
             )
-            .map_err(|_| Failure::Unavailable)?;
+            .map_err(|_| guard.error(Failure::Unavailable))?;
         let mut session = Self {
-            path: path.to_path_buf(),
-            stamp: stamp(path),
             connection,
+            _registration: registration,
+            guard,
             objects: vec![],
             epoch: EPOCH.fetch_add(1, Ordering::Relaxed),
             opened: Instant::now(),
         };
         session.objects = session.list()?;
+        session.check()?;
         Ok(session)
     }
     fn check(&self) -> Result<(), Failure> {
-        if stamp(&self.path) != self.stamp {
-            return Err(Failure::Expired);
-        }
-        Ok(())
+        self.guard.check()
     }
     /// Past the session's five minutes: reopen before reading.
     pub fn ended(&self) -> bool {
@@ -246,14 +242,14 @@ impl Session {
         let connection = &self.connection;
         let mut statement = connection
             .prepare("SELECT name, type, ncol FROM pragma_table_list WHERE schema='main' AND name NOT LIKE 'sqlite_%' LIMIT ?1")
-            .map_err(|_| Failure::Unsupported)?;
+            .map_err(|_| self.guard.error(Failure::Unsupported))?;
         let entries: Vec<(String, String, i64)> = statement
             .query_map([MAX_OBJECTS as i64 + 1], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?))
             })
-            .map_err(|_| Failure::Unsupported)?
-            .filter_map(Result::ok)
-            .collect();
+            .map_err(|_| self.guard.error(Failure::Unsupported))?
+            .collect::<Result<_, _>>()
+            .map_err(|_| self.guard.error(Failure::Unavailable))?;
         if entries.len() > MAX_OBJECTS {
             return Err(Failure::Budget);
         }
@@ -264,7 +260,7 @@ impl Session {
                 && connection
                     .prepare("SELECT hidden FROM pragma_table_xinfo(?1) WHERE hidden<>0 LIMIT 1")
                     .and_then(|mut s| s.exists([&name]))
-                    .map_err(|_| Failure::Unsupported)?;
+                    .map_err(|_| self.guard.error(Failure::Unsupported))?;
             let unreadable = if !table {
                 Some(Unreadable::Kind)
             } else if columns as usize > MAX_COLUMNS {
@@ -276,6 +272,7 @@ impl Session {
             };
             objects.push(Object { name, unreadable });
         }
+        self.check()?;
         Ok(objects)
     }
     /// The object's columns (`pragma_table_xinfo`).
@@ -283,17 +280,18 @@ impl Session {
         let mut info = self
             .connection
             .prepare("SELECT name, type, pk, hidden FROM pragma_table_xinfo(?1) LIMIT ?2")
-            .map_err(|_| Failure::Unsupported)?;
+            .map_err(|_| self.guard.error(Failure::Unsupported))?;
         let fields: Vec<(String, String, i64, i64)> = info
             .query_map(rusqlite::params![object, MAX_COLUMNS as i64 + 1], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
             })
-            .map_err(|_| Failure::Unsupported)?
-            .filter_map(Result::ok)
-            .collect();
+            .map_err(|_| self.guard.error(Failure::Unsupported))?
+            .collect::<Result<_, _>>()
+            .map_err(|_| self.guard.error(Failure::Unavailable))?;
         if fields.len() > MAX_COLUMNS || fields.iter().any(|f| f.3 != 0) {
             return Err(Failure::Unsupported);
         }
+        self.check()?;
         Ok(fields
             .into_iter()
             .map(|(name, native_type, pk, _)| Column {
@@ -314,6 +312,7 @@ impl Session {
         offset: usize,
         column_offset: usize,
     ) -> Result<Page, Failure> {
+        self.guard.begin(QUERY_TIMEOUT)?;
         self.check()?;
         let object = self
             .objects
@@ -362,7 +361,7 @@ impl Session {
         let mut statement = self
             .connection
             .prepare(&sql)
-            .map_err(|_| Failure::Unsupported)?;
+            .map_err(|_| self.guard.error(Failure::Unsupported))?;
         let width = visible.len();
         let mut rows: Vec<Vec<Cell>> = statement
             .query_map([], |row| {
@@ -391,11 +390,12 @@ impl Session {
                     })
                     .collect()
             })
-            .map_err(|_| Failure::Unsupported)?
-            .filter_map(Result::ok)
-            .collect();
+            .map_err(|_| self.guard.error(Failure::Unsupported))?
+            .collect::<Result<_, _>>()
+            .map_err(|_| self.guard.error(Failure::Unavailable))?;
         let has_more = rows.len() > PAGE_ROWS;
         rows.truncate(PAGE_ROWS);
+        self.check()?;
         Ok(Page {
             epoch: self.epoch,
             offset,
@@ -407,6 +407,9 @@ impl Session {
         })
     }
 }
+
+#[cfg(test)]
+mod vfs_tests;
 
 #[cfg(test)]
 mod tests {

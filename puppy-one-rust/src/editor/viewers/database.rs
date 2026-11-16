@@ -9,7 +9,7 @@
 //! session starts over from the first page and says so.
 use crate::{
     editor::{
-        registry::{SurfaceInput, SurfaceRequest, ViewerSurface},
+        registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
         tokens::Tokens,
     },
     localization::t,
@@ -25,7 +25,10 @@ use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 /// `.database-preview__frame` padding.
@@ -55,6 +58,13 @@ struct DatabaseSurface {
     view: Entity<DatabaseView>,
 }
 impl ViewerSurface for DatabaseSurface {
+    fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
+        Some(
+            cx.subscribe(&self.view, move |_, event: &SurfaceEvent, cx| {
+                events(event.clone(), cx)
+            }),
+        )
+    }
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
@@ -86,8 +96,8 @@ pub struct DatabaseView {
     resource: Option<PreviewResource>,
     dark: bool,
     scale: Scale,
-    /// The file the sessions open (a private copy for Cloud bytes).
-    source: Option<PathBuf>,
+    cancel: Arc<AtomicBool>,
+    loading: Option<Task<()>>,
     session: Option<Shared>,
     /// `info`: listed once the database opened.
     objects: Option<Vec<Object>>,
@@ -103,24 +113,42 @@ pub struct DatabaseView {
     epoch: u64,
     scroll: ScrollHandle,
     idle: Option<Task<()>>,
-    /// The private copy of Cloud bytes; removed with the preview.
-    _temporary: Option<tempfile::TempDir>,
 }
-/// `source.{ext}` keeps the engine's extension; the name never comes from
-/// a path segment.
-fn bytes_name(resource: &Option<PreviewResource>) -> String {
-    let ext = resource
-        .as_ref()
-        .and_then(|r| {
-            r.identity
-                .path
-                .as_path()
-                .extension()
-                .map(|e| e.to_string_lossy().to_lowercase())
-        })
-        .filter(|e| e.chars().all(|c| c.is_ascii_alphanumeric()))
-        .unwrap_or_else(|| "db".into());
-    format!("source.{ext}")
+impl EventEmitter<SurfaceEvent> for DatabaseView {}
+impl Drop for DatabaseView {
+    fn drop(&mut self) {
+        self.cancel.store(true, Ordering::Release);
+    }
+}
+fn session_failure(error: crate::workspace::ports::SessionReadFailure) -> Failure {
+    use crate::workspace::{ErrorKind, ports::SessionReadFailure};
+    match error {
+        SessionReadFailure::Changed => Failure::Expired,
+        SessionReadFailure::Recovery => Failure::Recovery,
+        SessionReadFailure::Resource(error) => match error.kind {
+            ErrorKind::StaleLease | ErrorKind::ForeignResource | ErrorKind::PermissionDenied => {
+                Failure::Permission
+            }
+            ErrorKind::Unsupported => Failure::Unsupported,
+            _ => Failure::Unavailable,
+        },
+    }
+}
+fn open_session(resource: &PreviewResource, cancel: Arc<AtomicBool>) -> Result<Session, Failure> {
+    if cancel.load(Ordering::Acquire) {
+        return Err(Failure::Unavailable);
+    }
+    let input = resource.session_reader().map_err(session_failure)?;
+    let validate = input.validate;
+    Session::open_reader(
+        crate::platform::database::Input {
+            length: input.source.length,
+            reader: Box::new(input.source.reader),
+            validate: Arc::new(move || validate().map_err(session_failure)),
+        },
+        MAX_SOURCE_BYTES,
+        cancel,
+    )
 }
 /// What a background read brings back.
 struct Read {
@@ -136,7 +164,8 @@ impl DatabaseView {
             resource,
             dark,
             scale,
-            source: None,
+            cancel: Arc::new(AtomicBool::new(false)),
+            loading: None,
             session: None,
             objects: None,
             selected: None,
@@ -149,40 +178,38 @@ impl DatabaseView {
             epoch: 0,
             scroll: ScrollHandle::new(),
             idle: None,
-            _temporary: None,
         }
     }
-    /// The surface's effect: open the file and read the remembered object.
-    fn reload(&mut self, cx: &mut Context<Self>) {
+    fn retire(&mut self) {
         self.epoch += 1;
+        self.cancel.store(true, Ordering::Release);
+        self.loading = None;
+        self.idle = None;
+        self.session = None;
+        self.objects = None;
+        self.selected = None;
+        self.page = None;
+        self.busy = false;
+        self.restarted = false;
+    }
+    /// Open lazily on the worker using provider authority, without a path or
+    /// whole-file copy crossing into the engine.
+    fn reload(&mut self, cx: &mut Context<Self>) {
+        self.retire();
+        self.cancel = Arc::new(AtomicBool::new(false));
         self.busy = true;
         self.failure = None;
-        self.objects = None;
-        self.page = None;
-        self.restarted = false;
-        self.session = None;
-        self.idle = None;
         let epoch = self.epoch;
-        let path = match self.resource.as_ref().and_then(|r| r.data().ok()) {
-            Some(PreviewData::LocalFile(path)) => path.clone(),
-            // Cloud bytes (already checked for sidecars and a stable
-            // revision by the provider) become a private, read-only
-            // temporary copy that lives as long as this preview.
-            Some(PreviewData::Bytes { bytes, .. }) => {
-                match crate::platform::webview::private_copy(&bytes_name(&self.resource), bytes) {
-                    Ok((dir, path)) => {
-                        self._temporary = Some(dir);
-                        path
-                    }
-                    Err(_) => return self.fail(Failure::Unavailable, cx),
-                }
-            }
-            None => return self.fail(Failure::Unavailable, cx),
+        let Some(resource) = self.resource.clone() else {
+            return self.fail(Failure::Unavailable, cx);
         };
-        self.source = Some(path.clone());
+        if resource.data().is_err() {
+            return self.fail(Failure::Permission, cx);
+        }
+        let cancel = self.cancel.clone();
         let remembered = self.remembered.clone();
-        let task = cx.background_executor().spawn(async move {
-            let session = Session::open(&path, MAX_SOURCE_BYTES)?;
+        let task = crate::platform::database::run(move || {
+            let session = open_session(&resource, cancel)?;
             let objects = session.objects().to_vec();
             let readable = |o: &Object| o.unreadable.is_none();
             let Some(selected) = objects
@@ -207,10 +234,18 @@ impl DatabaseView {
                 Some((selected, page)),
             ))
         });
-        cx.spawn(async move |this, cx| {
+        self.loading = Some(cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |v, cx| {
                 if v.epoch != epoch {
+                    return;
+                }
+                if v.resource
+                    .as_ref()
+                    .is_none_or(|resource| resource.data().is_err())
+                {
+                    v.retire();
+                    v.fail(Failure::Permission, cx);
                     return;
                 }
                 v.busy = false;
@@ -228,8 +263,7 @@ impl DatabaseView {
                 }
                 cx.notify();
             });
-        })
-        .detach();
+        }));
         cx.notify();
     }
     fn fail(&mut self, failure: Failure, cx: &mut Context<Self>) {
@@ -265,7 +299,7 @@ impl DatabaseView {
         else {
             return;
         };
-        let Some(source) = self.source.clone() else {
+        let Some(resource) = self.resource.clone() else {
             return;
         };
         if self.busy {
@@ -277,18 +311,26 @@ impl DatabaseView {
         self.idle = None;
         let epoch = self.epoch;
         let session = self.session.take();
+        let cancel = self.cancel.clone();
         let cursor = self
             .page
             .as_ref()
             .filter(|_| next)
             .map(|p| (p.epoch, p.offset + p.rows.len()));
-        let task = cx.background_executor().spawn(async move {
-            let session = match session.filter(|s| !s.lock().unwrap().ended()) {
-                Some(session) => session,
-                None => Arc::new(Mutex::new(Session::open(&source, MAX_SOURCE_BYTES)?)),
+        let task = crate::platform::database::run(move || {
+            let session = match session
+                .map(|s| {
+                    let ended = s.lock().map_err(|_| Failure::Unavailable)?.ended();
+                    Ok::<_, Failure>((s, ended))
+                })
+                .transpose()?
+                .filter(|(_, ended)| !ended)
+            {
+                Some((session, _)) => session,
+                None => Arc::new(Mutex::new(open_session(&resource, cancel)?)),
             };
             let (objects, selected, page, continued) = {
-                let current = session.lock().unwrap();
+                let current = session.lock().map_err(|_| Failure::Unavailable)?;
                 let objects = current.objects().to_vec();
                 let selected = objects
                     .iter()
@@ -310,10 +352,18 @@ impl DatabaseView {
                 continued,
             })
         });
-        cx.spawn(async move |this, cx| {
+        self.loading = Some(cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |v, cx| {
                 if v.epoch != epoch {
+                    return;
+                }
+                if v.resource
+                    .as_ref()
+                    .is_none_or(|resource| resource.data().is_err())
+                {
+                    v.retire();
+                    v.fail(Failure::Permission, cx);
                     return;
                 }
                 v.busy = false;
@@ -333,8 +383,7 @@ impl DatabaseView {
                 }
                 cx.notify();
             });
-        })
-        .detach();
+        }));
         cx.notify();
     }
     /// `openExternalFile(document.path)`: local files only.
@@ -436,7 +485,7 @@ fn cell_text(cell: &crate::platform::database::Cell) -> (String, bool) {
 
 /// `DatabaseIconButton`: 28px, its 14px glyph, a tooltip.
 fn icon_button(
-    id: impl Into<ElementId>,
+    id: &'static str,
     icon: &'static str,
     label: &'static str,
     active: bool,
@@ -446,6 +495,7 @@ fn icon_button(
     let hover = theme::alpha(p.hover, 0.56);
     div()
         .id(id)
+        .debug_selector(move || id.into())
         .size(px(28.))
         .flex_none()
         .flex()
@@ -525,6 +575,7 @@ impl DatabaseView {
             tabs = tabs.child(
                 div()
                     .id(("database-object", index))
+                    .debug_selector(move || format!("database-object-{index}"))
                     .group(SharedString::from(format!("database-object-{index}")))
                     .relative()
                     .h(px(32.))
@@ -644,7 +695,8 @@ impl DatabaseView {
                     false,
                     p,
                 )
-                .on_click(cx.listener(|v, _, _, cx| v.reload(cx))),
+                .debug_selector(|| "database-reload".into())
+                .on_click(cx.listener(|_, _, _, cx| cx.emit(SurfaceEvent::RetryInput))),
             )
             .when(external, |d| {
                 d.child(
@@ -1026,6 +1078,15 @@ impl DatabaseView {
 
 impl Render for DatabaseView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self
+            .resource
+            .as_ref()
+            .is_some_and(|resource| resource.data().is_err())
+            && self.failure != Some(Failure::Permission)
+        {
+            self.retire();
+            self.failure = Some(Failure::Permission);
+        }
         let p = cx.palette();
         let editor_bg = Tokens::get(self.dark, self.scale).color("--po-editor-bg");
         let root = div()
@@ -1055,7 +1116,12 @@ impl Render for DatabaseView {
                                         false,
                                         p,
                                     )
-                                    .on_click(cx.listener(|v, _, _, cx| v.reload(cx))),
+                                    .debug_selector(|| "database-retry".into())
+                                    .on_click(
+                                        cx.listener(|_, _, _, cx| {
+                                            cx.emit(SurfaceEvent::RetryInput)
+                                        }),
+                                    ),
                                 )
                                 .when(external, |d| {
                                     d.child(
@@ -1100,6 +1166,10 @@ impl Render for DatabaseView {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "database/admission_tests.rs"]
+mod admission_tests;
 
 #[cfg(test)]
 mod tests {

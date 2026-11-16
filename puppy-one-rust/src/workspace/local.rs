@@ -11,6 +11,7 @@ use std::{
 use uuid::Uuid;
 mod adapter;
 mod rename;
+mod session_reader;
 pub(super) use adapter::open;
 
 use super::MAX_TEXT_BYTES;

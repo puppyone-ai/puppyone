@@ -75,6 +75,11 @@ pub trait ResourcePort: Send + Sync {
     fn preview_reader(&self, _path: &RelativePath) -> Result<ResourceReader> {
         Err(Error::unsupported())
     }
+    /// Lazy resource sessions also need a stable file identity and a check
+    /// for recovery sidecars. A plain path/reader cannot confer this authority.
+    fn preview_session_reader(&self, _path: &RelativePath) -> SessionReadResult<SessionReader> {
+        Err(SessionReadFailure::Resource(Error::unsupported()))
+    }
     fn platform_path(&self, _path: &RelativePath) -> Result<PathBuf> {
         Err(Error::unsupported())
     }
@@ -84,6 +89,24 @@ impl<T: std::io::Read + std::io::Seek + Send> ReadSeek for T {}
 pub struct ResourceReader {
     pub length: u64,
     pub reader: Box<dyn ReadSeek>,
+}
+#[derive(Clone, Debug)]
+pub enum SessionReadFailure {
+    Resource(Error),
+    Changed,
+    Recovery,
+}
+impl From<Error> for SessionReadFailure {
+    fn from(error: Error) -> Self {
+        Self::Resource(error)
+    }
+}
+pub type SessionReadResult<T> = std::result::Result<T, SessionReadFailure>;
+pub struct SessionReader {
+    pub source: ResourceReader,
+    /// Called before and after each query, even if the engine uses cached
+    /// pages. Validating must not fetch the whole resource.
+    pub validate: std::sync::Arc<dyn Fn() -> SessionReadResult<()> + Send + Sync>,
 }
 /// Reset/revalidate semantics: coalescing never discards a specific path mutation.
 #[derive(Clone, Debug)]
