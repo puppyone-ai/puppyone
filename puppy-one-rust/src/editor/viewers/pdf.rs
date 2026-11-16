@@ -131,6 +131,26 @@ pub struct PdfView {
     focus: FocusHandle,
     _replies: Option<Task<()>>,
 }
+/// Defer provider admission to the engine worker and retain its exact reader.
+fn pdf_source(resource: PreviewResource) -> pdf::Source {
+    pdf::Source::Reader(Box::new(move || {
+        if let Ok(PreviewData::Bytes { mime, .. }) = resource.data()
+            && !mime
+                .split(';')
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .eq_ignore_ascii_case("application/pdf")
+        {
+            return Err(Failure::Resource);
+        }
+        resource
+            .reader()
+            .map(|reader| Box::new(reader) as pdf::Reader)
+            .map_err(|_| Failure::Resource)
+    }))
+}
+
 impl PdfView {
     fn new(id: String, cx: &mut Context<Self>) -> Self {
         Self {
@@ -166,15 +186,7 @@ impl PdfView {
             cx.notify();
             return;
         };
-        let source = match resource.data() {
-            Ok(PreviewData::LocalFile(path)) => pdf::Source::File(path.clone()),
-            Ok(PreviewData::Bytes { bytes, .. }) => pdf::Source::Bytes(bytes.to_vec()),
-            Err(_) => {
-                self.phase = Phase::Failed(Failure::Resource);
-                cx.notify();
-                return;
-            }
-        };
+        let source = pdf_source(resource);
         self.phase = Phase::Checking;
         let max_bytes = crate::editor::registry::source_budget("document.pdf");
         let (tx, rx) = async_channel::unbounded();
@@ -184,11 +196,7 @@ impl PdfView {
         self._replies = Some(cx.spawn(async move |this, cx| {
             while let Ok(reply) = rx.recv().await {
                 if this
-                    .update(cx, |v, cx| {
-                        if v.load == load {
-                            v.receive(reply, cx)
-                        }
-                    })
+                    .update(cx, |v, cx| v.receive_for(load, reply, cx))
                     .is_err()
                 {
                     break;
@@ -197,7 +205,31 @@ impl PdfView {
         }));
         cx.notify();
     }
+    fn resource_is_live(&mut self) -> bool {
+        if self
+            .resource
+            .as_ref()
+            .is_some_and(|resource| resource.data().is_ok())
+        {
+            return true;
+        }
+        self.phase = Phase::Failed(Failure::Resource);
+        self.document = None;
+        self.pages.clear();
+        self.requested.clear();
+        self.sizes.clear();
+        false
+    }
+    fn receive_for(&mut self, load: u64, reply: Reply, cx: &mut Context<Self>) {
+        if self.load == load {
+            self.receive(reply, cx);
+        }
+    }
     fn receive(&mut self, reply: Reply, cx: &mut Context<Self>) {
+        if !self.resource_is_live() {
+            cx.notify();
+            return;
+        }
         match reply {
             Reply::Opened(sizes) if self.phase == Phase::Checking => {
                 self.sizes = sizes;
@@ -214,7 +246,7 @@ impl PdfView {
                 self.document = None;
             }
             Reply::Failed(_) => {}
-            Reply::Page(bitmap) => {
+            Reply::Page(bitmap) if self.phase == Phase::Ready => {
                 if bitmap.generation != self.generation {
                     return;
                 }
@@ -233,6 +265,7 @@ impl PdfView {
                     },
                 );
             }
+            Reply::Page(_) => {}
         }
         cx.notify();
     }
@@ -335,6 +368,7 @@ impl PdfView {
             .child(
                 div()
                     .id("pdf-retry")
+                    .debug_selector(|| "pdf-retry".into())
                     .min_h(px(theme::control_tight()))
                     .px(px(8.))
                     .py(px(2.))
@@ -360,6 +394,7 @@ impl Focusable for PdfView {
 }
 impl Render for PdfView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.resource_is_live();
         let p = cx.palette();
         let viewport = self.viewport.clone();
         let measure = canvas(
@@ -461,6 +496,269 @@ impl Render for PdfView {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    #[gpui::test]
+    fn revoked_pdf_inputs_discard_late_open_and_page_replies_and_clear_cached_pages(
+        cx: &mut TestAppContext,
+    ) {
+        let provider = Arc::new(crate::workspace::testing::Resources::default());
+        provider
+            .bytes
+            .lock()
+            .unwrap()
+            .insert("a.pdf".into(), pdf::test_pdf());
+        let ws = crate::workspace::Workspace::from_provider(provider).unwrap();
+        let resource = ws.resource(std::path::Path::new("a.pdf")).unwrap();
+        let (view, cx) = cx.add_window_view(|_, cx| {
+            let mut view = PdfView::new("a.pdf".into(), cx);
+            view.resource = Some(resource);
+            view
+        });
+        view.update(cx, |view, cx| {
+            view.receive(
+                Reply::Opened(vec![pdf::PageSize {
+                    width: 1.,
+                    height: 1.,
+                }]),
+                cx,
+            );
+            view.receive(
+                Reply::Page(pdf::Bitmap {
+                    page: 0,
+                    width: 1,
+                    height: 1,
+                    bgra: vec![255; 4],
+                    generation: view.generation,
+                }),
+                cx,
+            );
+            assert_eq!(view.phase, Phase::Ready);
+            assert_eq!(view.pages.len(), 1);
+        });
+        ws.revoke();
+        view.update(cx, |view, cx| {
+            view.receive(
+                Reply::Page(pdf::Bitmap {
+                    page: 1,
+                    width: 1,
+                    height: 1,
+                    bgra: vec![255; 4],
+                    generation: view.generation,
+                }),
+                cx,
+            );
+            view.receive(
+                Reply::Opened(vec![pdf::PageSize {
+                    width: 9.,
+                    height: 9.,
+                }]),
+                cx,
+            );
+            assert_eq!(view.phase, Phase::Failed(Failure::Resource));
+            assert!(view.pages.is_empty() && view.sizes.is_empty() && view.document.is_none());
+        });
+    }
+
+    #[gpui::test]
+    fn pdf_rebinding_and_terminal_failure_fence_old_generation_callbacks(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("a.pdf"), pdf::test_pdf()).unwrap();
+        std::fs::write(temp.path().join("b.pdf"), pdf::test_pdf()).unwrap();
+        let ws = crate::workspace::Workspace::open(temp.path()).unwrap();
+        let resource = ws.resource(std::path::Path::new("a.pdf")).unwrap();
+        let other = ws.resource(std::path::Path::new("b.pdf")).unwrap();
+        let (view, cx) = cx.add_window_view(|_, cx| {
+            let mut view = PdfView::new("a.pdf".into(), cx);
+            view.load(Some(resource.clone()), cx);
+            view.load(Some(other), cx);
+            view.load(Some(resource), cx);
+            assert_eq!(view.load, 3);
+            view
+        });
+        view.update(cx, |view, cx| {
+            view.receive_for(
+                1,
+                Reply::Opened(vec![pdf::PageSize {
+                    width: 10.,
+                    height: 10.,
+                }]),
+                cx,
+            );
+            view.receive_for(2, Reply::Failed(Failure::Limit), cx);
+            assert_eq!(view.phase, Phase::Checking);
+            assert!(view.sizes.is_empty());
+            view.receive_for(3, Reply::Failed(Failure::Timeout), cx);
+            view.receive_for(
+                3,
+                Reply::Opened(vec![pdf::PageSize {
+                    width: 10.,
+                    height: 10.,
+                }]),
+                cx,
+            );
+            view.receive_for(
+                3,
+                Reply::Page(pdf::Bitmap {
+                    page: 0,
+                    width: 1,
+                    height: 1,
+                    bgra: vec![255; 4],
+                    generation: view.generation,
+                }),
+                cx,
+            );
+            assert_eq!(view.phase, Phase::Failed(Failure::Timeout));
+            assert!(view.pages.is_empty() && view.sizes.is_empty());
+        });
+    }
+
+    #[test]
+    fn pdf_workspace_source_uses_retained_authority_and_rechecks_revocation_before_opening() {
+        use std::io::Read;
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::write(root.join("a.pdf"), b"%PDF-1.7 admitted").unwrap();
+        let ws = crate::workspace::Workspace::open(&root).unwrap();
+        let resource = ws.resource(std::path::Path::new("a.pdf")).unwrap();
+        let pdf::Source::Reader(open) = pdf_source(resource.clone()) else {
+            panic!("Workspace PDF must use provider authority")
+        };
+        std::fs::rename(&root, temp.path().join("moved")).unwrap();
+        std::fs::create_dir(&root).unwrap();
+        std::fs::write(root.join("a.pdf"), b"%PDF-1.7 substituted").unwrap();
+        let mut reader = open().unwrap();
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).unwrap();
+        assert_eq!(bytes, b"%PDF-1.7 admitted");
+        let pdf::Source::Reader(open) = pdf_source(resource) else {
+            unreachable!()
+        };
+        ws.revoke();
+        assert!(matches!(open(), Err(Failure::Resource)));
+        assert!(reader.read(&mut [0; 1]).is_err());
+    }
+
+    #[gpui::test]
+    fn pdf_input_failures_never_reach_ready_and_keep_the_retry_control(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let (view, cx) = cx.add_window_view(|_, cx| PdfView::new("a.pdf".into(), cx));
+        for case in ["missing", "revoked", "oversized", "empty", "html", "mime"] {
+            let temp = tempfile::tempdir().unwrap();
+            let path = temp.path().join("a.pdf");
+            std::fs::write(&path, pdf::test_pdf()).unwrap();
+            let ws = crate::workspace::Workspace::open(temp.path()).unwrap();
+            let mut resource = ws.resource(std::path::Path::new("a.pdf")).unwrap();
+            match case {
+                "missing" => std::fs::remove_file(&path).unwrap(),
+                "revoked" => ws.revoke(),
+                "oversized" => std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(&path)
+                    .unwrap()
+                    .set_len(crate::editor::registry::source_budget("a.pdf") + 1)
+                    .unwrap(),
+                "empty" => std::fs::write(&path, b"").unwrap(),
+                "html" => std::fs::write(&path, b"<html>error page</html>").unwrap(),
+                "mime" => {
+                    // This provider deliberately reports application/octet-stream,
+                    // even though its bytes contain a valid PDF.
+                    let provider = Arc::new(crate::workspace::testing::Resources::default());
+                    provider
+                        .bytes
+                        .lock()
+                        .unwrap()
+                        .insert("a.pdf".into(), pdf::test_pdf());
+                    resource = crate::workspace::Workspace::from_provider(provider)
+                        .unwrap()
+                        .resource(std::path::Path::new("a.pdf"))
+                        .unwrap();
+                }
+                _ => unreachable!(),
+            }
+            view.update(cx, |view, cx| view.load(Some(resource), cx));
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+            loop {
+                cx.run_until_parked();
+                if view.read_with(cx, |view, _| view.phase != Phase::Checking) {
+                    break;
+                }
+                assert!(std::time::Instant::now() < deadline, "{case}");
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            let expected = if case == "oversized" {
+                Failure::Limit
+            } else {
+                Failure::Resource
+            };
+            view.read_with(cx, |view, _| {
+                assert_eq!(view.phase, Phase::Failed(expected), "{case}");
+                assert!(view.pages.is_empty() && view.sizes.is_empty());
+            });
+            cx.update(|window, cx| {
+                let _ = window.draw(cx);
+            });
+            assert!(cx.debug_bounds("pdf-retry").is_some(), "{case}");
+        }
+    }
+
+    #[gpui::test]
+    #[ignore = "requires PDFium; the PDF parity gate executes this explicitly"]
+    fn native_pdf_retry_click_requests_fresh_input_and_a_new_reader_can_render(
+        cx: &mut TestAppContext,
+    ) {
+        cx.executor().allow_parking();
+        assert!(pdf::library_path().is_some());
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("a.pdf"), pdf::test_pdf()).unwrap();
+        let ws = crate::workspace::Workspace::open(temp.path()).unwrap();
+        let resource = ws.resource(std::path::Path::new("a.pdf")).unwrap();
+        let (view, cx) = cx.add_window_view(|_, cx| {
+            let mut view = PdfView::new("a.pdf".into(), cx);
+            view.resource = Some(resource.clone());
+            view.phase = Phase::Failed(Failure::Timeout);
+            view
+        });
+        let retries = Rc::new(Cell::new(0));
+        let count = retries.clone();
+        let subscription = cx.update(|_, cx| {
+            PdfSurface { view: view.clone() }.subscribe(
+                Rc::new(move |event, _| {
+                    if matches!(event, SurfaceEvent::RetryInput) {
+                        count.set(count.get() + 1);
+                    }
+                }),
+                cx,
+            )
+        });
+        cx.update(|window, cx| {
+            let _ = window.draw(cx);
+        });
+        let retry = cx.debug_bounds("pdf-retry").unwrap();
+        cx.simulate_click(retry.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(retries.get(), 1);
+        cx.update(|_, cx| PdfSurface { view: view.clone() }.rebind_resource(&resource, cx));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            cx.run_until_parked();
+            cx.update(|window, cx| {
+                let _ = window.draw(cx);
+            });
+            if view.read_with(cx, |v, _| {
+                v.phase == Phase::Ready && v.pages.contains_key(&0)
+            }) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "fresh input did not render after Retry"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        drop(subscription);
+    }
 
     #[gpui::test]
     #[ignore = "requires PDFium; tools/verify-native-dependencies.py runs this explicitly"]

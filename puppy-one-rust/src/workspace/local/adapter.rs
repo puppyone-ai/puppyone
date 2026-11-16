@@ -169,6 +169,9 @@ impl ResourcePort for LocalProvider {
     fn preview_bytes(&self, path: &RelativePath, max: u64) -> Result<Vec<u8>> {
         self.inner.preview_bytes(path.as_path(), max)
     }
+    fn preview_reader(&self, path: &RelativePath) -> Result<super::super::ports::ResourceReader> {
+        self.inner.preview_reader(path.as_path())
+    }
     fn platform_path(&self, path: &RelativePath) -> Result<std::path::PathBuf> {
         self.inner.absolute(path.as_path())
     }

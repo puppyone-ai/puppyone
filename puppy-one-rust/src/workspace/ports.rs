@@ -70,9 +70,20 @@ pub trait ResourcePort: Send + Sync {
     fn preview_bytes(&self, _path: &RelativePath, _max: u64) -> Result<Vec<u8>> {
         Err(Error::unsupported())
     }
+    /// Open one regular resource through the provider's retained authority.
+    /// The facade fences each read/seek by its lease and this admitted length.
+    fn preview_reader(&self, _path: &RelativePath) -> Result<ResourceReader> {
+        Err(Error::unsupported())
+    }
     fn platform_path(&self, _path: &RelativePath) -> Result<PathBuf> {
         Err(Error::unsupported())
     }
+}
+pub trait ReadSeek: std::io::Read + std::io::Seek + Send {}
+impl<T: std::io::Read + std::io::Seek + Send> ReadSeek for T {}
+pub struct ResourceReader {
+    pub length: u64,
+    pub reader: Box<dyn ReadSeek>,
 }
 /// Reset/revalidate semantics: coalescing never discards a specific path mutation.
 #[derive(Clone, Debug)]

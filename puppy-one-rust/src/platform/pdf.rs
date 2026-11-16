@@ -7,10 +7,18 @@
 //! to open, and three failure reasons (limit, timeout, resource). Page
 //! renders go through the editor task scheduler, so a heavy document is
 //! bounded per window like every other editor task.
+mod resource;
+#[cfg(test)]
+mod resource_tests;
 use pdfium_render::prelude::*;
+pub use resource::{Reader, Source};
 use std::{
     path::{Path, PathBuf},
-    sync::mpsc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     time::Duration,
 };
 
@@ -31,10 +39,6 @@ pub enum Failure {
 pub struct PageSize {
     pub width: f32,
     pub height: f32,
-}
-pub enum Source {
-    File(PathBuf),
-    Bytes(Vec<u8>),
 }
 /// One rendered page: BGRA, `width` × `height` device pixels.
 pub struct Bitmap {
@@ -91,6 +95,16 @@ fn pdfium_library_name() -> &'static str {
 /// A document open on its own engine thread. Dropping it ends the thread.
 pub struct Document {
     requests: mpsc::Sender<Request>,
+    replies: async_channel::Sender<Reply>,
+    opening_resolved: Arc<AtomicBool>,
+}
+impl Drop for Document {
+    fn drop(&mut self) {
+        self.opening_resolved.store(true, Ordering::Release);
+        // Retire publication on the owner thread, even if an engine call or
+        // provider admission has not returned yet.
+        self.replies.close();
+    }
 }
 impl Document {
     /// Opens `source` for `owner` (its window scope and document id). The
@@ -101,16 +115,35 @@ impl Document {
         owner: super::tasks::Owner,
         replies: async_channel::Sender<Reply>,
     ) -> Self {
+        Self::open_with_timeout(source, max_bytes, owner, replies, OPEN_TIMEOUT)
+    }
+    fn open_with_timeout(
+        source: Source,
+        max_bytes: u64,
+        owner: super::tasks::Owner,
+        replies: async_channel::Sender<Reply>,
+        timeout: Duration,
+    ) -> Self {
         let (requests, inbox) = mpsc::channel::<Request>();
+        let publication = replies.clone();
         let failed = replies.clone();
+        let opening_resolved = Arc::new(AtomicBool::new(false));
+        let opening = opening_resolved.clone();
+        let panicked = opening_resolved.clone();
         super::watchdog::spawn_contained(
             "pdf-engine",
-            move || run(source, max_bytes, owner, inbox, replies),
+            move || run(source, max_bytes, owner, inbox, replies, timeout, opening),
             move |_| {
-                let _ = failed.try_send(Reply::Failed(Failure::Resource));
+                if !panicked.swap(true, Ordering::AcqRel) {
+                    let _ = failed.try_send(Reply::Failed(Failure::Resource));
+                }
             },
         );
-        Self { requests }
+        Self {
+            requests,
+            replies: publication,
+            opening_resolved,
+        }
     }
     /// Renders `page` at `width` device pixels; replies carry `generation`
     /// so superseded zoom levels can be ignored.
@@ -132,32 +165,12 @@ fn engine(library: &Path) -> Option<&'static Pdfium> {
         .as_ref()
 }
 
-fn preflight(source: &Source, max_bytes: u64) -> Result<(), Failure> {
-    let size = match source {
-        Source::File(path) => std::fs::metadata(path)
-            .map_err(|_| Failure::Resource)?
-            .len(),
-        Source::Bytes(bytes) => bytes.len() as u64,
-    };
-    if size > max_bytes {
-        return Err(Failure::Limit);
+fn finish_open(signal: &mpsc::Sender<()>, resolved: &AtomicBool) -> bool {
+    if resolved.swap(true, Ordering::AcqRel) {
+        return false;
     }
-    let head: Vec<u8> = match source {
-        Source::File(path) => {
-            use std::io::Read;
-            let mut buffer = vec![0; 1024];
-            let mut file = std::fs::File::open(path).map_err(|_| Failure::Resource)?;
-            let n = file.read(&mut buffer).map_err(|_| Failure::Resource)?;
-            buffer.truncate(n);
-            buffer
-        }
-        Source::Bytes(bytes) => bytes.iter().take(1024).copied().collect(),
-    };
-    // `%PDF-` must appear within the first kilobyte (ISO 32000-1 §7.5.2 tolerance).
-    if !head.windows(5).any(|w| w == b"%PDF-") {
-        return Err(Failure::Resource);
-    }
-    Ok(())
+    let _ = signal.send(());
+    true
 }
 
 fn run(
@@ -166,38 +179,51 @@ fn run(
     owner: super::tasks::Owner,
     inbox: mpsc::Receiver<Request>,
     replies: async_channel::Sender<Reply>,
+    timeout: Duration,
+    opening: Arc<AtomicBool>,
 ) {
-    if let Err(failure) = preflight(&source, max_bytes) {
-        let _ = replies.send_blocking(Reply::Failed(failure));
-        return;
-    }
-    let Some(library) = library_path() else {
-        let _ = replies.send_blocking(Reply::Failed(Failure::Resource));
-        return;
-    };
-    // The deadline covers binding and parsing: a separate watchdog reports
+    // The deadline covers admission, binding and parsing: a separate watchdog reports
     // the timeout even if PDFium never returns for this file.
     let (opened_tx, opened_rx) = mpsc::channel::<()>();
     {
         let replies = replies.clone();
+        let opening = opening.clone();
         std::thread::spawn(move || {
-            if opened_rx.recv_timeout(OPEN_TIMEOUT) == Err(mpsc::RecvTimeoutError::Timeout) {
+            if opened_rx.recv_timeout(timeout) == Err(mpsc::RecvTimeoutError::Timeout)
+                && !opening.swap(true, Ordering::AcqRel)
+            {
                 let _ = replies.try_send(Reply::Failed(Failure::Timeout));
             }
         });
     }
-    let Some(pdfium) = engine(&library) else {
-        let _ = replies.send_blocking(Reply::Failed(Failure::Resource));
+    let source = match resource::admit(source, max_bytes) {
+        Ok(source) => source,
+        Err(failure) => {
+            if finish_open(&opened_tx, &opening) {
+                let _ = replies.send_blocking(Reply::Failed(failure));
+            }
+            return;
+        }
+    };
+    let Some(library) = library_path() else {
+        if finish_open(&opened_tx, &opening) {
+            let _ = replies.send_blocking(Reply::Failed(Failure::Resource));
+        }
         return;
     };
-    let document = match &source {
-        Source::File(path) => pdfium.load_pdf_from_file(path, None),
-        Source::Bytes(bytes) => pdfium.load_pdf_from_byte_vec(bytes.clone(), None),
+    let Some(pdfium) = engine(&library) else {
+        if finish_open(&opened_tx, &opening) {
+            let _ = replies.send_blocking(Reply::Failed(Failure::Resource));
+        }
+        return;
     };
+    let document = pdfium.load_pdf_from_reader(source, None);
     let document = match document {
         Ok(document) => document,
         Err(_) => {
-            let _ = replies.send_blocking(Reply::Failed(Failure::Resource));
+            if finish_open(&opened_tx, &opening) {
+                let _ = replies.send_blocking(Reply::Failed(Failure::Resource));
+            }
             return;
         }
     };
@@ -209,7 +235,7 @@ fn run(
             height: p.height().value,
         })
         .collect();
-    if opened_tx.send(()).is_err() {
+    if !finish_open(&opened_tx, &opening) {
         return;
     }
     if replies.send_blocking(Reply::Opened(sizes)).is_err() {
@@ -318,16 +344,22 @@ mod tests {
     #[test]
     fn preflight_refuses_oversized_and_non_pdf_sources() {
         assert_eq!(
-            preflight(&Source::Bytes(sample_pdf()), 10),
+            resource::admit(Source::Bytes(sample_pdf()), 10).map(|_| ()),
             Err(Failure::Limit)
         );
         assert_eq!(
-            preflight(&Source::Bytes(b"hello".to_vec()), 1 << 20),
+            resource::admit(Source::Bytes(b"hello".to_vec()), 1 << 20).map(|_| ()),
             Err(Failure::Resource)
         );
-        assert_eq!(preflight(&Source::Bytes(sample_pdf()), 1 << 20), Ok(()));
+        assert_eq!(
+            resource::admit(Source::Bytes(sample_pdf()), 1 << 20).map(|_| ()),
+            Ok(())
+        );
         let missing = Source::File("/nonexistent/file.pdf".into());
-        assert_eq!(preflight(&missing, 1 << 20), Err(Failure::Resource));
+        assert_eq!(
+            resource::admit(missing, 1 << 20).map(|_| ()),
+            Err(Failure::Resource)
+        );
     }
 
     #[test]

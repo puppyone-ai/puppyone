@@ -10332,6 +10332,174 @@
           "test": "web_host::protocol_tests::wry_adapter_emits_exact_range_head_cors_and_security_headers"
         }
       ]
+    },
+    {
+      "id": "pdf-provider-readers-admission-and-lifecycle",
+      "acceptance": "Native PDFs use a deferred provider reader, not an ambient path or a second file open. PreviewResource::reader retains private resource identity and provider/root authority, checks the lease before publication and on every read/seek, fixes the admitted extent, rewinds the stream, drops refused streams, and clears a consumer buffer if authorization retires during a read. Cached remote bytes remain the immutable input version without refetch. PDF admission and PDFium consume the same reader; a 512 MiB source budget is checked before signature reads; the first 1024 bytes require the same %PDF-[12].digit signature as TS, which is deliberately not structural parsing. Sparse 101/512 MiB files are admitted without whole-file buffering; growth before admission is refused and later append cannot extend reads. The 15-second deadline now includes provider admission and only one terminal open outcome can publish, including a panic after timeout. Dropping the native Document closes its response channel immediately while provider/engine work may still be pending; the actual A-to-B-to-A GPUI test declares real-thread scheduling explicitly. Native view replies recheck live authority, discard old load generations (actual A-to-B-to-A rebinding), clear revoked caches, and do not let late paint/open replies escape a failed state. Missing/revoked/oversized/empty/HTML/wrong-MIME inputs keep the native Retry control. The exact gate explicitly runs installed PDFium render tests and a real native Retry click followed by rebind and rendering. HTTP URL flags/status codes have typed native failure equivalents; TS preflight/attachment collapse into one native admission/engine phase. This credits 17 specified TS cases, not complete PDF feature parity: PDF text selection/links/outlines, bounded page caches, tiling, unmount races while the native engine blocks, and generic WebView media streaming remain separate gaps.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/formats/pdf/pdf-resource.test.mjs",
+          "sha256": "914bed0b66c6f866ca1d1c529bc833b0af95944c104cb264fa1df89a0adc4c81",
+          "cases": [
+            {
+              "index": 1,
+              "name": "PDF resource admission and streaming > admits 105906176 bytes without the old 100 MiB buffer cap"
+            },
+            {
+              "index": 2,
+              "name": "PDF resource admission and streaming > admits 536870912 bytes without the old 100 MiB buffer cap"
+            },
+            {
+              "index": 3,
+              "name": "PDF resource admission and streaming > enforces the manifest budget at issuance and after the issued file grows"
+            },
+            {
+              "index": 4,
+              "name": "PDF resource admission and streaming > rejects empty/mislabeled resources at issuance and every delivery entry point"
+            },
+            {
+              "index": 5,
+              "name": "PDF resource admission and streaming > does not pretend that signature admission validates the PDF structure"
+            },
+            {
+              "index": 7,
+              "name": "PDF resource admission and streaming > bounds an admitted stream even if the file is appended, and closes it on abort"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/pdf/pdfViewer.test.tsx",
+          "sha256": "bd33999117d688e9921132a453cdb3cc2516984702219d8107d84b968a823f64",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DOM-owned PDF transport and attachment lifecycle > admits before attaching, rechecks after load, and never claims PDF parse success"
+            },
+            {
+              "index": 3,
+              "name": "DOM-owned PDF transport and attachment lifecycle > rejects transport status 403 instead of displaying a ready error page"
+            },
+            {
+              "index": 4,
+              "name": "DOM-owned PDF transport and attachment lifecycle > rejects transport status 404 instead of displaying a ready error page"
+            },
+            {
+              "index": 5,
+              "name": "DOM-owned PDF transport and attachment lifecycle > rejects transport status 413 instead of displaying a ready error page"
+            },
+            {
+              "index": 6,
+              "name": "DOM-owned PDF transport and attachment lifecycle > rejects transport status 415 instead of displaying a ready error page"
+            },
+            {
+              "index": 7,
+              "name": "DOM-owned PDF transport and attachment lifecycle > fails closed for MIME or budget violations {\"content-type\":\"text/html\",\"content-length\":\"10\"}"
+            },
+            {
+              "index": 9,
+              "name": "DOM-owned PDF transport and attachment lifecycle > fails closed for MIME or budget violations {\"content-type\":\"application/pdf\",\"content-length\":\"0\"}"
+            },
+            {
+              "index": 10,
+              "name": "DOM-owned PDF transport and attachment lifecycle > fails closed for MIME or budget violations {\"content-type\":\"application/pdf\",\"content-length\":\"536870913\"}"
+            },
+            {
+              "index": 11,
+              "name": "DOM-owned PDF transport and attachment lifecycle > does not trust a load after the capability was revoked during navigation"
+            },
+            {
+              "index": 12,
+              "name": "DOM-owned PDF transport and attachment lifecycle > times out a hung checking phase and supports a fresh manual attempt"
+            },
+            {
+              "index": 14,
+              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A→B→A"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::local_reader_retains_its_root_and_open_file_when_paths_are_replaced"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::local_reader_refuses_link_substitution_before_opening_and_identity_retargeting"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::local_reader_is_lazy_and_cannot_seek_or_read_past_the_admitted_extent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::provider_reader_is_not_buffered_closes_on_drop_and_fences_late_read_results"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::cached_snapshot_reader_preserves_its_input_version_and_checks_lease_on_seek"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::resource_tests::pdf_signature_admission_matches_the_ts_header_window_and_version_pattern"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::resource_tests::pdf_admission_and_later_reads_use_one_descriptor_with_a_fixed_end"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::resource_tests::pdf_admits_sparse_files_at_the_manifest_limit_and_refuses_growth_before_reading"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::resource_tests::pdf_reader_admission_is_lazy_and_every_exit_releases_its_owned_reader"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::resource_tests::pdf_open_deadline_includes_blocked_provider_admission_and_suppresses_late_failures"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::tests::preflight_refuses_oversized_and_non_pdf_sources"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::tests::a_document_opens_and_renders_pages_when_the_engine_is_installed"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::revoked_pdf_inputs_discard_late_open_and_page_replies_and_clear_cached_pages"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::pdf_rebinding_and_terminal_failure_fence_old_generation_callbacks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::pdf_workspace_source_uses_retained_authority_and_rechecks_revocation_before_opening"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::pdf_input_failures_never_reach_ready_and_keep_the_retry_control"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::native_pdf_retry_click_requests_fresh_input_and_a_new_reader_can_render"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::a_pdf_opens_fits_the_pane_and_renders_its_page"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::a_non_pdf_reports_the_resource_failure_with_retry"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::resource_tests::dropping_a_pdf_document_closes_publication_while_provider_admission_is_pending"
+        }
+      ]
     }
   ],
   "openAcceptance": [

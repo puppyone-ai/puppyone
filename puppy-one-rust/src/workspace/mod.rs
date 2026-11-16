@@ -10,6 +10,8 @@ mod local;
 #[path = "local_tests.rs"]
 mod local_compatibility_tests;
 pub mod ports;
+mod preview;
+pub use preview::PreviewReader;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
 #[cfg(test)]

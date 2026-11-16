@@ -233,13 +233,10 @@ impl Workspace {
     fn read_from(dir: &Dir, name: &Path) -> Result<(Vec<u8>, Metadata)> {
         Self::read_bounded(dir, name, MAX_TEXT_BYTES as u64)
     }
-    fn read_bounded(dir: &Dir, name: &Path, max: u64) -> Result<(Vec<u8>, Metadata)> {
+    fn open_regular(dir: &Dir, name: &Path) -> Result<(cap_std::fs::File, Metadata)> {
         let meta = dir.symlink_metadata(name).map_err(io)?;
         if !meta.is_file() {
             return Err(crate::localization::t("native.workspace.regularOnly").into());
-        }
-        if meta.len() > max {
-            return Err(crate::localization::t("native.workspace.fileTooLarge").into());
         }
         let mut options = OpenOptions::new();
         options.read(true);
@@ -248,11 +245,15 @@ impl Workspace {
             use cap_std::fs::OpenOptionsExt;
             options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
         }
-        let mut file = dir.open_with(name, &options).map_err(io)?;
+        let file = dir.open_with(name, &options).map_err(io)?;
         let opened = file.metadata().map_err(io)?;
         if !opened.is_file() {
             return Err(crate::localization::t("native.workspace.typeChanged").into());
         }
+        Ok((file, opened))
+    }
+    fn read_bounded(dir: &Dir, name: &Path, max: u64) -> Result<(Vec<u8>, Metadata)> {
+        let (mut file, opened) = Self::open_regular(dir, name)?;
         if opened.len() > max {
             return Err(crate::localization::t("native.workspace.fileTooLarge").into());
         }
@@ -563,6 +564,14 @@ impl Workspace {
     pub fn preview_bytes(&self, relative: &Path, max: u64) -> Result<Vec<u8>> {
         let (dir, name) = self.parent(relative)?;
         Self::read_bounded(&dir, &name, max).map(|(bytes, _)| bytes)
+    }
+    pub fn preview_reader(&self, relative: &Path) -> Result<super::ports::ResourceReader> {
+        let (dir, name) = self.parent(relative)?;
+        let (file, metadata) = Self::open_regular(&dir, &name)?;
+        Ok(super::ports::ResourceReader {
+            length: metadata.len(),
+            reader: Box::new(file.into_std()),
+        })
     }
     pub fn absolute(&self, relative: &Path) -> Result<PathBuf> {
         validate(relative, true)?;
