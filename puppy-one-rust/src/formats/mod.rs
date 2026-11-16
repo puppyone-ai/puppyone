@@ -7,6 +7,7 @@
 //! (`editor::registry`), diff renderers, file icons — resolves the format
 //! here first and then matches on its fields, never on raw extensions.
 use serde::Deserialize;
+pub mod markdown;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::OnceLock,

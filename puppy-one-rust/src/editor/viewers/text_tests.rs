@@ -1,9 +1,160 @@
+#![cfg(test)]
+
 use super::*;
 use crate::editor::{
     registry::{self, EditorDocument, SurfaceInput},
     view::style,
 };
 use core::prelude::v1::test;
+
+const DIALECT_TEXT: &str =
+    "Intro\n\n<Tabs><Tab label=\"First\">one</Tab><Tab label=\"Second\">two</Tab></Tabs>\n";
+
+fn dialect_surface<'a>(
+    cx: &'a mut TestAppContext,
+    workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
+    name: &str,
+) -> (Entity<Host>, &'a mut VisualTestContext) {
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        crate::ui::ime::init(cx);
+        crate::editor::view::bind_keys(cx);
+        cx.text_system().add_fonts(style::font_bytes()).unwrap();
+    });
+    let name = name.to_owned();
+    let (host, cx) = cx.add_window_view(move |window, cx| {
+        let surface = open_markdown(
+            &SurfaceRequest {
+                id: "dialect",
+                name: &name,
+                input: SurfaceInput::Text(DIALECT_TEXT),
+                format: registry::resolve(&EditorDocument::local("note.md")).format,
+                resolved_extension: None,
+                dark: false,
+                scale: Scale::Medium,
+                workspace,
+                file_mode: false,
+            },
+            window,
+            cx,
+        );
+        let subscription = surface.subscribe(Rc::new(|_, _| {}), cx).unwrap();
+        Host {
+            surface,
+            _subscription: subscription,
+        }
+    });
+    draw(cx);
+    (host, cx)
+}
+
+fn has_dialect_widget(host: &Entity<Host>, cx: &mut VisualTestContext) -> bool {
+    host.read_with(cx, |h, cx| {
+        h.surface
+            .editor_view()
+            .unwrap()
+            .read(cx)
+            .decorations()
+            .blocks
+            .iter()
+            .any(|block| matches!(block, crate::editor::view::decoration::Block::Widget { .. }))
+    })
+}
+
+#[gpui::test]
+fn project_metadata_selects_the_markdown_composition_for_a_plain_md_file(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join(".ok")).unwrap();
+    std::fs::write(dir.path().join(".ok/config.yml"), "version: 1\n").unwrap();
+    let workspace = crate::workspace::Workspace::open(dir.path()).unwrap();
+    let (host, cx) = dialect_surface(cx, Some(workspace), "note.md");
+    assert!(
+        has_dialect_widget(&host, cx),
+        "project Markdown did not install the MDX composition"
+    );
+    host.read_with(cx, |h, cx| {
+        assert_eq!(h.surface.text(cx).as_deref(), Some(DIALECT_TEXT))
+    });
+}
+
+#[gpui::test]
+fn explicit_provider_dialect_precedes_extensions_without_needing_a_local_root(
+    cx: &mut TestAppContext,
+) {
+    use crate::formats::markdown::MarkdownDialect;
+    use std::sync::{Arc, atomic::Ordering};
+    for (dialect, name, expected) in [
+        (MarkdownDialect::PuppyGfm, "note.mdx", false),
+        (MarkdownDialect::OpenKnowledgeMdx, "note.md", true),
+    ] {
+        let mut provider = crate::workspace::testing::Memory::new("memory://dialect/project/");
+        provider.markdown_dialect = Some(dialect);
+        let provider = Arc::new(provider);
+        let workspace = crate::workspace::Workspace::from_provider(provider.clone()).unwrap();
+        assert!(workspace.local_root().is_none());
+        let (host, cx) = dialect_surface(cx, Some(workspace), name);
+        assert_eq!(has_dialect_widget(&host, cx), expected);
+        host.update_in(cx, |h, _, cx| h.surface.rebind_name("renamed.MDX", cx));
+        draw(cx);
+        assert_eq!(has_dialect_widget(&host, cx), expected);
+        assert_eq!(
+            provider.calls.load(Ordering::SeqCst),
+            0,
+            "composition selection performed storage I/O"
+        );
+    }
+}
+
+#[gpui::test]
+fn ordinary_markdown_contents_do_not_enable_components_but_mdx_paths_do(cx: &mut TestAppContext) {
+    for (name, expected) in [
+        ("note.md", false),
+        ("note.mdx", true),
+        ("note.MDX?revision=2#part", true),
+    ] {
+        let (host, cx) = dialect_surface(cx, None, name);
+        assert_eq!(has_dialect_widget(&host, cx), expected, "{name}");
+        host.read_with(cx, |h, cx| {
+            assert_eq!(h.surface.text(cx).as_deref(), Some(DIALECT_TEXT))
+        });
+    }
+}
+
+#[gpui::test]
+fn renaming_markdown_rebinds_its_composition_without_replacing_the_editor_or_history(
+    cx: &mut TestAppContext,
+) {
+    let (host, cx) = dialect_surface(cx, None, "note.md");
+    let editor = host.read_with(cx, |h, _| h.surface.editor_view().unwrap().entity_id());
+    assert!(!has_dialect_widget(&host, cx));
+    host.update_in(cx, |h, window, cx| {
+        h.surface
+            .editor_view()
+            .unwrap()
+            .update(cx, |view, cx| view.focus(window, cx));
+    });
+    cx.simulate_input("Prelude\n\n");
+    host.update_in(cx, |h, _, cx| {
+        h.surface.rebind_name("note.mdx", cx);
+    });
+    draw(cx);
+    assert!(has_dialect_widget(&host, cx));
+    host.read_with(cx, |h, cx| {
+        assert_eq!(h.surface.editor_view().unwrap().entity_id(), editor);
+        assert_eq!(
+            h.surface.text(cx).unwrap(),
+            format!("Prelude\n\n{DIALECT_TEXT}")
+        );
+    });
+    host.update_in(cx, |h, window, cx| h.surface.undo(false, window, cx));
+    draw(cx);
+    host.read_with(cx, |h, cx| {
+        assert_eq!(h.surface.text(cx).as_deref(), Some(DIALECT_TEXT))
+    });
+    host.update_in(cx, |h, _, cx| h.surface.rebind_name("note.md", cx));
+    draw(cx);
+    assert!(!has_dialect_widget(&host, cx));
+}
 
 struct Host {
     surface: Box<dyn ViewerSurface>,

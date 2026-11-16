@@ -9,7 +9,7 @@ use super::{
     },
 };
 
-/// `puppyGfmFeatures`: every Markdown document but `.mdx`.
+/// `puppyGfmFeatures`: the standard Markdown dialect.
 pub static FEATURES: Features = &[
     &front_matter::FEATURE as &dyn MarkdownFeature,
     // Math and Mermaid claim their fences before code blocks do.
@@ -25,7 +25,7 @@ pub static FEATURES: Features = &[
     &video::FEATURE,
 ];
 
-/// `openKnowledgeMdxFeatures`: `.mdx` documents, MDX components claiming
+/// `openKnowledgeMdxFeatures`: the OpenKnowledge dialect, components claiming
 /// their blocks before HTML does.
 pub static MDX_FEATURES: Features = &[
     &front_matter::FEATURE as &dyn MarkdownFeature,

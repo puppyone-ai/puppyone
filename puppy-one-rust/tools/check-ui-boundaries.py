@@ -53,7 +53,13 @@ for relative in ['src/documents/mod.rs', 'src/app/explorer', 'src/features/creat
     for path in paths:
         if path.name == 'tests.rs':
             continue
-        source = path.read_text().split('#[cfg(test)]')[0]
+        source = path.read_text()
+        # An explicit inner cfg makes the entire module test-only, including
+        # real filesystem fixtures in sibling *_tests.rs modules. Do not infer
+        # this from a filename: production files remain checked.
+        if re.match(r'\s*#!\[cfg\(test\)\]', source):
+            continue
+        source = source.split('#[cfg(test)]')[0]
         if re.search(r'workspace::local|cap_std\s*::|std\s*::\s*fs\b', source):
             errors.append(f'{path.relative_to(root)}: workspace consumer bypasses provider authority')
 

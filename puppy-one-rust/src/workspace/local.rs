@@ -138,6 +138,22 @@ fn validate(path: &Path, allow_empty: bool) -> Result<()> {
     Ok(())
 }
 impl Workspace {
+    fn markdown_dialect(&self) -> Result<Option<crate::formats::markdown::MarkdownDialect>> {
+        let directory = match self.directory(Path::new(".ok")) {
+            Ok(directory) => directory,
+            Err(error) if matches!(error.kind, ErrorKind::NotFound | ErrorKind::InvalidInput) => {
+                return Ok(None);
+            }
+            Err(error) => return Err(error),
+        };
+        match directory.symlink_metadata("config.yml") {
+            Ok(metadata) => Ok(metadata
+                .is_file()
+                .then_some(crate::formats::markdown::MarkdownDialect::OpenKnowledgeMdx)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(io(error)),
+        }
+    }
     pub fn open_with(path: &Path, legacy_text: bool) -> Result<Arc<Self>> {
         let path = std::fs::canonicalize(path).map_err(io)?;
         let dir = Dir::open_ambient_dir(&path, cap_std::ambient_authority()).map_err(io)?;

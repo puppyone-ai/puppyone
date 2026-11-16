@@ -54,9 +54,11 @@ fn change_hint(root: &Path, result: notify::Result<notify::Event>) -> Option<Wat
 struct LocalProvider {
     inner: Arc<Workspace>,
     descriptor: Descriptor,
+    markdown_dialect: Option<crate::formats::markdown::MarkdownDialect>,
 }
 pub(in crate::workspace) fn open(path: &Path, legacy_text: bool) -> Result<Arc<dyn Provider>> {
     let inner = Workspace::open_with(path, legacy_text)?;
+    let markdown_dialect = inner.markdown_dialect()?;
     let uri = url::Url::from_directory_path(&inner.path)
         .map_err(|_| Error::from("Invalid local workspace root"))?;
     let descriptor = Descriptor {
@@ -83,11 +85,18 @@ pub(in crate::workspace) fn open(path: &Path, legacy_text: bool) -> Result<Arc<d
             local_actions: true,
         },
     };
-    Ok(Arc::new(LocalProvider { inner, descriptor }))
+    Ok(Arc::new(LocalProvider {
+        inner,
+        descriptor,
+        markdown_dialect,
+    }))
 }
 impl DataPort for LocalProvider {
     fn descriptor(&self) -> Descriptor {
         self.descriptor.clone()
+    }
+    fn markdown_dialect(&self) -> Option<crate::formats::markdown::MarkdownDialect> {
+        self.markdown_dialect
     }
     fn list(&self, path: &RelativePath) -> Result<Vec<Entry>> {
         self.inner

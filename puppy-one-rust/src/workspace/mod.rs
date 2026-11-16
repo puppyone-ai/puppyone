@@ -172,6 +172,10 @@ impl Workspace {
     pub fn local_root(&self) -> Option<&Path> {
         self.descriptor.local_root.as_deref()
     }
+    pub fn markdown_dialect(&self) -> Option<crate::formats::markdown::MarkdownDialect> {
+        self.lease.check().ok()?;
+        self.provider.markdown_dialect()
+    }
     pub fn text_limit(&self) -> usize {
         self.descriptor.limits.text_bytes
     }

@@ -10,6 +10,11 @@ use std::{
 
 pub trait DataPort: Send + Sync {
     fn descriptor(&self) -> Descriptor;
+    /// Metadata captured by the provider during admission; no filesystem I/O
+    /// is performed when a foreground viewer selects its composition.
+    fn markdown_dialect(&self) -> Option<crate::formats::markdown::MarkdownDialect> {
+        None
+    }
     /// The hosted Agent target of a Cloud workspace (its Project, running
     /// workbench and account binding); local folders have none.
     fn agent_target(&self) -> Option<super::cloud::agent::AgentTarget> {

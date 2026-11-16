@@ -13,6 +13,7 @@ use crate::{
             pane::{Segment, Segmented, Switch},
         },
     },
+    formats::markdown::MarkdownDialect,
     localization::t,
     typography::Scale,
 };
@@ -33,9 +34,11 @@ pub fn open_markdown(
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
     let mut markdown = MarkdownExtension::new(request.dark, request.scale);
-    if request.name.to_ascii_lowercase().ends_with(".mdx") {
-        markdown = markdown.mdx();
-    }
+    let explicit_dialect = request
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.markdown_dialect());
+    markdown.set_dialect(MarkdownDialect::resolve(request.name, explicit_dialect).dialect);
     markdown.assets = crate::editor::registry::document_assets(request.id);
     if request.file_mode {
         markdown.read_only = true;
@@ -145,6 +148,7 @@ pub fn open_markdown(
 
     Box::new(TextSurface {
         editor,
+        explicit_dialect,
         file_mode,
         editing,
         host_read_only,
@@ -159,6 +163,7 @@ pub fn open_markdown(
 
 pub struct TextSurface {
     pub editor: Entity<EditorView>,
+    explicit_dialect: Option<MarkdownDialect>,
     file_mode: bool,
     editing: Rc<Cell<bool>>,
     host_read_only: Rc<Cell<bool>>,
@@ -228,6 +233,20 @@ impl TextSurface {
 }
 
 impl ViewerSurface for TextSurface {
+    fn rebind_name(&self, name: &str, cx: &mut App) {
+        let dialect = MarkdownDialect::resolve(name, self.explicit_dialect).dialect;
+        self.editor.update(cx, |view, cx| {
+            if let Some(markdown) = view.extension_mut::<MarkdownExtension>()
+                && markdown.set_dialect(dialect)
+            {
+                view.appearance += 1;
+                cx.notify();
+            }
+        });
+        if let Some(source) = &self.source {
+            source.rebind_name(name, cx);
+        }
+    }
     fn set_reference_context(
         &self,
         context: Option<crate::editor::navigation::ReferenceContext>,

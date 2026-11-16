@@ -28,6 +28,7 @@ use self::core::{
     state::PreviewState,
     syntax::Syntax,
 };
+use crate::formats::markdown::MarkdownDialect;
 use crate::{
     editor::{
         text::{
@@ -71,8 +72,10 @@ pub struct MarkdownExtension {
     pub references: Option<crate::editor::navigation::ReferenceContext>,
     /// Where the document's media resolve and load from.
     pub assets: Option<crate::editor::registry::DocumentAssets>,
-    /// The dialect's features (`.mdx`: with MDX components).
-    features: core::feature::Features,
+    dialect: MarkdownDialect,
+    /// Fault injection for the existing feature panic-containment tests.
+    #[cfg(test)]
+    test_features: Option<core::feature::Features>,
     /// The Sub Theme the theme was resolved under (`tokens::theme_key`).
     theme_key: u64,
 }
@@ -89,15 +92,38 @@ impl MarkdownExtension {
             preview: PreviewState::default(),
             references: None,
             assets: None,
-            features: FEATURES,
+            dialect: MarkdownDialect::default(),
+            #[cfg(test)]
+            test_features: None,
             theme_key: crate::editor::tokens::theme_key(),
         }
     }
 
-    /// The Open Knowledge MDX dialect (`.mdx` documents).
+    /// The OpenKnowledge MDX dialect (project metadata or `.mdx` documents).
     pub fn mdx(mut self) -> Self {
-        self.features = MDX_FEATURES;
+        self.set_dialect(MarkdownDialect::OpenKnowledgeMdx);
         self
+    }
+    fn features(&self) -> core::feature::Features {
+        #[cfg(test)]
+        if let Some(features) = self.test_features {
+            return features;
+        }
+        match self.dialect {
+            MarkdownDialect::PuppyGfm => FEATURES,
+            MarkdownDialect::OpenKnowledgeMdx => MDX_FEATURES,
+        }
+    }
+    /// Reconfigure presentation while retaining the editor's text and history.
+    pub fn set_dialect(&mut self, dialect: MarkdownDialect) -> bool {
+        if self.dialect == dialect {
+            return false;
+        }
+        self.dialect = dialect;
+        self.parsed = None;
+        self.preview.tabs.clear();
+        self.preview.revealed_source = None;
+        true
     }
 
     /// Follow the app appearance; returns whether anything changed.
@@ -113,19 +139,20 @@ impl MarkdownExtension {
     }
 
     fn parse(&mut self, state: &EditorState) -> (Rc<Syntax>, Rc<Vec<Plan>>) {
+        let features = self.features();
         let folds = &self.preview.callout_folds;
         match &mut self.parsed {
             Some(p) if p.revision == state.revision && p.len == state.doc.len() => {
                 // A callout folded or opened: the same syntax, new plans.
                 if p.folds != *folds {
-                    p.plans = Rc::new(plans::compile(&state.doc, &p.syntax, folds, self.features));
+                    p.plans = Rc::new(plans::compile(&state.doc, &p.syntax, folds, features));
                     p.folds = folds.clone();
                 }
                 (p.syntax.clone(), p.plans.clone())
             }
             _ => {
                 let syntax = Rc::new(Syntax::parse(&state.doc));
-                let plans = Rc::new(plans::compile(&state.doc, &syntax, folds, self.features));
+                let plans = Rc::new(plans::compile(&state.doc, &syntax, folds, features));
                 self.parsed = Some(Parsed {
                     revision: state.revision,
                     len: state.doc.len(),
@@ -211,7 +238,7 @@ impl EditorExtension for MarkdownExtension {
             theme: &self.theme,
             preview: &self.preview,
             live: self.live,
-            features: self.features,
+            features: self.features(),
             assets: self.assets.as_ref(),
             references: self.references.as_ref(),
         })
@@ -232,6 +259,7 @@ impl EditorExtension for MarkdownExtension {
                 .clone()
                 .map(|r| (r.start, r.end)),
             self.live,
+            self.dialect,
             self.scale as u8,
             crate::localization::current().code,
         )
@@ -290,7 +318,7 @@ impl EditorExtension for MarkdownExtension {
 
     /// Commands of feature widgets and hotspots, run by the owning feature.
     fn command(&mut self, command: &Command, state: &EditorState) -> Option<Transaction> {
-        let feature = contract::find(self.features, command.feature())?;
+        let feature = contract::find(self.features(), command.feature())?;
         if let Some(tr) = feature.view_command(command, &mut self.preview, state) {
             return Some(tr);
         }

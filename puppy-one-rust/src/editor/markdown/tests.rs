@@ -10,6 +10,62 @@ use crate::{
 };
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
+#[test]
+fn dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans() {
+    use super::{
+        composition::{FEATURES, MDX_FEATURES},
+        features::mdx::TabsBlock,
+    };
+    use crate::{
+        editor::{
+            text::state::EditorState,
+            view::extension::{DecorateInput, EditorExtension},
+        },
+        formats::markdown::MarkdownDialect,
+    };
+    let source = "Intro\n\n<Tabs><Tab label=\"One\">content</Tab></Tabs>\n";
+    let state = EditorState::new(source);
+    let mut markdown = MarkdownExtension::new(false, Scale::Medium);
+    let (_, plain) = markdown.parse(&state);
+    assert!(std::ptr::eq(markdown.features(), FEATURES));
+    assert!(
+        !plain
+            .iter()
+            .any(|p| p.embed().is_some_and(|e| e.model::<TabsBlock>().is_some()))
+    );
+    let plain_key = markdown.decoration_key();
+    assert!(markdown.set_dialect(MarkdownDialect::OpenKnowledgeMdx));
+    assert_ne!(markdown.decoration_key(), plain_key);
+    assert!(std::ptr::eq(markdown.features(), MDX_FEATURES));
+    let (syntax, rich) = markdown.parse(&state);
+    assert_eq!(
+        rich.iter()
+            .filter(|p| p.embed().is_some_and(|e| e.model::<TabsBlock>().is_some()))
+            .count(),
+        1
+    );
+    let decorate = |md: &mut MarkdownExtension| {
+        md.decorate(&DecorateInput {
+            state: &state,
+            focused: false,
+            pointer_selecting: false,
+            dark: false,
+        })
+        .blocks
+        .iter()
+        .any(|b| matches!(b, crate::editor::view::decoration::Block::Widget { .. }))
+    };
+    assert!(decorate(&mut markdown));
+    assert!(!markdown.set_dialect(MarkdownDialect::OpenKnowledgeMdx));
+    let (same_syntax, same_plans) = markdown.parse(&state);
+    assert!(std::rc::Rc::ptr_eq(&syntax, &same_syntax));
+    assert!(std::rc::Rc::ptr_eq(&rich, &same_plans));
+    assert!(markdown.set_dialect(MarkdownDialect::PuppyGfm));
+    assert!(!decorate(&mut markdown));
+    assert_eq!(state.doc.as_str(), source);
+    assert_eq!(state.revision, 0);
+}
+
 fn setup<'a>(
     cx: &'a mut TestAppContext,
     text: &str,
@@ -618,7 +674,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
     let text = "---\n\n:::panic\n\n$$\nE = mc^2\n$$\n\n- [ ] healthy\n";
     let (view, cx) = cx.add_window_view(move |_, cx| {
         let mut md = MarkdownExtension::new(true, Scale::Medium);
-        md.features = TEST_FEATURES;
+        md.test_features = Some(TEST_FEATURES);
         EditorView::new(text, Box::new(md), cx)
     });
     view.update_in(cx, |v, w, cx| {

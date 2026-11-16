@@ -9761,6 +9761,106 @@
         }
       ],
       "environment": "macos"
+    },
+    {
+      "id": "markdown-project-dialect",
+      "acceptance": "Provider metadata captured during admission selects one typed Markdown dialect before extension inference; regular .ok/config.yml enables OpenKnowledge MDX for ordinary .md, while missing metadata, an empty directory, config.yaml or a config.yml directory does not. Local metadata does not follow source/parent links and is unavailable after lease revocation. Resolution honors explicit GFM over .mdx, recognizes mixed-case MDX before URL suffixes, rejects invalid host dialect strings and never inspects contents. Real GPUI surfaces verify actual component decoration, provider metadata without local paths or storage I/O, and same-entity rename reconfiguration with text/undo preserved. One immutable feature slice drives plan compilation, decoration and commands; changing dialect invalidates derived caches without changing document state. Rust uses a typed provider port and one composition selector instead of separate CodeMirror parser/semantic facets; those JS mechanisms are not copied.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/markdownDialect.test.ts",
+          "sha256": "645b2ce5465c7eefb61cbf9c56b18687077d6aff6a33204a97002591f453eb64",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown dialect resolution > uses explicit Host metadata before the file extension"
+            },
+            {
+              "index": 1,
+              "name": "Markdown dialect resolution > uses .mdx as an explicit extension signal and keeps ordinary .md conservative"
+            },
+            {
+              "index": 2,
+              "name": "Markdown dialect resolution > ignores invalid Host metadata and still honors an explicit .mdx extension"
+            },
+            {
+              "index": 3,
+              "name": "Markdown dialect resolution > does not infer a dialect from document contents"
+            },
+            {
+              "index": 4,
+              "name": "Markdown dialect resolution > selects one immutable composition for the whole document"
+            },
+            {
+              "index": 5,
+              "name": "Markdown dialect resolution > installs matching puppy-gfm parser and semantic facets atomically"
+            },
+            {
+              "index": 6,
+              "name": "Markdown dialect resolution > installs matching openknowledge-mdx parser and semantic facets atomically"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
+          "sha256": "558e501f335a47c312f74ff5283ec50f01e60a24539cd82ab24bb8570493c6cb",
+          "cases": [
+            {
+              "index": 1,
+              "name": "workspaceFromPath > declares the OpenKnowledge Markdown dialect from project metadata"
+            },
+            {
+              "index": 2,
+              "name": "workspaceFromPath > does not infer the dialect from an empty .ok directory"
+            },
+            {
+              "index": 3,
+              "name": "workspaceFromPath > does not infer the dialect from a similarly named config.yaml"
+            },
+            {
+              "index": 4,
+              "name": "workspaceFromPath > does not infer the dialect from a config.yml directory"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "formats::markdown::tests::host_metadata_precedes_extensions_and_invalid_metadata_has_no_authority"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::openknowledge_metadata_requires_the_exact_regular_config_file"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::openknowledge_metadata_never_follows_config_or_parent_links"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::project_metadata_selects_the_markdown_composition_for_a_plain_md_file"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::explicit_provider_dialect_precedes_extensions_without_needing_a_local_root"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::ordinary_markdown_contents_do_not_enable_components_but_mdx_paths_do"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::renaming_markdown_rebinds_its_composition_without_replacing_the_editor_or_history"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mdx::tests::tabs_render_in_the_mdx_dialect_only"
+        }
+      ]
     }
   ],
   "openAcceptance": [

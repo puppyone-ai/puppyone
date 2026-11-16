@@ -14,6 +14,7 @@ pub fn preview(name: &str) -> super::PreviewResource {
 
 pub struct Memory {
     pub descriptor: Descriptor,
+    pub markdown_dialect: Option<crate::formats::markdown::MarkdownDialect>,
     pub text: Mutex<String>,
     pub calls: AtomicUsize,
     pub hook: Mutex<Option<Box<dyn FnOnce() + Send>>>,
@@ -35,6 +36,7 @@ impl Memory {
                     ..Default::default()
                 },
             },
+            markdown_dialect: None,
             text: Mutex::new("original".into()),
             calls: AtomicUsize::new(0),
             hook: Mutex::new(None),
@@ -59,6 +61,9 @@ impl Memory {
 impl DataPort for Memory {
     fn descriptor(&self) -> Descriptor {
         self.descriptor.clone()
+    }
+    fn markdown_dialect(&self) -> Option<crate::formats::markdown::MarkdownDialect> {
+        self.markdown_dialect
     }
     fn list(&self, _: &RelativePath) -> Result<Vec<Entry>> {
         self.called();

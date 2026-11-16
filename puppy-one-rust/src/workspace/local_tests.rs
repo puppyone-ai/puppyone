@@ -873,3 +873,80 @@ fn existing_hardlink_and_symlink_destinations_are_never_replaced() {
         Path::new("missing.md")
     );
 }
+
+#[test]
+fn openknowledge_metadata_requires_the_exact_regular_config_file() {
+    use crate::formats::markdown::MarkdownDialect;
+    for case in [
+        "absent",
+        "empty",
+        "yaml",
+        "directory",
+        "regular",
+        "not-directory",
+    ] {
+        let dir = tempdir().unwrap();
+        if case == "not-directory" {
+            std::fs::write(dir.path().join(".ok"), "not a folder").unwrap();
+        } else if case != "absent" {
+            std::fs::create_dir(dir.path().join(".ok")).unwrap();
+            match case {
+                "yaml" => std::fs::write(dir.path().join(".ok/config.yaml"), "version: 1").unwrap(),
+                "directory" => std::fs::create_dir(dir.path().join(".ok/config.yml")).unwrap(),
+                "regular" => {
+                    std::fs::write(dir.path().join(".ok/config.yml"), "version: 1").unwrap()
+                }
+                _ => {}
+            }
+        }
+        let ws = Workspace::open(dir.path()).unwrap();
+        let expected = (case == "regular").then_some(MarkdownDialect::OpenKnowledgeMdx);
+        assert_eq!(ws.markdown_dialect(), expected, "{case}");
+        assert!(!dir.path().join(".puppyone").exists());
+        if case == "regular" {
+            std::fs::remove_file(dir.path().join(".ok/config.yml")).unwrap();
+            assert_eq!(
+                ws.markdown_dialect(),
+                expected,
+                "foreground metadata must be the admitted snapshot"
+            );
+            assert_eq!(
+                Workspace::open(dir.path()).unwrap().markdown_dialect(),
+                None
+            );
+        }
+        ws.revoke();
+        assert_eq!(
+            ws.markdown_dialect(),
+            None,
+            "retired workspace metadata is not reused"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn openknowledge_metadata_never_follows_config_or_parent_links() {
+    use std::os::unix::fs::symlink;
+    let outside = tempdir().unwrap();
+    std::fs::write(outside.path().join("config.yml"), "private metadata").unwrap();
+    for parent in [false, true] {
+        let dir = tempdir().unwrap();
+        if parent {
+            symlink(outside.path(), dir.path().join(".ok")).unwrap();
+        } else {
+            std::fs::create_dir(dir.path().join(".ok")).unwrap();
+            symlink(
+                outside.path().join("config.yml"),
+                dir.path().join(".ok/config.yml"),
+            )
+            .unwrap();
+        }
+        let ws = Workspace::open(dir.path()).unwrap();
+        assert_eq!(ws.markdown_dialect(), None);
+        assert_eq!(
+            std::fs::read_to_string(outside.path().join("config.yml")).unwrap(),
+            "private metadata"
+        );
+    }
+}
