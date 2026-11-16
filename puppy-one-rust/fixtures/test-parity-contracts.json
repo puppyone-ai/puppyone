@@ -13383,7 +13383,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::source_control::sidebar_tests::setup"
+          "test": "features::source_control::sidebar_tests::changing_the_panel_set_cancels_a_drag_without_resizing_the_new_neighbor"
         },
         {
           "package": "po-app",
