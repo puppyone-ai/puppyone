@@ -1,15 +1,16 @@
 {
   "sourceCommit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
   "entry": "tools/excalidraw-entry.tsx",
-  "entryHash": "ce31a826252f2731307fc39beb3391aa1ecd0c4b69d2bb0392f652b14776c70c",
+  "entryHash": "4df5d647b185c47d5e8b0ca9b49ba0435debc8f259f8777eba4f69fb87514235",
   "packages": {
     "@excalidraw/excalidraw": "0.18.1"
   },
   "outputs": {
-    "excalidraw.js": "addbc0c18992193217fc8c59ce8ab075a6afbd839b6e7c262fc7298e9e459b75",
+    "excalidraw.js": "0614eba4d87f3e36a00813d0e915d434a601019222dc818ac9ffea36dcc3fca9",
     "excalidraw.css": "3af4eccad6527a1a7a2fb2f54b67e4690bf605d7ae6c54ba7dae5b4339e65231"
   },
   "sourceHashes": {
+    "native/tools/native-whiteboard-bridge.ts": "a8ed37e8fb86ed695fbc568366f029ef43bf1112068160cd35738770d25e10bb",
     "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",
     "shared/fileFormats.json": "4121ae78dd4b9fa0b23a4a080b7aefe1169cd89648335ceed557fbeda7f737c5",
     "shared/presetViewerManifest.js": "6d4ae26b78bdf9129c8d74c6d48cd8de085ad032088bf24735160656de5e3987",

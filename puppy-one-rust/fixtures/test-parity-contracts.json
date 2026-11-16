@@ -12782,6 +12782,84 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-whiteboard-document-ownership",
+      "acceptance": "Execute the actual pinned ExcalidrawDocumentModel with the same native IPC bridge bundled into the shipped pack. Preserve original bytes until semantic edits, retain detached edits, reject old model generations after AI/external replacement, preserve five invalid/unsupported inputs without writing, and retain embedded image data and element properties. Native GPUI acceptance additionally requires current ready generation for content/link admission, fences read-only and source transitions including queued old writes after re-enabling, preserves ready frames for reset/theme/history transport, and allows JSON repair without a pack. The recording transport verifies host messages and actual model execution verifies page semantics; OS canvas drawing, IME, actual undo key dispatch and visual rendering remain separate native acceptance. Routing/template/menu migration cases are not included in this criterion.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/whiteboard.test.ts",
+          "sha256": "1015cdcf1b3eb93766ac956432350a0d507a91d6adcb4b7815182defd6bdf3b4",
+          "cases": [
+            {
+              "index": 1,
+              "name": "standard Excalidraw files > keeps original bytes until a semantic edit, then retains edits across view detach"
+            },
+            {
+              "index": 2,
+              "name": "standard Excalidraw files > adopts AI replacements and rejects stale callbacks from the retired scene"
+            },
+            {
+              "index": 3,
+              "name": "standard Excalidraw files > never overwrites an invalid or unsupported scene: "
+            },
+            {
+              "index": 4,
+              "name": "standard Excalidraw files > never overwrites an invalid or unsupported scene: {"
+            },
+            {
+              "index": 5,
+              "name": "standard Excalidraw files > never overwrites an invalid or unsupported scene: {}"
+            },
+            {
+              "index": 6,
+              "name": "standard Excalidraw files > never overwrites an invalid or unsupported scene: {\"type\":\"excalidraw\",\"version\":99,\"elements\":[]}"
+            },
+            {
+              "index": 7,
+              "name": "standard Excalidraw files > never overwrites an invalid or unsupported scene: {\"type\":\"excalidraw\",\"version\":2,\"elements\":[null]}"
+            },
+            {
+              "index": 8,
+              "name": "standard Excalidraw files > preserves embedded image data and standard element properties"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::the_page_carries_the_board_and_names_the_sdk_assets"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::an_external_replacement_rejects_content_already_queued_by_the_previous_scene"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::original_bytes_and_read_only_transitions_keep_one_owned_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::source_mode_retires_board_writes_and_returns_the_latest_json"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::missing_packs_still_allow_source_repair_and_never_admit_page_messages"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::the_bundled_bridge_and_real_product_model_preserve_scene_acceptance"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::only_the_current_ready_board_can_open_workspace_links"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::ready_theme_and_history_commands_keep_the_same_frame_and_read_only_fences"
+        }
+      ]
     }
   ],
   "openAcceptance": [

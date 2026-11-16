@@ -18,21 +18,20 @@ import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LocalizationProvider } from "@puppyone/localization/react";
 import { EditableDocumentSourceProvider } from "./src/shared-ui/editor/document-session/EditableDocumentSourceContext";
-import type { EditableDocumentSource } from "./src/shared-ui/editor/document-session/types";
+import { createWhiteboardBridge } from "@native/whiteboard-bridge";
 import type { DocumentNavigationPort, DocumentReference } from "./src/shared-ui/editor/navigation/documentNavigation";
 import { ExcalidrawViewer } from "./src/shared-ui/editor/viewers/excalidraw/ExcalidrawViewer";
 import { EditorAppearanceProvider } from "./src/shared-ui/core/appearance/EditorAppearanceContext";
 import { DesktopTooltipLayer } from "./src/components/DesktopTooltipLayer";
 
 type Boot = Readonly<{
-  text: string; name: string; path: string; canEdit: boolean; workspaceRoot: string | null;
+  generation: number; text: string; name: string; path: string; canEdit: boolean; workspaceRoot: string | null;
   locale: string; direction: "ltr" | "rtl"; messages: Record<string, string>; assets: boolean;
 }>;
-type Inbound = { type: "reset"; text: string }
-  | { type: "enabled"; value: boolean }
+type Inbound = { type: "reset"; text: string; generation: number }
+  | { type: "enabled"; value: boolean; generation: number }
   | { type: "theme"; dark: boolean; css: string }
   | { type: "history"; direction: "undo" | "redo" };
-type Port = Parameters<EditableDocumentSource["attachSource"]>[0];
 
 declare global {
   interface Window {
@@ -44,21 +43,8 @@ declare global {
 
 const boot = window.__PUPPYONE_WHITEBOARD;
 const post = (message: object) => window.ipc?.postMessage(JSON.stringify(message));
-let port: Port | null = null;
-let sent = boot.text;
-const publish = () => {
-  const text = port?.readSnapshot().content;
-  if (text === undefined || text === sent) return;
-  sent = text;
-  post({ type: "content", text });
-};
-const source: EditableDocumentSource = {
-  attachSource: (next) => {
-    port = next;
-    return () => { if (port === next) port = null; };
-  },
-  reportRevision: (revision) => { if (revision.origin !== "model-initialization") publish(); },
-};
+const bridge = createWhiteboardBridge(boot, post);
+const source = bridge.source;
 
 // Every link is the host's to resolve and open; the page only names it.
 const references = new WeakSet<object>();
@@ -69,7 +55,7 @@ const documentNavigation: DocumentNavigationPort = {
     return reference;
   },
   canOpenReference: (reference) => references.has(reference),
-  openReference: (reference) => { post({ type: "link", link: reference.raw }); },
+  openReference: (reference) => { bridge.link(reference.raw); },
 };
 
 // Embedded pages (`WhiteboardEmbed`) and their resources: a link relative to
@@ -108,11 +94,10 @@ function App() {
   useEffect(() => {
     window.__puppyoneWhiteboard = (message) => {
       if (message.type === "reset") {
-        sent = message.text;
-        port?.replaceContent(message.text);
+        bridge.reset(message.text, message.generation);
         setContent(message.text);
       } else if (message.type === "enabled") {
-        port?.setInputEnabled?.(message.value);
+        bridge.setEnabled(message.value, message.generation);
         setCanEdit(message.value);
       } else if (message.type === "history") {
         history(message.direction === "redo");
@@ -125,7 +110,7 @@ function App() {
         setAppearance((revision) => revision + 1);
       }
     };
-    post({ type: "ready" });
+    bridge.ready();
     return () => { window.__puppyoneWhiteboard = undefined; };
   }, []);
   const document = useMemo(() => ({ name: boot.name, path: boot.path, type: "excalidraw" }) as never, []);

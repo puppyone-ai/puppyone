@@ -106,6 +106,9 @@
     "tests/integration/extensions/viewer-packs/package-install.test.mjs": "00530c1fdec26a5957b27bdb573eed967ae0c0534fc6b76e226a29a7d7698a1e",
     "tests/unit/editor/runtime/whiteboardAssets.test.mjs": "4bf9dea3d4346298fde41e6910949ea4d4a6eee66b9518fb5f5ef9822ddbc20f",
     "electron/main/viewer-packs/archive-validator.mjs": "6be1cae31aeb5e50172f3a97dc158f37258507ffb7f6c43c6bc8f7eb5d9fe18e",
-    "scripts/desktop/build/excalidraw-assets-plugin.mjs": "8182f978d54dd2b61a32d6a14cf989bf5d94bf83af5e5607e3422182952b0e8f"
+    "scripts/desktop/build/excalidraw-assets-plugin.mjs": "8182f978d54dd2b61a32d6a14cf989bf5d94bf83af5e5607e3422182952b0e8f",
+    "tests/unit/editor/runtime/whiteboard.test.ts": "1015cdcf1b3eb93766ac956432350a0d507a91d6adcb4b7815182defd6bdf3b4",
+    "src/shared-ui/editor/viewers/excalidraw/ExcalidrawDocumentModel.ts": "19122a456b0b6eb15d71a20735cf4a48e46114fcbcb671fa632a8427cfde8151",
+    "src/shared-ui/editor/viewers/excalidraw/ExcalidrawViewer.tsx": "84f0d9280f23569b17d4c7d05db0fb3b97b8ddea68c67e118553b0a1820b324d"
   }
 }

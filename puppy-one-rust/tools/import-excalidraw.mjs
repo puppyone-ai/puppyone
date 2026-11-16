@@ -51,7 +51,12 @@ const {product, modules, receipt, files: builtFiles} = await bundleProductPage({
   name: 'excalidraw',
   entry: 'tools/excalidraw-entry.tsx',
   conditions: ['production'],
-  plugins: [sdkRewrites],
+  plugins: [sdkRewrites, {
+    name: 'native-whiteboard-bridge',
+    setup(build) {
+      build.onResolve({filter: /^@native\/whiteboard-bridge$/}, () => ({path: path.join(root, 'tools/native-whiteboard-bridge.ts')}));
+    },
+  }],
   packages: [PACKAGE],
   styles: [
     ...BASE_STYLES.slice(0, -1),

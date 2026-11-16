@@ -12,11 +12,16 @@ use crate::{
 use gpui::{prelude::*, *};
 use std::rc::Rc;
 
+#[cfg(test)]
+type EvaluationRecorder = Rc<dyn Fn(&str)>;
+
 pub struct WebFrame {
     content: Option<Content>,
     host: Option<Rc<WebHost>>,
     failed: Option<String>,
     dark: bool,
+    #[cfg(test)]
+    evaluation_recorder: Option<EvaluationRecorder>,
 }
 impl WebFrame {
     pub fn new(content: Option<Content>, dark: bool) -> Self {
@@ -25,6 +30,8 @@ impl WebFrame {
             host: None,
             failed: None,
             dark,
+            #[cfg(test)]
+            evaluation_recorder: None,
         }
     }
     /// Replaces what the frame shows (a new engine instance).
@@ -39,8 +46,19 @@ impl WebFrame {
             host.reload();
         }
     }
+    /// Records the transport boundary without constructing an OS engine.
+    #[cfg(test)]
+    pub(super) fn record_evaluations(&mut self, recorder: impl Fn(&str) + 'static) {
+        self.evaluation_recorder = Some(Rc::new(recorder));
+    }
+
     /// Runs host script in the page; `false` before the engine exists.
     pub fn evaluate(&self, script: &str) -> bool {
+        #[cfg(test)]
+        if let Some(recorder) = &self.evaluation_recorder {
+            recorder(script);
+            return true;
+        }
         match &self.host {
             Some(host) => {
                 host.evaluate(script);

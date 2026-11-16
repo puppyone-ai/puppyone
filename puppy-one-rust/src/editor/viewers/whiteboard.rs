@@ -51,9 +51,9 @@ enum Mode {
 #[derive(Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum Inbound {
-    Ready,
-    Content { text: String },
-    Link { link: String },
+    Ready { generation: u64 },
+    Content { generation: u64, text: String },
+    Link { generation: u64, link: String },
 }
 
 struct Workspace(AssetReader);
@@ -71,6 +71,20 @@ enum Asked {
 
 /// `excalidraw`: the whiteboard editor with on-demand pack installation and JSON source mode.
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
+    Box::new(open_with_pack(
+        request,
+        viewer_packs::load_excalidraw(),
+        window,
+        cx,
+    ))
+}
+
+fn open_with_pack(
+    request: &SurfaceRequest,
+    pack: Option<ExcalidrawPack>,
+    window: &mut Window,
+    cx: &mut App,
+) -> WhiteboardSurface {
     let text = match request.input {
         SurfaceInput::Text(text) => text.to_owned(),
         _ => String::new(),
@@ -83,7 +97,6 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
         .and_then(|w| w.local_root())
         .map(|r| r.to_string_lossy().into_owned());
     let assets = crate::editor::registry::document_assets(request.id);
-    let pack = viewer_packs::load_excalidraw();
     let mode = Rc::new(Cell::new(Mode::Board));
     let board = cx.new(|cx| {
         let mut view = WhiteboardView::new(request.name.to_owned(), root, text, request.dark);
@@ -102,6 +115,7 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
                 if matches!(asked, Asked::ViewSource) && mode_ref.get() != Mode::Source {
                     let latest = host.board.read(cx).text.clone();
                     source_ref.replace_text(&latest, window, cx);
+                    host.board.update(cx, |view, cx| view.set_active(false, cx));
                     mode_ref.set(Mode::Source);
                     if let Some(focus) = source_ref.focus_handle(cx) {
                         focus.focus(window, cx);
@@ -117,12 +131,12 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
             _sub,
         }
     });
-    Box::new(WhiteboardSurface {
+    WhiteboardSurface {
         mode,
         board,
         source,
         host,
-    })
+    }
 }
 
 struct WhiteboardHost {
@@ -147,6 +161,8 @@ struct WhiteboardView {
     enabled: bool,
     dark: bool,
     ready: bool,
+    generation: u64,
+    active: bool,
     references: Option<ReferenceContext>,
     assets: Option<DocumentAssets>,
     pack: Option<ExcalidrawPack>,
@@ -167,6 +183,8 @@ impl WhiteboardView {
             enabled: true,
             dark,
             ready: false,
+            generation: 1,
+            active: true,
             references: None,
             assets: None,
             pack: None,
@@ -178,7 +196,15 @@ impl WhiteboardView {
         }
     }
 
+    fn advance_generation(&mut self) {
+        self.generation = self
+            .generation
+            .checked_add(1)
+            .expect("whiteboard generation exhausted");
+    }
+
     fn show(&mut self, cx: &mut Context<Self>) {
+        self.advance_generation();
         let Some(pack) = self.pack.clone() else {
             self.ready = false;
             self.frame = None;
@@ -190,7 +216,8 @@ impl WhiteboardView {
             "text": self.text,
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
             "path": self.name,
-            "canEdit": self.enabled,
+            "canEdit": self.enabled && self.active,
+            "generation": self.generation,
             "workspaceRoot": self.workspace_root,
             "locale": crate::localization::current_code(),
             "direction": "ltr",
@@ -267,14 +294,26 @@ impl WhiteboardView {
 
     fn receive(&mut self, message: Inbound, cx: &mut Context<Self>) {
         match message {
-            Inbound::Ready => self.ready = true,
-            Inbound::Content { text } => {
-                if self.enabled && text != self.text {
+            Inbound::Ready { generation } if generation == self.generation => {
+                self.ready = self.frame.is_some();
+            }
+            Inbound::Content { generation, text } => {
+                if self.ready
+                    && self.active
+                    && self.enabled
+                    && generation == self.generation
+                    && text != self.text
+                {
                     self.text = text;
                     cx.emit(Asked::Changed);
                 }
             }
-            Inbound::Link { link } => self.follow(&link, cx),
+            Inbound::Link { generation, link }
+                if self.ready && self.active && generation == self.generation =>
+            {
+                self.follow(&link, cx)
+            }
+            _ => {}
         }
     }
 
@@ -316,15 +355,30 @@ impl WhiteboardView {
             return;
         }
         self.text = text.to_owned();
+        self.advance_generation();
         if self.pack.is_some() {
-            self.post_state(serde_json::json!({ "type": "reset", "text": text }), cx);
+            self.post_state(
+                serde_json::json!({ "type": "reset", "text": text, "generation": self.generation }),
+                cx,
+            );
         } else {
             cx.notify();
         }
     }
 
+    fn set_active(&mut self, active: bool, cx: &mut Context<Self>) {
+        if self.active == active {
+            return;
+        }
+        self.active = active;
+        self.advance_generation();
+        if self.pack.is_some() {
+            self.post_state(serde_json::json!({ "type": "enabled", "value": self.enabled && active, "generation": self.generation }), cx);
+        }
+    }
+
     fn history(&mut self, redo: bool, cx: &mut Context<Self>) {
-        if self.ready && self.enabled {
+        if self.ready && self.active && self.enabled {
             let direction = if redo { "redo" } else { "undo" };
             self.post(
                 serde_json::json!({ "type": "history", "direction": direction }),
@@ -335,6 +389,11 @@ impl WhiteboardView {
 
     fn apply(&mut self, read_only: bool, dark: bool, cx: &mut Context<Self>) {
         let enabled = !read_only;
+        let changed = enabled != self.enabled;
+        self.enabled = enabled;
+        if changed {
+            self.advance_generation();
+        }
         if dark != self.dark {
             self.dark = dark;
             if self.pack.is_none() {
@@ -350,14 +409,11 @@ impl WhiteboardView {
                 return;
             }
         }
-        if enabled != self.enabled {
-            self.enabled = enabled;
-            if self.pack.is_some() {
-                self.post_state(
-                    serde_json::json!({ "type": "enabled", "value": enabled }),
-                    cx,
-                );
-            }
+        if changed && self.pack.is_some() {
+            self.post_state(
+                serde_json::json!({ "type": "enabled", "value": enabled && self.active, "generation": self.generation }),
+                cx,
+            );
         }
     }
 }
@@ -512,6 +568,7 @@ impl ViewerSurface for WhiteboardSurface {
             Mode::Source => {
                 let latest = self.board.read(cx).text.clone();
                 self.source.replace_text(&latest, window, cx);
+                self.board.update(cx, |view, cx| view.set_active(false, cx));
                 self.mode.set(Mode::Source);
                 if let Some(focus) = self.source.focus_handle(cx) {
                     focus.focus(window, cx);
@@ -522,6 +579,7 @@ impl ViewerSurface for WhiteboardSurface {
                     self.board
                         .update(cx, |view, cx| view.replace_text(&latest, cx));
                 }
+                self.board.update(cx, |view, cx| view.set_active(true, cx));
                 self.mode.set(Mode::Board);
             }
         }

@@ -104,7 +104,12 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
   const sources = [...new Set(inputs)]
     .filter(p => !p.startsWith('<') && !p.startsWith('(disabled):') && p !== path.basename(entry) && !p.includes('node_modules/')).sort();
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-  const sourceHashes = Object.fromEntries(await Promise.all(sources.map(async p => [p, hash(await readFile(path.resolve(product, p)))])));
+  const sourceHashes = Object.fromEntries(await Promise.all(sources.map(async p => {
+    const file = path.resolve(product, p);
+    const local = path.relative(root, file);
+    const key = !local.startsWith('..') && !path.isAbsolute(local) ? `native/${local.split(path.sep).join('/')}` : p;
+    return [key, hash(await readFile(file))];
+  })));
   const versions = Object.fromEntries(await Promise.all(packages.map(async p =>
     [p, JSON.parse(await readFile(path.join(modules, p, 'package.json'), 'utf8')).version])));
   const receipt = {
