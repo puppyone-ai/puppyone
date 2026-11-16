@@ -330,7 +330,7 @@ impl HeightMap {
     /// at `width` and initial inset `top`.
     pub fn prepare(&mut self, layered: &LayeredDecorations, doc: &Buffer, width: f32, top: f32) {
         let doc_decos: &Rc<Decorations> = &layered.doc;
-        let doc_ptr = Rc::as_ptr(doc_decos) as usize;
+        let doc_ptr = doc_decos.id as usize;
         let width_bits = width.to_bits();
         let line_count = doc.line_count();
 
@@ -654,7 +654,7 @@ mod tests {
         let next_decos = Rc::new(Decorations {
             blocks: next_blocks,
             splice: Some(BlockSplice {
-                base_ptr: Rc::as_ptr(&base_decos) as usize,
+                base_ptr: base_decos.id as usize,
                 old_blocks: 100..101,
                 new_blocks: 100..101,
             }),

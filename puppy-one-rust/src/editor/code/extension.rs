@@ -25,6 +25,7 @@ use crate::{
     editor::{
         text::{
             buffer::Buffer,
+            change::Assoc,
             selection::Selection,
             state::{Applied, EditorState, StateEffect, Transaction},
         },
@@ -32,8 +33,8 @@ use crate::{
         view::{
             command::Command,
             decoration::{
-                Block, Decorations, InlineWidget, Mark, MarkStyle, RevealLayer, RevealPatch,
-                Surface, packed,
+                Block, BlockSplice, Decorations, InlineWidget, Mark, MarkStyle, RevealLayer,
+                RevealPatch, Surface, next_decorations_id, packed,
             },
             extension::{DecorateInput, EditIntent, EditorExtension, SetAppearance, SetReadOnly},
             style::{Align, Edges, LineHeight, LineStyle, Paint, Rect, TextStyle},
@@ -96,13 +97,32 @@ struct DerivedKey {
     theme_key: u64,
 }
 
+#[derive(Clone)]
+struct CodeEditSplice {
+    from_rev: u64,
+    to_rev: u64,
+    old_lines: Range<usize>,
+    new_lines: Range<usize>,
+    old_bytes: Range<usize>,
+    new_bytes: Range<usize>,
+    byte_delta: isize,
+}
+
+struct CachedCodeDecos {
+    doc_key: u64,
+    dark: bool,
+    revision: u64,
+    decos: Rc<Decorations>,
+}
+
 #[derive(Default)]
 struct DerivedCache {
     key: Option<DerivedKey>,
     syntax_marks: Vec<Mark>,
     trailing_ws: Vec<Range<usize>>,
     fold_ranges: Vec<Range<usize>>,
-    doc_decos: Option<(u64, bool, Rc<Decorations>)>,
+    last_edit: Option<CodeEditSplice>,
+    doc_decos: Option<CachedCodeDecos>,
     #[cfg(test)]
     pub recompute_count: u64,
 }
@@ -214,6 +234,7 @@ impl CodeExtension {
         cache.trailing_ws = trailing_whitespace_in_buffer(&state.doc);
         cache.fold_ranges = compute_fold_ranges(&state.doc, self.language);
         cache.key = Some(want);
+        cache.last_edit = None;
         cache.doc_decos = None;
     }
 
@@ -482,6 +503,108 @@ impl EditorExtension for CodeExtension {
 
     fn prepare_applied(&mut self, applied: &Applied, state: &EditorState) {
         self.folds.map_changes(&applied.changes, state.revision);
+
+        if applied.changes.is_empty()
+            || applied.before_doc.line_count() == 0
+            || state.doc.line_count() == 0
+        {
+            return;
+        }
+        let slices = applied.changes.changes();
+        let first_old = slices.first().map_or(0, |c| c.range.start);
+        let last_old = slices.last().map_or(0, |c| c.range.end);
+        let old_first_line = applied.before_doc.line_index(first_old);
+        let old_last_line = applied
+            .before_doc
+            .line_index(last_old)
+            .min(applied.before_doc.line_count() - 1);
+        let old_lines = old_first_line..(old_last_line + 1);
+        let old_bytes = applied.before_doc.line_range(old_first_line).start
+            ..applied.before_doc.line_range(old_last_line).end;
+
+        let new_start_off = state
+            .doc
+            .clamp(applied.changes.map(first_old, Assoc::Before));
+        let new_end_off = state.doc.clamp(applied.changes.map(last_old, Assoc::After));
+        let new_first_line = state.doc.line_index(new_start_off);
+        let new_last_line = state
+            .doc
+            .line_index(new_end_off)
+            .min(state.doc.line_count() - 1);
+        let new_lines = new_first_line..(new_last_line + 1);
+        let new_bytes =
+            state.doc.line_range(new_first_line).start..state.doc.line_range(new_last_line).end;
+        let byte_delta = state.doc.len() as isize - applied.before_doc.len() as isize;
+
+        let from_rev = state.revision.wrapping_sub(1);
+        let theme_key = crate::editor::tokens::theme_key();
+        let prev_key = DerivedKey {
+            revision: from_rev,
+            len: applied.before_doc.len(),
+            language: self.language.0,
+            dark: self.dark,
+            scale: self.scale as u8,
+            theme_key,
+        };
+        let mut cache = self.cache.borrow_mut();
+        let syntax_exempt = self.language.0 == "plaintext" || state.doc.len() > MAX_SYNTAX_BYTES;
+        if cache.key == Some(prev_key)
+            && syntax_exempt
+            && self.folds.is_empty()
+            && cache.fold_ranges.is_empty()
+            && old_lines.len() == new_lines.len()
+        {
+            if state.doc.len() > super::decorate::MAX_PASSIVE_SCAN_BYTES {
+                cache.trailing_ws.clear();
+            } else {
+                let p_end = cache
+                    .trailing_ws
+                    .partition_point(|r| r.end <= old_bytes.start);
+                let s_start = cache
+                    .trailing_ws
+                    .partition_point(|r| r.start < old_bytes.end)
+                    .max(p_end);
+                let mut local_ws = Vec::new();
+                for l in new_lines.clone() {
+                    let lr = state.doc.line_range(l);
+                    if !lr.is_empty() {
+                        let ls = state.doc.line_cow(l);
+                        let trimmed = ls.trim_end_matches([' ', '\t']).len();
+                        if trimmed < ls.len() {
+                            local_ws.push(lr.start + trimmed..lr.end);
+                        }
+                    }
+                }
+                let mut next_ws = Vec::with_capacity(
+                    p_end + local_ws.len() + (cache.trailing_ws.len() - s_start),
+                );
+                next_ws.extend_from_slice(&cache.trailing_ws[..p_end]);
+                next_ws.extend(local_ws);
+                for r in &cache.trailing_ws[s_start..] {
+                    let s = (r.start as isize + byte_delta) as usize;
+                    let e = (r.end as isize + byte_delta) as usize;
+                    next_ws.push(s..e);
+                }
+                cache.trailing_ws = next_ws;
+            }
+            cache.syntax_marks.clear();
+            cache.key = Some(DerivedKey {
+                revision: state.revision,
+                len: state.doc.len(),
+                ..prev_key
+            });
+            cache.last_edit = Some(CodeEditSplice {
+                from_rev,
+                to_rev: state.revision,
+                old_lines,
+                new_lines,
+                old_bytes,
+                new_bytes,
+                byte_delta,
+            });
+        } else {
+            cache.last_edit = None;
+        }
     }
 
     fn supports_layered_decorations(&self) -> bool {
@@ -513,16 +636,118 @@ impl EditorExtension for CodeExtension {
         self.ensure_derived(state, dark);
         {
             let cache = self.cache.borrow();
-            if let Some((k, cached_dark, ref rc)) = cache.doc_decos
-                && k == doc_key
-                && cached_dark == dark
+            if let Some(ref cached) = cache.doc_decos
+                && cached.doc_key == doc_key
+                && cached.dark == dark
+                && cached.revision == state.revision
             {
-                return Rc::clone(rc);
+                return Rc::clone(&cached.decos);
             }
         }
 
         let p = Theme::new(dark);
         let ws_tint = packed(theme::alpha(p.danger, 0.20));
+
+        // O(1) incremental Document Layer splice (`TA-13`, `CE-03`, `CE-30`):
+        // moves the existing `Vec<Block>` without cloning untouched lines and
+        // hands `HeightMap` a narrow `BlockSplice` covering only `edit.new_lines`.
+        let can_incremental = {
+            let cache = self.cache.borrow();
+            match (&cache.last_edit, &cache.doc_decos) {
+                (Some(edit), Some(prev)) => {
+                    edit.to_rev == state.revision
+                        && prev.revision == edit.from_rev
+                        && prev.doc_key == doc_key
+                        && prev.dark == dark
+                        && edit.old_lines.len() == edit.new_lines.len()
+                        && self.folds.is_empty()
+                        && cache.fold_ranges.is_empty()
+                        && cache.syntax_marks.is_empty()
+                        && prev.decos.blocks.len() == state.doc.line_count()
+                }
+                _ => false,
+            }
+        };
+        if can_incremental {
+            let (edit, prev_decos, trailing_empty, new_ws_marks) = {
+                let mut cache = self.cache.borrow_mut();
+                let edit = cache.last_edit.take().unwrap();
+                let prev = cache.doc_decos.take().unwrap();
+                let trailing_empty = cache.trailing_ws.is_empty();
+                let new_ws_marks: Vec<Mark> = if trailing_empty {
+                    Vec::new()
+                } else {
+                    let first = cache
+                        .trailing_ws
+                        .partition_point(|r| r.end <= edit.new_bytes.start);
+                    let last = cache
+                        .trailing_ws
+                        .partition_point(|r| r.start < edit.new_bytes.end)
+                        .max(first);
+                    cache.trailing_ws[first..last]
+                        .iter()
+                        .map(|r| Mark {
+                            range: r.clone(),
+                            style: MarkStyle {
+                                highlight: Some(ws_tint),
+                                ..Default::default()
+                            },
+                        })
+                        .collect()
+                };
+                (edit, prev.decos, trailing_empty, new_ws_marks)
+            };
+            let base_ptr = prev_decos.id as usize;
+            let mut owned = Rc::unwrap_or_clone(prev_decos);
+            owned.id = next_decorations_id();
+            if state.doc.line_count() <= MAX_GUTTER_OVERLAY_LINES {
+                for l in edit.new_lines.clone() {
+                    owned.blocks[l] = Block::Line {
+                        line: l,
+                        style: Rc::new(self.build_line_style(&state.doc, l, dark, false, None)),
+                    };
+                }
+            }
+            if trailing_empty {
+                owned.marks.clear();
+            } else {
+                let p_end = owned
+                    .marks
+                    .partition_point(|m| m.range.end <= edit.old_bytes.start);
+                let s_start = owned
+                    .marks
+                    .partition_point(|m| m.range.start < edit.old_bytes.end)
+                    .max(p_end);
+                let mut next_marks =
+                    Vec::with_capacity(p_end + new_ws_marks.len() + (owned.marks.len() - s_start));
+                next_marks.extend_from_slice(&owned.marks[..p_end]);
+                next_marks.extend(new_ws_marks);
+                for m in &owned.marks[s_start..] {
+                    let s = (m.range.start as isize + edit.byte_delta) as usize;
+                    let e = (m.range.end as isize + edit.byte_delta) as usize;
+                    next_marks.push(Mark {
+                        range: s..e,
+                        style: m.style.clone(),
+                    });
+                }
+                owned.marks = next_marks;
+            }
+            owned.surface = self.surface_style(dark);
+            owned.splice = Some(BlockSplice {
+                base_ptr,
+                old_blocks: edit.old_lines,
+                new_blocks: edit.new_lines,
+            });
+            let next_rc = Rc::new(owned);
+            self.cache.borrow_mut().doc_decos = Some(CachedCodeDecos {
+                doc_key,
+                dark,
+                revision: state.revision,
+                decos: Rc::clone(&next_rc),
+            });
+            return next_rc;
+        }
+
         let (marks, fold_ranges) = {
             let cache = self.cache.borrow();
             let ws_tints: Vec<(Range<usize>, u32)> = cache
@@ -583,6 +808,7 @@ impl EditorExtension for CodeExtension {
         }
 
         let built = Rc::new(Decorations {
+            id: next_decorations_id(),
             blocks,
             marks,
             hidden: Vec::new(),
@@ -592,7 +818,12 @@ impl EditorExtension for CodeExtension {
             surface: self.surface_style(dark),
             splice: None,
         });
-        self.cache.borrow_mut().doc_decos = Some((doc_key, dark, Rc::clone(&built)));
+        self.cache.borrow_mut().doc_decos = Some(CachedCodeDecos {
+            doc_key,
+            dark,
+            revision: state.revision,
+            decos: Rc::clone(&built),
+        });
         built
     }
 

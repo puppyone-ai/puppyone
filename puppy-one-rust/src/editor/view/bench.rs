@@ -193,3 +193,140 @@ fn editor_edit_cost() {
 
     bench::report_edit("edit", lines, &typing, &arrow, &ime, &find_typing);
 }
+
+struct CodeBenchHost {
+    surface: Box<dyn crate::editor::registry::ViewerSurface>,
+    _sub: Subscription,
+}
+
+impl Render for CodeBenchHost {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        self.surface.element()
+    }
+}
+
+/// CE-30: single-keystroke adapter & frame cost on `160 KiB` (`sections = 1`) vs
+/// `16 MiB` (`sections = 100`) text/code files (`tools/bench-editor.py` `code_edit`).
+#[test]
+#[ignore = "benchmark: run in release through tools/bench-editor.py"]
+fn code_edit_cost() {
+    use crate::editor::{
+        registry::{self, EditorDocument, SourceKind, SurfaceEvent, SurfaceInput, SurfaceRequest},
+        viewers::code,
+    };
+    use std::{cell::Cell, rc::Rc};
+
+    let sections = bench::sections().max(1);
+    let steps = bench::edit_steps();
+    let target_bytes = sections * 163_840; // 1 -> 160 KiB, 100 -> ~16 MiB (16,384,000 B)
+    let line_template =
+        "2026-11-16T12:00:00Z INFO  worker::pipeline request_id=abc123 status=200\n";
+    let repeat_lines = target_bytes.div_ceil(line_template.len());
+    let text = line_template.repeat(repeat_lines);
+
+    let mut app = bench::app();
+    app.update(bind_keys);
+    let snapshots_taken = Rc::new(Cell::new(0usize));
+    let snap_counter = snapshots_taken.clone();
+
+    let (host, cx) = app.add_window_view(|w, cx| {
+        let format = registry::resolve(&EditorDocument::local("large.log")).format;
+        let surface = code::open(
+            &SurfaceRequest {
+                id: "bench-code-16m",
+                name: "large.log",
+                input: SurfaceInput::Text(&text),
+                format,
+                resolved_extension: None,
+                dark: true,
+                scale: Scale::Medium,
+                workspace: None,
+                file_mode: false,
+                folder: None,
+                web_source: None,
+                assets: None,
+                references: None,
+                source_kind: SourceKind::Local,
+            },
+            w,
+            cx,
+        );
+        let sub = surface
+            .subscribe(
+                Rc::new(move |ev, _| {
+                    if matches!(ev, SurfaceEvent::Changed) {
+                        snap_counter.set(snap_counter.get() + 1);
+                    }
+                }),
+                cx,
+            )
+            .unwrap();
+        CodeBenchHost { surface, _sub: sub }
+    });
+
+    cx.simulate_resize(size(px(1000.), px(800.)));
+    bench::draw(cx);
+
+    let code_view = host.read_with(cx, |h, _| {
+        h.surface.as_test_probe().unwrap().code_editor().unwrap()
+    });
+    let (lines, bytes, mid_byte) = code_view.read_with(cx, |v, cx| {
+        let doc = v.editor.read(cx).committed_doc();
+        let mid_line = doc.line_count() / 2;
+        (doc.line_count(), doc.len(), doc.line_range(mid_line).start)
+    });
+
+    code_view.update_in(cx, |v, w, cx| {
+        v.editor.update(cx, |e, cx| {
+            e.focus(w, cx);
+            e.set_selection(Selection::cursor(mid_byte), cx);
+        });
+    });
+    bench::draw(cx);
+    bench::draw(cx);
+
+    const CHARS: [&str; 5] = ["a", "b", "c", "d", " "];
+
+    // 1. Adapter-layer keystroke cost (input -> Rope transaction -> Changed -> O(1) Buffer snapshot).
+    for i in 0..3 {
+        host.update_in(cx, |h, w, cx| {
+            let cv = h.surface.as_test_probe().unwrap().code_editor().unwrap();
+            cv.update(cx, |v, cx| {
+                v.replace_text_in_range(None, CHARS[i % CHARS.len()], w, cx)
+            });
+            let buf = h.surface.buffer(cx).unwrap();
+            assert!(!buf.has_materialized_flat());
+        });
+    }
+    let before_snaps = snapshots_taken.get();
+    let mut adapter = Samples(Vec::with_capacity(steps));
+    for i in 0..steps {
+        let ch = CHARS[i % CHARS.len()];
+        let elapsed_ms = host.update_in(cx, |h, w, cx| {
+            let t = Instant::now();
+            let cv = h.surface.as_test_probe().unwrap().code_editor().unwrap();
+            cv.update(cx, |v, cx| v.replace_text_in_range(None, ch, w, cx));
+            let buf = h.surface.buffer(cx).unwrap();
+            assert!(!buf.has_materialized_flat());
+            t.elapsed().as_secs_f64() * 1000.
+        });
+        adapter.0.push(elapsed_ms);
+    }
+    assert_eq!(snapshots_taken.get() - before_snaps, steps);
+    bench::draw(cx);
+
+    // 2. Full keystroke + Window::draw frame cost in the middle of the file.
+    let mut frame = Samples(Vec::with_capacity(steps));
+    for i in 0..steps {
+        let ch = CHARS[i % CHARS.len()];
+        frame.0.push(time_input_frame(cx, |cx| {
+            host.update_in(cx, |h, w, cx| {
+                let cv = h.surface.as_test_probe().unwrap().code_editor().unwrap();
+                cv.update(cx, |v, cx| v.replace_text_in_range(None, ch, w, cx));
+                let _ = h.surface.buffer(cx).unwrap();
+            });
+        }));
+    }
+
+    bench::report_code_edit(sections, lines, bytes, &adapter, &frame);
+}

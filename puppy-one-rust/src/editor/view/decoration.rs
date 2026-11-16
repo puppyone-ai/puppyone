@@ -264,8 +264,15 @@ pub struct BlockSplice {
     pub new_blocks: Range<usize>,
 }
 
-#[derive(Clone, Default)]
+pub fn next_decorations_id() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
 pub struct Decorations {
+    /// Monotonic identity token preventing ABA pointer-reuse collisions in `HeightMap`.
+    pub id: u64,
     /// In source order, covering every source line exactly once.
     pub blocks: Vec<Block>,
     /// Sorted by start, non-overlapping.
@@ -285,6 +292,38 @@ pub struct Decorations {
     pub surface: Surface,
     /// Optional incremental splice descriptor for `HeightMap`.
     pub splice: Option<BlockSplice>,
+}
+
+impl Default for Decorations {
+    fn default() -> Self {
+        Self {
+            id: next_decorations_id(),
+            blocks: Vec::new(),
+            marks: Vec::new(),
+            hidden: Vec::new(),
+            atomic: Vec::new(),
+            inline_widgets: Vec::new(),
+            underlines: Vec::new(),
+            surface: Surface::default(),
+            splice: None,
+        }
+    }
+}
+
+impl Clone for Decorations {
+    fn clone(&self) -> Self {
+        Self {
+            id: next_decorations_id(),
+            blocks: self.blocks.clone(),
+            marks: self.marks.clone(),
+            hidden: self.hidden.clone(),
+            atomic: self.atomic.clone(),
+            inline_widgets: self.inline_widgets.clone(),
+            underlines: self.underlines.clone(),
+            surface: self.surface.clone(),
+            splice: self.splice.clone(),
+        }
+    }
 }
 
 fn map_range(range: &Range<usize>, changes: &ChangeSet, doc: &Buffer) -> Option<Range<usize>> {
@@ -469,6 +508,7 @@ impl Decorations {
             .collect();
 
         Self {
+            id: next_decorations_id(),
             blocks,
             marks,
             hidden,
@@ -815,6 +855,7 @@ impl LayeredDecorations {
         }
         atomic.sort_by_key(|r| (r.start, r.end));
         Cow::Owned(Decorations {
+            id: next_decorations_id(),
             blocks: (0..self.block_len())
                 .map(|i| self.block(i).clone())
                 .collect(),

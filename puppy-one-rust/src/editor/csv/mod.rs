@@ -1,5 +1,7 @@
 //! Native CSV / TSV editor (product `editor/viewers/csv`): the structured
 //! model owns the document while live; source mode edits the raw text.
+#[cfg(all(test, target_os = "macos"))]
+mod bench;
 mod cell;
 pub mod diff;
 pub mod document;

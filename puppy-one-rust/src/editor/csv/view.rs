@@ -746,7 +746,7 @@ impl CsvEditor {
 
     /// Activate a cell (`requestFocus`): keyboard focus selects the value; a
     /// press puts the caret at `caret`.
-    fn activate(
+    pub(super) fn activate(
         &mut self,
         row: usize,
         column: usize,
@@ -949,7 +949,7 @@ impl CsvEditor {
 
     /// `applyStructureOperation`: reordering is not a request to edit a cell
     /// (the edit session ends); every other operation focuses its target.
-    fn apply_operation(
+    pub(super) fn apply_operation(
         &mut self,
         operation: Operation,
         row: usize,

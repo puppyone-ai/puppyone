@@ -658,6 +658,13 @@ impl EditorView {
                 chrome_inset: inset_bits,
             };
             if self.caches.doc_deco_key != Some(doc_key) {
+                if effective_inset == 0. {
+                    // Release our extra Rc handles before calling `decorate_document`
+                    // so extensions retaining `Rc<Decorations>` see `strong_count == 1`
+                    // and can move `blocks` in O(1) without cloning the whole vector.
+                    self.caches.decorations = LayeredDecorations::default();
+                    self.caches.doc_layer = Rc::default();
+                }
                 let raw = self.extensions.decorate_document(&self.state, self.dark);
                 let doc_layer = if effective_inset != 0. {
                     let mut adjusted = (*raw).clone();

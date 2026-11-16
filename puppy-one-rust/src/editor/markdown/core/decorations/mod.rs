@@ -484,6 +484,7 @@ fn decorate_window(
 pub fn decorate(cx: &DecorateCx) -> Decorations {
     let win = decorate_window(cx, 0..cx.doc.line_count(), 0, None, 0, None);
     Decorations {
+        id: crate::editor::view::decoration::next_decorations_id(),
         blocks: win.blocks,
         marks: win.marks,
         hidden: win.hidden,
@@ -519,6 +520,7 @@ pub fn decorate_with_registry(
         .collect();
     registry.retain_live(&live_ids);
     Decorations {
+        id: crate::editor::view::decoration::next_decorations_id(),
         blocks: win.blocks,
         marks: win.marks,
         hidden: win.hidden,
@@ -851,6 +853,7 @@ pub fn decorate_incremental(
     };
 
     Decorations {
+        id: crate::editor::view::decoration::next_decorations_id(),
         blocks,
         marks,
         hidden,
@@ -859,7 +862,7 @@ pub fn decorate_incremental(
         underlines,
         surface: surface(cx.theme),
         splice: Some(BlockSplice {
-            base_ptr: Rc::as_ptr(prev) as usize,
+            base_ptr: prev.id as usize,
             old_blocks: b_start..b_end,
             new_blocks: new_blocks_range,
         }),

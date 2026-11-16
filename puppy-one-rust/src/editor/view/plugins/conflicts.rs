@@ -9,8 +9,9 @@ use crate::{
     editor::{
         text::{
             buffer::Buffer,
+            change::Assoc,
             history::minimal_diff,
-            state::{Transaction, UserEvent},
+            state::{Applied, EditorState, Transaction, UserEvent},
         },
         view::editor::EditorView,
     },
@@ -161,6 +162,7 @@ pub fn resolve_one(content: &str, index: usize, side: Side) -> String {
 #[derive(Default)]
 struct CachedConflicts {
     key: Option<(u64, usize)>,
+    has_open_marker: Option<bool>,
     blocks: Rc<Vec<Block>>,
     expanded: bool,
     #[cfg(test)]
@@ -184,8 +186,15 @@ impl ConflictBannerPlugin {
         {
             cache.parses += 1;
         }
-        let parsed = Rc::new(parse_buffer(doc));
+        let open = may_contain_open_marker(doc);
+        let parsed = Rc::new(if open {
+            let text = doc.slice_cow(0..doc.len());
+            parse(&text)
+        } else {
+            Vec::new()
+        });
         cache.key = Some(key);
+        cache.has_open_marker = Some(open);
         cache.blocks = Rc::clone(&parsed);
         parsed
     }
@@ -230,6 +239,47 @@ impl ViewPlugin for ConflictBannerPlugin {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn on_applied(&mut self, applied: &Applied, state: &EditorState) {
+        if applied.is_annotation(crate::editor::text::state::Annotation::INPUT_COMPOSE) {
+            return;
+        }
+        let prev_key = (state.revision.wrapping_sub(1), applied.before_doc.len());
+        let mut cache = self.cache.borrow_mut();
+        // O(1) fast-path (`CE-03`, `CE-30`): if the prior revision contained zero
+        // `"<<<<<<<"` markers, only inspect lines touched by `applied.changes`.
+        if cache.key == Some(prev_key)
+            && cache.has_open_marker == Some(false)
+            && !applied.changes.is_empty()
+            && state.doc.line_count() > 0
+        {
+            let slices = applied.changes.changes();
+            let first_old = slices.first().map_or(0, |c| c.range.start);
+            let last_old = slices.last().map_or(0, |c| c.range.end);
+            let new_start = state
+                .doc
+                .clamp(applied.changes.map(first_old, Assoc::Before));
+            let new_end = state.doc.clamp(applied.changes.map(last_old, Assoc::After));
+            let first_line = state.doc.line_index(new_start);
+            let last_line = state
+                .doc
+                .line_index(new_end)
+                .min(state.doc.line_count() - 1);
+            let introduced_marker = (first_line..=last_line).any(|l| {
+                state
+                    .doc
+                    .line_cow(l)
+                    .as_bytes()
+                    .windows(7)
+                    .any(|w| w == b"<<<<<<<")
+            });
+            if !introduced_marker {
+                cache.key = Some((state.revision, state.doc.len()));
+                cache.has_open_marker = Some(false);
+                cache.blocks = Rc::default();
+            }
+        }
     }
 
     fn header(&self, view: &EditorView, cx: &mut Context<EditorView>) -> Vec<AnyElement> {
