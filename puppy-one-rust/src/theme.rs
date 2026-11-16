@@ -107,6 +107,19 @@ pub fn screen_thumb_window(live: bool) -> Rgba {
         rgba(0xffffff2e)
     }
 }
+/// `.project-computer-led` (`computer-mode.css`): a miniature computer's chin
+/// light while it runs (`#22c55e`) or starts its desktop (`#f59e0b`).
+pub fn computer_led(starting: bool) -> Rgba {
+    if starting {
+        rgb(0xf59e0b)
+    } else {
+        rgb(0x22c55e)
+    }
+}
+/// `.project-computer-svg`'s `drop-shadow(0 3px 8px #000 8%)`.
+pub fn computer_shadow() -> Rgba {
+    rgba(0x00000014)
+}
 /// `.pill` (`workbench-redesign-v4.html`): dark translucent glass controls
 /// over the live desktop picture regardless of shell theme.
 pub fn screen_overlay_surface() -> Rgba {

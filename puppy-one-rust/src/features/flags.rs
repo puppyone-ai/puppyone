@@ -4,10 +4,14 @@
 //! - `account_available`: this build offers a PuppyOne account (Settings >
 //!   Account, session restore, PuppyOne compute). An account is not Cloud.
 //! - `cloud_enabled`: the account is available *and* the user turned on the
-//!   Cloud experiment. Cloud projects, the Cloud Computer and its Plan,
-//!   sharing, first-run sign-in, the Homepage account status and marketplace
-//!   template links follow this; while it is off nothing contacts Cloud
-//!   except the account session itself.
+//!   Cloud experiment (or Computer Mode, whose Cloud Computers need it).
+//!   Cloud projects, the Cloud Computer and its Plan, sharing, first-run
+//!   sign-in, the Homepage account status and marketplace template links
+//!   follow this; while it is off nothing contacts Cloud except the account
+//!   session itself.
+//! - `computer_mode_enabled`: projects are framed as miniature Cloud and
+//!   on-device computers (`useComputerModeEnabled`); it also shows the Cloud
+//!   Computer screen without its own switch.
 //! - `host_devices_available`: the account is available and this build
 //!   passes the Other computers release gate (`hosts::AVAILABLE`, closed in
 //!   v0.4.4); the experiment's switch shows only then.
@@ -26,15 +30,17 @@ pub fn payments_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> boo
     account_available(cx) && preferences.read(cx).state.experimental.payments
 }
 pub fn cloud_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
-    account_available(cx) && preferences.read(cx).state.experimental.cloud_workspace
+    let experimental = &preferences.read(cx).state.experimental;
+    account_available(cx) && (experimental.cloud_workspace || experimental.computer_mode)
 }
 pub fn cloud_screen_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
+    let experimental = &preferences.read(cx).state.experimental;
     cloud_enabled(preferences, cx)
-        && preferences
-            .read(cx)
-            .state
-            .experimental
-            .cloud_computer_screen
+        && (experimental.cloud_computer_screen || experimental.computer_mode)
+}
+/// `useComputerModeEnabled`: needs no account; on-device computers are local.
+pub fn computer_mode_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
+    preferences.read(cx).state.experimental.computer_mode
 }
 /// `VITE_HOST_DEVICES_ENABLED`: whether a build offers the owner's other
 /// computers out of the box (the Settings switch can still turn them on).

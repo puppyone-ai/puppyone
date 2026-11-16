@@ -35,7 +35,19 @@ enum Status {
 }
 
 impl CloudScreen {
-    fn status(&self) -> Status {
+    fn status(&self, cx: &App) -> Status {
+        // The computer on this computer runs whether or not it has a
+        // desktop yet; its display can still drop.
+        if let Some(screen) = self.local_screen(cx) {
+            use crate::features::computer_mode::Screen;
+            return match screen {
+                Screen::Asleep => Status::Asleep,
+                Screen::Starting => Status::Provisioning,
+                Screen::Workspace { .. } => Status::Running,
+                Screen::Desktop { .. } if self.phase == StreamPhase::Failed => Status::Disconnected,
+                Screen::Desktop { .. } => Status::Running,
+            };
+        }
         match self.sandbox.availability() {
             ScreenAvailability::Stream { .. } => match self.phase {
                 StreamPhase::Asleep => Status::Asleep,
@@ -63,7 +75,7 @@ impl CloudScreen {
         let card = layout.card?;
         let t = cx.palette();
         let ty = theme::ty();
-        let status = self.status();
+        let status = self.status(cx);
         let on = self.shown;
         let live = layout.shown.is_some();
         let unfold = layout.shown.map_or(0., |s| s.pose.unfold);
@@ -78,7 +90,11 @@ impl CloudScreen {
                         &[("name", name.to_string().into())],
                     )
                     .into(),
-                    None => SharedString::from(tr("cloud.sandbox.screen.status.running-cloud")),
+                    None => SharedString::from(tr(if self.is_local() {
+                        "cloud.sandbox.screen.status.running-device"
+                    } else {
+                        "cloud.sandbox.screen.status.running-cloud"
+                    })),
                 },
             ),
             Status::Provisioning => (
@@ -471,6 +487,33 @@ impl CloudScreen {
                     .child(Icon::new("mouse-pointer-2").with_size(px(14.)).stroke(2.))
                     .child(tr("cloud.sandbox.screen.take-control")),
             )
+            // A computer on this computer can be put to sleep from its screen.
+            .when(self.is_local(), |d| {
+                let sleep = entity.clone();
+                d.child(
+                    pill()
+                        .id("local-screen-sleep")
+                        .debug_selector(|| "local-screen-sleep".into())
+                        .absolute()
+                        .top(px(12.))
+                        .right(px(12.))
+                        .h(px(30.))
+                        .px(px(12.))
+                        .gap(px(6.))
+                        .text_size(px(ty.meta))
+                        .opacity(0.)
+                        .group_hover("cloud-screen-live", |s| s.opacity(1.))
+                        .hover(|s| s.bg(theme::screen_overlay_hover()))
+                        .cursor(theme::clickable_cursor())
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(move |_, _, cx| {
+                            cx.stop_propagation();
+                            sleep.update(cx, |s, cx| s.sleep_local(cx));
+                        })
+                        .child(Icon::new("moon").with_size(px(13.)).stroke(2.))
+                        .child(tr("onboarding.computerMode.screen.sleepAction")),
+                )
+            })
             .into_any_element()
     }
 }

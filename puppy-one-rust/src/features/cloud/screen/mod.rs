@@ -3,6 +3,10 @@
 //! unfolded to a preview while an Agent works there — and moves onto the
 //! main area when opened, over a persistent VNC/RFB stream with explicit
 //! `Take control` input gating.
+//!
+//! In Computer Mode the same screen shows a computer on this computer
+//! (`DesktopLocalComputerWorkspace`): its desktop's display over loopback
+//! VNC, or what keeps it from showing — asleep, starting, or no desktop yet.
 mod glyph;
 mod keys;
 mod motion;
@@ -13,11 +17,12 @@ mod stage;
 use crate::{
     cloud::auth::Cancellation,
     features::{
-        flags,
+        computer_mode, flags,
         settings::{PreferencesChanged, PreferencesStore},
     },
     geometry::Rect,
     localization::t as tr,
+    platform::local_computers::Record,
     theme::{self, metric},
     ui::appearance::ActiveAppearance,
     workspace::cloud::sandbox::{CloudSandbox, SandboxSettings, SandboxTarget, ScreenAvailability},
@@ -74,6 +79,10 @@ pub struct CloudScreen {
     preferences: Entity<PreferencesStore>,
     focus: FocusHandle,
     target: Option<SandboxTarget>,
+    /// Computer Mode: the window's workspace folder, and the computer it is
+    /// on this computer, when it is one.
+    local_path: Option<std::path::PathBuf>,
+    local: Option<Record>,
     sandbox: CloudSandbox,
     shown: bool,
     interactive: bool,
@@ -122,11 +131,16 @@ impl CloudScreen {
             }
         })
         .detach();
+        let computers = computer_mode::global(&preferences, cx);
+        cx.observe(&computers, |s, _, cx| s.refresh_local(cx))
+            .detach();
 
         Self {
             preferences,
             focus,
             target: None,
+            local_path: None,
+            local: None,
             sandbox: CloudSandbox::default(),
             shown: false,
             interactive: false,
@@ -158,9 +172,75 @@ impl CloudScreen {
     }
 
     pub(super) fn entry_available(&self, cx: &App) -> bool {
+        if self.local.is_some() {
+            return flags::computer_mode_enabled(&self.preferences, cx);
+        }
         self.target.is_some()
             && self.sandbox.screen_present()
             && flags::cloud_screen_enabled(&self.preferences, cx)
+    }
+
+    /// What the computer on this computer can show now.
+    pub(super) fn local_screen(&self, cx: &App) -> Option<computer_mode::Screen> {
+        let record = self.local.as_ref()?;
+        Some(computer_mode::read(cx)?.screen(record))
+    }
+
+    /// There is a display to stream: the Cloud Computer's, or the desktop of
+    /// the computer on this computer.
+    fn streams(&self, cx: &App) -> bool {
+        match self.local_screen(cx) {
+            Some(screen) => matches!(screen, computer_mode::Screen::Desktop { .. }),
+            None => {
+                self.local.is_none()
+                    && matches!(
+                        self.sandbox.availability(),
+                        ScreenAvailability::Stream { .. }
+                    )
+            }
+        }
+    }
+
+    /// Computer Mode: the window shows the workspace at `path` (or none).
+    pub fn set_local_workspace(
+        &mut self,
+        path: Option<std::path::PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.local_path != path {
+            self.local_path = path;
+            self.refresh_local(cx);
+        }
+    }
+
+    /// The computer of the window's workspace, as the registry has it now.
+    fn refresh_local(&mut self, cx: &mut Context<Self>) {
+        let record = self
+            .local_path
+            .as_deref()
+            .and_then(|path| computer_mode::read(cx)?.for_path(path));
+        if record == self.local {
+            return;
+        }
+        let was_shown = self.is_shown(cx);
+        let same = record.as_ref().map(|r| &r.id) == self.local.as_ref().map(|r| &r.id);
+        if !same {
+            self.teardown_session(cx);
+            self.shown = false;
+            self.interactive = false;
+            self.fold = None;
+        }
+        let port = |r: &Option<Record>| {
+            r.as_ref()
+                .and_then(|r| r.vnc_port.filter(|_| r.desktop_ready))
+        };
+        let restream = same && port(&record) != port(&self.local);
+        self.local = record;
+        if restream {
+            self.teardown_session(cx);
+        }
+        self.settle_visibility(was_shown, cx);
+        cx.notify();
     }
 
     fn settle_visibility(&mut self, was_shown: bool, cx: &mut Context<Self>) {
@@ -303,10 +383,7 @@ impl CloudScreen {
     /// A picture of the screen to show: streaming, with a frame.
     pub(super) fn live(&self, cx: &App) -> bool {
         self.entry_available(cx)
-            && matches!(
-                self.sandbox.availability(),
-                ScreenAvailability::Stream { .. }
-            )
+            && self.streams(cx)
             && matches!(self.phase, StreamPhase::Connecting | StreamPhase::Connected)
             && self.frame_image.is_some()
     }
@@ -364,7 +441,12 @@ impl CloudScreen {
     }
 
     fn on_preferences_changed(&mut self, cx: &mut Context<Self>) {
-        if !flags::cloud_screen_enabled(&self.preferences, cx) {
+        let enabled = if self.local.is_some() {
+            flags::computer_mode_enabled(&self.preferences, cx)
+        } else {
+            flags::cloud_screen_enabled(&self.preferences, cx)
+        };
+        if !enabled {
             let was_shown = self.shown;
             self.shown = false;
             self.interactive = false;
@@ -379,11 +461,7 @@ impl CloudScreen {
     }
 
     fn reconcile_stream(&mut self, cx: &mut Context<Self>) {
-        let wants_stream = self.entry_available(cx)
-            && matches!(
-                self.sandbox.availability(),
-                ScreenAvailability::Stream { .. }
-            );
+        let wants_stream = self.entry_available(cx) && self.streams(cx);
         if !wants_stream {
             self.teardown_session(cx);
             return;
@@ -395,20 +473,43 @@ impl CloudScreen {
 
     pub(super) fn retry(&mut self, cx: &mut Context<Self>) {
         self.teardown_session(cx);
-        if self.entry_available(cx)
-            && matches!(
-                self.sandbox.availability(),
-                ScreenAvailability::Stream { .. }
-            )
-        {
+        if self.entry_available(cx) && self.streams(cx) {
             self.start_stream(cx);
         }
         cx.notify();
     }
 
     pub(super) fn wake(&mut self, cx: &mut Context<Self>) {
+        if let Some(id) = self.local.as_ref().map(|r| r.id.clone()) {
+            computer_mode::global(&self.preferences, cx).update(cx, |c, cx| c.wake(&id, cx));
+            return;
+        }
         cx.emit(CloudScreenEvent::WakeWorkspace);
         self.retry(cx);
+    }
+
+    /// `Put to sleep` (the computer on this computer).
+    pub(super) fn sleep_local(&mut self, cx: &mut Context<Self>) {
+        if let Some(id) = self.local.as_ref().map(|r| r.id.clone()) {
+            self.close(cx);
+            computer_mode::global(&self.preferences, cx).update(cx, |c, cx| c.sleep(&id, cx));
+        }
+    }
+
+    /// `Start desktop screen` (the computer on this computer).
+    fn start_local_desktop(&mut self, cx: &mut Context<Self>) {
+        if let Some(id) = self.local.as_ref().map(|r| r.id.clone()) {
+            computer_mode::global(&self.preferences, cx)
+                .update(cx, |c, cx| c.provision_desktop(&id, cx));
+        }
+    }
+
+    /// The display's address: its loopback port on this computer.
+    pub(super) fn local_port(&self, cx: &App) -> Option<u16> {
+        match self.local_screen(cx)? {
+            computer_mode::Screen::Desktop { port } => Some(port),
+            _ => None,
+        }
     }
 
     pub(super) fn pointer_at(&self, position: Point<Pixels>) -> Option<(u16, u16)> {
@@ -479,6 +580,72 @@ impl CloudScreen {
             .into_any_element()
     }
 
+    /// What keeps the computer on this computer from showing its desktop
+    /// (`LocalComputerScreenView`): asleep, starting, or no desktop yet.
+    fn render_local_notice(
+        &self,
+        t: crate::theme::Theme,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        use computer_mode::Screen;
+        let notice = match self.local_screen(cx)? {
+            Screen::Desktop { .. } => return None,
+            Screen::Asleep => {
+                let btn = self.notice_button(
+                    "local-screen-wake",
+                    tr("onboarding.computerMode.screen.wakeAction"),
+                    false,
+                    t,
+                    |s, _, _, cx| s.wake(cx),
+                    cx,
+                );
+                self.render_notice(
+                    t,
+                    tr("onboarding.computerMode.screen.asleepNote"),
+                    Some(btn),
+                )
+            }
+            Screen::Starting => self.render_notice(
+                t,
+                tr("onboarding.computerMode.screen.provisioningNote"),
+                None,
+            ),
+            Screen::Workspace { can_start } => {
+                let btn = can_start.then(|| {
+                    self.notice_button(
+                        "local-screen-start-desktop",
+                        tr("onboarding.computerMode.screen.startDesktopAction"),
+                        false,
+                        t,
+                        |s, _, _, cx| s.start_local_desktop(cx),
+                        cx,
+                    )
+                });
+                self.render_notice(
+                    t,
+                    tr("onboarding.computerMode.screen.workspaceReadyNote"),
+                    btn,
+                )
+            }
+        };
+        Some(notice)
+    }
+
+    /// The computer on this computer this screen shows, if it is one.
+    pub(super) fn is_local(&self) -> bool {
+        self.local.is_some()
+    }
+
+    #[cfg(test)]
+    pub fn local_for_test(&self) -> Option<&Record> {
+        self.local.as_ref()
+    }
+
+    #[cfg(test)]
+    pub fn local_screen_for_test(&self, cx: &App) -> Option<computer_mode::Screen> {
+        self.local_screen(cx)
+    }
+
     #[cfg(test)]
     pub fn set_reconnect_delay_for_test(&mut self, delay: Duration) {
         self.reconnect_delay = delay;
@@ -537,6 +704,9 @@ impl Render for CloudScreen {
     /// pointer and keys. The picture itself is the moving screen above it.
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
+        if let Some(notice) = self.render_local_notice(t, cx) {
+            return notice;
+        }
         match self.sandbox.availability() {
             ScreenAvailability::Preview => {
                 return self.render_notice(t, tr("cloud.sandbox.screen.preview-note"), None);
