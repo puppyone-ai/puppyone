@@ -2,6 +2,7 @@
 //! rendering and pointer dispatch, without a browser or live billing service.
 use super::*;
 use crate::features::settings::{Page, PreferencesStore};
+use crate::test_support::RecordingText;
 use crate::workspace::cloud::{
     billing::{Summary, Usage},
     pricing::PlanHolding,
@@ -13,9 +14,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-#[path = "recording_text.rs"]
-mod recording_text;
-use recording_text::RecordingText;
 
 #[derive(Clone)]
 enum Content {

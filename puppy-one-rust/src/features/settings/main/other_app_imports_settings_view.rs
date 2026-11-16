@@ -41,6 +41,7 @@ impl SettingsWorkspaceSurface {
             .child(
                 h_flex().px(px(10.)).child(
                     Button::new("open-import")
+                        .debug_selector(|| "settings-open-import".into())
                         .variant(ButtonVariant::OutlinePrimary)
                         .label(title)
                         .on_click(cx.listener(|_, _, _, cx| {

@@ -18,6 +18,7 @@ mod homepage;
 mod other_computers;
 mod pane_layout;
 mod project_lifecycle;
+mod settings_import;
 mod sidebar_surfaces;
 mod sign_in_dialog;
 mod window_chrome;

@@ -4,7 +4,7 @@
 use gpui::*;
 use std::{borrow::Cow, sync::Mutex};
 #[derive(Default)]
-pub(super) struct RecordingText(pub Mutex<Vec<String>>);
+pub(crate) struct RecordingText(pub Mutex<Vec<String>>);
 impl PlatformTextSystem for RecordingText {
     fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> anyhow::Result<()> {
         NoopTextSystem.add_fonts(fonts)

@@ -8,6 +8,8 @@ mod features;
 #[cfg(feature = "dev-capture")]
 mod lab;
 mod native_window;
+#[cfg(test)]
+mod test_support;
 
 // The layers below the window, under the names the sources use.
 use gpui::*;

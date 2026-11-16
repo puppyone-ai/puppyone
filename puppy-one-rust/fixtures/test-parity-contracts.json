@@ -12615,6 +12615,33 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-settings-import-entry",
+      "acceptance": "The production Settings page renders all seven experimental source brand names, captured from the actual GPUI text-layout backend. Its enabled native Import button has the expected accessible name. A real pointer click emits exactly Closed then OpenImport, removes the Settings task and leaves one common ImportRepository modal with all nine visible sources and no selected source or repository request. The current workspace is retained and no folder prompt opens. The test owns isolated preferences and app-record locations, drives the actual shared Shell and DialogLayer, delivers frame callbacks explicitly and quits through the owning TestAppContext. It does not claim operating-system accessibility-tree or generic SaaS adapter qualification.",
+      "typescript": [
+        {
+          "path": "tests/component/settings/feature-flags/otherAppImportsSettings.test.tsx",
+          "sha256": "a4a24674b4fcba764163f3707d974b128c9774afa7af3e7338c7df9dd2b14672",
+          "cases": [
+            {
+              "index": 0,
+              "name": "lists every experimental source by its registered brand name and opens the existing import flow"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::tests::settings_import::experimental_import_settings_names_the_sources_and_opens_the_shared_picker_once"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
