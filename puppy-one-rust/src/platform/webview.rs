@@ -226,6 +226,8 @@ impl std::ops::Deref for PreparedContent {
 pub struct DiskAssets {
     pub prefix: &'static str,
     pub dir: PathBuf,
+    /// SHA-256 verified bundle files held in memory (`__assets__/{name}`).
+    pub bundles: Vec<(&'static str, std::sync::Arc<[u8]>)>,
 }
 /// One app resource from disk at most (Xiaolai's largest shard is ~1 MB).
 const DISK_ASSET_MAX_BYTES: u64 = 8 * 1024 * 1024;
@@ -504,6 +506,7 @@ mod tests {
             disk_assets: Some(DiskAssets {
                 prefix: "excalidraw",
                 dir: dir.path().into(),
+                bundles: Vec::new(),
             }),
             locked: false,
         }

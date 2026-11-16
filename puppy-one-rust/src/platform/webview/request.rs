@@ -167,6 +167,25 @@ fn resource(
         if local {
             return immediate(ProtocolResponse::error(404, "Not found"));
         }
+        if let Some((name, bytes)) = content
+            .disk_assets
+            .as_ref()
+            .and_then(|disk| disk.bundles.iter().find(|(n, _)| *n == name))
+        {
+            // Verified pack bundles use the same range/HEAD and per-read
+            // owner checks as all other resources, retaining their shared bytes.
+            return super::stream::response(
+                content,
+                ResourceStream {
+                    length: bytes.len() as u64,
+                    reader: Box::new(std::io::Cursor::new(bytes.clone())),
+                },
+                mime_for(Path::new(name)),
+                head,
+                range,
+                bytes.len() as u64,
+            );
+        }
         if let Some(disk) = &content.disk_assets
             && let Some(relative) = name
                 .strip_prefix(disk.prefix)

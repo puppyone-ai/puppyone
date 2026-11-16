@@ -18,6 +18,66 @@ fn content(root: &Path, budget: u64) -> PreparedContent {
 }
 
 #[test]
+fn installed_bundle_assets_keep_range_head_and_owner_revocation_guards() {
+    use std::{io::Read as _, sync::Arc};
+    let dir = tempfile::tempdir().unwrap();
+    let pack = Content {
+        root: None,
+        source: None,
+        entry: Entry::Html(String::new()),
+        max_bytes: 0,
+        assets: vec![("excalidraw.js", b"obsolete embedded bundle")],
+        ipc: None,
+        policy: None,
+        frames: None,
+        disk_assets: Some(DiskAssets {
+            prefix: "excalidraw",
+            dir: dir.path().to_owned(),
+            bundles: vec![("excalidraw.js", Arc::from(&b"abcdef"[..]))],
+        }),
+        locked: true,
+    }
+    .prepare();
+    let uri = format!("{SCHEME}://local/__assets__/excalidraw.js");
+    let get = |method, origin, range| respond_request(&pack, false, method, &uri, origin, range);
+    let reply = get("GET", None, None);
+    assert_eq!(
+        (reply.status, reply.mime, reply.body.as_slice()),
+        (200, "text/javascript; charset=utf-8", &b"abcdef"[..])
+    );
+    let head = get("HEAD", None, Some("bytes=1-3"));
+    assert_eq!(
+        (head.status, head.length, head.body.len()),
+        (200, Some(6), 0)
+    );
+    let range = get("GET", None, Some("bytes=1-3"));
+    assert_eq!(
+        (
+            range.status,
+            range.body.as_slice(),
+            range.content_range.as_deref()
+        ),
+        (206, &b"bcd"[..], Some("bytes 1-3/6"))
+    );
+    let unsatisfiable = get("GET", None, Some("bytes=6-"));
+    assert_eq!((unsatisfiable.status, unsatisfiable.body.len()), (416, 0));
+    assert_eq!(
+        get("GET", Some("https://foreign.example"), None).status,
+        403
+    );
+    assert_eq!(respond_local(&pack, "/__assets__/excalidraw.js").0, 404);
+    assert_eq!(respond(&pack, "/__assets__/excalidraw.js/../secret").0, 404);
+    let mut pending = prepare_request(&pack, false, "GET", &uri, None, None);
+    let mut byte = [0; 1];
+    assert_eq!(pending.body.read(&mut byte).unwrap(), 1);
+    assert_eq!(byte, [b'a']);
+    pack.revoke();
+    assert!(pending.body.read(&mut byte).is_err());
+    assert_eq!(byte, [0], "retired host cannot publish another chunk");
+    assert_eq!(get("GET", None, None).status, 403);
+}
+
+#[test]
 fn byte_ranges_match_executed_typescript_including_safe_integers_and_whitespace() {
     use super::range::ByteRange;
     let oracle: serde_json::Value =

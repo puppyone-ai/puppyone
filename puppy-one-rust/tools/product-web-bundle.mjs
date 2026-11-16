@@ -33,9 +33,12 @@ const WEBKIT_COMPAT = `(()=>{const d=TextDecoder.prototype.decode;const r=v=>v&&
  */
 export async function bundleProductPage({name, entry, styles, workers = {}, baseUrl = './',
   conditions = [], plugins = [], packages = [], cssExternal = [], cssRewrite = text => text,
-  cssFonts = 'empty'}) {
+  cssFonts = 'empty', bundleOutDir = path.join(root, 'assets/web')}) {
   const check = process.argv.includes('--check');
-  const product = await productRoot(process.argv.slice(2).find(a => !a.startsWith('--')));
+  const cliArgs = process.argv.slice(2);
+  const outIdx = cliArgs.indexOf('--out-dir');
+  const explicitOutDir = outIdx >= 0 && cliArgs[outIdx + 1] ? path.resolve(cliArgs[outIdx + 1]) : null;
+  const product = await productRoot(cliArgs.find((a, i) => !a.startsWith('--') && (outIdx < 0 || i !== outIdx + 1)));
   const modules = path.join(product, 'node_modules');
   const {build} = await import(pathToFileURL(path.join(modules, 'esbuild/lib/main.js')));
   const source = p => path.join(product, p);
@@ -111,25 +114,32 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
     sourceHashes,
   };
   const target = path.join(root, 'assets/web');
+  const assetDir = explicitOutDir ?? bundleOutDir;
   if (check) {
     const stale = [];
-    for (const [file, text] of Object.entries(files)) {
-      const committed = await readFile(path.join(target, file), 'utf8').catch(() => null);
-      if (committed !== text) stale.push(file);
+    if (assetDir) {
+      for (const [file, text] of Object.entries(files)) {
+        const committed = await readFile(path.join(assetDir, file), 'utf8').catch(() => null);
+        if (committed !== text) stale.push(file);
+      }
     }
     const committed = JSON.parse(await readFile(path.join(target, `${name}.json`), 'utf8').catch(() => '{}'));
     if (JSON.stringify(committed.sourceHashes) !== JSON.stringify(sourceHashes)
-      || JSON.stringify(committed.packages) !== JSON.stringify(receipt.packages)) stale.push(`${name}.json`);
+      || JSON.stringify(committed.packages) !== JSON.stringify(receipt.packages)
+      || JSON.stringify(committed.outputs) !== JSON.stringify(receipt.outputs)) stale.push(`${name}.json`);
     if (stale.length) throw new Error(`Stale ${name} assets: ${stale.join(', ')} (run node tools/import-${name}.mjs)`);
     console.log(`${name} assets verified (${sources.length} product sources)`);
   } else {
     await mkdir(target, {recursive: true});
-    for (const [file, text] of Object.entries(files)) await writeFile(path.join(target, file), text);
+    if (assetDir) {
+      await mkdir(assetDir, {recursive: true});
+      for (const [file, text] of Object.entries(files)) await writeFile(path.join(assetDir, file), text);
+    }
     await writeFile(path.join(target, `${name}.json`), JSON.stringify(receipt, null, 2) + '\n');
     const size = Object.values(files).reduce((sum, text) => sum + text.length, 0);
     console.log(`${name} imported: ${(size / 1024).toFixed(0)} KiB across ${Object.keys(files).length} files, ${sources.length} product sources`);
   }
-  return {product, modules, receipt};
+  return {product, modules, receipt, files};
 }
 
 /** The product tokens and typography every bundled page reads. */

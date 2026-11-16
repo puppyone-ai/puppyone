@@ -2459,9 +2459,11 @@
       ],
       "targets": [
         "src/editor/viewers/whiteboard.rs",
+        "src/platform/viewer_packs.rs",
         "tools/excalidraw-entry.tsx",
         "tools/import-excalidraw.mjs",
         "tools/fetch-excalidraw-fonts.py",
+        "tools/release/package-excalidraw-pack.py",
         "assets/web/excalidraw.json",
         "src/editor/registry/builtin.rs",
         "src/platform/webview.rs",
@@ -2471,10 +2473,11 @@
         "test:board_edits_become_the_document_and_links_open_their_documents",
         "test:the_bundle_rewrites_the_font_fallback_and_carries_the_host_patches",
         "test:the_page_carries_the_board_and_names_the_sdk_assets",
+        "test:tampered_or_traversing_archives_are_rejected_and_missing_root_returns_none",
         "test:disk_assets_serve_their_folder_only_and_never_as_resources",
         "test:a_layout_saved_before_the_whiteboard_offers_it_before_custom_files"
       ],
-      "remaining": "The product's ExcalidrawViewer and ExcalidrawDocumentModel are bundled from the pinned sources (SDK 0.18.1, production build, the product's host patches and its two build rewrites) and run in WKWebView; the native surface owns the text, saves, reloads, read-only view mode and menu undo/redo, and resolves element links. The SDK's fonts are served from disk. Embedded HTML pages show the product's unavailable placeholder (no asset resolver). The SDK and its lazily loaded tools (Mermaid, KaTeX) are one script parsed when a board opens, where Vite splits them into chunks. The theme switch rebuilds the page, which resets the board's history."
+      "remaining": "The Excalidraw whiteboard ships as the on-demand puppyone.excalidraw Viewer Pack (built by tools/release/package-excalidraw-pack.py and SHA-256 verified file-by-file by platform::viewer_packs before mounting in WKWebView) rather than embedding 21.5 MiB of JS and fonts in the base binary/bundle; when uninstalled, opening .excalidraw offers one-click pack installation or direct JSON source editing."
     },
     {
       "name": "Context Map viewer",
