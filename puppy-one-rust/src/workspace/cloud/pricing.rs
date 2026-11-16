@@ -592,6 +592,20 @@ mod tests {
     }
 
     #[test]
+    fn every_space_gets_the_same_ordered_tiers_from_published_or_indicative_catalogs() {
+        for catalog in [None, Some(catalog())] {
+            assert_eq!(
+                resolve_catalog(catalog.as_ref())
+                    .plans
+                    .iter()
+                    .map(|p| p.id)
+                    .collect::<Vec<_>>(),
+                [PlanId::Free, PlanId::Team, PlanId::Enterprise]
+            );
+        }
+    }
+
+    #[test]
     fn keeps_indicative_prices_when_the_catalog_is_an_older_price_list() {
         let mut legacy = catalog();
         legacy.plans.retain(|p| p.id != "enterprise_v2");

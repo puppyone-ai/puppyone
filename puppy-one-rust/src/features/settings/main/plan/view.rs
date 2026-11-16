@@ -59,9 +59,21 @@ fn placeholder(id: &'static str, width: f32, height: f32) -> AnyElement {
     .into_any_element()
 }
 
+/// One drawn string and its native reading, shared by the comparison cards.
+fn accessible_text(id: &'static str, text: impl Into<SharedString>) -> AnyElement {
+    let text = text.into();
+    div()
+        .id(id)
+        .role(Role::Label)
+        .aria_value(text.clone())
+        .child(text)
+        .test_support()
+        .into_any_element()
+}
+
 /// `PlanUsageBar`: a complete short rail stays visible for every reading,
 /// zero included; only authoritative readings light its ticks.
-fn meter(percent: Option<f64>, t: Theme) -> Div {
+fn meter(percent: Option<f64>, t: Theme) -> AnyElement {
     let active = f::active_ticks(percent);
     let lit = match percent.map(pricing::meter_tone) {
         Some(MeterTone::Exhausted) => t.danger,
@@ -69,16 +81,31 @@ fn meter(percent: Option<f64>, t: Theme) -> Div {
     };
     let track = theme::fade(t.text, 0.38);
     div()
+        .id("plan-hours-meter")
+        .debug_selector(|| "plan-hours-meter".into())
+        .when_some(percent, |d, value| {
+            d.role(Role::ProgressIndicator)
+                .aria_label(tr("settings.plan.hoursLabel"))
+                .aria_numeric_value(value.clamp(0., 100.))
+                .aria_min_numeric_value(0.)
+                .aria_max_numeric_value(100.)
+        })
         .flex()
         .flex_none()
         .gap(px(6.))
         .h(px(18.))
         .children((0..METER_TICKS).map(|tick| {
             div()
+                .debug_selector(move || format!("plan-meter-tick-{tick}"))
+                .when(tick < active, |d| {
+                    d.debug_selector(move || format!("plan-meter-active-{tick}"))
+                })
                 .w(px(2.))
                 .h(px(18.))
                 .bg(if tick < active { lit } else { track })
         }))
+        .test_support()
+        .into_any_element()
 }
 
 /// How many plan cards share a row: `--desktop-plan-columns: plans.length`,
@@ -135,15 +162,24 @@ impl SettingsWorkspaceSurface {
                 .gap(px(16.))
                 .when(waiting, |d| {
                     d.child(
-                        SettingsSubsection::new()
-                            .title(tr("settings.plan.currentLabel"))
+                        div()
+                            .id("plan-load-error")
+                            .role(Role::Alert)
+                            .aria_label(tr("cloud.billing.loadFailed"))
                             .child(
-                                ValueRow::new(tr("cloud.billing.loadFailed"), "").action(
-                                    Button::new("plan-load-retry")
-                                        .label(tr("common.action.retry"))
-                                        .on_click(cx.listener(|s, _, _, cx| s.refresh_plan(cx))),
-                                ),
-                            ),
+                                SettingsSubsection::new()
+                                    .title(tr("settings.plan.currentLabel"))
+                                    .child(
+                                        ValueRow::new(tr("cloud.billing.loadFailed"), "").action(
+                                            Button::new("plan-load-retry")
+                                                .label(tr("common.action.retry"))
+                                                .on_click(
+                                                    cx.listener(|s, _, _, cx| s.refresh_plan(cx)),
+                                                ),
+                                        ),
+                                    ),
+                            )
+                            .test_support(),
                     )
                 })
                 .child(self.plan_comparison(
@@ -202,6 +238,10 @@ impl SettingsWorkspaceSurface {
                 .child(placeholder("plan-loading-price", 120., ui.display * 1.25))
         };
         v_flex()
+            .id("plan-loading")
+            .role(Role::Status)
+            .aria_label(tr("common.status.loading"))
+            .debug_selector(|| "plan-loading".into())
             .gap(px(16.))
             .child(
                 SettingsSubsection::new().child(
@@ -251,6 +291,7 @@ impl SettingsWorkspaceSurface {
                     .title(tr("settings.plan.chooseTitle"))
                     .child(self.plan_grid((0..3).map(|i| card(i).into_any_element()).collect())),
             )
+            .test_support()
             .into_any_element()
     }
 
@@ -698,6 +739,7 @@ impl SettingsWorkspaceSurface {
                             .child(
                                 div()
                                     .id("plan-hours-left")
+                                    .debug_selector(|| "plan-hours-left".into())
                                     .text_color(t.muted)
                                     .child(remaining)
                                     .when_some(reserved, |d, reserved| {
@@ -797,6 +839,9 @@ impl SettingsWorkspaceSurface {
                     (tr("settings.plan.spec.history").to_owned(), history),
                 ];
                 div()
+                    .id(SharedString::from(format!("plan-card-{}", plan.id.key())))
+                    .role(Role::Group)
+                    .aria_label(tr(&format!("settings.plan.name.{}", plan.id.key())))
                     .flex()
                     .flex_col()
                     .h_full()
@@ -833,30 +878,51 @@ impl SettingsWorkspaceSurface {
                                             .text_size(px(ui.display))
                                             .line_height(px(ui.display * 1.25))
                                             .font_weight(FontWeight::MEDIUM)
-                                            .child(f::currency_amount(
-                                                plan.price_cents,
-                                                &plan.currency,
+                                            .child(accessible_text(
+                                                "amount",
+                                                f::currency_amount(
+                                                    plan.price_cents,
+                                                    &plan.currency,
+                                                ),
                                             )),
                                     )
-                                    .child(div().text_color(t.muted).child(tr(
-                                        if plan.per_person {
+                                    .child(div().text_color(t.muted).child(accessible_text(
+                                        "period",
+                                        tr(if plan.per_person {
                                             "settings.plan.spec.perPersonMonth"
                                         } else {
                                             "settings.plan.spec.perMonth"
-                                        },
+                                        }),
                                     ))),
                             ),
                     )
-                    .child(v_flex().gap(px(10.)).mt(px(18.)).mb(px(20.)).children(
-                        specs.into_iter().map(|(label, value)| {
-                            h_flex()
-                                .justify_between()
-                                .items_baseline()
-                                .gap(px(12.))
-                                .child(div().min_w_0().text_color(t.muted).child(label))
-                                .child(div().text_color(t.text).text_right().child(value))
-                        }),
-                    ))
+                    .child(
+                        v_flex().gap(px(10.)).mt(px(18.)).mb(px(20.)).children(
+                            specs
+                                .into_iter()
+                                .enumerate()
+                                .map(|(index, (label, value))| {
+                                    h_flex()
+                                        .id(("plan-spec", index))
+                                        .role(Role::Group)
+                                        .justify_between()
+                                        .items_baseline()
+                                        .gap(px(12.))
+                                        .child(
+                                            div()
+                                                .min_w_0()
+                                                .text_color(t.muted)
+                                                .child(accessible_text("label", label)),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_color(t.text)
+                                                .text_right()
+                                                .child(accessible_text("value", value)),
+                                        )
+                                }),
+                        ),
+                    )
                     .child(
                         div()
                             .mt_auto()
@@ -868,6 +934,7 @@ impl SettingsWorkspaceSurface {
                                 div().w_full().flex().justify_center().child(action)
                             })),
                     )
+                    .test_support()
                     .into_any_element()
             })
             .collect();
@@ -893,6 +960,7 @@ impl SettingsWorkspaceSurface {
                     .child(
                         div()
                             .id("plan-storage-details")
+                            .debug_selector(|| "plan-storage-details".into())
                             .cursor(theme::clickable_cursor())
                             .child(format!(
                                 "{}  {}",
@@ -1156,3 +1224,7 @@ mod tests {
         assert_eq!(columns(600., 3), 1);
     }
 }
+
+#[cfg(test)]
+#[path = "tests/acceptance.rs"]
+mod acceptance_tests;

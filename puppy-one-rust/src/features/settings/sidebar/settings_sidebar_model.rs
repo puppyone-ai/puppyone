@@ -173,6 +173,55 @@ pub fn available(page: Page, visibility: Visibility) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn plan_navigation_keeps_price_reachable_without_a_project_and_follows_cloud() {
+        let on = Visibility {
+            cloud_enabled: true,
+            account_available: true,
+            ..Default::default()
+        };
+        let all: Vec<_> = groups(on)
+            .into_iter()
+            .flat_map(|g| g.items.into_iter().map(|i| i.page))
+            .collect();
+        assert!(all.contains(&Page::Account));
+        assert!(all.contains(&Page::Plan));
+        assert!(!all.contains(&Page::Host));
+        let off = Visibility {
+            cloud_enabled: false,
+            ..on
+        };
+        assert!(available(Page::Account, off));
+        assert!(!available(Page::Plan, off));
+        assert!(!available(
+            Page::Account,
+            Visibility {
+                account_available: false,
+                ..off
+            }
+        ));
+        let ready = Visibility {
+            current_space_available: true,
+            host_devices: true,
+            ..on
+        };
+        let groups = groups(ready);
+        let pages = |key| {
+            groups
+                .iter()
+                .find(|g| g.key == key)
+                .unwrap()
+                .items
+                .iter()
+                .map(|i| i.page)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(pages("settings.sidebar.accountGroup"), [Page::Account]);
+        assert_eq!(pages("settings.space.group"), [Page::Space, Page::Plan]);
+        let app = pages("settings.sidebar.desktopApp");
+        let privacy = app.iter().position(|p| *p == Page::Privacy).unwrap();
+        assert_eq!(app[privacy + 1], Page::OtherComputers);
+    }
     /// `settingsSidebarModel.ts` (v0.4.4): the account, then the space.
     #[test]
     fn account_follows_the_build_and_the_space_group_follows_cloud() {

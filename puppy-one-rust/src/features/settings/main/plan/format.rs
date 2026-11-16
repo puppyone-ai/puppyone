@@ -281,11 +281,12 @@ mod tests {
     fn a_quote_says_whether_it_pays_now_waits_or_keeps() {
         crate::localization::set_current("en");
         let held = holding("team", 3, None);
-        assert_eq!(
-            quote_timing(Some(&quote("team_v2", 2, Some("next_period"))), &held).confirm,
-            "settings.plan.confirmSchedule"
-        );
-        let now = quote_timing(Some(&quote("enterprise_v2", 3, Some("now"))), &held);
+        let later = quote_timing(Some(&quote("team_v2", 2, Some("next_period"))), &held);
+        assert_eq!(later.confirm, "settings.plan.confirmSchedule");
+        assert!(!later.opens_browser);
+        assert!(later.note.starts_with("Takes effect on Dec 8"));
+        assert!(later.note.contains("nothing is refunded"));
+        let now = quote_timing(Some(&quote("team_v2", 4, Some("now"))), &held);
         assert!(now.opens_browser && now.confirm == "settings.plan.confirmAndPay");
         let scheduled = holding(
             "team",

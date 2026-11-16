@@ -8919,6 +8919,214 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "settings-plan-subscription-acceptance",
+      "acceptance": "All 28 frozen TS planSubscription cases: project-independent Cloud-gated navigation; authoritative and indicative three-tier pricing, add-ons, legacy identities, holding and scheduled changes; actual rendered per-card prices/periods/specs, storage disclosure, separate model costs and all sign-in actions; restoring/loading/retry states without invented holdings; one known-only native progress indicator, all 24 measured ticks, reserved and legacy spendable hours, missing usage, storage warnings and keep-current action; quote timing/confirmation. Rust PlanOffer excludes machine-spec fields structurally. Native Status with a localized loading label represents the web busy state. GPUI tests observe actual element accessibility properties through Kit, text layout and pointer dispatch; they do not claim an OS screen-reader or live-payment run.",
+      "typescript": [
+        {
+          "path": "tests/component/settings/feature-flags/planSubscription.test.tsx",
+          "sha256": "8b81351b56001eeb192c0093c9a78b0ca13ecca62560a0e77f8732393eed69e0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "keeps the price reachable without a local project, and only with Cloud on"
+            },
+            {
+              "index": 1,
+              "name": "splits state from purchase, and puts every price on Plan"
+            },
+            {
+              "index": 2,
+              "name": "offers three plans with one price each and the same allowances"
+            },
+            {
+              "index": 3,
+              "name": "reads plans and add-ons from the catalog, in hours and bytes"
+            },
+            {
+              "index": 4,
+              "name": "keeps indicative prices when the catalog is an older price list"
+            },
+            {
+              "index": 5,
+              "name": "treats holding nothing as Free, a complete answer"
+            },
+            {
+              "index": 6,
+              "name": "bills a team per person and names a legacy plan by its new name"
+            },
+            {
+              "index": 7,
+              "name": "pools a team's hours and storage, and adds the packs held"
+            },
+            {
+              "index": 8,
+              "name": "reads used hours only from the billing service, never invents them"
+            },
+            {
+              "index": 9,
+              "name": "offers every Space the same tiers, with comparable prices and allowances"
+            },
+            {
+              "index": 10,
+              "name": "offers both tiers regardless of historical space kind"
+            },
+            {
+              "index": 11,
+              "name": "explains what hours cover and keeps model costs separate"
+            },
+            {
+              "index": 12,
+              "name": "routes a signed-out reader to sign-in from every plan"
+            },
+            {
+              "index": 13,
+              "name": "does not offer sign-in to a reader who is already signed in"
+            },
+            {
+              "index": 14,
+              "name": "keeps the signed-in page skeleton while restoring a session instead of flashing signed-out prices"
+            },
+            {
+              "index": 15,
+              "name": "offers retry and published prices after a failed signed-in read without inventing a Free holding"
+            },
+            {
+              "index": 16,
+              "name": "never reads a few saved files as zero gigabytes"
+            },
+            {
+              "index": 17,
+              "name": "carries no way back, because the nav it came from is still on screen"
+            },
+            {
+              "index": 18,
+              "name": "reads a scheduled seat decrease and a scheduled downgrade from the summary"
+            },
+            {
+              "index": 19,
+              "name": "keeps one Agent meter and shows storage only when it needs attention (30% null)"
+            },
+            {
+              "index": 20,
+              "name": "keeps one Agent meter and shows storage only when it needs attention (85% Storage is almost full)"
+            },
+            {
+              "index": 21,
+              "name": "keeps one Agent meter and shows storage only when it needs attention (100% Storage is full)"
+            },
+            {
+              "index": 22,
+              "name": "shows used, total and spendable hours beside a complete short rail"
+            },
+            {
+              "index": 23,
+              "name": "keeps every tick for an empty legacy balance without inventing a plan grant"
+            },
+            {
+              "index": 24,
+              "name": "reads legacy consumption separately from the remaining balance"
+            },
+            {
+              "index": 25,
+              "name": "keeps the rail when usage is missing without claiming zero consumption"
+            },
+            {
+              "index": 26,
+              "name": "says what changes at renewal and offers to keep the current plan"
+            },
+            {
+              "index": 27,
+              "name": "tells a downgrade apart from a payment before it is confirmed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::offers_three_plans_with_one_price_each_and_the_same_allowances"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::reads_plans_and_add_ons_from_the_catalog_in_hours_and_bytes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::keeps_indicative_prices_when_the_catalog_is_an_older_price_list"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::treats_holding_nothing_as_free_a_complete_answer"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::bills_a_team_per_person_and_names_a_legacy_plan_by_its_new_name"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::pools_a_teams_hours_and_storage_and_adds_the_packs_held"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::reads_used_hours_only_from_the_billing_service_never_invents_them"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::every_space_gets_the_same_ordered_tiers_from_published_or_indicative_catalogs"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::pricing::tests::reads_a_scheduled_seat_decrease_and_a_scheduled_downgrade_from_the_summary"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::sidebar::settings_sidebar_model::tests::plan_navigation_keeps_price_reachable_without_a_project_and_follows_cloud"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::signed_out_plan_renders_comparable_prices_and_routes_every_offer_to_account"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::signed_in_and_restoring_pages_keep_loading_without_offering_sign_in_or_free"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::failed_signed_in_read_offers_retry_and_prices_without_inventing_current_plan"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::actual_current_plan_keeps_one_meter_and_shows_only_relevant_storage_warnings"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::actual_usage_text_distinguishes_reserved_legacy_empty_and_missing_readings"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::scheduled_changes_render_the_renewal_and_deliver_one_keep_action"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::format::tests::storage_reads_in_mb_below_a_gigabyte"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::format::tests::a_quote_says_whether_it_pays_now_waits_or_keeps"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

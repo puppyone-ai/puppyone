@@ -23,6 +23,9 @@ pub struct ElementSnapshot {
     selected: Option<bool>,
     expanded: Option<bool>,
     value: Option<SharedString>,
+    numeric_value: Option<f64>,
+    min_numeric_value: Option<f64>,
+    max_numeric_value: Option<f64>,
     bounds: Bounds<Pixels>,
     visible: bool,
     focused: Option<bool>,
@@ -51,6 +54,9 @@ impl fmt::Debug for ElementSnapshot {
             .field("selected", &self.selected)
             .field("expanded", &self.expanded)
             .field("value", &self.value)
+            .field("numeric_value", &self.numeric_value)
+            .field("min_numeric_value", &self.min_numeric_value)
+            .field("max_numeric_value", &self.max_numeric_value)
             .field("bounds", &self.bounds)
             .field("visible", &self.visible)
             .field("focused", focused)
@@ -83,6 +89,17 @@ impl ElementSnapshot {
     /// The native accessibility value, not rendered text or pixels.
     pub fn value(&self) -> Option<&str> {
         self.value.as_deref()
+    }
+
+    /// Numeric reading and bounds provided by the native accessibility node.
+    pub fn numeric_value(&self) -> Option<f64> {
+        self.numeric_value
+    }
+    pub fn min_numeric_value(&self) -> Option<f64> {
+        self.min_numeric_value
+    }
+    pub fn max_numeric_value(&self) -> Option<f64> {
+        self.max_numeric_value
     }
 
     pub fn bounds(&self) -> Bounds<Pixels> {
@@ -329,6 +346,9 @@ impl<E: Element<PrepaintState = Option<Hitbox>> + InteractiveElement> Element fo
             selected: node.is_selected(),
             expanded: node.is_expanded(),
             value: node.value().map(|value| value.to_owned().into()),
+            numeric_value: node.numeric_value(),
+            min_numeric_value: node.min_numeric_value(),
+            max_numeric_value: node.max_numeric_value(),
             bounds,
             visible: false,
             focused: None,
