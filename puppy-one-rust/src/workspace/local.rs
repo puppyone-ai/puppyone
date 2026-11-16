@@ -6,13 +6,32 @@ use cap_std::fs::{Dir, Metadata, OpenOptions};
 use std::{
     io::{Read, Write},
     path::{Component, Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex, OnceLock, Weak},
 };
 use uuid::Uuid;
 mod adapter;
 pub(super) use adapter::open;
 
 use super::MAX_TEXT_BYTES;
+
+/// Independent windows can hold separate grants for the same file. Keep the
+/// complete conditional publication serial across those grants, not just one
+/// editor's save queue. Idle entries are weak and reclaimed on the next write.
+fn write_lock(path: PathBuf) -> Arc<Mutex<()>> {
+    static LOCKS: OnceLock<Mutex<std::collections::HashMap<PathBuf, Weak<Mutex<()>>>>> =
+        OnceLock::new();
+    let mut locks = LOCKS
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    locks.retain(|_, lock| lock.strong_count() > 0);
+    if let Some(lock) = locks.get(&path).and_then(Weak::upgrade) {
+        return lock;
+    }
+    let lock = Arc::new(Mutex::new(()));
+    locks.insert(path, Arc::downgrade(&lock));
+    lock
+}
 
 pub struct Workspace {
     pub path: PathBuf,
@@ -130,11 +149,37 @@ impl Workspace {
     }
     fn directory(&self, relative: &Path) -> Result<Dir> {
         validate(relative, true)?;
-        if relative.as_os_str().is_empty() {
-            self.dir.try_clone().map_err(io)
-        } else {
-            self.dir.open_dir(relative).map_err(io)
+        let mut dir = self.dir.try_clone().map_err(io)?;
+        for part in relative.components() {
+            dir = Self::open_directory(&dir, Path::new(part.as_os_str()))?;
         }
+        Ok(dir)
+    }
+    fn open_directory(parent: &Dir, name: &Path) -> Result<Dir> {
+        if !parent.symlink_metadata(name).map_err(io)?.is_dir() {
+            return Err(crate::localization::t("native.workspace.regularOnly").into());
+        }
+        #[cfg(unix)]
+        {
+            use cap_std::fs::OpenOptionsExt;
+            let mut options = OpenOptions::new();
+            options
+                .read(true)
+                .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW);
+            parent
+                .open_with(name, &options)
+                .map(|file| Dir::from_std_file(file.into_std()))
+                .map_err(io)
+        }
+        #[cfg(not(unix))]
+        parent.open_dir(name).map_err(io)
+    }
+    fn regular_entry(dir: &Dir, name: &Path) -> Result<Metadata> {
+        let meta = dir.symlink_metadata(name).map_err(io)?;
+        if !meta.is_file() && !meta.is_dir() {
+            return Err(crate::localization::t("native.workspace.regularOnly").into());
+        }
+        Ok(meta)
     }
     pub fn list(&self, relative: &Path) -> Result<Vec<Node>> {
         let dir = self.directory(relative)?;
@@ -287,6 +332,7 @@ impl Workspace {
     pub fn rename_entry(&self, relative: &Path, next_name: &str) -> Result<PathBuf> {
         Self::single_name(next_name)?;
         let (dir, name) = self.parent(relative)?;
+        Self::regular_entry(&dir, &name)?;
         let parent = relative.parent().unwrap_or(Path::new("")).to_owned();
         if name.as_os_str() == next_name {
             return Ok(relative.to_owned());
@@ -300,11 +346,10 @@ impl Workspace {
         dir.rename(&name, &dir, next_name).map_err(io)?;
         Ok(parent.join(next_name))
     }
-    /// `deleteWorkspaceEntry`: removes files, links and whole folders without
-    /// following links outside the grant.
+    /// `deleteWorkspaceEntry`: only regular files and folders, never links.
     pub fn remove_entry(&self, relative: &Path) -> Result<()> {
         let (dir, name) = self.parent(relative)?;
-        let meta = dir.symlink_metadata(&name).map_err(io)?;
+        let meta = Self::regular_entry(&dir, &name)?;
         if meta.is_dir() {
             dir.remove_dir_all(&name).map_err(io)
         } else {
@@ -314,6 +359,7 @@ impl Workspace {
     /// `moveWorkspaceEntry` into another folder, keeping the name.
     pub fn move_entry(&self, from: &Path, to_folder: &Path) -> Result<PathBuf> {
         let (source_dir, name) = self.parent(from)?;
+        Self::regular_entry(&source_dir, &name)?;
         if to_folder.starts_with(from) {
             return Err(crate::localization::t("native.workspace.moveIntoSelf").into());
         }
@@ -371,26 +417,75 @@ impl Workspace {
             return Err(crate::localization::t("native.workspace.symlinkCopy").into());
         }
         if meta.is_dir() {
+            let from = Self::open_directory(source, name)?;
             target.create_dir(target_name).map_err(io)?;
-            let from = source.open_dir(name).map_err(io)?;
-            let to = target.open_dir(target_name).map_err(io)?;
-            for entry in from.entries().map_err(io)? {
-                let entry = entry.map_err(io)?;
-                let child = entry.file_name();
-                Self::copy_tree(&from, Path::new(&child), &to, &child.to_string_lossy())?;
+            // Cleanup belongs only to the invocation that created this entry.
+            // A colliding invocation must never remove the winner's tree.
+            let result = (|| {
+                let to = Self::open_directory(target, Path::new(target_name))?;
+                for entry in from.entries().map_err(io)? {
+                    let entry = entry.map_err(io)?;
+                    let child = entry.file_name();
+                    Self::copy_tree(&from, Path::new(&child), &to, &child.to_string_lossy())?;
+                }
+                // Populate first, then restore a potentially read-only mode.
+                to.set_permissions(".", meta.permissions()).map_err(io)
+            })();
+            if result.is_err() {
+                let _ = Self::discard_created_tree(target, Path::new(target_name));
             }
-            Ok(())
+            result
         } else if meta.is_file() {
-            let mut input = source.open(name).map_err(io)?;
+            let mut read = OpenOptions::new();
+            read.read(true);
+            #[cfg(unix)]
+            {
+                use cap_std::fs::OpenOptionsExt;
+                read.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+            }
+            let mut input = source.open_with(name, &read).map_err(io)?;
+            if !input.metadata().map_err(io)?.is_file() {
+                return Err(crate::localization::t("native.workspace.regularOnly").into());
+            }
             let mut options = OpenOptions::new();
             options.write(true).create_new(true);
             let mut output = target.open_with(target_name, &options).map_err(io)?;
-            std::io::copy(&mut input, &mut output).map_err(io)?;
-            output.set_permissions(meta.permissions()).map_err(io)?;
-            output.sync_all().map_err(io)
+            let result = (|| {
+                std::io::copy(&mut input, &mut output).map_err(io)?;
+                output.set_permissions(meta.permissions()).map_err(io)?;
+                output.sync_all().map_err(io)
+            })();
+            if result.is_err() {
+                let _ = target.remove_file(target_name);
+            }
+            result
         } else {
             Err(crate::localization::t("native.workspace.copyKind").into())
         }
+    }
+    /// Only called for a tree this copy successfully created. Earlier children
+    /// may already have their source's read-only mode, so ordinary remove_all
+    /// cannot roll them back. Make the copied directories removable, never the
+    /// originals, and do not follow links encountered during cleanup.
+    fn discard_created_tree(parent: &Dir, name: &Path) -> Result<()> {
+        let meta = parent.symlink_metadata(name).map_err(io)?;
+        if !meta.is_dir() {
+            return parent.remove_file(name).map_err(io);
+        }
+        let dir = Self::open_directory(parent, name)?;
+        let mut permissions = meta.permissions();
+        #[cfg(unix)]
+        {
+            use cap_std::fs::PermissionsExt;
+            permissions.set_mode(permissions.mode() | 0o700);
+        }
+        #[cfg(not(unix))]
+        permissions.set_readonly(false);
+        dir.set_permissions(".", permissions).map_err(io)?;
+        for entry in dir.entries().map_err(io)? {
+            Self::discard_created_tree(&dir, Path::new(&entry.map_err(io)?.file_name()))?;
+        }
+        parent.remove_dir(name).map_err(io)
     }
     /// `copyWorkspaceEntry` with keep-both naming (`name copy`, `name copy 2`).
     pub fn copy_entry(&self, from: &Path, to_folder: &Path) -> Result<PathBuf> {
@@ -407,22 +502,22 @@ impl Workspace {
             if Self::exists(&target_dir, Path::new(&candidate)) {
                 continue;
             }
-            return match Self::copy_tree(&source_dir, &name, &target_dir, &candidate) {
-                Ok(()) => Ok(to_folder.join(candidate)),
-                Err(error) => {
-                    let _ = if folder {
-                        target_dir.remove_dir_all(&candidate)
-                    } else {
-                        target_dir.remove_file(&candidate)
-                    };
-                    Err(error)
-                }
-            };
+            match Self::copy_tree(&source_dir, &name, &target_dir, &candidate) {
+                Ok(()) => return Ok(to_folder.join(candidate)),
+                Err(error) if error.kind == ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
         }
         Err(crate::localization::t("native.workspace.nameExhausted").into())
     }
     /// Import a user-dropped file or folder from outside the grant (copy only).
     pub fn import_external(&self, source: &Path, to_folder: &Path) -> Result<PathBuf> {
+        if !source.is_absolute() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Import requires an absolute source path",
+            ));
+        }
         let meta = std::fs::symlink_metadata(source).map_err(io)?;
         if meta.is_symlink() {
             return Err(crate::localization::t("native.workspace.symlinkImport").into());
@@ -436,15 +531,8 @@ impl Workspace {
         let source_dir = Dir::open_ambient_dir(parent, cap_std::ambient_authority()).map_err(io)?;
         let target_dir = self.directory(to_folder)?;
         let preferred = name.to_string_lossy().into_owned();
-        for index in 0..=10_000 {
-            let candidate = Self::keep_both_name(&preferred, index, meta.is_dir());
-            if Self::exists(&target_dir, Path::new(&candidate)) {
-                continue;
-            }
-            return Self::copy_tree(&source_dir, Path::new(name), &target_dir, &candidate)
-                .map(|()| to_folder.join(candidate));
-        }
-        Err(crate::localization::t("native.workspace.nameExhausted").into())
+        Self::copy_tree(&source_dir, Path::new(name), &target_dir, &preferred)
+            .map(|()| to_folder.join(preferred))
     }
     /// Absolute path of an entry, for platform reveal/open actions.
     /// A regular file a viewer reads itself (an image, a binary preview):
@@ -486,6 +574,8 @@ impl Workspace {
                 crate::localization::t("native.workspace.foreignDocument"),
             ));
         }
+        let lock = write_lock(self.path.join(&document.relative));
+        let _write = lock.lock().unwrap_or_else(|e| e.into_inner());
         if text.len() > MAX_TEXT_BYTES || text.contains(['\0', '\r']) {
             return Err(crate::localization::t("native.workspace.invalidText").into());
         }

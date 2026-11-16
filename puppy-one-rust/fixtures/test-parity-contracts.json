@@ -9307,6 +9307,337 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "local-workspace-filesystem-core",
+      "acceptance": "Real temporary filesystem and public native provider facade: stable resource identity, directory admission, exact Unicode and empty creation, nested entries, no clobber, relative-path and filename checks; text revisions/conflicts, cross-grant concurrent conditional saves and 0666 mode preservation; raw preview bytes and no binary-as-text; direct and parent symlink rejection; file/folder rename, move-to-parent, delete and root protection; source-preserving recursive copies, exact basenames, dotfiles/compound extensions, readonly directory modes, keep-both naming and eight concurrent copies; recursive import, absolute sources, collision rejection and failed-tree rollback. Rust boolean entry kinds and string write arguments statically exclude the TS unknown-kind/non-string payload cases. Native revisions are opaque and binary text rejection is an error, not a fabricated editable document. The remaining cases in this TS file (project metadata/config, MIME/preview metadata, range/alias and Office conversion, preferred-name/cross-root APIs) are not credited here.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
+          "sha256": "558e501f335a47c312f74ff5283ec50f01e60a24539cd82ab24bb8570493c6cb",
+          "cases": [
+            {
+              "index": 5,
+              "name": "workspaceFromPath > is stable: same path -> same id"
+            },
+            {
+              "index": 7,
+              "name": "workspaceFromPath > rejects a file path (not a folder)"
+            },
+            {
+              "index": 8,
+              "name": "createWorkspaceEntry > creates a file with exact byte content"
+            },
+            {
+              "index": 9,
+              "name": "createWorkspaceEntry > creates an empty file when no content given"
+            },
+            {
+              "index": 10,
+              "name": "createWorkspaceEntry > creates a folder"
+            },
+            {
+              "index": 11,
+              "name": "createWorkspaceEntry > creates nested entries under a parent folder"
+            },
+            {
+              "index": 12,
+              "name": "createWorkspaceEntry > refuses to overwrite an existing file (wx flag)"
+            },
+            {
+              "index": 13,
+              "name": "createWorkspaceEntry > rejects invalid entry names (slash, dotdot, absolute)"
+            },
+            {
+              "index": 14,
+              "name": "createWorkspaceEntry > rejects an unknown kind"
+            },
+            {
+              "index": 16,
+              "name": "read / write round-trips > updates content via writeWorkspaceTextFile"
+            },
+            {
+              "index": 17,
+              "name": "read / write round-trips > rejects a stale conditional write instead of overwriting an external edit"
+            },
+            {
+              "index": 18,
+              "name": "read / write round-trips > serializes same-path writers so one stale concurrent commit cannot win"
+            },
+            {
+              "index": 20,
+              "name": "read / write round-trips > preserves local file mode across atomic replacement"
+            },
+            {
+              "index": 21,
+              "name": "read / write round-trips > rejects non-string write content"
+            },
+            {
+              "index": 22,
+              "name": "read / write round-trips > returns raw bytes via readWorkspaceFile"
+            },
+            {
+              "index": 26,
+              "name": "read / write round-trips > readWorkspaceFile (puppyone-local protocol path) rejects a directory and traversal"
+            },
+            {
+              "index": 30,
+              "name": "read / write round-trips > surfaces binary files (null bytes) with content=null"
+            },
+            {
+              "index": 31,
+              "name": "read / write round-trips > errors when reading a folder as text"
+            },
+            {
+              "index": 37,
+              "name": "listFolderChildren > skips symbolic links (no symlink escape)"
+            },
+            {
+              "index": 39,
+              "name": "rename / move / delete > renames a file"
+            },
+            {
+              "index": 40,
+              "name": "rename / move / delete > refuses to rename onto an existing name"
+            },
+            {
+              "index": 41,
+              "name": "rename / move / delete > rejects direct symbolic-link sources and symbolic-link target folders"
+            },
+            {
+              "index": 42,
+              "name": "rename / move / delete > refuses to rename the workspace root"
+            },
+            {
+              "index": 43,
+              "name": "rename / move / delete > moves a file into a subfolder"
+            },
+            {
+              "index": 44,
+              "name": "rename / move / delete > moves a nested file back into its parent folder"
+            },
+            {
+              "index": 45,
+              "name": "rename / move / delete > refuses to move a folder into itself"
+            },
+            {
+              "index": 46,
+              "name": "rename / move / delete > deletes a file"
+            },
+            {
+              "index": 47,
+              "name": "rename / move / delete > deletes a folder recursively"
+            },
+            {
+              "index": 48,
+              "name": "rename / move / delete > refuses to delete the workspace root"
+            },
+            {
+              "index": 50,
+              "name": "copyWorkspaceEntry > copies files into another folder without changing the source"
+            },
+            {
+              "index": 51,
+              "name": "copyWorkspaceEntry > preserves an existing source basename exactly when no preferred name is requested"
+            },
+            {
+              "index": 52,
+              "name": "copyWorkspaceEntry > recursively copies folders"
+            },
+            {
+              "index": 53,
+              "name": "copyWorkspaceEntry > copies non-writable source folders and restores their mode"
+            },
+            {
+              "index": 54,
+              "name": "copyWorkspaceEntry > keeps both items when the preferred target name already exists"
+            },
+            {
+              "index": 55,
+              "name": "copyWorkspaceEntry > uses Finder-style numbered names for repeated copies in the same folder"
+            },
+            {
+              "index": 56,
+              "name": "copyWorkspaceEntry > treats a leading-dot filename as extensionless and dotted folders as folders"
+            },
+            {
+              "index": 58,
+              "name": "copyWorkspaceEntry > resolves simultaneous same-name copies with atomic keep-both naming"
+            },
+            {
+              "index": 59,
+              "name": "copyWorkspaceEntry > rejects the workspace root and copying a folder into itself"
+            },
+            {
+              "index": 60,
+              "name": "copyWorkspaceEntry > rejects symbolic links anywhere in the copied tree and leaves no partial target"
+            },
+            {
+              "index": 62,
+              "name": "importWorkspaceEntries > imports real external files and folders by copy"
+            },
+            {
+              "index": 63,
+              "name": "importWorkspaceEntries > rejects relative source paths"
+            },
+            {
+              "index": 64,
+              "name": "importWorkspaceEntries > rejects symbolic-link sources"
+            },
+            {
+              "index": 65,
+              "name": "importWorkspaceEntries > rejects importing onto an existing name"
+            },
+            {
+              "index": 66,
+              "name": "path-traversal containment (security) > blocks traversal in createWorkspaceEntry parentPath"
+            },
+            {
+              "index": 67,
+              "name": "path-traversal containment (security) > blocks traversal in readWorkspaceTextFile"
+            },
+            {
+              "index": 68,
+              "name": "path-traversal containment (security) > blocks traversal in listFolderChildren"
+            },
+            {
+              "index": 69,
+              "name": "path-traversal containment (security) > blocks traversal in delete / rename / move / copy"
+            },
+            {
+              "index": 70,
+              "name": "path-traversal containment (security) > does not write outside root even when traversal is attempted"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::real_utf8_read_edit_atomic_save_and_reopen"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::bom_crlf_and_final_newline_are_preserved"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::external_modification_does_not_get_overwritten"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::deletion_is_not_silently_recreated"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::traversal_absolute_paths_and_directories_are_rejected"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::unsupported_files_fail_without_modifying_bytes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::document_grants_cannot_be_used_in_another_workspace"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::unchanged_save_does_not_replace_the_file"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::invalid_save_payload_leaves_original_bytes_untouched"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::saving_a_hard_link_does_not_break_link_semantics"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::lists_are_relative_and_directories_sort_first"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::permissions_are_preserved_and_readonly_save_is_refused"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::symlinks_cannot_read_or_write_outside_granted_root"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::creation_publishes_complete_bytes_without_replacing_an_existing_name"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::rename_move_copy_import_and_delete_stay_inside_the_grant"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::a_file_windows_folder_reads_legacy_text_and_never_writes_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::simultaneous_same_path_saves_across_independent_grants_have_exactly_one_winner"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::simultaneous_copies_keep_every_complete_result_and_never_remove_another_winner"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::direct_symlink_mutations_are_rejected_without_removing_the_link_or_target"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::symlinked_parent_folders_are_refused_even_when_they_point_inside_the_grant"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::copying_a_readonly_directory_preserves_modes_after_copying_its_children"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::import_rejects_relative_sources_and_name_collisions_without_touching_either_file"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::failed_recursive_copy_and_import_leave_no_partial_tree"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::real_entry_creation_and_raw_previews_preserve_exact_bytes_and_empty_files"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::moving_to_a_parent_and_removing_entries_never_mutates_the_root"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::copy_keeps_exact_names_compound_extensions_and_every_recursive_source_byte"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::every_local_mutation_and_listing_rejects_traversal_and_absolute_targets"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::listing_and_import_reject_links_without_hiding_real_entries"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::identity_is_stable_but_open_grants_are_not_interchangeable"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::local_provider_roundtrip_preserves_encoding_conflicts_and_operations"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::recursive_failure_cleans_copied_readonly_children_without_changing_sources"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
