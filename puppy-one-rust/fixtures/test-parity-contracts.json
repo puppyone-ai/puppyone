@@ -9861,6 +9861,353 @@
           "test": "editor::markdown::features::mdx::tests::tabs_render_in_the_mdx_dialect_only"
         }
       ]
+    },
+    {
+      "id": "file-icon-semantics-and-native-rasterization",
+      "acceptance": "Format classification preserves database binary admission and Office, spreadsheet, video and Context Map identities. Invalid declared semantic kinds fail at the format API. Installed themes are distinct from retired preference migrations and prototype-like unknown IDs are rejected. Generated glyphs retain product-specific shapes and database slot geometry; Markdown/plain text share the document shape in inherited label ink. The production FileIcon resource binds active palette, row ink, logical size and physical DPR into immutable cache keys, with bounded loadable sizes and malformed virtual requests rejected. Every semantic kind traverses the real Assets loader, GPUI SVG decoder and rasterizer at 14/18/24/56 logical pixels, checking physical dimensions and nontransparent output. The generator emits one SVG namespace and Python XML validation supplements the permissive native decoder. These are glyph tests; independent FilePreviewIcon cards, folder badges and theme factories/variants remain open. Frozen TS DuckDB viewer-admission cases 4/5 are not cited because current Rust intentionally routes DuckDB to its binary placeholder after removal of the bundled engine.",
+      "typescript": [
+        {
+          "path": "tests/unit/appearance/icons/fileIconSemantics.test.tsx",
+          "sha256": "c476449bab9740895fb3c259e9cbcd09ca1a9e776a81da5beabe05baa6e0733d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "file icon semantics > classifies data.db as a database without changing binary admission"
+            },
+            {
+              "index": 1,
+              "name": "file icon semantics > classifies data.db3 as a database without changing binary admission"
+            },
+            {
+              "index": 2,
+              "name": "file icon semantics > classifies data.sqlite as a database without changing binary admission"
+            },
+            {
+              "index": 3,
+              "name": "file icon semantics > classifies data.sqlite3 as a database without changing binary admission"
+            },
+            {
+              "index": 6,
+              "name": "file icon semantics > classifies DATA.DB as a database without changing binary admission"
+            },
+            {
+              "index": 7,
+              "name": "file icon semantics > resolves application/vnd.sqlite3 to the same database semantic identity"
+            },
+            {
+              "index": 8,
+              "name": "file icon semantics > resolves application/x-sqlite3 to the same database semantic identity"
+            },
+            {
+              "index": 9,
+              "name": "file icon semantics > resolves application/vnd.duckdb to the same database semantic identity"
+            },
+            {
+              "index": 10,
+              "name": "file icon semantics > does not mistake arbitrary binary files for databases or DB candidates for SQLite"
+            },
+            {
+              "index": 12,
+              "name": "file icon semantics > keeps database icon slots stable while reducing the artwork in the 'default' theme"
+            },
+            {
+              "index": 13,
+              "name": "file icon semantics > classifies table.csv as a generic spreadsheet"
+            },
+            {
+              "index": 14,
+              "name": "file icon semantics > classifies table.tsv as a generic spreadsheet"
+            },
+            {
+              "index": 15,
+              "name": "file icon semantics > classifies table.ods as a generic spreadsheet"
+            },
+            {
+              "index": 16,
+              "name": "file icon semantics > classifies table.xls as an Excel workbook"
+            },
+            {
+              "index": 17,
+              "name": "file icon semantics > classifies table.xlsm as an Excel workbook"
+            },
+            {
+              "index": 18,
+              "name": "file icon semantics > classifies table.xlsx as an Excel workbook"
+            },
+            {
+              "index": 19,
+              "name": "file icon semantics > owns Office product identity in the format registry"
+            },
+            {
+              "index": 20,
+              "name": "file icon semantics > classifies Context Map documents with their dedicated semantic icon"
+            },
+            {
+              "index": 21,
+              "name": "file icon semantics > renders Context Map as a treasure map product mark in the default theme"
+            },
+            {
+              "index": 22,
+              "name": "file icon semantics > fails fast instead of falling back for an invalid declared semantic kind"
+            },
+            {
+              "index": 23,
+              "name": "file icon semantics > classifies proposal.doc as a Word document"
+            },
+            {
+              "index": 24,
+              "name": "file icon semantics > classifies proposal.docx as a Word document"
+            },
+            {
+              "index": 25,
+              "name": "file icon semantics > classifies deck.ppt as a presentation"
+            },
+            {
+              "index": 26,
+              "name": "file icon semantics > classifies deck.pptx as a presentation"
+            },
+            {
+              "index": 27,
+              "name": "file icon semantics > classifies show.ppsx as a presentation"
+            },
+            {
+              "index": 28,
+              "name": "file icon semantics > classifies deck.odp as a presentation"
+            },
+            {
+              "index": 29,
+              "name": "file icon semantics > classifies movie.mp4 as video"
+            },
+            {
+              "index": 30,
+              "name": "file icon semantics > classifies movie.mov as video"
+            },
+            {
+              "index": 31,
+              "name": "file icon semantics > classifies movie.webm as video"
+            },
+            {
+              "index": 32,
+              "name": "file icon semantics > renders compact video files with a player glyph in the default theme"
+            },
+            {
+              "index": 33,
+              "name": "file icon semantics > renders every registered semantic kind in the 'default' theme"
+            },
+            {
+              "index": 34,
+              "name": "file icon semantics > renders spreadsheet glyphs as a standalone table grid in the default theme"
+            },
+            {
+              "index": 35,
+              "name": "file icon semantics > renders a recognizable Word mark in the default theme"
+            },
+            {
+              "index": 36,
+              "name": "file icon semantics > renders a recognizable Excel mark in the default theme"
+            },
+            {
+              "index": 37,
+              "name": "file icon semantics > renders a recognizable presentation mark in the default theme"
+            },
+            {
+              "index": 39,
+              "name": "file icon semantics > ships only the default theme"
+            },
+            {
+              "index": 40,
+              "name": "file icon semantics > migrates the retired vscode theme ID to default without keeping it in the public contract"
+            },
+            {
+              "index": 41,
+              "name": "file icon semantics > migrates the retired lines theme ID to default without keeping it in the public contract"
+            },
+            {
+              "index": 42,
+              "name": "file icon semantics > migrates the retired semantic theme ID to default without keeping it in the public contract"
+            },
+            {
+              "index": 43,
+              "name": "file icon semantics > migrates the retired material theme ID to default without keeping it in the public contract"
+            },
+            {
+              "index": 44,
+              "name": "file icon semantics > migrates the retired minimal theme ID to default without keeping it in the public contract"
+            },
+            {
+              "index": 45,
+              "name": "file icon semantics > rejects \"toString\" as a theme ID"
+            },
+            {
+              "index": 46,
+              "name": "file icon semantics > rejects \"constructor\" as a theme ID"
+            },
+            {
+              "index": 47,
+              "name": "file icon semantics > rejects \"unknown-theme\" as a theme ID"
+            },
+            {
+              "index": 48,
+              "name": "file icon semantics > rejects \"\" as a theme ID"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/icons/fileIconThemePlugins.test.tsx",
+          "sha256": "2ef466081ab4708eb7f1714f944c1bbf1129bfa44ce5fe13efa6cb9a764e3dad",
+          "cases": [
+            {
+              "index": 0,
+              "name": "file icon theme plug-in contract > ships the default theme through the same registry a plug-in uses"
+            },
+            {
+              "index": 1,
+              "name": "file icon theme plug-in contract > draws Markdown and plain text as the document page in the label's ink"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "formats::tests::invalid_declared_semantic_kind_fails_at_the_format_boundary"
+        },
+        {
+          "package": "po-contracts",
+          "test": "formats::tests::semantic_identity_preserves_binary_admission_and_office_families"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::every_known_format_has_a_glyph_in_every_theme"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::classification_and_display_follow_the_product_registry"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::every_kind_has_late_bound_ink_and_valid_geometry_at_each_size"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::installed_themes_and_saved_theme_migrations_have_distinct_contracts"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::rendered_glyphs_preserve_product_shapes_and_database_slot_geometry"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::malformed_image_requests_cannot_escape_the_installed_glyph_catalog"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::markdown_and_text_share_the_document_glyph_and_inherit_label_ink"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::icon::tests::file_icon_resources_bind_palette_foreground_and_device_resolution"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::icon::tests::file_icon_size_limits_keep_generated_resources_loadable"
+        },
+        {
+          "package": "po-ui",
+          "test": "every_semantic_icon_decodes_and_rasterizes_at_row_and_preview_sizes",
+          "target": "file_icon_pipeline"
+        },
+        {
+          "package": "po-ui",
+          "test": "theme::tests::every_file_icon_binding_uses_the_active_palette_and_inherited_ink"
+        }
+      ]
+    },
+    {
+      "id": "office-file-family-mime-routing",
+      "acceptance": "Each Office family extension chooses its specific preferred MIME. Extensionless downloads recover the concrete parser extension and resource-only Office viewer through the real viewer registry. An unregistered vendor MIME cannot claim Office or request file content/resource access.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/fileFormatRouting.test.ts",
+          "sha256": "b49ee31396886fb673eab45f3c716c0511513d08844ae02b3d961ef149feaba0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Office family format routing > returns the extension-specific preferred MIME for report.doc"
+            },
+            {
+              "index": 1,
+              "name": "Office family format routing > returns the extension-specific preferred MIME for report.docx"
+            },
+            {
+              "index": 2,
+              "name": "Office family format routing > returns the extension-specific preferred MIME for book.xls"
+            },
+            {
+              "index": 3,
+              "name": "Office family format routing > returns the extension-specific preferred MIME for book.xlsb"
+            },
+            {
+              "index": 4,
+              "name": "Office family format routing > returns the extension-specific preferred MIME for book.xlsm"
+            },
+            {
+              "index": 5,
+              "name": "Office family format routing > returns the extension-specific preferred MIME for book.xlsx"
+            },
+            {
+              "index": 6,
+              "name": "Office family format routing > returns the extension-specific preferred MIME for slides.ppsx"
+            },
+            {
+              "index": 7,
+              "name": "Office family format routing > returns the extension-specific preferred MIME for template.ots"
+            },
+            {
+              "index": 8,
+              "name": "Office family format routing > recovers application/msword parser dispatch without a filename extension"
+            },
+            {
+              "index": 9,
+              "name": "Office family format routing > recovers application/vnd.openxmlformats-officedocument.wordprocessingml.document parser dispatch without a filename extension"
+            },
+            {
+              "index": 10,
+              "name": "Office family format routing > recovers application/vnd.ms-excel.sheet.binary.macroEnabled.12 parser dispatch without a filename extension"
+            },
+            {
+              "index": 11,
+              "name": "Office family format routing > recovers application/vnd.ms-excel.sheet.macroEnabled.12 parser dispatch without a filename extension"
+            },
+            {
+              "index": 12,
+              "name": "Office family format routing > recovers application/vnd.openxmlformats-officedocument.spreadsheetml.sheet parser dispatch without a filename extension"
+            },
+            {
+              "index": 13,
+              "name": "Office family format routing > recovers application/vnd.openxmlformats-officedocument.presentationml.slideshow parser dispatch without a filename extension"
+            },
+            {
+              "index": 14,
+              "name": "Office family format routing > recovers application/vnd.oasis.opendocument.spreadsheet-template parser dispatch without a filename extension"
+            },
+            {
+              "index": 15,
+              "name": "Office family format routing > does not route an unregistered vendor MIME to the Office viewer"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "formats::tests::office_families_keep_extension_specific_mime_types"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::office_mime_routing_recovers_parser_dispatch_without_a_filename_extension"
+        }
+      ]
     }
   ],
   "openAcceptance": [

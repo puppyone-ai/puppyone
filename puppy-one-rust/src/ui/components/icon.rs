@@ -241,3 +241,69 @@ impl RenderOnce for FileIcon {
             .refine_style(&self.style)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::Theme;
+    use core::prelude::v1::test;
+
+    fn key(icon: &FileIcon, scale: f32, palette: Theme, foreground: Rgba) -> String {
+        let Resource::Embedded(path) = icon.resource(scale, palette, foreground) else {
+            panic!("File icons must use the embedded asset source");
+        };
+        assert!(crate::file_kind::glyph_svg(&path).is_some());
+        path.to_string()
+    }
+
+    #[test]
+    fn file_icon_resources_bind_palette_foreground_and_device_resolution() {
+        let light = Theme::new(false);
+        let dark = Theme::new(true);
+        let folder = FileIcon::folder("default");
+        let red = light.danger;
+        let blue = light.accent;
+        assert_ne!(red, blue);
+        let first = key(&folder, 1., light, red);
+        assert_eq!(first, key(&folder, 1., light, red));
+        assert_ne!(first, key(&folder, 1., light, blue));
+        assert_ne!(first, key(&folder, 2., light, red));
+        assert!(first.contains("/folder/18/18/"));
+        assert!(key(&folder, 1.25, light, red).contains("/folder/18/23/"));
+        let svg = String::from_utf8(crate::file_kind::glyph_svg(&first).unwrap()).unwrap();
+        assert!(svg.contains(&crate::theme::css_hex(red)));
+        let office = FileIcon::file("model.xlsx", "default");
+        assert_ne!(key(&office, 2., light, red), key(&office, 2., dark, red));
+        // A known file family outranks a contradictory provider hint.
+        let hinted = FileIcon::for_node("model.xlsx", Some("image".into()), None, "default");
+        assert_eq!(key(&office, 2., light, red), key(&hinted, 2., light, red));
+        let mime = FileIcon::for_node(
+            "unknown.zzz",
+            None,
+            Some("application/vnd.sqlite3".into()),
+            "default",
+        );
+        assert!(key(&mime, 2., light, red).contains("/database/"));
+    }
+
+    #[test]
+    fn file_icon_size_limits_keep_generated_resources_loadable() {
+        let palette = Theme::new(false);
+        for (requested, expected) in [
+            (f32::NAN, 18.),
+            (f32::INFINITY, 18.),
+            (f32::NEG_INFINITY, 18.),
+            (-1., 1.),
+            (0., 1.),
+            (14.5, 14.5),
+            (900., 512.),
+        ] {
+            let icon = FileIcon::file("README.md", "default").size_px(requested);
+            assert_eq!(f32::from(icon.size), expected);
+            let path = key(&icon, 2., palette, palette.text);
+            assert!(path.contains(&format!("/{expected}/{}/", (expected * 2.).ceil())));
+        }
+        let icon = FileIcon::file("README.md", "default").size_px(512.);
+        assert!(key(&icon, 16., palette, palette.text).contains("/512/4096/"));
+    }
+}

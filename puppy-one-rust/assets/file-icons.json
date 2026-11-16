@@ -135,7 +135,7 @@
      ]
     },
     "workflow": {
-     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-workflow\" aria-hidden=\"true\"><rect width=\"8\" height=\"8\" x=\"3\" y=\"3\" rx=\"2\"></rect><path d=\"M7 11v4a2 2 0 0 0 2 2h4\"></path><rect width=\"8\" height=\"8\" x=\"13\" y=\"13\" rx=\"2\"></rect></svg>",
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-workflow\" aria-hidden=\"true\"><rect width=\"8\" height=\"8\" x=\"3\" y=\"3\" rx=\"2\"></rect><path d=\"M7 11v4a2 2 0 0 0 2 2h4\"></path><rect width=\"8\" height=\"8\" x=\"13\" y=\"13\" rx=\"2\"></rect></svg>",
      "viewbox": 24,
      "strokes": [
       {
@@ -386,7 +386,7 @@
      ]
     },
     "database": {
-     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"-3 -3 30 30\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-database\" aria-hidden=\"true\" data-file-icon-shape=\"database-cylinder\"><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"></ellipse><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"></path><path d=\"M3 12A9 3 0 0 0 21 12\"></path></svg>",
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"-3 -3 30 30\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-database\" aria-hidden=\"true\" data-file-icon-shape=\"database-cylinder\"><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"></ellipse><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"></path><path d=\"M3 12A9 3 0 0 0 21 12\"></path></svg>",
      "viewbox": 30,
      "strokes": [
       {

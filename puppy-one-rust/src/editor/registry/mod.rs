@@ -279,6 +279,47 @@ mod tests {
     }
 
     #[test]
+    fn office_mime_routing_recovers_parser_dispatch_without_a_filename_extension() {
+        for (mime, extension) in [
+            ("application/msword", "doc"),
+            (
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "docx",
+            ),
+            (
+                "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+                "xlsb",
+            ),
+            ("application/vnd.ms-excel.sheet.macroEnabled.12", "xlsm"),
+            (
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "xlsx",
+            ),
+            (
+                "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+                "ppsx",
+            ),
+            (
+                "application/vnd.oasis.opendocument.spreadsheet-template",
+                "ots",
+            ),
+        ] {
+            let mut document = EditorDocument::local("download");
+            document.mime = Some(mime.into());
+            let resolved = resolve(&document);
+            assert_eq!(resolved.viewer.id, "office-preview", "{mime}");
+            assert_eq!(resolved.resolved_extension.as_deref(), Some(extension));
+            assert_eq!(resolved.viewer.source(), Source::Resource);
+        }
+        let mut document = EditorDocument::local("download");
+        document.mime = Some("application/vnd.example.untrusted-office-lookalike".into());
+        let resolved = resolve(&document);
+        assert_eq!(resolved.viewer.id, "document-placeholder");
+        assert_eq!(resolved.viewer.source(), Source::None);
+        assert_eq!(resolved.resolved_extension, None);
+    }
+
+    #[test]
     fn only_editable_viewers_on_editable_formats_edit() {
         let md = EditorDocument::local("a.md");
         let resolved = resolve(&md);

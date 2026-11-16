@@ -246,6 +246,11 @@ impl FileFormat {
     /// `getSemanticKindForFormat`.
     pub fn semantic_kind(&self) -> &str {
         if let Some(kind) = &self.semantic_kind {
+            assert!(
+                SEMANTIC_KINDS.contains(&kind.as_str()),
+                "Unknown semantic kind for file format {}: {kind}",
+                self.id
+            );
             return kind;
         }
         match self.default_viewer.as_str() {
@@ -368,6 +373,113 @@ pub fn preferred_mime(name: &str) -> Option<&'static str> {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    #[test]
+    #[should_panic(expected = "Unknown semantic kind for file format xlsx")]
+    fn invalid_declared_semantic_kind_fails_at_the_format_boundary() {
+        let mut format = of("model.xlsx").clone();
+        format.semantic_kind = Some("unknown-office-product".into());
+        format.semantic_kind();
+    }
+
+    #[test]
+    fn office_families_keep_extension_specific_mime_types() {
+        for (name, expected) in [
+            ("report.doc", "application/msword"),
+            (
+                "report.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+            ("book.xls", "application/vnd.ms-excel"),
+            (
+                "book.xlsb",
+                "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+            ),
+            (
+                "book.xlsm",
+                "application/vnd.ms-excel.sheet.macroEnabled.12",
+            ),
+            (
+                "book.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ),
+            (
+                "slides.ppsx",
+                "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+            ),
+            (
+                "template.ots",
+                "application/vnd.oasis.opendocument.spreadsheet-template",
+            ),
+        ] {
+            assert_eq!(preferred_mime(name), Some(expected), "{name}");
+        }
+    }
+
+    #[test]
+    fn semantic_identity_preserves_binary_admission_and_office_families() {
+        for name in [
+            "data.db",
+            "data.db3",
+            "data.sqlite",
+            "data.sqlite3",
+            "DATA.DB",
+        ] {
+            let format = of(name);
+            assert_eq!(format.id, "database-candidate");
+            assert_eq!(format.semantic_kind.as_deref(), Some("database"));
+            assert_eq!(format.category, Category::Binary);
+            assert_eq!(format.default_viewer, "database-preview");
+            assert!(!format.editable);
+            assert_eq!(format.ingest_strategy, "raw");
+            for node in ["file", "binary"] {
+                assert_eq!(semantic_kind(name, Some(node), None), "database");
+            }
+        }
+        for mime in [
+            "application/vnd.sqlite3",
+            "application/x-sqlite3",
+            "application/vnd.duckdb",
+        ] {
+            assert_eq!(resolve(None, Some(mime)).semantic_kind(), "database");
+        }
+        for name in ["data.db", "data.db3"] {
+            assert_eq!(preferred_mime(name), Some("application/octet-stream"));
+        }
+        assert_eq!(semantic_kind("firmware.bin", None, None), "file");
+        assert_eq!(
+            semantic_kind("firmware.bin", Some("binary"), None),
+            "binary"
+        );
+        assert_eq!(semantic_kind("unknown.unregistered", None, None), "file");
+        assert_ne!(
+            resolve(None, Some("application/octet-stream")).semantic_kind(),
+            "database"
+        );
+        for (names, kind) in [
+            (&["table.csv", "table.tsv", "table.ods"][..], "spreadsheet"),
+            (&["table.xls", "table.xlsm", "table.xlsx"][..], "excel"),
+            (&["proposal.doc", "proposal.docx"][..], "word"),
+            (
+                &["deck.ppt", "deck.pptx", "show.ppsx", "deck.odp"][..],
+                "presentation",
+            ),
+            (&["movie.mp4", "movie.mov", "movie.webm"][..], "video"),
+            (&["Knowledge.contextmap"][..], "context-map"),
+        ] {
+            for name in names {
+                assert_eq!(semantic_kind(name, None, None), kind, "{name}");
+            }
+        }
+        for (name, kind) in [
+            ("proposal.docx", "word"),
+            ("model.xlsx", "excel"),
+            ("deck.pptx", "presentation"),
+            ("Knowledge.contextmap", "context-map"),
+        ] {
+            assert_eq!(of(name).semantic_kind.as_deref(), Some(kind));
+        }
+    }
 
     #[test]
     fn names_resolve_like_the_product_registry() {

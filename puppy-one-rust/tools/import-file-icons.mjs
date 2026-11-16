@@ -35,7 +35,8 @@ const oracle=[];const themes={};
 for(const theme of bundle.themes){
  const glyphs={};
  for(const kind of bundle.kinds){
-  const raw=sizes.map(size=>bundle.render(theme,kind,size).replace('<svg ','<svg xmlns="http://www.w3.org/2000/svg" '));
+  const raw=sizes.map(size=>bundle.render(theme,kind,size).replace(/<svg\b[^>]*>/,tag=>
+   /\sxmlns=/.test(tag)?tag:tag.replace('<svg ','<svg xmlns="http://www.w3.org/2000/svg" ')));
   const values=raw.map(strokeValues);
   const viewbox=Number(raw[0].match(/viewBox="[^"]+"/)[0].split(/\s+/).at(-2));
   if(!Number.isFinite(viewbox))throw Error('Invalid viewBox');

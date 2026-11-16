@@ -241,6 +241,206 @@ pub fn display_name(name: &str, folder: bool) -> (String, Option<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn installed_themes_and_saved_theme_migrations_have_distinct_contracts() {
+        assert_eq!(themes().collect::<Vec<_>>(), ["default"]);
+        assert!(std::ptr::eq(theme("unknown"), theme("default")));
+        assert_eq!(theme("default").id, "default");
+        assert_eq!(parse_theme(Some("default")), Some("default"));
+        for retired in ["vscode", "lines", "semantic", "material", "minimal"] {
+            assert!(!themes().any(|id| id == retired));
+            assert_eq!(parse_theme(Some(retired)), Some("default"));
+        }
+        for invalid in [
+            None,
+            Some("toString"),
+            Some("constructor"),
+            Some("unknown-theme"),
+            Some(""),
+        ] {
+            assert_eq!(parse_theme(invalid), None);
+        }
+    }
+
+    #[test]
+    fn markdown_and_text_share_the_document_glyph_and_inherit_label_ink() {
+        let rendered = |name| {
+            let icon = resolve(
+                "default",
+                RenderContext {
+                    name,
+                    node_type: Some("file"),
+                    mime: None,
+                    size: 18.,
+                },
+            );
+            let key = icon.asset_path(18, &vec![[12, 96, 192, 255]; icon.glyph().bindings.len()]);
+            (icon, String::from_utf8(glyph_svg(&key).unwrap()).unwrap())
+        };
+        let (markdown, svg) = rendered("notes.md");
+        assert_eq!(svg, rendered("notes.txt").1);
+        for name in ["notes.md", "notes.txt", "spec.pdf"] {
+            assert!(
+                rendered(name)
+                    .1
+                    .contains("data-file-icon-shape=\"document\"")
+            );
+        }
+        assert_eq!(markdown.glyph().bindings.len(), 1);
+        assert_eq!(markdown.glyph().bindings[0].token, "currentColor");
+        assert!(svg.contains("stroke=\"#0c60c0ff\""));
+        assert!(svg.contains("d=\"M5.85 9.25h5.2M5.85 11.75h3.65\""));
+        assert!(!svg.contains("opacity"));
+        assert!(
+            markdown
+                .glyph()
+                .strokes
+                .iter()
+                .all(|s| s.at(18., markdown.glyph().viewbox) == 1.)
+        );
+    }
+
+    #[test]
+    fn rendered_glyphs_preserve_product_shapes_and_database_slot_geometry() {
+        for theme in themes() {
+            let rendered = |name, size| {
+                let icon = resolve(
+                    theme,
+                    RenderContext {
+                        name,
+                        node_type: None,
+                        mime: None,
+                        size,
+                    },
+                );
+                let path = icon.asset_path(
+                    size as u32,
+                    &vec![[12, 96, 192, 255]; icon.glyph().bindings.len()],
+                );
+                String::from_utf8(glyph_svg(&path).unwrap()).unwrap()
+            };
+            for name in [
+                "data.db",
+                "data.db3",
+                "data.sqlite",
+                "data.sqlite3",
+                "data.duckdb",
+                "data.ddb",
+            ] {
+                for size in [14., 18., 24.] {
+                    let svg = rendered(name, size);
+                    assert!(svg.contains("data-file-icon-shape=\"database-cylinder\""));
+                    assert!(svg.contains("<ellipse"));
+                    assert_eq!(svg.matches("<svg").count(), 1);
+                    assert!(!svg.contains("0 0 44 54"));
+                    assert!(!svg.contains("drop-shadow"));
+                    assert!(svg.contains("viewBox=\"-3 -3 30 30\""));
+                    assert!(svg.contains(&format!("width=\"{size}\"")));
+                    assert!(svg.contains(&format!("height=\"{size}\"")));
+                    let icon = resolve(
+                        theme,
+                        RenderContext {
+                            name,
+                            node_type: None,
+                            mime: None,
+                            size,
+                        },
+                    );
+                    assert!(
+                        icon.glyph()
+                            .bindings
+                            .iter()
+                            .any(|b| b.token == "file-accent-code")
+                    );
+                }
+            }
+            for (name, attributes) in [
+                (
+                    "Knowledge.contextmap",
+                    &[
+                        "data-file-icon-product=\"context-map\"",
+                        "data-file-icon-shape=\"treasure-map\"",
+                        "data-file-icon-complexity=\"minimal\"",
+                        "data-file-icon-route=\"treasure-trail\"",
+                    ][..],
+                ),
+                ("movie.mp4", &["data-file-icon-shape=\"video-player\""][..]),
+                (
+                    "table.csv",
+                    &[
+                        "data-file-icon-shape=\"table-grid\"",
+                        "data-file-icon-grid=\"2x2\"",
+                    ][..],
+                ),
+                (
+                    "proposal.docx",
+                    &[
+                        "data-file-icon-office=\"word\"",
+                        "data-file-icon-shape=\"word-document\"",
+                    ][..],
+                ),
+                (
+                    "model.xlsx",
+                    &[
+                        "data-file-icon-office=\"excel\"",
+                        "data-file-icon-shape=\"excel-spreadsheet\"",
+                    ][..],
+                ),
+                (
+                    "deck.pptx",
+                    &[
+                        "data-file-icon-office=\"presentation\"",
+                        "data-file-icon-shape=\"presentation-slide\"",
+                    ][..],
+                ),
+            ] {
+                let svg = rendered(name, 18.);
+                for attribute in attributes {
+                    assert!(svg.contains(attribute), "{theme}/{name} lost {attribute}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn malformed_image_requests_cannot_escape_the_installed_glyph_catalog() {
+        let resolved = resolve(
+            "default",
+            RenderContext {
+                name: "model.xlsx",
+                node_type: None,
+                mime: None,
+                size: 18.,
+            },
+        );
+        let valid = resolved.asset_path(
+            36,
+            &vec![[12, 96, 192, 255]; resolved.glyph().bindings.len()],
+        );
+        assert!(glyph_svg(&valid).is_some());
+        for (part, invalid) in [
+            (1, "../default"),
+            (1, "missing"),
+            (2, "missing"),
+            (3, "NaN"),
+            (3, "inf"),
+            (3, "0"),
+            (3, "513"),
+            (4, "0"),
+            (4, "4097"),
+            (5, "zzzzzzzz"),
+            (5, ""),
+            (6, "%"),
+        ] {
+            let mut parts: Vec<_> = valid.split('/').collect();
+            parts[part] = invalid;
+            assert!(
+                glyph_svg(&parts.join("/")).is_none(),
+                "invalid {part}: {invalid}"
+            );
+        }
+    }
     /// Every format the registry knows draws in every theme: a new kind
     /// (v0.4.4's `whiteboard`) arrives with its glyph or fails here, not at
     /// the first tree that lists such a file.
