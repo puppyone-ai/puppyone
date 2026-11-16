@@ -205,6 +205,9 @@ fn run(
             return;
         }
     };
+    if opening.load(Ordering::Acquire) || replies.is_closed() {
+        return;
+    }
     let Some(library) = library_path() else {
         if finish_open(&opened_tx, &opening) {
             let _ = replies.send_blocking(Reply::Failed(Failure::Resource));

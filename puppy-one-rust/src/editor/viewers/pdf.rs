@@ -561,11 +561,85 @@ mod tests {
 
     #[gpui::test]
     fn pdf_rebinding_and_terminal_failure_fence_old_generation_callbacks(cx: &mut TestAppContext) {
+        use crate::workspace::{contracts::*, ports::*, testing::Memory};
+        use std::{
+            io::Cursor,
+            sync::{Condvar, Mutex},
+            time::Duration,
+        };
         cx.executor().allow_parking();
-        let temp = tempfile::tempdir().unwrap();
-        std::fs::write(temp.path().join("a.pdf"), pdf::test_pdf()).unwrap();
-        std::fs::write(temp.path().join("b.pdf"), pdf::test_pdf()).unwrap();
-        let ws = crate::workspace::Workspace::open(temp.path()).unwrap();
+        type Gate = Arc<(Mutex<bool>, Condvar)>;
+        struct Release(Gate);
+        impl Drop for Release {
+            fn drop(&mut self) {
+                *self.0.0.lock().unwrap() = true;
+                self.0.1.notify_all();
+            }
+        }
+        struct Pending {
+            memory: Memory,
+            gate: Gate,
+        }
+        impl DataPort for Pending {
+            fn descriptor(&self) -> Descriptor {
+                self.memory.descriptor()
+            }
+            fn list(&self, _: &RelativePath) -> Result<Vec<Entry>> {
+                Ok(vec![])
+            }
+        }
+        impl DocumentStoragePort for Pending {
+            fn read(&self, _: &RelativePath) -> Result<TextSnapshot> {
+                Err(Error::unsupported())
+            }
+            fn write(&self, _: &RelativePath, _: &Revision, _: &str) -> Result<WriteResult> {
+                Err(Error::unsupported())
+            }
+        }
+        impl ResourcePort for Pending {
+            fn preview(&self, _: &RelativePath) -> Result<PreviewData> {
+                Ok(PreviewData::LocalFile("/provider-owned.pdf".into()))
+            }
+            fn preview_reader(&self, _: &RelativePath) -> Result<ResourceReader> {
+                let (ready, timed) = self
+                    .gate
+                    .1
+                    .wait_timeout_while(
+                        self.gate.0.lock().unwrap(),
+                        Duration::from_secs(5),
+                        |ready| !*ready,
+                    )
+                    .unwrap();
+                if timed.timed_out() && !*ready {
+                    return Err(Error::new(
+                        ErrorKind::Io,
+                        "Test did not release PDF admission",
+                    ));
+                }
+                let bytes = pdf::test_pdf();
+                Ok(ResourceReader {
+                    length: bytes.len() as u64,
+                    reader: Box::new(Cursor::new(bytes)),
+                })
+            }
+        }
+        impl ResourceWatchPort for Pending {
+            fn watch(
+                &self,
+                _: &RelativePath,
+                _: &Revision,
+                _: Notify,
+            ) -> Result<WatchSubscription> {
+                Err(Error::unsupported())
+            }
+        }
+        let gate: Gate = Arc::default();
+        let _release = Release(gate.clone());
+        let ws = crate::workspace::Workspace::from_provider(Arc::new(Pending {
+            memory: Memory::new("memory://pdf-generation/project/"),
+            gate,
+        }))
+        .unwrap();
         let resource = ws.resource(std::path::Path::new("a.pdf")).unwrap();
         let other = ws.resource(std::path::Path::new("b.pdf")).unwrap();
         let (view, cx) = cx.add_window_view(|_, cx| {
