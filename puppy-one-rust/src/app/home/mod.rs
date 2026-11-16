@@ -322,6 +322,7 @@ impl Homepage {
     }
 
     fn refresh(&mut self, cx: &mut Context<Self>) {
+        self.sync_import_sources(cx);
         self.read_spaces(false, cx);
         self.read_hosts(false, cx);
         self.sync_sharing(cx);
@@ -594,6 +595,11 @@ impl Homepage {
             let actions = OnboardingEntryActions::new(
                 busy,
                 self.dragging,
+                self.preferences
+                    .read(cx)
+                    .state
+                    .experimental
+                    .other_app_imports,
                 cx.listener(|s, _, _, cx| s.command(Command::OpenFolder, cx)),
                 cx.listener(|s, _, w, cx| s.begin_import(w, cx)),
             );

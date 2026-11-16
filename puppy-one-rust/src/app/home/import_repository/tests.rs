@@ -505,7 +505,10 @@ fn publication_defers_cancel_escape_and_close_until_its_result(cx: &mut TestAppC
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
     shell.update_in(cx, |s, w, cx| {
-        s.home.update(cx, |h, cx| h.close_import(w, cx))
+        s.home.update(cx, |h, cx| {
+            h.close_import(w, cx);
+            h.begin_import(w, cx);
+        })
     });
     shell.read_with(cx, |s, cx| {
         let h = s.home.read(cx);

@@ -7,11 +7,20 @@
 //! used yet says why, after what can.
 use super::*;
 use crate::{
-    features::project_import::{Mode, SOURCES, Source, visible},
+    features::project_import::{Mode, Source, visible},
     platform::app_folders::{self, AppFolder},
     ui::components::{Dialog, Icon, IconButton, tinted_checkbox},
 };
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
+
+// The enclosing dialog binds Enter to its default confirmation action.
+// Source buttons own native Enter/Space activation while focused.
+pub(in crate::app) fn bind_keys(cx: &mut App) {
+    cx.bind_keys([KeyBinding::new("enter", NoAction, Some("ImportSource"))]);
+}
 
 /// An app's folders: asked once when the list opens.
 #[derive(Clone, Debug, PartialEq)]
@@ -31,6 +40,9 @@ pub(in crate::app) struct ImportPicker {
     pub error: Option<String>,
     /// Which listing is current; a retry replaces it.
     attempt: u64,
+    identity: Arc<()>,
+    visible_other_apps: bool,
+    first_source_focus: FocusHandle,
 }
 
 /// `statusOf`: why a source cannot be chosen now, if it cannot.
@@ -66,6 +78,9 @@ fn disabled(source: &Source, folders: &HashMap<&'static str, Folders>) -> bool {
 impl Homepage {
     /// `projectEntryFlow.openImport`: the list of sources.
     pub(in crate::app) fn begin_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.cancel_repository_import() {
+            return;
+        }
         self.import = None;
         self.import_picker = Some(ImportPicker {
             source: None,
@@ -74,10 +89,17 @@ impl Homepage {
             adding: false,
             error: None,
             attempt: 0,
+            identity: Arc::new(()),
+            visible_other_apps: false,
+            first_source_focus: cx.focus_handle(),
         });
         self.list_app_folders(cx);
         self.open_dialog(DialogKey::ImportRepository, cx);
-        self.dialog_focus.focus(window, cx);
+        self.import_picker
+            .as_ref()
+            .unwrap()
+            .first_source_focus
+            .focus(window, cx);
         cx.notify();
     }
     /// The visible sources, by experiment.
@@ -103,29 +125,44 @@ impl Homepage {
         let Some(picker) = self.import_picker.as_mut() else {
             return;
         };
+        picker.visible_other_apps = !apps.is_empty();
         picker.attempt += 1;
         let attempt = picker.attempt;
+        let identity = picker.identity.clone();
         for app in apps {
             picker.folders.insert(app, Folders::Loading);
             let places = places.clone();
             let task = cx
                 .background_executor()
                 .spawn(async move { app_folders::list(app, &places) });
-            cx.spawn(async move |this, cx| {
-                let result = task.await;
-                let _ = this.update(cx, |s, cx| {
-                    let Some(picker) = s.import_picker.as_mut().filter(|p| p.attempt == attempt)
-                    else {
-                        return;
-                    };
-                    picker
-                        .folders
-                        .insert(app, result.map_or(Folders::Failed, Folders::Found));
-                    cx.notify();
-                });
-            })
-            .detach();
+            finish_app_folder_read(task, identity.clone(), attempt, app, cx);
         }
+    }
+    /// A preference change updates an already open picker and retires reads
+    /// and add requests from the old source visibility policy.
+    pub(super) fn sync_import_sources(&mut self, cx: &mut Context<Self>) {
+        let visible = self
+            .preferences
+            .read(cx)
+            .state
+            .experimental
+            .other_app_imports;
+        let Some(picker) = self
+            .import_picker
+            .as_mut()
+            .filter(|p| p.visible_other_apps != visible)
+        else {
+            return;
+        };
+        picker.identity = Arc::new(());
+        picker.folders.clear();
+        picker.chosen.clear();
+        picker.adding = false;
+        picker.error = None;
+        if picker.source.is_some_and(|s| !s.ready && !visible) {
+            picker.source = None;
+        }
+        self.list_app_folders(cx);
     }
     pub(in crate::app) fn choose_import_source(
         &mut self,
@@ -133,7 +170,10 @@ impl Homepage {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(source) = SOURCES.iter().find(|s| s.id == id) else {
+        if self.import_busy() {
+            return;
+        }
+        let Some(source) = self.import_sources(cx).into_iter().find(|s| s.id == id) else {
             return;
         };
         let Some(picker) = self.import_picker.as_mut() else {
@@ -151,7 +191,7 @@ impl Homepage {
         cx.notify();
     }
     /// Back to the list, unless something is on its way.
-    fn import_back(&mut self, cx: &mut Context<Self>) {
+    fn import_back(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.import_busy() {
             return;
         }
@@ -159,6 +199,7 @@ impl Homepage {
         if let Some(picker) = self.import_picker.as_mut() {
             picker.source = None;
             picker.error = None;
+            picker.first_source_focus.focus(window, cx);
         }
         cx.notify();
     }
@@ -208,6 +249,7 @@ impl Homepage {
         if paths.is_empty() || picker.adding {
             return;
         }
+        let identity = picker.identity.clone();
         if let Some(picker) = self.import_picker.as_mut() {
             picker.adding = true;
             picker.error = None;
@@ -224,32 +266,7 @@ impl Homepage {
                 .collect();
             (!paths.is_empty()).then_some(paths)
         });
-        cx.spawn_in(window, async move |this, cx| {
-            let result = task.await;
-            let _ = this.update_in(cx, |s, window, cx| {
-                match result {
-                    Some(paths) => {
-                        let now = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map_or(0, |d| d.as_secs());
-                        s.preferences.update(cx, |p, cx| {
-                            p.change(|p| p.add_recent_projects(&paths, now), cx)
-                        });
-                        s.close_import(window, cx);
-                    }
-                    // The app no longer lists them, or they are gone.
-                    None => {
-                        if let Some(picker) = s.import_picker.as_mut() {
-                            picker.adding = false;
-                            picker.error =
-                                Some(tr("onboarding.entry.import.app.readFailed").into());
-                        }
-                    }
-                }
-                cx.notify();
-            });
-        })
-        .detach();
+        finish_add_app_folders(task, identity, app, window, cx);
         cx.notify();
     }
 
@@ -276,7 +293,7 @@ impl Homepage {
                         .with_size(px(24.))
                         .color(t.muted)
                         .disabled(busy)
-                        .on_click(cx.listener(|s, _, _, cx| s.import_back(cx))),
+                        .on_click(cx.listener(|s, _, w, cx| s.import_back(w, cx))),
                 )
             })
             .child(
@@ -338,8 +355,18 @@ impl Homepage {
                 let note = status(source, &picker.folders);
                 let off = disabled(source, &picker.folders);
                 let id = source.id;
-                div()
-                    .id(SharedString::from(format!("import-source-{id}")))
+                gpui_kit::base::Button::new(SharedString::from(format!("import-source-{id}")))
+                    .debug_selector(move || format!("import-source-{id}"))
+                    .key_context("ImportSource")
+                    .accessibility_label(note.map_or_else(
+                        || source.label.to_owned(),
+                        |key| format!("{} {}", source.label, tr(key)),
+                    ))
+                    .disabled(off)
+                    .when(id == "github", |b| {
+                        b.track_focus(&picker.first_source_focus)
+                    })
+                    .justify_start()
                     .min_w_0()
                     .min_h(px(52.))
                     .flex()
@@ -453,6 +480,7 @@ impl Homepage {
                         )
                         .child(
                             Button::new("import-app-retry")
+                                .debug_selector(|| "import-app-retry".to_owned())
                                 .variant(ButtonVariant::Secondary)
                                 .label(tr("cloud.common.retry"))
                                 .on_click(cx.listener(|s, _, _, cx| {
@@ -488,6 +516,7 @@ impl Homepage {
                         let path = folder.path.clone();
                         h_flex()
                             .id(("import-app-folder", index))
+                            .debug_selector(move || format!("import-app-folder-{index}"))
                             .gap(px(10.))
                             .px(px(8.))
                             .py(px(7.))
@@ -604,6 +633,7 @@ impl Homepage {
             )
             .footer(
                 Button::new("import-app-add")
+                    .debug_selector(|| "import-app-add".to_owned())
                     .variant(ButtonVariant::Solid)
                     .label(tf(
                         "onboarding.entry.import.app.submit",
@@ -615,44 +645,71 @@ impl Homepage {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-
-    #[test]
-    fn the_experiment_opens_the_other_apps_and_coming_soon_stays_last() {
-        let ready: Vec<_> = visible(false).map(|s| s.id).collect();
-        assert_eq!(ready, ["github", "gitlab"]);
-        assert_eq!(visible(true).count(), SOURCES.len());
-        let mut folders = HashMap::new();
-        let source = |id| SOURCES.iter().find(|s| s.id == id).unwrap();
-        assert_eq!(status(source("github"), &folders), None);
-        assert_eq!(
-            status(source("notion"), &folders),
-            Some("onboarding.entry.import.directUnavailable")
-        );
-        assert!(disabled(source("obsidian"), &folders), "still reading");
-        folders.insert("obsidian", Folders::Found(vec![]));
-        assert_eq!(
-            status(source("obsidian"), &folders),
-            Some("onboarding.entry.import.app.notFound")
-        );
-        assert!(disabled(source("obsidian"), &folders));
-        folders.insert("obsidian", Folders::Failed);
-        assert!(
-            !disabled(source("obsidian"), &folders),
-            "a failed read can be retried"
-        );
-        folders.insert(
-            "obsidian",
-            Folders::Found(vec![AppFolder {
-                path: "/v".into(),
-                name: "v".into(),
-                last_used_at: None,
-            }]),
-        );
-        assert_eq!(status(source("obsidian"), &folders), None);
-        assert!(!disabled(source("obsidian"), &folders));
-    }
+fn finish_app_folder_read(
+    task: Task<Result<Vec<AppFolder>, String>>,
+    identity: Arc<()>,
+    attempt: u64,
+    app: &'static str,
+    cx: &mut Context<Homepage>,
+) {
+    cx.spawn(async move |this, cx| {
+        let result = task.await;
+        let _ = this.update(cx, |s, cx| {
+            let Some(picker) = s
+                .import_picker
+                .as_mut()
+                .filter(|p| Arc::ptr_eq(&p.identity, &identity) && p.attempt == attempt)
+            else {
+                return;
+            };
+            picker
+                .folders
+                .insert(app, result.map_or(Folders::Failed, Folders::Found));
+            cx.notify();
+        });
+    })
+    .detach();
 }
+fn finish_add_app_folders(
+    task: Task<Option<Vec<PathBuf>>>,
+    identity: Arc<()>,
+    app: &'static str,
+    window: &mut Window,
+    cx: &mut Context<Homepage>,
+) {
+    cx.spawn_in(window, async move |this, cx| {
+        let result = task.await;
+        let _ = this.update_in(cx, |s, window, cx| {
+            if !s.import_picker.as_ref().is_some_and(|p| {
+                Arc::ptr_eq(&p.identity, &identity)
+                    && p.adding
+                    && p.source.is_some_and(|source| source.id == app)
+            }) {
+                return;
+            }
+            match result {
+                Some(paths) => {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_or(0, |d| d.as_secs());
+                    s.preferences.update(cx, |p, cx| {
+                        p.change(|p| p.add_recent_projects(&paths, now), cx)
+                    });
+                    s.close_import(window, cx);
+                }
+                // The app no longer lists them, or they are gone.
+                None => {
+                    if let Some(picker) = s.import_picker.as_mut() {
+                        picker.adding = false;
+                        picker.error = Some(tr("onboarding.entry.import.app.readFailed").into());
+                    }
+                }
+            }
+            cx.notify();
+        });
+    })
+    .detach();
+}
+
+#[cfg(test)]
+mod tests;

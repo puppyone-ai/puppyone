@@ -12221,6 +12221,121 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-import-source-picker-lifecycle",
+      "acceptance": "The actual Homepage import entry, its icon, label, GitHub mark and experimental Obsidian mark all open the same source picker without a folder prompt. The single registry supplies the first three operational preview brands. Changing the shared preference updates an open picker and preview, starts real app-record reads, and persists to isolated native preferences JSON. Turning it off retires pending reads and additions. Source buttons use native focus and keyboard activation; hidden, loading, missing and unimplemented remote sources cannot start an import. A failed Obsidian record remains selectable and its real Retry button rereads corrected JSON. Already-added folders and an empty selection are inert; Add rereads the current record and adds only still-offered selected paths in place without copying files or opening a workspace. Production completion handlers fence reads by picker identity plus retry sequence, and additions by picker identity plus source and active operation; old success/failure cannot change a reopened picker or its recents. Runtime verification is macOS; this does not claim the generic remote adapter flow, the entire dialog accessibility surface or non-macOS runtime qualification.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageImport.test.tsx",
+          "sha256": "6cb534890273fc07778dc64261486bff9b302d70c46bfb5dd86c2c5dca0ff001",
+          "cases": [
+            {
+              "index": 1,
+              "name": "importing from the Homepage > reports a failed app read and can retry discovering its folders"
+            },
+            {
+              "index": 4,
+              "name": "importing from the Homepage > opens the common source picker from the import entry (.onboarding-entry-import)"
+            },
+            {
+              "index": 5,
+              "name": "importing from the Homepage > opens the common source picker from the import entry (.onboarding-entry-import .po-button__icon)"
+            },
+            {
+              "index": 6,
+              "name": "importing from the Homepage > opens the common source picker from the import entry (.onboarding-entry-import-label)"
+            },
+            {
+              "index": 7,
+              "name": "importing from the Homepage > opens the common source picker from the import entry (.onboarding-entry-import [data-import-brand='github'])"
+            },
+            {
+              "index": 8,
+              "name": "importing from the Homepage > opens the common source picker from the import entry (.onboarding-entry-import [data-import-brand='obsidian'])"
+            },
+            {
+              "index": 10,
+              "name": "importing from the Homepage > updates the production import preview and open picker from the import preference"
+            },
+            {
+              "index": 11,
+              "name": "importing from the Homepage > keeps remote providers unavailable until direct service adapters exist"
+            },
+            {
+              "index": 13,
+              "name": "importing from the Homepage > lists the folders Obsidian records and adds the chosen ones in place"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::the_experiment_opens_the_other_apps_and_coming_soon_stays_last"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::folder_read_receipts_cannot_cross_picker_or_retry_lifetimes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::stale_add_receipts_neither_add_recents_nor_close_or_error_a_new_picker"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::failed_app_records_retry_through_the_button_and_add_only_still_recorded_folders"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::live_import_preferences_refresh_marks_scan_apps_and_retire_hidden_requests"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::source_buttons_start_focused_activate_by_keyboard_and_reject_unavailable_sources"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_sources::tests::import_entry_icon_label_and_preview_marks_open_the_same_source_picker"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::tests::homepage::folders_another_app_records_join_the_homepage_in_place"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

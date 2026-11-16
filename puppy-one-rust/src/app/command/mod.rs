@@ -146,6 +146,7 @@ pub fn dock_menu() -> Vec<MenuItem> {
 }
 
 pub fn bind_keys(cx: &mut App) {
+    super::home::import_sources::bind_keys(cx);
     for modifier in ["cmd", "ctrl"] {
         let key = |k: &str| format!("{modifier}-{k}");
         // The product's own shortcuts: the menu's ⌘, ⌘N ⌘W ⌘Q, ⌘S in a

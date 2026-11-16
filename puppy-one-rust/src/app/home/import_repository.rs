@@ -82,16 +82,18 @@ impl Homepage {
     pub(in crate::app) fn repository_busy(&self) -> bool {
         self.import.as_ref().is_some_and(|i| i.cloning.is_some())
     }
+    /// Compete with publication at its atomic boundary before replacing the owner.
+    pub(super) fn cancel_repository_import(&self) -> bool {
+        self.import
+            .as_ref()
+            .and_then(|i| i.publication.as_ref())
+            .is_none_or(|p| p.cancel())
+    }
     fn import_state(&mut self) -> Option<&mut ImportRepository> {
         self.import.as_mut()
     }
     pub(in crate::app) fn close_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self
-            .import
-            .as_ref()
-            .and_then(|i| i.publication.as_ref())
-            .is_some_and(|p| !p.cancel())
-        {
+        if !self.cancel_repository_import() {
             cx.notify();
             return;
         }

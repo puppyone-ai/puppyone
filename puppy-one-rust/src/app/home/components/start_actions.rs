@@ -66,6 +66,7 @@ impl RenderOnce for OnboardingCreateProjectAction {
 pub(in crate::app::home) struct OnboardingEntryActions {
     busy: bool,
     dragging_folder: bool,
+    other_apps: bool,
     on_open_folder: ActionHandler,
     on_import: ActionHandler,
 }
@@ -74,12 +75,14 @@ impl OnboardingEntryActions {
     pub fn new(
         busy: bool,
         dragging_folder: bool,
+        other_apps: bool,
         on_open_folder: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
         on_import: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         Self {
             busy,
             dragging_folder,
+            other_apps,
             on_open_folder: Rc::new(on_open_folder),
             on_import: Rc::new(on_import),
         }
@@ -111,15 +114,39 @@ impl RenderOnce for OnboardingEntryActions {
             )
             .child(
                 Button::new("home-import")
+                    .debug_selector(|| "home-import".to_owned())
                     .variant(ButtonVariant::Pattern)
-                    .icon(Icon::new("download").small().stroke(1.85))
-                    .label(tr("onboarding.action.importFromApps"))
+                    .leading(
+                        div()
+                            .debug_selector(|| "home-import-icon".to_owned())
+                            .flex()
+                            .items_center()
+                            .child(Icon::new("download").small().stroke(1.85)),
+                    )
+                    .accessibility_label(tr("onboarding.action.importFromApps"))
                     .disabled(self.busy)
                     .flex_1()
                     .min_w_0()
                     .text_size(px(body))
                     .font_weight(FontWeight::NORMAL)
-                    .trailing(project_entry::import_badges(t, t.canvas, self.busy))
+                    .trailing(
+                        h_flex()
+                            .gap(px(6.))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .debug_selector(|| "home-import-label".to_owned())
+                                    .min_w_0()
+                                    .truncate()
+                                    .child(tr("onboarding.action.importFromApps")),
+                            )
+                            .child(project_entry::import_badges(
+                                t,
+                                t.canvas,
+                                self.busy,
+                                self.other_apps,
+                            )),
+                    )
                     .on_click(move |ev, w, cx| on_import(ev, w, cx)),
             )
     }

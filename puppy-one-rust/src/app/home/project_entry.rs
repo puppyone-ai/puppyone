@@ -25,31 +25,35 @@ pub(in crate::app) enum Route {
     Import,
 }
 
-/// `ImportSourcePreview`: the GitHub and GitLab marks the import entry
-/// carries, 20px discs ringed in `ring` and overlapping by 6px.
-pub(in crate::app) fn import_badges(t: Theme, ring: Rgba, dimmed: bool) -> Div {
-    let badge = |mark: &'static str| {
-        div()
-            .flex()
-            .flex_shrink_0()
-            .size(px(20.))
-            .items_center()
-            .justify_center()
-            .rounded_full()
-            .border_1()
-            .border_color(ring)
-            .bg(theme::mix(t.muted, ring, 0.12))
-            .child(img(mark).size(px(14.)))
-    };
-    h_flex()
-        // `:disabled` dims the preview.
-        .when(dimmed, |d| d.opacity(0.3))
-        .child(badge(if t.dark {
-            "integrations/github-inverse.svg"
-        } else {
-            "integrations/github.svg"
-        }))
-        .child(badge("integrations/gitlab.svg").ml(px(-6.)))
+/// `ImportSourcePreview`: the first three usable source marks, 20px discs
+/// ringed in `ring` and overlapping by 6px.
+pub(in crate::app) fn import_badges(t: Theme, ring: Rgba, dimmed: bool, other_apps: bool) -> Div {
+    h_flex().when(dimmed, |d| d.opacity(0.3)).children(
+        crate::features::project_import::preview(other_apps)
+            .enumerate()
+            .map(|(index, source)| {
+                let mark = match source.id {
+                    "github" if t.dark => "integrations/github-inverse.svg",
+                    "github" => "integrations/github.svg",
+                    "gitlab" => "integrations/gitlab.svg",
+                    "obsidian" => "integrations/obsidian.svg",
+                    _ => unreachable!("preview source requires its product mark"),
+                };
+                div()
+                    .debug_selector(move || format!("import-preview-{}", source.id))
+                    .flex()
+                    .flex_shrink_0()
+                    .size(px(20.))
+                    .items_center()
+                    .justify_center()
+                    .rounded_full()
+                    .border_1()
+                    .border_color(ring)
+                    .bg(theme::mix(t.muted, ring, 0.12))
+                    .when(index > 0, |d| d.ml(px(-6.)))
+                    .child(img(mark).size(px(14.)))
+            }),
+    )
 }
 
 impl Homepage {
@@ -118,7 +122,16 @@ impl Homepage {
                         .when(route == Route::Import, |d| {
                             // `.onboarding-entry-import-brand-badge` on the
                             // dialog's overlay surface.
-                            d.child(import_badges(t, t.overlay, false))
+                            d.child(import_badges(
+                                t,
+                                t.overlay,
+                                false,
+                                self.preferences
+                                    .read(cx)
+                                    .state
+                                    .experimental
+                                    .other_app_imports,
+                            ))
                         }),
                 )
         };
