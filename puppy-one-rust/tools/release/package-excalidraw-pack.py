@@ -93,6 +93,16 @@ def main() -> None:
     meta_path = args.out / f'{PACK_ID}-{version}.sha256'
     digest = sha256_bytes(compressed)
     meta_path.write_text(f'{digest}  {archive_path.name}\n')
+    manifest_path = args.out / f'{PACK_ID}-{version}.manifest.json'
+    manifest_path.write_text(json.dumps({
+        'schemaVersion': 1,
+        'id': PACK_ID,
+        'version': version,
+        'archive': archive_path.name,
+        'checksum': meta_path.name,
+        'sha256': digest,
+        'size': len(compressed),
+    }, indent=2) + '\n')
     print(f'Packaged {archive_path} ({len(compressed) / (1024 * 1024):.2f} MiB, sha256={digest})')
 
 
