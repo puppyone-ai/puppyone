@@ -1,5 +1,7 @@
 //! Port of features/create-new/createEntryMenuRegistry.ts. No UI or storage.
 use serde::{Deserialize, Serialize};
+#[path = "menu_preferences.rs"]
+mod preferences;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Entry {

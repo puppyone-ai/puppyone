@@ -14111,6 +14111,167 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-preference-migration-and-menu-layout",
+      "acceptance": "First-launch Electron preference import preserves v2-v4 menu enabled/placement choices and upgrades known legacy defaults; v5 hierarchy preserves the Custom files position and first ownership while filtering malformed/unknown values. Intentionally empty legacy menus remain distinct from corrupt storage; imported layouts survive native save/reload. The actual Explorer projection removes only gated Puppyflow items and empty Custom files nodes. Hidden Agent ids keep safe 1-80 ASCII syntax, first-seen order, deduplication and a 16-id bound after legacy WorkBuddy expansion, also on native reload. Activity/pointer flags remain explicit opt-ins. Supported import/Cloud/onboarding/rail/block-drag experiments and retired keys follow the listed TS cases.",
+      "environment": "Pure production importer, native serialization/reload and the shared Explorer menu projection. Native menu version is part of Preferences v2 rather than a duplicate nested v5 field. This does not qualify full settings UI, unsupported native app/Puppyflow creation, Project Reach, multi-root workspaces, Viewer Plugins, heading outline, or absent experimental consumers.",
+      "typescript": [
+        {
+          "path": "tests/unit/settings/preferences/preferences.test.ts",
+          "sha256": "7ee72ae1c7b009ecbf7cdbfa2d5bb2d34062fbb1381ca6fb80f4345901e51e2c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "create new menu preferences > defaults to a complete v5 hierarchy with a first-class submenu node"
+            },
+            {
+              "index": 1,
+              "name": "create new menu preferences > migrates old enabled and placement fields into the three menu groups"
+            },
+            {
+              "index": 2,
+              "name": "create new menu preferences > migrates v4 placements, deduplicates items, and moves disabled items to Not shown"
+            },
+            {
+              "index": 3,
+              "name": "create new menu preferences > normalizes v5 hierarchy data without losing the submenu's position"
+            },
+            {
+              "index": 4,
+              "name": "create new menu preferences > recovers from malformed persisted values"
+            },
+            {
+              "index": 5,
+              "name": "create new menu preferences > resolves available items while preserving the submenu node's main-menu position"
+            },
+            {
+              "index": 7,
+              "name": "appearance preferences > keeps Agent file activity visibility opt-in"
+            },
+            {
+              "index": 9,
+              "name": "appearance preferences > keeps pointer cursors off unless explicitly enabled"
+            },
+            {
+              "index": 10,
+              "name": "local Agent preferences > keeps only bounded, unique hidden Terminal Agent ids"
+            },
+            {
+              "index": 11,
+              "name": "experimental preferences > uses one default-off import experiment and preserves older import opt-ins"
+            },
+            {
+              "index": 12,
+              "name": "experimental preferences > drops retired Built-in Agent preferences"
+            },
+            {
+              "index": 15,
+              "name": "experimental preferences > drops the retired Header location switch experiment from stored settings"
+            },
+            {
+              "index": 22,
+              "name": "experimental preferences > keeps Puppyone Cloud off unless the user explicitly opts in"
+            },
+            {
+              "index": 25,
+              "name": "experimental preferences > forgets the retired centered project and Git card Header choices"
+            },
+            {
+              "index": 26,
+              "name": "experimental preferences > keeps onboarding coachmark replay off unless the user explicitly opts in"
+            },
+            {
+              "index": 27,
+              "name": "experimental preferences > does not let the retired catalog opt-in turn on Cloud hosting"
+            },
+            {
+              "index": 29,
+              "name": "experimental preferences > keeps the Project switcher rail off unless the user explicitly opts in"
+            },
+            {
+              "index": 30,
+              "name": "experimental preferences > drops the retired Cloud Automation experiment"
+            },
+            {
+              "index": 31,
+              "name": "experimental preferences > drops retired first-project and save-status preferences"
+            },
+            {
+              "index": 32,
+              "name": "experimental preferences > ignores retired Context Map experiment values now that the feature is always available"
+            },
+            {
+              "index": 33,
+              "name": "experimental preferences > ignores retired Minimal Mode experiment values"
+            },
+            {
+              "index": 34,
+              "name": "experimental preferences > keeps Markdown block drag handles off unless the user explicitly opts in"
+            },
+            {
+              "index": 36,
+              "name": "experimental preferences > forgets a saved choice of the retired card Homepage"
+            },
+            {
+              "index": 38,
+              "name": "experimental preferences > ignores the retired built-in Office editing experiment"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::create_menu_defaults_and_legacy_default_layouts_keep_the_complete_hierarchy"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::visible_create_menu_keeps_the_submenu_position_and_filters_only_its_experiment"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::create_menu_migrates_legacy_enabled_and_placement_without_losing_hidden_choices"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::create_menu_normalizes_v5_unknowns_and_duplicates_preserving_submenu_position"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::create_menu_recovers_malformed_values_but_keeps_an_intentionally_empty_legacy_menu"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::hidden_agent_ids_keep_first_seen_order_safe_bounds_and_workbuddy_migration"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::file_activity_and_pointer_preferences_require_explicit_true"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::import_experiments_restore_legacy_opt_ins_without_turning_on_unrelated_features"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::supported_experiments_remain_off_until_opted_in_and_retired_keys_cannot_restore_features"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::create_new::create_entry_menu_registry::tests::a_context_map_is_created_empty_in_its_own_folder"
+        }
+      ]
     }
   ],
   "openAcceptance": [

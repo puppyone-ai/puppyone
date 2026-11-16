@@ -74,6 +74,35 @@ pub struct LocalAgents {
     /// `localAgentsSettings.setupSuggestions`.
     pub setup_suggestions: SetupSuggestions,
 }
+impl LocalAgents {
+    /// Product ids stay in first-seen order, expand the retired WorkBuddy id,
+    /// and consume at most 16 slots after validation and deduplication.
+    pub fn normalize_hidden_ids(&mut self) {
+        let mut seen = std::collections::HashSet::new();
+        self.hidden_agent_ids = std::mem::take(&mut self.hidden_agent_ids)
+            .into_iter()
+            .filter(|id| {
+                !id.is_empty()
+                    && id.len() <= 80
+                    && (id.as_bytes()[0].is_ascii_lowercase() || id.as_bytes()[0].is_ascii_digit())
+                    && id.bytes().all(|b| {
+                        b.is_ascii_lowercase()
+                            || b.is_ascii_digit()
+                            || matches!(b, b'.' | b'_' | b'-')
+                    })
+            })
+            .flat_map(|id| {
+                if id == "workbuddy" {
+                    vec!["workbuddy-china".into(), "workbuddy-international".into()]
+                } else {
+                    vec![id]
+                }
+            })
+            .filter(|id| seen.insert(id.clone()))
+            .take(16)
+            .collect();
+    }
+}
 /// `HeaderCoachmarkProgress`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -463,6 +492,7 @@ impl Preferences {
         }
         p.version = 2;
         p.create_new.normalize();
+        p.local_agents.normalize_hidden_ids();
         p.local_agents.setup_suggestions =
             std::mem::take(&mut p.local_agents.setup_suggestions).normalized();
         p.agent_routing = p.agent_routing.normalized();

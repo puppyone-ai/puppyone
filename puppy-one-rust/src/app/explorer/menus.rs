@@ -260,28 +260,9 @@ impl Explorer {
     /// Custom files submenu, with unavailable experiments removed.
     fn create_menu_entries(&self, cx: &App) -> (Vec<Entry>, Vec<Entry>) {
         let prefs = &self.preferences.read(cx).state;
-        let available = |e: &Entry| *e != Entry::Puppyflow || prefs.experimental.puppy_flow_files;
-        let submenu: Vec<Entry> = prefs
+        prefs
             .create_new
-            .submenu
-            .iter()
-            .copied()
-            .filter(available)
-            .collect();
-        let main = prefs
-            .create_new
-            .main
-            .iter()
-            .copied()
-            .filter(|e| {
-                if *e == Entry::CustomFiles {
-                    !submenu.is_empty()
-                } else {
-                    available(e)
-                }
-            })
-            .collect();
-        (main, submenu)
+            .visible(prefs.experimental.puppy_flow_files)
     }
     /// `DesktopCreateEntryMenu`: Folder, then the main entries; Custom files
     /// opens its submenu.

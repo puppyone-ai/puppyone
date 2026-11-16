@@ -10,6 +10,10 @@ use super::preference_types::{
 use crate::platform::electron_import::ElectronData;
 use serde_json::Value;
 
+#[cfg(test)]
+#[path = "electron_preference_parity_tests.rs"]
+mod parity_tests;
+
 /// `localStorage` keys (`src/preferences.ts`, `preferenceStorage.ts`,
 /// `interface-style-manifest.json`, `useFirstRunSignIn.ts`).
 mod keys {
@@ -34,6 +38,7 @@ mod keys {
     pub const HEADER_COACHMARKS: &str = "puppyone.desktop.headerCoachmarks.v1";
     pub const GIT_SIDEBAR_LAYOUT: &str = "puppyone.desktop.gitSidebarLayout";
     pub const TITLEBAR_ACTIONS: &str = "puppyone.desktop.titlebarActions";
+    pub const CREATE_NEW: &str = "puppyone.desktop.createNewMenu";
     pub const FIRST_RUN_SIGN_IN: &str = "puppyone.desktop.firstRunSignInCompleted.v1";
     pub const HOMEPAGE_LAYOUT: &str = "puppyone.desktop.homepageProjectLayout";
     pub const HOMEPAGE_SORT: &str = "puppyone.desktop.homepageProjectSort";
@@ -70,6 +75,7 @@ pub fn import(data: &ElectronData) -> Preferences {
     }
 
     appearance(&mut p, object(keys::APPEARANCE), &get);
+    p.create_new = crate::features::create_new::MenuSettings::from_electron(get(keys::CREATE_NEW));
 
     // `readInitialHomepageProjectLayout` / `…Sort`: the stored word, else Grid
     // and Last modified.
@@ -134,14 +140,12 @@ pub fn import(data: &ElectronData) -> Preferences {
             .get("hiddenTerminalAgentIds")
             .and_then(Value::as_array)
         {
-            let mut ids: Vec<String> = hidden
+            p.local_agents.hidden_agent_ids = hidden
                 .iter()
                 .filter_map(Value::as_str)
                 .map(str::to_owned)
                 .collect();
-            ids.sort();
-            ids.dedup();
-            p.local_agents.hidden_agent_ids = ids;
+            p.local_agents.normalize_hidden_ids();
         }
         if let Some(Value::Bool(on)) = agents.get("chatHistoryDiscoveryEnabled") {
             p.local_agents.chat_history_discovery = *on;
@@ -490,7 +494,7 @@ mod tests {
         assert!(p.project_switcher_rail);
         assert!(p.files.show_hidden_files);
         assert_eq!(p.files.exclude_patterns, ["**/.git"]);
-        assert_eq!(p.local_agents.hidden_agent_ids, ["codex", "pi"]);
+        assert_eq!(p.local_agents.hidden_agent_ids, ["pi", "codex"]);
         assert!(p.local_agents.chat_history_discovery);
         let setup = &p.local_agents.setup_suggestions;
         assert!(!setup.enabled);
