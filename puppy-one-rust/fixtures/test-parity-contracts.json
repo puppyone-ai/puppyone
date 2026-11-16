@@ -14471,6 +14471,204 @@
           "test": "agent::installation::definitions::claude::tests::homebrew_claude_code_is_a_candidate_on_macos_only"
         }
       ]
+    },
+    {
+      "id": "native-file-window-admission-and-observation",
+      "acceptance": "Published File Mode suffixes require a filename stem, canonical target metadata, exact 1 MiB admission, real GPUI GB18030/unknown read-only notice and byte preservation, unavailable/oversized state without document admission, UTF-8 autosave, native project-command/navigation gates, focus revalidation with the watch paused, and actual single-file polling for timestamp/content/size/inode/deletion/recovery plus worker release. The complete Electron IPC/resource gate, all Header interactions, post-admission read failures, OS registration and native accessibility remain separate acceptance; no blanket file-level parity claim.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/ipc/electron.file-mode.test.mjs",
+          "sha256": "558ca9cc7e0d45dd2b7b79e13aac0ee77c49014d392170cb960a2eb30abf6e64",
+          "cases": [
+            {
+              "index": 1,
+              "name": "File Mode IPC gate > derives the root from the canonical file path"
+            },
+            {
+              "index": 26,
+              "name": "File Mode formats > opens a.md"
+            },
+            {
+              "index": 27,
+              "name": "File Mode formats > opens a.markdown"
+            },
+            {
+              "index": 28,
+              "name": "File Mode formats > opens A.MD"
+            },
+            {
+              "index": 29,
+              "name": "File Mode formats > opens /x/y/a.mdx"
+            },
+            {
+              "index": 30,
+              "name": "File Mode formats > opens a.csv"
+            },
+            {
+              "index": 31,
+              "name": "File Mode formats > opens A.CSV"
+            },
+            {
+              "index": 32,
+              "name": "File Mode formats > opens a.html"
+            },
+            {
+              "index": 33,
+              "name": "File Mode formats > opens a.htm"
+            },
+            {
+              "index": 34,
+              "name": "File Mode formats > opens /x/y/A.HTML"
+            },
+            {
+              "index": 35,
+              "name": "File Mode formats > does not open a.pdf"
+            },
+            {
+              "index": 36,
+              "name": "File Mode formats > does not open a.yaml"
+            },
+            {
+              "index": 37,
+              "name": "File Mode formats > does not open a.png"
+            },
+            {
+              "index": 38,
+              "name": "File Mode formats > does not open a"
+            },
+            {
+              "index": 39,
+              "name": "File Mode formats > does not open a.xlsx"
+            },
+            {
+              "index": 40,
+              "name": "File Mode formats > does not open a.tsv"
+            },
+            {
+              "index": 41,
+              "name": "File Mode formats > does not open a.ejs"
+            },
+            {
+              "index": 42,
+              "name": "File Mode formats > does not open a.jsp"
+            },
+            {
+              "index": 43,
+              "name": "File Mode formats > does not open a.php"
+            },
+            {
+              "index": 44,
+              "name": "File Mode formats > does not open .md"
+            },
+            {
+              "index": 45,
+              "name": "File Mode formats > does not open /x/.csv"
+            },
+            {
+              "index": 46,
+              "name": "File Mode formats > publishes one lowercase list without names a shorter extension already covers"
+            },
+            {
+              "index": 47,
+              "name": "watching the bound file > reports a change in content, size or identity, and stops on request"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/file-mode/fileModeApp.test.tsx",
+          "sha256": "f05c0289e66afc517f2d235db12eaa0ab3569026223c02a2207ffd3abd171152",
+          "cases": [
+            {
+              "index": 10,
+              "name": "FileModeApp > keeps a gb18030 file read-only and says why"
+            },
+            {
+              "index": 11,
+              "name": "FileModeApp > keeps a unknown file read-only and says why"
+            },
+            {
+              "index": 12,
+              "name": "FileModeApp > edits a UTF-8 file"
+            },
+            {
+              "index": 13,
+              "name": "FileModeApp > explains a file over the size limit without reading it"
+            },
+            {
+              "index": 14,
+              "name": "FileModeApp > picks up outside changes when the window regains focus"
+            },
+            {
+              "index": 15,
+              "name": "FileModeApp > reads the file again when it changes on disk, without focus"
+            },
+            {
+              "index": 17,
+              "name": "FileModeApp > explains itself when the file is gone"
+            },
+            {
+              "index": 18,
+              "name": "FileModeApp > explains itself when the path is a folder"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::file_mode::tests::a_file_window_opens_the_products_extensions"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::file_mode::tests::markdown_csv_and_html_pages_open_on_their_own"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::file_mode::tests::file_mode_admission_matches_the_published_extensions_and_requires_a_stem"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::file_mode::tests::a_file_over_the_editor_limit_is_never_read"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_parity::gb18030_file_window_explains_read_only_and_preserves_the_original_bytes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_parity::undecodable_file_window_explains_read_only_and_preserves_the_original_bytes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_parity::unavailable_and_oversized_file_windows_show_errors_without_opening_documents"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_parity::file_window_ignores_project_commands_and_neighbour_navigation"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_parity::focus_revalidates_the_file_even_when_the_background_watch_is_paused"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window::a_file_window_shows_one_file_and_saves_it_as_it_is_edited"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_watch_parity_tests::single_file_watch_tracks_metadata_content_identity_and_recovery_then_releases_its_worker"
+        }
+      ]
     }
   ],
   "openAcceptance": [

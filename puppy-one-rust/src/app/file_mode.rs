@@ -498,11 +498,9 @@ pub fn is_file_mode_file(path: &Path) -> bool {
     let Some(name) = path.file_name().map(|n| n.to_string_lossy().to_lowercase()) else {
         return false;
     };
-    match crate::formats::of(&name).id.as_str() {
-        "markdown" | "csv" => true,
-        "html" => name.ends_with(".html") || name.ends_with(".htm"),
-        _ => false,
-    }
+    file_mode_extensions()
+        .iter()
+        .any(|extension| name.len() > extension.len() && name.ends_with(extension))
 }
 
 /// `createFileModeExtensions`: every extension a file window opens, from
@@ -1219,6 +1217,7 @@ impl FileWindow {
                         .child(text)
                 };
                 area.items_center()
+                    .debug_selector(|| "file-mode-unavailable".into())
                     .justify_center()
                     .gap(px(STATE_GAP))
                     .p(px(STATE_PADDING))
@@ -1248,6 +1247,7 @@ impl FileWindow {
                 let notice = self.editor.read(cx).read_only(cx).then(|| {
                     div()
                         .id("file-mode-encoding-notice")
+                        .debug_selector(|| "file-mode-encoding-notice".into())
                         .flex_none()
                         .py(px(NOTICE_PADDING.0))
                         .px(px(NOTICE_PADDING.1))
@@ -1438,18 +1438,76 @@ mod tests {
     }
 
     #[test]
+    fn file_mode_admission_matches_the_published_extensions_and_requires_a_stem() {
+        for name in [
+            "a.md",
+            "a.markdown",
+            "A.MD",
+            "/x/y/a.mdx",
+            "a.csv",
+            "A.CSV",
+            "a.html",
+            "a.htm",
+            "/x/y/A.HTML",
+            "/x/review.agent.md",
+        ] {
+            assert!(is_file_mode_file(Path::new(name)), "{name}");
+        }
+        for name in [
+            "a.pdf", "a.yaml", "a.png", "a", "a.xlsx", "a.tsv", "a.ejs", "a.jsp", "a.php", ".md",
+            "/x/.csv", "", "/",
+        ] {
+            assert!(!is_file_mode_file(Path::new(name)), "{name}");
+        }
+        let extensions = file_mode_extensions();
+        for extension in &extensions {
+            assert_eq!(extension, &extension.to_lowercase());
+            assert!(extension.starts_with('.'));
+            assert!(
+                !extensions
+                    .iter()
+                    .any(|other| other != extension && extension.ends_with(other))
+            );
+            assert!(is_file_mode_file(Path::new(&format!("note{extension}"))));
+            assert!(
+                !is_file_mode_file(Path::new(extension)),
+                "bare extension: {extension}"
+            );
+        }
+        assert!(
+            !extensions
+                .iter()
+                .any(|extension| extension == ".agent.md" || extension == ".ejs")
+        );
+    }
+
+    #[test]
     fn a_file_over_the_editor_limit_is_never_read() {
         let temp = tempfile::tempdir().unwrap();
         let (small, large) = (temp.path().join("small.md"), temp.path().join("large.md"));
         std::fs::write(&small, "# Small\n").unwrap();
         std::fs::write(&large, vec![b'x'; MAX_EDITOR_BYTES as usize + 1]).unwrap();
         assert_eq!(
-            FileTarget::of(small).unwrap().admission,
+            FileTarget::of(small.clone()).unwrap().admission,
             Admission::Readable
         );
         assert_eq!(
             FileTarget::of(large).unwrap().admission,
             Admission::TooLarge
+        );
+        std::fs::File::create(&small)
+            .unwrap()
+            .set_len(MAX_EDITOR_BYTES)
+            .unwrap();
+        assert_eq!(
+            FileTarget::of(small).unwrap().admission,
+            Admission::Readable
+        );
+        assert_eq!(
+            FileTarget::of(temp.path().join("missing.md"))
+                .unwrap()
+                .admission,
+            Admission::Unavailable
         );
         let folder = FileTarget::of(temp.path().to_path_buf()).unwrap();
         assert_eq!(folder.admission, Admission::Unavailable);

@@ -9,6 +9,8 @@ mod local;
 #[cfg(test)]
 #[path = "local_tests.rs"]
 mod local_compatibility_tests;
+#[cfg(all(test, unix))]
+mod local_watch_parity_tests;
 pub mod ports;
 mod preview;
 pub use preview::PreviewReader;
