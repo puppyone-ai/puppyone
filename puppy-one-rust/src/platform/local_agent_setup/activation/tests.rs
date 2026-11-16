@@ -287,27 +287,48 @@ fn cancellation_does_not_wait_behind_the_initial_journal_write() {
 #[test]
 fn queued_journal_progress_is_bounded_and_keeps_the_newest_revision() {
     let dir = tempfile::tempdir().unwrap();
-    let (service, _) = service_with_journal(dir.path());
+    let (mut service, _) = service_with_journal(dir.path());
+    let spawned = Arc::new(AtomicUsize::new(0));
+    let count = spawned.clone();
+    let journal = Arc::get_mut(&mut service.journal).unwrap();
+    let launch = journal.spawn.clone();
+    journal.spawn = Arc::new(move |work| {
+        count.fetch_add(1, Ordering::SeqCst);
+        launch(work)
+    });
     let journal = service.journal.clone();
     let blocked = journal.written.lock().unwrap();
-    for revision in 1..=500 {
-        journal.enqueue(Snapshot {
-            epoch: "one".into(),
-            revision,
-            operations: vec![],
-        });
-    }
-    // Even while disk I/O is stalled, progress retains at most one pending
-    // snapshot and one active write, rather than an unbounded work queue.
-    {
-        let queued = journal.queued.lock().unwrap();
-        assert!(queued.running);
-        if let Some(pending) = &queued.latest {
-            assert_eq!(pending.revision, 500);
+    let publisher = journal.clone();
+    let (submitted, receive) = mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        for revision in 1..=500 {
+            publisher.enqueue(Snapshot {
+                epoch: "one".into(),
+                revision,
+                operations: vec![],
+            });
         }
-    }
+        submitted.send(()).unwrap();
+    });
+    let acknowledged = receive.recv_timeout(Duration::from_secs(2));
+    let writer_count = spawned.load(Ordering::SeqCst);
+    let pending = {
+        let queued = journal.queued.lock().unwrap();
+        (queued.running, queued.latest.as_ref().map(|s| s.revision))
+    };
+    // Always unblock the real disk writer before checking for a regression.
     drop(blocked);
+    worker.join().unwrap();
     journal.flush();
+    assert!(
+        acknowledged.is_ok(),
+        "progress publication waited for disk I/O"
+    );
+    assert_eq!(writer_count, 1, "one writer must own all pending progress");
+    assert!(pending.0);
+    if let Some(revision) = pending.1 {
+        assert_eq!(revision, 500);
+    }
     let value: Value = serde_json::from_slice(&std::fs::read(&journal.path).unwrap()).unwrap();
     assert_eq!(value["snapshot"]["revision"], 500);
     journal.enqueue(Snapshot {

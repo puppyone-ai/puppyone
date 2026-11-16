@@ -261,12 +261,7 @@ impl Service {
             })),
             ports,
             publish,
-            journal: Arc::new(Journal {
-                path: journal,
-                written: Mutex::new(0),
-                queued: Mutex::new(QueuedWrite::default()),
-                idle: std::sync::Condvar::new(),
-            }),
+            journal: Arc::new(Journal::new(journal)),
             platform,
             arch,
             routes,
@@ -757,6 +752,7 @@ struct Journal {
     written: Mutex<u64>,
     queued: Mutex<QueuedWrite>,
     idle: std::sync::Condvar,
+    spawn: Spawn,
 }
 #[derive(Default)]
 struct QueuedWrite {
@@ -764,6 +760,20 @@ struct QueuedWrite {
     running: bool,
 }
 impl Journal {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            written: Mutex::new(0),
+            queued: Mutex::new(QueuedWrite::default()),
+            idle: std::sync::Condvar::new(),
+            spawn: Arc::new(|work| {
+                std::thread::Builder::new()
+                    .name("activation-journal".into())
+                    .spawn(work)
+                    .map(|_| ())
+            }),
+        }
+    }
     /// Notifications never wait for disk I/O while holding the operation lock.
     /// One writer drains the newest pending revision; obsolete intermediate
     /// snapshots coalesce without creating one thread per progress event.
@@ -781,27 +791,25 @@ impl Journal {
         }
         queued.running = true;
         let journal = self.clone();
-        if std::thread::Builder::new()
-            .name("activation-journal".into())
-            .spawn(move || {
-                loop {
-                    let snapshot = {
-                        let mut queued = journal.queued.lock().unwrap();
-                        match queued.latest.take() {
-                            Some(snapshot) => snapshot,
-                            None => {
-                                queued.running = false;
-                                journal.idle.notify_all();
-                                return;
-                            }
+        if (self.spawn)(Box::new(move || {
+            loop {
+                let snapshot = {
+                    let mut queued = journal.queued.lock().unwrap();
+                    match queued.latest.take() {
+                        Some(snapshot) => snapshot,
+                        None => {
+                            queued.running = false;
+                            journal.idle.notify_all();
+                            return;
                         }
-                    };
-                    // Progress persistence is best effort, as in the TS journal.
-                    // The initial start still requires a successful synchronous write.
-                    let _ = journal.write(&snapshot);
-                }
-            })
-            .is_err()
+                    }
+                };
+                // Progress persistence is best effort, as in the TS journal.
+                // The initial start still requires a successful synchronous write.
+                let _ = journal.write(&snapshot);
+            }
+        }))
+        .is_err()
         {
             queued.running = false;
             self.idle.notify_all();
@@ -1040,3 +1048,6 @@ fn parse_snapshot(value: &Value) -> Option<Vec<Operation>> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod journal_tests;

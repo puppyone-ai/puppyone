@@ -6847,7 +6847,7 @@
     },
     {
       "id": "local-agent-activation-journal-compatibility",
-      "acceptance": "Actual TS journal/live-schema oracle (225 input cases): migrate only disk legacy receipts; installed obsolete auth/protocol states become Ready without rerunning work, missing installations remain Interrupted, cancelled history stays cancelled. Reading preserves bytes. Live snapshots reject legacy states and unknown keys, enforce UTF-16 name bounds and JS safe integers. Atomic v2 writes retain latest revision and private permissions; invalid writes, oversized files and symlinks fail closed.",
+      "acceptance": "Actual TS journal/live-schema oracle (225 input cases): migrate only disk legacy receipts; installed obsolete auth/protocol states become Ready without rerunning work, missing installations remain Interrupted, cancelled history stays cancelled. Reading preserves bytes. Live snapshots reject legacy states and unknown keys, enforce UTF-16 name bounds and JS safe integers. Atomic v2 writes retain latest revision and private permissions; invalid writes, oversized files and symlinks fail closed. Failed asynchronous writer creation preserves the latest pending revision for the next enqueue; failed disk writes do not advance the durable revision or poison later writes. A blocked real writer coalesces 500 updates without blocking publication or creating extra writer threads.",
       "typescript": [
         {
           "path": "tests/unit/platform/local-agent-activation/activation-journal.test.mjs",
@@ -6942,6 +6942,14 @@
         {
           "package": "po-platform",
           "test": "platform::local_agent_setup::activation::tests::queued_journal_progress_is_bounded_and_keeps_the_newest_revision"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::journal_tests::failed_writer_start_preserves_the_newest_pending_receipt_for_the_next_enqueue"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::journal_tests::failed_disk_writes_do_not_advance_the_receipt_or_poison_later_writes"
         }
       ]
     },
