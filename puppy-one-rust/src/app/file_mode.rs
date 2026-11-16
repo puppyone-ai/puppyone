@@ -552,9 +552,12 @@ fn setting_rows<F: Fn(&mut Window, &mut App) + 'static>(
     items
         .iter()
         .map(|item| {
-            let row = MenuItem::new(item.label.clone()).on_click(action(Action::Item(item.id)));
+            let row = MenuItem::new(item.label.clone())
+                .id(item.id)
+                .on_click(action(Action::Item(item.id)));
             match item.kind {
                 ItemKind::Toggle(on) => row
+                    .checkbox(on)
                     .icon_element(
                         div()
                             .size(px(metric::MENU_ICON_SLOT))
@@ -618,7 +621,7 @@ impl FileWindow {
                 }
             });
         })
-        .trigger(trigger.open(open))
+        .trigger(trigger.open(open).aria_expanded(open))
         .menu(move |surface, _, _| build(surface.variant(MenuVariant::Default)))
     }
 
@@ -657,7 +660,7 @@ impl FileWindow {
                     }
                 });
             })
-            .trigger(trigger.open(open))
+            .trigger(trigger.open(open).aria_expanded(open))
             .content(move |dismiss, _, cx| {
                 let t = cx.palette();
                 let ty = theme::ty().ui;
@@ -864,9 +867,12 @@ impl FileWindow {
         let pane_action = |action: Action| {
             let editor = editor.downgrade();
             let host = self.weak.clone();
+            let closes = matches!(action, Action::Segment(_)) || controls.closes(&action);
             move |w: &mut Window, cx: &mut App| {
                 let _ = host.update(cx, |s, cx| {
-                    s.menu = None;
+                    if closes {
+                        s.menu = None;
+                    }
                     cx.notify();
                 });
                 let _ = editor.update(cx, |e, cx| e.run_title_action(action.clone(), w, cx));
@@ -879,6 +885,11 @@ impl FileWindow {
             bar = bar.action(
                 header_action(edit.id, icon(edit.icon), edit.label.clone())
                     .selected(edit.checked)
+                    .aria_toggled(if edit.checked {
+                        accesskit::Toggled::True
+                    } else {
+                        accesskit::Toggled::False
+                    })
                     .on_click(move |_, w, cx| run(w, cx)),
             );
         }
@@ -1100,9 +1111,12 @@ impl FileWindow {
         let action = |action: Action| {
             let editor = editor.downgrade();
             let host = self.weak.clone();
+            let closes = matches!(action, Action::Segment(_)) || controls.closes(&action);
             move |w: &mut Window, cx: &mut App| {
                 let _ = host.update(cx, |s, cx| {
-                    s.menu = None;
+                    if closes {
+                        s.menu = None;
+                    }
                     cx.notify();
                 });
                 let _ = editor.update(cx, |e, cx| e.run_title_action(action.clone(), w, cx));
@@ -1116,6 +1130,11 @@ impl FileWindow {
             bar = bar.action(
                 header_action(toggle.id, icon(toggle.icon), toggle.label.clone())
                     .selected(toggle.checked)
+                    .aria_toggled(if toggle.checked {
+                        accesskit::Toggled::True
+                    } else {
+                        accesskit::Toggled::False
+                    })
                     .on_click(move |_, w, cx| run(w, cx)),
             );
         }

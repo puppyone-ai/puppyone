@@ -14843,6 +14843,34 @@
           "test": "workspace::file_window::tests::markdown_asset_requests_cannot_bypass_the_bound_documents_physical_limit"
         }
       ]
+    },
+    {
+      "id": "native-file-window-header-controls",
+      "acceptance": "Actual native File Mode Header controls expose localized button labels, toggle state and menu expansion. Real pointer dispatch toggles Markdown editing/source independently, and changes the CSV header-row setting while retaining its menu and bound document. Checkbox menu items expose role, label and live state; repeated toggles update, and Escape dismisses the menu. Only the reviewed CSV settings TS case is credited here; the additional Markdown and native accessibility checks do not claim every synthetic contribution combination or real OS assistive-technology acceptance.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/file-mode/fileModeApp.test.tsx",
+          "sha256": "f05c0289e66afc517f2d235db12eaa0ab3569026223c02a2207ffd3abd171152",
+          "cases": [
+            {
+              "index": 5,
+              "name": "FileModeApp > puts the editor's settings in a Header menu instead of the editor"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_header::file_header_buttons_toggle_the_bound_markdown_editor"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_header::file_header_csv_settings_drive_the_live_document"
+        }
+      ]
     }
   ],
   "openAcceptance": [

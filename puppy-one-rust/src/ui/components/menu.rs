@@ -134,6 +134,7 @@ pub struct MenuItem {
     /// The row reads as hovered (its hover control's menu is open).
     hover_held: bool,
     selected: bool,
+    checked: Option<bool>,
     disabled: bool,
     danger: bool,
     submenu: Option<SubmenuBuilder>,
@@ -165,6 +166,7 @@ impl MenuItem {
             hover_trailing: None,
             hover_held: false,
             selected: false,
+            checked: None,
             disabled: false,
             danger: false,
             submenu: None,
@@ -254,6 +256,12 @@ impl MenuItem {
     /// truncates before the hover controls (`padding-inline-end`).
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
+        self
+    }
+    /// Expose a checkbox menu item and its current value to native accessibility.
+    /// The caller still chooses its checkmark placement and dismissal policy.
+    pub fn checkbox(mut self, checked: bool) -> Self {
+        self.checked = Some(checked);
         self
     }
     /// A selected row with a check at its end.
@@ -590,6 +598,19 @@ fn row(
     let stacked = item.stacked;
     let row = h_row()
         .id(element_id.clone())
+        .role(if item.checked.is_some() {
+            Role::MenuItemCheckBox
+        } else {
+            Role::MenuItem
+        })
+        .aria_label(item.label.clone())
+        .when_some(item.checked, |row, checked| {
+            row.aria_toggled(if checked {
+                accesskit::Toggled::True
+            } else {
+                accesskit::Toggled::False
+            })
+        })
         .debug_selector(move || format!("menu-item:{selector}"))
         .group(group.clone())
         .relative()
@@ -705,6 +726,7 @@ fn row(
                     }
                 })
             })
+            .test_support()
             .into_any_element();
     };
     SubmenuRow {
