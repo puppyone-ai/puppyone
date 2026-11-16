@@ -207,6 +207,13 @@ pub enum SaveStatus {
 }
 /// `SAVED_STATUS_DURATION_MS`.
 pub const SAVED_STATUS_DURATION: std::time::Duration = std::time::Duration::from_millis(1200);
+/// A background re-read that failed in transit is tried again after each of
+/// these, then reported.
+const OBSERVATION_RETRIES: [Duration; 3] = [
+    Duration::from_secs(1),
+    Duration::from_secs(3),
+    Duration::from_secs(10),
+];
 
 pub struct Documents {
     /// A Cloud opening in flight: its visible phase (`Waking up…` /
@@ -258,6 +265,10 @@ pub struct Documents {
     read_generation: u64,
     watch: Option<workspace::Subscription>,
     observation_pending: bool,
+    /// A background re-read that failed transiently: when to read again,
+    /// and how many have failed in a row.
+    observation_retry: Option<Instant>,
+    observation_failures: usize,
     tx: Sender<Completed>,
     rx: Receiver<Completed>,
 }
@@ -298,6 +309,8 @@ impl Default for Documents {
             cloud_cancel: None,
             watch: None,
             observation_pending: false,
+            observation_retry: None,
+            observation_failures: 0,
             tx,
             rx,
         }
@@ -1325,6 +1338,27 @@ impl Documents {
                         self.observation_pending |= current;
                         continue;
                     }
+                    // A background re-read that failed in transit (a dropped
+                    // connection, a file that kept changing) keeps the open
+                    // text and quietly reads again; what needs the person
+                    // (gone, no access, a new lease) is said as before.
+                    let result = match result {
+                        Err(error)
+                            if error.kind == workspace::ErrorKind::Io
+                                && self.observation_failures < OBSERVATION_RETRIES.len() =>
+                        {
+                            let delay = OBSERVATION_RETRIES[self.observation_failures];
+                            self.observation_failures += 1;
+                            self.observation_retry = Some(now + delay);
+                            ctx.after(delay);
+                            continue;
+                        }
+                        result => {
+                            self.observation_failures = 0;
+                            self.observation_retry = None;
+                            result
+                        }
+                    };
                     match result {
                         Ok(doc) => match self.session.as_mut().unwrap().observe(&doc.text) {
                             StorageObservation::OwnWrite => {}
@@ -1461,6 +1495,10 @@ impl Documents {
                     }
                 }
             }
+        }
+        if self.observation_retry.is_some_and(|at| now >= at) {
+            self.observation_retry = None;
+            self.observation_pending = true;
         }
         self.consume_watch();
         self.pump(ctx);

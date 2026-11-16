@@ -660,6 +660,55 @@ fn superseded_observation_revalidates_without_needing_another_notification() {
 }
 
 #[test]
+fn a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quietly() {
+    let (temp, mut d, ctx) = setup();
+    d.ensure_session(&ctx);
+    d.watch = None;
+    let shown = d.document.as_ref().unwrap().clone();
+    let observed = |d: &Documents, kind| Completed::Observed {
+        id: shown.id.clone(),
+        generation: d.read_generation,
+        result: Err(workspace::Error::new(
+            kind,
+            "Cloud files changed during the read; revalidate",
+        )),
+    };
+    // A re-read lost to a burst of changes says nothing and keeps the text...
+    let now = Instant::now();
+    d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+    d.poll_at(&ctx, now);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    assert_eq!(d.document.as_ref().unwrap().text, "original");
+    // ...then reads again on its own and takes what the file holds now.
+    std::fs::write(temp.path().join("a.md"), "written by an Agent").unwrap();
+    let later = now + OBSERVATION_RETRIES[0];
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while d.document.as_ref().unwrap().text != "written by an Agent" {
+        d.poll_at(&ctx, later);
+        assert!(Instant::now() < deadline, "the re-read did not run");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(d.error.is_none() && !d.dirty);
+
+    // Failing in transit every time, it is reported once the retries are spent.
+    for _ in OBSERVATION_RETRIES {
+        d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+        d.poll_at(&ctx, later);
+        assert!(d.error.is_none());
+    }
+    d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+    d.poll_at(&ctx, later);
+    assert!(d.error.is_some());
+
+    // What needs the person (the file is gone) is said at once.
+    d.error = None;
+    d.tx.send(observed(&d, workspace::ErrorKind::NotFound))
+        .unwrap();
+    d.poll_at(&ctx, later);
+    assert!(d.error.is_some());
+}
+
+#[test]
 fn local_provider_notifications_reconcile_without_controller_filesystem_polling() {
     let (temp, mut d, ctx) = setup();
     d.ensure_session(&ctx);

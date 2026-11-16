@@ -267,7 +267,7 @@
     },
     {
       "id": "cloud-cache",
-      "acceptance": "Cache listings only while watching; bound retained entries; scope invalidation and stale flights; check authority on cache hits.",
+      "acceptance": "Cache listings only while watching; bound retained entries; scope invalidation and stale flights; check authority on cache hits. Superseded reads retry up to eight attempts, return current bytes and preserve unrelated cached paths; persistent churn reports a bounded I/O failure.",
       "typescript": [
         {
           "path": "tests/unit/cloud/repositories/cloudDataPort.test.ts",
@@ -285,11 +285,15 @@
         },
         {
           "package": "po-workspace",
-          "test": "workspace::cloud::client::tests::scoped_invalidation_fences_old_reads_without_discarding_unrelated_reads"
+          "test": "workspace::cloud::client::tests::a_change_during_a_read_reads_again_without_discarding_unrelated_reads"
         },
         {
           "package": "po-workspace",
           "test": "workspace::cloud::client::tests::errors_are_not_cached_and_authority_is_checked_even_on_cache_hits"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::a_path_that_keeps_changing_through_every_attempt_reports_the_race"
         }
       ],
       "environment": "local"
