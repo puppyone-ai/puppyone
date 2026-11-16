@@ -1,5 +1,5 @@
 use super::{
-    GitWatch, Identity, identity,
+    Identity, WorkerHandle, identity,
     snapshot::{MAX_ENTRIES, snapshot_with},
 };
 use std::{
@@ -45,7 +45,12 @@ impl Wake {
     }
 }
 
-type Handle = Box<dyn Send>;
+trait WatchHandle: Send {
+    fn retire(&self) {}
+}
+#[cfg(test)]
+impl WatchHandle for () {}
+type Handle = Box<dyn WatchHandle>;
 type Factory = Arc<
     dyn Fn(&Path, Option<&Identity>, fn(&str) -> bool, Wake) -> Result<Handle, String>
         + Send
@@ -53,67 +58,8 @@ type Factory = Arc<
 >;
 type Resolver = Arc<dyn Fn(&Path) -> Result<Identity, String> + Send + Sync>;
 
-fn arm(
-    root: &Path,
-    identity: Option<&Identity>,
-    noise: fn(&str) -> bool,
-    wake: Wake,
-) -> Result<Handle, String> {
-    use notify::{RecursiveMode, Watcher};
-    let pending = identity.is_none();
-    let mut bases = match identity {
-        Some(i) => vec![i.git_dir.clone(), i.common_dir.clone()],
-        None => vec![root.to_path_buf()],
-    };
-    bases.sort();
-    bases.dedup();
-    let filter = bases.clone();
-    let mut watcher =
-        notify::recommended_watcher(move |result: notify::Result<notify::Event>| match result {
-            Err(_) => wake.notify(CHANGED | REARM),
-            Ok(event) => {
-                let relevant = event.paths.is_empty()
-                    || event.paths.iter().any(|path| {
-                        filter.iter().any(|base| {
-                            path.strip_prefix(base).is_ok_and(|rel| {
-                                let rel = rel.to_string_lossy().replace('\\', "/");
-                                if pending {
-                                    rel.is_empty() || rel == ".git" || rel.starts_with(".git/")
-                                } else {
-                                    !noise(&rel)
-                                }
-                            })
-                        })
-                    });
-                if relevant {
-                    let rearm = pending
-                        || event.paths.is_empty()
-                        || matches!(
-                            event.kind,
-                            notify::EventKind::Create(_)
-                                | notify::EventKind::Remove(_)
-                                | notify::EventKind::Modify(notify::event::ModifyKind::Name(_))
-                        );
-                    wake.notify(CHANGED | if rearm { REARM } else { 0 });
-                }
-            }
-        })
-        .map_err(|e| e.to_string())?;
-    for base in &bases {
-        watcher
-            .watch(base, RecursiveMode::NonRecursive)
-            .map_err(|e| e.to_string())?;
-    }
-    if let Some(i) = identity {
-        let refs = i.common_dir.join("refs");
-        if refs.is_dir() {
-            watcher
-                .watch(&refs, RecursiveMode::Recursive)
-                .map_err(|e| e.to_string())?;
-        }
-    }
-    Ok(Box::new(watcher))
-}
+mod native;
+use native::arm;
 
 struct Worker {
     root: PathBuf,
@@ -169,6 +115,9 @@ impl Worker {
         })
     }
     fn install(&mut self, now: Instant) {
+        if let Some(handle) = &self.handle {
+            handle.retire();
+        }
         self.handle = None;
         self.generation = self.generation.wrapping_add(1);
         let wake = Wake {
@@ -269,8 +218,23 @@ pub(super) fn start(
     root: &Path,
     noise: fn(&str) -> bool,
     changed: impl Fn() + Send + 'static,
-) -> Result<GitWatch, String> {
+) -> Result<WorkerHandle, String> {
     start_with(root, noise, changed, Arc::new(arm), Arc::new(identity))
+}
+
+#[cfg(test)]
+pub(super) fn start_silent(
+    root: &Path,
+    noise: fn(&str) -> bool,
+    changed: impl Fn() + Send + 'static,
+) -> Result<WorkerHandle, String> {
+    start_with(
+        root,
+        noise,
+        changed,
+        Arc::new(|_, _, _, _| Ok(Box::new(()))),
+        Arc::new(identity),
+    )
 }
 
 fn start_with(
@@ -279,7 +243,7 @@ fn start_with(
     changed: impl Fn() + Send + 'static,
     factory: Factory,
     resolver: Resolver,
-) -> Result<GitWatch, String> {
+) -> Result<WorkerHandle, String> {
     let (sender, receiver) = mpsc::channel();
     let now = Instant::now();
     let mut worker = Worker::new(
@@ -314,7 +278,7 @@ fn start_with(
             worker.tick(Instant::now(), &changed);
         }
     });
-    Ok(GitWatch {
+    Ok(WorkerHandle {
         stop: sender,
         cancelled,
     })

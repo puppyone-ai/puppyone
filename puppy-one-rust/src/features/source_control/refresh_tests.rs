@@ -972,3 +972,28 @@ fn returning_to_cached_metadata_still_loads_the_matching_projects_history(cx: &m
         view.read_with(cx, |s, _| assert!(s.error.is_none(), "{:?}", s.error));
     }
 }
+
+#[gpui::test]
+fn working_tree_writes_broadcast_before_the_local_refresh_debounce(cx: &mut TestAppContext) {
+    let mut fixture = Fixture::new(cx);
+    fixture.initial();
+    let root = fixture.roots.path().join("a");
+    let broadcasts = Arc::new(AtomicUsize::new(0));
+    let received = broadcasts.clone();
+    let _subscription =
+        crate::platform::git_watch::watch(&root, refresh::metadata_noise, move || {
+            received.fetch_add(1, Ordering::SeqCst);
+        })
+        .unwrap();
+    std::fs::write(root.join("note.md"), "written by the workspace").unwrap();
+    let before = broadcasts.load(Ordering::SeqCst);
+    fixture
+        .view
+        .update(fixture.cx, |s, cx| s.working_tree_changed(cx));
+    assert_eq!(broadcasts.load(Ordering::SeqCst), before + 1);
+    fixture.advance(Duration::from_millis(249));
+    fixture.no_read();
+    fixture.advance(Duration::from_millis(1));
+    fixture.request().finish(Ok(snapshot("after-write")));
+    fixture.settle_branch("after-write");
+}

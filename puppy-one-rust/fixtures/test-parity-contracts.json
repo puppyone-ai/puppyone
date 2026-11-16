@@ -11833,7 +11833,7 @@
     },
     {
       "id": "native-git-metadata-watch-recovery",
-      "acceptance": "Git-resolved absolute worktree/git/common identity, absent-to-repository promotion, cold native streams and recoverable watcher failures converge through the production native worker. Initial arm failure keeps the subscription alive; retries start at 250 ms, double to 30 seconds, and reset on successful installation. Pending identity is checked again after arming. Two-second reconciliation observes real commits, index stage/unstage, soft reset, identical-tree branch switches, packed/nested refs, remote-tracking refs/config, and actual merge/cherry-pick/rebase conflicts and aborts. Native status and repository metadata confirm the resulting state. Controlled time verifies no early retries, bounded first-event 120 ms coalescing, one queued notification per native handle, and stale generation rejection; real OS watches and drop-owned handle release remain tested. Ref-only/silent-stream changes also rearm the native watcher. This row does not qualify shared subscription/reference counting, common-dir fanout, renderer-owned immediate invalidation, cross-platform runtime behavior, or native reason-string wire format. Those remaining cases stay unmapped.",
+      "acceptance": "Git-resolved absolute worktree/git/common identity, absent-to-repository promotion, cold native streams and recoverable watcher failures converge through the production native worker. Initial arm failure keeps the subscription alive; retries start at 250 ms, double to 30 seconds, and reset on successful installation. Pending identity is checked again after arming. Two-second reconciliation observes real commits, index stage/unstage, soft reset, identical-tree branch switches, packed/nested refs, remote-tracking refs/config, and actual merge/cherry-pick/rebase conflicts and aborts. Native status and repository metadata confirm the resulting state. Controlled time verifies no early retries, bounded first-event 120 ms coalescing, one queued notification per native handle, and stale generation rejection; real OS watches and drop-owned handle release remain tested. Ref-only/silent-stream changes also rearm the native watcher. This row does not qualify shared subscription/reference counting, common-dir fanout, renderer-owned immediate invalidation, cross-platform runtime behavior, or native reason-string wire format. Shared subscription and immediate-write cases are qualified separately by native-git-metadata-shared-subscriptions.",
       "typescript": [
         {
           "path": "tests/integration/source-control/status/electron.git-metadata-watch.integration.test.mjs",
@@ -11993,6 +11993,85 @@
         {
           "package": "po-platform",
           "test": "platform::git_watch::snapshot::tests::cancelled_snapshots_do_not_inspect_even_the_first_path"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-git-metadata-shared-subscriptions",
+      "acceptance": "Repository subscriptions own unique tokens and share exactly one initialized worker, including eight simultaneous callers and pending subfolders promoted after parent git init. Old or stopped tokens cannot remove newer subscriptions or deliver callbacks after stop returns. Last subscriptions release the worker; independent and nested repository identities remain separate. Linked worktrees share native common-dir/refs leases and both observe real ref writes; closing one preserves the other. Failed or silently dead shared streams are retired before rearm, wake every owner, and cannot be reused or removed by old cleanup. Native handles close on the owning worker even while a callback retains an Arc. Explicit working-tree writes broadcast synchronously to all repository subscribers without a Git read, while the actual GPUI source-control owner retains its 250 ms read debounce. Tests cover real Git, actual macOS notify handles, controlled concurrency and GPUI virtual time. The Rust invalidation callback carries no renderer IPC reason string and the helper reports delivered subscribers rather than TS repository count; these internal transports are not part of the user-facing contract. Windows native runtime is not qualified.",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/status/electron.git-metadata-watch.integration.test.mjs",
+          "sha256": "c4d466aa99926ceb0dc951730ea672cfb1b31c1e4f1b64cc0c6b112934885d75",
+          "cases": [
+            {
+              "index": 4,
+              "name": "git metadata watch service > invalidates Git immediately after a renderer-owned working-tree write"
+            },
+            {
+              "index": 6,
+              "name": "git metadata watch service > reference-counts one watcher per repository identity and cleans up by subscription id"
+            },
+            {
+              "index": 12,
+              "name": "git metadata watch service > invalidates linked worktrees when shared common-dir refs change"
+            },
+            {
+              "index": 16,
+              "name": "git metadata watch service > keeps the newer subscription when an older stop races (Strict Mode semantics)"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::subscriptions::tests::subscriptions_share_one_repository_worker_and_retire_only_their_own_tokens"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::subscriptions::tests::simultaneous_subscriptions_initialize_only_one_worker_and_all_get_immediate_writes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::subscriptions::tests::a_new_subscription_after_git_init_reuses_the_pending_repository_owner"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::subscriptions::tests::explicit_writes_do_not_invalidate_unrelated_repositories"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::subscriptions::tests::pending_subfolders_converge_on_one_parent_repository_without_merging_nested_repositories"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::subscriptions::tests::linked_worktrees_receive_shared_ref_changes_and_one_closing_does_not_stop_the_other"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::subscriptions::tests::stopping_waits_for_an_admitted_callback_and_rejects_later_delivery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::native::tests::native_directory_leases_share_a_handle_and_last_drop_closes_it_before_arc_retirement"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::native::tests::a_failed_shared_handle_wakes_all_owners_and_is_never_reused_or_removed_by_old_cleanup"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::native::tests::reconciliation_replaces_a_silent_shared_handle_while_other_owners_still_hold_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::source_control::refresh_tests::working_tree_writes_broadcast_before_the_local_refresh_debounce"
         }
       ],
       "environment": "local"

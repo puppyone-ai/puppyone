@@ -1,6 +1,6 @@
 //! Repository metadata events are invalidation hints. A bounded snapshot
 //! reconciles silent native streams; recoverable failures rearm with backoff.
-//! Each handle owns its worker and cancels it on drop.
+//! Subscriptions share a repository worker and retire only their own token.
 use super::git::git_read;
 use std::{
     path::{Path, PathBuf},
@@ -8,16 +8,18 @@ use std::{
 };
 
 mod snapshot;
+mod subscriptions;
 mod worker;
 #[cfg(test)]
 use snapshot::snapshot;
+pub use subscriptions::{GitWatch, invalidate_working_tree};
 
 /// Dropping the subscription wakes and stops its worker.
-pub struct GitWatch {
+struct WorkerHandle {
     stop: mpsc::Sender<worker::Signal>,
     cancelled: Arc<AtomicBool>,
 }
-impl Drop for GitWatch {
+impl Drop for WorkerHandle {
     fn drop(&mut self) {
         self.cancelled
             .store(true, std::sync::atomic::Ordering::Relaxed);
@@ -25,7 +27,7 @@ impl Drop for GitWatch {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct Identity {
     top_level: PathBuf,
     git_dir: PathBuf,
@@ -69,7 +71,7 @@ pub fn watch(
     noise: fn(&str) -> bool,
     changed: impl Fn() + Send + 'static,
 ) -> Result<GitWatch, String> {
-    worker::start(root, noise, changed)
+    subscriptions::watch(root, noise, changed)
 }
 
 #[cfg(test)]

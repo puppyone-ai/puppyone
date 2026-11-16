@@ -214,6 +214,7 @@ fn silent_streams_reconcile_real_metadata_and_rearm_without_worktree_noise() {
 #[test]
 fn pending_identity_is_rechecked_after_arming_and_drop_releases_native_handles() {
     struct HandleDrop(mpsc::Sender<()>);
+    impl WatchHandle for HandleDrop {}
     impl Drop for HandleDrop {
         fn drop(&mut self) {
             let _ = self.0.send(());

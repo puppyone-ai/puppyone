@@ -721,7 +721,7 @@ impl Shell {
             // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
             SessionEvent::ContentChanged => {
                 let source_control = self.sidebar.read(cx).source_control.clone();
-                source_control.update(cx, |sc, cx| sc.invalidate(cx));
+                source_control.update(cx, |sc, cx| sc.working_tree_changed(cx));
             }
         }
         self.receive(window, cx);

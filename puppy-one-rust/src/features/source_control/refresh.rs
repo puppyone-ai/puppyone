@@ -49,6 +49,15 @@ pub fn metadata_noise(relative: &str) -> bool {
 }
 
 impl super::SourceControl {
+    /// A confirmed workspace write also invalidates other views of this
+    /// repository; the current view keeps its normal refresh debounce.
+    pub fn working_tree_changed(&mut self, cx: &mut Context<Self>) {
+        if let Some(root) = &self.root {
+            crate::platform::git_watch::invalidate_working_tree(root);
+        }
+        self.invalidate(cx);
+    }
+
     /// Something may have changed in the repository (the working tree or
     /// its metadata): read the status once the burst settles
     /// (`GIT_REFRESH_DEBOUNCE_MS`).
