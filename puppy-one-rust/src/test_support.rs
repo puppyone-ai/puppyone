@@ -48,3 +48,6 @@ impl PlatformTextSystem for RecordingText {
         NoopTextSystem.recommended_rendering_mode(font, size)
     }
 }
+
+#[cfg(test)]
+mod scheduler_tests;

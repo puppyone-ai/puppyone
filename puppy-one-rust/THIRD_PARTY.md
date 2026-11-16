@@ -28,6 +28,13 @@ and the matching gpui-pre 0.3.9 platform crates. The app uses public widgets and
 Markdown editor package is included. Ordinary Input/Textarea editing and history
 are upstream; the continuous document retains its host-owned editing model.
 
+## GPUI test scheduler
+
+`vendor/gpui-pre-scheduler` contains `gpui-pre-scheduler` 0.3.9, Apache-2.0,
+from Zed revision `93d745668805029476e6d7fbb19652116fed51de`. The retained
+`LICENSE-APACHE` covers the source. `PUPPYONE_PATCH.md` documents the narrow
+lock-order fix in its test scheduler; the platform scheduler is unchanged.
+
 ## Other material
 
 - `unicode-segmentation`: MIT OR Apache-2.0; grapheme boundaries.

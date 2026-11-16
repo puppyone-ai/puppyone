@@ -5,3 +5,4 @@
 !/vendor/gpui-base/
 !/vendor/russh/
 !/vendor/vt100/
+!/vendor/gpui-pre-scheduler/

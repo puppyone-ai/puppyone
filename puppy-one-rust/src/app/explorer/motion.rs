@@ -212,13 +212,26 @@ impl TreeMotion {
         stride: f32,
         animate: bool,
     ) -> bool {
+        self.sync_with(tree, revision, rows, stride, animate, || {
+            Timeline::start(DURATION)
+        })
+    }
+    fn sync_with(
+        &mut self,
+        tree: u64,
+        revision: u64,
+        rows: &[Row],
+        stride: f32,
+        animate: bool,
+        timeline: impl FnOnce() -> Timeline,
+    ) -> bool {
         if revision != self.revision {
             let same_tree = std::mem::replace(&mut self.tree, tree) == tree;
             self.revision = revision;
             self.running = (animate && same_tree)
                 .then(|| plan(&self.committed, rows, stride))
                 .flatten()
-                .map(|plan| (plan, Timeline::start(DURATION)));
+                .map(|plan| (plan, timeline()));
             self.committed = rows.to_vec();
         }
         if self
@@ -406,12 +419,17 @@ mod tests {
             row("b", false, false),
         ];
         assert!(!motion.sync(7, 1, &closed, 34., true), "hydration");
-        assert!(motion.sync(7, 2, &open, 34., true));
-        // A frame just after the start: still where everything was.
+        assert!(motion.sync_with(7, 2, &open, 34., true, || Timeline::controlled(DURATION)));
+        // Exact frames on this instance's clock do not depend on CPU load.
         assert!((motion.row(2).offset + 34.).abs() < 0.01);
         assert!(motion.row(1).reveal.unwrap() < 0.001);
         assert!(motion.disclosure(0).unwrap() < 0.001);
-        motion.running.as_mut().unwrap().1.advance(DURATION);
+        motion.running.as_mut().unwrap().1.advance(DURATION / 2);
+        assert!((motion.row(2).offset + 17.).abs() < 0.001);
+        assert!((motion.row(1).reveal.unwrap() - 0.5).abs() < 0.001);
+        assert!((motion.disclosure(0).unwrap() - 0.5).abs() < 0.001);
+        assert!(motion.sync(7, 2, &open, 34., true));
+        motion.running.as_mut().unwrap().1.advance(DURATION / 2);
         assert!(!motion.sync(7, 2, &open, 34., true));
         assert_eq!(motion.row(2), RowFrame::default());
         // Reduced motion commits without a plan.

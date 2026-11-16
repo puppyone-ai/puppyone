@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 pub struct Timeline {
     started: Instant,
     duration: Duration,
+    #[cfg(any(test, feature = "test-support"))]
+    controlled_elapsed: Option<Duration>,
 }
 impl Timeline {
     /// A motion starting now.
@@ -21,22 +23,43 @@ impl Timeline {
         Self {
             started: Instant::now(),
             duration,
+            #[cfg(any(test, feature = "test-support"))]
+            controlled_elapsed: None,
+        }
+    }
+    fn elapsed(&self) -> Duration {
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(elapsed) = self.controlled_elapsed {
+            return elapsed;
+        }
+        self.started.elapsed()
+    }
+    /// An instance-owned test clock; only explicit advancement passes time.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn controlled(duration: Duration) -> Self {
+        Self {
+            controlled_elapsed: Some(Duration::ZERO),
+            ..Self::start(duration)
         }
     }
     /// Linear progress from `0` (start) to `1` (end), or the frozen point.
     pub fn time(&self) -> f32 {
         frozen_time().unwrap_or_else(|| {
-            (self.started.elapsed().as_secs_f32() / self.duration.as_secs_f32()).clamp(0., 1.)
+            (self.elapsed().as_secs_f32() / self.duration.as_secs_f32()).clamp(0., 1.)
         })
     }
     /// The motion is over (never while frozen).
     pub fn finished(&self) -> bool {
-        frozen_time().is_none() && self.started.elapsed() >= self.duration
+        frozen_time().is_none() && self.elapsed() >= self.duration
     }
     /// Tests: let `by` pass on the motion's clock.
     #[cfg(any(test, feature = "test-support"))]
     pub fn advance(&mut self, by: Duration) {
-        self.started -= by;
+        if let Some(elapsed) = &mut self.controlled_elapsed {
+            *elapsed += by;
+        } else {
+            self.started -= by;
+        }
     }
 }
 
@@ -133,11 +156,12 @@ mod tests {
 
     #[test]
     fn a_timeline_runs_from_zero_to_one_and_then_finishes() {
-        let mut timeline = Timeline::start(Duration::from_millis(200));
-        assert!(timeline.time() < 0.5);
+        let mut timeline = Timeline::controlled(Duration::from_millis(200));
+        assert_eq!(timeline.time(), 0.);
         assert!(!timeline.finished());
         timeline.advance(Duration::from_millis(100));
-        assert!((0.45..0.9).contains(&timeline.time()));
+        assert_eq!(timeline.time(), 0.5);
+        assert!(!timeline.finished());
         timeline.advance(Duration::from_millis(150));
         assert_eq!(timeline.time(), 1.);
         assert!(timeline.finished());
