@@ -13842,6 +13842,43 @@
           "test": "features::source_control::diff_tests::repairing_a_real_word_file_recovers_via_the_rendered_retry"
         }
       ]
+    },
+    {
+      "id": "native-git-patch-path-integrity",
+      "acceptance": "Additional native boundary regressions around working-file and commit-detail diffs: real Git C-quoted paths, tabs/newlines/quotes/backslashes, Unicode, ambiguous literal b/ spacing, and user diff prefix preferences preserve the exact resource path. Renamed Word documents still load the correct semantic pair. Hunk content beginning with repeated plus/minus characters contributes every row, line number and count. Copy headers and Git binary patch metadata retain their classification. These requirements were red before the native parser fix.",
+      "environment": "Actual temporary Git repositories plus table-driven C-quote decoder and copy/binary header fixtures. This extends the native acceptance around the cited TS suite; it does not claim that the TS suite itself exercises these unusual filenames, nor close all assertions of its text revision-pair or aggregate comparison cases. History commit detail is exercised; the separate history metadata-list parser is not qualified here.",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/status/workspace.git.integration.test.mjs",
+          "sha256": "24341b907c1dd60fa4a954d096232822ca3b4799cb6bef074a1fd1d20ec2b64d"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::patch_tests::actual_git_paths_survive_quoting_spaces_and_user_prefix_preferences"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::patch_tests::patch_header_looking_body_lines_are_counted_and_numbered_as_content"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::patch_tests::quoted_word_renames_and_history_keep_the_real_paths_and_semantic_bodies"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::patch_tests::binary_word_paths_with_ambiguous_header_spacing_still_select_the_correct_model"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::patch_tests::copy_and_binary_patch_headers_preserve_classification_and_exact_names"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::patch_paths::tests::git_c_quoted_paths_decode_utf8_octal_and_control_characters_without_loss"
+        }
+      ]
     }
   ],
   "openAcceptance": [

@@ -4,6 +4,9 @@
 //! literal pathspecs; no presentation.
 #[cfg(test)]
 mod cache_tests;
+mod patch_paths;
+#[cfg(test)]
+mod patch_tests;
 mod revisions;
 mod working;
 use super::docx_redline::cache::{Cache, Key};
@@ -116,11 +119,15 @@ pub fn parse_patch(patch: &str) -> Vec<FileDiff> {
     let mut files = Vec::new();
     let mut current: Option<(FileDiff, u32, u32)> = None;
     let (mut old, mut new, mut total) = (0u32, 0u32, 0usize);
+    let mut in_hunk = false;
     let finish = |files: &mut Vec<FileDiff>, current: Option<(FileDiff, u32, u32)>| {
         if let Some((mut file, additions, deletions)) = current {
             if !file.binary {
                 file.additions = Some(additions);
                 file.deletions = Some(deletions);
+            }
+            if file.old_path.as_deref() == Some(&file.path) {
+                file.old_path = None;
             }
             file.truncated = file.omitted_lines > 0;
             files.push(file);
@@ -132,6 +139,7 @@ pub fn parse_patch(patch: &str) -> Vec<FileDiff> {
             finish(&mut files, current.take());
             current = Some((header(body), 0, 0));
             (old, new) = (0, 0);
+            in_hunk = false;
             continue;
         }
         let Some((file, additions, deletions)) = current.as_mut() else {
@@ -151,14 +159,33 @@ pub fn parse_patch(patch: &str) -> Vec<FileDiff> {
         } else if line.starts_with("deleted file mode ") {
             file.status = Status::Deleted;
         } else if let Some(from) = line.strip_prefix("rename from ") {
-            file.old_path = Some(from.to_owned());
+            file.old_path = Some(patch_paths::unquote(from));
             file.status = Status::Renamed;
         } else if let Some(to) = line.strip_prefix("rename to ") {
-            file.path = to.to_owned();
+            file.path = patch_paths::unquote(to);
             file.status = Status::Renamed;
-        } else if line.starts_with("Binary files ") {
+        } else if let Some(from) = line.strip_prefix("copy from ") {
+            file.old_path = Some(patch_paths::unquote(from));
+            file.status = Status::Copied;
+        } else if let Some(to) = line.strip_prefix("copy to ") {
+            file.path = patch_paths::unquote(to);
+            file.status = Status::Copied;
+        } else if !in_hunk && line.starts_with("--- ") {
+            if let Some(path) = patch_paths::marker(&line[4..], "a/") {
+                if file.status == Status::Deleted {
+                    file.path = path;
+                } else {
+                    file.old_path = Some(path);
+                }
+            }
+        } else if !in_hunk && line.starts_with("+++ ") {
+            if let Some(path) = patch_paths::marker(&line[4..], "b/") {
+                file.path = path;
+            }
+        } else if line.starts_with("Binary files ") || line == "GIT binary patch" {
             file.binary = true;
         } else if line.starts_with("@@ ") {
+            in_hunk = true;
             let (o, n) = hunk_start(line).unwrap_or((0, 0));
             (old, new) = (o, n);
             push(
@@ -170,7 +197,7 @@ pub fn parse_patch(patch: &str) -> Vec<FileDiff> {
                     new_line: None,
                 },
             );
-        } else if line.starts_with('+') && !line.starts_with("+++") {
+        } else if in_hunk && line.starts_with('+') {
             *additions += 1;
             push(
                 file,
@@ -182,7 +209,7 @@ pub fn parse_patch(patch: &str) -> Vec<FileDiff> {
                 },
             );
             new += 1;
-        } else if line.starts_with('-') && !line.starts_with("---") {
+        } else if in_hunk && line.starts_with('-') {
             *deletions += 1;
             push(
                 file,
@@ -194,7 +221,7 @@ pub fn parse_patch(patch: &str) -> Vec<FileDiff> {
                 },
             );
             old += 1;
-        } else if let Some(text) = line.strip_prefix(' ') {
+        } else if in_hunk && let Some(text) = line.strip_prefix(' ') {
             push(
                 file,
                 DiffLine {
@@ -214,16 +241,7 @@ pub fn parse_patch(patch: &str) -> Vec<FileDiff> {
 
 /// `parseGitDiffHeader`: `a/<old> b/<new>`.
 fn header(body: &str) -> FileDiff {
-    let strip = |v: &str| {
-        v.strip_prefix("a/")
-            .or_else(|| v.strip_prefix("b/"))
-            .unwrap_or(v)
-            .to_owned()
-    };
-    let (old, path) = match body.find(" b/") {
-        Some(i) => (strip(&body[..i]), body[i + 3..].to_owned()),
-        None => (String::new(), strip(body)),
-    };
+    let (old, path) = patch_paths::header(body);
     FileDiff {
         old_path: (!old.is_empty() && old != path).then_some(old),
         path,
@@ -297,6 +315,8 @@ impl Reader {
             "--unified=3",
             "--no-ext-diff",
             "--no-textconv",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
         ];
         if scope == Scope::Staged {
             args.push("--cached");
@@ -425,6 +445,8 @@ impl Reader {
                 "--unified=3",
                 "--no-ext-diff",
                 "--no-textconv",
+                "--src-prefix=a/",
+                "--dst-prefix=b/",
                 id,
             ],
             None,
