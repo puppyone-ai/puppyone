@@ -4,7 +4,7 @@
 //! the prompt to a fresh chat tab on that Agent's runtime.
 use super::{
     components::HomepageAgentBrandMark,
-    create_project::{Destination, default_location, rand_suffix},
+    create_project::{Destination, rand_suffix},
     discovery::HomepageLocalAgent,
     *,
 };
@@ -128,7 +128,7 @@ impl Homepage {
             prompt,
             destination: Destination {
                 name,
-                location: default_location(),
+                location: self.project_locations.default_location(),
                 choosing: false,
             },
             last_auto_name: fallback_name.clone(),

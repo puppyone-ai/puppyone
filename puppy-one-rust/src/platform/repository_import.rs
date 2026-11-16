@@ -36,6 +36,7 @@ pub struct Repository {
     pub url: String,
     pub provider: Provider,
     pub name: String,
+    pub namespace: String,
 }
 
 fn portable(segment: &str) -> bool {
@@ -55,23 +56,35 @@ fn result(url: &str, provider: Provider, segments: &[&str]) -> Option<Repository
         return None;
     }
     let last = segments.last()?;
-    let name = last.strip_suffix(".git").unwrap_or(last);
-    portable(name).then(|| Repository {
+    let name = strip_git_suffix(last);
+    (portable(name) && super::templates::require_project_name(name).is_ok()).then(|| Repository {
         url: url.to_owned(),
         provider,
         name: name.to_owned(),
+        namespace: segments[..segments.len() - 1].join("/"),
     })
 }
-/// `detectRepositoryProvider`.
+fn strip_git_suffix(value: &str) -> &str {
+    value
+        .get(value.len().saturating_sub(4)..)
+        .filter(|suffix| suffix.eq_ignore_ascii_case(".git"))
+        .map_or(value, |_| &value[..value.len() - 4])
+}
+/// Provider recognition for the field's immediate hint. Full URL validation
+/// follows on submit; a provider name inside a different host/path is not a host.
 pub fn detect(value: &str) -> Option<Provider> {
     let value = value.trim().to_ascii_lowercase();
-    if value.contains("github.com") {
-        Some(Provider::GitHub)
-    } else if value.contains("gitlab.com") {
-        Some(Provider::GitLab)
-    } else {
-        None
-    }
+    let value = ["https://", "http://", "ssh://", "git://"]
+        .iter()
+        .find_map(|prefix| value.strip_prefix(prefix))
+        .unwrap_or(&value);
+    let value = value.strip_prefix("git@").unwrap_or(value);
+    let (host, _) = value.split_once(['/', ':'])?;
+    Provider::for_host(host)
+}
+/// Typed entry points cannot accept a third provider, and cannot change host.
+pub fn parse_for(value: &str, provider: Provider) -> Option<Repository> {
+    parse(value).filter(|repository| repository.provider == provider)
 }
 /// `requireGitRepository`: HTTPS or SSH (`git@host:` or `ssh://git@host/`),
 /// no credentials, port, query or fragment; GitHub `owner/name`, GitLab
@@ -81,11 +94,12 @@ pub fn parse(value: &str) -> Option<Repository> {
     if url.is_empty() || url.starts_with('-') || url.chars().any(char::is_control) {
         return None;
     }
-    if let Some(rest) = url.strip_prefix("git@") {
-        let (host, path) = rest.split_once(':')?;
-        let provider = Provider::for_host(host)?;
-        let path = path.trim_end_matches('/');
-        let segments: Vec<&str> = path.split('/').collect();
+    static SCP: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?i)^git@(github\.com|gitlab\.com):([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+?)(?:\.git)?/?$").unwrap()
+    });
+    if let Some(parts) = SCP.captures(url) {
+        let provider = Provider::for_host(&parts[1])?;
+        let segments: Vec<&str> = parts[2].split('/').collect();
         return result(url, provider, &segments);
     }
     let parsed = url::Url::parse(url).ok()?;
@@ -382,6 +396,55 @@ mod tests {
     }
 
     #[test]
+    fn repository_url_validation_matches_152_frozen_ts_outcomes() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/repository-url-oracle.json"
+        )))
+        .unwrap();
+        let cases = oracle["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 152);
+        let key = |p: Provider| match p {
+            Provider::GitHub => "github",
+            Provider::GitLab => "gitlab",
+        };
+        for case in cases {
+            let value = case["value"].as_str().unwrap();
+            assert_eq!(
+                detect(value).map(key),
+                case["detected"].as_str(),
+                "provider: {value:?}"
+            );
+            let actual = parse(value).map(|r| {
+                serde_json::json!({
+                    "url": r.url, "provider":key(r.provider), "owner":r.namespace,
+                    "namespace":r.namespace, "name":r.name
+                })
+            });
+            assert_eq!(
+                actual.as_ref(),
+                (!case["expected"].is_null()).then_some(&case["expected"]),
+                "URL: {value:?}"
+            );
+            for provider in [Provider::GitHub, Provider::GitLab] {
+                let expected = actual.as_ref().filter(|r| r["provider"] == key(provider));
+                assert_eq!(
+                    parse_for(value, provider).is_some(),
+                    expected.is_some(),
+                    "selected {provider:?}: {value:?}"
+                );
+            }
+        }
+        for case in oracle["projectNames"].as_array().unwrap() {
+            assert_eq!(
+                super::super::templates::require_project_name(case["value"].as_str().unwrap()).ok(),
+                case["expected"].as_str(),
+                "{case}"
+            );
+        }
+    }
+
+    #[test]
     fn repository_urls_follow_the_product_rules() {
         let ok = |url: &str, name: &str, provider: Provider| {
             let repo = parse(url).unwrap_or_else(|| panic!("{url}"));
@@ -452,6 +515,7 @@ mod tests {
             url: source.display().to_string(),
             provider: Provider::GitHub,
             name: "notes".into(),
+            namespace: "fixture".into(),
         };
         let (publication, _) = Publication::new(std::sync::Arc::new(AtomicBool::new(false)));
         let cloned = clone_with_publication(&parent, &repository, &publication).unwrap();

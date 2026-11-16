@@ -3,10 +3,7 @@
 //! asking about them waits until someone wants to change them; nothing is
 //! created until the copy is asked for. A copy never takes the place of a
 //! project open in this window: it opens in a window of its own (W-7).
-use super::{
-    create_project::{Destination, default_location},
-    *,
-};
+use super::{create_project::Destination, *};
 use crate::{
     platform::templates::{
         self,
@@ -55,7 +52,7 @@ impl Homepage {
             url,
             destination: Destination {
                 name,
-                location: default_location(),
+                location: self.project_locations.default_location(),
                 choosing: false,
             },
             detail: None,

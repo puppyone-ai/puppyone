@@ -536,3 +536,283 @@ fn publication_defers_cancel_escape_and_close_until_its_result(cx: &mut TestAppC
     click_import_cancel(cx);
     shell.read_with(cx, |s, cx| assert!(s.home.read(cx).import.is_none()));
 }
+
+fn show_url_dialog(
+    shell: &Entity<crate::app::Shell>,
+    cx: &mut VisualTestContext,
+    provider: Provider,
+) {
+    shell.update_in(cx, |s, w, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.home.update(cx, |h, _| {
+            h.intro_empty = Some(true);
+            h.intro = None;
+        });
+        s.command(Command::Home, w, cx);
+        s.home.update(cx, |h, cx| {
+            h.begin_import(w, cx);
+            h.begin_repository_import(provider, w, cx);
+        });
+    });
+    crate::app::tests::settle_cloud(shell, cx, "URL dialog", &|s, cx| {
+        s.home_visible(cx) && !s.home.read(cx).list_held()
+    });
+    draw_url_dialog(cx);
+}
+fn draw_url_dialog(cx: &mut VisualTestContext) {
+    cx.run_until_parked();
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+}
+fn type_url(shell: &Entity<crate::app::Shell>, cx: &mut VisualTestContext, text: &str) {
+    shell.update_in(cx, |s, w, cx| {
+        s.home
+            .read(cx)
+            .import
+            .as_ref()
+            .unwrap()
+            .url
+            .read(cx)
+            .focus_handle(cx)
+            .focus(w, cx);
+    });
+    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_input(text);
+    draw_url_dialog(cx);
+}
+fn click_import(cx: &mut VisualTestContext) {
+    let bounds = cx.debug_bounds("import-submit").expect("Import button");
+    cx.simulate_click(bounds.center(), Modifiers::default());
+    draw_url_dialog(cx);
+}
+#[gpui::test]
+fn unsupported_repository_urls_explain_the_error_on_the_native_input_and_block_submit(
+    cx: &mut TestAppContext,
+) {
+    let (shell, cx) = crate::app::tests::setup(cx);
+    for (provider, wrong) in [
+        (Provider::GitHub, "https://gitlab.com/a/b"),
+        (Provider::GitLab, "https://github.com/a/b"),
+    ] {
+        show_url_dialog(&shell, cx, provider);
+        assert!(cx.debug_bounds("import-url-hint").is_none());
+        for value in [
+            wrong,
+            "https://github.com.evil.test/a/b",
+            "https://example.com/github.com/a/b",
+            "not a repository",
+        ] {
+            type_url(&shell, cx, value);
+            assert!(cx.debug_bounds("import-url-hint").is_some(), "{value}");
+            cx.update(|w, _| {
+                let snapshots = gpui_kit::base::test_support::snapshots(w);
+                let hint = snapshots
+                    .iter()
+                    .find(|s| s.path().contains(&ElementId::from("import-url-hint")))
+                    .expect("rendered validation alert");
+                assert_eq!(hint.role(), Some(gpui::Role::Alert));
+                assert!(hint.label().unwrap().contains(provider.label()));
+                let submit = snapshots
+                    .iter()
+                    .find(|s| s.path().contains(&ElementId::from("import-submit")))
+                    .expect("native submit button");
+                assert_eq!(submit.disabled(), Some(true));
+            });
+            shell.read_with(cx, |s, cx| {
+                let import = s.home.read(cx).import.as_ref().unwrap();
+                let input = import.url.read(cx);
+                let node = input
+                    .accessibility_node
+                    .as_ref()
+                    .expect("rendered native input node");
+                assert_eq!(node.role(), gpui::Role::UrlInput);
+                assert_eq!(node.label(), Some(tr("onboarding.entry.clone.urlLabel")));
+                assert_eq!(node.invalid(), Some(gpui::accesskit::Invalid::True));
+                assert_eq!(node.description(), input.invalid_description.as_deref());
+                assert!(node.description().unwrap().contains(provider.label()));
+            });
+            click_import(cx);
+            shell.read_with(cx, |s, cx| {
+                let i = s.home.read(cx).import.as_ref().unwrap();
+                assert!(
+                    i.cloning.is_none() && i.error.is_none(),
+                    "disabled button must not dispatch submit"
+                );
+            });
+            assert!(!cx.did_prompt_for_paths());
+        }
+        shell.update(cx, |s, cx| {
+            s.home.update(cx, |h, _| {
+                h.import.as_mut().unwrap().error = Some("old failure".into())
+            })
+        });
+        let valid = match provider {
+            Provider::GitHub => "https://github.com/a/b.git",
+            Provider::GitLab => "git@gitlab.com:group/sub/repo.git",
+        };
+        type_url(&shell, cx, valid);
+        assert!(cx.debug_bounds("import-url-hint").is_none());
+        shell.read_with(cx, |s, cx| {
+            let i = s.home.read(cx).import.as_ref().unwrap();
+            assert!(
+                i.error.is_none(),
+                "typing retires the previous request error"
+            );
+            let node = i.url.read(cx).accessibility_node.as_ref().unwrap();
+            assert!(node.invalid().is_none() && node.description().is_none());
+        });
+    }
+}
+#[gpui::test]
+fn repository_fields_are_locked_while_cloning_or_retrying_an_imported_project(
+    cx: &mut TestAppContext,
+) {
+    let (shell, cx) = crate::app::tests::setup(cx);
+    show_url_dialog(&shell, cx, Provider::GitHub);
+    let value = "https://github.com/a/b.git";
+    type_url(&shell, cx, value);
+    let (_, finish) = shell.update_in(cx, |s, w, cx| s.home.update(cx, |h, cx| pending(h, w, cx)));
+    draw_url_dialog(cx);
+    for imported in [false, true] {
+        if imported {
+            finish_imported_for_test(&shell, cx);
+        }
+        cx.simulate_input("must not edit");
+        draw_url_dialog(cx);
+        shell.read_with(cx, |s, cx| {
+            let input = s.home.read(cx).import.as_ref().unwrap().url.read(cx);
+            assert_eq!(input.text(), value);
+            assert!(input.accessibility_node.as_ref().unwrap().is_disabled());
+        });
+    }
+    finish.send(Err("retired".into())).unwrap();
+    draw_url_dialog(cx);
+}
+fn finish_imported_for_test(shell: &Entity<crate::app::Shell>, cx: &mut VisualTestContext) {
+    shell.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            let i = h.import.as_mut().unwrap();
+            i.cloning = None;
+            i.imported = i.location.clone();
+            cx.notify();
+        })
+    });
+    draw_url_dialog(cx);
+}
+#[gpui::test]
+fn absent_import_destination_prompts_once_and_cancellation_keeps_the_typed_url(
+    cx: &mut TestAppContext,
+) {
+    let (shell, cx) = crate::app::tests::setup(cx);
+    show_url_dialog(&shell, cx, Provider::GitLab);
+    shell.update(cx, |s, cx| {
+        s.home
+            .update(cx, |h, _| h.import.as_mut().unwrap().location = None)
+    });
+    let value = "git@gitlab.com:group/sub/repo.git";
+    type_url(&shell, cx, value);
+    click_import(cx);
+    assert!(cx.did_prompt_for_paths());
+    shell.read_with(cx, |s, cx| {
+        let i = s.home.read(cx).import.as_ref().unwrap();
+        assert!(i.choosing && i.cloning.is_none());
+        assert!(
+            i.url
+                .read(cx)
+                .accessibility_node
+                .as_ref()
+                .unwrap()
+                .is_disabled()
+        );
+    });
+    click_import(cx);
+    cx.simulate_path_prompt_response(|options| {
+        assert!(options.directories && !options.files && !options.multiple);
+        None
+    });
+    draw_url_dialog(cx);
+    shell.read_with(cx, |s, cx| {
+        let i = s.home.read(cx).import.as_ref().unwrap();
+        assert!(!i.choosing && i.cloning.is_none() && i.error.is_none());
+        assert_eq!(i.url.read(cx).text(), value);
+        assert!(
+            !i.url
+                .read(cx)
+                .accessibility_node
+                .as_ref()
+                .unwrap()
+                .is_disabled()
+        );
+    });
+    // Choosing a destination resumes the same request. An existing final path
+    // fails before Git can run, keeping this real UI test entirely offline.
+    let parent = tempfile::tempdir().unwrap();
+    std::fs::create_dir(parent.path().join("repo")).unwrap();
+    click_import(cx);
+    cx.simulate_path_prompt_response(|_| Some(vec![parent.path().to_path_buf()]));
+    crate::app::tests::settle_cloud(&shell, cx, "existing import destination", &|s, cx| {
+        s.home
+            .read(cx)
+            .import
+            .as_ref()
+            .is_some_and(|i| i.error.is_some())
+    });
+    shell.read_with(cx, |s, cx| {
+        let i = s.home.read(cx).import.as_ref().unwrap();
+        assert_eq!(i.location.as_deref(), Some(parent.path()));
+        assert!(i.error.as_ref().unwrap().contains("already exists"));
+    });
+}
+#[gpui::test]
+fn create_and_import_share_an_owned_test_destination_without_opening_a_picker(
+    cx: &mut TestAppContext,
+) {
+    let (shell, cx) = crate::app::tests::setup(cx);
+    let created = shell.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| {
+            h.begin_create_project(w, cx);
+            h.create
+                .as_ref()
+                .unwrap()
+                .destination
+                .location
+                .clone()
+                .unwrap()
+        })
+    });
+    show_url_dialog(&shell, cx, Provider::GitHub);
+    shell.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.home.read(cx).import.as_ref().unwrap().location.as_ref(),
+            Some(&created)
+        )
+    });
+    assert!(created.ends_with("Documents/PuppyOne"));
+    std::fs::create_dir(created.join("repo")).unwrap();
+    type_url(&shell, cx, "https://github.com/owner/repo.git");
+    click_import(cx);
+    crate::app::tests::settle_cloud(&shell, cx, "default destination used", &|s, cx| {
+        s.home
+            .read(cx)
+            .import
+            .as_ref()
+            .is_some_and(|i| i.error.is_some())
+    });
+    assert!(!cx.did_prompt_for_paths());
+    shell.read_with(cx, |s, cx| {
+        assert!(
+            s.home
+                .read(cx)
+                .import
+                .as_ref()
+                .unwrap()
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("already exists")
+        )
+    });
+}

@@ -3850,7 +3850,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -10590,7 +10590,7 @@
             },
             {
               "index": 14,
-              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A→B→A"
+              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A\u2192B\u2192A"
             }
           ]
         }
@@ -10688,7 +10688,7 @@
           "cases": [
             {
               "index": 2,
-              "name": "registered database DOM viewer > drops late opening results across A→B→A and releases every native lease"
+              "name": "registered database DOM viewer > drops late opening results across A\u2192B\u2192A and releases every native lease"
             },
             {
               "index": 3,
@@ -11289,11 +11289,11 @@
             },
             {
               "index": 2,
-              "name": "gitRefreshScheduler > discards delayed responses across A → B workspace switches"
+              "name": "gitRefreshScheduler > discards delayed responses across A \u2192 B workspace switches"
             },
             {
               "index": 3,
-              "name": "gitRefreshScheduler > discards a delayed B response after A → B → A"
+              "name": "gitRefreshScheduler > discards a delayed B response after A \u2192 B \u2192 A"
             },
             {
               "index": 4,
@@ -12428,6 +12428,99 @@
         {
           "package": "po-platform",
           "test": "platform::app_folders::tests::plist_conversion_has_bounded_time_output_and_an_owned_child_lifetime"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-repository-url-validation",
+      "acceptance": "The frozen TS production classifier, repository parser and project-name validator produce 152 URL and eight name oracle outcomes. Rust matches anchored provider recognition, HTTPS/SSH forms, case-insensitive SCP and .git suffixes, GitLab namespaces, selected-host rejection and portable target names; the Provider enum cannot represent an unsupported third provider. Actual GPUI typing and clicks verify the initially absent hint, immediate provider-specific Alert, UrlInput role, invalid state plus error description on the same native input node, disabled submit and clearing the error on edit. Clone and published-retry states reject editing and expose disabled semantics. Supporting native regressions verify absent destinations prompt once, cancellation preserves the URL, a chosen directory resumes the same request, and the default location needs no picker. These supporting destination tests fail on an existing target before any network clone; they do not qualify the full successful-import TS cases 14 and 15. Each test Homepage owns a distinct temporary Documents/PuppyOne tree that is removed with its owner, including missing/default-path errors, without reading HOME or changing global environment. Accessibility checks qualify the nodes written by rendered elements, not an operating-system assistive-technology session. Runtime verification is macOS.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
+          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+          "cases": [
+            {
+              "index": 5,
+              "name": "project entry service > rejects traversal, credentials in URLs, unsupported hosts, and malformed repository URLs"
+            },
+            {
+              "index": 6,
+              "name": "project entry service > accepts GitHub HTTPS and SSH forms and derives the local folder name"
+            },
+            {
+              "index": 7,
+              "name": "project entry service > accepts GitLab groups and subgroups over HTTPS and SSH"
+            },
+            {
+              "index": 8,
+              "name": "project entry service > keeps provider-specific entry points scoped to their selected host"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageImport.test.tsx",
+          "sha256": "6cb534890273fc07778dc64261486bff9b302d70c46bfb5dd86c2c5dca0ff001",
+          "cases": [
+            {
+              "index": 16,
+              "name": "importing from the Homepage > explains unsupported repository URLs instead of silently disabling Import"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::repository_url_validation_matches_152_frozen_ts_outcomes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::unsupported_repository_urls_explain_the_error_on_the_native_input_and_block_submit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::repository_fields_are_locked_while_cloning_or_retrying_an_imported_project"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::absent_import_destination_prompts_once_and_cancellation_keeps_the_typed_url"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::create_and_import_share_an_owned_test_destination_without_opening_a_picker"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::create_project::location_tests::project_destination_fixtures_are_unique_owned_and_removed_on_drop"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::create_project::location_tests::unavailable_default_destinations_do_not_fall_back_to_the_real_home"
         }
       ],
       "environment": "local"

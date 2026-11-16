@@ -123,12 +123,37 @@ fn create_error(error: &crate::workspace::cloud::services::Error) -> String {
 fn validate_name(value: &str) -> Result<&str, String> {
     templates::require_project_name(value)
 }
-/// `Documents/PuppyOne`, created if missing.
-pub(super) fn default_location() -> Option<PathBuf> {
-    let documents = std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Documents"))?;
-    let folder = documents.join(DEFAULT_FOLDER);
-    std::fs::create_dir_all(&folder).ok()?;
-    folder.canonicalize().ok()
+/// The destination owner. Each test window owns and removes its own temporary
+/// Documents tree; tests never consult HOME or mutate process-wide environment.
+pub(super) struct ProjectLocations {
+    documents: Option<PathBuf>,
+    #[cfg(test)]
+    _fixture: tempfile::TempDir,
+}
+impl ProjectLocations {
+    pub(super) fn new() -> Self {
+        #[cfg(test)]
+        {
+            let fixture = tempfile::tempdir().expect("isolated project locations");
+            Self {
+                documents: Some(fixture.path().join("Documents")),
+                _fixture: fixture,
+            }
+        }
+        #[cfg(not(test))]
+        {
+            Self {
+                documents: std::env::var_os("HOME")
+                    .map(|home| PathBuf::from(home).join("Documents")),
+            }
+        }
+    }
+    /// `Documents/PuppyOne`, created if missing.
+    pub(super) fn default_location(&self) -> Option<PathBuf> {
+        let folder = self.documents.as_ref()?.join(DEFAULT_FOLDER);
+        std::fs::create_dir_all(&folder).ok()?;
+        folder.canonicalize().ok()
+    }
 }
 /// `createProject` with Getting started: the project folder, made whole,
 /// and the document it opens on.
@@ -184,7 +209,7 @@ impl Homepage {
         self.create = Some(CreateProject {
             destination: Destination {
                 name,
-                location: default_location(),
+                location: self.project_locations.default_location(),
                 choosing: false,
             },
             error: None,
@@ -968,5 +993,37 @@ mod tests {
                 .unwrap_err()
                 .contains("already exists")
         );
+    }
+}
+
+#[cfg(test)]
+mod location_tests {
+    use super::*;
+    use core::prelude::v1::test;
+    #[test]
+    fn project_destination_fixtures_are_unique_owned_and_removed_on_drop() {
+        let a = ProjectLocations::new();
+        let b = ProjectLocations::new();
+        let first = a.default_location().unwrap();
+        let second = b.default_location().unwrap();
+        assert_ne!(first, second);
+        assert_eq!(a.default_location().unwrap(), first);
+        std::fs::write(first.join("owned.txt"), b"fixture").unwrap();
+        drop(a);
+        assert!(!first.exists());
+        assert!(second.is_dir());
+        drop(b);
+        assert!(!second.exists());
+    }
+    #[test]
+    fn unavailable_default_destinations_do_not_fall_back_to_the_real_home() {
+        let mut owner = ProjectLocations::new();
+        let file = owner._fixture.path().join("not-a-directory");
+        std::fs::write(&file, b"keep").unwrap();
+        owner.documents = Some(file.clone());
+        assert!(owner.default_location().is_none());
+        assert_eq!(std::fs::read(file).unwrap(), b"keep");
+        owner.documents = None;
+        assert!(owner.default_location().is_none());
     }
 }

@@ -10,6 +10,8 @@ use gpui_kit::component::input::{
 };
 use std::rc::Rc;
 
+mod accessibility;
+
 /// How an atomic inline token renders (a prompt mention's chip).
 pub type TokenRenderer = Rc<dyn Fn(&InlineTokenContext, &mut Window, &mut App) -> AnyElement>;
 #[derive(Clone, Debug)]
@@ -39,6 +41,13 @@ pub struct TextInput {
     pub appearance: bool,
     /// Kit's disabled field: no editing or focus, muted.
     pub disabled: bool,
+    /// URL semantics for the native input method and accessibility role.
+    pub url: bool,
+    pub accessibility_label: Option<SharedString>,
+    /// The field's validation failure, exposed on its own accessibility node.
+    pub invalid_description: Option<String>,
+    #[cfg(any(test, feature = "test-support"))]
+    pub accessibility_node: Option<gpui::accesskit::Node>,
     pub submit_on_enter: bool,
     /// A paste of images or files is the host's ([`PastedFiles`]), not text.
     pub paste_files: bool,
@@ -126,6 +135,11 @@ impl TextInput {
             pending: None,
             appearance: true,
             disabled: false,
+            url: false,
+            accessibility_label: None,
+            invalid_description: None,
+            #[cfg(any(test, feature = "test-support"))]
+            accessibility_node: None,
             submit_on_enter: false,
             paste_files: false,
             prompt_text: None,
@@ -339,18 +353,39 @@ impl Render for TextInput {
         });
         let t = cx.palette();
         let control = match &self.field {
-            Field::Single(s) => Input::new(s)
-                .when_some(self.token_renderer.clone(), |input, render| {
-                    input.token(move |token, window, cx| render(token, window, cx))
-                })
-                .appearance(self.appearance)
-                .disabled(self.disabled)
-                .w_full()
-                .when_some(self.prompt_text, |input, (size, line)| {
-                    use gpui_kit::component::Sizable as _;
-                    input.xsmall().text_size(px(size)).line_height(px(line))
-                })
-                .into_any_element(),
+            Field::Single(s) => {
+                let input = Input::new(s)
+                    .when_some(self.token_renderer.clone(), |input, render| {
+                        input.token(move |token, window, cx| render(token, window, cx))
+                    })
+                    .when(self.url, |input| {
+                        input.content_type(gpui_kit::component::input::InputContentType::Url)
+                    })
+                    .when_some(self.accessibility_label.clone(), |input, label| {
+                        input.aria_label(label)
+                    })
+                    .appearance(self.appearance)
+                    .disabled(self.disabled)
+                    .w_full()
+                    .when_some(self.prompt_text, |input, (size, line)| {
+                        use gpui_kit::component::Sizable as _;
+                        input.xsmall().text_size(px(size)).line_height(px(line))
+                    });
+                let input = gpui::RenderOnce::render(input, window, cx).into_element();
+                let input = accessibility::ValidatedInput::new(
+                    input,
+                    self.disabled,
+                    self.invalid_description.clone(),
+                );
+                #[cfg(any(test, feature = "test-support"))]
+                {
+                    let mut node =
+                        gpui::accesskit::Node::new(input.a11y_role().expect("input role"));
+                    input.write_a11y_info(&mut node);
+                    self.accessibility_node = Some(node);
+                }
+                input.into_any_element()
+            }
             Field::Multi(s) => Textarea::new(s)
                 .when_some(self.token_renderer.clone(), |area, render| {
                     area.token(move |token, window, cx| render(token, window, cx))

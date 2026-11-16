@@ -22,6 +22,7 @@ pub(in crate::app) struct ImportRepository {
     provider: Provider,
     pub(in crate::app) url: Entity<TextInput>,
     location: Option<PathBuf>,
+    choosing: bool,
     /// The clone in flight and its cancellation.
     cloning: Option<Arc<AtomicBool>>,
     publication: Option<Arc<repository_import::Publication>>,
@@ -49,11 +50,13 @@ impl Homepage {
         cx: &mut Context<Self>,
     ) {
         let placeholder = match provider {
-            Provider::GitHub => "https://github.com/owner/repository",
-            Provider::GitLab => "https://gitlab.com/group/project",
+            Provider::GitHub => "https://github.com/owner/repository.git",
+            Provider::GitLab => "https://gitlab.com/owner/repository.git",
         };
         let url = cx.new(|cx| {
             let mut input = TextInput::new(placeholder, false, 512, window, cx);
+            input.url = true;
+            input.accessibility_label = Some(tr("onboarding.entry.clone.urlLabel").into());
             input.submit_on_enter = true;
             input.appearance = false;
             input.prompt_text = Some((theme::ty().ui.control, 18.));
@@ -63,6 +66,9 @@ impl Homepage {
             if matches!(event, InputEvent::Submit) {
                 s.submit_import(w, cx)
             } else {
+                if let Some(import) = s.import.as_mut() {
+                    import.error = None;
+                }
                 cx.notify();
             }
         })
@@ -71,7 +77,8 @@ impl Homepage {
         self.import = Some(ImportRepository {
             provider,
             url,
-            location: create_project::default_location(),
+            location: self.project_locations.default_location(),
+            choosing: false,
             cloning: None,
             publication: None,
             imported: None,
@@ -80,7 +87,9 @@ impl Homepage {
         cx.notify();
     }
     pub(in crate::app) fn repository_busy(&self) -> bool {
-        self.import.as_ref().is_some_and(|i| i.cloning.is_some())
+        self.import
+            .as_ref()
+            .is_some_and(|i| i.cloning.is_some() || i.choosing)
     }
     /// Compete with publication at its atomic boundary before replacing the owner.
     pub(super) fn cancel_repository_import(&self) -> bool {
@@ -109,14 +118,24 @@ impl Homepage {
         cx.notify();
     }
     fn choose_import_location(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.request_import_location(false, window, cx);
+    }
+    fn request_import_location(
+        &mut self,
+        submit: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(import) = self
             .import
-            .as_ref()
-            .filter(|i| i.cloning.is_none() && i.imported.is_none())
+            .as_mut()
+            .filter(|i| i.cloning.is_none() && !i.choosing && i.imported.is_none())
         else {
             return;
         };
         let owner = import.url.entity_id();
+        import.choosing = true;
+        cx.notify();
         let prompt = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -125,15 +144,24 @@ impl Homepage {
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = prompt.await;
-            let _ = this.update(cx, |s, cx| {
+            let _ = this.update_in(cx, |s, window, cx| {
+                let mut resume = false;
                 if let Some(import) = s.import_state()
                     && import.url.entity_id() == owner
-                    && import.cloning.is_none()
-                    && import.imported.is_none()
-                    && let Ok(Ok(Some(paths))) = result
-                    && let Some(path) = paths.into_iter().next()
                 {
-                    import.location = Some(path);
+                    import.choosing = false;
+                    if import.cloning.is_none()
+                        && import.imported.is_none()
+                        && let Ok(Ok(Some(paths))) = result
+                        && let Some(path) = paths.into_iter().next()
+                    {
+                        import.location = Some(path);
+                        import.error = None;
+                        resume = submit;
+                    }
+                }
+                if resume {
+                    s.submit_import(window, cx);
                 }
                 cx.notify();
             });
@@ -144,25 +172,24 @@ impl Homepage {
         let Some(import) = self.import_state() else {
             return;
         };
-        if import.cloning.is_some() {
+        if import.cloning.is_some() || import.choosing {
             return;
         }
         if let Some(path) = import.imported.clone() {
             return self.open_imported(path, window, cx);
         }
         let text = import.url.read(cx).text().to_owned();
-        let Some(location) = import.location.clone() else {
-            return;
-        };
         let provider = import.provider;
-        let Some(repository) = repository_import::parse(&text)
-            .filter(|_| repository_import::detect(&text) == Some(provider))
-        else {
+        let Some(repository) = repository_import::parse_for(&text, provider) else {
             import.error = Some(tf(
                 "onboarding.entry.clone.unsupportedUrl",
                 &[("provider", provider.label().into())],
             ));
             cx.notify();
+            return;
+        };
+        let Some(location) = import.location.clone() else {
+            self.request_import_location(true, window, cx);
             return;
         };
         let cancel = Arc::new(AtomicBool::new(false));
@@ -315,8 +342,20 @@ impl Homepage {
             "onboarding.entry.import.repository.title",
             &[("provider", import.provider.label().into())],
         );
-        let busy = import.cloning.is_some();
+        let busy = import.cloning.is_some() || import.choosing;
         let imported = import.imported.is_some();
+        let unsupported =
+            !text.trim().is_empty() && repository_import::detect(&text) != Some(import.provider);
+        let hint = unsupported.then(|| {
+            tf(
+                "onboarding.entry.clone.unsupportedUrl",
+                &[("provider", import.provider.label().into())],
+            )
+        });
+        import.url.update(cx, |input, _| {
+            input.disabled = busy || imported;
+            input.invalid_description = hint.clone();
+        });
         let field = || {
             h_flex()
                 .w_full()
@@ -348,6 +387,17 @@ impl Homepage {
                             .child(div().w_full().text_color(t.text).child(import.url.clone())),
                     ),
             )
+            .children(hint.map(|hint| {
+                div()
+                    .id("import-url-hint")
+                    .test_support()
+                    .debug_selector(|| "import-url-hint".into())
+                    .role(gpui::Role::Alert)
+                    .aria_label(hint.clone())
+                    .text_size(px(ty.ui.meta))
+                    .text_color(t.danger)
+                    .child(hint)
+            }))
             .child(
                 v_flex()
                     .gap(px(8.))
@@ -392,6 +442,9 @@ impl Homepage {
         if let Some(error) = &import.error {
             body = body.child(
                 div()
+                    .id("import-error")
+                    .role(gpui::Role::Alert)
+                    .aria_label(error.clone())
                     .text_size(px(ty.ui.meta))
                     .text_color(t.danger)
                     .child(error.clone()),
@@ -417,6 +470,7 @@ impl Homepage {
             )
             .footer(
                 Button::new("import-submit")
+                    .debug_selector(|| "import-submit".into())
                     .variant(ButtonVariant::Solid)
                     .label(tr(match (busy, imported) {
                         (true, true) => "onboarding.status.opening",
@@ -426,8 +480,7 @@ impl Homepage {
                     }))
                     .disabled(
                         busy || !imported
-                            && (location.is_none()
-                                || repository_import::detect(&text) != Some(import.provider)),
+                            && repository_import::detect(&text) != Some(import.provider),
                     )
                     .on_click(cx.listener(|s, _, w, cx| s.submit_import(w, cx))),
             )

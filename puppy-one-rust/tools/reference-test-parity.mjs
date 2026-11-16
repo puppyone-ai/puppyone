@@ -257,3 +257,5 @@ if (process.argv.includes('--check')) {
 console.log(`${archiveCases.length} TS archive byte streams and extraction outcomes verified`);
 
 await import('./reference-git-sync.mjs');
+
+await import('./reference-repository-urls.mjs');
