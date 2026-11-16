@@ -8,6 +8,9 @@ use std::{
     sync::atomic::AtomicBool,
 };
 
+mod publication;
+pub use publication::Publication;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Provider {
     GitHub,
@@ -112,11 +115,36 @@ pub fn clone_into(
     clone_into_with(parent, repository, cancel, super::git::clone_repository)
 }
 
+/// UI-owned clone: cancellation and publication share one atomic boundary.
+pub fn clone_with_publication(
+    parent: &Path,
+    repository: &Repository,
+    publication: &Publication,
+) -> Result<PathBuf, String> {
+    clone_into_using(
+        parent,
+        repository,
+        publication.cancellation(),
+        super::git::clone_repository,
+        Some(publication),
+    )
+}
+
 fn clone_into_with(
     parent: &Path,
     repository: &Repository,
     cancel: &AtomicBool,
     clone: impl FnOnce(&Path, &str, &AtomicBool) -> Result<(), String>,
+) -> Result<PathBuf, String> {
+    clone_into_using(parent, repository, cancel, clone, None)
+}
+
+fn clone_into_using(
+    parent: &Path,
+    repository: &Repository,
+    cancel: &AtomicBool,
+    clone: impl FnOnce(&Path, &str, &AtomicBool) -> Result<(), String>,
+    publication: Option<&Publication>,
 ) -> Result<PathBuf, String> {
     let check_cancel = || {
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
@@ -153,16 +181,22 @@ fn clone_into_with(
         line.trim().chars().take(300).collect::<String>()
     })?;
     check_cancel()?;
-    super::templates::publish(staging.path(), &target).map_err(|error| {
-        if error.kind() == std::io::ErrorKind::AlreadyExists {
-            format!(
-                "A file or folder named “{}” already exists in that location.",
-                repository.name
-            )
-        } else {
-            error.to_string()
-        }
-    })?;
+    let publish = || {
+        super::templates::publish(staging.path(), &target).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                format!(
+                    "A file or folder named “{}” already exists in that location.",
+                    repository.name
+                )
+            } else {
+                error.to_string()
+            }
+        })
+    };
+    match publication {
+        Some(publication) => publication.commit(publish)?,
+        None => publish()?,
+    }
     // Ownership moves only after the exclusive publication succeeds. On any
     // failure the TempDir still owns and removes only our staged directory.
     let _ = staging.keep();
@@ -235,6 +269,28 @@ mod tests {
             std::fs::read_to_string(parent.path().join("keep.txt")).unwrap(),
             "keep"
         );
+    }
+
+    #[test]
+    fn controlled_cancellation_after_materialization_cleans_staging_without_publishing() {
+        let parent = tempfile::tempdir().unwrap();
+        std::fs::write(parent.path().join("keep.txt"), "keep").unwrap();
+        let repository = parse("https://github.com/owner/repository.git").unwrap();
+        let cancelled = std::sync::Arc::new(AtomicBool::new(false));
+        let (publication, _) = Publication::new(cancelled.clone());
+        let result = clone_into_using(
+            parent.path(),
+            &repository,
+            &cancelled,
+            |staging, _, _| {
+                std::fs::write(staging.join("complete.md"), "complete").unwrap();
+                assert!(publication.cancel());
+                Ok(())
+            },
+            Some(&publication),
+        );
+        assert!(result.is_err());
+        assert_eq!(entries(parent.path()), ["keep.txt"]);
     }
 
     #[test]
@@ -397,7 +453,9 @@ mod tests {
             provider: Provider::GitHub,
             name: "notes".into(),
         };
-        let cloned = clone_into(&parent, &repository, &AtomicBool::new(false)).unwrap();
+        let (publication, _) = Publication::new(std::sync::Arc::new(AtomicBool::new(false)));
+        let cloned = clone_with_publication(&parent, &repository, &publication).unwrap();
+        assert!(!publication.publishing());
         assert!(cloned.join("a.md").exists());
         assert!(clone_into(&parent, &repository, &AtomicBool::new(false)).is_err());
         // No staging folder is left behind.

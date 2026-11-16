@@ -24,6 +24,7 @@ pub(in crate::app) struct ImportRepository {
     location: Option<PathBuf>,
     /// The clone in flight and its cancellation.
     cloning: Option<Arc<AtomicBool>>,
+    publication: Option<Arc<repository_import::Publication>>,
     /// Imported, but its folder could not be opened: Import opens it again.
     pub(in crate::app) imported: Option<PathBuf>,
     error: Option<String>,
@@ -31,6 +32,9 @@ pub(in crate::app) struct ImportRepository {
 
 impl Drop for ImportRepository {
     fn drop(&mut self) {
+        if let Some(publication) = &self.publication {
+            publication.cancel();
+        }
         if let Some(cancel) = &self.cloning {
             cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         }
@@ -69,6 +73,7 @@ impl Homepage {
             url,
             location: create_project::default_location(),
             cloning: None,
+            publication: None,
             imported: None,
             error: None,
         });
@@ -81,6 +86,15 @@ impl Homepage {
         self.import.as_mut()
     }
     pub(in crate::app) fn close_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self
+            .import
+            .as_ref()
+            .and_then(|i| i.publication.as_ref())
+            .is_some_and(|p| !p.cancel())
+        {
+            cx.notify();
+            return;
+        }
         if let Some(import) = self.import_state()
             && let Some(cancel) = import.cloning.take()
         {
@@ -150,11 +164,15 @@ impl Homepage {
             return;
         };
         let cancel = Arc::new(AtomicBool::new(false));
+        let (publication, progress) = repository_import::Publication::new(cancel.clone());
+        let publication = Arc::new(publication);
+        import.publication = Some(publication.clone());
         import.cloning = Some(cancel.clone());
         import.error = None;
+        self.observe_import_publication(cancel, progress, cx);
         cx.notify();
         let task = cx.background_executor().spawn(async move {
-            repository_import::clone_into(&location, &repository, &cancel)
+            repository_import::clone_with_publication(&location, &repository, &publication)
                 .map(|path| (opens(&path), path))
         });
         self.finish_import(task, window, cx);
@@ -165,12 +183,35 @@ impl Homepage {
             return;
         };
         import.cloning = Some(Arc::new(AtomicBool::new(false)));
+        import.publication = None;
         import.error = None;
         cx.notify();
         let task = cx
             .background_executor()
             .spawn(async move { Ok((opens(&path), path)) });
         self.finish_import(task, window, cx);
+    }
+    fn observe_import_publication(
+        &self,
+        attempt: Arc<AtomicBool>,
+        progress: async_channel::Receiver<()>,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |this, cx| {
+            while progress.recv().await.is_ok() {
+                if this
+                    .update(cx, |s, cx| {
+                        if s.owns_import_attempt(&attempt) {
+                            cx.notify();
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
     }
     /// The import's end: its project opened here, the dialog closing; or
     /// imported but not openable (`opening.status === "failed"`), said and
@@ -366,8 +407,10 @@ impl Homepage {
             .child(body)
             .footer(
                 Button::new("import-cancel")
+                    .debug_selector(|| "import-cancel".into())
                     .variant(ButtonVariant::Secondary)
                     .label(tr("common.action.cancel"))
+                    .disabled(import.publication.as_ref().is_some_and(|p| p.publishing()))
                     .on_click(cx.listener(|s, _, w, cx| s.close_import(w, cx))),
             )
             .footer(

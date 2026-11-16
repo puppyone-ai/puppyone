@@ -11764,7 +11764,7 @@
     },
     {
       "id": "native-repository-import-ui-ownership",
-      "acceptance": "The actual GPUI import owner refuses unsupported or mismatched provider URLs before starting a clone, retains the published directory after an opening failure and retries only opening, preserving edits made since publication even without a valid URL. Controlled task completions exercise the real foreground callback and prove closed/replaced attempts cannot alter a new provider dialog, clear its worker, publish stale errors, retain a wrong project or navigate the window. Replacing/dropping the import owner cancels its worker. Native path-picker replies are fenced by dialog identity and idle state. These extra lifecycle tests strengthen the TS acceptance rather than mapping unrelated TS cases. Recent-project persistence and actual opening failures are qualified separately by native-repository-import-opening-recovery; publication-phase cancellation disabling remains unqualified.",
+      "acceptance": "The actual GPUI import owner refuses unsupported or mismatched provider URLs before starting a clone, retains the published directory after an opening failure and retries only opening, preserving edits made since publication even without a valid URL. Controlled task completions exercise the real foreground callback and prove closed/replaced attempts cannot alter a new provider dialog, clear its worker, publish stale errors, retain a wrong project or navigate the window. Replacing/dropping the import owner cancels its worker. Native path-picker replies are fenced by dialog identity and idle state. These extra lifecycle tests strengthen the TS acceptance rather than mapping unrelated TS cases. Recent-project persistence and actual opening failures are qualified separately by native-repository-import-opening-recovery; publication-phase cancellation is qualified by native-repository-import-publication-cancellation.",
       "typescript": [
         {
           "path": "tests/component/workspace/homepage/homepageImport.test.tsx",
@@ -12078,7 +12078,7 @@
     },
     {
       "id": "native-repository-import-opening-recovery",
-      "acceptance": "After atomic publication, the actual GPUI import retains its project and waits for recent-project persistence before navigation. Preference acknowledgements are revision-scoped: earlier writes cannot release later requests, failures are reported, and retry persists the retained state. A real filesystem replacement failure prevents opening; recovery persists the recent entry and opens the same directory with post-import edits intact. Actual DocumentSession failure after an initially successful probe, and refused navigation, retain the imported path for opening-only retry. Only the current dialog attempt can consume late persistence or actual opening receipts. Successful opening closes the dialog; newer imports replace older pending UI ownership. Controlled acknowledgement tests exercise the production preference event path, while real disk and actual workspace-opening tests verify the integration. Publishing-phase cancellation disabling remains separately unqualified. A closed storage event channel fails in-flight acknowledgements and rejects retries instead of hanging the import or treating an unpersisted memory value as durable.",
+      "acceptance": "After atomic publication, the actual GPUI import retains its project and waits for recent-project persistence before navigation. Preference acknowledgements are revision-scoped: earlier writes cannot release later requests, failures are reported, and retry persists the retained state. A real filesystem replacement failure prevents opening; recovery persists the recent entry and opens the same directory with post-import edits intact. Actual DocumentSession failure after an initially successful probe, and refused navigation, retain the imported path for opening-only retry. Only the current dialog attempt can consume late persistence or actual opening receipts. Successful opening closes the dialog; newer imports replace older pending UI ownership. Controlled acknowledgement tests exercise the production preference event path, while real disk and actual workspace-opening tests verify the integration. Publishing-phase cancellation is qualified separately by native-repository-import-publication-cancellation. A closed storage event channel fails in-flight acknowledgements and rejects retries instead of hanging the import or treating an unpersisted memory value as durable.",
       "typescript": [
         {
           "path": "tests/integration/workspace/projects/import-opening.test.mjs",
@@ -12167,6 +12167,57 @@
             "dev-capture"
           ],
           "test": "features::settings::preferences_store::tests::a_closed_storage_event_channel_releases_inflight_waiters_and_cannot_accept_retries"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-repository-import-publication-cancellation",
+      "acceptance": "The production UI-owned clone uses one atomic boundary between cancellation and exclusive directory publication. If cancellation wins, complete staging is still cleaned and no destination is published; if publication wins, cancellation is refused until its result. Thirty-two real concurrent cancellation/publication races assert the surviving directory and contents. A real local Git clone goes through the controlled publication entry point. The actual GPUI Cancel button cancels an active clone immediately; during publication it is disabled, and Escape and close callbacks also retain the owner. Publication failure restores cancellation. A bounded progress channel wakes only the current attempt and coalesces notifications; late completions retain the established dialog ownership fence. This maps the user-visible cancellation contract rather than TS IPC task/phase transport. Actual runtime qualification remains macOS.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageImport.test.tsx",
+          "sha256": "6cb534890273fc07778dc64261486bff9b302d70c46bfb5dd86c2c5dca0ff001",
+          "cases": [
+            {
+              "index": 2,
+              "name": "importing from the Homepage > cancels an active import and disables cancellation during publication"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::publication::tests::cancellation_and_real_directory_publication_have_one_winner"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::publication::tests::publication_errors_restore_cancellation_and_precancellation_never_runs_the_operation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::controlled_cancellation_after_materialization_cleans_staging_without_publishing"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::a_clone_lands_in_place_and_never_replaces_an_existing_folder"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::active_import_cancel_retires_its_owner_without_waiting_for_clone_completion"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "app::home::import_repository::tests::publication_defers_cancel_escape_and_close_until_its_result"
         }
       ],
       "environment": "local"

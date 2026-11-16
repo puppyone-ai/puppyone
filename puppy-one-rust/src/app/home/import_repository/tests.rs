@@ -436,3 +436,100 @@ fn a_late_persistence_acknowledgement_cannot_open_or_mutate_a_replaced_import(
     finish.send(Err("current request".into())).unwrap();
     cx.run_until_parked();
 }
+
+fn cancellable_attempt(
+    shell: &Entity<crate::app::Shell>,
+    cx: &mut VisualTestContext,
+) -> (Arc<AtomicBool>, Arc<repository_import::Publication>, Reply) {
+    shell.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| {
+            h.begin_import(w, cx);
+            h.choose_import_source("github", w, cx);
+            let (cancel, finish) = pending(h, w, cx);
+            let (publication, progress) = repository_import::Publication::new(cancel.clone());
+            let publication = Arc::new(publication);
+            h.import.as_mut().unwrap().publication = Some(publication.clone());
+            h.observe_import_publication(cancel.clone(), progress, cx);
+            cx.notify();
+            (cancel, publication, finish)
+        })
+    })
+}
+fn click_import_cancel(cx: &mut VisualTestContext) {
+    cx.run_until_parked();
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    let bounds = cx
+        .debug_bounds("import-cancel")
+        .expect("import cancel button is missing");
+    cx.simulate_click(bounds.center(), Modifiers::default());
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn active_import_cancel_retires_its_owner_without_waiting_for_clone_completion(
+    cx: &mut TestAppContext,
+) {
+    let (shell, cx) = crate::app::tests::setup(cx);
+    let (cancel, _publication, finish) = cancellable_attempt(&shell, cx);
+    click_import_cancel(cx);
+    assert!(cancel.load(Ordering::Acquire));
+    shell.read_with(cx, |s, cx| assert!(s.home.read(cx).import.is_none()));
+    finish
+        .send(Err("cancelled clone completed late".into()))
+        .unwrap();
+    cx.run_until_parked();
+    shell.read_with(cx, |s, cx| assert!(s.workspace_root(cx).is_none()));
+}
+
+#[gpui::test]
+fn publication_defers_cancel_escape_and_close_until_its_result(cx: &mut TestAppContext) {
+    let (shell, cx) = crate::app::tests::setup(cx);
+    let (cancel, publication, finish) = cancellable_attempt(&shell, cx);
+    let (entered, in_publication) = std::sync::mpsc::channel();
+    let (release, released) = std::sync::mpsc::channel();
+    let commit = std::thread::spawn(move || {
+        publication.commit::<()>(|| {
+            entered.send(()).unwrap();
+            released
+                .recv_timeout(std::time::Duration::from_secs(10))
+                .unwrap();
+            Err("publication refused destination".into())
+        })
+    });
+    in_publication
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap();
+    click_import_cancel(cx);
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    shell.update_in(cx, |s, w, cx| {
+        s.home.update(cx, |h, cx| h.close_import(w, cx))
+    });
+    shell.read_with(cx, |s, cx| {
+        let h = s.home.read(cx);
+        assert!(h.owns_import_attempt(&cancel));
+        assert!(h.dialog_open(DialogKey::ImportRepository, cx));
+    });
+    assert!(
+        !cancel.load(Ordering::Acquire),
+        "publication was reported as cancelled"
+    );
+    release.send(()).unwrap();
+    assert!(commit.join().unwrap().is_err());
+    finish
+        .send(Err("publication refused destination".into()))
+        .unwrap();
+    cx.run_until_parked();
+    shell.read_with(cx, |s, cx| {
+        let h = s.home.read(cx);
+        assert!(!h.repository_busy());
+        assert_eq!(
+            h.import.as_ref().unwrap().error.as_deref(),
+            Some("publication refused destination")
+        );
+    });
+    click_import_cancel(cx);
+    shell.read_with(cx, |s, cx| assert!(s.home.read(cx).import.is_none()));
+}
