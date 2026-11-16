@@ -8,7 +8,12 @@
 //! thread; a local server's first run asks for confirmation in a native
 //! prompt. The running app's origin is the only one the page's frame may
 //! load. Closing the surface releases its share of the app.
-use super::{html_visual::script_json, web::WebFrame, workspace_port};
+use super::{
+    html_visual::script_json,
+    structured::{theme_css, theme_update_script},
+    web::WebFrame,
+    workspace_port,
+};
 use crate::{
     editor::registry::{SurfaceInput, SurfaceRequest, ViewerSurface},
     localization::{t, tf},
@@ -128,8 +133,8 @@ impl AppPreviewView {
             .as_ref()
             .and_then(|w| w.local_root().map(Path::to_path_buf))
     }
-    fn show(&mut self, cx: &mut Context<Self>) {
-        let boot = serde_json::json!({
+    fn boot_json(&self) -> serde_json::Value {
+        serde_json::json!({
             "text": self.text,
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
             "path": self.name,
@@ -139,12 +144,20 @@ impl AppPreviewView {
             "messages": crate::localization::messages(&[
                 "editor.app.", "editor.preview.", "editor.find.", "common.", "shared-ui.",
             ]),
-        });
+        })
+    }
+
+    fn current_page_html(&self) -> String {
+        page(&self.boot_json(), self.dark)
+    }
+
+    fn show(&mut self, cx: &mut Context<Self>) {
+        let html = self.current_page_html();
         let (tx, rx) = async_channel::unbounded::<String>();
         let content = Content {
             root: None,
             source: None,
-            entry: Entry::Html(page(&boot, self.dark)),
+            entry: Entry::Html(html),
             max_bytes: 0,
             assets: vec![("app-preview.js", SCRIPT), ("app-preview.css", STYLE)],
             ipc: Some(Ipc(tx)),
@@ -154,7 +167,17 @@ impl AppPreviewView {
             locked: false,
         };
         self.ready = false;
-        self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
+        let weak = cx.weak_entity();
+        let dark = self.dark;
+        self.frame = Some(cx.new(|_| {
+            let mut f = WebFrame::new(Some(content), dark);
+            f.set_on_recreated(Some(std::rc::Rc::new(move |cx| {
+                let _ = weak.update(cx, |view, _| {
+                    view.ready = false;
+                });
+            })));
+            f
+        }));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
                 let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
@@ -299,7 +322,13 @@ impl AppPreviewView {
             )
         };
         match message {
-            Inbound::Ready => self.ready = true,
+            Inbound::Ready => {
+                self.ready = true;
+                let script = theme_update_script(self.dark);
+                if let Some(frame) = &self.frame {
+                    frame.read(cx).evaluate(&script);
+                }
+            }
             Inbound::List { request, path } => {
                 let task = cx.background_executor().spawn(async move {
                     match workspace {
@@ -393,6 +422,10 @@ impl AppPreviewView {
             return;
         }
         self.text = text.to_owned();
+        if let Some(frame) = &self.frame {
+            let html = self.current_page_html();
+            frame.update(cx, |f, _| f.update_entry_html(html));
+        }
         if !self.post(serde_json::json!({ "type": "reset", "text": text }), cx) {
             self.show(cx);
         }
@@ -400,7 +433,15 @@ impl AppPreviewView {
     fn set_dark(&mut self, dark: bool, cx: &mut Context<Self>) {
         if self.dark != dark {
             self.dark = dark;
-            self.show(cx);
+            if let Some(frame) = &self.frame {
+                let html = self.current_page_html();
+                let script = theme_update_script(dark);
+                frame.update(cx, |f, _| {
+                    f.apply_theme_in_place(dark, &script, Some(html));
+                });
+            } else {
+                self.show(cx);
+            }
         }
     }
 }
@@ -408,26 +449,20 @@ impl AppPreviewView {
 /// The entry document: the product's tokens with the native theme's
 /// colours over them, then the bundle.
 fn page(boot: &serde_json::Value, dark: bool) -> String {
-    let tokens: String = crate::theme::pack_tokens(dark)
-        .iter()
-        .filter(|(name, value)| {
-            name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
-                && !value.contains(['<', '>', '{', '}', ';'])
-        })
-        .map(|(name, value)| format!("--po-{name}:{value};"))
-        .collect();
     let locale = crate::localization::current_code();
     let scheme = if dark { "dark" } else { "light" };
     format!(
         "<!doctype html><html lang=\"{lang}\" class=\"{class}\" data-initial-theme=\"{scheme}\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width\">\
 <link rel=\"stylesheet\" href=\"__assets__/app-preview.css\">\
-<style>:root:root:root{{{tokens}}}html,body,#root{{height:100%;margin:0}}body{{background:var(--po-editor-bg,var(--po-canvas));color:var(--po-text);font-family:var(--po-font-ui)}}#root>.app-preview-host{{height:100%;display:flex;flex-direction:column}}</style>\
-</head><body><div id=\"root\"></div><script>window.__PUPPYONE_APP_PREVIEW={boot}</script>\
+<style id=\"po-theme\">{theme}</style><style>html,body,#root{{height:100%;margin:0}}body{{background:var(--po-editor-bg,var(--po-canvas));color:var(--po-text);font-family:var(--po-font-ui)}}#root>.app-preview-host{{height:100%;display:flex;flex-direction:column}}.desktop-overlay-root{{position:relative;z-index:var(--po-overlay-root-z-index,1000);isolation:isolate;color:var(--po-text);font-family:var(--po-font-sans)}}.desktop-overlay-root:empty{{display:none}}</style>\
+</head><body><div id=\"root\"></div><div id=\"desktop-overlay-root\" class=\"desktop-overlay-root{dark_class}\"></div><script>window.__PUPPYONE_APP_PREVIEW={boot}</script>\
 <script src=\"__assets__/app-preview.js\"></script></body></html>",
         lang = locale.replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', ""),
         class = if dark { "dark" } else { "" },
+        dark_class = if dark { " dark" } else { "" },
         boot = script_json(boot),
+        theme = theme_css(dark),
     )
 }
 
