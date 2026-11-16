@@ -2,7 +2,12 @@
 //! `getWorkspaceGitFileDiff` / `getWorkspaceGitCommitDetail` (`parseGitPatch`,
 //! `buildUntrackedFileDiff`, `deriveGitRevisionSpecs`). Git CLI only, paths as
 //! literal pathspecs; no presentation.
+#[cfg(test)]
+mod cache_tests;
+mod revisions;
 mod working;
+use super::docx_redline::cache::{Cache, Key};
+use revisions::Admitted;
 
 use super::git::{self, git_read as git};
 use std::{path::Path, sync::atomic::AtomicBool};
@@ -77,6 +82,33 @@ pub enum Scope {
     Unstaged,
     Staged,
     Untracked,
+}
+
+/// One workspace's successful Word models. Retiring the owner also retires
+/// cache authority held by outstanding worker closures.
+pub struct Reader {
+    cache: Option<Cache>,
+}
+impl Default for Reader {
+    fn default() -> Self {
+        Self {
+            cache: Some(Cache::default()),
+        }
+    }
+}
+impl Reader {
+    fn uncached() -> Self {
+        Self { cache: None }
+    }
+    pub fn invalidate(&self) {
+        if let Some(cache) = &self.cache {
+            cache.invalidate();
+        }
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn cache_usage(&self) -> (usize, usize) {
+        self.cache.as_ref().map_or((0, 0), Cache::usage)
+    }
 }
 
 /// `parseGitPatch`: files with numbered lines, capped per file and overall.
@@ -232,61 +264,74 @@ pub fn file_diff(
     scope: Scope,
     cancel: &AtomicBool,
 ) -> Result<Vec<FileDiff>, String> {
-    git::coordinator::wait_for_reads(root, cancel)?;
-    let outside = || crate::localization::t("native.git.pathOutside").to_owned();
-    git::validate_path(path)?;
-    let local = git::local(prefix, path).ok_or_else(outside)?;
-    let old_local = match old_path {
-        Some(old) => {
-            git::validate_path(old)?;
-            Some(git::local(prefix, old).ok_or_else(outside)?)
-        }
-        None => None,
-    };
-    if scope == Scope::Untracked {
-        return untracked(root, path, local, cancel).map(|file| vec![file]);
-    }
-    let mut args = vec![
-        "diff",
-        "--find-renames",
-        "--patch",
-        "--unified=3",
-        "--no-ext-diff",
-        "--no-textconv",
-    ];
-    if scope == Scope::Staged {
-        args.push("--cached");
-    }
-    args.push("--");
-    if let Some(old) = old_local.filter(|o| *o != local) {
-        args.push(old);
-    }
-    args.push(local);
-    let patch = git(root, &args, None, cancel)?;
-    let mut files = parse_patch(&String::from_utf8_lossy(&patch));
-    for file in files.iter_mut().filter(|f| f.binary) {
-        file.revision = Some(binary_sides(root, prefix, file, scope, cancel));
-    }
-    for file in files.iter_mut().filter(|f| is_docx(&f.path)) {
-        let before_path = file.old_path.as_deref().unwrap_or(&file.path);
-        let before = (file.status != Status::Added).then(|| {
-            Revision::Blob(if scope == Scope::Staged {
-                format!("HEAD:{before_path}")
-            } else {
-                format!(":{before_path}")
-            })
-        });
-        let after = (file.status != Status::Deleted).then(|| {
-            if scope == Scope::Staged {
-                Revision::Blob(format!(":{}", file.path))
-            } else {
-                Revision::Working(git::local(prefix, &file.path).map(str::to_owned))
+    Reader::uncached().file_diff(root, prefix, path, old_path, scope, cancel)
+}
+impl Reader {
+    pub fn file_diff(
+        &self,
+        root: &Path,
+        prefix: &str,
+        path: &str,
+        old_path: Option<&str>,
+        scope: Scope,
+        cancel: &AtomicBool,
+    ) -> Result<Vec<FileDiff>, String> {
+        git::coordinator::wait_for_reads(root, cancel)?;
+        let outside = || crate::localization::t("native.git.pathOutside").to_owned();
+        git::validate_path(path)?;
+        let local = git::local(prefix, path).ok_or_else(outside)?;
+        let old_local = match old_path {
+            Some(old) => {
+                git::validate_path(old)?;
+                Some(git::local(prefix, old).ok_or_else(outside)?)
             }
-        });
-        file.redline = Some(redline(root, before, after, cancel));
+            None => None,
+        };
+        if scope == Scope::Untracked {
+            return untracked(self, root, path, local, cancel).map(|file| vec![file]);
+        }
+        let mut args = vec![
+            "diff",
+            "--find-renames",
+            "--patch",
+            "--unified=3",
+            "--no-ext-diff",
+            "--no-textconv",
+        ];
+        if scope == Scope::Staged {
+            args.push("--cached");
+        }
+        args.push("--");
+        if let Some(old) = old_local.filter(|o| *o != local) {
+            args.push(old);
+        }
+        args.push(local);
+        let patch = git(root, &args, None, cancel)?;
+        let mut files = parse_patch(&String::from_utf8_lossy(&patch));
+        for file in files.iter_mut().filter(|f| f.binary) {
+            file.revision = Some(binary_sides(root, prefix, file, scope, cancel));
+        }
+        for file in files.iter_mut().filter(|f| is_docx(&f.path)) {
+            let before_path = file.old_path.as_deref().unwrap_or(&file.path);
+            let before = (file.status != Status::Added).then(|| {
+                Revision::Blob(if scope == Scope::Staged {
+                    format!("HEAD:{before_path}")
+                } else {
+                    format!(":{before_path}")
+                })
+            });
+            let after = (file.status != Status::Deleted).then(|| {
+                if scope == Scope::Staged {
+                    Revision::Blob(format!(":{}", file.path))
+                } else {
+                    Revision::Working(git::local(prefix, &file.path).map(str::to_owned))
+                }
+            });
+            file.redline = Some(self.redline(root, &file.path, before, after, cancel));
+        }
+        working::check_cancel(cancel)?;
+        Ok(files)
     }
-    working::check_cancel(cancel)?;
-    Ok(files)
 }
 
 /// `GIT_DIFF_REVISION_LIMITS.maxResourceBytes`; expanded XML has a separate budget.
@@ -307,117 +352,110 @@ enum Revision {
     Working(Option<String>),
 }
 
-/// `loadDocxRedline`: both revisions read (`None`: the side is missing),
-/// then the redline built.
-fn redline(
-    root: &Path,
-    before: Option<Revision>,
-    after: Option<Revision>,
-    cancel: &AtomicBool,
-) -> Result<super::docx_redline::Presentation, String> {
-    let read = |side: Option<Revision>| -> Result<Option<Vec<u8>>, String> {
-        match side {
-            None => Ok(None),
-            Some(Revision::Blob(spec)) => {
-                // Resolve mutable HEAD/index specs once, then read the same
-                // immutable blob for size and content even if refs change.
-                let oid = git(
-                    root,
-                    &["rev-parse", "--verify", "--end-of-options", &spec],
-                    None,
-                    cancel,
-                )?;
-                let oid = std::str::from_utf8(&oid).map_err(|e| e.to_string())?.trim();
-                if !matches!(oid.len(), 40 | 64) || !oid.bytes().all(|b| b.is_ascii_hexdigit()) {
-                    return Err("Git returned an invalid revision object id.".into());
-                }
-                let size: u64 = git(root, &["cat-file", "-s", oid], None, cancel)
-                    .ok()
-                    .and_then(|out| String::from_utf8_lossy(&out).trim().parse().ok())
-                    .ok_or("The Word revision could not be read from Git.")?;
-                if size > MAX_RESOURCE_BYTES {
-                    return Err("The Word revision exceeds the semantic diff budget.".into());
-                }
-                let bytes = git::git_read_bounded(
-                    root,
-                    &["cat-file", "blob", oid],
-                    None,
-                    cancel,
-                    MAX_RESOURCE_BYTES as usize,
-                )?;
-                if bytes.len() as u64 != size {
-                    return Err("Git returned an incomplete revision blob.".into());
-                }
-                Ok(Some(bytes))
-            }
-            Some(Revision::Working(local)) => {
-                let local = local
-                    .ok_or_else(|| crate::localization::t("native.git.pathOutside").to_owned())?;
-                read_working(root, &local, cancel)
-            }
-        }
-    };
-    let before = read(before)?;
-    let after = read(after)?;
-    working::check_cancel(cancel)?;
-    let model = super::docx_redline::build_cancellable(before.as_deref(), after.as_deref(), cancel);
-    working::check_cancel(cancel)?;
-    model
-}
-
-/// A working Word file is read once through an admitted, bounded descriptor.
-fn read_working(root: &Path, local: &str, cancel: &AtomicBool) -> Result<Option<Vec<u8>>, String> {
-    working::Revision::open(root, local, cancel)?
-        .ok_or_else(|| "The Word revision is not a regular file.".to_owned())?
-        .read(MAX_RESOURCE_BYTES, cancel)
-        .map(Some)
+impl Reader {
+    fn redline(
+        &self,
+        root: &Path,
+        path: &str,
+        before: Option<Revision>,
+        after: Option<Revision>,
+        cancel: &AtomicBool,
+    ) -> Result<super::docx_redline::Presentation, String> {
+        self.model(
+            root,
+            path,
+            Admitted::open(root, before, cancel)?,
+            Admitted::open(root, after, cancel)?,
+            cancel,
+        )
+    }
+    fn model(
+        &self,
+        root: &Path,
+        path: &str,
+        before: Admitted,
+        after: Admitted,
+        cancel: &AtomicBool,
+    ) -> Result<super::docx_redline::Presentation, String> {
+        // Cache hits must still prove the currently admitted path has not
+        // changed. Misses additionally validate after reading all bytes.
+        before.validate(cancel)?;
+        after.validate(cancel)?;
+        let key = before
+            .identity()
+            .zip(after.identity())
+            .map(|(before, after)| Key::new(root.to_path_buf(), path.into(), before, after));
+        let build = || {
+            let before = before.read(root, cancel)?;
+            let after = after.read(root, cancel)?;
+            working::check_cancel(cancel)?;
+            super::docx_redline::build_cancellable(before.as_deref(), after.as_deref(), cancel)
+        };
+        let model = match (&self.cache, key) {
+            (Some(cache), Some(key)) => cache.load(key, cancel, build),
+            _ => build(),
+        };
+        working::check_cancel(cancel)?;
+        model
+    }
 }
 
 /// `getWorkspaceGitCommitDetail`: every file a commit changed.
 pub fn commit_detail(root: &Path, id: &str, cancel: &AtomicBool) -> Result<Vec<FileDiff>, String> {
-    git::coordinator::wait_for_reads(root, cancel)?;
-    if !(4..=64).contains(&id.len()) || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err("Commit id must be a Git object id.".into());
+    Reader::uncached().commit_detail(root, id, cancel)
+}
+impl Reader {
+    pub fn commit_detail(
+        &self,
+        root: &Path,
+        id: &str,
+        cancel: &AtomicBool,
+    ) -> Result<Vec<FileDiff>, String> {
+        git::coordinator::wait_for_reads(root, cancel)?;
+        if !(4..=64).contains(&id.len()) || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("Commit id must be a Git object id.".into());
+        }
+        let patch = git(
+            root,
+            &[
+                "show",
+                "--format=",
+                "--find-renames",
+                "--patch",
+                "--unified=3",
+                "--no-ext-diff",
+                "--no-textconv",
+                id,
+            ],
+            None,
+            cancel,
+        )?;
+        let mut files = parse_patch(&String::from_utf8_lossy(&patch));
+        // A root commit has no parent: its files are all added.
+        let parent = git(
+            root,
+            &["rev-parse", "--verify", "--quiet", &format!("{id}^")],
+            None,
+            cancel,
+        )
+        .is_ok();
+        for file in files.iter_mut().filter(|f| is_docx(&f.path)) {
+            let before_path = file.old_path.as_deref().unwrap_or(&file.path);
+            let before = (parent && file.status != Status::Added)
+                .then(|| Revision::Blob(format!("{id}^:{before_path}")));
+            let after = (file.status != Status::Deleted)
+                .then(|| Revision::Blob(format!("{id}:{}", file.path)));
+            file.redline = Some(self.redline(root, &file.path, before, after, cancel));
+        }
+        working::check_cancel(cancel)?;
+        Ok(files)
     }
-    let patch = git(
-        root,
-        &[
-            "show",
-            "--format=",
-            "--find-renames",
-            "--patch",
-            "--unified=3",
-            "--no-ext-diff",
-            "--no-textconv",
-            id,
-        ],
-        None,
-        cancel,
-    )?;
-    let mut files = parse_patch(&String::from_utf8_lossy(&patch));
-    // A root commit has no parent: its files are all added.
-    let parent = git(
-        root,
-        &["rev-parse", "--verify", "--quiet", &format!("{id}^")],
-        None,
-        cancel,
-    )
-    .is_ok();
-    for file in files.iter_mut().filter(|f| is_docx(&f.path)) {
-        let before_path = file.old_path.as_deref().unwrap_or(&file.path);
-        let before = (parent && file.status != Status::Added)
-            .then(|| Revision::Blob(format!("{id}^:{before_path}")));
-        let after =
-            (file.status != Status::Deleted).then(|| Revision::Blob(format!("{id}:{}", file.path)));
-        file.redline = Some(redline(root, before, after, cancel));
-    }
-    working::check_cancel(cancel)?;
-    Ok(files)
 }
 
 /// `buildUntrackedFileDiff`: every line added — the product splits on line
 /// breaks, so a final newline shows as an empty last line.
 fn untracked(
+    reader: &Reader,
     root: &Path,
     path: &str,
     local: &str,
@@ -445,35 +483,21 @@ fn untracked(
         }
         return Ok(file);
     };
-    if !word && working.size() > MAX_UNTRACKED_BYTES {
-        return Ok(file);
-    }
-    let bytes = match working.read(
-        if word {
-            MAX_RESOURCE_BYTES
-        } else {
-            MAX_UNTRACKED_BYTES
-        },
-        cancel,
-    ) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            working::check_cancel(cancel)?;
-            if !word {
-                return Err(error);
-            }
-            file.redline = Some(Err(error));
-            return Ok(file);
-        }
-    };
     if word {
-        file.redline = Some(super::docx_redline::build_cancellable(
-            None,
-            Some(&bytes),
+        file.redline = Some(reader.model(
+            root,
+            path,
+            Admitted::Missing,
+            Admitted::Working(working),
             cancel,
         ));
         working::check_cancel(cancel)?;
+        return Ok(file);
     }
+    if working.size() > MAX_UNTRACKED_BYTES {
+        return Ok(file);
+    }
+    let bytes = working.read(MAX_UNTRACKED_BYTES, cancel)?;
     if bytes.len() as u64 > MAX_UNTRACKED_BYTES || bytes.contains(&0) {
         return Ok(file);
     }

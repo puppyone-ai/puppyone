@@ -61,6 +61,14 @@ impl Revision {
             return Err(TOO_LARGE.into());
         }
         let bytes = read_bytes(&mut self.opened.file, max, cancel)?;
+        self.validate(cancel)?;
+        if bytes.len() as u64 != self.size() {
+            return Err(CHANGED.into());
+        }
+        Ok(bytes)
+    }
+    pub(super) fn validate(&self, cancel: &AtomicBool) -> Result<(), String> {
+        check_cancel(cancel)?;
         let after = self.opened.file.metadata().map_err(|e| e.to_string())?;
         let at_path = self
             .root
@@ -68,13 +76,34 @@ impl Revision {
             .map_err(|_| CHANGED.to_owned())?;
         let at_path = at_path.file.metadata().map_err(|e| e.to_string())?;
         check_cancel(cancel)?;
-        if bytes.len() as u64 != self.size()
-            || !same_snapshot(&self.before, &after)
-            || !same_snapshot(&self.before, &at_path)
-        {
+        if !same_snapshot(&self.before, &after) || !same_snapshot(&self.before, &at_path) {
             return Err(CHANGED.into());
         }
-        Ok(bytes)
+        Ok(())
+    }
+    pub(super) fn identity(&self) -> Option<String> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let m = &self.before;
+            Some(format!(
+                "working:{}:{}:{}:{}:{}:{}:{}:{}",
+                m.dev(),
+                m.ino(),
+                m.mode(),
+                m.len(),
+                m.mtime(),
+                m.mtime_nsec(),
+                m.ctime(),
+                m.ctime_nsec()
+            ))
+        }
+        // Do not reuse mutable revisions on hosts without a complete native
+        // file identity. Immutable Git blobs can still use the cache.
+        #[cfg(not(unix))]
+        {
+            None
+        }
     }
 }
 

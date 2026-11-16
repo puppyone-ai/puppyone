@@ -141,6 +141,14 @@
     "src/features/source-control/diff/contributions/docx-redline/worker/client.ts": "1a6d170aa11d78f5a3e7f7990f0b489de6cce4b463dd95a6dcd3a764faf87a4a",
     "src/features/source-control/diff/contributions/docx-redline/worker/normalize.ts": "733e143bfa94d6fe2b727009ab1e54e255062de0b0f7ca1749fab822bc53429d",
     "src/features/source-control/diff/contributions/docx-redline/worker/align.ts": "a57ff24aa4984a82ee097acba65e22f9bf21a36989cda612f5d0598491ebb3e8",
-    "src/features/source-control/diff/contributions/docx-redline/budget.ts": "47c88c0b89c5707ba137d864b8ef4ff1fe0b66727c79ff2e5b420d687fdc8fc8"
+    "src/features/source-control/diff/contributions/docx-redline/budget.ts": "47c88c0b89c5707ba137d864b8ef4ff1fe0b66727c79ff2e5b420d687fdc8fc8",
+    "tests/unit/editor/formats/office/docxRedlineCache.test.ts": "f1df0bb7aeefdf78fc62fe3e3f5c9c9144484dd3e36006e2a6e8b5162e099841",
+    "tests/component/editor/formats/office/docxRedlineRenderer.test.ts": "50de63407357f1763b028912785b68fe0312d96f1a1a9990b5a26dca604b9ced",
+    "src/features/source-control/diff/core/WeightedTtlLruCache.ts": "ba8e8b502c8cc112805fbd0a6045f2da27e7130a99e5421c503c689d1e78206c",
+    "src/features/source-control/diff/core/cacheControl.ts": "41dcbf12b1cc0f46e03fc24b9c92b670376ded7bdf24d64168ce58a262e0c144",
+    "src/features/source-control/diff/contributions/docx-redline/cache.ts": "f97d25d0a22413bd8a369996f8e6e1e7716a4f9d95e70c194ed389ceba19e3fe",
+    "src/features/source-control/diff/contributions/docx-redline/provider.ts": "38bb3a70f915031b2de37ca60a7a9247e4062a461174ff6a7a8cb2d7bdea9c8a",
+    "src/features/source-control/diff/contributions/docx-redline/model.ts": "28edb6bc106ef1ef2a9e4035656b483ed768aabf09c18c4513466a02599a941d",
+    "src/features/source-control/diff/contributions/docx-redline/DocxRedlineView.tsx": "ff2a9774fab172c09013eb4c4c20ff80fd624a5266326bead8755d2f1bd5a5e3"
   }
 }

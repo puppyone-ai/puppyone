@@ -6,6 +6,7 @@
 //! only (`fidelity: "body-text-v1"`); no presentation.
 #[cfg(test)]
 mod acceptance_tests;
+pub(crate) mod cache;
 mod control;
 use control::Budget;
 use std::{collections::HashMap, io::Read, sync::atomic::AtomicBool};

@@ -5,7 +5,7 @@ use super::{DetailKind, SourceControl, diff};
 use crate::{
     localization::{self, t as tr, tf},
     platform::{
-        git_diff::{self, Status},
+        git_diff::Status,
         git_history::{CommitChange, CommitSummary},
     },
     theme::{self, metric},
@@ -460,9 +460,10 @@ impl TimelineHost for SourceControl {
             return;
         };
         let id = commit.id.clone();
+        let reader = self.diff_reader.clone();
         self.open_detail(
             DetailKind::Commit(commit),
-            move |root, cancel| git_diff::commit_detail(&root, &id, cancel),
+            move |root, cancel| reader.commit_detail(&root, &id, cancel),
             cx,
         );
     }

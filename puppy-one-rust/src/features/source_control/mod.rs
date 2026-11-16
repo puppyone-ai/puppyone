@@ -353,6 +353,7 @@ pub struct SourceControl {
     history_ticket: u64,
     history_cancel: Arc<AtomicBool>,
     detail_cancel: Arc<AtomicBool>,
+    diff_reader: Arc<git_diff::Reader>,
     history: History,
     /// History has been read at least once (an empty one is final).
     history_loaded: bool,
@@ -455,6 +456,7 @@ impl SourceControl {
             history_ticket: 0,
             history_cancel: Arc::new(AtomicBool::new(false)),
             detail_cancel: Arc::new(AtomicBool::new(false)),
+            diff_reader: Arc::new(git_diff::Reader::default()),
             history: History::default(),
             history_loaded: false,
             timeline: vec![],
@@ -485,6 +487,8 @@ impl SourceControl {
         }
         self.history_cancel.store(true, Ordering::Relaxed);
         self.detail_cancel.store(true, Ordering::Relaxed);
+        self.diff_reader.invalidate();
+        self.diff_reader = Arc::new(git_diff::Reader::default());
         self.cancel = Arc::new(AtomicBool::new(false));
         self.epoch += 1;
         let cached = self
@@ -759,10 +763,11 @@ impl SourceControl {
         };
         let (path, old) = (change.path.clone(), change.original.clone());
         let prefix = self.prefix().to_owned();
+        let reader = self.diff_reader.clone();
         self.open_detail(
             DetailKind::Working(Selection { change, scope }),
             move |root, cancel| {
-                git_diff::file_diff(&root, &prefix, &path, old.as_deref(), scope, cancel)
+                reader.file_diff(&root, &prefix, &path, old.as_deref(), scope, cancel)
             },
             cx,
         );
@@ -815,9 +820,10 @@ impl SourceControl {
             return false;
         };
         let id = commit.id.clone();
+        let reader = self.diff_reader.clone();
         self.open_detail(
             DetailKind::Commit(commit),
-            move |root, cancel| git_diff::commit_detail(&root, &id, cancel),
+            move |root, cancel| reader.commit_detail(&root, &id, cancel),
             cx,
         );
         true
@@ -844,6 +850,7 @@ impl SourceControl {
 }
 impl Drop for SourceControl {
     fn drop(&mut self) {
+        self.diff_reader.invalidate();
         self.cancel.store(true, Ordering::Relaxed);
         if let Some(cancel) = &self.read_cancel {
             cancel.store(true, Ordering::Relaxed);
@@ -1774,6 +1781,15 @@ impl SourceControl {
         let body = match &detail.files {
             None => {
                 let label = match &detail.kind {
+                    DetailKind::Working(selection)
+                        if selection
+                            .change
+                            .path
+                            .to_ascii_lowercase()
+                            .ends_with(".docx") =>
+                    {
+                        tr("source-control.diff.docx.loading").to_owned()
+                    }
                     DetailKind::Working(selection) => tf(
                         "source-control.status.loadingDiffFor",
                         &[("path", selection.change.path.clone().into())],

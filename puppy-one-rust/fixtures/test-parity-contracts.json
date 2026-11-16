@@ -13723,6 +13723,125 @@
           "test": "platform::docx_redline::acceptance_tests::decompression_normalization_and_alignment_stop_after_they_have_started"
         }
       ]
+    },
+    {
+      "id": "native-docx-cache-lifetime",
+      "acceptance": "Successful semantic models use an 8-entry, 24 MiB weighted LRU with active 5-minute TTL; reads promote recency without extending expiry. Repository, path, both admitted revision identities and renderer version separate keys. Failed and cancelled work is never cached. Workspace changes permanently retire the previous reader, including inflight and late writers. Real Git previews revalidate working-file identity even when mtime is restored, retry repaired documents, and reuse immutable pairs across staged/history selection. Cache hits drop admitted resources without executing the byte-read/build closure.",
+      "environment": "Production native Reader is retained by SourceControl and used by working/commit/retry paths. Controlled monotonic clock exercises the actual expiry thread without reads; bounded channels prove retirement races. Native RAII releases descriptors on success, cache hit and failure; retries reacquire authority instead of retaining Electron resource sessions. Mutable-file metadata keys require Unix device/inode/ctime; other hosts conservatively bypass mutable-file caching. macOS real Git and GPUI verification; this is not whole-platform resource-broker quota qualification.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/office/docxRedlineCache.test.ts",
+          "sha256": "f1df0bb7aeefdf78fc62fe3e3f5c9c9144484dd3e36006e2a6e8b5162e099841",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DOCX redline cache > evicts by aggregate model weight and still promotes recently read entries"
+            },
+            {
+              "index": 1,
+              "name": "DOCX redline cache > actively expires entries without requiring a later read"
+            },
+            {
+              "index": 2,
+              "name": "DOCX redline cache > invalidates keys when either identity or renderer version changes"
+            },
+            {
+              "index": 3,
+              "name": "DOCX redline cache > clears loaded format caches when the workspace boundary changes"
+            },
+            {
+              "index": 4,
+              "name": "DOCX redline cache > reuses successful models, releases successful sessions, and never caches failures"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::cache::tests::entry_and_aggregate_weight_limits_evict_the_least_recently_read_model"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::cache::tests::expiry_reclaims_idle_models_without_reads_and_hits_do_not_extend_the_deadline"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::cache::tests::repository_path_each_revision_and_renderer_version_separate_cache_identity"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::cache::tests::successful_models_reuse_work_and_release_captured_resources_on_every_outcome"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::docx_redline::cache::tests::retiring_a_workspace_fences_inflight_and_later_cache_writes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::cache_tests::real_git_cache_reuses_models_but_revalidates_working_identity_and_retry_errors"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::cache_tests::admitted_cache_hits_still_reject_changed_paths"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::workspace_changes_retire_the_actual_word_cache_and_its_worker_authority"
+        }
+      ]
+    },
+    {
+      "id": "native-docx-renderer-states",
+      "acceptance": "The actual native diff view draws semantic Word loading followed by honest no-body-change copy and fidelity limits, a readable provider failure with a working Retry, and distinct added/deleted document state plus body content. Recorded strings come from the production GPUI text layout backend; controlled worker replies drive actual publication and pointer retry.",
+      "environment": "Headless GPUI with RecordingText and production detail/list renderer. The native owner loads and parses on its worker before publishing the owned model; TS has a separate renderer-local worker stage. These tests qualify state/copy/interaction, not real font pixels, OS accessibility or scrolling performance.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/office/docxRedlineRenderer.test.ts",
+          "sha256": "50de63407357f1763b028912785b68fe0312d96f1a1a9990b5a26dca604b9ced",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DOCX redline renderer states > shows loading and then an honest empty state"
+            },
+            {
+              "index": 1,
+              "name": "DOCX redline renderer states > shows a retryable provider error"
+            },
+            {
+              "index": 2,
+              "name": "DOCX redline renderer states > labels a one-sided added document"
+            },
+            {
+              "index": 3,
+              "name": "DOCX redline renderer states > labels a one-sided deleted document"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::word_loading_resolves_to_an_honest_empty_body_state_in_the_actual_view"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::word_provider_errors_show_the_reason_and_retry_in_the_actual_view"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::one_sided_word_documents_draw_their_distinct_state_and_content"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::repairing_a_real_word_file_recovers_via_the_rendered_retry"
+        }
+      ]
     }
   ],
   "openAcceptance": [
