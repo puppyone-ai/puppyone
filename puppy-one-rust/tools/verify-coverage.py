@@ -50,12 +50,13 @@ def main():
         checks.append({'name': test, 'exit': code, 'passed': error is None, 'error': error})
         print(f'Coverage: {test}: {error or "passed"}', flush=True)
     code, output = execute([CARGO, 'run', '--locked', '--offline', '--manifest-path', 'tools/source-index/Cargo.toml', '--', str(ROOT)], timeout=120)
+    (out / 'source-index.log').write_text(output)
+    if code:
+        raise RuntimeError(f'AST source inventory failed (exit {code}); see {out / "source-index.log"}')
     # Cargo's build messages go to the shared output stream; the JSON begins
     # on its own line after that diagnostic prefix.
     start = output.find('\n{')
     index = json.loads(output[start + 1:] if start >= 0 else output)
-    if code:
-        raise RuntimeError('AST source inventory failed')
     (out / 'source-index.json').write_text(json.dumps(index, indent=2) + '\n')
     lcov = out / 'workspace.lcov'
     lcov.unlink(missing_ok=True)
