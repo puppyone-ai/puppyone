@@ -1135,6 +1135,7 @@ impl Homepage {
             )
             .children(badge.map(|badge| {
                 div()
+                    .self_start()
                     .mt(px(2.))
                     .px(px(7.))
                     .py(px(2.))
