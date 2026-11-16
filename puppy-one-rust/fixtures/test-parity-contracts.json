@@ -11636,6 +11636,72 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-git-command-io",
+      "acceptance": "Both frozen Git command runner cases use the real native Git adapter: stdin is fully written then closed, the fixed Git blob hash agrees, and NUL/invalid UTF-8 binary output remains exact bytes. Ordinary output is bounded at 4 MiB, status uses the 8 MiB stream budget, and Word blob reads explicitly retain their 64 MiB domain budget. A blob above the ordinary limit is refused there and succeeds only with the explicit larger read budget. Read, local mutation, network and clone deadlines match the pinned TS 5/120/60/600-second constants; already-cancelled clones create no destination. The established real local clone test still proves staging and destination protection. Deadline constants are asserted as policy; this row does not claim wall-clock exhaustion of every long budget or the TS streaming record-limit protocol.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/operations/gitRunner.test.mjs",
+          "sha256": "d78414df505e7a0157d5589c5fdd8a3559892b5b7632055b45d66ec82b2273aa",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git command runner > writes supplied input to stdin and closes the stream"
+            },
+            {
+              "index": 1,
+              "name": "Git command runner > preserves binary Buffer output for bounded Git reads"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::runner::tests::actual_git_stdin_and_binary_reads_preserve_bytes_and_domain_output_limits"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::runner::tests::git_command_budgets_match_the_frozen_runner_and_cancel_before_spawning"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::repository_import::tests::a_clone_lands_in_place_and_never_replaces_an_existing_folder"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-git-read-lock-policy",
+      "acceptance": "The local native Git runner suppresses optional index refresh locks only for explicitly read-only status, identity, history, diff and metadata queries. Explicit mutations and network operations retain the inherited optional-lock setting. Real Git aliases observe child-local LC_ALL/LANG=C, GCM_INTERACTIVE=never and GIT_TERMINAL_PROMPT=0 without mutating the parent environment. A real tracked file with stale stat metadata proves status leaves the index bytes unchanged while explicit staging updates them. The generic process adapter no longer injects optional-lock suppression into unrelated children. Shared-folder Host Git and watcher subscription/recovery are separate contracts, not credited here.",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/status/electron.git-metadata-watch.integration.test.mjs",
+          "sha256": "c4d466aa99926ceb0dc951730ea672cfb1b31c1e4f1b64cc0c6b112934885d75",
+          "cases": [
+            {
+              "index": 19,
+              "name": "background optional locks > applies GIT_OPTIONAL_LOCKS=0 only for read-only status queries"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::runner::tests::optional_locks_apply_only_to_reads_and_the_child_environment_stays_isolated"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::runner::tests::background_status_keeps_index_metadata_read_only_while_explicit_staging_updates_it"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::successful_input_closes_stdin_and_preserves_cwd_and_noninteractive_environment"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

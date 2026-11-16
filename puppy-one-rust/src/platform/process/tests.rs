@@ -255,7 +255,8 @@ fn successful_input_closes_stdin_and_preserves_cwd_and_noninteractive_environmen
         Duration::from_secs(2),
         &AtomicBool::new(false),
     ).unwrap();
-    assert_eq!(output, b"C|0|0");
+    let inherited = std::env::var("GIT_OPTIONAL_LOCKS").unwrap_or_default();
+    assert_eq!(output, format!("C|0|{inherited}").as_bytes());
     assert_eq!(
         fs::read(directory.path().join("payload")).unwrap(),
         b"literal stdin\0with newline\n"

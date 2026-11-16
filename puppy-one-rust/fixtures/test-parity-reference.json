@@ -79,6 +79,9 @@
     "electron/local-api/workspace.mjs": "7e679a9ea7596ec31a16c981884c3b7e45c803a30ea2ed51b5d92b9cd69e5a78",
     "tests/unit/source-control/status/gitRepositoryLifecycle.test.ts": "74cd96944315dd5b50ec36bef8d27f083868b8e0b4c4edfa5fcd45b1a0a10012",
     "tests/unit/source-control/status/gitTitlebarStatus.test.ts": "fca07f061b060ae4640e301c44ec4a5677fe3dd57ac682909860d6d398d22c7d",
-    "src/features/source-control/gitTitlebarStatus.ts": "572ce778205f8624757db7e2d02c2102d605fe1420c486d779e1241dfe43f3b7"
+    "src/features/source-control/gitTitlebarStatus.ts": "572ce778205f8624757db7e2d02c2102d605fe1420c486d779e1241dfe43f3b7",
+    "tests/unit/source-control/operations/gitRunner.test.mjs": "d78414df505e7a0157d5589c5fdd8a3559892b5b7632055b45d66ec82b2273aa",
+    "tests/integration/source-control/status/electron.git-metadata-watch.integration.test.mjs": "c4d466aa99926ceb0dc951730ea672cfb1b31c1e4f1b64cc0c6b112934885d75",
+    "electron/local-api/git/runner.mjs": "6600597760f5a98b52d55002f648f732e1a89d303a6fb2956bc9845adbfde221"
   }
 }

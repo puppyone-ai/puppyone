@@ -84,6 +84,11 @@ pub struct OutputLimits {
     pub stdout: usize,
     pub stderr: usize,
 }
+/// Per-command overrides are applied only to the child, never to this process.
+pub struct OutputOptions<'a> {
+    pub limits: OutputLimits,
+    pub environment: &'a [(&'a str, &'a str)],
+}
 pub fn run_output(
     executable: &Path,
     args: &[&str],
@@ -93,6 +98,29 @@ pub fn run_output(
     cancel: &AtomicBool,
     limits: OutputLimits,
 ) -> Result<Output, String> {
+    run_output_with(
+        executable,
+        args,
+        root,
+        input,
+        timeout,
+        cancel,
+        OutputOptions {
+            limits,
+            environment: &[],
+        },
+    )
+}
+pub fn run_output_with(
+    executable: &Path,
+    args: &[&str],
+    root: &Path,
+    input: Option<&[u8]>,
+    timeout: Duration,
+    cancel: &AtomicBool,
+    options: OutputOptions<'_>,
+) -> Result<Output, String> {
+    let limits = options.limits;
     const CANCELLED: &str = "Command cancelled, timed out, or exceeded its output limit";
     if cancel.load(Ordering::Acquire) || timeout.is_zero() {
         return Err(CANCELLED.into());
@@ -104,7 +132,7 @@ pub fn run_output(
         .current_dir(root)
         .env("LC_ALL", "C")
         .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GIT_OPTIONAL_LOCKS", "0")
+        .envs(options.environment.iter().copied())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

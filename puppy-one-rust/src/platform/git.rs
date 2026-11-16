@@ -5,12 +5,11 @@
 //! repository's, with repository-relative paths. Mutations and file reads stay
 //! inside the opened folder: a change elsewhere in the repository is shown but
 //! cannot be staged, discarded or opened from here.
-use super::process;
+mod runner;
 pub mod sync_state;
 use std::{
     path::{Component, Path},
     sync::atomic::AtomicBool,
-    time::Duration,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -148,34 +147,44 @@ pub(super) fn git(
     input: Option<&[u8]>,
     cancel: &AtomicBool,
 ) -> Result<Vec<u8>, String> {
-    let mut all = vec![
-        "--literal-pathspecs",
-        "-c",
-        "color.ui=false",
-        "-c",
-        "core.quotepath=false",
-        "-c",
-        "core.pager=cat",
-    ];
-    all.extend(args);
-    process::run(
-        Path::new("/usr/bin/git"),
-        &all,
+    let kind = if matches!(args.first(), Some(&"pull" | &"push" | &"fetch")) {
+        runner::Kind::Network
+    } else {
+        runner::Kind::Mutation
+    };
+    runner::execute(root, args, input, cancel, kind, runner::MAX_BUFFER)
+}
+pub(super) fn git_read(
+    root: &Path,
+    args: &[&str],
+    input: Option<&[u8]>,
+    cancel: &AtomicBool,
+) -> Result<Vec<u8>, String> {
+    git_read_bounded(root, args, input, cancel, runner::MAX_BUFFER)
+}
+pub(super) fn git_read_bounded(
+    root: &Path,
+    args: &[&str],
+    input: Option<&[u8]>,
+    cancel: &AtomicBool,
+    max_bytes: usize,
+) -> Result<Vec<u8>, String> {
+    runner::execute(root, args, input, cancel, runner::Kind::Read, max_bytes)
+}
+pub(super) fn clone_repository(root: &Path, url: &str, cancel: &AtomicBool) -> Result<(), String> {
+    runner::execute(
         root,
-        input,
-        Duration::from_secs(
-            if matches!(args.first(), Some(&"pull" | &"push" | &"fetch")) {
-                120
-            } else {
-                60
-            },
-        ),
+        &["clone", "--progress", "--", url, "."],
+        None,
         cancel,
+        runner::Kind::Clone,
+        runner::MAX_BUFFER,
     )
+    .map(|_| ())
 }
 pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
     let prefix = prefix(root, cancel)?;
-    let mut snapshot = parse_status(&git(
+    let mut snapshot = parse_status(&git_read_bounded(
         root,
         &[
             "status",
@@ -186,8 +195,9 @@ pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
         ],
         None,
         cancel,
+        runner::MAX_STREAM_BYTES,
     )?)?;
-    snapshot.head = git(root, &["rev-parse", "--verify", "HEAD"], None, cancel)
+    snapshot.head = git_read(root, &["rev-parse", "--verify", "HEAD"], None, cancel)
         .map(|b| String::from_utf8_lossy(&b).trim().to_owned())
         .unwrap_or_default();
     snapshot.prefix = prefix;
@@ -384,7 +394,7 @@ fn configured_remote(config: &serde_json::Value) -> Option<String> {
 }
 /// The opened folder's place in its repository; an error outside a work tree.
 pub fn prefix(root: &Path, cancel: &AtomicBool) -> Result<String, String> {
-    let out = git(root, &["rev-parse", "--show-prefix"], None, cancel)?;
+    let out = git_read(root, &["rev-parse", "--show-prefix"], None, cancel)?;
     let prefix = std::str::from_utf8(&out)
         .map_err(|_| crate::localization::t("native.git.nonUtf8Paths"))?
         .trim_end_matches('\n')
@@ -554,7 +564,7 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
     let input = message.as_deref().map(str::as_bytes);
     // An unborn branch has no HEAD: remove paths from the index without touching working files.
     if matches!(op, Operation::Unstage(_))
-        && git(root, &["rev-parse", "--verify", "HEAD"], None, cancel).is_err()
+        && git_read(root, &["rev-parse", "--verify", "HEAD"], None, cancel).is_err()
     {
         args = vec!["rm", "--cached", "-r", "--ignore-unmatch", "--"];
         args.extend(paths.iter().copied());
@@ -776,7 +786,7 @@ pub fn fetch(root: &Path, remote: &str, cancel: &AtomicBool) -> Result<(), Strin
 }
 /// `buildDefaultCommitMessage`: names the one staged file, counts several.
 fn default_commit_message(root: &Path, cancel: &AtomicBool) -> String {
-    let staged = git(
+    let staged = git_read(
         root,
         &["diff", "--cached", "--name-only", "-z"],
         None,
@@ -822,7 +832,7 @@ pub struct Remote {
     pub branches: usize,
 }
 fn text(root: &Path, args: &[&str], cancel: &AtomicBool) -> Option<String> {
-    git(root, args, None, cancel)
+    git_read(root, args, None, cancel)
         .ok()
         .map(|b| String::from_utf8_lossy(&b).trim().to_owned())
         .filter(|s| !s.is_empty())

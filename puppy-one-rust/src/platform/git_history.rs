@@ -1,7 +1,7 @@
 //! Commit history for the History timeline: the product's `readGitHistory`
 //! (`--name-status` and `--numstat` passes merged per commit). Dates are the
 //! author dates in the local zone, so the timeline groups by local day.
-use super::{git::git, git_diff::Status};
+use super::{git::git_read as git, git_diff::Status};
 use std::{collections::HashMap, path::Path, sync::atomic::AtomicBool};
 
 /// `GIT_HISTORY_LIMIT`.

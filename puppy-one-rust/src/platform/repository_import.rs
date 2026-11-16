@@ -6,7 +6,6 @@
 use std::{
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
-    time::Duration,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,15 +120,7 @@ pub fn clone_into(
         .prefix(&format!(".puppyone-import-{}-", repository.name))
         .tempdir_in(parent)
         .map_err(|e| e.to_string())?;
-    super::process::run(
-        Path::new("/usr/bin/git"),
-        &["clone", "--progress", "--", &repository.url, "."],
-        staging.path(),
-        None,
-        Duration::from_secs(30 * 60),
-        cancel,
-    )
-    .map_err(|error| {
+    super::git::clone_repository(staging.path(), &repository.url, cancel).map_err(|error| {
         let line = error
             .lines()
             .rev()

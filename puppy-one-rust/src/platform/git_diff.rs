@@ -2,7 +2,7 @@
 //! `getWorkspaceGitFileDiff` / `getWorkspaceGitCommitDetail` (`parseGitPatch`,
 //! `buildUntrackedFileDiff`, `deriveGitRevisionSpecs`). Git CLI only, paths as
 //! literal pathspecs; no presentation.
-use super::git::{self, git};
+use super::git::{self, git_read as git};
 use std::{path::Path, sync::atomic::AtomicBool};
 
 /// `GIT_DETAIL_MAX_FILE_DIFF_LINES` / `GIT_DETAIL_MAX_TOTAL_DIFF_LINES`.
@@ -320,7 +320,14 @@ fn redline(
                 if size > MAX_DOCX_BYTES {
                     return Err("The Word revision exceeds the semantic diff budget.".into());
                 }
-                git(root, &["cat-file", "blob", &spec], None, cancel).map(Some)
+                git::git_read_bounded(
+                    root,
+                    &["cat-file", "blob", &spec],
+                    None,
+                    cancel,
+                    MAX_DOCX_BYTES as usize,
+                )
+                .map(Some)
             }
             Some(Revision::Working(local)) => {
                 let local = local

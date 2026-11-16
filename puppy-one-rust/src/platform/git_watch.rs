@@ -9,7 +9,7 @@
 //! with the last one, whose baseline is taken before the watch is returned.
 //! A folder that is not a repository yet is looked at as often, so a later
 //! `git init` starts the watch and invalidates.
-use super::git::git;
+use super::git::git_read;
 use std::{
     path::{Path, PathBuf},
     sync::{atomic::AtomicBool, mpsc},
@@ -28,7 +28,7 @@ impl Drop for GitWatch {
 
 /// The Git directory and the common directory of the work tree at `root`.
 fn directories(root: &Path) -> Result<(PathBuf, PathBuf), String> {
-    let out = git(
+    let out = git_read(
         root,
         &[
             "rev-parse",
@@ -307,6 +307,7 @@ fn run(
 
 #[cfg(test)]
 mod tests {
+    use super::super::git::git;
     use super::*;
     use core::prelude::v1::test;
     use std::sync::{
