@@ -110,6 +110,8 @@ pub struct Content {
 pub struct DiskAssets {
     pub prefix: &'static str,
     pub dir: PathBuf,
+    /// SHA-256 verified bundle files held in memory (`__assets__/{name}`).
+    pub bundles: Vec<(&'static str, std::sync::Arc<[u8]>)>,
 }
 /// One app resource from disk at most (Xiaolai's largest shard is ~1 MB).
 const DISK_ASSET_MAX_BYTES: u64 = 8 * 1024 * 1024;
@@ -267,15 +269,19 @@ pub fn respond(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
         return (200, "text/html; charset=utf-8", html.clone().into_bytes());
     }
     if let Some(name) = path.strip_prefix("__assets__/") {
-        if let Some(disk) = &content.disk_assets
-            && let Some(relative) = name
+        if let Some(disk) = &content.disk_assets {
+            if let Some((n, bytes)) = disk.bundles.iter().find(|(n, _)| *n == name) {
+                return (200, mime_for(Path::new(n)), bytes.to_vec());
+            }
+            if let Some(relative) = name
                 .strip_prefix(disk.prefix)
                 .and_then(|n| n.strip_prefix('/'))
-        {
-            return match resolve(&disk.dir, relative) {
-                Some(file) => serve_with(&file, DISK_ASSET_MAX_BYTES),
-                None => (404, "text/plain", b"Not found".to_vec()),
-            };
+            {
+                return match resolve(&disk.dir, relative) {
+                    Some(file) => serve_with(&file, DISK_ASSET_MAX_BYTES),
+                    None => (404, "text/plain", b"Not found".to_vec()),
+                };
+            }
         }
         return match content.assets.iter().find(|(n, _)| *n == name) {
             Some((n, bytes)) => (200, mime_for(Path::new(n)), bytes.to_vec()),
@@ -429,6 +435,7 @@ mod tests {
             disk_assets: Some(DiskAssets {
                 prefix: "excalidraw",
                 dir: dir.path().into(),
+                bundles: Vec::new(),
             }),
             locked: false,
         };

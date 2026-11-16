@@ -7,8 +7,6 @@ import hashlib
 import json
 import plistlib
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -59,9 +57,9 @@ def cli_declaration():
 
 
 def assemble(app, binary, info, environment=None, resources=None):
-    """Writes `app` around `binary`: PDFium in Frameworks, the whiteboard's
-    fonts and the licences in Resources, `resources` (name → bytes) beside
-    them, and `info` as Info.plist."""
+    """Writes `app` around `binary`: PDFium in Frameworks, third-party
+    licences in Resources, `resources` (name → bytes) beside them, and
+    `info` as Info.plist."""
     contents = Path(app) / 'Contents'
     executable = contents / 'MacOS' / EXECUTABLE
     resource_dir = contents / 'Resources'
@@ -75,17 +73,7 @@ def assemble(app, binary, info, environment=None, resources=None):
         frameworks.mkdir(parents=True, exist_ok=True)
         shutil.copy2(pdfium, frameworks / pdfium.name)
         shutil.copy2(ROOT / 'vendor/pdfium/LICENSE', resource_dir / 'PDFIUM_LICENSE.txt')
-    # The whiteboard's fonts (tools/fetch-excalidraw-fonts.py), served from
-    # Resources/excalidraw; a bundle without them draws text in system fonts.
-    fonts = ROOT / 'vendor/excalidraw/fonts'
-    if fonts.is_dir():
-        subprocess.run([sys.executable, str(ROOT / 'tools/fetch-excalidraw-fonts.py'), '--check'], check=True)
-        shutil.copytree(fonts, resource_dir / 'excalidraw/fonts', dirs_exist_ok=True)
-    else:
-        print('warning: no Excalidraw fonts; run tools/fetch-excalidraw-fonts.py', file=sys.stderr)
     for source, destination in [
-        (ROOT / 'licenses/excalidraw/LICENSE', 'EXCALIDRAW_LICENSE.txt'),
-        (ROOT / 'licenses/excalidraw/FONT-NOTICES.txt', 'EXCALIDRAW_FONT_NOTICES.txt'),
         (ROOT / 'licenses/render-service/MERMAID_LICENSE.txt', 'MERMAID_LICENSE.txt'),
         (ROOT / 'licenses/render-service/KATEX_LICENSE.txt', 'KATEX_LICENSE.txt'),
         (ROOT / 'README.md', 'README.md'),

@@ -45,6 +45,7 @@ pub mod themes;
 pub mod ui_state_store;
 pub mod updates;
 pub mod url_scheme;
+pub mod viewer_packs;
 pub mod watchdog;
 pub mod webview;
 

@@ -47,7 +47,7 @@ const sdkRewrites = {
   },
 };
 
-const {product, modules, receipt} = await bundleProductPage({
+const {product, modules, receipt, files: builtFiles} = await bundleProductPage({
   name: 'excalidraw',
   entry: 'tools/excalidraw-entry.tsx',
   conditions: ['production'],
@@ -62,9 +62,23 @@ const {product, modules, receipt} = await bundleProductPage({
   // The SDK's own interface font, beside the others on disk.
   cssExternal: ['*.woff2'],
   cssRewrite: text => text.replace(/url\((["']?)\.\/fonts\//g, 'url($1excalidraw/fonts/'),
+  // Excalidraw ships as an on-demand Viewer Pack (`puppyone.excalidraw`), never
+  // embedded inside the base binary; pass `--out-dir <dir>` when packaging the pack.
+  bundleOutDir: null,
 });
 for (const [name, count] of Object.entries(rewrites)) {
   if (!count) throw new Error(`The Excalidraw SDK no longer matches the ${name} rewrite`);
+}
+if (builtFiles['excalidraw.js'].includes('esm.sh')) {
+  throw new Error('Excalidraw bundle still references esm.sh network font fallback');
+}
+for (const marker of ['__assets__/excalidraw/', 'matchMedia?.("(pointer: coarse)")', 'getElementById("desktop-overlay-root")??document.body']) {
+  if (!builtFiles['excalidraw.js'].includes(marker)) {
+    throw new Error(`Excalidraw bundle is missing expected host patch marker: ${marker}`);
+  }
+}
+if (!builtFiles['excalidraw.css'].includes('url(excalidraw/fonts/Assistant/Assistant-Regular.woff2)')) {
+  throw new Error('Excalidraw CSS did not rewrite font paths to excalidraw/fonts/');
 }
 
 // The font files the SDK names, with their digests, for the fetcher and the

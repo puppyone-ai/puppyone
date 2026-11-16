@@ -112,7 +112,6 @@ jobs:
           npm --prefix "${BASELINE_DIR}" ci
           echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
           python3 puppy-one-rust/tools/fetch-pdfium.py
-          python3 puppy-one-rust/tools/fetch-excalidraw-fonts.py
 
       - name: Verify GPUI source and Electron-to-GPUI OTA contract
         shell: bash
