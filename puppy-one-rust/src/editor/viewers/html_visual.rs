@@ -4,17 +4,9 @@
 //! product sources by `tools/import-html-visual.mjs` and run in the viewer's
 //! WebView, its overlays drawn inside the page (D-2).
 //!
-//! The native code editor stays the only owner of the text, its undo
-//! history and saves. The page keeps a mirror (the product's
-//! `CodeMirrorDocumentModel`):
-//! - each local visual edit arrives as UTF-16 changes against the mirror
-//!   `generation` it was made on; it is checked against the mirror, applied
-//!   to the code editor as one user change, and the mirror advances;
-//! - undo and redo run the code editor's history;
-//! - any other change of the text (Source mode, a disk reload, history)
-//!   replaces the mirror as an external update under a new generation,
-//!   which retires the visual session and rebuilds the projection exactly
-//!   as the product does. Edits made on an older generation are dropped.
+//! Supports the async `prepare` flush barrier (`VW-22`) before leaving Edit
+//! mode or snapshotting, and normalized cross-mode `viewportState` scroll
+//! progress (`VW-23`).
 use super::web::WebFrame;
 use crate::{
     editor::registry::ViewerSurface,
@@ -23,7 +15,8 @@ use crate::{
 use gpui::{prelude::*, *};
 use serde::Deserialize;
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
+    collections::HashMap,
     ops::Range,
     path::PathBuf,
     rc::Rc,
@@ -35,6 +28,8 @@ const STYLE: &[u8] = include_bytes!("../../../assets/web/html-visual.css");
 const GEIST: &[u8] = include_bytes!("../../../assets/web/html-visual-geist.woff2");
 /// `HTML_VISUAL_MAX_CHARS` (UTF-16 code units).
 pub const MAX_CHARS: usize = 512 * 1024;
+/// Bounded timeout for the `prepare` flush barrier so hung pages never deadlock (`VW-22`).
+pub const PREPARE_TIMEOUT: Duration = Duration::from_millis(250);
 /// The page's own keyboard handling and the app menu can both ask for the
 /// same undo; one request per gesture reaches the history.
 const HISTORY_DEDUPE: Duration = Duration::from_millis(150);
@@ -60,6 +55,7 @@ pub struct Params {
     pub dark: bool,
     pub enabled: bool,
     pub budget: u64,
+    pub initial_scroll: f32,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -83,7 +79,14 @@ enum Inbound {
         name: String,
         data: String,
     },
+    Prepared {
+        request: u64,
+    },
+    Scroll {
+        ratio: f32,
+    },
 }
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 struct Change {
     from: usize,
@@ -98,6 +101,9 @@ struct State {
     ready: bool,
     enabled: bool,
     last_history: Option<Instant>,
+    scroll_ratio: Rc<Cell<f32>>,
+    next_prepare: u64,
+    pending_prepares: HashMap<u64, async_channel::Sender<()>>,
 }
 
 /// One Edit-mode page. Dropping it closes the WebView.
@@ -115,6 +121,7 @@ impl Session {
     pub fn start(
         params: Params,
         source: Rc<dyn ViewerSurface>,
+        scroll_ratio: Rc<Cell<f32>>,
         on_unavailable: Unavailable,
         window: &mut Window,
         cx: &mut App,
@@ -126,6 +133,9 @@ impl Session {
             ready: false,
             enabled: params.enabled,
             last_history: None,
+            scroll_ratio,
+            next_prepare: 0,
+            pending_prepares: HashMap::new(),
         }));
         let folder = params.folder.clone();
         let content = Content {
@@ -146,7 +156,13 @@ impl Session {
         };
         #[cfg(not(test))]
         drop(tx);
-        let frame = cx.new(|_| WebFrame::new(Some(content), params.dark));
+        let dark = params.dark;
+        let frame = cx.new(|_| {
+            let mut f = WebFrame::new(Some(content), dark);
+            // Active visual edit sessions may hold uncommitted block drafts (`VW-20`).
+            f.set_pinned(true);
+            f
+        });
         let task = {
             let state = state.clone();
             let frame_ref = frame.clone();
@@ -162,12 +178,23 @@ impl Session {
                         let on_unavailable = on_unavailable.clone();
                         let folder = folder.clone();
                         let imported = cx.update(|window, cx| {
-                            receive(message, &state, &frame, &*source, &on_unavailable, folder, window, cx)
+                            receive(
+                                message,
+                                &state,
+                                &frame,
+                                &*source,
+                                &on_unavailable,
+                                folder,
+                                window,
+                                cx,
+                            )
                         });
                         if let Ok(Some((request, folder, name, bytes))) = imported {
                             let result = cx
                                 .background_executor()
-                                .spawn(async move { import_image(&folder, &name, &bytes).map(|_| name) })
+                                .spawn(async move {
+                                    import_image(&folder, &name, &bytes).map(|_| name)
+                                })
                                 .await;
                             let _ = cx.update(|_, cx| {
                                 let reply = match result {
@@ -189,9 +216,73 @@ impl Session {
             _task: task,
         }
     }
+
     #[cfg(test)]
     pub fn deliver(&self, body: &str) -> bool {
         self.inbox.try_send(body.to_owned()).is_ok()
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.state.borrow().ready
+    }
+
+    pub fn has_pending_prepare(&self) -> bool {
+        !self.state.borrow().pending_prepares.is_empty()
+    }
+
+    /// Runs the async `prepare` flush barrier (`VW-22`) before exiting `Mode::Edit`
+    /// or taking a snapshot: sends `{"type": "prepare", "request": id}` to the
+    /// page and waits for `{"type": "prepared", "request": id}` (after any final
+    /// `Inbound::Edit` on the FIFO IPC channel) or `PREPARE_TIMEOUT` (`250ms`).
+    pub fn prepare(
+        &self,
+        window: &mut Window,
+        cx: &mut App,
+        done: impl FnOnce(&mut Window, &mut App) + 'static,
+    ) {
+        if !self.state.borrow().ready {
+            done(window, cx);
+            return;
+        }
+        let (tx, rx) = async_channel::bounded::<()>(1);
+        let request = {
+            let mut s = self.state.borrow_mut();
+            s.next_prepare += 1;
+            let id = s.next_prepare;
+            s.pending_prepares.insert(id, tx.clone());
+            id
+        };
+        post(
+            &self.frame,
+            &serde_json::json!({"type": "prepare", "request": request}),
+            cx,
+        );
+        let state_for_timeout = self.state.clone();
+        let timer = cx.background_executor().timer(PREPARE_TIMEOUT);
+        cx.spawn(async move |cx| {
+            timer.await;
+            cx.update(|_| {
+                state_for_timeout
+                    .borrow_mut()
+                    .pending_prepares
+                    .remove(&request);
+            });
+            let _ = tx.try_send(());
+        })
+        .detach();
+
+        let state_cleanup = self.state.clone();
+        self.frame
+            .update(cx, |_, cx| {
+                cx.spawn_in(window, async move |_, cx| {
+                    let _ = rx.recv().await;
+                    let _ = cx.update(|window, cx| {
+                        state_cleanup.borrow_mut().pending_prepares.remove(&request);
+                        done(window, cx);
+                    });
+                })
+            })
+            .detach();
     }
 
     /// The text changed outside this page: replace the mirror.
@@ -241,10 +332,10 @@ fn receive(
 ) -> Option<(String, PathBuf, String, Vec<u8>)> {
     match message {
         Inbound::Ready => {
-            let enabled = {
+            let (enabled, ratio) = {
                 let mut s = state.borrow_mut();
                 s.ready = true;
-                s.enabled
+                (s.enabled, s.scroll_ratio.get())
             };
             post(
                 frame,
@@ -254,6 +345,13 @@ fn receive(
             // The text may have moved on while the page loaded.
             let text = source.text(cx).unwrap_or_default();
             sync(state, frame, &text, cx);
+            if ratio > 0.0 {
+                post(
+                    frame,
+                    &serde_json::json!({"type": "setScroll", "ratio": ratio}),
+                    cx,
+                );
+            }
         }
         Inbound::Edit { generation, edits } => {
             let current = source.text(cx).unwrap_or_default();
@@ -314,6 +412,17 @@ fn receive(
                 ),
             }
         }
+        Inbound::Prepared { request } => {
+            let tx = state.borrow_mut().pending_prepares.remove(&request);
+            if let Some(tx) = tx {
+                let _ = tx.try_send(());
+            }
+        }
+        Inbound::Scroll { ratio } => {
+            if ratio.is_finite() {
+                state.borrow().scroll_ratio.set(ratio.clamp(0.0, 1.0));
+            }
+        }
     }
     None
 }
@@ -337,8 +446,6 @@ fn history(
         }
         s.last_history = Some(now);
     }
-    // The code editor is not rendered in Edit mode: replay its history
-    // directly rather than dispatching an action to it.
     source.command(if redo { "replay-redo" } else { "replay-undo" }, window, cx);
     let text = source.text(cx).unwrap_or_default();
     sync(state, frame, &text, cx);
@@ -394,6 +501,7 @@ fn apply(text: &str, changes: &[Change]) -> Option<String> {
     out.push_str(&text[copied..]);
     Some(out)
 }
+
 fn byte_offset(text: &str, utf16: usize) -> Option<usize> {
     let mut units = 0;
     for (index, c) in text.char_indices() {
@@ -406,6 +514,37 @@ fn byte_offset(text: &str, utf16: usize) -> Option<usize> {
         }
     }
     (units == utf16).then_some(text.len())
+}
+
+fn prepare_and_scroll_wrapper(initial_scroll: f32) -> String {
+    let ratio = initial_scroll.clamp(0.0, 1.0);
+    format!(
+        "(()=>{{let inner=null,prep=null;window.__PUPPYONE_INITIAL_SCROLL={ratio:.6};\
+window.registerPrepare=fn=>{{prep=fn}};\
+const scroller=()=>{{const f=document.querySelector('iframe.native-preview-frame');\
+try{{const d=f?.contentDocument;if(d)return d.scrollingElement||d.documentElement||d.body}}catch{{}}\
+return document.scrollingElement||document.documentElement}};\
+const readRatio=()=>{{const el=scroller();if(!el)return 0;\
+const max=Math.max(0,el.scrollHeight-el.clientHeight);\
+return max>0?Math.min(1,Math.max(0,el.scrollTop/max)):0}};\
+const applyRatio=r=>{{const el=scroller();if(!el)return;\
+const max=Math.max(0,el.scrollHeight-el.clientHeight);\
+el.scrollTop=max*Math.min(1,Math.max(0,r))}};\
+Object.defineProperty(window,'__puppyoneHtmlVisual',{{configurable:true,\
+get(){{return msg=>{{if(msg&&msg.type==='prepare'){{Promise.resolve().then(async()=>{{if(typeof prep==='function')await prep();\
+const active=document.activeElement;if(active instanceof HTMLElement&&active!==document.body)active.blur();\
+document.querySelector('.html-visual-editor')?.dispatchEvent(new KeyboardEvent('keydown',{{key:'Escape',bubbles:true,cancelable:true}}))}}).catch(()=>{{}}).finally(()=>{{window.ipc?.postMessage(JSON.stringify({{type:'scroll',ratio:readRatio()}}));\
+window.ipc?.postMessage(JSON.stringify({{type:'prepared',request:msg.request}}))}});return}}\
+if(msg&&msg.type==='setScroll'){{applyRatio(Number(msg.ratio)||0);return}}\
+return inner?.(msg)}}}},set(fn){{inner=fn}}}});\
+let applied=false;const bind=()=>{{const f=document.querySelector('iframe.native-preview-frame');\
+if(!f||f.__poScrollBound)return;f.__poScrollBound=true;\
+const attach=()=>{{try{{const w=f.contentWindow;if(!w)return;\
+if(!applied&&window.__PUPPYONE_INITIAL_SCROLL>0){{applied=true;applyRatio(window.__PUPPYONE_INITIAL_SCROLL)}}\
+w.addEventListener('scroll',()=>window.ipc?.postMessage(JSON.stringify({{type:'scroll',ratio:readRatio()}})),{{passive:true}})}}catch{{}}}};\
+f.addEventListener('load',attach);attach()}};\
+new MutationObserver(bind).observe(document.documentElement,{{childList:true,subtree:true}})}})()"
+    )
 }
 
 /// The trusted entry page: the bundled surface, its styles under the
@@ -432,15 +571,17 @@ fn page(params: &Params, generation: u64) -> String {
         "messages": crate::localization::messages(&["editor.html.", "shared-ui."]),
     });
     let scheme = if params.dark { "dark" } else { "light" };
+    let wrapper = prepare_and_scroll_wrapper(params.initial_scroll);
     format!(
         "<!doctype html><html lang=\"{lang}\" class=\"{class}\" data-initial-theme=\"{scheme}\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width\">\
 <link rel=\"stylesheet\" href=\"__assets__/html-visual.css\">\
-<style>:root:root:root{{{tokens}}}html,body,#root{{height:100%;margin:0}}body{{background:var(--po-canvas);color:var(--po-text);font-family:var(--po-font-ui)}}#root>.html-document-editor{{height:100%}}</style>\
-</head><body><div id=\"root\"></div><script>window.__PUPPYONE_HTML_VISUAL={boot}</script>\
+<style id=\"po-theme\">:root:root:root{{{tokens}}}</style><style>html,body,#root{{height:100%;margin:0}}body{{background:var(--po-canvas);color:var(--po-text);font-family:var(--po-font-ui)}}#root>.html-document-editor{{height:100%}}</style>\
+</head><body><div id=\"root\"></div><script>{wrapper};window.__PUPPYONE_HTML_VISUAL={boot}</script>\
 <script src=\"__assets__/html-visual.js\"></script></body></html>",
         lang = locale.replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', ""),
         class = if params.dark { "dark" } else { "" },
+        wrapper = wrapper,
         boot = script_json(&boot),
     )
 }
@@ -460,13 +601,11 @@ mod tests {
 
     #[test]
     fn utf16_changes_apply_to_the_mirror_or_are_refused() {
-        // "é" is one unit, "😀" two: offsets are the page's UTF-16 offsets.
         let text = "<p>é😀x</p>";
         assert_eq!(
             apply(text, &[change(3, 4, "e"), change(6, 7, "y")]).as_deref(),
             Some("<p>e😀y</p>")
         );
-        // Inside a surrogate pair, past the end, overlapping or reversed.
         assert_eq!(apply(text, &[change(5, 5, "!")]), None);
         assert_eq!(apply(text, &[change(11, 12, "")]), None);
         assert_eq!(apply(text, &[change(3, 6, ""), change(4, 7, "")]), None);
@@ -497,6 +636,14 @@ mod tests {
                 direction: "redo".into()
             }
         );
+        assert_eq!(
+            serde_json::from_str::<Inbound>(r#"{"type":"prepared","request":9}"#).unwrap(),
+            Inbound::Prepared { request: 9 }
+        );
+        assert_eq!(
+            serde_json::from_str::<Inbound>(r#"{"type":"scroll","ratio":0.65}"#).unwrap(),
+            Inbound::Scroll { ratio: 0.65 }
+        );
         assert!(serde_json::from_str::<Inbound>(r#"{"type":"navigate","url":"x"}"#).is_err());
     }
 
@@ -510,6 +657,7 @@ mod tests {
             dark: true,
             enabled: true,
             budget: 1,
+            initial_scroll: 0.25,
         };
         let html = page(&params, 4);
         assert!(html.contains("<script src=\"__assets__/html-visual.js\"></script>"));
@@ -528,6 +676,7 @@ mod tests {
         assert_eq!(boot["generation"], 4);
         assert_eq!(boot["messages"]["editor.html.editBlock"], "Edit block");
         assert!(html.contains("--po-canvas:"));
+        assert!(html.contains("registerPrepare"));
     }
 
     #[test]

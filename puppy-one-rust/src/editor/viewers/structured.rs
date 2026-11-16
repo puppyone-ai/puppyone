@@ -173,9 +173,8 @@ struct StructuredView {
 impl EventEmitter<Changed> for StructuredView {}
 
 impl StructuredView {
-    /// A new engine over the current text, input state and appearance.
-    fn show(&mut self, cx: &mut Context<Self>) {
-        let boot = serde_json::json!({
+    fn boot_json(&self) -> serde_json::Value {
+        serde_json::json!({
             "kind": self.kind,
             "text": self.text,
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -188,7 +187,23 @@ impl StructuredView {
             "messages": crate::localization::messages(&[
                 "editor.puppyflow.", "workspace.relationships.", "editor.preview.", "common.", "shared-ui.",
             ]),
-        });
+        })
+    }
+
+    fn current_page_html(&self) -> String {
+        page(&self.boot_json(), self.dark)
+    }
+
+    fn sync_entry_html(&self, cx: &mut Context<Self>) {
+        if let Some(frame) = &self.frame {
+            let html = self.current_page_html();
+            frame.update(cx, |f, _| f.update_entry_html(html));
+        }
+    }
+
+    /// A new engine over the current text, input state and appearance.
+    fn show(&mut self, cx: &mut Context<Self>) {
+        let html = self.current_page_html();
         let mut assets: Vec<(&'static str, &'static [u8])> = vec![
             ("structured-viewers.js", SCRIPT),
             ("structured-viewers.css", STYLE),
@@ -198,7 +213,7 @@ impl StructuredView {
         let content = Content {
             root: None,
             source: None,
-            entry: Entry::Html(page(&boot, self.dark)),
+            entry: Entry::Html(html),
             max_bytes: 0,
             assets,
             ipc: Some(Ipc(tx)),
@@ -209,7 +224,17 @@ impl StructuredView {
         };
         self.ready = false;
         self.pane.clear();
-        self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
+        let weak = cx.weak_entity();
+        let dark = self.dark;
+        self.frame = Some(cx.new(|_| {
+            let mut f = WebFrame::new(Some(content), dark);
+            f.set_on_recreated(Some(std::rc::Rc::new(move |cx| {
+                let _ = weak.update(cx, |view, _| {
+                    view.ready = false;
+                });
+            })));
+            f
+        }));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
                 let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
@@ -222,10 +247,41 @@ impl StructuredView {
     }
     fn receive(&mut self, message: Inbound, cx: &mut Context<Self>) {
         match message {
-            Inbound::Ready => self.ready = true,
+            Inbound::Ready => {
+                self.ready = true;
+                let script = theme_update_script(self.dark);
+                if let Some(frame) = &self.frame {
+                    frame.read(cx).evaluate(&script);
+                }
+                let enabled = self.enabled;
+                self.post(
+                    serde_json::json!({ "type": "enabled", "value": enabled }),
+                    cx,
+                );
+                // Replay saved pane selections if recreated after LRU eviction.
+                let saved = self.pane.clone();
+                for item in saved {
+                    match item {
+                        PaneWire::Segmented { id, value, .. } => {
+                            self.post(
+                                serde_json::json!({ "type": "paneSegment", "id": id, "value": value }),
+                                cx,
+                            );
+                        }
+                        PaneWire::Toggle { id, checked, .. } => {
+                            self.post(
+                                serde_json::json!({ "type": "paneToggle", "id": id, "checked": checked }),
+                                cx,
+                            );
+                        }
+                        PaneWire::Command { .. } => {}
+                    }
+                }
+            }
             Inbound::Content { text } => {
                 if self.enabled && text != self.text {
                     self.text = text;
+                    self.sync_entry_html(cx);
                     cx.emit(Changed);
                 }
             }
@@ -423,6 +479,7 @@ impl StructuredView {
             return;
         }
         self.text = text.to_owned();
+        self.sync_entry_html(cx);
         self.post_state(serde_json::json!({ "type": "reset", "text": text }), cx);
     }
     fn history(&mut self, redo: bool, cx: &mut Context<Self>) {
@@ -436,19 +493,66 @@ impl StructuredView {
     }
     fn apply(&mut self, read_only: bool, dark: bool, cx: &mut Context<Self>) {
         let enabled = !read_only;
-        if dark != self.dark {
-            // The theme is part of the page: rebuild it on the current text.
-            self.dark = dark;
-            self.enabled = enabled;
+        let dark_changed = dark != self.dark;
+        let enabled_changed = enabled != self.enabled;
+        if !dark_changed && !enabled_changed {
+            return;
+        }
+        self.dark = dark;
+        self.enabled = enabled;
+        if self.frame.is_none() {
             self.show(cx);
-        } else if enabled != self.enabled {
-            self.enabled = enabled;
-            self.post_state(
+            return;
+        }
+        let html = self.current_page_html();
+        if dark_changed {
+            let script = theme_update_script(dark);
+            if let Some(frame) = &self.frame {
+                frame.update(cx, |f, _| {
+                    f.apply_theme_in_place(dark, &script, Some(html.clone()));
+                });
+            }
+        } else {
+            self.sync_entry_html(cx);
+        }
+        if enabled_changed && self.ready {
+            self.post(
                 serde_json::json!({ "type": "enabled", "value": enabled }),
                 cx,
             );
         }
     }
+}
+
+/// Compiled Sub Theme CSS custom properties + `color-scheme` (`VW-21`).
+pub(super) fn theme_css(dark: bool) -> String {
+    let tokens: String = crate::theme::pack_tokens(dark)
+        .iter()
+        .filter(|(name, value)| {
+            name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+                && !value.contains(['<', '>', '{', '}', ';'])
+        })
+        .map(|(name, value)| format!("--po-{name}:{value};"))
+        .collect();
+    let scheme = if dark { "dark" } else { "light" };
+    format!(":root:root:root{{{tokens}color-scheme:{scheme}}}")
+}
+
+/// In-place JS theme update preserving mounted React component & model state (`VW-21`).
+pub(super) fn theme_update_script(dark: bool) -> String {
+    let payload = serde_json::json!({
+        "dark": dark,
+        "scheme": if dark { "dark" } else { "light" },
+        "css": theme_css(dark),
+    });
+    format!(
+        "(()=>{{const t={};const s=document.getElementById('po-theme');if(s)s.textContent=t.css;\
+         document.documentElement.classList.toggle('dark',t.dark);\
+         document.documentElement.dataset.initialTheme=t.scheme;\
+         document.documentElement.style.colorScheme=t.scheme;\
+         document.getElementById('desktop-overlay-root')?.classList.toggle('dark',t.dark);}})()",
+        script_json(&payload)
+    )
 }
 
 /// Every embedded agent mark under the bundle's public prefix.
@@ -475,26 +579,20 @@ fn brand_assets() -> Vec<(&'static str, &'static [u8])> {
 /// The entry document: the product's tokens with the native theme's
 /// colours over them, then the bundle.
 fn page(boot: &serde_json::Value, dark: bool) -> String {
-    let tokens: String = crate::theme::pack_tokens(dark)
-        .iter()
-        .filter(|(name, value)| {
-            name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
-                && !value.contains(['<', '>', '{', '}', ';'])
-        })
-        .map(|(name, value)| format!("--po-{name}:{value};"))
-        .collect();
     let locale = crate::localization::current_code();
     let scheme = if dark { "dark" } else { "light" };
     format!(
         "<!doctype html><html lang=\"{lang}\" class=\"{class}\" data-initial-theme=\"{scheme}\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width\">\
 <link rel=\"stylesheet\" href=\"__assets__/structured-viewers.css\">\
-<style>:root:root:root{{{tokens}}}html,body,#root{{height:100%;margin:0}}body{{background:var(--po-editor-bg,var(--po-canvas));color:var(--po-text);font-family:var(--po-font-ui)}}#root>.structured-document-host{{height:100%;display:flex;flex-direction:column}}</style>\
-</head><body><div id=\"root\"></div><script>window.__PUPPYONE_STRUCTURED={boot}</script>\
+<style id=\"po-theme\">{theme}</style><style>html,body,#root{{height:100%;margin:0}}body{{background:var(--po-editor-bg,var(--po-canvas));color:var(--po-text);font-family:var(--po-font-ui)}}#root>.structured-document-host{{height:100%;display:flex;flex-direction:column}}.desktop-overlay-root{{position:relative;z-index:var(--po-overlay-root-z-index,1000);isolation:isolate;color:var(--po-text);font-family:var(--po-font-sans)}}.desktop-overlay-root:empty{{display:none}}</style>\
+</head><body><div id=\"root\"></div><div id=\"desktop-overlay-root\" class=\"desktop-overlay-root{dark_class}\"></div><script>window.__PUPPYONE_STRUCTURED={boot}</script>\
 <script src=\"__assets__/structured-viewers.js\"></script></body></html>",
         lang = locale.replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', ""),
         class = if dark { "dark" } else { "" },
+        dark_class = if dark { " dark" } else { "" },
         boot = script_json(boot),
+        theme = theme_css(dark),
     )
 }
 
@@ -677,6 +775,86 @@ mod tests {
             let entries = v.pane_entries();
             assert_eq!(entries.segmented.unwrap().value, "canvas");
             assert_eq!(entries.items[0].kind, ItemKind::Toggle(false));
+        });
+    }
+
+    /// `VW-21` & `VW-41`: Toggling the theme on PuppyFlow / Context Map updates
+    /// `#po-theme` and `color-scheme` in-place without rebuilding `WebFrame`,
+    /// preserving the mounted page's undo history, document text and pane state.
+    #[gpui::test]
+    fn theme_toggle_updates_structured_view_in_place_without_rebuilding_frame(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = cx.add_window_view(|_, cx| {
+            let mut view = StructuredView {
+                kind: "puppyflow",
+                name: "flows/release.puppyflow".into(),
+                workspace: None,
+                text: "{\"steps\":[]}".into(),
+                enabled: true,
+                dark: false,
+                ready: false,
+                pane: Vec::new(),
+                revision: 0,
+                _watch: None,
+                frame: None,
+                _inbox: None,
+            };
+            view.show(cx);
+            view
+        });
+        let surface = StructuredSurface { view: view.clone() };
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        cx.run_until_parked();
+
+        let initial_frame_id = view.read_with(cx, |v, _| v.frame.as_ref().unwrap().entity_id());
+        let items: Vec<PaneWire> = serde_json::from_str(
+            r#"[{"kind":"toggle","id":"pf-grid","label":"Grid","checked":true}]"#,
+        )
+        .unwrap();
+        view.update(cx, |v, cx| {
+            v.receive(Inbound::Ready, cx);
+            v.receive(
+                Inbound::Content {
+                    text: "{\"steps\":[{\"id\":\"s1\"}]}".into(),
+                },
+                cx,
+            );
+            v.receive(Inbound::Pane { items }, cx);
+        });
+
+        // Toggle light -> dark -> light: WebFrame entity and live host remain untouched!
+        cx.update(|window, cx| surface.apply(false, true, Scale::default(), window, cx));
+        cx.update(|window, cx| surface.apply(false, false, Scale::default(), window, cx));
+
+        view.read_with(cx, |v, cx| {
+            let frame = v.frame.as_ref().unwrap();
+            assert_eq!(frame.entity_id(), initial_frame_id);
+            assert!(frame.read(cx).is_resident());
+            assert!(v.ready);
+            assert_eq!(v.text, "{\"steps\":[{\"id\":\"s1\"}]}");
+            assert_eq!(v.pane.len(), 1);
+            let scripts = frame.read(cx).evaluated_scripts();
+            assert!(
+                scripts
+                    .iter()
+                    .any(|s| s.contains("getElementById('po-theme')") && s.contains("colorScheme")),
+                "expected in-place theme script, got {scripts:?}"
+            );
+        });
+
+        // Undo still dispatches to the live mounted page's StructuredDocumentModel!
+        cx.update(|window, cx| surface.undo(false, window, cx));
+        view.read_with(cx, |v, cx| {
+            let scripts = v.frame.as_ref().unwrap().read(cx).evaluated_scripts();
+            assert!(
+                scripts
+                    .iter()
+                    .any(|s| s.contains(r#""type":"history""#) && s.contains(r#""undo""#)),
+                "expected undo dispatched to preserved page, got {scripts:?}"
+            );
         });
     }
 }
