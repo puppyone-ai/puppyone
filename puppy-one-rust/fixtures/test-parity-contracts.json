@@ -3730,7 +3730,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -7777,6 +7777,648 @@
         {
           "package": "po-platform",
           "test": "platform::process::tests::precancelled_and_zero_deadline_commands_never_create_launch_side_effects"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-transcript-projection",
+      "acceptance": "All 29 collected TS projection cases: authoritative completion and immutable segmented ordering; native user identity and repeat submissions; degraded completion and provider duration; bounded text/output; duplicate/gap handling; tool/file-change/usage semantics; legacy diagnostics and connection-state migration; every terminal outcome clears blockers and settles orphan activity; sanitized reference identities retain the exact list through replay.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/events/desktop-agent.projection.test.ts",
+          "sha256": "689525cf1bfa03333cfa94d62ee566bbc3509cf24a57cc75401dc9d0528aeb5c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent transcript projection > concatenates assistant deltas and lets completed content finalize authoritatively"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent transcript projection > confirms the optimistic prompt by native identity and preserves same-turn follow-ups"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent transcript projection > does not interpret a recoverable content diagnostic as live connection state"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent transcript projection > keeps first-observed timeline order immutable while blocks stream and settle"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent transcript projection > keeps a native assistant item segmented when its authoritative completion spans a tool"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent transcript projection > seals rather than erases assistant text when a late completion adds nothing after a tool"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent transcript projection > prefers the provider's normalized turn duration over envelope timing"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Agent transcript projection > projects degraded completion as a settled turn with an actionable recovery fact"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent transcript projection > keeps usage metadata out of visible transcript rows"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Agent transcript projection > ignores duplicates, marks gaps, and keeps partial assistant text after interruption"
+            },
+            {
+              "index": 10,
+              "name": "Desktop Agent transcript projection > tracks tool lifecycle, bounded command output, and stale approval removal"
+            },
+            {
+              "index": 11,
+              "name": "Desktop Agent transcript projection > keeps the first command output delta even without a preceding tool event"
+            },
+            {
+              "index": 12,
+              "name": "Desktop Agent transcript projection > preserves canonical tool identity and upgrades legacy arguments to structured input"
+            },
+            {
+              "index": 13,
+              "name": "Desktop Agent transcript projection > does not project empty file-change placeholders and removes a cleared session diff"
+            },
+            {
+              "index": 14,
+              "name": "Desktop Agent transcript projection > bounds streamed messages and reasoning before they reach renderer state"
+            },
+            {
+              "index": 15,
+              "name": "Desktop Agent transcript projection > renders legacy nested provider errors as readable text"
+            },
+            {
+              "index": 16,
+              "name": "Desktop Agent transcript projection > drops legacy lifecycle-only system-error notices and keeps the actionable diagnostic"
+            },
+            {
+              "index": 17,
+              "name": "Desktop Agent transcript projection > normalizes unrecognized provider activity status to a neutral unknown state"
+            },
+            {
+              "index": 18,
+              "name": "Desktop Agent transcript projection > keeps connection recovery as one replaceable live state outside transcript history"
+            },
+            {
+              "index": 19,
+              "name": "Desktop Agent transcript projection > migrates legacy retry and transport-fallback warnings without retaining historical cards"
+            },
+            {
+              "index": 20,
+              "name": "Desktop Agent transcript projection > clears live connection state on turn.completed"
+            },
+            {
+              "index": 21,
+              "name": "Desktop Agent transcript projection > clears live connection state on turn.failed"
+            },
+            {
+              "index": 22,
+              "name": "Desktop Agent transcript projection > clears live connection state on turn.interrupted"
+            },
+            {
+              "index": 23,
+              "name": "Desktop Agent transcript projection > settles orphaned live activity and blocking state on turn.completed"
+            },
+            {
+              "index": 24,
+              "name": "Desktop Agent transcript projection > settles orphaned live activity and blocking state on turn.failed"
+            },
+            {
+              "index": 25,
+              "name": "Desktop Agent transcript projection > settles orphaned live activity and blocking state on turn.interrupted"
+            },
+            {
+              "index": 26,
+              "name": "Desktop Agent transcript projection > collapses duplicate provider terminal errors for the same turn"
+            },
+            {
+              "index": 27,
+              "name": "Desktop Agent transcript projection > does not merge the same provider failure across separate turns"
+            },
+            {
+              "index": 28,
+              "name": "Desktop Agent transcript projection > keeps sanitized reference display identity stable across committed projection and replay"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::concatenates_assistant_deltas_and_lets_completed_content_finalize_authoritatively"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::confirms_the_optimistic_prompt_by_native_identity_and_preserves_same_turn_follow_ups"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::does_not_interpret_a_recoverable_content_diagnostic_as_live_connection_state"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::keeps_first_observed_timeline_order_immutable_while_blocks_stream_and_settle"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::keeps_a_native_assistant_item_segmented_when_its_authoritative_completion_spans_a_tool"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::seals_rather_than_erases_assistant_text_when_a_late_completion_adds_nothing_after_a_tool"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::prefers_the_providers_normalized_turn_duration_over_envelope_timing"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::projects_degraded_completion_as_a_settled_turn_with_an_actionable_recovery_fact"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::keeps_usage_metadata_out_of_visible_transcript_rows"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::ignores_duplicates_marks_gaps_and_keeps_partial_assistant_text_after_interruption"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::tracks_tool_lifecycle_bounded_command_output_and_stale_approval_removal"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::keeps_the_first_command_output_delta_even_without_a_preceding_tool_event"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::preserves_canonical_tool_identity_and_upgrades_legacy_arguments_to_structured_input"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::does_not_project_empty_file_change_placeholders_and_removes_a_cleared_session_diff"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::bounds_streamed_messages_and_reasoning_before_they_reach_renderer_state"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::renders_legacy_nested_provider_errors_as_readable_text"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::drops_legacy_lifecycle_only_system_error_notices_and_keeps_the_actionable_diagnostic"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::normalizes_unrecognized_provider_activity_status_to_a_neutral_unknown_state"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::keeps_connection_recovery_as_one_replaceable_live_state_outside_transcript_history"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::migrates_legacy_retry_and_transport_fallback_warnings_without_retaining_historical_cards"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::clears_live_connection_state_on_every_terminal_event"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::settles_orphaned_live_activity_and_blocking_state_on_every_terminal_event"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::collapses_duplicate_provider_terminal_errors_for_the_same_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::does_not_merge_the_same_provider_failure_across_separate_turns"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::keeps_sanitized_reference_display_identity_stable_across_committed_projection_and_replay"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-display-session-feed",
+      "acceptance": "All 29 collected TS feed cases through the actual SessionActor, service and controller: initial attach/ACK failure and timeout recovery, late receipt detachment, paused/exhausted retries, healthy close/disposal, slow-snapshot budgets and staged recovery UI, watermark lost-tail repair, idle boundary, ACK coalescing and 1200-frame backpressure, malformed/duplicate frames, subscriber isolation and sustained-stability reset. Display recovery must never restart the native runtime or send a turn command; all three serialized ended errors stop retrying.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/events/desktop-agent.session-feed.test.ts",
+          "sha256": "f5e9b46c999a8ca5ba564d1bf2b6a6f9c24912bbef1b1b55698d2079eba7473b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Renderer display replica against the Main SessionActor and feed > stops retries on serialized SESSION_STALE errors"
+            },
+            {
+              "index": 1,
+              "name": "Renderer display replica against the Main SessionActor and feed > stops retries on serialized HOST_EXITED errors"
+            },
+            {
+              "index": 2,
+              "name": "Renderer display replica against the Main SessionActor and feed > stops retries on serialized HOST_CLOSED errors"
+            },
+            {
+              "index": 3,
+              "name": "Renderer display replica against the Main SessionActor and feed > repairs display failure without restarting the native runtime, but stops on process exit"
+            },
+            {
+              "index": 4,
+              "name": "Renderer display replica against the Main SessionActor and feed > does not create a message recovery incident when termination closes a healthy display"
+            },
+            {
+              "index": 5,
+              "name": "Renderer display replica against the Main SessionActor and feed > does not dispatch an attach cancelled before its microtask starts"
+            },
+            {
+              "index": 6,
+              "name": "Renderer display replica against the Main SessionActor and feed > pauses retries and releases a late attach without resuming on initialize"
+            },
+            {
+              "index": 7,
+              "name": "Renderer display replica against the Main SessionActor and feed > bounds automatic recovery attempts and permits an explicit retry"
+            },
+            {
+              "index": 8,
+              "name": "Renderer display replica against the Main SessionActor and feed > ends a missing runtime instance instead of retrying it as a history gap"
+            },
+            {
+              "index": 9,
+              "name": "Renderer display replica against the Main SessionActor and feed > recovers an initial attach failure without sending another native command"
+            },
+            {
+              "index": 10,
+              "name": "Renderer display replica against the Main SessionActor and feed > recovers an initial ack failure without sending another native command"
+            },
+            {
+              "index": 11,
+              "name": "Renderer display replica against the Main SessionActor and feed > recovers a timed out first attach and detaches its late receipt"
+            },
+            {
+              "index": 12,
+              "name": "Renderer display replica against the Main SessionActor and feed > allows a slow snapshot to finish within the dedicated attach budget"
+            },
+            {
+              "index": 13,
+              "name": "Renderer display replica against the Main SessionActor and feed > escalates recovery UI only after silent and compact reconnecting stages"
+            },
+            {
+              "index": 14,
+              "name": "Renderer display replica against the Main SessionActor and feed > keeps recovery status visible while a replacement snapshot is still attaching"
+            },
+            {
+              "index": 15,
+              "name": "Renderer display replica against the Main SessionActor and feed > stops first-attach recovery after disposal"
+            },
+            {
+              "index": 16,
+              "name": "Renderer display replica against the Main SessionActor and feed > applies frames emitted between snapshot creation and initial ACK exactly once"
+            },
+            {
+              "index": 17,
+              "name": "Renderer display replica against the Main SessionActor and feed > keeps same-text submissions distinct while joining native echo by client identity"
+            },
+            {
+              "index": 18,
+              "name": "Renderer display replica against the Main SessionActor and feed > does not clear a model retry when a tool progresses, and clears it on native completion"
+            },
+            {
+              "index": 19,
+              "name": "Renderer display replica against the Main SessionActor and feed > repairs a lost last terminal frame using the watermark"
+            },
+            {
+              "index": 20,
+              "name": "Renderer display replica against the Main SessionActor and feed > checks the watermark only after a full interval without frames"
+            },
+            {
+              "index": 21,
+              "name": "Renderer display replica against the Main SessionActor and feed > coalesces a high-frequency frame burst into bounded acknowledgements"
+            },
+            {
+              "index": 22,
+              "name": "Renderer display replica against the Main SessionActor and feed > repairs one snapshot after a burst exceeds feed backpressure limits"
+            },
+            {
+              "index": 23,
+              "name": "Renderer display replica against the Main SessionActor and feed > does not ACK a malformed patch and repairs from a fresh snapshot"
+            },
+            {
+              "index": 24,
+              "name": "Renderer display replica against the Main SessionActor and feed > resets the retry budget only after a sustained stable window"
+            },
+            {
+              "index": 25,
+              "name": "Renderer display replica against the Main SessionActor and feed > ignores duplicate frames without appending their text again"
+            },
+            {
+              "index": 26,
+              "name": "Renderer display replica against the Main SessionActor and feed > isolates a faulty view subscriber from the committed display and subsequent frames"
+            },
+            {
+              "index": 27,
+              "name": "Renderer display replica against the Main SessionActor and feed > keeps the replica stale when a fresh attachment cannot be acknowledged"
+            },
+            {
+              "index": 28,
+              "name": "Renderer display replica against the Main SessionActor and feed > bounds a stalled watermark read and retries attachment without native side effects"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::stops_retries_on_serialized_ended_errors",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::repairs_display_failure_without_restarting_the_runtime_but_stops_on_exit",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::termination_of_a_healthy_display_is_not_a_recovery_incident",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::does_not_dispatch_an_attach_cancelled_before_its_microtask_starts",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::pauses_retries_and_releases_a_late_attach_without_resuming",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::bounds_automatic_recovery_attempts_and_permits_an_explicit_retry",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::ends_a_missing_runtime_instance_instead_of_retrying_it_as_a_history_gap",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::recovers_an_initial_attach_or_ack_failure_without_another_native_command",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::recovers_a_timed_out_first_attach_and_detaches_its_late_receipt",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::allows_a_slow_snapshot_to_finish_within_the_attach_budget",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::escalates_recovery_ui_only_after_silent_and_reconnecting_stages",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::keeps_recovery_status_visible_while_a_replacement_snapshot_attaches",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::stops_first_attach_recovery_after_disposal",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::applies_frames_emitted_between_snapshot_creation_and_initial_ack_once",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::keeps_same_text_submissions_distinct_while_joining_native_echo",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::keeps_a_model_retry_while_a_tool_progresses_and_clears_it_on_completion",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::repairs_a_lost_last_terminal_frame_using_the_watermark",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::checks_the_watermark_only_after_a_full_interval_without_frames",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::coalesces_a_frame_burst_into_bounded_acknowledgements",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::repairs_one_snapshot_after_a_burst_exceeds_feed_backpressure",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::does_not_ack_a_malformed_patch_and_repairs_from_a_fresh_snapshot",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::resets_the_retry_budget_only_after_a_sustained_stable_window",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::ignores_duplicate_frames_without_appending_their_text_again",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::isolates_a_view_subscriber_from_the_committed_display",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::keeps_the_replica_stale_when_a_fresh_attachment_cannot_be_acknowledged",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::session_feed::bounds_a_stalled_watermark_read_and_retries_attachment",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-attachment-staging",
+      "acceptance": "All 9 TS staging cases use real temporary files: private immutable snapshots and opaque owner/workspace/epoch grants, inline bytes and MIME admission, deduplication, scope revocation, symlink/directory/size rejection, aggregate budgets, injected source TOCTOU and whole-batch rollback, TTL/orphan sweep, lease protection and terminal lease revocation. Error categories, exact result cardinality, private mode and absence of snapshot URLs/raw bytes are asserted.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/references/electron.agent-attachment-store.test.mjs",
+          "sha256": "2a36be29686286029935d4ef7e856f8ccc5ff01a6caf52413d30092752256032",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent main-owned attachment staging > gives pathless images the same private snapshot, deduplication and owner-bound lease"
+            },
+            {
+              "index": 1,
+              "name": "Agent main-owned attachment staging > validates inline sources and enforces their byte budget in Main"
+            },
+            {
+              "index": 2,
+              "name": "Agent main-owned attachment staging > revokes one Root's grants without touching sibling Root attachments"
+            },
+            {
+              "index": 3,
+              "name": "Agent main-owned attachment staging > creates an immutable private snapshot and binds its opaque grant to owner, workspace and epoch"
+            },
+            {
+              "index": 4,
+              "name": "Agent main-owned attachment staging > rejects symlinks, directories, oversized files and MIME-extension disagreement"
+            },
+            {
+              "index": 5,
+              "name": "Agent main-owned attachment staging > preserves plain-text and SVG semantics for Harness-specific admission"
+            },
+            {
+              "index": 6,
+              "name": "Agent main-owned attachment staging > enforces aggregate count and byte budgets across separate staging calls"
+            },
+            {
+              "index": 7,
+              "name": "Agent main-owned attachment staging > detects a source TOCTOU change and rolls a partial batch back transactionally"
+            },
+            {
+              "index": 8,
+              "name": "Agent main-owned attachment staging > expires, revokes and sweeps snapshots without relying on renderer cleanup"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::gives_pathless_images_the_same_private_snapshot_deduplication_and_owner_bound_lease"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::validates_inline_sources_and_enforces_their_byte_budget_in_main"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::revokes_one_roots_grants_without_touching_sibling_root_attachments"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::creates_an_immutable_private_snapshot_and_binds_its_opaque_grant_to_owner_workspace_and_epoch"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::rejects_symlinks_directories_oversized_files_and_mime_extension_disagreement"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::preserves_plain_text_and_svg_semantics_for_harness_specific_admission"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::enforces_aggregate_count_and_byte_budgets_across_separate_staging_calls"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::detects_a_source_toctou_change_and_rolls_a_partial_batch_back_transactionally"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::expires_revokes_and_sweeps_snapshots_without_relying_on_renderer_cleanup"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "agent-workspace-reference-authorization",
+      "acceptance": "All 6 TS authorization cases use real workspace files and symlinks: canonical identity and deduplication, authoritative metadata, relative file and directory references without recursive content, cross-root portable identities with pathless UI drafts, rejection of absolute/traversal/drive-relative forged identities, and a single shared attachment/context count and byte budget.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/references/electron.agent-reference-authorization.test.mjs",
+          "sha256": "c2bd0da4905eeb14786cc80fe7fb7e55541874979d9b9b1f9dfb2fe72b673243",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent attachment and context authorization > canonicalizes workspace files, deduplicates them, and derives renderer-independent metadata"
+            },
+            {
+              "index": 1,
+              "name": "Agent attachment and context authorization > resolves relative workspace paths but fails closed for symlinks escaping the workspace"
+            },
+            {
+              "index": 2,
+              "name": "Agent attachment and context authorization > authorizes directory identity without recursively reading its contents"
+            },
+            {
+              "index": 3,
+              "name": "Agent attachment and context authorization > keeps workspace identity portable across session roots and withholds absolute paths from Renderer drafts"
+            },
+            {
+              "index": 4,
+              "name": "Agent attachment and context authorization > rejects forged absolute and traversal identities before filesystem authorization"
+            },
+            {
+              "index": 5,
+              "name": "Agent attachment and context authorization > shares one byte and file-count budget across attachments and context"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::canonicalizes_workspace_files_deduplicates_them_and_derives_renderer_independent_metadata"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::resolves_relative_workspace_paths_but_fails_closed_for_symlinks_escaping_the_workspace"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::authorizes_directory_identity_without_recursively_reading_its_contents"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::keeps_workspace_identity_portable_across_session_roots_and_withholds_absolute_paths_from_renderer_drafts"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::rejects_forged_absolute_and_traversal_identities_before_filesystem_authorization"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::shares_one_byte_and_file_count_budget_across_attachments_and_context"
         }
       ],
       "environment": "local"

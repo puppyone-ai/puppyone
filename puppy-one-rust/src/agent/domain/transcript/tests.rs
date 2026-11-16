@@ -1104,6 +1104,7 @@ fn keeps_sanitized_reference_display_identity_stable_across_committed_projection
     let replayed = Fixture::new().apply_all(std::slice::from_ref(&started));
     let message = &committed.display.messages[0];
     assert_match!(**message, json!({"role": "user"}));
+    assert_eq!(message["references"].as_array().unwrap().len(), 2);
     assert_match!(
         message["references"][0],
         json!({"id": "workspace-a", "relativePath": "docs/a.md"})

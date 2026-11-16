@@ -9,6 +9,7 @@ use crate::agent::agent_reference_authorization::{
 };
 use crate::agent::application::tests_support::run_local;
 use crate::agent::contract::js;
+use base64::Engine as _;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use std::cell::Cell;
@@ -53,6 +54,14 @@ fn entries(directory: &Path) -> Vec<String> {
 
 const PNG: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
+fn assert_rejected(error: crate::agent::agent_error::AgentError, pattern: &str) {
+    assert!(
+        regex::Regex::new(pattern).unwrap().is_match(&error.message),
+        "expected {pattern:?}, received {:?}",
+        error.message
+    );
+}
+
 #[test]
 fn gives_pathless_images_the_same_private_snapshot_deduplication_and_owner_bound_lease() {
     run_local(async {
@@ -92,7 +101,10 @@ fn gives_pathless_images_the_same_private_snapshot_deduplication_and_owner_bound
             "references",
             json!([draft]),
         );
-        assert!(store.authorize(&foreign).await.is_err());
+        assert_rejected(
+            store.authorize(&foreign).await.unwrap_err(),
+            r"(?i)invalid|belongs",
+        );
         let tokens = json!([draft["token"]]);
         store
             .lease(&with(
@@ -150,6 +162,7 @@ fn validates_inline_sources_and_enforces_their_byte_budget_in_main() {
             ))
             .await
             .unwrap();
+        assert_eq!(fake.len(), 1);
         assert_eq!(fake[0]["mime"], "application/octet-stream");
         store.close().await;
     });
@@ -176,11 +189,12 @@ fn revokes_one_roots_grants_without_touching_sibling_root_attachments() {
             .unwrap()
             .remove(0);
         store.revoke_workspace(7, "/workspace-a").unwrap();
-        assert!(
+        assert_rejected(
             store
                 .authorize(&with(&a, "references", json!([first])))
                 .await
-                .is_err()
+                .unwrap_err(),
+            r"(?i)invalid|expired",
         );
         assert_eq!(
             store
@@ -214,6 +228,7 @@ fn creates_an_immutable_private_snapshot_and_binds_its_opaque_grant_to_owner_wor
         assert_eq!(draft["kind"], "staged-attachment");
         assert_eq!(draft["displayName"], "photo.png");
         assert_eq!(draft["mime"], "image/png");
+        assert_eq!(draft["status"], "ready");
         assert!(
             regex::Regex::new(r"^[A-Za-z0-9_-]{32,}$")
                 .unwrap()
@@ -238,11 +253,12 @@ fn creates_an_immutable_private_snapshot_and_binds_its_opaque_grant_to_owner_wor
             ),
             with(&base, "epoch", json!("draft-b")),
         ] {
-            assert!(
+            assert_rejected(
                 store
                     .authorize(&with(&wrong, "references", references.clone()))
                     .await
-                    .is_err()
+                    .unwrap_err(),
+                r"(?i)invalid|belongs",
             );
         }
         let authorized = store
@@ -251,6 +267,12 @@ fn creates_an_immutable_private_snapshot_and_binds_its_opaque_grant_to_owner_wor
             .unwrap()
             .remove(0);
         let path = PathBuf::from(authorized["path"].as_str().unwrap());
+        assert!(authorized.get("snapshotUrl").is_none());
+        assert!(
+            !authorized
+                .to_string()
+                .contains(&base64::engine::general_purpose::STANDARD.encode(&original))
+        );
         assert_eq!(std::fs::read(&path).unwrap(), original);
         assert_eq!(
             std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
@@ -305,10 +327,9 @@ fn rejects_symlinks_directories_oversized_files_and_mime_extension_disagreement(
                 .message
                 .contains("25 MB")
         );
-        assert_eq!(
-            store.stage(&staged(&fake)).await.unwrap()[0]["mime"],
-            "application/octet-stream"
-        );
+        let draft = store.stage(&staged(&fake)).await.unwrap();
+        assert_eq!(draft.len(), 1);
+        assert_eq!(draft[0]["mime"], "application/octet-stream");
         store.close().await;
     });
 }
@@ -498,11 +519,12 @@ fn expires_revokes_and_sweeps_snapshots_without_relying_on_renderer_cleanup() {
             .revoke(&with(&base, "tokens", json!([draft["token"]])))
             .unwrap();
         assert!(!Path::new(authorized["path"].as_str().unwrap()).exists());
-        assert!(
+        assert_rejected(
             store
                 .authorize(&with(&base, "references", json!([draft])))
                 .await
-                .is_err()
+                .unwrap_err(),
+            r"(?i)invalid|expired",
         );
 
         let expiring = store
@@ -511,11 +533,12 @@ fn expires_revokes_and_sweeps_snapshots_without_relying_on_renderer_cleanup() {
             .unwrap()
             .remove(0);
         clock.set(clock.get() + limits::DEFAULT_TTL_MS + 1);
-        assert!(
+        assert_rejected(
             store
                 .authorize(&with(&base, "references", json!([expiring])))
                 .await
-                .is_err()
+                .unwrap_err(),
+            r"(?i)invalid|expired",
         );
 
         let leased_base = request(4, &ws, "leased-draft");
@@ -640,6 +663,7 @@ fn resolves_relative_workspace_paths_but_fails_closed_for_symlinks_escaping_the_
         )
         .await
         .unwrap();
+        assert_eq!(relative.len(), 1);
         assert_eq!(relative[0]["relativePath"], "relative.txt");
         assert_eq!(relative[0]["entryType"], "file");
         let escaped = authorize_agent_references(
@@ -665,6 +689,7 @@ fn authorizes_directory_identity_without_recursively_reading_its_contents() {
             authorize_agent_references(&text(root.path()), &[json!("src")], &mut budget, None)
                 .await
                 .unwrap();
+        assert_eq!(result.len(), 1);
         assert_eq!(result[0]["kind"], "workspace-entry");
         assert_eq!(result[0]["entryType"], "directory");
         assert_eq!(result[0]["relativePath"], "src");
@@ -699,7 +724,9 @@ fn keeps_workspace_identity_portable_across_session_roots_and_withholds_absolute
                 .remove(0);
         assert_eq!(first["id"], second["id"]);
         assert_ne!(first["path"], second["path"]);
-        let draft = workspace_draft_references(std::slice::from_ref(&first)).remove(0);
+        let drafts = workspace_draft_references(std::slice::from_ref(&first));
+        assert_eq!(drafts.len(), 1);
+        let draft = &drafts[0];
         assert_eq!(draft["id"], first["id"]);
         assert_eq!(draft["relativePath"], "docs/notes.md");
         assert_eq!(draft["displayName"], "notes.md");
