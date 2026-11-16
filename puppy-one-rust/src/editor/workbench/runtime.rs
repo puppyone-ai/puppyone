@@ -84,6 +84,8 @@ pub struct Runtime {
     /// with a failed flush); the shell asks whether to close anyway.
     pub close_refused: bool,
     storage: Option<crate::platform::editor_state_storage::Storage>,
+    draft_journal: Option<crate::platform::draft_journal::DraftJournal>,
+    pub conflict_copy_created: Option<PathBuf>,
     metadata_inflight: usize,
     pub metadata_suspended: bool,
     pub allow_quit: bool,
@@ -191,6 +193,27 @@ impl Runtime {
         if let Some(files) = self.slot_mut(id) {
             files.retry_save(wake);
         }
+    }
+    pub fn set_draft_journal(
+        &mut self,
+        journal: Option<crate::platform::draft_journal::DraftJournal>,
+    ) {
+        self.draft_journal = journal.clone();
+        self.scratch.set_draft_journal(journal.clone());
+        for host in self.hosts.values_mut() {
+            host.empty.set_draft_journal(journal.clone());
+            for slot in host.slots.values_mut() {
+                slot.files.set_draft_journal(journal.clone());
+            }
+        }
+    }
+    pub fn clear_hosted_drafts(&self) -> usize {
+        self.scratch.clear_hosted_drafts()
+    }
+    pub fn take_conflict_copy_created(&mut self) -> Option<PathBuf> {
+        self.conflict_copy_created
+            .take()
+            .or_else(|| self.scratch.conflict_copy_created.take())
     }
     fn slot_mut(&mut self, id: SlotId) -> Option<&mut Documents> {
         if id == 0 {
@@ -401,7 +424,9 @@ impl Runtime {
                     return;
                 }
                 self.serial += 1;
-                let mut files = Documents::in_workspace(ws);
+                let mut files =
+                    Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
+                files.task_scope = self.scratch.task_scope.clone();
                 files.file_window = self.file_window;
                 files.begin(Intent::OpenFile(path), wake);
                 host.slots.insert(
@@ -569,8 +594,15 @@ impl Runtime {
         }
     }
     /// "Close Anyway" after a refused close: the window may close with the
-    /// changes that could not be saved left unsaved.
+    /// changes that could not be saved left unsaved (after persisting any
+    /// unflushable drafts to the local recovery journal, `DP-10`).
     pub fn abandon_unsaved(&mut self) {
+        self.scratch.flush_unflushable_draft();
+        for host in self.hosts.values_mut() {
+            for slot in host.slots.values_mut() {
+                slot.files.flush_unflushable_draft();
+            }
+        }
         self.close_refused = false;
         self.abandoned = true;
         self.quitting = true;
@@ -591,7 +623,11 @@ impl Runtime {
             self.resume_visible_cloud(wake);
         }
         self.poll_metadata(wake);
+        let scratch_notices = self.scratch.notice_state_key();
         self.scratch.poll(wake);
+        if self.scratch.notice_state_key() != scratch_notices {
+            self.generation += 1;
+        }
         if self.active.is_none() {
             self.tree_update = self.scratch.tree_update.take().or(self.tree_update.take());
             self.children_update = self.scratch.children_update.take();
@@ -625,17 +661,25 @@ impl Runtime {
                     if let Some(previous) = host.empty.workspace.take() {
                         previous.revoke();
                     }
-                    host.empty = Documents::in_workspace(ws.clone());
+                    let mut empty = Documents::in_workspace_with_journal(
+                        ws.clone(),
+                        self.draft_journal.clone(),
+                    );
+                    empty.task_scope = self.scratch.task_scope.clone();
+                    host.empty = empty;
                     host.rows = rows.clone();
                     for slot in host.slots.values_mut() {
                         slot.files.rebind_workspace(ws.clone(), wake);
                     }
                 }
                 if !self.hosts.contains_key(&key) {
+                    let mut empty =
+                        Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
+                    empty.task_scope = self.scratch.task_scope.clone();
                     self.hosts.insert(
                         key.clone(),
                         Host {
-                            empty: Documents::in_workspace(ws),
+                            empty,
                             state: Workbench::default(),
                             slots: BTreeMap::new(),
                             rows,
@@ -670,9 +714,13 @@ impl Runtime {
             }
             let mut remove = Vec::new();
             for (id, slot) in &mut host.slots {
-                let before = slot.files.status_key();
+                let before = (slot.files.status_key(), slot.files.notice_state_key());
                 slot.files.poll(wake);
-                if before != slot.files.status_key() {
+                if before != (slot.files.status_key(), slot.files.notice_state_key()) {
+                    self.generation += 1;
+                }
+                if let Some(created) = slot.files.conflict_copy_created.take() {
+                    self.conflict_copy_created = Some(created);
                     self.generation += 1;
                 }
                 if let Some(error) = &slot.files.error {

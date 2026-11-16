@@ -794,4 +794,172 @@ impl EditorArea {
             cx.notify();
         }
     }
+
+    /// Read-only comparison modal (`DP-05` Exit 1: `Compare`) showing `ours` vs
+    /// `theirs` unified diff rows and all resolution exits.
+    pub(super) fn conflict_comparison_dialog(&self, cx: &App) -> Option<AnyElement> {
+        use crate::{
+            app::Command,
+            documents::reconcile::{DiffRow, unified_diff_rows},
+            localization::t as tr,
+            ui::components::{Button, ButtonVariant, Dialog},
+        };
+        if !self.comparing_conflict {
+            return None;
+        }
+        let docs = self.docs.read(cx);
+        let conflict = docs.conflict_state()?;
+        let path_label = docs
+            .opened()
+            .map(|(_, p)| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let rows = unified_diff_rows(conflict.ours.as_str(), conflict.theirs.as_str());
+        let t = cx.palette();
+
+        let close_area = self.weak.clone();
+        let keep_area = self.weak.clone();
+        let accept_area = self.weak.clone();
+        let copy_area = self.weak.clone();
+
+        let mut diff_list = div()
+            .id("cloud-conflict-diff-view")
+            .w_full()
+            .max_h(px(320.))
+            .overflow_y_scroll()
+            .rounded(px(6.))
+            .border_1()
+            .border_color(t.divider)
+            .bg(t.canvas)
+            .py(px(4.));
+
+        let mut line_counter = 0usize;
+        for (idx, row) in rows.into_iter().take(240).enumerate() {
+            let (prefix, bg, fg, text, show_line) = match row {
+                DiffRow::Context(text) => {
+                    line_counter += 1;
+                    (" ", Rgba::default(), t.muted, text, Some(line_counter))
+                }
+                DiffRow::Ours(text) => ("-", theme::alpha(t.danger, 0.12), t.danger, text, None),
+                DiffRow::Theirs(text) => {
+                    line_counter += 1;
+                    (
+                        "+",
+                        theme::alpha(t.success, 0.12),
+                        t.success,
+                        text,
+                        Some(line_counter),
+                    )
+                }
+            };
+            let line_no = show_line
+                .map(|n| format!("{n:>4}"))
+                .unwrap_or_else(|| "    ".into());
+            diff_list = diff_list.child(
+                div()
+                    .id(ElementId::NamedInteger(
+                        "conflict-diff-row".into(),
+                        idx as u64,
+                    ))
+                    .w_full()
+                    .px(px(10.))
+                    .py(px(1.))
+                    .bg(bg)
+                    .flex()
+                    .items_start()
+                    .gap(px(8.))
+                    .font(crate::ui::fonts::font(
+                        crate::typography::fonts::Role::Code,
+                        cx,
+                    ))
+                    .text_size(px(theme::ty().ui.meta))
+                    .line_height(px(18.))
+                    .child(
+                        div()
+                            .flex_none()
+                            .text_color(t.muted)
+                            .child(format!("{line_no} {prefix}")),
+                    )
+                    .child(div().min_w_0().flex_1().text_color(fg).child(text)),
+            );
+        }
+
+        let legend = h_flex()
+            .w_full()
+            .justify_between()
+            .gap(px(12.))
+            .text_size(px(theme::ty().ui.meta))
+            .child(
+                div()
+                    .text_color(t.danger)
+                    .child(format!("− {}", tr("native.editor.conflictMineHeader"))),
+            )
+            .child(
+                div()
+                    .text_color(t.success)
+                    .child(format!("+ {}", tr("native.editor.conflictRemoteHeader"))),
+            );
+
+        Some(
+            Dialog::new("cloud-conflict-compare-dialog")
+                .width(660.)
+                .title(tr("native.editor.conflictTitle"))
+                .on_close(move |_, cx| {
+                    let _ = close_area.update(cx, |e, cx| e.close_conflict_comparison(cx));
+                })
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(10.))
+                        .when(!path_label.is_empty(), |d| {
+                            d.child(
+                                div()
+                                    .text_size(px(theme::ty().ui.meta))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.text)
+                                    .child(path_label),
+                            )
+                        })
+                        .child(
+                            div()
+                                .text_size(px(theme::ty().ui.meta))
+                                .text_color(t.muted)
+                                .child(tr("native.editor.conflictMessage")),
+                        )
+                        .child(legend)
+                        .child(diff_list),
+                )
+                .footer(
+                    Button::new("conflict-dialog-save-copy")
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("native.editor.conflictSaveCopy"))
+                        .on_click(move |_, _, cx| {
+                            let _ = copy_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::SaveConflictCopy))
+                            });
+                        }),
+                )
+                .footer(
+                    Button::new("conflict-dialog-accept-remote")
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("native.editor.conflictAcceptRemote"))
+                        .on_click(move |_, _, cx| {
+                            let _ = accept_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::ReloadCloudBaseline))
+                            });
+                        }),
+                )
+                .footer(
+                    Button::new("conflict-dialog-keep-mine")
+                        .variant(ButtonVariant::Solid)
+                        .label(tr("native.editor.conflictKeepMine"))
+                        .on_click(move |_, _, cx| {
+                            let _ = keep_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::KeepLocalCloudDraft))
+                            });
+                        }),
+                )
+                .into_any_element(),
+        )
+    }
 }

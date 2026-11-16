@@ -1,26 +1,40 @@
-//! Per-Working-Copy document/session boundary. The native document editor
-//! reports revisions and snapshots; the existing editing session owns autosave
-//! and storage epochs. `editor::workbench::runtime` retains these owners and
-//! routes their messages; ordinary tab/pane/workspace focus bypasses barriers.
+//! Document coordinator facade (`DP-40`–`DP-44`, `DP-01`–`DP-11`, `DP-31`, `DP-50`).
+//!
+//! Splits responsibilities cleanly across submodules:
+//! - [`working_copy::WorkingCopy`]: single Working Copy state machine, snapshot
+//!   handshake, deadline timers (`DP-42`), and reconciliation wiring (`DP-40`).
+//! - [`reconcile`]: line/span 3-way merge and minimal UTF-16 diff hunks (`DP-01`, `DP-04`, `DP-05`, `DP-50`).
+//! - [`drafts`]: crash-safe unflushable draft journal scheduling and recovery (`DP-10`, `DP-11`).
+//! - [`io`]: bounded executor pool over `platform::tasks::Scheduler` (`DP-41`).
+//!
+//! [`Documents`] derefs to [`WorkingCopy`] while retaining workspace-root /
+//! Cloud-opening / directory-listing facade methods for workbench compatibility.
+
 pub use crate::editor::document_session::types::Snapshot;
-use crate::editor::document_session::{
-    document_editing_session::DocumentEditingSession,
-    types::{Completion, StorageObservation},
-};
-use crate::wake::Wake;
-mod auto_save;
 use crate::{
+    editor::text::buffer::Buffer,
     model::Node,
-    workspace::{self, Document, MAX_TEXT_BYTES, Workspace},
+    platform::draft_journal::DraftJournal,
+    wake::Wake,
+    workspace::{self, Workspace},
 };
 use std::{
-    path::PathBuf,
+    ops::{Deref, DerefMut},
+    path::{Path, PathBuf},
     sync::{
         Arc,
         mpsc::{self, Receiver, Sender},
     },
     time::{Duration, Instant},
 };
+
+mod auto_save;
+pub mod drafts;
+pub mod io;
+pub mod reconcile;
+pub mod working_copy;
+
+pub use working_copy::{SNAPSHOT_TIMEOUT, WorkingCopy};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Intent {
@@ -33,11 +47,12 @@ pub enum Intent {
     /// Freeze and drain without disposing the Working Copy or editor.
     PrepareOperation,
 }
+
 /// What the document session asks the editor host (`editor::host`) to do.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HostMessage {
-    /// Show a document's text. `external`: the file changed on disk under
-    /// the open document, which replaces its text in place.
+    /// Show a document's text. `external`: storage content was reconciled into
+    /// the open document via minimal diff (`DP-02`).
     Open {
         id: String,
         name: String,
@@ -76,7 +91,19 @@ pub enum HostMessage {
         id: String,
         redo: bool,
     },
+    /// `DP-31` & `DP-32`: read-only encoding / line-ending normalization policy.
+    Policy {
+        id: String,
+        lossy_readonly: bool,
+        requires_line_ending_normalization: bool,
+    },
+    /// Seeds an undoable pre-overwrite draft (`DP-04` / `DP-11`).
+    ExternalUndoSeed {
+        id: String,
+        previous_text: String,
+    },
 }
+
 /// What the document editor reports back.
 #[derive(Clone, Debug)]
 pub enum ClientMessage {
@@ -85,14 +112,25 @@ pub enum ClientMessage {
         revision: u64,
         dirty: bool,
     },
+    /// `$O(1)$`-shared rope snapshot emitted on local edits so asynchronous
+    /// observations can 3-way merge immediately (`DP-01`, `DP-44`).
+    LiveBuffer {
+        id: String,
+        revision: u64,
+        text: Buffer,
+    },
     Snapshot {
         request: u64,
         id: String,
         revision: u64,
-        text: String,
+        text: Buffer,
     },
     Deferred {
         request: u64,
+        id: String,
+    },
+    /// Explicit "Normalize line endings and edit" action (`DP-31`).
+    NormalizeLineEndings {
         id: String,
     },
     Action {
@@ -110,6 +148,7 @@ pub enum ClientMessage {
         paths: Vec<String>,
     },
 }
+
 pub enum Phase {
     Idle,
     Snapshot {
@@ -126,6 +165,7 @@ pub enum Phase {
     Working,
     Prepared,
 }
+
 /// An open file whose viewer reads it itself: no text, nothing to save.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Resource {
@@ -133,48 +173,27 @@ pub struct Resource {
     pub relative: PathBuf,
     pub preview: workspace::PreviewResource,
 }
-enum Completed {
-    Root(workspace::Result<(Arc<Workspace>, Vec<Node>)>),
-    File(workspace::Result<Document>),
-    Resource(PathBuf, workspace::Result<workspace::PreviewResource>),
-    Save {
-        id: String,
-        sequence: u64,
-        result: workspace::Result<workspace::WriteOutcome>,
-    },
-    Observed {
-        id: String,
-        generation: u64,
-        result: workspace::Result<Document>,
-    },
-    Children(Arc<Workspace>, PathBuf, workspace::Result<Vec<Node>>),
-    /// The Working Copy read afresh under a new lease of its storage.
-    Rebound {
-        id: String,
-        generation: u64,
-        result: workspace::Result<Document>,
-    },
-    /// A preview resolved again under a new lease of its storage.
-    ResourceRebound(PathBuf, workspace::Result<workspace::PreviewResource>),
-}
-/// Resources of a hosted document through its workspace provider.
-/// A Markdown image's bytes, at most this many.
-const MARKDOWN_ASSET_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
-struct WorkspaceAssets {
-    workspace: Arc<Workspace>,
-    base: PathBuf,
+enum FolderCompleted {
+    Root(workspace::Result<(Arc<Workspace>, Vec<Node>)>),
+    Children(Arc<Workspace>, PathBuf, workspace::Result<Vec<Node>>),
 }
+
+pub(super) struct WorkspaceAssets {
+    pub workspace: Arc<Workspace>,
+    pub base: PathBuf,
+}
+
 impl crate::platform::webview::ResourceSource for WorkspaceAssets {
-    fn read(&self, relative: &std::path::Path) -> Option<Vec<u8>> {
+    fn read(&self, relative: &Path) -> Option<Vec<u8>> {
         let path = self.base.join(relative);
-        // Hosted providers answer with bytes; a local file is never read here.
         match self.workspace.resource(&path).ok()?.data().ok()? {
             workspace::PreviewData::Bytes { bytes, .. } => Some(bytes.to_vec()),
             workspace::PreviewData::LocalFile(_) => None,
         }
     }
 }
+
 pub type PresentationKey = (
     Option<(String, blake3::Hash)>,
     u64,
@@ -184,6 +203,7 @@ pub type PresentationKey = (
     Option<String>,
     SaveStatus,
 );
+
 /// `SaveStatus` (without manual saving, which the desktop does not use).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SaveStatus {
@@ -192,783 +212,161 @@ pub enum SaveStatus {
     Saved,
     Failed,
 }
+
 /// `SAVED_STATUS_DURATION_MS`.
-pub const SAVED_STATUS_DURATION: std::time::Duration = std::time::Duration::from_millis(1200);
-/// A background re-read that failed in transit is tried again after each of
-/// these, then reported.
-const OBSERVATION_RETRIES: [Duration; 3] = [
+pub const SAVED_STATUS_DURATION: Duration = Duration::from_millis(1200);
+
+/// Background observation retry schedule on transient `ErrorKind::Io` failures.
+pub(super) const OBSERVATION_RETRIES: [Duration; 3] = [
     Duration::from_secs(1),
     Duration::from_secs(3),
     Duration::from_secs(10),
 ];
 
+/// Selects localized UI copy for a failed save by typed [`workspace::ErrorKind`] (`DP-43`).
+pub fn localized_save_error(kind: Option<workspace::ErrorKind>, detail: &str) -> String {
+    match kind {
+        Some(workspace::ErrorKind::PermissionDenied) => {
+            crate::localization::t("native.workspace.readOnly").into()
+        }
+        Some(workspace::ErrorKind::LineEndingNormalizationRequired) => {
+            crate::localization::t("native.editor.lineEndingsReadOnly").into()
+        }
+        Some(workspace::ErrorKind::EncodingRoundTrip) => {
+            crate::localization::t("native.workspace.notUtf8").into()
+        }
+        Some(workspace::ErrorKind::StaleLease) => {
+            crate::localization::t("native.editor.saveStaleLease").into()
+        }
+        Some(workspace::ErrorKind::OutcomeUnknown) => {
+            crate::localization::t("native.editor.saveOutcomeUnknown").into()
+        }
+        Some(workspace::ErrorKind::NotFound) => {
+            crate::localization::t("native.editor.saveTargetMissing").into()
+        }
+        _ => crate::localization::tf(
+            "editor.session.saveFailedDetail",
+            &[(
+                "detail",
+                detail.chars().take(300).collect::<String>().into(),
+            )],
+        ),
+    }
+}
+
 pub struct Documents {
-    /// A Cloud opening in flight: its visible phase (`Waking up…` /
-    /// `Taking out your files…`) and its cancellation.
+    pub copy: WorkingCopy,
+    /// Cloud opening phase (`Waking up…` / `Taking out your files…`).
     pub cloud_phase: Arc<std::sync::Mutex<Option<crate::workspace::cloud::opening::Phase>>>,
     /// Why the last Cloud opening failed (`describeCloudOpeningFailure`).
     pub cloud_failure: Arc<std::sync::Mutex<Option<crate::workspace::cloud::opening::Failure>>>,
-    /// The Cloud opening that may still report progress; a cancelled one
-    /// never writes over its successor.
     cloud_run: Arc<std::sync::atomic::AtomicU64>,
-    /// The newer Cloud document held back while unsaved input is preserved.
-    deferred_document: Option<Document>,
     cloud_cancel: Option<crate::cloud::auth::Cancellation>,
-    /// The editor task scope (its window): reads are admitted there and
-    /// retired when the window closes.
-    pub task_scope: String,
-    pub workspace: Option<Arc<Workspace>>,
-    pub document: Option<Document>,
-    /// The open file when its viewer does not edit text (never with `document`).
-    pub resource: Option<Resource>,
-    pub dirty: bool,
-    pub revision: u64,
-    pub phase: Phase,
-    pub error: Option<String>,
-    /// The last autosave failed (`sessionState.status === "error"`): shown
-    /// in the pane with Retry, never as a blocking dialog.
-    pub save_error: Option<String>,
-    /// When the last write completed, for the transient "Saved" status.
-    saved_at: Option<Instant>,
-    saving_since: Option<Instant>,
-    save_announced: bool,
-    auto_save: auto_save::Scheduler,
-    pub status: String,
-    pub allow_quit: bool,
-    pub outgoing: Vec<HostMessage>,
     pub tree_update: Option<Vec<Node>>,
     pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
     pub folder_busy: bool,
-    /// A file window's document (`FileModeApp`): edits are saved as they
-    /// are made (`editorSaveMode="auto"`), as in a project window, and the
-    /// one file is watched so an Agent's edits show; text that is not UTF-8
-    /// is decoded for reading (`decodesLegacyText`) and never written.
-    pub file_window: bool,
-    serial: u64,
-    session: Option<DocumentEditingSession>,
-    autosave_request: Option<(u64, u64, Instant)>,
-    observing: bool,
-    read_generation: u64,
-    watch: Option<workspace::Subscription>,
-    observation_pending: bool,
-    /// A background re-read that failed transiently: when to read again,
-    /// and how many have failed in a row.
-    observation_retry: Option<Instant>,
-    observation_failures: usize,
-    tx: Sender<Completed>,
-    rx: Receiver<Completed>,
+    folder_tx: Sender<FolderCompleted>,
+    folder_rx: Receiver<FolderCompleted>,
 }
+
 impl Default for Documents {
     fn default() -> Self {
-        let (tx, rx) = mpsc::channel();
+        let (folder_tx, folder_rx) = mpsc::channel();
         Self {
-            workspace: None,
-            document: None,
-            resource: None,
-            dirty: false,
-            revision: 0,
-            phase: Phase::Idle,
-            error: None,
-            save_error: None,
-            saved_at: None,
-            saving_since: None,
-            save_announced: false,
-            auto_save: Default::default(),
-            status: "Open a folder to start".into(),
-            allow_quit: false,
-            outgoing: vec![],
-            tree_update: None,
-            children_update: None,
-            folder_busy: false,
-            file_window: false,
-            serial: 0,
-            session: None,
-            autosave_request: None,
-            observing: false,
-            read_generation: 0,
-            task_scope: "documents".into(),
+            copy: WorkingCopy::default(),
             cloud_phase: Default::default(),
             cloud_failure: Default::default(),
             cloud_run: Default::default(),
-            deferred_document: None,
             cloud_cancel: None,
-            watch: None,
-            observation_pending: false,
-            observation_retry: None,
-            observation_failures: 0,
-            tx,
-            rx,
+            tree_update: None,
+            children_update: None,
+            folder_busy: false,
+            folder_tx,
+            folder_rx,
         }
     }
 }
+
+impl Deref for Documents {
+    type Target = WorkingCopy;
+    fn deref(&self) -> &WorkingCopy {
+        &self.copy
+    }
+}
+
+impl DerefMut for Documents {
+    fn deref_mut(&mut self) -> &mut WorkingCopy {
+        &mut self.copy
+    }
+}
+
 impl Documents {
+    pub fn native() -> Self {
+        let mut docs = Self::default();
+        docs.copy.set_draft_journal(Some(DraftJournal::native()));
+        docs
+    }
+
     pub fn in_workspace(workspace: Arc<Workspace>) -> Self {
         Self {
-            workspace: Some(workspace),
+            copy: WorkingCopy::in_workspace(workspace),
             ..Self::default()
         }
     }
-    /// Background persistence does not block keyboard input or native commands.
-    pub fn busy(&self) -> bool {
-        !matches!(self.phase, Phase::Idle | Phase::AwaitComposition { .. })
+
+    pub fn in_workspace_with_journal(
+        workspace: Arc<Workspace>,
+        journal: Option<DraftJournal>,
+    ) -> Self {
+        let mut docs = Self::in_workspace(workspace);
+        docs.copy.set_draft_journal(journal);
+        docs
     }
-    /// The open file's session id and workspace-relative path, text or not.
-    pub fn opened(&self) -> Option<(&str, &std::path::Path)> {
-        match (&self.document, &self.resource) {
-            (Some(doc), _) => Some((&doc.id, &doc.relative)),
-            (None, Some(resource)) => Some((&resource.id, &resource.relative)),
-            (None, None) => None,
-        }
+
+    pub fn with_draft_journal(mut self, journal: DraftJournal) -> Self {
+        self.copy.set_draft_journal(Some(journal));
+        self
     }
-    /// `EditorSaveButton`'s status for the open document.
-    pub fn save_status(&self) -> SaveStatus {
-        let conflict = self.session.as_ref().is_some_and(|s| s.conflicted());
-        if self.save_error.is_some() && !conflict {
-            SaveStatus::Failed
-        } else if self.save_announced && self.session.as_ref().is_some_and(|s| s.has_active_write())
-        {
-            SaveStatus::Saving
-        } else if self
-            .saved_at
-            .is_some_and(|at| at.elapsed() < SAVED_STATUS_DURATION)
-        {
-            SaveStatus::Saved
-        } else {
-            SaveStatus::Clean
-        }
+
+    fn spawn_open_folder(
+        copy: &mut WorkingCopy,
+        folder_tx: Sender<FolderCompleted>,
+        path: PathBuf,
+        ctx: &Wake,
+    ) {
+        copy.phase = Phase::Working;
+        copy.status = "Opening folder…".into();
+        let wake = ctx.clone();
+        let legacy_text = copy.file_window;
+        io::submit_serialized(None, io::IoLane::InteractiveOpen, move || {
+            let result = Workspace::open_with(&path, legacy_text)
+                .and_then(|ws| ws.list(Path::new("")).map(|rows| (ws, rows)));
+            let _ = folder_tx.send(FolderCompleted::Root(result));
+            wake.notify();
+        });
     }
-    /// The Save failed chip: write the current input again.
-    pub fn retry_save(&mut self, ctx: &Wake) {
-        if self.session.as_mut().is_some_and(|s| s.retry()) {
-            self.save_error = None;
-            self.auto_save.cancel();
-            ctx.notify();
-        }
+
+    pub fn begin(&mut self, intent: Intent, ctx: &Wake) {
+        let folder_tx = self.folder_tx.clone();
+        self.copy.begin_with(intent, ctx, move |copy, path, wake| {
+            Self::spawn_open_folder(copy, folder_tx, path, wake);
+        });
     }
-    /// Window blur/hidden: flush pending typing in place, without freezing
-    /// input or creating a duplicate write. Idle/retired copies do nothing.
+
+    pub fn client(&mut self, message: ClientMessage, ctx: &Wake) {
+        let folder_tx = self.folder_tx.clone();
+        self.copy
+            .client_with(message, ctx, move |copy, path, wake| {
+                Self::spawn_open_folder(copy, folder_tx, path, wake);
+            });
+    }
+
     pub fn flush_pending_auto_save(&mut self, ctx: &Wake) {
-        if self.auto_save.flush() {
+        if self.copy.auto_save.flush() {
             self.poll(ctx);
         }
     }
-    pub fn saving(&self) -> bool {
-        self.session.as_ref().is_some_and(|s| !s.drained()) || self.autosave_request.is_some()
-    }
-    fn ensure_session(&mut self, ctx: &Wake) {
-        if let Some(doc) = &self.document {
-            if self.session.as_ref().is_none_or(|s| s.id != doc.id) {
-                let mut session =
-                    DocumentEditingSession::new(doc.id.clone(), doc.text.clone(), self.revision);
-                // Hosted documents keep unsaved input over newer Cloud content.
-                session.cloud = self
-                    .workspace
-                    .as_ref()
-                    .is_some_and(|ws| ws.local_root().is_none());
-                self.session = Some(session);
-                self.auto_save.cancel();
-                self.saving_since = None;
-                self.save_announced = false;
-                self.saved_at = None;
-                self.autosave_request = None;
-                self.read_generation += 1;
-                self.observing = false;
-                self.observation_pending = false;
-                self.watch = None;
-                self.start_watch(ctx);
-            }
-        } else {
-            self.session = None;
-            self.auto_save.cancel();
-            self.autosave_request = None;
-            self.watch = None;
-            self.observation_pending = false;
-        }
-    }
-    fn start_watch(&mut self, ctx: &Wake) {
-        if let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
-            && ws.capabilities().watch
-            && !self.allow_quit
-        {
-            let wake = ctx.clone();
-            match ws.watch(doc, Arc::new(move || wake.notify())) {
-                Ok(watch) => self.watch = Some(watch),
-                Err(error) => self.error = Some(error.to_string()),
-            }
-        }
-    }
-    /// A hosted Agent's accepted publication: revalidate once, as a watch
-    /// invalidation would (a saved editor rereads; a draft is kept).
-    pub fn observe_publication(&mut self) {
-        self.revalidate();
-    }
-    /// Read the open file again once, as a watch invalidation would.
-    pub fn revalidate(&mut self) {
-        if self.document.is_some() {
-            self.observation_pending = true;
-        }
-    }
-    /// Leaving a hosted workspace releases this document's subscription
-    /// (`DesktopCloudFileWorkspace` unmounts its watch); the draft stays.
-    pub fn pause_watch(&mut self) {
-        self.watch = None;
-        self.observing = false;
-    }
-    /// Showing it again subscribes again and revalidates once, since
-    /// changes while hidden were not observed.
-    pub fn resume_watch(&mut self, ctx: &Wake) {
-        if self.watch.is_none() && self.document.is_some() && self.session.is_some() {
-            self.observation_pending = true;
-            self.start_watch(ctx);
-        }
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn watching(&self) -> bool {
-        self.watch.is_some()
-    }
-    pub fn operation_ready(&self) -> bool {
-        matches!(self.phase, Phase::Prepared)
-    }
-    pub fn can_prepare_operation(&self) -> bool {
-        matches!(self.phase, Phase::Idle)
-    }
-    pub fn release_operation(&mut self, ctx: &Wake) {
-        self.phase = Phase::Idle;
-        self.read_generation += 1;
-        self.observation_pending = false;
-        self.autosave_request = None;
-        self.outgoing
-            .retain(|m| !matches!(m, HostMessage::Snapshot { freeze: true, .. }));
-        self.thaw();
-        self.start_watch(ctx);
-    }
-    /// `rebindRetainedDocuments`: the same storage under a new provider
-    /// lease (the same account reopened the Project). The draft, baseline
-    /// and pending state stay with this Working Copy; the document is read
-    /// afresh and reconciled like a storage observation — newer remote text
-    /// under unsaved input is held back — and a failed write is not retried.
-    pub fn rebind_workspace(&mut self, ws: Arc<Workspace>, ctx: &Wake) {
-        if self
-            .workspace
-            .as_ref()
-            .is_some_and(|current| Arc::ptr_eq(current, &ws))
-        {
-            return;
-        }
-        self.workspace = Some(ws.clone());
-        self.watch = None;
-        self.observing = false;
-        self.observation_pending = false;
-        self.read_generation += 1;
-        let tx = self.tx.clone();
-        let ctx = ctx.clone();
-        if let (Some(doc), Some(session)) = (self.document.clone(), self.session.as_ref()) {
-            let id = session.id.clone();
-            let generation = self.read_generation;
-            crate::localization::spawn(move || {
-                let result = ws.adopt(&doc);
-                let _ = tx.send(Completed::Rebound {
-                    id,
-                    generation,
-                    result,
-                });
-                ctx.notify();
-            });
-        } else if let Some(resource) = &self.resource {
-            let relative = resource.relative.clone();
-            crate::localization::spawn(move || {
-                let result = ws.resource(&relative);
-                let _ = tx.send(Completed::ResourceRebound(relative, result));
-                ctx.notify();
-            });
-        }
-    }
-    pub fn rebind_document(&mut self, document: Document) {
-        debug_assert!(self.operation_ready());
-        debug_assert_eq!(self.document.as_ref().map(|d| &d.id), Some(&document.id));
-        self.outgoing.push(HostMessage::Rebind {
-            id: document.id.clone(),
-            name: document.relative.to_string_lossy().into_owned(),
-            resource: None,
-        });
-        self.document = Some(document);
-    }
-    pub fn rebind_resource(&mut self, relative: PathBuf, preview: workspace::PreviewResource) {
-        if let Some(resource) = &mut self.resource {
-            resource.relative = relative;
-            resource.preview = preview.clone();
-            self.outgoing.push(HostMessage::Rebind {
-                id: resource.id.clone(),
-                name: resource.relative.to_string_lossy().into_owned(),
-                resource: Some(preview),
-            });
-        }
-    }
-    pub fn remove_after_operation(&mut self, ctx: &Wake) {
-        self.execute(Intent::CloseFile, ctx);
-    }
-    /// A different close participant failed after the document drain completed.
-    /// Keep this session/history, restore input and resume its observation lease.
-    pub fn cancel_quit(&mut self, ctx: &Wake) {
-        let pending_quit = matches!(
-            &self.phase,
-            Phase::Snapshot {
-                intent: Intent::Quit,
-                ..
-            } | Phase::AwaitComposition {
-                intent: Intent::Quit
-            } | Phase::Draining {
-                intent: Intent::Quit
-            }
-        );
-        if self.allow_quit || pending_quit {
-            self.allow_quit = false;
-            self.phase = Phase::Idle;
-            self.outgoing
-                .retain(|m| !matches!(m, HostMessage::Snapshot { freeze: true, .. }));
-            self.thaw();
-            if self.watch.is_none() {
-                self.start_watch(ctx);
-            }
-        }
-    }
-    fn sync_state(&mut self) {
-        if let Some(s) = &self.session {
-            self.dirty = s.dirty;
-            self.revision = s.revision;
-        }
-    }
-    pub fn begin(&mut self, intent: Intent, ctx: &Wake) {
-        if !matches!(self.phase, Phase::Idle) {
-            return;
-        }
-        self.ensure_session(ctx);
-        if let (Intent::OpenFile(path), Some((_, open))) = (&intent, self.opened())
-            && path == open
-        {
-            return;
-        }
-        if self.document.is_none() {
-            self.execute(intent, ctx);
-            return;
-        }
-        self.autosave_request = None;
-        self.serial += 1;
-        self.auto_save.cancel();
-        self.outgoing.push(HostMessage::Snapshot {
-            request: self.serial,
-            freeze: true,
-        });
-        self.phase = Phase::Snapshot {
-            request: self.serial,
-            intent,
-            since: Instant::now(),
-        };
-        ctx.after(Duration::from_millis(100));
-    }
-    fn open_message(&self, doc: &Document, external: bool) -> HostMessage {
-        // `documentDirectory` viewers (HTML) resolve relative assets inside
-        // the document's local folder; Cloud documents have none.
-        let folder = self
-            .workspace
-            .as_ref()
-            .filter(|ws| ws.local_root().is_some())
-            .and_then(|ws| ws.absolute(&doc.relative).ok())
-            .and_then(|p| p.parent().map(PathBuf::from));
-        crate::editor::registry::set_document_folder(&doc.id, folder);
-        // A hosted document's relative resources come from its provider,
-        // resolved beside the document and never outside the workspace.
-        let source = self
-            .workspace
-            .as_ref()
-            .filter(|ws| ws.local_root().is_none() && ws.capabilities().preview)
-            .map(|ws| {
-                crate::platform::webview::Source(Arc::new(WorkspaceAssets {
-                    workspace: ws.clone(),
-                    base: doc.relative.parent().map(PathBuf::from).unwrap_or_default(),
-                }))
-            });
-        crate::editor::registry::set_document_source(&doc.id, source);
-        // Markdown media (`resolveMarkdownMediaReference`) read workspace
-        // files by workspace-relative path, local or hosted.
-        let assets = self
-            .workspace
-            .as_ref()
-            .filter(|ws| ws.capabilities().preview)
-            .and_then(|ws| {
-                let root = ws.resource_id(std::path::Path::new("")).ok()?;
-                let ws = ws.clone();
-                Some(crate::editor::registry::DocumentAssets {
-                    workspace: crate::editor::workbench::catalog::resource_key(&root),
-                    document: doc.relative.clone(),
-                    read: Arc::new(move |path: &std::path::Path| {
-                        ws.resource(path).ok()?.bytes(MARKDOWN_ASSET_MAX_BYTES)
-                    }),
-                })
-            });
-        crate::editor::registry::set_document_assets(&doc.id, assets);
-        HostMessage::Open {
-            id: doc.id.clone(),
-            name: doc.relative.to_string_lossy().into_owned(),
-            text: doc.text.clone(),
-            revision: self.revision,
-            external,
-        }
-    }
-    fn show_document(&mut self) {
-        let message = match (&self.document, &self.resource) {
-            (Some(doc), _) => self.open_message(doc, false),
-            (None, Some(resource)) => HostMessage::OpenResource {
-                id: resource.id.clone(),
-                name: resource.relative.to_string_lossy().into_owned(),
-                path: resource.preview.clone(),
-            },
-            (None, None) => HostMessage::Clear,
-        };
-        self.outgoing.push(message);
-    }
-    fn show_storage_update(&mut self) {
-        self.auto_save.cancel();
-        self.saved_at = None;
-        self.saving_since = None;
-        self.save_announced = false;
-        self.autosave_request = None;
-        self.read_generation += 1;
-        self.outgoing
-            .retain(|m| !matches!(m, HostMessage::Snapshot { .. } | HostMessage::Saved { .. }));
-        if let Some(doc) = &self.document {
-            let message = self.open_message(doc, true);
-            self.outgoing.push(message);
-        }
-    }
-    pub fn client(&mut self, message: ClientMessage, ctx: &Wake) {
-        self.ensure_session(ctx);
-        match message {
-            ClientMessage::Dirty {
-                id,
-                revision,
-                dirty,
-            } => {
-                if let Some(s) = &mut self.session
-                    && s.id == id
-                    && revision >= s.revision
-                {
-                    s.local_edit(revision, dirty);
-                    if s.needs_snapshot {
-                        self.auto_save.schedule(Instant::now());
-                        ctx.after(self.auto_save.delay(Instant::now()).unwrap_or_default());
-                    } else {
-                        self.auto_save.cancel();
-                    }
-                    self.sync_state();
-                    if let Phase::AwaitComposition { intent } = &self.phase {
-                        let intent = intent.clone();
-                        self.phase = Phase::Idle;
-                        self.begin(intent, ctx);
-                    }
-                    ctx.notify();
-                }
-            }
-            ClientMessage::Deferred { request, id } => {
-                if !self.document.as_ref().is_some_and(|d| d.id == id) {
-                    return;
-                }
-                if matches!(&self.phase, Phase::Snapshot { request: expected, .. } if request == *expected)
-                {
-                    let Phase::Snapshot { intent, .. } =
-                        std::mem::replace(&mut self.phase, Phase::Idle)
-                    else {
-                        unreachable!()
-                    };
-                    self.phase = Phase::AwaitComposition { intent };
-                    self.thaw();
-                } else if self
-                    .autosave_request
-                    .is_some_and(|(expected, _, _)| expected == request)
-                {
-                    self.autosave_request = None;
-                    if let Some(s) = &mut self.session {
-                        s.needs_snapshot = false;
-                    }
-                }
-            }
-            ClientMessage::Snapshot {
-                request,
-                id,
-                revision,
-                text,
-            } => {
-                if !self.document.as_ref().is_some_and(|d| d.id == id) {
-                    return;
-                }
-                let barrier = matches!(&self.phase, Phase::Snapshot { request: expected, .. } if request == *expected);
-                let automatic = self.autosave_request.is_some_and(|(expected, epoch, _)| {
-                    expected == request && self.session.as_ref().is_some_and(|s| s.epoch == epoch)
-                });
-                if !barrier && !automatic {
-                    return;
-                }
-                if text.len()
-                    > self
-                        .workspace
-                        .as_ref()
-                        .map_or(MAX_TEXT_BYTES, |ws| ws.text_limit())
-                    || text.contains(['\0', '\r'])
-                {
-                    self.fail(crate::localization::t("native.editor.invalidSnapshot").into());
-                    return;
-                }
-                if revision < self.revision {
-                    if automatic {
-                        self.autosave_request = None;
-                        ctx.notify();
-                    } else {
-                        self.fail(crate::localization::t("native.editor.outdatedSnapshot").into());
-                    }
-                    return;
-                }
-                let snapshot = Snapshot { revision, text };
-                self.session.as_mut().unwrap().enqueue(snapshot.clone());
-                self.auto_save.cancel();
-                self.sync_state();
-                if automatic {
-                    self.autosave_request = None;
-                }
-                if barrier {
-                    let Phase::Snapshot { intent, .. } =
-                        std::mem::replace(&mut self.phase, Phase::Idle)
-                    else {
-                        unreachable!()
-                    };
-                    self.phase = Phase::Draining { intent };
-                }
-                self.pump(ctx);
-            }
-            ClientMessage::Loaded { id } => {
-                if self.document.as_ref().is_some_and(|d| d.id == id) {
-                    self.pump(ctx);
-                }
-            }
-            ClientMessage::OpenPaths { paths } => {
-                // Workspace-relative candidates; the first one opens.
-                if let (Some(path), Some(_)) = (paths.first(), &self.workspace) {
-                    let path = std::path::Path::new(path.trim_start_matches('/'));
-                    if path
-                        .components()
-                        .all(|c| matches!(c, std::path::Component::Normal(_)))
-                    {
-                        self.begin(Intent::OpenFile(path.to_path_buf()), ctx);
-                    }
-                }
-            }
-            ClientMessage::Fault { message } => {
-                let message = crate::localization::tf(
-                    "native.editor.fault",
-                    &[(
-                        "detail",
-                        message.chars().take(300).collect::<String>().into(),
-                    )],
-                );
-                if self.busy() {
-                    self.fail(message);
-                } else {
-                    self.error = Some(message);
-                    self.autosave_request = None;
-                }
-            }
-            ClientMessage::Action { .. } => {}
-        }
-    }
-    fn thaw(&mut self) {
-        self.outgoing.push(HostMessage::Thaw);
-    }
-    fn fail(&mut self, message: String) {
-        self.error = Some(message);
-        self.phase = Phase::Idle;
-        self.autosave_request = None;
-        self.status = "Unable to save · input retained".into();
-        self.thaw();
-    }
-    fn pump(&mut self, ctx: &Wake) {
-        if let Some(s) = &mut self.session {
-            if let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
-                && let Some(commit) = s.next_commit()
-            {
-                let (ws, doc, tx, wake) = (ws.clone(), doc.clone(), self.tx.clone(), ctx.clone());
-                self.status = "Saving…".into();
-                self.saving_since = Some(Instant::now());
-                self.saved_at = None;
-                self.save_announced = matches!(
-                    self.phase,
-                    Phase::Draining {
-                        intent: Intent::Save
-                    }
-                );
-                if !self.save_announced {
-                    ctx.after(auto_save::SLOW_SAVE);
-                }
-                crate::localization::spawn(move || {
-                    let result = ws.save(&doc, &commit.snapshot.text);
-                    let _ = tx.send(Completed::Save {
-                        id: doc.id,
-                        sequence: commit.sequence,
-                        result,
-                    });
-                    wake.notify();
-                });
-            }
-            if let Some(snapshot) = s.take_receipt() {
-                self.outgoing.push(HostMessage::Saved {
-                    id: s.id.clone(),
-                    revision: snapshot.revision,
-                    text: snapshot.text,
-                });
-            }
-        }
-        self.sync_state();
-        if let Phase::Draining { intent } = &self.phase {
-            if self
-                .session
-                .as_ref()
-                .is_none_or(DocumentEditingSession::drained)
-            {
-                let intent = intent.clone();
-                self.execute(intent, ctx);
-            } else if let Some(s) = &self.session
-                && !s.has_active_write()
-                && let Some(error) = &s.error
-            {
-                self.fail(error.clone());
-            }
-        }
-    }
-    fn execute(&mut self, intent: Intent, ctx: &Wake) {
-        match intent {
-            Intent::OpenFolder(path) => {
-                self.phase = Phase::Working;
-                self.status = "Opening folder…".into();
-                let tx = self.tx.clone();
-                let ctx = ctx.clone();
-                let legacy_text = self.file_window;
-                crate::localization::spawn(move || {
-                    let result = Workspace::open_with(&path, legacy_text)
-                        .and_then(|ws| ws.list(std::path::Path::new("")).map(|rows| (ws, rows)));
-                    let _ = tx.send(Completed::Root(result));
-                    ctx.notify();
-                });
-            }
-            Intent::OpenFile(_) | Intent::Reload => {
-                let Some(ws) = self.workspace.clone() else {
-                    self.fail(crate::localization::t("native.editor.fixtureReadonly").into());
-                    return;
-                };
-                let path = match intent {
-                    Intent::OpenFile(path) => path,
-                    _ => match self.opened() {
-                        Some((_, relative)) => relative.to_path_buf(),
-                        None => return,
-                    },
-                };
-                self.phase = Phase::Working;
-                self.status = "Reading file…".into();
-                // The resolved viewer's source decides what is read: text for
-                // editors, nothing for viewers that read the file themselves.
-                let content = crate::editor::registry::source_requirement(&path.to_string_lossy())
-                    .reads_content();
-                let tx = self.tx.clone();
-                let ctx = ctx.clone();
-                // `EditorDocumentHost`: a content viewer admits at most its own
-                // `maxSourceBytes`, never more than the provider's text bound.
-                let budget = read_budget(&path.to_string_lossy(), &ws);
-                let owner = crate::platform::tasks::Owner::new(
-                    self.task_scope.clone(),
-                    path.to_string_lossy(),
-                    self.read_generation,
-                );
-                crate::localization::spawn(move || {
-                    use crate::platform::tasks::{Priority, Request, Scheduler};
-                    // Reads are bounded editor work: per-window concurrency,
-                    // queue deadlines and retirement on close.
-                    let lease = match Scheduler::global().acquire(Request {
-                        owner,
-                        kind: "document-read",
-                        input_bytes: 0,
-                        max_input_bytes: budget.max(1),
-                        priority: Priority::Interactive,
-                    }) {
-                        Ok(lease) => lease,
-                        Err(rejection) => {
-                            let error = workspace::Error::new(
-                                workspace::ErrorKind::Unsupported,
-                                rejection.to_string(),
-                            );
-                            let _ = tx.send(Completed::File(Err(error)));
-                            ctx.notify();
-                            return;
-                        }
-                    };
-                    let completed = if content {
-                        Completed::File(ws.read(&path).and_then(|doc| {
-                            if doc.text.len() as u64 > budget {
-                                Err(workspace::Error::new(
-                                    workspace::ErrorKind::Unsupported,
-                                    crate::localization::tf(
-                                        "editor.unavailable.resourceLimit",
-                                        &[(
-                                            "limit",
-                                            crate::editor::registry::format_byte_limit(budget)
-                                                .into(),
-                                        )],
-                                    ),
-                                ))
-                            } else {
-                                Ok(doc)
-                            }
-                        }))
-                    } else {
-                        let result = ws.resource(&path);
-                        Completed::Resource(path, result)
-                    };
-                    // A retired read (window closing) delivers nothing more.
-                    if lease.cancelled() {
-                        return;
-                    }
-                    drop(lease);
-                    let _ = tx.send(completed);
-                    ctx.notify();
-                });
-            }
-            Intent::CloseFile => {
-                self.watch = None;
-                self.observation_pending = false;
-                self.document = None;
-                self.resource = None;
-                self.dirty = false;
-                self.revision = 0;
-                self.phase = Phase::Idle;
-                self.session = None;
-                self.show_document();
-                self.status = "Select a text file".into();
-            }
-            Intent::Quit => {
-                self.allow_quit = true;
-                self.phase = Phase::Idle;
-            }
-            Intent::Save => {
-                self.phase = Phase::Idle;
-                self.thaw();
-            }
-            Intent::PrepareOperation => {
-                self.watch = None;
-                self.read_generation += 1;
-                self.observation_pending = false;
-                self.phase = Phase::Prepared;
-            }
-        }
-    }
-    /// Explicit Cloud opening (Homepage/Header): authorize the exact Project
-    /// root, wake or reuse its workspace, read the root, then commit it like
-    /// a local folder. Cancellation and failures keep the current workspace.
+
     pub fn open_cloud(
         &mut self,
         broker: Arc<crate::cloud::auth::Broker>,
@@ -977,19 +375,19 @@ impl Documents {
         ctx: &Wake,
     ) {
         use crate::workspace::cloud::{Target, opening};
+        use std::sync::atomic::Ordering;
         self.cancel_cloud();
         let cancel = crate::cloud::auth::Cancellation::default();
         self.cloud_cancel = Some(cancel.clone());
         let phase = self.cloud_phase.clone();
         *phase.lock().unwrap() = Some(opening::Phase::Checking);
-        use std::sync::atomic::Ordering;
         let run = self.cloud_run.fetch_add(1, Ordering::SeqCst) + 1;
         let current = self.cloud_run.clone();
         let failure_slot = self.cloud_failure.clone();
         *failure_slot.lock().unwrap() = None;
-        let tx = self.tx.clone();
+        let tx = self.folder_tx.clone();
         let ctx = ctx.clone();
-        crate::localization::spawn(move || {
+        io::submit_serialized(None, io::IoLane::InteractiveOpen, move || {
             let progress_phase = phase.clone();
             let progress_ctx = ctx.clone();
             let result = opening::prepare(
@@ -1005,8 +403,6 @@ impl Documents {
                     progress_ctx.notify();
                 },
             );
-            // The phase ends where the result is applied: until then a
-            // finished opening without a workspace is not a failure.
             if cancel.check().is_err() {
                 ctx.notify();
                 return;
@@ -1022,13 +418,11 @@ impl Documents {
                     Err(error)
                 }
             };
-            let _ = tx.send(Completed::Root(completed));
+            let _ = tx.send(FolderCompleted::Root(completed));
             ctx.notify();
         });
     }
-    /// A folder on another of the owner's computers
-    /// (`DeviceFolderWorkbenchSurface`): its root is listed once over the
-    /// folder's SSH connection before it replaces what this window shows.
+
     pub fn open_device(
         &mut self,
         hosts: Arc<crate::workspace::hosts::remote::Hosts>,
@@ -1036,36 +430,17 @@ impl Documents {
         ctx: &Wake,
     ) {
         self.cancel_cloud();
-        self.phase = Phase::Working;
-        self.status = "Opening folder…".into();
-        let tx = self.tx.clone();
+        self.copy.phase = Phase::Working;
+        self.copy.status = "Opening folder…".into();
+        let tx = self.folder_tx.clone();
         let ctx = ctx.clone();
-        crate::localization::spawn(move || {
+        io::submit_serialized(None, io::IoLane::InteractiveOpen, move || {
             let result = crate::workspace::hosts::device::open(hosts, opened);
-            let _ = tx.send(Completed::Root(result));
+            let _ = tx.send(FolderCompleted::Root(result));
             ctx.notify();
         });
     }
-    /// A Cloud conflict is waiting for "Discard edits and reload".
-    pub fn cloud_conflict(&self) -> bool {
-        self.session.as_ref().is_some_and(|s| s.conflicted())
-    }
-    /// `reloadExternalBaseline`: replace the preserved draft with the newer
-    /// Cloud content the person chose to keep.
-    pub fn reload_cloud_baseline(&mut self) {
-        let Some(session) = self.session.as_mut() else {
-            return;
-        };
-        if session.reload_external().is_none() {
-            return;
-        }
-        if let Some(doc) = self.deferred_document.take() {
-            self.document = Some(doc);
-        }
-        self.error = None;
-        self.sync_state();
-        self.show_storage_update();
-    }
+
     pub fn cancel_cloud(&mut self) {
         if let Some(cancel) = self.cloud_cancel.take() {
             cancel.cancel();
@@ -1074,296 +449,63 @@ impl Documents {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         *self.cloud_phase.lock().unwrap() = None;
     }
+
     pub fn load_children(&mut self, path: PathBuf, ctx: &Wake) {
-        let Some(ws) = self.workspace.clone() else {
+        let Some(ws) = self.copy.workspace.clone() else {
             return;
         };
         if self.folder_busy {
             return;
         }
         self.folder_busy = true;
-        let tx = self.tx.clone();
+        let tx = self.folder_tx.clone();
         let ctx = ctx.clone();
-        crate::localization::spawn(move || {
+        io::submit_serialized(None, io::IoLane::InteractiveOpen, move || {
             let result = ws.list(&path);
-            let _ = tx.send(Completed::Children(ws, path, result));
+            let _ = tx.send(FolderCompleted::Children(ws, path, result));
             ctx.notify();
         });
     }
-    /// Cheap retained-host invalidation; do not hash every background document
-    /// on each input turn. Content replacements also advance id/revision.
-    pub fn status_key(
-        &self,
-    ) -> (
-        Option<String>,
-        u64,
-        bool,
-        bool,
-        String,
-        Option<String>,
-        SaveStatus,
-    ) {
-        (
-            self.opened().map(|(id, _)| id.to_owned()),
-            self.revision,
-            self.dirty,
-            self.busy(),
-            self.status.clone(),
-            self.error.clone(),
-            self.save_status(),
-        )
-    }
-    pub fn presentation_key(&self) -> PresentationKey {
-        (
-            self.document
-                .as_ref()
-                .map(|d| (d.id.clone(), blake3::hash(d.text.as_bytes())))
-                .or_else(|| {
-                    self.resource.as_ref().map(|r| {
-                        (
-                            r.id.clone(),
-                            blake3::hash(r.relative.as_os_str().as_encoded_bytes()),
-                        )
-                    })
-                }),
-            self.revision,
-            self.dirty,
-            self.busy(),
-            self.status.clone(),
-            self.error.clone(),
-            self.save_status(),
-        )
-    }
+
     pub fn poll(&mut self, ctx: &Wake) {
         self.poll_at(ctx, Instant::now());
     }
-    fn poll_at(&mut self, ctx: &Wake, now: Instant) {
-        if self
-            .saving_since
-            .is_some_and(|at| now.saturating_duration_since(at) >= auto_save::SLOW_SAVE)
-        {
-            self.save_announced = true;
-        }
-        self.ensure_session(ctx);
-        if matches!(&self.phase, Phase::Snapshot { since, .. } if since.elapsed() > Duration::from_secs(5))
-        {
-            self.fail(crate::localization::t("native.editor.noAck").into());
-        }
-        if self
-            .autosave_request
-            .is_some_and(|(_, _, since)| since.elapsed() > Duration::from_secs(5))
-        {
-            self.fail(crate::localization::t("native.editor.noSaveSnapshot").into());
-            if let Some(s) = &mut self.session {
-                s.needs_snapshot = false;
-            }
-        }
-        while let Ok(message) = self.rx.try_recv() {
+
+    pub(crate) fn poll_at(&mut self, ctx: &Wake, now: Instant) {
+        while let Ok(message) = self.folder_rx.try_recv() {
             match message {
-                Completed::Root(Ok((ws, rows))) => {
+                FolderCompleted::Root(Ok((ws, rows))) => {
                     *self.cloud_phase.lock().unwrap() = None;
-                    if let Some(previous) = self.workspace.replace(ws) {
+                    if let Some(previous) = self.copy.workspace.replace(ws) {
                         previous.revoke();
                     }
-                    self.watch = None;
-                    self.observation_pending = false;
-                    self.document = None;
-                    self.resource = None;
-                    self.session = None;
-                    self.dirty = false;
-                    self.revision = 0;
+                    self.copy.watch = None;
+                    self.copy.observation_pending = false;
+                    self.copy.document = None;
+                    self.copy.deferred_document = None;
+                    self.copy.resource = None;
+                    self.copy.session = None;
+                    self.copy.dirty = false;
+                    self.copy.revision = 0;
+                    self.copy.save_error = None;
+                    self.copy.save_error_kind = None;
+                    self.copy.local_overwrite_notice = None;
+                    self.copy.recovered_draft_notice = None;
+                    self.copy.drafts.reset();
                     self.folder_busy = false;
                     self.tree_update = Some(rows);
-                    self.phase = Phase::Idle;
-                    self.error = None;
-                    self.status = "Select a text file".into();
-                    self.show_document();
+                    self.copy.phase = Phase::Idle;
+                    self.copy.error = None;
+                    self.copy.status = "Select a text file".into();
+                    self.copy.show_document();
                 }
-                Completed::File(Ok(doc)) => {
-                    self.document = Some(doc);
-                    self.resource = None;
-                    self.session = None;
-                    self.dirty = false;
-                    self.revision = 0;
-                    self.phase = Phase::Idle;
-                    self.error = None;
-                    self.ensure_session(ctx);
-                    self.status = "Opened".into();
-                    self.show_document();
-                }
-                Completed::Save {
-                    id,
-                    sequence,
-                    result,
-                } => {
-                    if !self.session.as_ref().is_some_and(|s| s.id == id) {
-                        continue;
-                    }
-                    self.read_generation += 1;
-                    let completion = self.session.as_mut().unwrap().complete(
-                        sequence,
-                        result
-                            .as_ref()
-                            .map(|r| (r.document.text.clone(), r.updated))
-                            .map_err(ToString::to_string),
-                    );
-                    match completion {
-                        Completion::Saved => {
-                            self.document = Some(result.unwrap().document);
-                            self.error = None;
-                            self.save_error = None;
-                            self.saved_at = self.save_announced.then(Instant::now);
-                            self.saving_since = None;
-                            self.status = "Saved".into();
-                        }
-                        Completion::Adopted => {
-                            self.document = Some(result.unwrap().document);
-                            self.error = None;
-                            self.save_error = None;
-                            self.sync_state();
-                            self.show_storage_update();
-                        }
-                        Completion::Failed(error) => {
-                            self.saving_since = None;
-                            self.save_error = Some(error);
-                        }
-                        Completion::Deferred => {
-                            self.deferred_document = result.ok().map(|r| r.document);
-                            self.error =
-                                Some(crate::localization::t("editor.session.cloudConflict").into());
-                        }
-                        Completion::Retired => {}
-                    }
-                }
-                Completed::Observed {
-                    id,
-                    generation,
-                    result,
-                } => {
-                    self.observing = false;
-                    let current = self.session.as_ref().is_some_and(|s| s.id == id);
-                    if generation != self.read_generation
-                        || !matches!(self.phase, Phase::Idle)
-                        || !current
-                    {
-                        // A reset was already consumed to start this read. If a
-                        // save/barrier superseded it, reconcile again when idle;
-                        // event-driven providers need not send a second reset.
-                        self.observation_pending |= current;
-                        continue;
-                    }
-                    // A background re-read that failed in transit (a dropped
-                    // connection, a file that kept changing) keeps the open
-                    // text and quietly reads again; what needs the person
-                    // (gone, no access, a new lease) is said as before.
-                    let result = match result {
-                        Err(error)
-                            if error.kind == workspace::ErrorKind::Io
-                                && self.observation_failures < OBSERVATION_RETRIES.len() =>
-                        {
-                            let delay = OBSERVATION_RETRIES[self.observation_failures];
-                            self.observation_failures += 1;
-                            self.observation_retry = Some(now + delay);
-                            ctx.after(delay);
-                            continue;
-                        }
-                        result => {
-                            self.observation_failures = 0;
-                            self.observation_retry = None;
-                            result
-                        }
-                    };
-                    match result {
-                        Ok(doc) => match self.session.as_mut().unwrap().observe(&doc.text) {
-                            StorageObservation::OwnWrite => {}
-                            StorageObservation::Baseline => {
-                                self.document = Some(doc);
-                            }
-                            StorageObservation::Adopted => {
-                                self.document = Some(doc);
-                                self.error = None;
-                                self.sync_state();
-                                self.show_storage_update();
-                            }
-                            StorageObservation::Deferred => {
-                                self.deferred_document = Some(doc);
-                                self.error = Some(
-                                    crate::localization::t("editor.session.cloudConflict").into(),
-                                );
-                            }
-                        },
-                        Err(error) => self.error = Some(error.to_string()),
-                    }
-                }
-                Completed::Rebound {
-                    id,
-                    generation,
-                    result,
-                } => {
-                    if generation != self.read_generation
-                        || !self.session.as_ref().is_some_and(|s| s.id == id)
-                    {
-                        continue;
-                    }
-                    match result {
-                        Ok(doc) => match self.session.as_mut().unwrap().observe(&doc.text) {
-                            StorageObservation::Deferred => {
-                                self.deferred_document = Some(doc);
-                                self.error = Some(
-                                    crate::localization::t("editor.session.cloudConflict").into(),
-                                );
-                            }
-                            observation => {
-                                // Saves and watches continue under the new lease.
-                                self.document = Some(doc);
-                                if matches!(observation, StorageObservation::Adopted) {
-                                    self.error = None;
-                                    self.sync_state();
-                                    self.show_storage_update();
-                                }
-                                self.start_watch(ctx);
-                            }
-                        },
-                        Err(error) => self.error = Some(error.to_string()),
-                    }
-                }
-                Completed::ResourceRebound(relative, result) => {
-                    if self
-                        .resource
-                        .as_ref()
-                        .is_some_and(|r| r.relative == relative)
-                    {
-                        match result {
-                            Ok(preview) => self.rebind_resource(relative, preview),
-                            Err(error) => self.error = Some(error.to_string()),
-                        }
-                    }
-                }
-                Completed::Resource(relative, Ok(preview)) => {
-                    self.document = None;
-                    self.resource = Some(Resource {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        relative,
-                        preview,
-                    });
-                    self.watch = None;
-                    self.session = None;
-                    self.dirty = false;
-                    self.revision = 0;
-                    self.phase = Phase::Idle;
-                    self.error = None;
-                    self.status = "Opened".into();
-                    self.show_document();
-                }
-                Completed::Root(Err(error)) => {
+                FolderCompleted::Root(Err(error)) => {
                     *self.cloud_phase.lock().unwrap() = None;
-                    self.fail(error.to_string())
+                    self.copy.fail(error.to_string());
                 }
-                Completed::File(Err(error)) | Completed::Resource(_, Err(error)) => {
-                    self.fail(error.to_string())
-                }
-                Completed::Children(ws, path, result) => {
+                FolderCompleted::Children(ws, path, result) => {
                     if self
+                        .copy
                         .workspace
                         .as_ref()
                         .is_some_and(|current| Arc::ptr_eq(current, &ws))
@@ -1374,74 +516,16 @@ impl Documents {
                 }
             }
         }
-        if self.observation_retry.is_some_and(|at| now >= at) {
-            self.observation_retry = None;
-            self.observation_pending = true;
-        }
-        if let Some(event) = self.watch.as_ref().and_then(workspace::Subscription::next) {
-            match event {
-                workspace::ports::WatchEvent::Invalidated
-                | workspace::ports::WatchEvent::Changed(_) => self.observation_pending = true,
-                workspace::ports::WatchEvent::Failed(error) => self.error = Some(error.to_string()),
-            }
-        }
-        self.pump(ctx);
-        if self.allow_quit {
-            self.watch = None;
-        }
-        if matches!(self.phase, Phase::Idle) {
-            if self.autosave_request.is_none()
-                && let Some(s) = &mut self.session
-                && s.needs_snapshot
-                && (self.auto_save.delay(now).is_none() || self.auto_save.take_due(now))
-            {
-                self.serial += 1;
-                self.autosave_request = Some((self.serial, s.epoch, Instant::now()));
-                s.needs_snapshot = false;
-                self.outgoing.push(HostMessage::Snapshot {
-                    request: self.serial,
-                    freeze: false,
-                });
-            }
-            if !self.observing
-                && self.observation_pending
-                && let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
-            {
-                let (ws, doc, tx, wake, generation) = (
-                    ws.clone(),
-                    doc.clone(),
-                    self.tx.clone(),
-                    ctx.clone(),
-                    self.read_generation,
-                );
-                self.observing = true;
-                self.observation_pending = false;
-                crate::localization::spawn(move || {
-                    let result = ws.observe(&doc);
-                    let _ = tx.send(Completed::Observed {
-                        id: doc.id,
-                        generation,
-                        result,
-                    });
-                    wake.notify();
-                });
-            }
-        }
-        if self.document.is_some()
-            && !self.allow_quit
-            && (!matches!(self.phase, Phase::Idle | Phase::Prepared)
-                || self.autosave_request.is_some())
-        {
-            ctx.after(Duration::from_millis(100));
-        }
-        if let Some(delay) = self.auto_save.delay(now) {
-            ctx.after(delay);
-        }
+        let folder_tx = self.folder_tx.clone();
+        self.copy.poll_copy_with(ctx, now, move |copy, path, wake| {
+            Self::spawn_open_folder(copy, folder_tx.clone(), path, wake);
+        });
     }
 }
+
 /// `EditorDocumentHost` admission: the resolved viewer's `maxSourceBytes`,
 /// never more than the provider's text bound (8 MiB in Cloud).
-pub(crate) fn read_budget(path: &str, workspace: &crate::workspace::Workspace) -> u64 {
+pub(crate) fn read_budget(path: &str, workspace: &Workspace) -> u64 {
     crate::editor::registry::source_budget(path).min(workspace.text_limit() as u64)
 }
 

@@ -96,6 +96,11 @@ impl Shell {
         } else {
             None
         };
+        if current.is_none() {
+            self.session.docs.update(cx, |d, _| {
+                d.clear_hosted_drafts();
+            });
+        }
         let Some(hosted) = self
             .session
             .project
@@ -629,7 +634,16 @@ impl Shell {
         };
         let before = shown(self, cx);
         self.receive(window, cx);
-        if shown(self, cx) != before {
+        let created_copy = self
+            .session
+            .docs
+            .update(cx, |d, _| d.take_conflict_copy_created());
+        if created_copy.is_some() {
+            self.explorer
+                .session
+                .update(cx, |e, cx| e.refresh_published(cx));
+            cx.notify();
+        } else if shown(self, cx) != before {
             cx.notify();
         }
     }
@@ -689,7 +703,10 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         match event {
-            SessionEvent::ReferencesChanged => {}
+            SessionEvent::ReferencesChanged => {
+                self.editor.update(cx, |e, cx| e.refresh_references(cx));
+                return cx.notify();
+            }
             SessionEvent::LoadChildren(path) => {
                 let path = path.clone();
                 self.session.docs.update(cx, |d, _| d.load_children(path))

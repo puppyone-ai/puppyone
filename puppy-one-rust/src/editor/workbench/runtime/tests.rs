@@ -1,5 +1,8 @@
 use super::*;
-use crate::platform::editor_state_storage::Storage;
+use crate::{
+    editor::text::buffer::Buffer,
+    platform::{draft_journal::DraftJournal, editor_state_storage::Storage},
+};
 use std::time::{Duration, Instant};
 fn wait(r: &mut Runtime, done: impl Fn(&Runtime) -> bool) {
     let wake = Wake::default();
@@ -44,7 +47,7 @@ fn snapshots(r: &mut Runtime, content: impl Fn(&str) -> String) {
                     request,
                     id: document.id.clone(),
                     revision: 1,
-                    text: content(document.relative.to_str().unwrap()),
+                    text: Buffer::new(content(document.relative.to_str().unwrap())),
                 },
                 &Wake::default(),
             );
@@ -681,7 +684,8 @@ fn a_close_a_document_cannot_save_for_is_refused_until_abandoned() {
     r.take_outgoing();
     // An edit the close has to save.
     let slot = r.active_slot();
-    let id = r.slot(slot).unwrap().document.as_ref().unwrap().id.clone();
+    let doc = r.slot(slot).unwrap().document.as_ref().unwrap().clone();
+    let id = doc.id.clone();
     r.client_for(
         slot,
         ClientMessage::Dirty {
@@ -695,7 +699,7 @@ fn a_close_a_document_cannot_save_for_is_refused_until_abandoned() {
         for (slot, message) in r.take_outgoing() {
             if let HostMessage::Snapshot { request, .. } = message {
                 let id = r.slot(slot).unwrap().document.as_ref().unwrap().id.clone();
-                let text = "changed".into();
+                let text = Buffer::new("changed");
                 let reply = ClientMessage::Snapshot {
                     request,
                     id,
@@ -720,4 +724,82 @@ fn a_close_a_document_cannot_save_for_is_refused_until_abandoned() {
     r.poll(&wake);
     assert!(r.allow_quit && !r.close_refused);
     lock(0o644);
+}
+
+#[cfg(unix)]
+#[test]
+fn abandon_unsaved_persists_unflushable_draft_to_journal_and_reopen_recovers_it() {
+    use std::os::unix::fs::PermissionsExt;
+    let journal_dir = tempfile::tempdir().unwrap();
+    let journal = DraftJournal::new(journal_dir.path());
+    let root = tempfile::tempdir().unwrap();
+    let file = root.path().join("a.md");
+    std::fs::write(&file, "baseline").unwrap();
+    let lock = |mode| {
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(mode)).unwrap();
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(mode | 0o100))
+            .unwrap();
+    };
+    lock(0o444);
+    let mut r = Runtime::default();
+    r.set_draft_journal(Some(journal.clone()));
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    r.take_outgoing();
+    let slot = r.active_slot();
+    let doc = r.slot(slot).unwrap().document.as_ref().unwrap().clone();
+    let id = doc.id.clone();
+    r.client_for(
+        slot,
+        ClientMessage::Dirty {
+            id: id.clone(),
+            revision: 2,
+            dirty: true,
+        },
+        &Wake::default(),
+    );
+    r.begin(Intent::Quit, &Wake::default());
+    let wake = Wake::default();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !r.close_refused {
+        for (slot, message) in r.take_outgoing() {
+            if let HostMessage::Snapshot { request, .. } = message {
+                r.client_for(
+                    slot,
+                    ClientMessage::Snapshot {
+                        request,
+                        id: id.clone(),
+                        revision: 2,
+                        text: Buffer::new("unflushable draft"),
+                    },
+                    &wake,
+                );
+            }
+        }
+        r.poll(&wake);
+        assert!(Instant::now() < deadline, "the close was not refused");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    r.abandon_unsaved();
+    let (ws_key, res_key) = crate::documents::drafts::journal_keys(&doc);
+    let saved_entry = journal.read_entry(&ws_key, &res_key).unwrap();
+    assert!(saved_entry.is_some(), "abandon_unsaved must flush journal");
+    assert_eq!(saved_entry.unwrap().draft_text, "unflushable draft");
+    drop(r);
+    lock(0o644);
+    let mut reopened = Runtime::default();
+    reopened.set_draft_journal(Some(journal));
+    open_root(&mut reopened, root.path());
+    open(&mut reopened, "a.md");
+    assert!(reopened.recovered_draft_notice.is_some());
+    assert!(reopened.dirty);
+    let opened_text = reopened
+        .take_outgoing()
+        .into_iter()
+        .find_map(|(_, msg)| match msg {
+            HostMessage::Open { text, .. } => Some(text),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(opened_text, "unflushable draft");
 }

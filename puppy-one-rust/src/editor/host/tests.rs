@@ -230,7 +230,7 @@ fn a_snapshot_waits_for_the_composition_and_resumes_when_it_ends(cx: &mut TestAp
     assert_eq!(dirty(&messages), vec![false, true]);
     let replies = view.update_in(cx, |v, w, cx| v.receive(&snapshot, w, cx));
     assert!(
-        matches!(replies.as_slice(), [ClientMessage::Snapshot { request: 7, text, .. }] if text == "a你"),
+        matches!(replies.as_slice(), [ClientMessage::Snapshot { request: 7, text, .. }] if text.eq_str("a你")),
         "{replies:?}"
     );
 }
@@ -367,7 +367,7 @@ fn code_snapshot_defers_during_ime_and_freezes_until_thawed(cx: &mut TestAppCont
     );
     let replies = view.update_in(cx, |v, w, cx| v.receive(&snapshot, w, cx));
     assert!(
-        matches!(replies.as_slice(), [ClientMessage::Snapshot {request:21,text,..}] if text=="ni")
+        matches!(replies.as_slice(), [ClientMessage::Snapshot {request:21,text,..}] if text.eq_str("ni"))
     );
     editor.update_in(cx, |e, w, cx| {
         e.replace_text_in_range(None, "blocked", w, cx)
@@ -503,7 +503,9 @@ fn json_shows_formatted_but_saves_only_after_an_edit(cx: &mut TestAppContext) {
         assert_eq!(v.text(cx).as_deref(), Some(raw));
     });
     let replies = snapshot(&view, cx, 3);
-    assert!(matches!(replies.as_slice(), [ClientMessage::Snapshot { text, .. }] if text == raw));
+    assert!(
+        matches!(replies.as_slice(), [ClientMessage::Snapshot { text, .. }] if text.eq_str(raw))
+    );
     // The same document re-sent (after a save elsewhere) keeps the view.
     view.update_in(cx, |v, w, cx| {
         v.receive(
@@ -529,7 +531,7 @@ fn json_shows_formatted_but_saves_only_after_an_edit(cx: &mut TestAppContext) {
     let replies = snapshot(&view, cx, 4);
     assert!(matches!(
         replies.as_slice(),
-        [ClientMessage::Snapshot { text, .. }] if text == "{\n  \"name\": \"puppyone\",\n  \"count\": 43\n}"
+        [ClientMessage::Snapshot { text, .. }] if text.eq_str("{\n  \"name\": \"puppyone\",\n  \"count\": 43\n}")
     ));
 }
 
@@ -776,4 +778,148 @@ fn a_new_extension_moves_the_working_copy_to_its_viewer(cx: &mut TestAppContext)
             .iter()
             .any(|m| matches!(m, ClientMessage::Dirty { dirty: true, .. }))
     );
+}
+
+#[gpui::test]
+fn rebind_to_json_viewer_normalizes_display_and_preserves_raw_until_edited(
+    cx: &mut TestAppContext,
+) {
+    let raw = r#"{"a":1,"b":true}"#;
+    let (view, _, cx) = setup(cx, "notes/raw.txt", raw);
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Rebind {
+                id: "doc-1".into(),
+                name: "notes/raw.json".into(),
+                resource: None,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        assert_eq!(v.session.as_ref().unwrap().viewer.id, "json");
+        assert_eq!(
+            v.surface.as_ref().unwrap().text(cx).as_deref(),
+            Some("{\n  \"a\": 1,\n  \"b\": true\n}")
+        );
+        // Untouched after rebind: logical snapshot remains compact raw text.
+        assert_eq!(v.text(cx).as_deref(), Some(raw));
+    });
+}
+
+#[gpui::test]
+fn mixed_line_ending_policy_freezes_editor_shows_banner_and_emits_normalize(
+    cx: &mut TestAppContext,
+) {
+    use gpui::EntityInputHandler;
+    let (view, messages, cx) = setup(cx, "notes/mixed.md", "one\ntwo\n");
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Policy {
+                id: "doc-1".into(),
+                lossy_readonly: false,
+                requires_line_ending_normalization: true,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("document-readonly-banner").is_some());
+    let btn_bounds = cx
+        .debug_bounds("normalize-line-endings-button")
+        .expect("Normalize line endings button visible");
+    // Typing while read-only is blocked.
+    let editor = view.update(cx, |v, _| {
+        v.surface.as_ref().and_then(|s| s.editor_view()).unwrap()
+    });
+    editor.update_in(cx, |e, w, cx| {
+        e.replace_text_in_range(None, "blocked", w, cx);
+    });
+    view.update(cx, |v, cx| {
+        assert_eq!(v.text(cx).as_deref(), Some("one\ntwo\n"))
+    });
+    // Clicking "Normalize line endings and edit" emits ClientMessage::NormalizeLineEndings.
+    cx.simulate_click(btn_bounds.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert!(
+        messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::NormalizeLineEndings { id } if id == "doc-1"))
+    );
+    // Receiving thawed Policy unlocks editing and hides the banner.
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Policy {
+                id: "doc-1".into(),
+                lossy_readonly: false,
+                requires_line_ending_normalization: false,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("document-readonly-banner").is_none());
+    editor.update_in(cx, |e, w, cx| {
+        e.set_selection(crate::editor::text::selection::Selection::cursor(0), cx);
+        e.replace_text_in_range(None, "ok ", w, cx);
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        assert_eq!(v.text(cx).as_deref(), Some("ok one\ntwo\n"))
+    });
+}
+
+#[gpui::test]
+fn external_minimal_diff_reconcile_is_undoable_to_prior_draft(cx: &mut TestAppContext) {
+    use gpui::EntityInputHandler;
+    let (view, _, cx) = setup(cx, "notes.md", "line1\nline2\n");
+    let editor = view.update(cx, |v, _| {
+        v.surface.as_ref().and_then(|s| s.editor_view()).unwrap()
+    });
+    editor.update_in(cx, |e, w, cx| {
+        e.set_selection(crate::editor::text::selection::Selection::cursor(0), cx);
+        e.replace_text_in_range(None, "mine ", w, cx);
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        assert_eq!(v.text(cx).as_deref(), Some("mine line1\nline2\n"));
+    });
+    // Disk overwrite arrives via HostMessage::Open { external: true }.
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Open {
+                id: "doc-1".into(),
+                name: "notes.md".into(),
+                text: "disk line1\nline2\n".into(),
+                revision: 0,
+                external: true,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        assert_eq!(v.text(cx).as_deref(), Some("disk line1\nline2\n"));
+    });
+    // Pressing Undo (`HostMessage::History { redo: false }`) restores "mine line1\nline2\n"!
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::History {
+                id: "doc-1".into(),
+                redo: false,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        assert_eq!(v.text(cx).as_deref(), Some("mine line1\nline2\n"));
+    });
 }

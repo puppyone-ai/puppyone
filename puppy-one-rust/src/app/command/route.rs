@@ -176,6 +176,9 @@ impl Shell {
                     && let Some(id) = self.files(cx).document.as_ref().map(|doc| doc.id.clone())
                 {
                     self.session.docs.update(cx, |d, _| {
+                        if command == Command::Undo {
+                            d.dismiss_local_overwrite_notice();
+                        }
                         d.outgoing.push(crate::documents::HostMessage::History {
                             id,
                             redo: command == Command::Redo,
@@ -264,7 +267,11 @@ impl Shell {
                     p.home = true;
                 });
             }
-            // With no dialog open, Escape closes a menu.
+            // With no dialog open, Escape closes a menu or the Cloud conflict comparison.
+            Command::Escape if self.editor.read(cx).comparing_conflict => {
+                self.editor
+                    .update(cx, |e, cx| e.close_conflict_comparison(cx));
+            }
             // Escape cancels a Cloud opening; whatever showed stays.
             Command::Escape if self.files(cx).cloud_opening().is_some() => {
                 self.session.docs.update(cx, |d, _| d.cancel_cloud());
@@ -375,10 +382,41 @@ impl Shell {
                     self.frame.focus.focus(window, cx);
                 }
             }
+            Command::CompareCloudConflict => {
+                self.editor
+                    .update(cx, |e, cx| e.open_conflict_comparison(cx));
+            }
+            Command::KeepLocalCloudDraft => {
+                self.editor
+                    .update(cx, |e, cx| e.close_conflict_comparison(cx));
+                self.session.docs.update(cx, |d, _| {
+                    let wake = d.wake().clone();
+                    d.keep_local_cloud_draft(&wake);
+                });
+                self.receive(window, cx);
+            }
             Command::ReloadCloudBaseline => {
+                self.editor
+                    .update(cx, |e, cx| e.close_conflict_comparison(cx));
                 self.session
                     .docs
                     .update(cx, |d, _| d.reload_cloud_baseline());
+                self.receive(window, cx);
+            }
+            Command::SaveConflictCopy => {
+                self.editor
+                    .update(cx, |e, cx| e.close_conflict_comparison(cx));
+                self.session.docs.update(cx, |d, _| {
+                    let wake = d.wake().clone();
+                    d.save_conflict_copy(&wake);
+                });
+                self.receive(window, cx);
+            }
+            Command::NormalizeLineEndings => {
+                self.session.docs.update(cx, |d, _| {
+                    let wake = d.wake().clone();
+                    d.normalize_open_line_endings(&wake);
+                });
                 self.receive(window, cx);
             }
             Command::ManageExecutions => {

@@ -4,19 +4,25 @@
 //! Markdown, CSV, source text, images, or an honest placeholder. It never
 //! names a concrete viewer and never writes files; `documents.rs` owns saving.
 use crate::{
-    documents::{ClientMessage, HostMessage},
+    documents::{ClientMessage, HostMessage, reconcile},
     editor::{
         registry::{
             self, EditorDocument, Presentation, PresetViewer, SurfaceEvent, SurfaceInput,
             SurfaceRequest, ViewerSurface,
             packs::{ExtensionHost, Route, route},
         },
+        text::buffer::Buffer,
         viewers::{
             external,
             html_tools::{HtmlToolAction, HtmlToolEvent, HtmlToolMode, HtmlToolSnapshot},
         },
     },
+    theme,
     typography::Scale,
+    ui::{
+        appearance::ActiveAppearance as _,
+        components::{Button, ButtonVariant},
+    },
 };
 use gpui::{prelude::*, *};
 use std::rc::Rc;
@@ -48,6 +54,18 @@ struct Session {
     viewer: &'static PresetViewer,
     /// The Host's edit gate (`PresetViewer::editable`).
     editable: bool,
+    /// `DP-32`: lossy encoding read-only gate.
+    lossy_readonly: bool,
+    /// `DP-31`: mixed or lone-`CR` line endings require explicit normalization.
+    requires_line_ending_normalization: bool,
+}
+
+/// Undo/redo fallback step when an external adoption (`DP-03` / `DP-04` / `DP-11`)
+/// occurred on a surface whose `replace_text` does not retain undo history.
+struct ExternalHistoryStep {
+    before: String,
+    after: String,
+    undone: bool,
 }
 
 pub struct DocumentEditor {
@@ -55,7 +73,7 @@ pub struct DocumentEditor {
     /// A file window: the view switch and settings live in its title bar,
     /// so the pane has no handle or menu of its own.
     pub file_mode: bool,
-    /// The document only reads (a file window's legacy text): the surface
+    /// The document only reads (a file window's lossy text): the surface
     /// takes no edits, while view switches still work.
     pub read_only: bool,
     /// Chrome floating over the document's top (a file window's title bar);
@@ -85,6 +103,8 @@ pub struct DocumentEditor {
     /// `normalizeContent`: the text the surface was given and the raw text
     /// it stands for, until the person edits.
     displayed: Option<(String, String)>,
+    external_history: Option<ExternalHistoryStep>,
+    suppress_surface_change: bool,
     html_events: Vec<HtmlToolEvent>,
 }
 
@@ -117,6 +137,8 @@ impl DocumentEditor {
             references: None,
             workspace: None,
             displayed: None,
+            external_history: None,
+            suppress_surface_change: false,
             html_events: Vec::new(),
         }
     }
@@ -147,6 +169,19 @@ impl DocumentEditor {
             surface.set_reference_context(context.clone(), cx);
         }
         self.references = context;
+    }
+
+    /// Whether the active document currently requires explicit line-ending
+    /// normalization (`DP-31`).
+    pub fn requires_line_ending_normalization(&self) -> bool {
+        self.session
+            .as_ref()
+            .is_some_and(|s| s.requires_line_ending_normalization)
+    }
+
+    /// Whether the active document opened read-only due to lossy text decoding (`DP-32`).
+    pub fn is_lossy_readonly(&self) -> bool {
+        self.session.as_ref().is_some_and(|s| s.lossy_readonly)
     }
 
     /// A placeholder-grade local document an installed pack renders, when
@@ -243,27 +278,67 @@ impl DocumentEditor {
     }
 
     fn changed(&mut self, cx: &mut Context<Self>) {
+        if std::mem::take(&mut self.suppress_surface_change) {
+            return;
+        }
         let Some(text) = self.text(cx) else { return };
         let Some(session) = &mut self.session else {
             return;
         };
+        self.external_history = None;
         session.revision += 1;
         let dirty = text != session.baseline;
+        let id = session.id.clone();
+        let revision = session.revision;
+        cx.emit(ClientMessage::LiveBuffer {
+            id: id.clone(),
+            revision,
+            text: Buffer::new(text),
+        });
         cx.emit(ClientMessage::Dirty {
-            id: session.id.clone(),
-            revision: session.revision,
+            id,
+            revision,
             dirty,
         });
     }
 
     /// The document text: the raw text while the surface still shows its
     /// untouched normalization, else what the surface holds.
-    fn text(&self, cx: &App) -> Option<String> {
+    /// Logical text snapshot (`displayed` normalization respected).
+    pub fn text(&self, cx: &App) -> Option<String> {
         let shown = self.surface.as_ref().and_then(|s| s.text(cx))?;
         Some(match &self.displayed {
             Some((normalized, raw)) if *normalized == shown => raw.clone(),
             _ => shown,
         })
+    }
+
+    fn perform_history(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let before = self.text(cx);
+        if let Some(surface) = &self.surface {
+            surface.undo(redo, window, cx);
+        }
+        let after = self.text(cx);
+        if after != before {
+            self.external_history = None;
+            return;
+        }
+        let target = match (&mut self.external_history, redo) {
+            (Some(step), false) if !step.undone => {
+                step.undone = true;
+                Some(step.before.clone())
+            }
+            (Some(step), true) if step.undone => {
+                step.undone = false;
+                Some(step.after.clone())
+            }
+            _ => None,
+        };
+        if let Some(target_text) = target {
+            let keep = self.external_history.take();
+            self.replace_document_text(&target_text, window, cx);
+            self.external_history = keep;
+        }
     }
 
     pub fn receive(
@@ -289,18 +364,50 @@ impl DocumentEditor {
                     .as_ref()
                     .is_some_and(|s| &s.id == id && s.viewer.id == viewer)
                     && self.surface.is_some();
+                let prev_policy = self
+                    .session
+                    .as_ref()
+                    .filter(|s| &s.id == id && *external)
+                    .map(|s| (s.lossy_readonly, s.requires_line_ending_normalization))
+                    .unwrap_or((false, false));
+
                 let (viewer, editable) = if same {
-                    if self.text(cx).as_ref() != Some(text) || *external {
-                        // External change of the open document: replace its text.
-                        if let Some(surface) = &self.surface {
+                    let previous_raw = self.text(cx);
+                    let previous_shown = self.surface.as_ref().and_then(|s| s.text(cx));
+                    if previous_raw.as_ref() != Some(text) || *external {
+                        if *external
+                            && previous_shown.as_deref() != Some(shown)
+                            && let (Some(surface), Some(prev_shown)) =
+                                (&self.surface, &previous_shown)
+                        {
+                            let edits = reconcile::minimal_utf16_edits(prev_shown, shown);
+                            let applied_minimal = !edits.is_empty()
+                                && !surface.composing(cx)
+                                && surface.edit_utf16(&edits, window, cx);
+                            if applied_minimal {
+                                self.suppress_surface_change = true;
+                                self.external_history = None;
+                            } else {
+                                surface.replace_text(shown, window, cx);
+                                if let Some(prev_raw) = previous_raw.filter(|p| p != text) {
+                                    self.external_history = Some(ExternalHistoryStep {
+                                        before: prev_raw,
+                                        after: text.clone(),
+                                        undone: false,
+                                    });
+                                }
+                            }
+                        } else if previous_shown.as_deref() != Some(shown)
+                            && let Some(surface) = &self.surface
+                        {
                             surface.replace_text(shown, window, cx);
                         }
                         self.displayed = normalized.clone().map(|n| (n, text.clone()));
                     }
-                    // Otherwise the same document re-sent (after a save): keep history.
                     let session = self.session.as_ref().unwrap();
                     (session.viewer, session.editable)
                 } else {
+                    self.external_history = None;
                     self.displayed = normalized.clone().map(|n| (n, text.clone()));
                     self.open_surface(id, name, SurfaceInput::Text(shown), window, cx)
                 };
@@ -312,11 +419,14 @@ impl DocumentEditor {
                     frozen: false,
                     viewer,
                     editable,
+                    lossy_readonly: prev_policy.0,
+                    requires_line_ending_normalization: prev_policy.1,
                 });
                 replies.push(ClientMessage::Loaded { id: id.clone() });
             }
             HostMessage::OpenResource { id, name, path } => {
                 self.displayed = None;
+                self.external_history = None;
                 let (viewer, editable) =
                     self.open_surface(id, name, SurfaceInput::Resource(path), window, cx);
                 self.session = Some(Session {
@@ -327,11 +437,14 @@ impl DocumentEditor {
                     frozen: false,
                     viewer,
                     editable,
+                    lossy_readonly: false,
+                    requires_line_ending_normalization: false,
                 });
                 replies.push(ClientMessage::Loaded { id: id.clone() });
             }
             HostMessage::Clear => {
                 self.displayed = None;
+                self.external_history = None;
                 self.html_events.clear();
                 self.session = None;
                 self.surface = None;
@@ -356,7 +469,7 @@ impl DocumentEditor {
                             request: *request,
                             id: session.id.clone(),
                             revision: session.revision,
-                            text,
+                            text: Buffer::new(text),
                         });
                     }
                 }
@@ -373,12 +486,9 @@ impl DocumentEditor {
                     .as_ref()
                     .is_some_and(|session| &session.id == id && session.viewer.id != next.id);
                 if switch {
-                    // A new extension with another viewer (`resolveEditorViewer`
-                    // on the renamed document): the working copy moves to it
-                    // with its text and baseline. An incompatible
-                    // representation cannot keep the old undo branch
-                    // (`DocumentModelOwner.activate`); the same viewer below
-                    // keeps its surface, history and view state.
+                    // `TODO-56`: apply `registry::normalize` (`displayed`) when
+                    // switching to a normalizing viewer such as `json` so raw
+                    // unedited text is preserved until the person edits.
                     let input = match resource {
                         Some(resource) => Some((SurfaceInput::Resource(resource), None)),
                         None => self
@@ -388,10 +498,15 @@ impl DocumentEditor {
                     if let Some((input, text)) = input {
                         let (viewer, editable) = match &text {
                             Some(text) => {
-                                self.displayed = None;
-                                self.open_surface(id, name, SurfaceInput::Text(text), window, cx)
+                                let normalized = registry::normalize::normalize(next.id, text);
+                                let shown = normalized.as_deref().unwrap_or(text);
+                                self.displayed = normalized.clone().map(|n| (n, text.clone()));
+                                self.open_surface(id, name, SurfaceInput::Text(shown), window, cx)
                             }
-                            None => self.open_surface(id, name, input, window, cx),
+                            None => {
+                                self.displayed = None;
+                                self.open_surface(id, name, input, window, cx)
+                            }
                         };
                         if let Some(session) = &mut self.session {
                             session.name = label(name);
@@ -420,10 +535,33 @@ impl DocumentEditor {
                 }
             }
             HostMessage::History { id, redo } => {
-                if self.session.as_ref().is_some_and(|s| &s.id == id)
-                    && let Some(surface) = &self.surface
+                if self.session.as_ref().is_some_and(|s| &s.id == id) {
+                    self.perform_history(*redo, window, cx);
+                }
+            }
+            HostMessage::Policy {
+                id,
+                lossy_readonly,
+                requires_line_ending_normalization,
+            } => {
+                if let Some(session) = &mut self.session
+                    && &session.id == id
                 {
-                    surface.undo(*redo, window, cx);
+                    session.lossy_readonly = *lossy_readonly;
+                    session.requires_line_ending_normalization =
+                        *requires_line_ending_normalization;
+                }
+            }
+            HostMessage::ExternalUndoSeed { id, previous_text } => {
+                if self.session.as_ref().is_some_and(|s| &s.id == id) {
+                    let current = self.text(cx).unwrap_or_default();
+                    if current != *previous_text {
+                        self.external_history = Some(ExternalHistoryStep {
+                            before: previous_text.clone(),
+                            after: current,
+                            undone: false,
+                        });
+                    }
                 }
             }
         }
@@ -432,8 +570,6 @@ impl DocumentEditor {
         replies
     }
 
-    /// Block input while modal UI, a busy document operation or another
-    /// provider owns the document; follow the app appearance.
     /// See `chrome_inset`.
     pub fn set_chrome_inset(&mut self, top: f32, cx: &mut Context<Self>) {
         if self.chrome_inset != top {
@@ -444,6 +580,7 @@ impl DocumentEditor {
             cx.notify();
         }
     }
+
     /// How far the shown document is scrolled, and whether its top edge is
     /// a pinned header row.
     pub fn scroll_state(&self, cx: &App) -> (f32, bool) {
@@ -451,6 +588,7 @@ impl DocumentEditor {
             .as_ref()
             .map_or((0., false), |s| s.scroll_state(cx))
     }
+
     pub fn gate(&mut self, blocked: bool, dark: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.blocked = blocked;
         self.dark = dark;
@@ -461,10 +599,9 @@ impl DocumentEditor {
     fn apply_gate(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let read_only = self.blocked
             || self.read_only
-            || self
-                .session
-                .as_ref()
-                .is_none_or(|s| s.frozen || !s.editable);
+            || self.session.as_ref().is_none_or(|s| {
+                s.frozen || !s.editable || s.lossy_readonly || s.requires_line_ending_normalization
+            });
         if let Some(surface) = &self.surface {
             surface.apply(read_only, self.dark, self.scale, window, cx);
         }
@@ -473,6 +610,11 @@ impl DocumentEditor {
     /// Menu and shell commands (`source`, `undo`, `redo`, formatting).
     pub fn command(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) {
         if self.blocked {
+            return;
+        }
+        if matches!(name, "undo" | "redo") {
+            self.perform_history(name == "redo", window, cx);
+            self.focus_document(window, cx);
             return;
         }
         let Some(surface) = &self.surface else { return };
@@ -561,6 +703,66 @@ impl DocumentEditor {
             None => self.focus.focus(window, cx),
         }
     }
+
+    /// Renders the `DP-31` / `DP-32` top read-only explanation banner (with the
+    /// explicit "Normalize line endings and edit" action for mixed/`CR` files).
+    fn readonly_banner(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let session = self.session.as_ref()?;
+        let show_encoding = session.lossy_readonly && !self.file_mode;
+        let show_line_endings = session.requires_line_ending_normalization;
+        if !show_encoding && !show_line_endings {
+            return None;
+        }
+        let palette = cx.palette();
+        let message = if session.lossy_readonly {
+            crate::localization::t("editor.fileMode.readOnlyEncoding")
+        } else {
+            crate::localization::t("native.editor.lineEndingsReadOnly")
+        };
+        let doc_id = session.id.clone();
+        let action = (show_line_endings && !session.lossy_readonly).then(|| {
+            div()
+                .flex_none()
+                .debug_selector(|| "normalize-line-endings-button".into())
+                .child(
+                    Button::new("normalize-line-endings-button")
+                        .variant(ButtonVariant::Secondary)
+                        .label(crate::localization::t(
+                            "native.editor.normalizeLineEndingsAndEdit",
+                        ))
+                        .on_click(cx.listener(move |_, _, _, cx| {
+                            cx.emit(ClientMessage::NormalizeLineEndings { id: doc_id.clone() });
+                        })),
+                )
+        });
+        Some(
+            div()
+                .id("document-readonly-banner")
+                .debug_selector(|| "document-readonly-banner".into())
+                .flex_none()
+                .w_full()
+                .px(px(12.))
+                .py(px(6.))
+                .border_b_1()
+                .border_color(palette.divider)
+                .bg(palette.panel)
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(12.))
+                .child(
+                    div()
+                        .min_w_0()
+                        .flex_1()
+                        .text_size(px(theme::ty().ui.meta))
+                        .line_height(px(18.))
+                        .text_color(palette.muted)
+                        .child(message),
+                )
+                .children(action)
+                .into_any_element(),
+        )
+    }
 }
 
 /// The pane's label: the file name of a workspace-relative path.
@@ -629,11 +831,23 @@ impl Render for DocumentEditor {
         let (handle, menu) = chrome
             .filter(|_| !self.file_mode)
             .map_or((None, None), |(h, m)| (Some(h), m));
+        let banner = self.readonly_banner(cx);
+        let body = div()
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .w_full()
+            .children(self.surface.as_ref().map(|s| s.element()))
+            .children(self.find_bar(cx))
+            .children(handle)
+            .children(menu);
         div()
             .id("desktop-editor-pane")
             .key_context(KEY_CONTEXT)
             .relative()
             .size_full()
+            .flex()
+            .flex_col()
             .track_focus(&self.focus)
             .on_action(
                 cx.listener(|s, a: &crate::editor::actions::EditorAction, w, cx| {
@@ -661,9 +875,7 @@ impl Render for DocumentEditor {
                 }
             }))
             .child(measure)
-            .children(self.surface.as_ref().map(|s| s.element()))
-            .children(self.find_bar(cx))
-            .children(handle)
-            .children(menu)
+            .children(banner)
+            .child(body)
     }
 }

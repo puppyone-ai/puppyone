@@ -63,8 +63,16 @@ pub enum Command {
     Changes,
     /// Cloud Header → History (`CloudWorkspaceHeaderTools`).
     CloudHistory,
-    /// The Cloud conflict notice's "Discard edits and reload".
+    /// `DP-05` Exit 1: open read-only comparison view for a held Cloud conflict.
+    CompareCloudConflict,
+    /// `DP-05` Exit 2: rebase local draft onto remote revision and write.
+    KeepLocalCloudDraft,
+    /// `DP-05` Exit 3: accept remote baseline and clear conflict.
     ReloadCloudBaseline,
+    /// `DP-05` Exit 4: save local draft as `<stem> (conflict copy).<ext>` and reload original.
+    SaveConflictCopy,
+    /// `DP-31`: normalize mixed/`CR` line endings and thaw editor to read-write.
+    NormalizeLineEndings,
     /// File → Manage Running Sessions (`file.manageExecutions`).
     ManageExecutions,
     /// File/Dock → New Window (`file.newWindow`, ⌘N).
@@ -86,6 +94,7 @@ impl Command {
             "close-file" => Self::CloseFile,
             "save" => Self::Save,
             "reload" => Self::Reload,
+            "normalize-line-endings" => Self::NormalizeLineEndings,
             _ => return None,
         })
     }

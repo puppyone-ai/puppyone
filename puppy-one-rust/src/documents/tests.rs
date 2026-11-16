@@ -1,4 +1,5 @@
 use super::*;
+use crate::workspace::MAX_TEXT_BYTES;
 use std::path::Path;
 use tempfile::TempDir;
 fn setup() -> (TempDir, Documents, Wake) {
@@ -7,11 +8,8 @@ fn setup() -> (TempDir, Documents, Wake) {
     std::fs::write(temp.path().join("b.md"), b"second").unwrap();
     let ws = Workspace::open(temp.path()).unwrap();
     let doc = ws.read(Path::new("a.md")).unwrap();
-    let d = Documents {
-        workspace: Some(ws),
-        document: Some(doc),
-        ..Default::default()
-    };
+    let mut d = Documents::in_workspace(ws);
+    d.document = Some(doc);
     (temp, d, Wake::default())
 }
 fn reply(d: &mut Documents, ctx: &Wake, request: u64, revision: u64, text: &str) {
@@ -20,7 +18,7 @@ fn reply(d: &mut Documents, ctx: &Wake, request: u64, revision: u64, text: &str)
             request,
             id: d.document.as_ref().unwrap().id.clone(),
             revision,
-            text: text.into(),
+            text: Buffer::new(text),
         },
         ctx,
     );
@@ -197,12 +195,13 @@ fn observed_disk_change_replaces_model_without_a_write_or_conflict_error() {
         .unwrap()
         .observe(d.document.as_ref().unwrap())
         .unwrap();
-    d.tx.send(Completed::Observed {
-        id: doc.id.clone(),
-        generation: d.read_generation,
-        result: Ok(doc),
-    })
-    .unwrap();
+    d.copy_tx
+        .send(working_copy::CopyCompleted::Observed {
+            id: doc.id.clone(),
+            generation: d.read_generation,
+            result: Ok(doc),
+        })
+        .unwrap();
     d.poll(&ctx);
     assert_eq!(d.document.as_ref().unwrap().text, "agent changed it");
     assert!(!d.saving());
@@ -222,12 +221,13 @@ fn read_started_before_save_receipt_cannot_restore_old_content() {
     d.begin(Intent::Save, &ctx);
     snapshot(&mut d, &ctx, "latest");
     wait(&mut d, &ctx);
-    d.tx.send(Completed::Observed {
-        id: old.id.clone(),
-        generation,
-        result: Ok(old),
-    })
-    .unwrap();
+    d.copy_tx
+        .send(working_copy::CopyCompleted::Observed {
+            id: old.id.clone(),
+            generation,
+            result: Ok(old),
+        })
+        .unwrap();
     d.poll(&ctx);
     assert_eq!(d.document.as_ref().unwrap().text, "latest");
 }
@@ -251,12 +251,13 @@ fn revalidation_keeps_shown_content_and_only_changed_bytes_notify_the_editor() {
             .unwrap()
             .observe(d.document.as_ref().unwrap())
             .unwrap();
-        d.tx.send(Completed::Observed {
-            id: doc.id.clone(),
-            generation: d.read_generation,
-            result: Ok(doc),
-        })
-        .unwrap();
+        d.copy_tx
+            .send(working_copy::CopyCompleted::Observed {
+                id: doc.id.clone(),
+                generation: d.read_generation,
+                result: Ok(doc),
+            })
+            .unwrap();
         d.poll(&ctx);
         assert!(!d.busy());
         assert_eq!(d.document.as_ref().unwrap().text, text);
@@ -324,7 +325,7 @@ fn stale_oversized_and_timed_out_snapshots_never_authorize_navigation() {
             request: d.serial + 1,
             id: id.clone(),
             revision: 1,
-            text: "wrong".into(),
+            text: Buffer::new("wrong"),
         },
         &ctx,
     );
@@ -335,7 +336,7 @@ fn stale_oversized_and_timed_out_snapshots_never_authorize_navigation() {
             request: d.serial,
             id,
             revision: 1,
-            text: "x".repeat(MAX_TEXT_BYTES + 1),
+            text: Buffer::new("x".repeat(MAX_TEXT_BYTES + 1)),
         },
         &ctx,
     );
@@ -404,10 +405,7 @@ fn a_non_filesystem_provider_runs_the_real_document_save_and_preview_pipeline() 
     let ws = Workspace::from_provider(memory.clone()).unwrap();
     assert!(ws.local_root().is_none());
     let ctx = Wake::default();
-    let mut d = Documents {
-        workspace: Some(ws),
-        ..Default::default()
-    };
+    let mut d = Documents::in_workspace(ws);
     d.begin(Intent::OpenFile("note.md".into()), &ctx);
     wait(&mut d, &ctx);
     assert!(d.error.is_none(), "{:?}", d.error);
@@ -436,12 +434,13 @@ fn superseded_observation_revalidates_without_needing_another_notification() {
     let generation = d.read_generation;
     d.read_generation += 1; // A save receipt superseded the in-flight read.
     std::fs::write(temp.path().join("a.md"), "new baseline").unwrap();
-    d.tx.send(Completed::Observed {
-        id: old.id.clone(),
-        generation,
-        result: Ok(old),
-    })
-    .unwrap();
+    d.copy_tx
+        .send(working_copy::CopyCompleted::Observed {
+            id: old.id.clone(),
+            generation,
+            result: Ok(old),
+        })
+        .unwrap();
     let deadline = Instant::now() + Duration::from_secs(4);
     while d.document.as_ref().unwrap().text != "new baseline" {
         d.poll(&ctx);
@@ -457,7 +456,7 @@ fn a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quie
     d.ensure_session(&ctx);
     d.watch = None;
     let shown = d.document.as_ref().unwrap().clone();
-    let observed = |d: &Documents, kind| Completed::Observed {
+    let observed = |d: &Documents, kind| working_copy::CopyCompleted::Observed {
         id: shown.id.clone(),
         generation: d.read_generation,
         result: Err(workspace::Error::new(
@@ -467,7 +466,9 @@ fn a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quie
     };
     // A re-read lost to a burst of changes says nothing and keeps the text...
     let now = Instant::now();
-    d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+    d.copy_tx
+        .send(observed(&d, workspace::ErrorKind::Io))
+        .unwrap();
     d.poll_at(&ctx, now);
     assert!(d.error.is_none(), "{:?}", d.error);
     assert_eq!(d.document.as_ref().unwrap().text, "original");
@@ -484,17 +485,22 @@ fn a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quie
 
     // Failing in transit every time, it is reported once the retries are spent.
     for _ in OBSERVATION_RETRIES {
-        d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+        d.copy_tx
+            .send(observed(&d, workspace::ErrorKind::Io))
+            .unwrap();
         d.poll_at(&ctx, later);
         assert!(d.error.is_none());
     }
-    d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+    d.copy_tx
+        .send(observed(&d, workspace::ErrorKind::Io))
+        .unwrap();
     d.poll_at(&ctx, later);
     assert!(d.error.is_some());
 
     // What needs the person (the file is gone) is said at once.
     d.error = None;
-    d.tx.send(observed(&d, workspace::ErrorKind::NotFound))
+    d.copy_tx
+        .send(observed(&d, workspace::ErrorKind::NotFound))
         .unwrap();
     d.poll_at(&ctx, later);
     assert!(d.error.is_some());
@@ -540,10 +546,7 @@ fn a_new_lease_of_the_same_storage_rebinds_the_working_copy_and_keeps_saving() {
     let memory = Arc::new(Memory::new("memory://actor/project/"));
     let first = Workspace::from_provider(memory.clone()).unwrap();
     let ctx = Wake::default();
-    let mut d = Documents {
-        workspace: Some(first.clone()),
-        ..Default::default()
-    };
+    let mut d = Documents::in_workspace(first.clone());
     d.begin(Intent::OpenFile("note.md".into()), &ctx);
     wait(&mut d, &ctx);
     let id = d.document.as_ref().unwrap().id.clone();
@@ -572,10 +575,7 @@ fn a_rebind_holds_newer_remote_text_back_under_unsaved_input() {
     let memory = Arc::new(Memory::new("memory://actor/project/"));
     let first = Workspace::from_provider(memory.clone()).unwrap();
     let ctx = Wake::default();
-    let mut d = Documents {
-        workspace: Some(first.clone()),
-        ..Default::default()
-    };
+    let mut d = Documents::in_workspace(first.clone());
     d.begin(Intent::OpenFile("note.md".into()), &ctx);
     wait(&mut d, &ctx);
     d.client(
@@ -607,10 +607,7 @@ fn hosted_documents_read_relative_assets_through_their_provider() {
     let memory = Arc::new(Memory::new("memory://actor/project/"));
     let ws = Workspace::from_provider(memory.clone()).unwrap();
     let ctx = Wake::default();
-    let mut d = Documents {
-        workspace: Some(ws),
-        ..Default::default()
-    };
+    let mut d = Documents::in_workspace(ws);
     d.begin(Intent::OpenFile("note.md".into()), &ctx);
     wait(&mut d, &ctx);
     assert!(d.error.is_none(), "{:?}", d.error);
@@ -650,10 +647,7 @@ fn a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog() {
     use crate::workspace::testing::Memory;
     let memory = Arc::new(Memory::new("memory://actor/project/"));
     let ctx = Wake::default();
-    let mut d = Documents {
-        workspace: Some(Workspace::from_provider(memory.clone()).unwrap()),
-        ..Default::default()
-    };
+    let mut d = Documents::in_workspace(Workspace::from_provider(memory.clone()).unwrap());
     d.begin(Intent::OpenFile("note.md".into()), &ctx);
     wait(&mut d, &ctx);
     let id = d.document.as_ref().unwrap().id.clone();
@@ -815,4 +809,734 @@ fn quick_background_saves_stay_quiet_slow_and_explicit_saves_are_announced() {
             }
         );
     }
+}
+
+struct HostedFake {
+    descriptor: workspace::contracts::Descriptor,
+    files: std::sync::Mutex<std::collections::BTreeMap<String, String>>,
+    fail_next_write: std::sync::Mutex<Option<workspace::ErrorKind>>,
+}
+
+impl HostedFake {
+    fn new(namespace: &str, initial: &[(&str, &str)]) -> Arc<Self> {
+        let mut files = std::collections::BTreeMap::new();
+        for (k, v) in initial {
+            files.insert((*k).to_string(), (*v).to_string());
+        }
+        Arc::new(Self {
+            descriptor: workspace::contracts::Descriptor {
+                limits: workspace::contracts::Limits::LOCAL,
+                storage: workspace::contracts::StorageId::new(namespace).unwrap(),
+                name: "HostedFake".into(),
+                local_root: None,
+                capabilities: workspace::contracts::Capabilities {
+                    read: true,
+                    write: true,
+                    create: true,
+                    rename: true,
+                    remove: true,
+                    preview: true,
+                    ..Default::default()
+                },
+            },
+            files: std::sync::Mutex::new(files),
+            fail_next_write: std::sync::Mutex::new(None),
+        })
+    }
+
+    fn snapshot(text: &str) -> workspace::contracts::TextSnapshot {
+        workspace::contracts::TextSnapshot {
+            encoding: Default::default(),
+            line_ending: Default::default(),
+            revision: workspace::contracts::Revision(blake3::hash(text.as_bytes()).to_string()),
+            text: text.to_string(),
+        }
+    }
+
+    fn set(&self, path: &str, text: &str) {
+        self.files
+            .lock()
+            .unwrap()
+            .insert(path.to_string(), text.to_string());
+    }
+
+    fn get(&self, path: &str) -> Option<String> {
+        self.files.lock().unwrap().get(path).cloned()
+    }
+}
+
+impl workspace::ports::DataPort for HostedFake {
+    fn descriptor(&self) -> workspace::contracts::Descriptor {
+        self.descriptor.clone()
+    }
+
+    fn list(
+        &self,
+        parent: &workspace::contracts::RelativePath,
+    ) -> workspace::Result<Vec<workspace::contracts::Entry>> {
+        let prefix = parent.as_path().to_string_lossy();
+        let files = self.files.lock().unwrap();
+        let mut out = Vec::new();
+        for key in files.keys() {
+            let rel_path = Path::new(key);
+            let item_parent = rel_path.parent().unwrap_or(Path::new(""));
+            if item_parent == parent.as_path() {
+                out.push(workspace::contracts::Entry {
+                    path: workspace::contracts::RelativePath::new(rel_path)?,
+                    name: rel_path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(key)
+                        .to_string(),
+                    folder: false,
+                });
+            } else if prefix.is_empty()
+                && let Some(first) = rel_path.components().next()
+            {
+                let dir_name = first.as_os_str().to_string_lossy().into_owned();
+                if !out.iter().any(|e| e.folder && e.name == dir_name) {
+                    out.push(workspace::contracts::Entry {
+                        path: workspace::contracts::RelativePath::new(Path::new(&dir_name))?,
+                        name: dir_name,
+                        folder: true,
+                    });
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    fn create(
+        &self,
+        parent: &workspace::contracts::RelativePath,
+        name: &str,
+        folder: bool,
+        text: &str,
+    ) -> workspace::Result<workspace::contracts::RelativePath> {
+        if folder {
+            return Err(workspace::Error::unsupported());
+        }
+        let joined = if parent.as_path().as_os_str().is_empty() {
+            PathBuf::from(name)
+        } else {
+            parent.as_path().join(name)
+        };
+        let rel = workspace::contracts::RelativePath::new(&joined)?;
+        let key = rel.as_path().to_string_lossy().into_owned();
+        let mut files = self.files.lock().unwrap();
+        if files.contains_key(&key) {
+            return Err(workspace::Error::new(
+                workspace::ErrorKind::AlreadyExists,
+                "Already exists",
+            ));
+        }
+        files.insert(key, text.to_string());
+        Ok(rel)
+    }
+}
+
+impl workspace::ports::DocumentStoragePort for HostedFake {
+    fn read(
+        &self,
+        path: &workspace::contracts::RelativePath,
+    ) -> workspace::Result<workspace::contracts::TextSnapshot> {
+        let key = path.as_path().to_string_lossy();
+        let files = self.files.lock().unwrap();
+        let Some(text) = files.get(key.as_ref()) else {
+            return Err(workspace::Error::new(
+                workspace::ErrorKind::NotFound,
+                "Not found",
+            ));
+        };
+        Ok(Self::snapshot(text))
+    }
+
+    fn write(
+        &self,
+        path: &workspace::contracts::RelativePath,
+        base: &workspace::contracts::Revision,
+        text: &str,
+    ) -> workspace::Result<workspace::contracts::WriteResult> {
+        if let Some(kind) = self.fail_next_write.lock().unwrap().take() {
+            return Err(workspace::Error::new(kind, format!("Simulated {kind:?}")));
+        }
+        let key = path.as_path().to_string_lossy().into_owned();
+        let mut files = self.files.lock().unwrap();
+        let Some(current) = files.get(&key) else {
+            return Err(workspace::Error::new(
+                workspace::ErrorKind::NotFound,
+                "Target missing",
+            ));
+        };
+        let latest = Self::snapshot(current);
+        if &latest.revision != base {
+            return Ok(workspace::contracts::WriteResult::Conflict(latest));
+        }
+        files.insert(key, text.to_string());
+        Ok(workspace::contracts::WriteResult::Saved(Self::snapshot(
+            text,
+        )))
+    }
+}
+
+impl workspace::ports::ResourcePort for HostedFake {
+    fn preview(
+        &self,
+        _: &workspace::contracts::RelativePath,
+    ) -> workspace::Result<workspace::PreviewData> {
+        Ok(workspace::PreviewData::Bytes {
+            mime: "text/plain".into(),
+            bytes: Arc::from([]),
+        })
+    }
+
+    fn stat_entry(
+        &self,
+        path: &workspace::contracts::RelativePath,
+    ) -> workspace::Result<workspace::EntryStat> {
+        let key = path.as_path().to_string_lossy();
+        let files = self.files.lock().unwrap();
+        let Some(text) = files.get(key.as_ref()) else {
+            return Err(workspace::Error::new(
+                workspace::ErrorKind::NotFound,
+                "Not found",
+            ));
+        };
+        Ok(workspace::EntryStat {
+            size: text.len() as u64,
+            is_file: true,
+            readonly: false,
+        })
+    }
+
+    fn read_head(
+        &self,
+        path: &workspace::contracts::RelativePath,
+        max_bytes: usize,
+    ) -> workspace::Result<Vec<u8>> {
+        let key = path.as_path().to_string_lossy();
+        let files = self.files.lock().unwrap();
+        let Some(text) = files.get(key.as_ref()) else {
+            return Err(workspace::Error::new(
+                workspace::ErrorKind::NotFound,
+                "Not found",
+            ));
+        };
+        Ok(text.as_bytes()[..text.len().min(max_bytes)].to_vec())
+    }
+}
+
+impl workspace::ports::ResourceWatchPort for HostedFake {
+    fn watch(
+        &self,
+        _: &workspace::contracts::RelativePath,
+        _: &workspace::contracts::Revision,
+        _: workspace::ports::Notify,
+    ) -> workspace::Result<workspace::ports::WatchSubscription> {
+        Err(workspace::Error::unsupported())
+    }
+}
+
+/// `DP-01` & `DP-05`: disjoint edits on both Local and Hosted workspaces merge
+/// cleanly and flush the merged result back onto the remote revision.
+#[test]
+fn dp01_non_overlapping_local_and_hosted_changes_merge_cleanly_and_autosave() {
+    // 1. Local workspace disjoint 3-way merge via live buffer + disk observation.
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("doc.md"), "alpha\nbeta\ngamma\n").unwrap();
+    let ws = Workspace::open(temp.path()).unwrap();
+    let ctx = Wake::default();
+    let mut local = Documents::in_workspace(ws);
+    local.begin(Intent::OpenFile("doc.md".into()), &ctx);
+    wait(&mut local, &ctx);
+    let id = local.document.as_ref().unwrap().id.clone();
+    local.outgoing.clear();
+    local.client(
+        ClientMessage::LiveBuffer {
+            id: id.clone(),
+            revision: 1,
+            text: Buffer::new("ALPHA\nbeta\ngamma\n"),
+        },
+        &ctx,
+    );
+    local.client(
+        ClientMessage::Dirty {
+            id,
+            revision: 1,
+            dirty: true,
+        },
+        &ctx,
+    );
+    std::fs::write(temp.path().join("doc.md"), "alpha\nbeta\nGAMMA\n").unwrap();
+    let observed_doc = local
+        .workspace
+        .as_ref()
+        .unwrap()
+        .observe(local.document.as_ref().unwrap())
+        .unwrap();
+    local
+        .copy_tx
+        .send(working_copy::CopyCompleted::Observed {
+            id: observed_doc.id.clone(),
+            generation: local.read_generation,
+            result: Ok(observed_doc),
+        })
+        .unwrap();
+    local.poll(&ctx);
+    assert_eq!(
+        local.document.as_ref().unwrap().text,
+        "ALPHA\nbeta\nGAMMA\n"
+    );
+    assert!(local.local_overwrite_notice.is_none());
+    assert!(
+        local
+            .outgoing
+            .iter()
+            .any(|m| matches!(m, HostMessage::Open { text, external: true, .. } if text == "ALPHA\nbeta\nGAMMA\n"))
+    );
+    // Merged local hunk remains dirty and flushes cleanly to disk.
+    local.flush_pending_auto_save(&ctx);
+    if let Some((req, _, _)) = local.autosave_request {
+        let rev = local.revision;
+        reply(&mut local, &ctx, req, rev, "ALPHA\nbeta\nGAMMA\n");
+    }
+    wait(&mut local, &ctx);
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("doc.md")).unwrap(),
+        "ALPHA\nbeta\nGAMMA\n"
+    );
+
+    // 2. Hosted workspace disjoint 3-way merge on conditional-write conflict.
+    let hosted = HostedFake::new("cloud://acct/proj/", &[("note.md", "alpha\nbeta\ngamma\n")]);
+    let hosted_ws = Workspace::from_provider(hosted.clone()).unwrap();
+    let mut cloud = Documents::in_workspace(hosted_ws);
+    cloud.begin(Intent::OpenFile("note.md".into()), &ctx);
+    wait(&mut cloud, &ctx);
+    hosted.set("note.md", "alpha\nbeta\nGAMMA\n");
+    cloud.begin(Intent::Save, &ctx);
+    snapshot(&mut cloud, &ctx, "ALPHA\nbeta\ngamma\n");
+    wait(&mut cloud, &ctx);
+    assert!(!cloud.cloud_conflict());
+    assert_eq!(
+        hosted.get("note.md").as_deref(),
+        Some("ALPHA\nbeta\nGAMMA\n")
+    );
+    assert!(!cloud.dirty);
+}
+
+/// `DP-04`: overlapping local edit adopts disk on overlapping hunks, preserves
+/// disjoint local hunks, emits an external `HostMessage`, and raises a
+/// non-blocking neutral notice instead of an error dialog.
+#[test]
+fn dp04_local_overlapping_edit_adopts_disk_preserves_disjoint_hunks_and_sets_undo_notice() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("a.md"), "l1\nl2\nl3\nl4\n").unwrap();
+    let ws = Workspace::open(temp.path()).unwrap();
+    let ctx = Wake::default();
+    let mut d = Documents::in_workspace(ws);
+    d.begin(Intent::OpenFile("a.md".into()), &ctx);
+    wait(&mut d, &ctx);
+    let id = d.document.as_ref().unwrap().id.clone();
+    d.outgoing.clear();
+    d.client(
+        ClientMessage::LiveBuffer {
+            id: id.clone(),
+            revision: 1,
+            text: Buffer::new("OURS_OVERLAP\nl2\nl3\nOURS_DISJOINT\n"),
+        },
+        &ctx,
+    );
+    d.client(
+        ClientMessage::Dirty {
+            id,
+            revision: 1,
+            dirty: true,
+        },
+        &ctx,
+    );
+    std::fs::write(temp.path().join("a.md"), "DISK_OVERLAP\nl2\nl3\nl4\n").unwrap();
+    let observed_doc = d
+        .workspace
+        .as_ref()
+        .unwrap()
+        .observe(d.document.as_ref().unwrap())
+        .unwrap();
+    d.copy_tx
+        .send(working_copy::CopyCompleted::Observed {
+            id: observed_doc.id.clone(),
+            generation: d.read_generation,
+            result: Ok(observed_doc),
+        })
+        .unwrap();
+    d.poll(&ctx);
+    assert!(d.error.is_none());
+    assert!(d.local_overwrite_notice.is_some());
+    assert_eq!(
+        d.document.as_ref().unwrap().text,
+        "DISK_OVERLAP\nl2\nl3\nOURS_DISJOINT\n"
+    );
+    assert!(d.dirty, "disjoint local hunk must still save back");
+}
+
+/// `DP-05`: overlapping hosted edits surface all conflict exits (`ConflictState`
+/// for Compare, `keep_local_cloud_draft`, `reload_cloud_baseline`, and
+/// `save_conflict_copy` writing `<stem> (conflict copy).<ext>`).
+#[test]
+fn dp05_hosted_conflict_exits_keep_mine_accept_remote_and_save_conflict_copy() {
+    let ctx = Wake::default();
+
+    // Exit 2: Keep Mine rebases local draft onto remote revision and saves it.
+    let hosted = HostedFake::new("cloud://acct/proj/", &[("docs/plan.md", "base\n")]);
+    let mut d = Documents::in_workspace(Workspace::from_provider(hosted.clone()).unwrap());
+    d.begin(Intent::OpenFile("docs/plan.md".into()), &ctx);
+    wait(&mut d, &ctx);
+    hosted.set("docs/plan.md", "remote v2\n");
+    d.begin(Intent::Save, &ctx);
+    snapshot(&mut d, &ctx, "mine v2\n");
+    wait(&mut d, &ctx);
+    assert!(d.cloud_conflict());
+    let conflict = d.conflict_state().expect("Compare state present");
+    assert_eq!(conflict.ours.as_str(), "mine v2\n");
+    assert_eq!(conflict.theirs.as_str(), "remote v2\n");
+    d.keep_local_cloud_draft(&ctx);
+    wait(&mut d, &ctx);
+    assert!(!d.cloud_conflict());
+    assert!(!d.dirty);
+    assert_eq!(hosted.get("docs/plan.md").as_deref(), Some("mine v2\n"));
+
+    // Exit 3: Accept Remote adopts remote text and clears conflict.
+    hosted.set("docs/plan.md", "remote v3\n");
+    d.begin(Intent::Save, &ctx);
+    let Phase::Snapshot { request, .. } = d.phase else {
+        panic!("expected snapshot");
+    };
+    reply(&mut d, &ctx, request, 2, "mine v3\n");
+    wait(&mut d, &ctx);
+    assert!(d.cloud_conflict());
+    d.outgoing.clear();
+    d.reload_cloud_baseline();
+    assert!(!d.cloud_conflict());
+    assert!(!d.dirty);
+    assert_eq!(d.document.as_ref().unwrap().text, "remote v3\n");
+    assert!(d.outgoing.iter().any(
+        |m| matches!(m, HostMessage::Open { text, external: true, .. } if text == "remote v3\n")
+    ));
+
+    // Exit 4: Save As Copy writes `<stem> (conflict copy).<ext>` and reloads original to `theirs`.
+    hosted.set("docs/plan.md", "remote v4\n");
+    d.begin(Intent::Save, &ctx);
+    let Phase::Snapshot { request, .. } = d.phase else {
+        panic!("expected snapshot");
+    };
+    reply(&mut d, &ctx, request, 3, "precious mine v4\n");
+    wait(&mut d, &ctx);
+    assert!(d.cloud_conflict());
+    d.save_conflict_copy(&ctx);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while d.conflict_copy_created.is_none() {
+        d.poll(&ctx);
+        assert!(Instant::now() < deadline, "save_conflict_copy timed out");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(!d.cloud_conflict());
+    assert!(!d.dirty);
+    assert_eq!(
+        d.take_conflict_copy_created(),
+        Some(PathBuf::from("docs/plan (conflict copy).md"))
+    );
+    assert_eq!(
+        hosted.get("docs/plan (conflict copy).md").as_deref(),
+        Some("precious mine v4\n")
+    );
+    assert_eq!(hosted.get("docs/plan.md").as_deref(), Some("remote v4\n"));
+    assert_eq!(d.document.as_ref().unwrap().text, "remote v4\n");
+}
+
+/// `DP-31`: mixed/`CR` line endings open read-only with `HostMessage::Policy`,
+/// and `normalize_open_line_endings` thaws the editor and writes normalized bytes.
+#[test]
+fn dp31_mixed_line_endings_open_readonly_until_explicitly_normalized() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("mixed.txt"), b"first\r\nsecond\nthird\r").unwrap();
+    let ws = Workspace::open(temp.path()).unwrap();
+    let ctx = Wake::default();
+    let mut d = Documents::in_workspace(ws);
+    d.begin(Intent::OpenFile("mixed.txt".into()), &ctx);
+    wait(&mut d, &ctx);
+    assert!(
+        d.document
+            .as_ref()
+            .unwrap()
+            .requires_line_ending_normalization()
+    );
+    assert!(d.outgoing.iter().any(|m| matches!(
+        m,
+        HostMessage::Policy {
+            requires_line_ending_normalization: true,
+            ..
+        }
+    )));
+    d.outgoing.clear();
+    d.normalize_open_line_endings(&ctx);
+    assert!(
+        !d.document
+            .as_ref()
+            .unwrap()
+            .requires_line_ending_normalization()
+    );
+    assert!(d.outgoing.iter().any(|m| matches!(
+        m,
+        HostMessage::Policy {
+            requires_line_ending_normalization: false,
+            lossy_readonly: false,
+            ..
+        }
+    )));
+    d.flush_pending_auto_save(&ctx);
+    let req = d.autosave_request.expect("normalization autosave").0;
+    reply(&mut d, &ctx, req, 0, "first\nsecond\nthird\n");
+    wait(&mut d, &ctx);
+    assert_eq!(
+        std::fs::read(temp.path().join("mixed.txt")).unwrap(),
+        b"first\nsecond\nthird\n"
+    );
+}
+
+/// `DP-10` & `DP-11`: normal autosaves never touch `DraftJournal`; unflushable
+/// states (`SaveFailed`, `OutcomeUnknown`, `StaleLease`, `ConflictPending`)
+/// journal within `1s`, delete on save/discard, recover on reopen, and clear
+/// hosted entries on Cloud sign-out.
+#[test]
+fn dp10_dp11_draft_journal_lifecycle_simulated_crash_recovery_and_signout_purge() {
+    use crate::platform::draft_journal::{DraftEntry, DraftReason};
+    let journal_dir = tempfile::tempdir().unwrap();
+    let journal = DraftJournal::new(journal_dir.path());
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("local.md"), "v1\n").unwrap();
+    let ws = Workspace::open(temp.path()).unwrap();
+    let ctx = Wake::default();
+    let mut local = Documents::in_workspace_with_journal(ws.clone(), Some(journal.clone()));
+    local.begin(Intent::OpenFile("local.md".into()), &ctx);
+    wait(&mut local, &ctx);
+    let local_doc = local.document.as_ref().unwrap().clone();
+    let local_id = local_doc.id.clone();
+    let (local_ws_key, local_res_key) = drafts::journal_keys(&local_doc);
+
+    // 1. Normal dirty typing + normal autosave writes zero journal entries.
+    local.client(
+        ClientMessage::LiveBuffer {
+            id: local_id.clone(),
+            revision: 1,
+            text: Buffer::new("normal edit\n"),
+        },
+        &ctx,
+    );
+    local.client(
+        ClientMessage::Dirty {
+            id: local_id,
+            revision: 1,
+            dirty: true,
+        },
+        &ctx,
+    );
+    local.poll_at(&ctx, Instant::now() + Duration::from_secs(2));
+    assert!(
+        journal
+            .list_workspace_entries(&local_ws_key)
+            .unwrap()
+            .is_empty(),
+        "normal autosave must not hit the crash journal"
+    );
+    let req = local.autosave_request.unwrap().0;
+    reply(&mut local, &ctx, req, 1, "normal edit\n");
+    wait(&mut local, &ctx);
+    assert!(
+        journal
+            .list_workspace_entries(&local_ws_key)
+            .unwrap()
+            .is_empty()
+    );
+
+    // 2. Hosted unflushable states (`OutcomeUnknown`, `ConflictPending`) write within 1s,
+    //    crash recovery with matching baseline restores draft + notice, and sign-out clears hosted entries.
+    let hosted = HostedFake::new("cloud://acct/proj/", &[("doc.md", "base\n")]);
+    let hosted_ws = Workspace::from_provider(hosted.clone()).unwrap();
+    let mut cloud = Documents::in_workspace_with_journal(hosted_ws.clone(), Some(journal.clone()));
+    cloud.begin(Intent::OpenFile("doc.md".into()), &ctx);
+    wait(&mut cloud, &ctx);
+    let hosted_doc = cloud.document.as_ref().unwrap().clone();
+    let (hosted_ws_key, hosted_res_key) = drafts::journal_keys(&hosted_doc);
+    *hosted.fail_next_write.lock().unwrap() = Some(workspace::ErrorKind::OutcomeUnknown);
+    cloud.begin(Intent::Save, &ctx);
+    snapshot(&mut cloud, &ctx, "crash safe cloud draft\n");
+    let settle_err = Instant::now() + Duration::from_secs(5);
+    while cloud.save_error.is_none() {
+        cloud.poll(&ctx);
+        assert!(Instant::now() < settle_err);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(
+        cloud.save_error_kind,
+        Some(workspace::ErrorKind::OutcomeUnknown)
+    );
+    // Advance past 1s journal debounce and wait for async journal write.
+    let after_1s = Instant::now() + drafts::JOURNAL_WRITE_DELAY + Duration::from_millis(20);
+    let journal_deadline = Instant::now() + Duration::from_secs(5);
+    while journal
+        .read_entry(&hosted_ws_key, &hosted_res_key)
+        .unwrap()
+        .is_none()
+    {
+        cloud.poll_at(&ctx, after_1s);
+        assert!(
+            Instant::now() < journal_deadline,
+            "journal write did not complete"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(
+        journal
+            .read_entry(&hosted_ws_key, &hosted_res_key)
+            .unwrap()
+            .unwrap()
+            .reason,
+        DraftReason::OutcomeUnknown
+    );
+
+    // Simulate process crash (`drop(cloud)`) and reopen with matching baseline:
+    drop(cloud);
+    let mut recovered =
+        Documents::in_workspace_with_journal(hosted_ws.clone(), Some(journal.clone()));
+    recovered.begin(Intent::OpenFile("doc.md".into()), &ctx);
+    let open_deadline = Instant::now() + Duration::from_secs(5);
+    while recovered.busy() {
+        recovered.poll(&ctx);
+        assert!(Instant::now() < open_deadline);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(recovered.recovered_draft_notice.is_some());
+    assert!(recovered.dirty);
+    assert!(!recovered.cloud_conflict());
+    assert!(recovered.outgoing.iter().any(|m| matches!(
+        m,
+        HostMessage::Open { text, .. } if text == "crash safe cloud draft\n"
+    )));
+    // Once saved cleanly, the journal entry is deleted immediately!
+    recovered.begin(Intent::Save, &ctx);
+    let Phase::Snapshot { request, .. } = recovered.phase else {
+        panic!("expected save snapshot");
+    };
+    reply(&mut recovered, &ctx, request, 1, "crash safe cloud draft\n");
+    wait(&mut recovered, &ctx);
+    assert!(
+        journal
+            .read_entry(&hosted_ws_key, &hosted_res_key)
+            .unwrap()
+            .is_none()
+    );
+
+    // Simulate crash with diverged remote storage on reopen (`DP-11` -> `DP-05` conflict):
+    journal
+        .write_entry(&DraftEntry {
+            workspace_key: hosted_ws_key.clone(),
+            resource_key: hosted_res_key.clone(),
+            path: PathBuf::from("doc.md"),
+            baseline_hash: blake3::hash(b"crash safe cloud draft\n")
+                .to_hex()
+                .to_string(),
+            draft_text: "offline edits\n".into(),
+            reason: DraftReason::Offline,
+            updated_at_ms: 1000,
+        })
+        .unwrap();
+    hosted.set("doc.md", "diverged remote\n");
+    let mut diverged = Documents::in_workspace_with_journal(hosted_ws, Some(journal.clone()));
+    diverged.begin(Intent::OpenFile("doc.md".into()), &ctx);
+    wait(&mut diverged, &ctx);
+    assert!(diverged.cloud_conflict());
+    assert_eq!(
+        diverged.conflict_state().unwrap().ours.as_str(),
+        "offline edits\n"
+    );
+    assert_eq!(
+        diverged.conflict_state().unwrap().theirs.as_str(),
+        "diverged remote\n"
+    );
+
+    // Also plant a local file:// entry and verify sign-out clears ONLY hosted entries.
+    journal
+        .write_entry(&DraftEntry {
+            workspace_key: local_ws_key.clone(),
+            resource_key: local_res_key.clone(),
+            path: PathBuf::from("local.md"),
+            baseline_hash: "abc".into(),
+            draft_text: "local unflushable\n".into(),
+            reason: DraftReason::SaveFailed,
+            updated_at_ms: 1001,
+        })
+        .unwrap();
+    diverged.clear_hosted_drafts();
+    let clear_deadline = Instant::now() + Duration::from_secs(5);
+    while journal
+        .read_entry(&hosted_ws_key, &hosted_res_key)
+        .unwrap()
+        .is_some()
+    {
+        assert!(Instant::now() < clear_deadline);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        journal
+            .read_entry(&local_ws_key, &local_res_key)
+            .unwrap()
+            .is_some(),
+        "local file:// recovery entry must survive Cloud sign-out"
+    );
+}
+
+/// `DP-41` & `DP-42`: bounded worker pool never spawns more than `POOL_WORKERS`
+/// threads under bursty saves/observations, and snapshot barriers schedule one
+/// exact `SNAPSHOT_TIMEOUT` deadline rather than `100ms` ticks.
+#[test]
+fn dp41_dp42_bounded_executor_thread_ceiling_and_exact_deadline_scheduling() {
+    let hosted = HostedFake::new("cloud://acct/pool-test/", &[("a.md", "v0\n")]);
+    let ws = Workspace::from_provider(hosted.clone()).unwrap();
+    let ctx = Wake::default();
+    let mut copies: Vec<Documents> = (0..16)
+        .map(|_| {
+            let mut c = Documents::in_workspace(ws.clone());
+            c.begin(Intent::OpenFile("a.md".into()), &ctx);
+            c
+        })
+        .collect();
+    for c in &mut copies {
+        wait(c, &ctx);
+        assert!(c.error.is_none());
+    }
+    hosted.set("a.md", "v1\n");
+    for c in &mut copies {
+        c.revalidate();
+        c.poll(&ctx);
+    }
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while copies
+        .iter()
+        .any(|c| c.document.as_ref().unwrap().text != "v1\n")
+    {
+        for c in &mut copies {
+            c.poll_at(&ctx, Instant::now() + OBSERVATION_RETRIES[0]);
+        }
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(io::DocumentIoPool::global().spawned_threads() <= io::POOL_WORKERS);
+
+    let (_temp, mut d, _) = setup();
+    let probe_wake = Wake::default();
+    d.begin(Intent::Quit, &probe_wake);
+    assert!(matches!(d.phase, Phase::Snapshot { .. }));
+    // Polling repeatedly before the 5s deadline does not arm 100ms ticks or fail early.
+    d.poll_at(&probe_wake, Instant::now() + Duration::from_millis(250));
+    assert!(matches!(d.phase, Phase::Snapshot { .. }));
+    assert!(d.error.is_none());
 }
