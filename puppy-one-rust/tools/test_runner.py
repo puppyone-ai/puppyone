@@ -53,11 +53,17 @@ def validate_result(name, code, output):
 
 def execute(command, *, env=None, timeout=240):
     process = subprocess.Popen(command, cwd=ROOT, env=env, text=True,
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                start_new_session=True)
+    def collected_output(output, diagnostics):
+        # Native logging can bypass libtest capture and write while stdout is
+        # halfway through "test name ... ok". Keep the streams separate until
+        # complete. Diagnostics precede stdout so Cargo's final JSON payload
+        # also remains a contiguous, parseable suffix of the retained log.
+        return ((diagnostics.rstrip('\n') + '\n') if diagnostics else '') + (output or '')
     try:
-        output, _ = process.communicate(timeout=timeout)
-        return process.returncode, output
+        output, diagnostics = process.communicate(timeout=timeout)
+        return process.returncode, collected_output(output, diagnostics)
     except subprocess.TimeoutExpired:
         # A timed-out test can own CLI children that inherit its output pipe.
         # Kill the group, then drain it; killing only libtest leaves them behind.
@@ -65,8 +71,8 @@ def execute(command, *, env=None, timeout=240):
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        output, _ = process.communicate()
-        return 124, output + '\nVerification timed out.\n'
+        output, diagnostics = process.communicate()
+        return 124, collected_output(output, diagnostics) + '\nVerification timed out.\n'
 
 
 def run_gate(name, required, *, env=None, metadata=None):

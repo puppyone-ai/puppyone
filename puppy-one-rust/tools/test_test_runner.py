@@ -25,6 +25,18 @@ class LibtestEvidence(unittest.TestCase):
         output = 'test a::b ... ok\ntest a::b ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored;'
         self.assertIsNotNone(validate_result('a::b', 0, output))
 
+    def test_real_stderr_diagnostics_cannot_split_a_libtest_result_line(self):
+        # Raw logging on another thread bypasses libtest's capture. These
+        # ordered writes reproduce a recovery diagnostic between name and ok.
+        code, output = execute([sys.executable, '-c',
+            "import os;"
+            "os.write(1,b'test a::b ... ');"
+            "os.write(2,b'Agent display feed entered recovery\\n');"
+            "os.write(1,b'ok\\n\\ntest result: ok. 1 passed; 0 failed; 0 ignored;\\n')"])
+        self.assertEqual(code, 0)
+        self.assertIn('Agent display feed entered recovery', output)
+        self.assertIsNone(validate_result('a::b', code, output))
+
     def test_timeout_terminates_the_cli_process_group_and_drains_output(self):
         child = Mock(pid=12345)
         child.communicate.side_effect = [subprocess.TimeoutExpired('fixture', 1), ('partial\n', None)]
