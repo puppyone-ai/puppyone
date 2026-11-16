@@ -13951,6 +13951,47 @@
           "test": "features::source_control::refresh_tests::absent_repositories_are_quiet_states_and_retire_old_history_instead_of_retrying_forever"
         }
       ]
+    },
+    {
+      "id": "native-git-history-read-integrity",
+      "acceptance": "History metadata preserves exact NUL-framed names (including literal arrows, whitespace and control characters), titles, rename sources and per-file counts without phantom rows. Both metadata passes and the HEAD badge refer to one captured commit. Confirmed unborn branches are empty; read failures, corrupt objects, malformed frames, mismatched snapshots and cancellation are errors.",
+      "environment": "Actual disposable Git repositories for pathological filenames, commit subjects, renames, corrupt commit objects and immutable captured history. Additional parser fixtures reject truncated fields and invalid counts. Native regression extension around the cited TS suite; this row does not close additional TS cases or qualify all-branch graph/clipboard/visual behavior.",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/status/workspace.git.integration.test.mjs",
+          "sha256": "24341b907c1dd60fa4a954d096232822ca3b4799cb6bef074a1fd1d20ec2b64d"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::integrity_tests::history_preserves_filename_boundaries_and_control_characters_in_subjects"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::integrity_tests::a_history_rename_keeps_exact_old_and_new_paths_and_one_stats_record"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::integrity_tests::history_failures_and_cancellation_cannot_become_empty_successes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::integrity_tests::both_history_passes_and_the_head_badge_use_the_captured_commit"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::records::tests::malformed_frames_counts_and_snapshot_mismatches_are_rejected"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::tests::logs_merge_like_read_git_history"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::tests::a_repository_reads_its_history_and_head"
+        }
+      ]
     }
   ],
   "openAcceptance": [

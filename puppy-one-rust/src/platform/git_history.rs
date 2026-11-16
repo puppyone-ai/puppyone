@@ -1,8 +1,11 @@
 //! Commit history for the History timeline: the product's `readGitHistory`
 //! (`--name-status` and `--numstat` passes merged per commit). Dates are the
 //! author dates in the local zone, so the timeline groups by local day.
+#[cfg(test)]
+mod integrity_tests;
 use super::{git::git_read as git, git_diff::Status};
-use std::{collections::HashMap, path::Path, sync::atomic::AtomicBool};
+use std::{path::Path, sync::atomic::AtomicBool};
+mod records;
 
 /// `GIT_HISTORY_LIMIT`.
 pub const LIMIT: usize = 100;
@@ -37,177 +40,93 @@ pub struct History {
     pub head: Option<String>,
 }
 
-const FORMAT: &str = "--pretty=format:%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%ad%x1f%s";
-
-/// `parseGitNameStatusLine`.
-fn name_status(line: &str) -> Option<CommitChange> {
-    if line.trim().is_empty() {
-        return None;
-    }
-    let parts: Vec<&str> = line.split('\t').collect();
-    let code = parts.first().copied().unwrap_or_default();
-    let change = |status, path: &str, old: Option<&str>| CommitChange {
-        path: path.to_owned(),
-        old_path: old.filter(|o| !o.is_empty()).map(str::to_owned),
-        status,
-        additions: None,
-        deletions: None,
-    };
-    let path = |i: usize| parts.get(i).copied().unwrap_or_default();
-    Some(match code.chars().next() {
-        Some('R') => change(
-            Status::Renamed,
-            if path(2).is_empty() { path(1) } else { path(2) },
-            Some(path(1)),
-        ),
-        Some('C') => change(
-            Status::Copied,
-            if path(2).is_empty() { path(1) } else { path(2) },
-            Some(path(1)),
-        ),
-        Some('A') => change(Status::Added, path(1), None),
-        Some('D') => change(Status::Deleted, path(1), None),
-        Some('M') => change(Status::Modified, path(1), None),
-        _ => change(Status::Changed, path(1), None),
-    })
-}
-
-/// `normalizeNumstatPath`: `dir/{old => new}/file` and `old => new` name
-/// the new path.
-fn numstat_path(value: &str) -> String {
-    let value = value.trim();
-    if !value.contains("=>") {
-        return value.to_owned();
-    }
-    if let (Some(open), Some(close)) = (value.find('{'), value.rfind('}'))
-        && open < close
-        && let Some((old, new)) = value[open + 1..close].split_once(" => ")
-        && !old.is_empty()
-        && !new.is_empty()
-    {
-        let joined = format!("{}{}{}", &value[..open], new, &value[close + 1..]);
-        let mut collapsed = String::with_capacity(joined.len());
-        for c in joined.chars() {
-            if !(c == '/' && collapsed.ends_with('/')) {
-                collapsed.push(c);
-            }
-        }
-        return collapsed;
-    }
-    value.rsplit(" => ").next().unwrap_or(value).to_owned()
-}
-
-/// Sections of `git log` output: `\x1e<header>` followed by change lines.
-fn sections(output: &str) -> impl Iterator<Item = (Vec<&str>, Vec<&str>)> {
-    output.split('\x1e').filter_map(|section| {
-        let mut lines = section.trim_start_matches(['\r', '\n']).lines();
-        let header = lines.next()?;
-        let fields: Vec<&str> = header.split('\x1f').collect();
-        (!fields.first()?.is_empty()).then(|| (fields, lines.collect()))
-    })
-}
-
-/// `--numstat` rows per commit: path, additions, deletions (`-` is unknown).
-type Stats = HashMap<String, Vec<(String, Option<u32>, Option<u32>)>>;
-
-/// `parseGitCommitSection` + `mergeGitChangeStats`.
-pub fn parse(name_status_log: &str, numstat_log: &str) -> Vec<CommitSummary> {
-    let mut stats = Stats::new();
-    for (fields, lines) in sections(numstat_log) {
-        let rows = lines
-            .iter()
-            .filter_map(|line| {
-                let mut parts = line.splitn(3, '\t');
-                let (added, deleted, path) = (parts.next()?, parts.next()?, parts.next()?);
-                let count = |v: &str| v.parse().ok();
-                Some((numstat_path(path), count(added), count(deleted)))
-            })
-            .collect();
-        stats.insert(fields[0].to_owned(), rows);
-    }
-    sections(name_status_log)
-        .map(|(fields, lines)| {
-            let field = |i: usize| fields.get(i).copied().unwrap_or_default();
-            let mut changes: Vec<CommitChange> =
-                lines.iter().filter_map(|l| name_status(l)).collect();
-            let mut unused = stats.remove(field(0)).unwrap_or_default();
-            for change in &mut changes {
-                if let Some(at) = unused.iter().position(|(path, ..)| *path == change.path) {
-                    let (_, added, deleted) = unused.remove(at);
-                    change.additions = added;
-                    change.deletions = deleted;
-                }
-            }
-            changes.extend(
-                unused
-                    .into_iter()
-                    .map(|(path, additions, deletions)| CommitChange {
-                        path,
-                        old_path: None,
-                        status: Status::Changed,
-                        additions,
-                        deletions,
-                    }),
-            );
-            let message = fields.get(5..).map(|m| m.join("\x1f")).unwrap_or_default();
-            CommitSummary {
-                id: field(0).to_owned(),
-                parents: field(1)
-                    .split(' ')
-                    .filter(|p| !p.is_empty())
-                    .map(str::to_owned)
-                    .collect(),
-                author_name: if field(2).is_empty() {
-                    "Unknown".into()
-                } else {
-                    field(2).to_owned()
-                },
-                author_email: field(3).to_owned(),
-                created_at: (!field(4).is_empty()).then(|| field(4).to_owned()),
-                message: if message.is_empty() {
-                    "(no message)".into()
-                } else {
-                    message
-                },
-                changes,
-            }
-        })
-        .collect()
-}
+const FORMAT: &str = "--format=%x00%H%x00%P%x00%an%x00%ae%x00%ad%x00%s%x00";
 
 pub fn history(root: &Path, cancel: &AtomicBool) -> Result<History, String> {
     super::git::coordinator::wait_for_reads(root, cancel)?;
-    let limit = LIMIT.to_string();
-    let base = [
-        "log",
-        "--topo-order",
-        "-n",
-        &limit,
-        "--date=iso-strict-local",
-        FORMAT,
-    ];
-    let run = |extra: &str| -> Result<String, String> {
-        let mut args = base.to_vec();
-        args.push(extra);
-        git(root, &args, None, cancel).map(|out| String::from_utf8_lossy(&out).into_owned())
-    };
-    // An unborn branch has no history yet.
-    let Ok(status) = run("--name-status") else {
-        return Ok(History::default());
-    };
-    let numstat = run("--numstat").unwrap_or_default();
-    let head = git(
+    let head = match git(
         root,
-        &["rev-parse", "--verify", "--quiet", "HEAD"],
+        &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
         None,
         cancel,
-    )
-    .ok()
-    .map(|out| String::from_utf8_lossy(&out).trim().to_owned())
-    .filter(|h| !h.is_empty());
+    ) {
+        Ok(bytes) => String::from_utf8(bytes)
+            .map_err(|_| "Invalid Git history HEAD")?
+            .trim()
+            .to_owned(),
+        Err(cause) => {
+            // Only an existing repository with a symbolic HEAD whose exact
+            // branch has no ref is unborn. Corruption and read/cancel failures
+            // must reach the owner's retry state instead of inventing emptiness.
+            let symbolic = git(root, &["symbolic-ref", "--quiet", "HEAD"], None, cancel)
+                .map_err(|_| cause.clone())?;
+            let symbolic = std::str::from_utf8(&symbolic)
+                .map_err(|_| cause.clone())?
+                .trim();
+            if !symbolic.starts_with("refs/heads/") {
+                return Err(cause);
+            }
+            let refs = git(
+                root,
+                &["for-each-ref", "--format=%(refname)", symbolic],
+                None,
+                cancel,
+            )?;
+            if std::str::from_utf8(&refs)
+                .map_err(|_| "Invalid Git history refs")?
+                .lines()
+                .any(|name| name == symbolic)
+            {
+                return Err(cause);
+            }
+            if cancel.load(std::sync::atomic::Ordering::Acquire) {
+                return Err("Git history read cancelled".into());
+            }
+            return Ok(History::default());
+        }
+    };
+    read_at(root, &head, cancel)
+}
+fn read_at(root: &Path, head: &str, cancel: &AtomicBool) -> Result<History, String> {
+    let limit = LIMIT.to_string();
+    // Both passes and the HEAD badge refer to the same immutable commit even
+    // if a concurrent local Git command advances or checks out the branch.
+    let read = |kind: &str| -> Result<String, String> {
+        let bytes = git(
+            root,
+            &[
+                "log",
+                "--topo-order",
+                "-n",
+                &limit,
+                "-z",
+                "--no-show-signature",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--date=iso-strict-local",
+                FORMAT,
+                kind,
+                head,
+                "--",
+            ],
+            None,
+            cancel,
+        )?;
+        String::from_utf8(bytes)
+            .map_err(|_| "Git history contains non-UTF-8 metadata or paths".into())
+    };
+    let status = read("--name-status")?;
+    let numstat = read("--numstat")?;
+    let commits = records::parse(&status, &numstat)?;
+    if commits.is_empty() {
+        return Err("Git history omitted its captured HEAD".into());
+    }
+    if cancel.load(std::sync::atomic::Ordering::Acquire) {
+        return Err("Git history read cancelled".into());
+    }
     Ok(History {
-        commits: parse(&status, &numstat),
-        head,
+        commits,
+        head: Some(head.into()),
     })
 }
 
@@ -218,9 +137,18 @@ mod tests {
 
     #[test]
     fn logs_merge_like_read_git_history() {
-        let status = "\x1eaaa\x1fp1 p2\x1fAda\x1fada@x\x1f2026-10-24T09:05:00+08:00\x1fClarify usage\nM\tREADME.md\nR100\told.txt\tnew.txt\nA\tsrc/util.ts\n\x1ebbb\x1f\x1f\x1f\x1f\x1f\n";
-        let numstat = "\x1eaaa\x1f...\n1\t1\tREADME.md\n0\t0\t{old.txt => new.txt}\n4\t0\tsrc/util.ts\n-\t-\tassets/logo.png\n\x1ebbb\x1f\n";
-        let commits = parse(status, numstat);
+        let first_header = format!(
+            "\0{}\0p1 p2\0Ada\0ada@x\02026-10-24T09:05:00+08:00\0Clarify usage\0\0",
+            "a".repeat(40)
+        );
+        let empty_header = format!("\0{}\0\0\0\0\0\0\0", "b".repeat(40));
+        let status = format!(
+            "{first_header}\nM\0README.md\0R100\0old.txt\0new.txt\0A\0src/util.ts\0{empty_header}"
+        );
+        let numstat = format!(
+            "{first_header}\n1\t1\tREADME.md\00\t0\t\0old.txt\0new.txt\04\t0\tsrc/util.ts\0-\t-\tassets/logo.png\0{empty_header}"
+        );
+        let commits = records::parse(&status, &numstat).unwrap();
         assert_eq!(commits.len(), 2);
         let first = &commits[0];
         assert_eq!(
@@ -255,9 +183,6 @@ mod tests {
             ),
             ("Unknown", "(no message)", None)
         );
-        assert_eq!(numstat_path("src/{a => b}/c.rs"), "src/b/c.rs");
-        assert_eq!(numstat_path("{x => }/y"), "}/y");
-        assert_eq!(numstat_path("a.txt => b.txt"), "b.txt");
     }
 
     #[test]
