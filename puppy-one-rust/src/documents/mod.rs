@@ -370,6 +370,10 @@ impl Documents {
     pub fn saving(&self) -> bool {
         self.session.as_ref().is_some_and(|s| !s.drained()) || self.autosave_request.is_some()
     }
+    fn clear_observation_retry(&mut self) {
+        self.observation_retry = None;
+        self.observation_failures = 0;
+    }
     fn ensure_session(&mut self, ctx: &Wake) {
         if let Some(doc) = &self.document {
             if self.session.as_ref().is_none_or(|s| s.id != doc.id) {
@@ -381,6 +385,7 @@ impl Documents {
                     .as_ref()
                     .is_some_and(|ws| ws.local_root().is_none());
                 self.session = Some(session);
+                self.clear_observation_retry();
                 self.auto_save.cancel();
                 self.saving_since = None;
                 self.save_announced = false;
@@ -394,6 +399,7 @@ impl Documents {
             }
         } else {
             self.session = None;
+            self.clear_observation_retry();
             self.auto_save.cancel();
             self.autosave_request = None;
             if self.resource.is_none() {
@@ -438,6 +444,7 @@ impl Documents {
     /// Leaving a hosted workspace releases this document's subscription
     /// (`DesktopCloudFileWorkspace` unmounts its watch); the draft stays.
     pub fn pause_watch(&mut self) {
+        self.clear_observation_retry();
         self.watch = None;
         self.observing = None;
         self.resource_observing = None;
@@ -465,6 +472,7 @@ impl Documents {
         matches!(self.phase, Phase::Idle)
     }
     pub fn release_operation(&mut self, ctx: &Wake) {
+        self.clear_observation_retry();
         self.phase = Phase::Idle;
         self.read_generation += 1;
         self.observation_pending = false;
@@ -488,6 +496,7 @@ impl Documents {
             return;
         }
         self.workspace = Some(ws.clone());
+        self.clear_observation_retry();
         self.watch = None;
         self.observing = None;
         self.resource_observing = None;
@@ -897,6 +906,9 @@ impl Documents {
         }
     }
     fn execute(&mut self, intent: Intent, ctx: &Wake) {
+        if !matches!(intent, Intent::Save) {
+            self.clear_observation_retry();
+        }
         match intent {
             Intent::OpenFolder(path) => {
                 self.phase = Phase::Working;
@@ -1244,6 +1256,7 @@ impl Documents {
         while let Ok(message) = self.rx.try_recv() {
             match message {
                 Completed::Root(Ok((ws, rows))) => {
+                    self.clear_observation_retry();
                     *self.cloud_phase.lock().unwrap() = None;
                     if let Some(previous) = self.workspace.replace(ws) {
                         previous.revoke();

@@ -267,7 +267,7 @@
     },
     {
       "id": "cloud-cache",
-      "acceptance": "Cache listings only while watching; bound retained entries; scope invalidation and stale flights; check authority on cache hits. Superseded reads retry up to eight attempts, return current bytes and preserve unrelated cached paths; persistent churn reports a bounded I/O failure.",
+      "acceptance": "Cache listings only while watching; bound retained entries; scope invalidation and stale flights; check authority on cache hits. Superseded reads retry up to eight attempts, return current bytes and preserve unrelated cached paths; persistent churn reports a bounded I/O failure. Background document reads retain displayed text during transient I/O recovery, retry at 1/3/10 seconds and report terminal failures. Retry timers and failure budgets retire on pause, document replacement, lease replacement, close, operation preparation and quit; completion ownership checks stay enforced.",
       "typescript": [
         {
           "path": "tests/unit/cloud/repositories/cloudDataPort.test.ts",
@@ -294,6 +294,14 @@
         {
           "package": "po-workspace",
           "test": "workspace::cloud::client::tests::a_path_that_keeps_changing_through_every_attempt_reports_the_race"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quietly"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::background_read_retry_timers_and_budgets_retire_with_their_owner"
         }
       ],
       "environment": "local"

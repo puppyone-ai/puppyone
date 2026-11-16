@@ -665,17 +665,21 @@ fn a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quie
     d.ensure_session(&ctx);
     d.watch = None;
     let shown = d.document.as_ref().unwrap().clone();
-    let observed = |d: &Documents, kind| Completed::Observed {
-        id: shown.id.clone(),
-        generation: d.read_generation,
-        result: Err(workspace::Error::new(
-            kind,
-            "Cloud files changed during the read; revalidate",
-        )),
+    let fail_read = |d: &mut Documents, kind| {
+        d.observing = Some((shown.id.clone(), d.read_generation));
+        d.tx.send(Completed::Observed {
+            id: shown.id.clone(),
+            generation: d.read_generation,
+            result: Err(workspace::Error::new(
+                kind,
+                "Cloud files changed during the read; revalidate",
+            )),
+        })
+        .unwrap();
     };
     // A re-read lost to a burst of changes says nothing and keeps the text...
     let now = Instant::now();
-    d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+    fail_read(&mut d, workspace::ErrorKind::Io);
     d.poll_at(&ctx, now);
     assert!(d.error.is_none(), "{:?}", d.error);
     assert_eq!(d.document.as_ref().unwrap().text, "original");
@@ -692,18 +696,17 @@ fn a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quie
 
     // Failing in transit every time, it is reported once the retries are spent.
     for _ in OBSERVATION_RETRIES {
-        d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+        fail_read(&mut d, workspace::ErrorKind::Io);
         d.poll_at(&ctx, later);
         assert!(d.error.is_none());
     }
-    d.tx.send(observed(&d, workspace::ErrorKind::Io)).unwrap();
+    fail_read(&mut d, workspace::ErrorKind::Io);
     d.poll_at(&ctx, later);
     assert!(d.error.is_some());
 
     // What needs the person (the file is gone) is said at once.
     d.error = None;
-    d.tx.send(observed(&d, workspace::ErrorKind::NotFound))
-        .unwrap();
+    fail_read(&mut d, workspace::ErrorKind::NotFound);
     d.poll_at(&ctx, later);
     assert!(d.error.is_some());
 }
@@ -1092,4 +1095,60 @@ fn retired_text_reads_cannot_clear_the_current_observation_or_schedule_an_extra_
     assert_eq!(d.document.as_ref().unwrap().text, "current connection");
     assert!(d.observing.is_none());
     assert!(!d.observation_pending);
+}
+
+#[test]
+fn background_read_retry_timers_and_budgets_retire_with_their_owner() {
+    for transition in ["pause", "replace", "rebind", "close", "prepare", "quit"] {
+        let (temp, mut d, ctx) = setup();
+        d.ensure_session(&ctx);
+        d.watch = None;
+        let now = Instant::now();
+        let id = d.document.as_ref().unwrap().id.clone();
+        d.observing = Some((id.clone(), d.read_generation));
+        d.tx.send(Completed::Observed {
+            id,
+            generation: d.read_generation,
+            result: Err(workspace::Error::new(workspace::ErrorKind::Io, "transient")),
+        })
+        .unwrap();
+        d.poll_at(&ctx, now);
+        assert_eq!(d.observation_retry, Some(now + Duration::from_secs(1)));
+        assert_eq!(d.observation_failures, 1);
+        d.poll_at(&ctx, now + Duration::from_millis(999));
+        assert!(d.observing.is_none(), "{transition}: retry before deadline");
+        match transition {
+            "pause" => d.pause_watch(),
+            "replace" => {
+                d.document = Some(
+                    d.workspace
+                        .as_ref()
+                        .unwrap()
+                        .read(Path::new("b.md"))
+                        .unwrap(),
+                );
+                d.ensure_session(&ctx);
+            }
+            "rebind" => d.rebind_workspace(Workspace::open(temp.path()).unwrap(), &ctx),
+            "close" => d.execute(Intent::CloseFile, &ctx),
+            "prepare" => d.execute(Intent::PrepareOperation, &ctx),
+            "quit" => d.execute(Intent::Quit, &ctx),
+            _ => unreachable!(),
+        }
+        assert!(
+            d.observation_retry.is_none(),
+            "{transition}: timer outlived its owner"
+        );
+        assert_eq!(
+            d.observation_failures, 0,
+            "{transition}: new owner inherited old failures"
+        );
+        if transition == "pause" {
+            d.poll_at(&ctx, now + Duration::from_secs(20));
+            assert!(
+                d.observing.is_none() && !d.observation_pending,
+                "paused document reread after retirement"
+            );
+        }
+    }
 }
