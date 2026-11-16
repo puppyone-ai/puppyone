@@ -241,7 +241,7 @@ fn for_snapshot_with(snapshot: &super::Snapshot, formatter: &Formatter<'_>) -> S
 }
 
 fn message(t: &Formatter<'_>, key: &str, args: &[(&str, Arg)]) -> String {
-    t(&format!("source-control.{key}"), args)
+    t(key, args)
 }
 
 fn configured<'a>(config: Option<&'a Value>, paths: &[&str]) -> Option<&'a str> {
@@ -311,22 +311,22 @@ pub fn build(
     let t = |key: &str, args: &[(&str, Arg)]| message(formatter, key, args);
     let Some(status) = status.filter(|s| s.is_repo) else {
         return State {
-            branch_label: t("sync.noBranch", &[]),
-            upstream_label: t("history.inactive", &[]),
+            branch_label: t("source-control.sync.noBranch", &[]),
+            upstream_label: t("source-control.history.inactive", &[]),
             remote_exists: false,
             setup_required: true,
-            setup_title: t("sync.chooseTarget", &[]),
-            setup_detail: t("sync.initializeThenCloud", &[]),
+            setup_title: t("source-control.sync.chooseTarget", &[]),
+            setup_detail: t("source-control.sync.initializeThenCloud", &[]),
             ahead: 0,
             behind: 0,
-            pull_detail: t("sync.noLocalRepository", &[]),
+            pull_detail: t("source-control.sync.noLocalRepository", &[]),
             pull_disabled: true,
             push_disabled: true,
-            pull_label: t("sync.pullRemote", &[]),
-            pull_title: t("sync.initializeBeforePull", &[]),
-            push_title: t("sync.initializeBeforePush", &[]),
-            push_label: t("sync.push", &[]),
-            push_detail: t("sync.noLocalRepository", &[]),
+            pull_label: t("source-control.sync.pullRemote", &[]),
+            pull_title: t("source-control.sync.initializeBeforePull", &[]),
+            push_title: t("source-control.sync.initializeBeforePush", &[]),
+            push_label: t("source-control.sync.push", &[]),
+            push_detail: t("source-control.sync.noLocalRepository", &[]),
         };
     };
     let branch_label = status
@@ -334,7 +334,7 @@ pub fn build(
         .as_deref()
         .filter(|s| !s.is_empty() && *s != "detached")
         .map(str::to_owned)
-        .unwrap_or_else(|| t("branch.initial", &[]));
+        .unwrap_or_else(|| t("source-control.branch.initial", &[]));
     if status.effective_hosting.kind == Hosting::Cloud {
         return cloud(status, branch_label, formatter);
     }
@@ -370,23 +370,23 @@ pub fn build(
         upstream_label: if backup {
             "Puppyone Cloud".into()
         } else {
-            t("sync.localOnly", &[])
+            t("source-control.sync.localOnly", &[])
         },
         remote_exists: false,
         setup_required: !backup,
         setup_title: t(
             if backup {
-                "sync.target"
+                "source-control.sync.target"
             } else {
-                "sync.chooseTarget"
+                "source-control.sync.chooseTarget"
             },
             &[],
         ),
         setup_detail: if backup {
-            t("sync.cloudBackupEnabled", &[])
+            t("source-control.sync.cloudBackupEnabled", &[])
         } else {
             t(
-                "sync.backupLocalBranch",
+                "source-control.sync.backupLocalBranch",
                 &[("branch", bidi_isolate(&branch_label).into())],
             )
         },
@@ -397,35 +397,42 @@ pub fn build(
         push_disabled: true,
         pull_detail: t(
             if backup {
-                "sync.configureBeforePull"
+                "source-control.sync.configureBeforePull"
             } else {
-                "sync.noTrackingBranch"
+                "source-control.sync.noTrackingBranch"
             },
             &[],
         ),
         pull_title: t(
             if backup {
-                "sync.configureBeforePull"
+                "source-control.sync.configureBeforePull"
             } else {
-                "sync.chooseBeforePull"
+                "source-control.sync.chooseBeforePull"
             },
             &[],
         ),
         push_title: t(
             if backup {
-                "sync.configureBeforePush"
+                "source-control.sync.configureBeforePush"
             } else {
-                "sync.chooseBeforePush"
+                "source-control.sync.chooseBeforePush"
             },
             &[],
         ),
-        pull_label: t("sync.pullRemote", &[]),
-        push_label: t(if backup { "sync.publish" } else { "sync.push" }, &[]),
+        pull_label: t("source-control.sync.pullRemote", &[]),
+        push_label: t(
+            if backup {
+                "source-control.sync.publish"
+            } else {
+                "source-control.sync.push"
+            },
+            &[],
+        ),
         push_detail: t(
             if backup {
-                "sync.noConfiguredRemote"
+                "source-control.sync.noConfiguredRemote"
             } else {
-                "sync.chooseFirst"
+                "source-control.sync.chooseFirst"
             },
             &[],
         ),
@@ -460,48 +467,51 @@ fn cloud(status: &Status, branch_label: String, formatter: &Formatter<'_>) -> St
         setup_required: !remote,
         setup_title: "Puppyone Cloud".into(),
         setup_detail: if remote {
-            t("sync.syncingWith", &location)
+            t("source-control.sync.syncingWith", &location)
         } else {
-            t("sync.configureCloudRemote", &[])
+            t("source-control.sync.configureCloudRemote", &[])
         },
         ahead,
         behind,
         pull_detail: if exists {
             t(
-                "sync.cloudCommitsOn",
+                "source-control.sync.cloudCommitsOn",
                 &[("count", behind.into()), location[0].clone()],
             )
         } else {
-            t("sync.noCloudBranch", &location)
+            t("source-control.sync.noCloudBranch", &location)
         },
         pull_disabled: !exists || behind == 0,
         push_disabled: push_disabled(status, exists, ahead, behind),
         pull_label: if behind > 0 {
-            t("sync.downloadCount", &[("count", behind.into())])
+            t(
+                "source-control.sync.downloadCount",
+                &[("count", behind.into())],
+            )
         } else {
-            t("action.download", &[])
+            t("source-control.action.download", &[])
         },
         pull_title: if !exists {
-            t("sync.cloudBranchMissing", &[])
+            t("source-control.sync.cloudBranchMissing", &[])
         } else if behind == 0 {
-            t("cloud.upToDate", &[])
+            t("source-control.cloud.upToDate", &[])
         } else {
             t(
-                "sync.downloadFrom",
+                "source-control.sync.downloadFrom",
                 &[("count", behind.into()), location[0].clone()],
             )
         },
         push_title: if behind > 0 {
-            t("sync.downloadBeforeUpload", &[])
+            t("source-control.sync.downloadBeforeUpload", &[])
         } else if ahead == 0 {
-            t("sync.noCommittedToUpload", &[])
+            t("source-control.sync.noCommittedToUpload", &[])
         } else {
             t(
-                "sync.uploadTo",
+                "source-control.sync.uploadTo",
                 &[("count", ahead.into()), location[0].clone()],
             )
         },
-        push_label: t("sync.upload", &[]),
+        push_label: t("source-control.sync.upload", &[]),
         push_detail: waiting(ahead, formatter),
     }
 }
@@ -510,11 +520,11 @@ fn waiting(ahead: u32, formatter: &Formatter<'_>) -> String {
     if ahead > 0 {
         message(
             formatter,
-            "sync.committedWaiting",
+            "source-control.sync.committedWaiting",
             &[("count", ahead.into())],
         )
     } else {
-        message(formatter, "sync.noCommittedWaiting", &[])
+        message(formatter, "source-control.sync.noCommittedWaiting", &[])
     }
 }
 
@@ -536,9 +546,9 @@ fn publish(
     let behind = target.filter(|v| v.exists).map_or(0, |v| v.behind);
     let action = t(
         if is_cloud {
-            "sync.publish"
+            "source-control.sync.publish"
         } else {
-            "sync.push"
+            "source-control.sync.push"
         },
         &[],
     );
@@ -551,15 +561,15 @@ fn publish(
     let push_title = if status.head_commit_id.as_deref().is_none_or(str::is_empty) {
         t(
             if is_cloud {
-                "sync.commitBeforePublish"
+                "source-control.sync.commitBeforePublish"
             } else {
-                "sync.commitBeforePush"
+                "source-control.sync.commitBeforePush"
             },
             &[],
         )
     } else if exists && behind > 0 {
         t(
-            "sync.sendDiverged",
+            "source-control.sync.sendDiverged",
             &[
                 ("action", action.clone().into()),
                 ("count", ahead.into()),
@@ -567,49 +577,55 @@ fn publish(
             ],
         )
     } else {
-        t("sync.sendBranch", &labels)
+        t("source-control.sync.sendBranch", &labels)
     };
     State {
         branch_label,
         upstream_label: label.into(),
         remote_exists: exists,
         setup_required: false,
-        setup_title: t("sync.target", &[]),
+        setup_title: t("source-control.sync.target", &[]),
         setup_detail: t(
-            "sync.primaryRemote",
+            "source-control.sync.primaryRemote",
             &[("remote", bidi_isolate(&remote.name).into())],
         ),
         ahead,
         behind,
         pull_detail: if exists {
             t(
-                "sync.remoteCommitsOn",
+                "source-control.sync.remoteCommitsOn",
                 &[("count", behind.into()), location.clone()],
             )
         } else {
-            t("sync.noRemoteBranch", std::slice::from_ref(&location))
+            t(
+                "source-control.sync.noRemoteBranch",
+                std::slice::from_ref(&location),
+            )
         },
         pull_disabled: !exists || behind == 0,
         push_disabled: push_disabled(status, exists, ahead, behind),
-        pull_label: t("sync.pullRemote", &[]),
+        pull_label: t("source-control.sync.pullRemote", &[]),
         pull_title: if !exists {
-            t("sync.remoteBranchMissing", &[])
+            t("source-control.sync.remoteBranchMissing", &[])
         } else if behind == 0 {
-            t("sync.upToDate", &[])
+            t("source-control.sync.upToDate", &[])
         } else {
             t(
-                "sync.pullFrom",
+                "source-control.sync.pullFrom",
                 &[("count", behind.into()), location.clone()],
             )
         },
         push_title,
         push_label: action,
         push_detail: if !exists {
-            t("sync.createRemote", &labels)
+            t("source-control.sync.createRemote", &labels)
         } else if ahead > 0 {
-            t("sync.localWaiting", &[("count", ahead.into())])
+            t(
+                "source-control.sync.localWaiting",
+                &[("count", ahead.into())],
+            )
         } else {
-            t("sync.noLocalWaiting", &[location])
+            t("source-control.sync.noLocalWaiting", &[location])
         },
     }
 }
@@ -636,9 +652,9 @@ fn tracked(
     let behind = branch.behind;
     let action = t(
         if is_cloud {
-            "sync.publish"
+            "source-control.sync.publish"
         } else {
-            "sync.push"
+            "source-control.sync.push"
         },
         &[],
     );
@@ -648,44 +664,47 @@ fn tracked(
         upstream_label: upstream.into(),
         remote_exists: true,
         setup_required: false,
-        setup_title: t("sync.target", &[]),
-        setup_detail: t("sync.tracking", std::slice::from_ref(&location)),
+        setup_title: t("source-control.sync.target", &[]),
+        setup_detail: t(
+            "source-control.sync.tracking",
+            std::slice::from_ref(&location),
+        ),
         ahead,
         behind,
         pull_detail: if ahead > 0 && behind > 0 {
             t(
-                "sync.pullBeforeSend",
+                "source-control.sync.pullBeforeSend",
                 &[("count", behind.into()), ("action", action.clone().into())],
             )
         } else {
             t(
-                "sync.commitsOn",
+                "source-control.sync.commitsOn",
                 &[("count", behind.into()), location.clone()],
             )
         },
         pull_disabled: behind == 0,
         push_disabled: ahead == 0 || behind > 0,
         pull_label: if behind > 0 {
-            t("sync.pullCount", &[("count", behind.into())])
+            t("source-control.sync.pullCount", &[("count", behind.into())])
         } else {
-            t("sync.pullRemote", &[])
+            t("source-control.sync.pullRemote", &[])
         },
         pull_title: if behind == 0 {
-            t("sync.upToDate", &[])
+            t("source-control.sync.upToDate", &[])
         } else {
             t(
-                "sync.pullFrom",
+                "source-control.sync.pullFrom",
                 &[("count", behind.into()), location.clone()],
             )
         },
         push_title: if ahead == 0 {
-            t("sync.noLocalToPush", &[])
+            t("source-control.sync.noLocalToPush", &[])
         } else {
             t(
                 if behind > 0 {
-                    "sync.sendDiverged"
+                    "source-control.sync.sendDiverged"
                 } else {
-                    "sync.sendTo"
+                    "source-control.sync.sendTo"
                 },
                 &[
                     ("action", action.clone().into()),
