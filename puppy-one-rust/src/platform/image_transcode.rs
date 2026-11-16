@@ -146,11 +146,19 @@ mod tests {
         );
         let cancel = AtomicBool::new(false);
         let convert = |input: &[u8], max, cap| {
-            transcode_with(input, max, &cancel, &codec, Duration::from_secs(2), cap)
+            // Admission/output checks use the production liveness budget; the
+            // dedicated test below owns the short timeout/cancellation contract.
+            transcode_with(input, max, &cancel, &codec, TIMEOUT, cap)
         };
-        assert!(convert(b"input", 4, 18).is_err());
+        assert_eq!(
+            convert(b"input", 4, 18).unwrap_err(),
+            "image exceeds its preview budget"
+        );
         assert_eq!(convert(b"input", 5, 18).unwrap().len(), 18);
-        assert!(convert(b"input", 5, 17).is_err());
+        assert_eq!(
+            convert(b"input", 5, 17).unwrap_err(),
+            "Image file is not regular or exceeds its budget"
+        );
         cancel.store(true, Ordering::Release);
         let absent = dir.path().join("must-not-execute");
         assert_eq!(
@@ -164,26 +172,30 @@ mod tests {
     fn codec_output_rejects_links_missing_files_and_invalid_pngs() {
         let dir = tempfile::tempdir().unwrap();
         let cancel = AtomicBool::new(false);
-        for script in [
-            "exit 0",
-            "printf invalid > preview.png",
-            "ln -s source.avif preview.png",
-            "mkdir preview.png",
-            "exit 7",
+        for (script, expected) in [
+            ("exit 0", "No such file or directory"),
+            (
+                "printf invalid > preview.png",
+                "Image codec returned no PNG",
+            ),
+            (
+                "ln -s source.avif preview.png",
+                "Image file is not regular or exceeds its budget",
+            ),
+            (
+                "mkdir preview.png",
+                "Image file is not regular or exceeds its budget",
+            ),
+            ("exit 7", ""),
         ] {
             let codec = converter(dir.path(), script);
-            assert!(
-                transcode_with(
-                    b"\x89PNG\r\n\x1a\n",
-                    8,
-                    &cancel,
-                    &codec,
-                    Duration::from_secs(2),
-                    128
-                )
-                .is_err(),
-                "{script}"
-            );
+            let error =
+                transcode_with(b"\x89PNG\r\n\x1a\n", 8, &cancel, &codec, TIMEOUT, 128).unwrap_err();
+            if expected.is_empty() {
+                assert_eq!(error, expected, "{script}");
+            } else {
+                assert!(error.contains(expected), "{script}: {error}");
+            }
         }
     }
 
