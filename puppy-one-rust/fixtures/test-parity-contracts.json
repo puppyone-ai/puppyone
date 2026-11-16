@@ -9310,7 +9310,7 @@
     },
     {
       "id": "local-workspace-filesystem-core",
-      "acceptance": "Real temporary filesystem and public native provider facade: stable resource identity, directory admission, exact Unicode and empty creation, nested entries, no clobber, relative-path and filename checks; text revisions/conflicts, cross-grant concurrent conditional saves and 0666 mode preservation; raw preview bytes and no binary-as-text; direct and parent symlink rejection; file/folder rename, move-to-parent, delete and root protection; source-preserving recursive copies, exact basenames, dotfiles/compound extensions, readonly directory modes, keep-both naming and eight concurrent copies; recursive import, absolute sources, collision rejection and failed-tree rollback. Rust boolean entry kinds and string write arguments statically exclude the TS unknown-kind/non-string payload cases. Native revisions are opaque and binary text rejection is an error, not a fabricated editable document. The remaining cases in this TS file (project metadata/config, MIME/preview metadata, range/alias and Office conversion, preferred-name/cross-root APIs) are not credited here.",
+      "acceptance": "Real temporary filesystem and public native provider facade: stable resource identity, directory admission, exact Unicode and empty creation, nested entries, no clobber, relative-path and filename checks; text revisions/conflicts, cross-grant concurrent conditional saves and 0666 mode preservation; raw preview bytes and no binary-as-text; direct and parent symlink rejection; file/folder rename, move-to-parent, delete and root protection; source-preserving recursive copies, exact basenames, dotfiles/compound extensions, readonly directory modes, keep-both naming and eight concurrent copies; recursive import, absolute sources, collision rejection and failed-tree rollback. Rust boolean entry kinds and string write arguments statically exclude the TS unknown-kind/non-string payload cases. Native revisions are opaque and binary text rejection is an error, not a fabricated editable document. The remaining cases in this TS file (project metadata/config, MIME/preview metadata, range/alias and Office conversion, preferred-name/cross-root APIs) are not credited here. Native macOS/Linux rename and move publication uses atomic no-replace operations; additional real filesystem tests require one concurrent winner with all losing sources preserved, preserve existing hardlink/symlink destinations, and follow actual filesystem case identity. tools/verify-filesystem-case-sensitivity.py also runs the case collision test on a verified case-sensitive fixture (HFSX on macOS), with verified unmount cleanup; this does not claim Windows or Linux execution on a macOS host.",
       "typescript": [
         {
           "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
@@ -9635,6 +9635,18 @@
         {
           "package": "po-workspace",
           "test": "workspace::local_compatibility_tests::recursive_failure_cleans_copied_readonly_children_without_changing_sources"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::simultaneous_renames_and_moves_publish_one_winner_without_losing_sources"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::case_only_renames_follow_filesystem_identity_without_replacing_distinct_files"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::existing_hardlink_and_symlink_destinations_are_never_replaced"
         }
       ],
       "environment": "local"

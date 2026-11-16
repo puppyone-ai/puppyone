@@ -10,6 +10,7 @@ use std::{
 };
 use uuid::Uuid;
 mod adapter;
+mod rename;
 pub(super) use adapter::open;
 
 use super::MAX_TEXT_BYTES;
@@ -337,13 +338,7 @@ impl Workspace {
         if name.as_os_str() == next_name {
             return Ok(relative.to_owned());
         }
-        // Case-only renames on case-insensitive volumes resolve to the same entry.
-        let same_entry = name.to_string_lossy().to_lowercase() == next_name.to_lowercase();
-        if !same_entry && Self::exists(&dir, Path::new(next_name)) {
-            return Err(crate::localization::t("native.workspace.nameExists").into());
-        }
-        dir.symlink_metadata(&name).map_err(io)?;
-        dir.rename(&name, &dir, next_name).map_err(io)?;
+        rename::exclusive(&dir, &name, &dir, Path::new(next_name))?;
         Ok(parent.join(next_name))
     }
     /// `deleteWorkspaceEntry`: only regular files and folders, never links.
@@ -367,10 +362,7 @@ impl Workspace {
             return Ok(from.to_owned());
         }
         let target_dir = self.directory(to_folder)?;
-        if Self::exists(&target_dir, &name) {
-            return Err(crate::localization::t("native.workspace.nameExists").into());
-        }
-        source_dir.rename(&name, &target_dir, &name).map_err(io)?;
+        rename::exclusive(&source_dir, &name, &target_dir, &name)?;
         Ok(to_folder.join(name))
     }
     fn keep_both_name(preferred: &str, index: usize, folder: bool) -> String {

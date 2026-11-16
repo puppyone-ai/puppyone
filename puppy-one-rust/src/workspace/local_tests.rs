@@ -726,3 +726,150 @@ fn recursive_failure_cleans_copied_readonly_children_without_changing_sources() 
         "failed copy left a partially copied readonly tree"
     );
 }
+
+#[test]
+fn simultaneous_renames_and_moves_publish_one_winner_without_losing_sources() {
+    use std::sync::Barrier;
+    for moving in [false, true] {
+        for _ in 0..32 {
+            let dir = tempdir().unwrap();
+            std::fs::create_dir(dir.path().join("target")).unwrap();
+            let starts = Arc::new(Barrier::new(8));
+            let results = std::thread::scope(|scope| {
+                let handles: Vec<_> = (0..8)
+                    .map(|i| {
+                        let source = if moving {
+                            std::fs::create_dir(dir.path().join(format!("source-{i}"))).unwrap();
+                            format!("source-{i}/winner.txt")
+                        } else {
+                            format!("source-{i}.txt")
+                        };
+                        std::fs::write(dir.path().join(&source), format!("writer-{i}")).unwrap();
+                        let ws = Workspace::open(dir.path()).unwrap();
+                        let starts = starts.clone();
+                        scope.spawn(move || {
+                            starts.wait();
+                            let result = if moving {
+                                ws.move_entry(Path::new(&source), Path::new("target"))
+                            } else {
+                                ws.rename_entry(Path::new(&source), "winner.txt")
+                            };
+                            (i, source, result)
+                        })
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .map(|h| h.join().unwrap())
+                    .collect::<Vec<_>>()
+            });
+            let winners: Vec<_> = results
+                .iter()
+                .filter(|(_, _, result)| result.is_ok())
+                .collect();
+            assert_eq!(
+                winners.len(),
+                1,
+                "multiple sources were replaced: {results:?}"
+            );
+            let destination = dir.path().join(if moving {
+                "target/winner.txt"
+            } else {
+                "winner.txt"
+            });
+            assert_eq!(
+                std::fs::read_to_string(destination).unwrap(),
+                format!("writer-{}", winners[0].0)
+            );
+            for (i, source, result) in results {
+                if let Err(error) = result {
+                    assert_eq!(error.kind, ErrorKind::AlreadyExists);
+                    assert_eq!(
+                        std::fs::read_to_string(dir.path().join(source)).unwrap(),
+                        format!("writer-{i}")
+                    );
+                } else {
+                    assert!(!dir.path().join(source).exists());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn case_only_renames_follow_filesystem_identity_without_replacing_distinct_files() {
+    use std::io::Write;
+    let dir = match std::env::var_os("PUPPYONE_CASE_SENSITIVE_TEST_ROOT") {
+        Some(root) => tempfile::tempdir_in(root).unwrap(),
+        None => tempdir().unwrap(),
+    };
+    let ws = Workspace::open(dir.path()).unwrap();
+    std::fs::write(dir.path().join("note.txt"), "original").unwrap();
+    let separate = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(dir.path().join("NOTE.txt"));
+    match separate {
+        Ok(mut file) => {
+            file.write_all(b"existing destination").unwrap();
+            drop(file);
+            assert!(ws.rename_entry(Path::new("note.txt"), "NOTE.txt").is_err());
+            assert_eq!(
+                std::fs::read(dir.path().join("note.txt")).unwrap(),
+                b"original"
+            );
+            assert_eq!(
+                std::fs::read(dir.path().join("NOTE.txt")).unwrap(),
+                b"existing destination"
+            );
+        }
+        Err(error) => {
+            assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+            assert!(
+                std::env::var_os("PUPPYONE_CASE_SENSITIVE_TEST_ROOT").is_none(),
+                "the required case-sensitive fixture is not case-sensitive"
+            );
+            assert_eq!(
+                ws.rename_entry(Path::new("note.txt"), "NOTE.txt").unwrap(),
+                Path::new("NOTE.txt")
+            );
+            assert_eq!(
+                std::fs::read(dir.path().join("NOTE.txt")).unwrap(),
+                b"original"
+            );
+            assert_eq!(
+                std::fs::read_dir(dir.path())
+                    .unwrap()
+                    .next()
+                    .unwrap()
+                    .unwrap()
+                    .file_name(),
+                "NOTE.txt"
+            );
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn existing_hardlink_and_symlink_destinations_are_never_replaced() {
+    use std::os::unix::fs::symlink;
+    let (dir, ws) = setup(b"source");
+    std::fs::hard_link(dir.path().join("note.md"), dir.path().join("existing.md")).unwrap();
+    symlink("missing.md", dir.path().join("dangling.md")).unwrap();
+    for target in ["existing.md", "dangling.md"] {
+        assert!(ws.rename_entry(Path::new("note.md"), target).is_err());
+        assert_eq!(
+            std::fs::read(dir.path().join("note.md")).unwrap(),
+            b"source"
+        );
+    }
+    assert_eq!(
+        std::fs::read(dir.path().join("existing.md")).unwrap(),
+        b"source"
+    );
+    assert_eq!(
+        std::fs::read_link(dir.path().join("dangling.md")).unwrap(),
+        Path::new("missing.md")
+    );
+}

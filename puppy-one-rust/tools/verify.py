@@ -27,6 +27,7 @@ commands = [
     ('test-parity-reference', ['node', 'tools/reference-test-parity.mjs', '--check']),
     ('test-parity-cases', ['node', 'tools/collect-test-cases.mjs']),
     ('test-parity-contracts', ['python3', '-B', 'tools/verify-test-parity.py']),
+    ('filesystem-case-sensitivity', ['python3', '-B', 'tools/verify-filesystem-case-sensitivity.py']),
     ('managed-installer-interop', ['python3', '-B', 'tools/verify-managed-installer-interop.py']),
     ('product-layers', ['python3', 'tools/audit-product-layers.py']),
     ('auth-reference', ['python3', 'tools/check-auth-reference.py']),
