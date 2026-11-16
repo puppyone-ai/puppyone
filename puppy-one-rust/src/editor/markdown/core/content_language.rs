@@ -25,6 +25,20 @@ impl ReadingLanguage {
         }
         self.han
     }
+
+    /// Resolve reading language over the leading prefix of `doc` without
+    /// materialising the full contiguous buffer (`TA-01`).
+    pub fn resolve_buffer(
+        &mut self,
+        doc: &crate::editor::text::buffer::Buffer,
+        locale: &str,
+    ) -> bool {
+        if self.initialized && self.locale == locale && !self.awaiting_content {
+            return self.han;
+        }
+        let sample = doc.slice_cow(0..doc.len().min(48 * 1024));
+        self.resolve(&sample, locale)
+    }
 }
 
 fn uses_han_weight(text: &str, locale: &str) -> bool {

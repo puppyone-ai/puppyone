@@ -1,4 +1,8 @@
-//! `markdownEditingKeymap` (core/commands/markdownEditingKeymap.ts).
+//! `markdownEditingKeymap` (core/commands/markdownEditingKeymap.ts):
+//! - `intercept`: handles generic editor structural intents (`Backspace`,
+//!   `Delete`, `Enter`, `CharLeft`, `LineStart`, `Tab`, `BackTab`).
+//! - `run_format`: handles Markdown formatting commands (`TA-10`, owned by
+//!   `editor::markdown` rather than `editor::view`).
 use super::{block, change, edit, handled, inline};
 use crate::editor::{
     markdown::core::{
@@ -12,6 +16,21 @@ use crate::editor::{
     },
     view::extension::EditIntent,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FormatCommand {
+    Bold,
+    Italic,
+    Strike,
+    Code,
+    Underline,
+    Link,
+    Heading(u8),
+    BulletList,
+    OrderedList,
+    TaskList,
+    Quote,
+}
 
 pub struct Cx<'a> {
     pub state: &'a EditorState,
@@ -46,41 +65,38 @@ pub fn intercept(intent: EditIntent, cx: &Cx) -> Option<Transaction> {
         EditIntent::LineStart => caret_to_visible_line_start(cx),
         EditIntent::Tab if editing => block::indent(cx.state, cx.syntax, 1),
         EditIntent::BackTab if editing => block::indent(cx.state, cx.syntax, -1),
-        EditIntent::Heading(level) if editing => block::set_heading(cx.state, level),
-        EditIntent::BulletList if editing => {
+        _ => None,
+    }
+}
+
+pub fn run_format(cmd: FormatCommand, cx: &Cx) -> Option<Transaction> {
+    if cx.read_only {
+        return match cmd {
+            FormatCommand::Bold
+            | FormatCommand::Italic
+            | FormatCommand::Strike
+            | FormatCommand::Code
+            | FormatCommand::Underline
+            | FormatCommand::Link => handled(cx.state),
+            _ => None,
+        };
+    }
+    match cmd {
+        FormatCommand::Heading(level) => block::set_heading(cx.state, level),
+        FormatCommand::BulletList => {
             block::toggle_list(cx.state, cx.syntax, block::ListKind::Bullet)
         }
-        EditIntent::OrderedList if editing => {
+        FormatCommand::OrderedList => {
             block::toggle_list(cx.state, cx.syntax, block::ListKind::Ordered)
         }
-        EditIntent::TaskList if editing => {
-            block::toggle_list(cx.state, cx.syntax, block::ListKind::Task)
-        }
-        EditIntent::Quote if editing => block::toggle_quote(cx.state),
-        EditIntent::Bold if editing => inline::toggle(cx.state, cx.syntax, inline::Spec::STRONG),
-        EditIntent::Italic if editing => {
-            inline::toggle(cx.state, cx.syntax, inline::Spec::EMPHASIS)
-        }
-        EditIntent::Strike if editing => inline::toggle(cx.state, cx.syntax, inline::Spec::STRIKE),
-        EditIntent::Code if editing => inline::toggle(cx.state, cx.syntax, inline::Spec::CODE),
-        EditIntent::Underline if editing => {
-            inline::toggle(cx.state, cx.syntax, inline::Spec::UNDERLINE)
-        }
-        EditIntent::Link if editing => inline::wrap_link(cx.state),
-        EditIntent::BlockUp if editing => {
-            super::block_move::move_by_keyboard(cx.state, cx.syntax, true)
-        }
-        EditIntent::BlockDown if editing => {
-            super::block_move::move_by_keyboard(cx.state, cx.syntax, false)
-        }
-        // Read-only editors still own their formatting keys.
-        EditIntent::Bold
-        | EditIntent::Italic
-        | EditIntent::Strike
-        | EditIntent::Code
-        | EditIntent::Underline
-        | EditIntent::Link => handled(cx.state),
-        _ => None,
+        FormatCommand::TaskList => block::toggle_list(cx.state, cx.syntax, block::ListKind::Task),
+        FormatCommand::Quote => block::toggle_quote(cx.state),
+        FormatCommand::Bold => inline::toggle(cx.state, cx.syntax, inline::Spec::STRONG),
+        FormatCommand::Italic => inline::toggle(cx.state, cx.syntax, inline::Spec::EMPHASIS),
+        FormatCommand::Strike => inline::toggle(cx.state, cx.syntax, inline::Spec::STRIKE),
+        FormatCommand::Code => inline::toggle(cx.state, cx.syntax, inline::Spec::CODE),
+        FormatCommand::Underline => inline::toggle(cx.state, cx.syntax, inline::Spec::UNDERLINE),
+        FormatCommand::Link => inline::wrap_link(cx.state),
     }
 }
 
@@ -103,7 +119,7 @@ fn delete_marker(cx: &Cx, backward: bool) -> Option<Transaction> {
             if e.kind == crate::editor::markdown::core::syntax::Kind::Task {
                 e.markers
                     .iter()
-                    .find(|m| doc.slice((*m).clone()).contains('['))
+                    .find(|m| doc.slice_cow((*m).clone()).contains('['))
                     .or(e.markers.first())
                     .cloned()
             } else {
@@ -111,7 +127,15 @@ fn delete_marker(cx: &Cx, backward: bool) -> Option<Transaction> {
             }
         });
     let unit = block.or_else(|| {
-        cx.plans
+        let p_first = cx
+            .plans
+            .partition_point(|p| p.source.start < line.start)
+            .saturating_sub(8);
+        let p_last = cx
+            .plans
+            .partition_point(|p| p.source.start <= line.end)
+            .max(p_first);
+        cx.plans[p_first..p_last]
             .iter()
             .filter(|p| !p.delete_units.is_empty() && p.presentation != Presentation::VisibleSource)
             .filter(|p| p.source.start >= line.start && p.source.end <= line.end)

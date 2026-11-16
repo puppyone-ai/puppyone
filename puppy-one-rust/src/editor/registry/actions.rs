@@ -9,6 +9,7 @@
 pub enum MarkdownCommand {
     Bold,
     Italic,
+    Underline,
     NewParagraph,
     Custom(String),
 }
@@ -40,6 +41,7 @@ impl HostCommand {
             "replay-redo" => Self::ReplayRedo,
             "bold" => Self::Format(MarkdownCommand::Bold),
             "italic" => Self::Format(MarkdownCommand::Italic),
+            "underline" => Self::Format(MarkdownCommand::Underline),
             "new-paragraph" => Self::Format(MarkdownCommand::NewParagraph),
             other => Self::Format(MarkdownCommand::Custom(other.to_owned())),
         }

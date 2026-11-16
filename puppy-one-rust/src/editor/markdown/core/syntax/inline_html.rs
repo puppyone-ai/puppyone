@@ -104,7 +104,70 @@ fn style_value(style: &str, property: &str) -> Option<String> {
 }
 
 /// Pair the inline HTML tags of a document (sorted, from the parser's
-/// inline HTML) into elements.
+/// inline HTML) into elements using `Buffer::slice_cow` without flattening
+/// `doc.flat` (`TA-01`).
+pub(super) fn elements_in_buffer(
+    doc: &crate::editor::text::buffer::Buffer,
+    tags: &[Span],
+) -> Vec<Element> {
+    if tags.is_empty() {
+        return Vec::new();
+    }
+    let mut open: Vec<Tag> = Vec::new();
+    let mut out = Vec::new();
+    for range in tags {
+        let slice = doc.slice_cow(range.clone());
+        let Some(mut t) = tag(&slice, 0..slice.len()) else {
+            continue;
+        };
+        t.range = range.clone();
+        if t.void || !TAGS.contains(&t.name.as_str()) {
+            continue;
+        }
+        if !t.closing {
+            open.push(t);
+            continue;
+        }
+        let Some(at) = open.iter().rposition(|o| o.name == t.name) else {
+            continue;
+        };
+        let opening = open.remove(at);
+        open.truncate(at);
+        let content = opening.range.end..t.range.start;
+        if doc.slice_cow(content.clone()).contains("\n\n") {
+            continue;
+        }
+        let attribute = |name: &str| {
+            opening
+                .attributes
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, v)| v.as_str())
+        };
+        let style = attribute("style").unwrap_or_default();
+        let html = InlineTag {
+            href: (opening.name == "a")
+                .then(|| attribute("href").map(|h| h.trim().to_owned()))
+                .flatten()
+                .filter(|h| !h.is_empty()),
+            color: style_value(style, "color"),
+            background: style_value(style, "background-color"),
+            name: opening.name.clone(),
+        };
+        let mut e = Element::new(
+            Kind::InlineHtml,
+            opening.range.start..t.range.end,
+            vec![opening.range, t.range],
+            Some(content),
+        );
+        e.href = html.href.clone();
+        e.html = Some(Box::new(html));
+        out.push(e);
+    }
+    out
+}
+
+#[cfg(test)]
 pub(super) fn elements(source: &str, tags: &[Span]) -> Vec<Element> {
     let mut open: Vec<Tag> = Vec::new();
     let mut out = Vec::new();

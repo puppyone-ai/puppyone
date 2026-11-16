@@ -3,14 +3,18 @@
 //! `cm-md-hidden-syntax`), tabs expand to their stops, and offsets map both
 //! ways between source and leaf text.
 use super::decoration::{Mark, MarkStyle};
+use crate::editor::text::buffer::Buffer;
 use gpui::SharedString;
 use gpui_kit::base::text::editor_host::{InlineNode, LinkMark, Paragraph, TextMark};
-use std::ops::Range;
+use std::{
+    hash::{Hash, Hasher},
+    ops::Range,
+};
 
 /// `tab-size` of `.cm-content` (CodeMirror's default theme: 4).
 pub const TAB_SIZE: usize = 4;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct Piece {
     display: usize,
     display_len: usize,
@@ -22,7 +26,7 @@ struct Piece {
 #[derive(Clone, Debug, PartialEq)]
 pub struct LeafText {
     /// Absolute source range at build time.
-    pub source: std::ops::Range<usize>,
+    pub source: Range<usize>,
     pub text: String,
     pieces: Vec<Piece>,
     /// Display ranges and their Kit marks, non-overlapping.
@@ -55,6 +59,37 @@ impl LeafText {
         Self::build_with_tabs(doc, source, hidden, replaced, marks, strike_all, TAB_SIZE)
     }
 
+    /// Build a leaf directly from `Buffer` via `slice_cow` without flattening
+    /// the whole document (`TA-01`, `TA-04`, `TA-13`).
+    pub fn build_from_buffer(
+        doc: &Buffer,
+        source: Range<usize>,
+        hidden: &[Range<usize>],
+        replaced: &[(Range<usize>, SharedString)],
+        marks: &[Mark],
+        strike_all: bool,
+    ) -> Self {
+        Self::build_buffer_with_tabs(doc, source, hidden, replaced, marks, strike_all, TAB_SIZE)
+    }
+
+    /// Build a leaf with explicit `tab_size` directly from `Buffer` without
+    /// flattening the whole document.
+    pub fn build_buffer_with_tabs(
+        doc: &Buffer,
+        source: Range<usize>,
+        hidden: &[Range<usize>],
+        replaced: &[(Range<usize>, SharedString)],
+        marks: &[Mark],
+        strike_all: bool,
+        tab_size: usize,
+    ) -> Self {
+        let source = doc.clamp_range(source);
+        let slice = doc.slice_cow(source.clone());
+        Self::build_from_slice(
+            &slice, source, hidden, replaced, marks, strike_all, tab_size,
+        )
+    }
+
     /// As `build` with an explicit `tab-size` (code panels use 2 or 4).
     pub fn build_with_tabs(
         doc: &str,
@@ -65,6 +100,29 @@ impl LeafText {
         strike_all: bool,
         tab_size: usize,
     ) -> Self {
+        let start = source.start.min(doc.len());
+        let end = source.end.min(doc.len()).max(start);
+        Self::build_from_slice(
+            &doc[start..end],
+            start..end,
+            hidden,
+            replaced,
+            marks,
+            strike_all,
+            tab_size,
+        )
+    }
+
+    fn build_from_slice(
+        slice: &str,
+        source: Range<usize>,
+        hidden: &[Range<usize>],
+        replaced: &[(Range<usize>, SharedString)],
+        marks: &[Mark],
+        strike_all: bool,
+        tab_size: usize,
+    ) -> Self {
+        let tab_size = tab_size.max(1);
         let mut text = String::new();
         let mut pieces = Vec::new();
         let mut cursor = source.start;
@@ -76,7 +134,7 @@ impl LeafText {
                          pieces: &mut Vec<Piece>,
                          column: &mut usize| {
             let mut run_start = from;
-            for (i, ch) in doc[from..to].char_indices() {
+            for (i, ch) in slice[from - base..to - base].char_indices() {
                 if ch == '\n' {
                     *column = 0;
                 } else if ch == '\t' {
@@ -88,7 +146,7 @@ impl LeafText {
                             source: run_start - base,
                             source_len: at - run_start,
                         });
-                        text.push_str(&doc[run_start..at]);
+                        text.push_str(&slice[run_start - base..at - base]);
                     }
                     let width = tab_size - *column % tab_size;
                     pieces.push(Piece {
@@ -111,7 +169,7 @@ impl LeafText {
                     source: run_start - base,
                     source_len: to - run_start,
                 });
-                text.push_str(&doc[run_start..to]);
+                text.push_str(&slice[run_start - base..to - base]);
             }
         };
         // Hidden ranges show nothing; replaced ones show their text.
@@ -129,11 +187,13 @@ impl LeafText {
         );
         cuts.sort_by_key(|(r, _)| (r.start, r.end));
         for (r, shown) in cuts {
-            let start = r.start.max(cursor);
+            let start = r.start.max(cursor).min(source.end);
+            let start = base + slice.floor_char_boundary(start - base);
             if start > cursor {
                 push_text(cursor, start, &mut text, &mut pieces, &mut column);
             }
-            let end = r.end.min(source.end).max(start);
+            let raw_end = r.end.min(source.end).max(start);
+            let end = base + slice.floor_char_boundary(raw_end - base);
             pieces.push(Piece {
                 display: text.len(),
                 display_len: shown.len(),
@@ -169,6 +229,24 @@ impl LeafText {
         }
         leaf.marks = out;
         leaf
+    }
+
+    /// Content-only hash independent of `self.source.start` so edits earlier in
+    /// the document do not invalidate `ParagraphCache` entries (`TA-13`).
+    pub fn content_hash(&self) -> u64 {
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.text.hash(&mut h);
+        self.pieces.hash(&mut h);
+        for (r, m) in &self.marks {
+            (r.start, r.end, m).hash(&mut h);
+        }
+        h.finish()
+    }
+
+    /// True when display text, relative pieces, and marks match (ignoring shifts
+    /// in absolute `self.source` offset).
+    pub fn same_content(&self, other: &Self) -> bool {
+        self.text == other.text && self.pieces == other.pieces && self.marks == other.marks
     }
 
     pub fn source_len(&self) -> usize {

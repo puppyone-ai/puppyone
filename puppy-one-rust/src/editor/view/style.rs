@@ -431,6 +431,27 @@ pub struct Trailing {
     pub command: super::command::Command,
 }
 
+impl Default for TextStyle {
+    fn default() -> Self {
+        Self {
+            size: 14.,
+            weight: 450.,
+            italic: false,
+            mono: false,
+            color: crate::theme::Theme::new(true).text,
+            tabular: false,
+            line_height: LineHeight::Factor(1.5),
+            face: Face::Geist,
+        }
+    }
+}
+
+impl Default for LineStyle {
+    fn default() -> Self {
+        Self::new(TextStyle::default())
+    }
+}
+
 impl LineStyle {
     pub fn new(text: TextStyle) -> Self {
         Self {

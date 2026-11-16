@@ -1,12 +1,18 @@
-//! Rendered Markdown link activation and pane-local heading targets. The view
-//! handles pointer gestures; this format owns syntax, reveal and URL policy.
+//! Rendered Markdown link activation and pane-local heading targets.
+//! - `Headings::from_syntax` (`TA-34`, `TODO-39`): derives heading targets
+//!   lazily from `Syntax` `Kind::Heading` elements (ATX and Setext), never
+//!   running a full-document regex scan on keystrokes and never matching `#`
+//!   comments inside fenced code blocks.
 use super::{
     MarkdownExtension,
-    core::{links, syntax::Kind},
+    core::{
+        links,
+        syntax::{Kind, Syntax},
+    },
 };
 use crate::editor::{
     navigation,
-    text::state::EditorState,
+    text::{buffer::Buffer, state::EditorState},
     view::extension::{LinkAction, LinkActivation},
 };
 use regex::Regex;
@@ -23,9 +29,12 @@ impl MarkdownExtension {
             return None;
         }
         let (syntax, _) = self.parse(state);
+        // Elements are sorted by `range.start`; inspect only candidates starting
+        // at or before `offset`.
+        let upper = syntax.elements.partition_point(|e| e.range.start <= offset);
         // A footnote marker jumps to its definition, and a definition to its
         // first reference (FootnoteMarkerWidget).
-        if let Some(note) = syntax.elements.iter().find(|e| {
+        if let Some(note) = syntax.elements[..upper].iter().rev().find(|e| {
             matches!(e.kind, Kind::FootnoteReference | Kind::FootnoteDefinition)
                 && e.range.contains(&offset)
                 && (release || self.preview.reveal.as_ref() != Some(&e.range))
@@ -36,7 +45,7 @@ impl MarkdownExtension {
                 action: LinkAction::Position(syntax.footnotes.target(note)?),
             });
         }
-        let element = syntax.elements.iter().find(|element| {
+        let element = syntax.elements[..upper].iter().rev().find(|element| {
             (matches!(element.kind, Kind::Link | Kind::WikiLink)
                 || element.kind == Kind::InlineHtml && element.href.is_some())
                 && element
@@ -45,7 +54,8 @@ impl MarkdownExtension {
                     .is_some_and(|range| range.contains(&offset))
                 && (release || self.preview.reveal.as_ref() != Some(&element.range))
         })?;
-        let source = state.doc.slice(element.range.clone());
+        let source_cow = state.doc.slice_cow(element.range.clone());
+        let source = source_cow.as_ref();
         let wiki = element.kind == Kind::WikiLink;
         let target = if wiki {
             links::find_wiki_links(source).first()?.target.clone()
@@ -59,7 +69,7 @@ impl MarkdownExtension {
                     source.starts_with('<').then(|| {
                         state
                             .doc
-                            .slice(element.content.clone().unwrap())
+                            .slice_cow(element.content.clone().unwrap())
                             .trim()
                             .to_owned()
                     })
@@ -71,21 +81,26 @@ impl MarkdownExtension {
         let key = format!("{}:{target}", if wiki { "wiki" } else { "href" });
         Some(LinkActivation {
             key,
-            action: self.link_action(target, wiki)?,
+            action: self.link_action(state, target, wiki)?,
             label: element.content.clone()?,
         })
     }
 
     /// Where an authored link target leads (a wiki target, or an href
     /// through the URL policy).
-    pub(super) fn link_action(&mut self, target: &str, wiki: bool) -> Option<LinkAction> {
+    pub(super) fn link_action(
+        &mut self,
+        state: &EditorState,
+        target: &str,
+        wiki: bool,
+    ) -> Option<LinkAction> {
         let href = if wiki {
             target.to_owned()
         } else {
             safe_href(target)?
         };
         let action = if href.starts_with('#') {
-            LinkAction::Position(self.parsed.as_ref()?.headings.get(&href)?)
+            LinkAction::Position(self.heading_position(state, &href)?)
         } else if !wiki && url::Url::parse(&href).is_ok() {
             LinkAction::External(href)
         } else {
@@ -103,7 +118,7 @@ impl MarkdownExtension {
                 && let Some((_, fragment)) = navigation::markdown_target(&href)?.split_once('#')
                 && !fragment.is_empty()
             {
-                LinkAction::Position(self.parsed.as_ref()?.headings.get(fragment)?)
+                LinkAction::Position(self.heading_position(state, fragment)?)
             } else {
                 LinkAction::Workspace(resolved.candidates)
             }
@@ -176,15 +191,16 @@ pub(crate) fn safe_href(value: &str) -> Option<String> {
     Some(url.into())
 }
 
+#[derive(Clone, Debug, Default)]
 pub(super) struct Headings(HashMap<String, usize>);
+
 impl Headings {
-    pub fn new(source: &str) -> Self {
-        static ATX: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new(r"^\s{0,3}#{1,6}(?:[ \t]+|$)(.*)$").unwrap());
+    /// Derive heading fragment targets from parsed `Syntax` `Kind::Heading`
+    /// elements (`TA-34`, `TODO-39`) so `#` lines inside fenced code blocks are
+    /// ignored and Setext headings are resolved without re-scanning raw text.
+    pub fn from_syntax(doc: &Buffer, syntax: &Syntax) -> Self {
         static TRAILING: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"[ \t]+#+[ \t]*$").unwrap());
-        static SETEXT: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new(r"^\s{0,3}(?:=+|-+)\s*$").unwrap());
         static IMAGE: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"!\[([^\]]*)\]\([^)]*\)").unwrap());
         static LINK: LazyLock<Regex> =
@@ -192,52 +208,56 @@ impl Headings {
         static PUNCTUATION: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"[^\p{Letter}\p{Number}\p{Mark}\s_-]").unwrap());
         static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
+
         let mut positions = HashMap::new();
         let mut counts: HashMap<String, usize> = HashMap::new();
-        let mut lines = source.split('\n').peekable();
-        let mut start = 0;
-        while let Some(line) = lines.next() {
-            let atx = ATX
-                .captures(line)
-                .map(|c| TRAILING.replace(&c[1], "").trim().to_owned())
-                .filter(|s| !s.is_empty());
-            let text = atx
-                .or_else(|| {
-                    lines
-                        .peek()
-                        .filter(|next| SETEXT.is_match(next))
-                        .map(|_| line.trim().to_owned())
-                })
-                .filter(|s| !s.is_empty());
-            if let Some(text) = text {
-                let position = start + line.find(&text).unwrap_or(0);
-                let plain = IMAGE.replace_all(&text, "$1");
-                let plain = LINK.replace_all(&plain, "$1");
-                let plain = plain.replace(['`', '*', '_', '~'], "").trim().to_owned();
-                let lower = plain.to_lowercase();
-                let slug = PUNCTUATION.replace_all(&lower, "");
-                let slug = WHITESPACE.replace_all(slug.trim(), "-").into_owned();
-                let count = counts.entry(slug.clone()).or_default();
-                let key = if *count == 0 {
-                    slug
-                } else {
-                    format!("{slug}-{count}")
-                };
-                *count += 1;
-                for key in [fragment(&plain), fragment(&key)] {
-                    if !key.is_empty() {
-                        positions.entry(key).or_insert(position);
-                    }
+
+        for el in &syntax.elements {
+            if el.kind != Kind::Heading {
+                continue;
+            }
+            let Some(content_span) = &el.content else {
+                continue;
+            };
+            let clamped = doc.clamp_range(content_span.clone());
+            if clamped.is_empty() {
+                continue;
+            }
+            let raw = doc.slice_cow(clamped.clone());
+            let stripped = TRAILING.replace(&raw, "");
+            let leading = stripped.len() - stripped.trim_start().len();
+            let text = stripped.trim();
+            if text.is_empty() {
+                continue;
+            }
+            let position = clamped.start + leading;
+            let plain = IMAGE.replace_all(text, "$1");
+            let plain = LINK.replace_all(&plain, "$1");
+            let plain = plain.replace(['`', '*', '_', '~'], "").trim().to_owned();
+            let lower = plain.to_lowercase();
+            let slug = PUNCTUATION.replace_all(&lower, "");
+            let slug = WHITESPACE.replace_all(slug.trim(), "-").into_owned();
+            let count = counts.entry(slug.clone()).or_default();
+            let key = if *count == 0 {
+                slug
+            } else {
+                format!("{slug}-{count}")
+            };
+            *count += 1;
+            for key in [fragment(&plain), fragment(&key)] {
+                if !key.is_empty() {
+                    positions.entry(key).or_insert(position);
                 }
             }
-            start += line.len() + 1;
         }
         Self(positions)
     }
+
     pub fn get(&self, key: &str) -> Option<usize> {
         self.0.get(&fragment(key)).copied()
     }
 }
+
 fn fragment(value: &str) -> String {
     navigation::percent_decode(value.trim().strip_prefix('#').unwrap_or(value.trim()))
         .trim()
@@ -247,18 +267,31 @@ fn fragment(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::prelude::v1::test;
+
     #[test]
     fn actual_ts_heading_targets_and_url_policy() {
         let fixture: serde_json::Value =
             serde_json::from_str(include_str!("../../../fixtures/editor/navigation.json")).unwrap();
+        // TODO-39: `Headings::from_syntax` uses `Syntax` rather than line regex,
+        // so `# In code` inside a fenced code block is properly ignored!
+        let code_fence_case = "# Empty\n```md\n# In code\n```\nText\n===\n####### invalid\n";
         for case in fixture["headings"].as_array().unwrap() {
-            let headings = Headings::new(case["source"].as_str().unwrap());
-            let expected: HashMap<String, usize> =
+            let src = case["source"].as_str().unwrap();
+            let doc = Buffer::new(src);
+            let syntax = Syntax::parse(&doc);
+            let headings = Headings::from_syntax(&doc, &syntax);
+            let expected: HashMap<String, usize> = if src == code_fence_case {
+                [("empty".to_owned(), 2usize), ("text".to_owned(), 28usize)]
+                    .into_iter()
+                    .collect()
+            } else {
                 serde_json::from_value::<Vec<(String, usize)>>(case["positions"].clone())
                     .unwrap()
                     .into_iter()
-                    .collect();
-            assert_eq!(headings.0, expected, "{}", case["source"]);
+                    .collect()
+            };
+            assert_eq!(headings.0, expected, "{src}");
         }
         // The product's `RELATIVE_PREFIXES` lost `./` to `.//` in the
         // packages→src move (515d798cb), so it refuses `./Space Note.md`.
@@ -277,6 +310,24 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn headings_from_syntax_ignore_code_fences_and_resolve_setext() {
+        let src = "```python\n# comment not heading\n```\n\nSetext Heading\n==============\n\n## ATX Heading ##\n";
+        let doc = Buffer::new(src);
+        let syntax = Syntax::parse(&doc);
+        let headings = Headings::from_syntax(&doc, &syntax);
+        assert_eq!(headings.get("#comment-not-heading"), None);
+        assert_eq!(
+            headings.get("#setext-heading"),
+            Some(src.find("Setext Heading").unwrap())
+        );
+        assert_eq!(
+            headings.get("#atx-heading"),
+            Some(src.find("ATX Heading").unwrap())
+        );
+    }
+
     #[test]
     fn markdown_navigation_uses_syntax_and_reveal_state() {
         use crate::{

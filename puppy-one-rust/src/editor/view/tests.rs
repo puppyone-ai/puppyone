@@ -239,7 +239,7 @@ fn settle(cx: &mut VisualTestContext) {
 
 fn caret_in_view(view: &Entity<EditorView>, cx: &mut VisualTestContext) {
     view.read_with(cx, |v, _| {
-        let l = v.layout.as_ref().unwrap();
+        let l = v.caches.layout.as_ref().unwrap();
         let head = v.state.selection.head;
         assert!(l.covers(head), "the caret's block is laid out");
         let c = l.caret(head, v.state.selection.upstream);
@@ -258,7 +258,7 @@ fn a_long_document_lays_out_only_the_blocks_near_the_viewport(cx: &mut TestAppCo
     cx.simulate_resize(size(px(900.), px(600.)));
     settle(cx);
     view.read_with(cx, |v, _| {
-        let l = v.layout.as_ref().unwrap();
+        let l = v.caches.layout.as_ref().unwrap();
         assert!(l.starts_document && !l.ends_document);
         assert!(l.blocks.len() < 120, "{} blocks laid out", l.blocks.len());
         // Every line still counts toward the document height (30px each).
@@ -270,7 +270,7 @@ fn a_long_document_lays_out_only_the_blocks_near_the_viewport(cx: &mut TestAppCo
     });
     settle(cx);
     view.read_with(cx, |v, _| {
-        let l = v.layout.as_ref().unwrap();
+        let l = v.caches.layout.as_ref().unwrap();
         assert!(l.ends_document && !l.starts_document);
         assert!(l.covers(v.state.doc.len()));
         assert_eq!(v.scroll_y, l.max_scroll());
@@ -340,13 +340,13 @@ fn corrected_estimates_above_the_viewport_do_not_move_what_is_shown(cx: &mut Tes
     settle(cx);
     let row_of = |view: &Entity<EditorView>, cx: &mut VisualTestContext, offset: usize| {
         view.read_with(cx, |v, _| {
-            let l = v.layout.as_ref().unwrap();
+            let l = v.caches.layout.as_ref().unwrap();
             f32::from(l.caret(offset, false).row_top - l.bounds.top())
         })
     };
     // The line at the top of the viewport.
     let line = view.read_with(cx, |v, _| {
-        let l = v.layout.as_ref().unwrap();
+        let l = v.caches.layout.as_ref().unwrap();
         let (offset, _) = l.offset_at(point(l.bounds.left() + px(300.), l.bounds.top() + px(40.)));
         v.state.doc.line_range(v.state.doc.line_index(offset)).start
     });
@@ -397,10 +397,8 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
                 name: "Target.md".into(),
             }])),
         });
-        v.extension = Box::new(markdown);
-        v.appearance += 1;
+        v.replace_extension_for_tests(Box::new(markdown), cx);
         v.set_selection(Selection::cursor(2), cx);
-        cx.notify();
     });
     cx.update(|w, cx| {
         let _ = w.draw(cx);
@@ -414,7 +412,8 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         .detach();
     });
     let at = view.read_with(cx, |v, _| {
-        v.layout
+        v.caches
+            .layout
             .as_ref()
             .unwrap()
             .range_boxes(source.find("label").unwrap()..source.find("label").unwrap() + 5)[0]
@@ -466,7 +465,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
             cx,
         );
         v.mouse_up(&up(at), w, cx);
-        assert!(v.link_press.is_none());
+        assert!(v.pointer.link_press.is_none());
         v.set_selection(Selection::cursor(0), cx);
     });
     assert!(events.borrow().is_empty());
@@ -482,7 +481,8 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         let _ = w.draw(cx);
     });
     let jump = view.read_with(cx, |v, _| {
-        v.layout
+        v.caches
+            .layout
             .as_ref()
             .unwrap()
             .range_boxes(source.find("jump").unwrap()..source.find("jump").unwrap() + 4)[0]
@@ -504,7 +504,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
     });
     view.update_in(cx, |v, w, cx| {
         v.mouse_down(&down(at), w, cx);
-        assert!(v.link_press.is_some());
+        assert!(v.pointer.link_press.is_some());
         v.set_read_only(true, cx);
         v.set_read_only(false, cx);
         v.mouse_up(&up(at), w, cx);
@@ -519,7 +519,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
     });
     view.update_in(cx, |v, w, cx| {
         v.mouse_down(&down(at), w, cx);
-        assert!(v.link_press.is_some());
+        assert!(v.pointer.link_press.is_some());
         v.replace_text("Changed on disk", cx);
         v.mouse_up(&up(at), w, cx);
     });
@@ -538,7 +538,7 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
     });
 
     let far_right = view.read_with(cx, |v, _| {
-        let layout = v.layout.as_ref().unwrap();
+        let layout = v.caches.layout.as_ref().unwrap();
         let start = initial.find("epsilon").unwrap();
         layout.range_boxes(start..start + 7)[0].center()
     });
@@ -549,7 +549,7 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
     // inside a 3-byte UTF-8 character (`offset = 2` -> `"中文"`).
     view.update_in(cx, |v, w, cx| {
         v.replace_text("中文", cx);
-        assert_ne!(v.layout.as_ref().unwrap().revision, v.state.revision);
+        assert_ne!(v.caches.layout.as_ref().unwrap().revision, v.state.revision);
 
         v.mouse_down(
             &MouseDownEvent {
@@ -593,14 +593,14 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
         let _ = w.draw(cx);
     });
     let byte_two = view.read_with(cx, |v, _| {
-        let layout = v.layout.as_ref().unwrap();
+        let layout = v.caches.layout.as_ref().unwrap();
         layout.range_boxes(1..2)[0].right_center()
     });
     view.update_in(cx, |v, w, cx| {
         // Replace "ab third" (where `byte_two` hits byte ~2) with "中文 word"
         // (where byte 2 is inside '中' = 0..3) and immediately double-click & triple-click.
         v.replace_text("中文 word", cx);
-        assert_ne!(v.layout.as_ref().unwrap().revision, v.state.revision);
+        assert_ne!(v.caches.layout.as_ref().unwrap().revision, v.state.revision);
 
         v.mouse_down(
             &MouseDownEvent {

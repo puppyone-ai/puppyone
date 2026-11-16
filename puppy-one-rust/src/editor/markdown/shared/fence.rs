@@ -74,6 +74,32 @@ pub fn fence_marker(line: &str) -> Option<(u8, usize)> {
     (matches!(c, b'`' | b'~') && run >= 3).then_some((c, run))
 }
 
+/// CommonMark opening fence (`run >= 3`, backtick info string may not contain
+/// backticks).
+pub fn fence_open(line: &str) -> Option<(u8, usize)> {
+    let indent = line.len() - line.trim_start_matches([' ', '\t']).len();
+    if indent > 3 {
+        return None;
+    }
+    let rest = &line.as_bytes()[indent..];
+    let c = *rest.first()?;
+    let run = rest.iter().take_while(|b| **b == c).count();
+    if !matches!(c, b'`' | b'~') || run < 3 {
+        return None;
+    }
+    if c == b'`' && rest[run..].contains(&b'`') {
+        return None;
+    }
+    Some((c, run))
+}
+
+/// CommonMark closing fence (`run >= open_run`, followed only by whitespace).
+pub fn fence_closes(line: &str, open_char: u8, open_run: usize) -> bool {
+    let t = line.trim();
+    let n = t.bytes().take_while(|&b| b == open_char).count();
+    n >= open_run && n == t.len()
+}
+
 /// Atomic delimiter ranges `(opening_fence, closing_fence)` around `code`
 /// within `range`, so the caret cannot rest on hidden fence lines while a
 /// fenced block widget is rendered.

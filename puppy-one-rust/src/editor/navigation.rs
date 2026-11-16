@@ -3,7 +3,7 @@
 //! raw value; external URLs are admitted only for http(s) with a host and no
 //! credentials, or mailto; anything else that looks like a link is denied and
 //! stays text. Workspace targets are resolved by the host.
-use crate::editor::markdown::core::links::{find_links, find_wiki_links};
+use crate::editor::markdown::{find_links, find_wiki_links};
 
 mod index;
 pub use index::{Document, ReferenceContext, ReferenceIndex};

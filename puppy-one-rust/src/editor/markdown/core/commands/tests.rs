@@ -5,9 +5,7 @@ use crate::editor::{
     view::extension::EditIntent,
 };
 
-/// Run `intent` on `text` with the caret / selection marked by `|` (and an
-/// optional second `|`); returns the text with the resulting selection.
-fn run(text: &str, intent: EditIntent) -> String {
+fn run_with(text: &str, f: impl FnOnce(&Cx) -> Option<Transaction>) -> String {
     let marks: Vec<usize> = text.match_indices('|').map(|(i, _)| i).collect();
     let clean = text.replace('|', "");
     let (anchor, head) = match marks.as_slice() {
@@ -25,16 +23,13 @@ fn run(text: &str, intent: EditIntent) -> String {
         crate::editor::markdown::composition::FEATURES,
     );
     let preview = PreviewState::default();
-    let Some(tr) = intercept(
-        intent,
-        &Cx {
-            state: &state,
-            syntax: &syntax,
-            plans: &plans,
-            preview: &preview,
-            read_only: false,
-        },
-    ) else {
+    let Some(tr) = f(&Cx {
+        state: &state,
+        syntax: &syntax,
+        plans: &plans,
+        preview: &preview,
+        read_only: false,
+    }) else {
         return "<default>".into();
     };
     state.apply(tr);
@@ -47,6 +42,14 @@ fn run(text: &str, intent: EditIntent) -> String {
         out.insert(s.from(), '|');
     }
     out
+}
+
+fn run(text: &str, intent: EditIntent) -> String {
+    run_with(text, |cx| intercept(intent, cx))
+}
+
+fn run_fmt(text: &str, cmd: FormatCommand) -> String {
+    run_with(text, |cx| run_format(cmd, cx))
 }
 
 #[test]
@@ -78,30 +81,36 @@ fn tab_moves_whole_items() {
 
 #[test]
 fn block_toggles_follow_the_product() {
-    assert_eq!(run("## Title|", EditIntent::Heading(1)), "# Title|");
-    assert_eq!(run("Title|", EditIntent::Heading(3)), "### Title|");
-    assert_eq!(run("# Title|", EditIntent::Heading(0)), "Title|");
-    assert_eq!(run("|a\nb|", EditIntent::OrderedList), "|1. a\n2. b|");
-    assert_eq!(run("- a|", EditIntent::BulletList), "a|");
-    assert_eq!(run("a|", EditIntent::TaskList), "- [ ] a|");
-    assert_eq!(run("a|", EditIntent::Quote), "> a|");
-    assert_eq!(run("> a|", EditIntent::Quote), "a|");
+    assert_eq!(run_fmt("## Title|", FormatCommand::Heading(1)), "# Title|");
+    assert_eq!(run_fmt("Title|", FormatCommand::Heading(3)), "### Title|");
+    assert_eq!(run_fmt("# Title|", FormatCommand::Heading(0)), "Title|");
+    assert_eq!(
+        run_fmt("|a\nb|", FormatCommand::OrderedList),
+        "|1. a\n2. b|"
+    );
+    assert_eq!(run_fmt("- a|", FormatCommand::BulletList), "a|");
+    assert_eq!(run_fmt("a|", FormatCommand::TaskList), "- [ ] a|");
+    assert_eq!(run_fmt("a|", FormatCommand::Quote), "> a|");
+    assert_eq!(run_fmt("> a|", FormatCommand::Quote), "a|");
 }
 
 #[test]
 fn inline_formats_wrap_and_unwrap() {
     assert_eq!(
-        run("say he|llo now", EditIntent::Bold),
+        run_fmt("say he|llo now", FormatCommand::Bold),
         "say **|hello|** now"
     );
     assert_eq!(
-        run("say **he|llo** now", EditIntent::Bold),
+        run_fmt("say **he|llo** now", FormatCommand::Bold),
         "say he|llo now"
     );
-    assert_eq!(run("|a b|", EditIntent::Italic), "*|a b|*");
-    assert_eq!(run("x |", EditIntent::Code), "x `|`");
-    assert_eq!(run("go |here| x", EditIntent::Link), "go [here](|) x");
-    assert_eq!(run("|", EditIntent::Underline), "<u>|</u>");
+    assert_eq!(run_fmt("|a b|", FormatCommand::Italic), "*|a b|*");
+    assert_eq!(run_fmt("x |", FormatCommand::Code), "x `|`");
+    assert_eq!(
+        run_fmt("go |here| x", FormatCommand::Link),
+        "go [here](|) x"
+    );
+    assert_eq!(run_fmt("|", FormatCommand::Underline), "<u>|</u>");
 }
 
 #[test]

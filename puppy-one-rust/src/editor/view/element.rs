@@ -1,28 +1,13 @@
-//! The editor element. It lays the document out for the bounds it is given
-//! in the same frame: request-layout only asks for the pane (`size_full`);
-//! prepaint builds the document as the product's CSS does (text column
-//! centred on the reading rail, blocks stacked at exact fractional heights,
-//! absolutely positioned host boxes around GPUI Kit text leaves), lays it out
-//! as a root at the real bounds and lets Kit place the leaves inside a
-//! `collect_leaf_geometry` scope (painting the selection as leaf
-//! decorations).
-//!
-//! Only the blocks within a viewport above and below the visible one are
-//! built (CodeMirror's viewport): the rest of the document is height from
-//! `heights::HeightMap`, so a frame costs what is on screen, not the
-//! document. A block above the one at the top of the viewport that turns
-//! out taller or shorter than estimated moves the scroll by the difference
-//! (scroll anchoring) and the pass is rebuilt. When what Kit laid out disagrees with the plan (a leaf
-//! wrapped into another row count) or the caret reveal moves the scroll, the
-//! pass is rolled back (`Window::transact`) and rebuilt, so a frame never
-//! shows a layout for the wrong width or scroll. Paint adds what Kit does not
-//! draw: caret, IME underline and line-break selection boxes.
+//! The editor element: viewport-virtualised block layout (`TA-13`), bounded
+//! multi-pass scroll-anchor convergence (`TA-15`), panic-isolated widget
+//! rendering (`TA-33`), and binary-searched visible-range painting (`TA-13`).
 use super::{
     decoration::Block,
     editor::EditorView,
     layout::{BlockGeometry, DocLayout, Leaf},
     render::{LeafEntry, RenderCx},
-    widget::{WidgetCx, WidgetState},
+    style::LineStyle,
+    widget::{WidgetCx, WidgetState, render_block_widget_safely},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::text::editor_host::collect_leaf_geometry;
@@ -31,9 +16,7 @@ use std::{collections::HashMap, ops::Range, rc::Rc};
 /// Margin kept between the caret and the viewport edge when scrolling.
 const SCROLL_MARGIN: f32 = 8.;
 
-/// Layout passes one frame may take to settle: the plan, Kit's row-count
-/// corrections, then the scroll the caret reveal asks for. Whatever is left
-/// settles on the next frame.
+/// Layout passes one frame may take to settle (`TA-15`).
 const MAX_PASSES: usize = 3;
 
 /// Document laid out beyond each edge of the viewport, at least: a page
@@ -85,8 +68,6 @@ pub struct Prepainted {
     hitbox: Hitbox,
 }
 
-/// Geometry dumps (`dev-capture`) compare every block with the product, so
-/// they lay the whole document out.
 fn render_everything() -> bool {
     #[cfg(feature = "dev-capture")]
     if std::env::var_os("PUPPYONE_EDITOR_GEOMETRY").is_some() {
@@ -111,6 +92,7 @@ impl EditorElement {
             cache,
             measures,
             heights,
+            widget_states,
             kit,
             scroll,
             selection,
@@ -120,10 +102,11 @@ impl EditorElement {
             (
                 v.state.revision,
                 v.doc_snapshot(),
-                v.decorations.clone(),
-                v.paragraph_cache.clone(),
-                v.measures.clone(),
-                v.heights.clone(),
+                v.caches.decorations.clone(),
+                v.caches.paragraph_cache.clone(),
+                v.caches.measures.clone(),
+                v.caches.heights.clone(),
+                v.caches.widget_states.clone(),
                 v.kit_context(),
                 v.scroll_y,
                 (s.from(), s.to()),
@@ -131,20 +114,21 @@ impl EditorElement {
             )
         });
         let width = f32::from(bounds.size.width);
-        let surface = decorations.surface.clone();
+        let surface = decorations.surface().clone();
         let content = surface.content;
-        // `.cm-content`: padding-inline max(gutter, (100% - rail) / 2).
         let available = (width - content.left - content.right).max(0.);
         let column_width = surface
             .max_text_width
             .map_or(available, |w| w.min(available));
         let column_left = content.left.max((width - column_width) / 2.);
         let mut rcx = RenderCx {
+            revision,
             doc: &doc,
             decorations: &decorations,
             leaves: Vec::new(),
             cache: &cache,
             measures: &measures,
+            widget_states: &widget_states,
             kit: &kit,
             view: self.view.downgrade(),
             scale: window.scale_factor(),
@@ -157,8 +141,6 @@ impl EditorElement {
         let mut heights = heights.borrow_mut();
         heights.prepare(&decorations, &doc, column_width, content.top);
         let count = heights.len();
-        // The document from a viewport above the visible one to a viewport
-        // below it (all of it for geometry dumps).
         let viewport = f32::from(bounds.size.height);
         let overscan = viewport.max(MIN_OVERSCAN);
         let everything = render_everything();
@@ -186,9 +168,10 @@ impl EditorElement {
             if !heights.valid(i) {
                 continue;
             }
-            let block = &decorations.blocks[i];
+            let block = decorations.block(i);
             let lines = block.lines();
             let source = doc.line_range(lines.start).start..doc.line_range(lines.end - 1).end;
+            let mut is_widget = matches!(block, Block::Widget { .. });
             let (element, height) = match block {
                 Block::Line { line, style } => rcx.line(
                     source.clone(),
@@ -199,22 +182,50 @@ impl EditorElement {
                     column_width,
                     WidgetState::of(&source, selection.0, selection.1, focused, read_only),
                 ),
-                Block::Widget { widget, .. } => {
+                Block::Widget { id, lines, widget } => {
                     let state =
                         WidgetState::of(&source, selection.0, selection.1, focused, read_only);
-                    widget.render(&mut WidgetCx {
-                        source: source.clone(),
-                        top: y,
-                        left: column_left,
-                        width: column_width,
-                        state,
-                        render: &mut rcx,
-                    })
+                    let rendered = render_block_widget_safely(
+                        widget.as_ref(),
+                        &mut WidgetCx {
+                            block_id: *id,
+                            source: source.clone(),
+                            top: y,
+                            left: column_left,
+                            width: column_width,
+                            state,
+                            render: &mut rcx,
+                        },
+                    );
+                    if let Some(ok) = rendered {
+                        ok
+                    } else {
+                        // TA-33: a widget that panics during render degrades to
+                        // visible source lines without crashing the editor.
+                        is_widget = false;
+                        let fallback_style = LineStyle::default();
+                        let mut line_elems = Vec::with_capacity(lines.len());
+                        let mut h_sum = 0f32;
+                        for ln in lines.clone() {
+                            let lr = doc.line_range(ln);
+                            let (el, lh) = rcx.line(
+                                lr.clone(),
+                                &fallback_style,
+                                ln + 1 < doc.line_count(),
+                                y + h_sum,
+                                column_left,
+                                column_width,
+                                WidgetState::of(&lr, selection.0, selection.1, focused, read_only),
+                            );
+                            line_elems.push(el);
+                            h_sum += lh;
+                        }
+                        (div().children(line_elems).into_any_element(), h_sum)
+                    }
                 }
             };
             let delta = heights.measured(i, height);
             if i < anchor {
-                // Content below this block moves; so does the viewport.
                 correction += delta;
                 until += delta;
             }
@@ -225,7 +236,7 @@ impl EditorElement {
                 source,
                 top: y,
                 height,
-                widget: matches!(block, Block::Widget { .. }),
+                widget: is_widget,
             });
             y += height;
         }
@@ -265,9 +276,6 @@ impl EditorElement {
         }
     }
 
-    /// Lays `frame` out at `bounds`, prepaints it and publishes the layout
-    /// to the view. False when the plan did not hold (Kit wrapped a leaf
-    /// into another row count, or the scroll moved): the frame is stale.
     fn place(
         &self,
         frame: &mut Frame,
@@ -277,24 +285,20 @@ impl EditorElement {
         cx: &mut App,
     ) -> bool {
         let view = self.view.read(cx);
-        let surface = &view.decorations.surface;
+        let surface = view.caches.decorations.surface();
         let color: Hsla = if focused {
             surface.selection
         } else {
             surface.selection_inactive
         }
         .into();
-        // The clause an input method converts is underlined, not selected.
         let selection = if view.composition_clause().is_some() {
             0..0
         } else {
             view.state.selection.as_range()
         };
-        let measures = view.measures.clone();
+        let measures = view.caches.measures.clone();
         let mut decorations: HashMap<u64, Vec<(Range<usize>, Hsla)>> = HashMap::new();
-        // A widget the selection covers whole shows its block-selected state
-        // instead of text selection inside it (replaced widgets; tables make
-        // `--po-selection-background` transparent while `is-doc-selected`).
         let covered: Vec<&Range<usize>> = frame
             .blocks
             .iter()
@@ -329,8 +333,6 @@ impl EditorElement {
             let Some(geometry) = geometry.remove(&entry.key) else {
                 continue;
             };
-            // Kit's inline flow (inline code) may wrap differently from the
-            // plain-line prediction: adopt its row count.
             let line = f32::from(geometry.line_height()).max(1.);
             let rows = (f32::from(geometry.bounds().size.height) / line)
                 .round()
@@ -371,17 +373,13 @@ impl EditorElement {
         let scale = window.scale_factor();
         self.view.update(cx, |v, _| {
             v.bounds = Some(bounds);
-            v.layout = Some(layout.clone());
-            // Keep the viewport's top block in place over corrected estimates.
+            v.caches.layout = Some(layout.clone());
             v.scroll_y += frame.correction;
             let height = f32::from(bounds.size.height);
-            if v.reveal_caret && settled && !layout.covers(v.state.selection.head) {
-                // The caret's block is not laid out: scroll to where the
-                // plan puts it; the next pass lays it out and reveals the
-                // caret exactly.
+            if v.pointer.reveal_caret && settled && !layout.covers(v.state.selection.head) {
                 if let Some((top, bottom)) = v.estimated_block_of(v.state.selection.head) {
                     let before = v.scroll_y;
-                    if v.reveal_centered {
+                    if v.pointer.reveal_centered {
                         v.scroll_y = (top + bottom) / 2. - height / 2.;
                     } else if top - SCROLL_MARGIN < v.scroll_y {
                         v.scroll_y = (top - SCROLL_MARGIN).max(0.);
@@ -389,20 +387,18 @@ impl EditorElement {
                         v.scroll_y = bottom + SCROLL_MARGIN - height;
                     }
                     if v.scroll_y == before {
-                        v.reveal_caret = false;
+                        v.pointer.reveal_caret = false;
                     }
                 } else {
-                    v.reveal_caret = false;
+                    v.pointer.reveal_caret = false;
                 }
-            } else if v.reveal_caret && settled {
-                v.reveal_caret = false;
+            } else if v.pointer.reveal_caret && settled {
+                v.pointer.reveal_caret = false;
                 let s = v.state.selection;
                 let caret = layout.caret(s.head, s.upstream);
-                // Document-relative caret row.
                 let top = f32::from(caret.row_top - bounds.top()) + frame.scroll;
                 let bottom = top + f32::from(caret.row_height);
-                if std::mem::take(&mut v.reveal_centered) {
-                    // A find match lands in the middle of the viewport.
+                if std::mem::take(&mut v.pointer.reveal_centered) {
                     v.scroll_y = (top + bottom) / 2. - height / 2.;
                 } else if top - SCROLL_MARGIN < v.scroll_y {
                     v.scroll_y = (top - SCROLL_MARGIN).max(0.);
@@ -410,7 +406,6 @@ impl EditorElement {
                     v.scroll_y = bottom + SCROLL_MARGIN - height;
                 }
             }
-            // Whole device pixels, so text never shimmers between frames.
             v.scroll_y = (v.scroll_y.clamp(0., layout.max_scroll()) * scale).round() / scale;
             if v.scroll_y != frame.scroll {
                 settled = false;
@@ -444,8 +439,6 @@ impl Element for EditorElement {
         None
     }
 
-    /// The editor fills its pane; the document is built once the pane's
-    /// bounds are known (prepaint), never for a guessed width.
     fn request_layout(
         &mut self,
         _: Option<&GlobalElementId>,
@@ -491,7 +484,6 @@ impl Element for EditorElement {
             match placed {
                 Ok(settled) => {
                     if !settled {
-                        // Drawing ignores `Window::refresh`; ask for a frame.
                         let view = self.view.entity_id();
                         window.on_next_frame(move |_, cx| cx.notify(view));
                     }
@@ -516,58 +508,28 @@ impl Element for EditorElement {
     ) {
         let Prepainted { frame, hitbox } = prepainted;
         window.set_cursor_style(CursorStyle::IBeam, hitbox);
-        // Find matches mark their text (under it): `.cm-editor-find-match`
-        // and the current one's stronger tint and outline.
-        if let Some(layout) = self.view.read(cx).layout.clone() {
+
+        // Plugin underlays (e.g. FindPlugin match highlights, binary-searched
+        // over visible viewport byte range, `TA-13`, `TA-20`).
+        {
             let view = self.view.read(cx);
-            let marks = &view.find;
-            if !marks.matches.is_empty() {
-                let t = crate::theme::Theme::new(view.dark);
-                let visible =
-                    |b: &Bounds<Pixels>| b.bottom() >= bounds.top() && b.top() <= bounds.bottom();
-                window.with_content_mask(Some(ContentMask { bounds }), |window| {
-                    for (i, range) in marks.matches.iter().enumerate() {
-                        let current = marks.current == Some(i);
-                        for b in layout
-                            .range_boxes(range.clone())
-                            .iter()
-                            .filter(|b| visible(b))
-                        {
-                            let tint =
-                                crate::theme::alpha(t.warning, if current { 0.58 } else { 0.34 });
-                            if current {
-                                let ring = crate::theme::mix(t.warning, t.text, 0.82);
-                                window.paint_quad(quad(
-                                    b.dilate(px(1.)),
-                                    px(3.),
-                                    Rgba::default(),
-                                    px(1.),
-                                    ring,
-                                    BorderStyle::Solid,
-                                ));
-                            }
-                            window.paint_quad(quad(
-                                *b,
-                                px(2.),
-                                tint,
-                                px(0.),
-                                Rgba::default(),
-                                BorderStyle::Solid,
-                            ));
-                        }
-                    }
-                });
+            if let Some(layout) = &view.caches.layout {
+                let dark = view.dark;
+                for plugin in &view.extensions.plugins {
+                    plugin.paint_underlay(dark, layout, bounds, window);
+                }
             }
         }
+
         frame.child.paint(window, cx);
         let view = self.view.read(cx);
         let focus = view.focus.clone();
         let focused = focus.is_focused(window);
-        let Some(layout) = view.layout.clone() else {
+        let Some(layout) = view.caches.layout.clone() else {
             return;
         };
-        let surface = view.decorations.surface.clone();
-        let underlines = view.decorations.underlines.clone();
+        let layered = view.caches.decorations.clone();
+        let surface = layered.surface().clone();
         let selection = view.state.selection;
         let composition = view.composition_range();
         let clause = view.composition_clause();
@@ -600,21 +562,26 @@ impl Element for EditorElement {
                     window.paint_quad(fill(b, color));
                 }
             }
-            // Decoration underlines on every row their text covers: the
-            // baseline sits about 0.35em below the row's middle.
-            for u in &underlines {
-                for b in layout.range_boxes(u.range.clone()) {
-                    let y = b.top() + b.size.height / 2. + px(0.35 * u.size + 2.);
-                    let mut x = b.left();
-                    while x < b.right() {
-                        let w = px(u.dash).min(b.right() - x);
-                        window.paint_quad(fill(Bounds::new(point(x, y), size(w, px(1.))), u.color));
-                        x += px(u.dash + u.gap);
+            // TA-13: binary-search decoration underlines over only the visible
+            // viewport byte range instead of iterating the whole document!
+            if !layout.leaves.is_empty() {
+                let vis_start = layout.leaves.first().map_or(0, |l| l.source().start);
+                let vis_end = layout.leaves.last().map_or(0, |l| l.source().end);
+                layered.for_each_underline_in(&(vis_start..vis_end), |u| {
+                    for b in layout.range_boxes(u.range.clone()) {
+                        let y = b.top() + b.size.height / 2. + px(0.35 * u.size + 2.);
+                        let mut x = b.left();
+                        while x < b.right() {
+                            let w = px(u.dash).min(b.right() - x);
+                            window.paint_quad(fill(
+                                Bounds::new(point(x, y), size(w, px(1.))),
+                                u.color,
+                            ));
+                            x += px(u.dash + u.gap);
+                        }
                     }
-                }
+                });
             }
-            // Marked text: a thin underline on every row it covers; the
-            // clause being converted gets a thick one (NSTextView's look).
             if let Some(range) = &composition {
                 for r in layout.underline_boxes(range.clone(), px(1.)) {
                     window.paint_quad(fill(r, surface.caret));
@@ -631,17 +598,20 @@ impl Element for EditorElement {
                 window.paint_quad(fill(r, surface.caret));
             }
         });
-        // The candidate window follows the marked text when layout or scroll
-        // moves it.
         let moved = self.view.update(cx, |v, _| {
-            let current = v.composition.as_ref().map(|c| c.range.clone()).map(|r| {
-                let rect = layout.first_row_rect(r.start..r.start);
-                Bounds::new(
-                    rect.origin + point(px(0.), layout.scroll - px(v.scroll_y)),
-                    rect.size,
-                )
-            });
-            match &mut v.composition {
+            let current = v
+                .ime
+                .composition
+                .as_ref()
+                .map(|c| c.range.clone())
+                .map(|r| {
+                    let rect = layout.first_row_rect(r.start..r.start);
+                    Bounds::new(
+                        rect.origin + point(px(0.), layout.scroll - px(v.scroll_y)),
+                        rect.size,
+                    )
+                });
+            match &mut v.ime.composition {
                 Some(c) if c.anchor != current => {
                     let first = c.anchor.is_none();
                     c.anchor = current;

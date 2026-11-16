@@ -110,26 +110,26 @@ impl LineEmbed for CompletedStrike {
         let scale = cx.render.scale;
         let row_lh = (self.text.line_height_px() * scale * 64.).floor() / (scale * 64.);
         let d = cx.render.decorations;
-        let roomed: Vec<(Range<usize>, SharedString)>;
-        let replaced = if cx.render.rooms.is_empty() {
-            d.replaced_in(&cx.source)
-        } else {
-            roomed = d
-                .replaced_in(&cx.source)
-                .iter()
-                .map(|(range, text)| {
-                    let room = cx.render.rooms.iter().find(|r| r.range == *range);
-                    (range.clone(), room.map_or(text.clone(), |r| r.text.clone()))
-                })
-                .collect();
-            &roomed
-        };
-        let leaf = LeafText::build_replaced(
-            cx.render.doc.as_str(),
+        let replaced: Vec<(Range<usize>, SharedString)> = d
+            .inline_widgets_in(&cx.source)
+            .iter()
+            .filter(|w| w.replaces_text())
+            .map(|w| {
+                let room = cx.render.rooms.iter().find(|r| r.range == w.range);
+                (
+                    w.range.clone(),
+                    room.map_or_else(|| w.display_text().clone(), |r| r.text.clone()),
+                )
+            })
+            .collect();
+        let hidden = d.hidden_in(&cx.source);
+        let marks = d.marks_in(&cx.source);
+        let leaf = LeafText::build_from_buffer(
+            cx.render.doc,
             cx.source.clone(),
-            d.hidden_in(&cx.source),
-            replaced,
-            d.marks_in(&cx.source),
+            &hidden,
+            &replaced,
+            &marks,
             false,
         );
         if leaf.text.is_empty() {

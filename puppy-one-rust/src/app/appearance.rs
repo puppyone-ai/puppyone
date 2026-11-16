@@ -61,9 +61,7 @@ impl WindowPreferences {
         let p = self.store.read(cx).state.clone();
         // The built-in Agent offers PuppyOne compute only while Payments is on.
         crate::cloud::auth::set_payments(p.experimental.payments);
-        crate::editor::markdown::core::commands::block_move::set_enabled(
-            p.experimental.markdown_block_drag,
-        );
+        crate::editor::markdown::set_block_drag_enabled(p.experimental.markdown_block_drag);
         let appearance = self.appearance.changed(AppearanceInputs::of(&p)).is_some();
         if appearance {
             self.apply(window, cx);

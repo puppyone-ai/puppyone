@@ -12,11 +12,14 @@ use crate::editor::{
             decorations::BlockDecoration,
             feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan, Presentation},
-            state::PreviewState,
+            state::{FeatureStateValue, PreviewState},
         },
-        shared::fence::fence_marker,
+        shared::fence::{fence_closes, fence_open},
     },
     text::{
+        anchor::Anchor,
+        buffer::Buffer,
+        change::ChangeSet,
         selection::Selection,
         state::{EditorState, Transaction},
     },
@@ -107,11 +110,6 @@ fn tag_at(s: &str, start: usize) -> Option<Token> {
     })
 }
 
-/// `getCodeFenceMarker`: a fence's character and length.
-fn fence(line: &str) -> Option<(u8, usize)> {
-    fence_marker(line)
-}
-
 /// `scanMdxComponentTagTokens`: the component tags of `s` (offsets from
 /// `base`), skipping fenced code.
 fn scan(s: &str, base: usize) -> Vec<Token> {
@@ -119,28 +117,29 @@ fn scan(s: &str, base: usize) -> Vec<Token> {
     let mut open: Option<(u8, usize)> = None;
     let mut line_start = 0;
     for line in s.split_inclusive('\n') {
-        match (open, fence(line)) {
-            (Some((c, n)), Some((d, m))) if c == d && m >= n => open = None,
-            (None, Some(f)) => open = Some(f),
-            (None, None) => {
-                let mut i = 0;
-                while let Some(at) = line[i..].find('<') {
-                    let at = line_start + i + at;
-                    match tag_at(s, at) {
-                        Some(mut t) => {
-                            i = t.to - line_start;
-                            t.from += base;
-                            t.to += base;
-                            tokens.push(t);
-                            if i >= line.len() {
-                                break;
-                            }
+        if let Some((c, n)) = open {
+            if fence_closes(line, c, n) {
+                open = None;
+            }
+        } else if let Some(f) = fence_open(line) {
+            open = Some(f);
+        } else {
+            let mut i = 0;
+            while let Some(at) = line[i..].find('<') {
+                let at = line_start + i + at;
+                match tag_at(s, at) {
+                    Some(mut t) => {
+                        i = t.to - line_start;
+                        t.from += base;
+                        t.to += base;
+                        tokens.push(t);
+                        if i >= line.len() {
+                            break;
                         }
-                        None => i = at - line_start + 1,
                     }
+                    None => i = at - line_start + 1,
                 }
             }
-            _ => {}
         }
         line_start += line.len();
     }
@@ -156,19 +155,20 @@ fn blocks(doc: &str) -> Vec<Range<usize>> {
     while at < doc.len() {
         let end = doc[at..].find('\n').map_or(doc.len(), |n| at + n + 1);
         let line = &doc[at..end];
-        match (fenced, fence(line)) {
-            (Some((c, n)), Some((d, m))) if c == d && m >= n => fenced = None,
-            (None, Some(f)) => fenced = Some(f),
-            (None, None) => {
-                let indent = line.len() - line.trim_start_matches(' ').len();
-                if indent <= 3 && tag_at(doc, at + indent).is_some_and(|t| !t.closing) {
-                    let block = close(doc, at + indent);
-                    out.push(block.clone());
-                    at = block.end;
-                    continue;
-                }
+        if let Some((c, n)) = fenced {
+            if fence_closes(line, c, n) {
+                fenced = None;
             }
-            _ => {}
+        } else if let Some(f) = fence_open(line) {
+            fenced = Some(f);
+        } else {
+            let indent = line.len() - line.trim_start_matches(' ').len();
+            if indent <= 3 && tag_at(doc, at + indent).is_some_and(|t| !t.closing) {
+                let block = close(doc, at + indent);
+                out.push(block.clone());
+                at = block.end;
+                continue;
+            }
         }
         at = end;
     }
@@ -184,24 +184,25 @@ fn close(doc: &str, from: usize) -> Range<usize> {
     while at < doc.len() {
         let end = doc[at..].find('\n').map_or(doc.len(), |n| at + n + 1);
         let line = &doc[at..end];
-        let marker = if first { None } else { fence(line) };
+        let is_first = first;
         first = false;
-        match (fenced, marker) {
-            (Some((c, n)), Some((d, m))) if c == d && m >= n => fenced = None,
-            (Some(_), _) => {}
-            (None, Some(f)) => fenced = Some(f),
-            (None, None) => {
-                for t in scan(line, at) {
-                    if t.closing {
-                        if stack.last() == Some(&t.name) {
-                            stack.pop();
-                        }
-                    } else if !t.self_closing {
-                        stack.push(t.name);
+        if !is_first && let Some((c, n)) = fenced {
+            if fence_closes(line, c, n) {
+                fenced = None;
+            }
+        } else if !is_first && let Some(f) = fence_open(line) {
+            fenced = Some(f);
+        } else if fenced.is_none() {
+            for t in scan(line, at) {
+                if t.closing {
+                    if stack.last() == Some(&t.name) {
+                        stack.pop();
                     }
-                    if stack.is_empty() {
-                        return from..end.min(doc.len()).max(from);
-                    }
+                } else if !t.self_closing {
+                    stack.push(t.name);
+                }
+                if stack.is_empty() {
+                    return from..end.min(doc.len()).max(from);
                 }
             }
         }
@@ -370,18 +371,94 @@ pub enum Action {
     ShowSource(Range<usize>),
 }
 
+/// Per-feature MDX active-tab state (`TA-40`), tracked via [`Anchor::after`]
+/// so editing above `<Tabs>` (and undoing/redoing via `TA-06`) preserves the
+/// selected tab instead of resetting to tab 0.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct TabsState(Vec<(Anchor, usize)>);
+
+impl FeatureStateValue for TabsState {
+    fn map_changes(&mut self, changes: &ChangeSet, _doc: &Buffer, new_revision: u64) {
+        for (anchor, _) in &mut self.0 {
+            anchor.map(changes, new_revision);
+        }
+    }
+}
+
+impl TabsState {
+    pub fn get(&self, at: usize) -> usize {
+        self.0
+            .iter()
+            .find(|(a, _)| a.offset == at)
+            .map(|(_, tab)| *tab)
+            .unwrap_or(0)
+    }
+
+    pub fn set(&mut self, at: usize, tab: usize, revision: u64) {
+        self.0.retain(|(a, _)| a.offset != at);
+        self.0.push((Anchor::after(at, revision), tab));
+    }
+}
+
 impl MarkdownFeature for MdxFeature {
     fn id(&self) -> &'static str {
         ID
     }
 
+    fn scan_block_delimiters(
+        &self,
+        doc: &Buffer,
+        line_window: Range<usize>,
+        code_lines: &[Range<usize>],
+        out: &mut Vec<usize>,
+    ) {
+        let mut code_idx = code_lines.partition_point(|r| r.end <= line_window.start);
+        let end = line_window.end.min(doc.line_count());
+        for line in line_window.start..end {
+            while code_idx < code_lines.len() && code_lines[code_idx].end <= line {
+                code_idx += 1;
+            }
+            if code_idx < code_lines.len() && code_lines[code_idx].contains(&line) {
+                continue;
+            }
+            let text = doc.line_cow(line);
+            if !text.contains('<') {
+                continue;
+            }
+            let base = doc.line_range(line).start;
+            let bytes = text.as_bytes();
+            for i in 0..bytes.len() {
+                if bytes[i] == b'<' {
+                    let next = bytes.get(i + 1).copied();
+                    let is_cap_tag = next.is_some_and(|b| b.is_ascii_uppercase())
+                        || (next == Some(b'/')
+                            && bytes.get(i + 2).is_some_and(|b| b.is_ascii_uppercase()));
+                    if is_cap_tag {
+                        out.push(base + i);
+                    }
+                }
+            }
+        }
+    }
+
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        let doc = cx.doc.as_str();
-        for block in blocks(doc) {
-            let line = cx.doc.line_range(cx.doc.line_index(block.start)).start;
-            let range = line..block.end.min(doc.len());
-            let source = doc[block.start..range.end].trim_end_matches(['\n', '\r']);
-            let range = range.start..block.start + source.len();
+        let (Some(first), Some(last)) = (cx.syntax.top_blocks.first(), cx.syntax.top_blocks.last())
+        else {
+            return;
+        };
+        let base = cx.doc.line_range(cx.doc.line_index(first.start)).start;
+        let limit = cx
+            .doc
+            .line_range(cx.doc.line_index(last.end.min(cx.doc.len())))
+            .end;
+        let slice_cow = cx.doc.slice_cow(base..limit);
+        let slice = slice_cow.as_ref();
+        for rel_block in blocks(slice) {
+            let abs_start = base + rel_block.start;
+            let abs_end = (base + rel_block.end).min(limit);
+            let line = cx.doc.line_range(cx.doc.line_index(abs_start)).start;
+            let source = slice[rel_block.start..abs_end - base].trim_end_matches(['\n', '\r']);
+            let range = line..abs_start + source.len();
             let presentation = match tabs(source) {
                 Some(tabs) => Presentation::BlockAtom(BlockEmbed::new(
                     ID,
@@ -409,11 +486,14 @@ impl MarkdownFeature for MdxFeature {
         cx: &WidgetFactoryCx,
     ) -> Option<Rc<dyn BlockWidget>> {
         let block = embed.model::<TabsBlock>()?;
+        let active = cx
+            .feature_state::<TabsState>(ID)
+            .map_or(0, |s| s.get(block.range.start));
         Some(Rc::new(TabsWidget::new(
             block.clone(),
             cx.theme,
             cx.assets.cloned(),
-            cx.tabs.get(&block.range.start).copied().unwrap_or(0),
+            active,
         )))
     }
 
@@ -433,7 +513,9 @@ impl MarkdownFeature for MdxFeature {
         let len = state.doc.len();
         match command.payload::<Action>()? {
             Action::Select { at, tab } => {
-                preview.tabs.insert(*at, *tab);
+                preview
+                    .state_mut::<TabsState>(ID)
+                    .set(*at, *tab, state.revision);
                 Some(Transaction::select(state.selection))
             }
             Action::ShowSource(range) => {
