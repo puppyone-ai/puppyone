@@ -11253,7 +11253,8 @@
         },
         {
           "package": "po-app",
-          "test": "features::source_control::tests::native_sync_buttons_use_the_live_state_and_do_not_dispatch_disabled_operations"
+          "test": "features::source_control::tests::native_sync_buttons_use_the_live_state_and_do_not_dispatch_disabled_operations",
+          "target": "puppy-one-rust"
         }
       ],
       "environment": "local"
