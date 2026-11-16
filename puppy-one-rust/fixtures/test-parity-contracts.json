@@ -3730,7 +3730,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -7687,6 +7687,61 @@
           "test": "platform::terminal::shell::tests::trusted_path_additions_reach_shell_preparation_without_stdin_bootstrap_or_reordering_existing_entries"
         }
       ]
+    },
+    {
+      "id": "bounded-command-process-lifetime",
+      "acceptance": "Owned Unix process groups are fully stopped after cancellation, including a server descendant that ignores SIGTERM and survives its wrapper; an unrelated server remains usable. Additional native regressions enforce pre-spawn cancellation, concurrent bounded stdin/stdout/stderr, deadlines under pipe backpressure, exact output limits, EOF, noninteractive environment and exit-error precedence. A cleanup failure is reported rather than claiming the group has exited. Windows process-tree parity remains open.",
+      "typescript": [
+        {
+          "path": "tests/integration/platform/processes/managedChildLifecycle.test.mjs",
+          "sha256": "53f10f07e41da0d042abbe4f096168a1d083bd5838d91ab1e71a853e78239998",
+          "cases": [
+            {
+              "index": 0,
+              "name": "stops a real server grandchild after its wrapper exits, without touching a reused server"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::precancellation_is_observed_before_executable_or_working_directory_lookup"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::stdin_backpressure_cannot_disable_the_process_deadline"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::stdout_is_drained_while_large_stdin_is_still_being_written"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::cancellation_after_parent_exit_reaps_pipe_holding_descendants_and_preserves_unrelated_servers"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::output_limits_stop_and_reap_the_actual_child_on_both_streams"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::output_at_each_limit_is_preserved_without_truncation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::successful_input_closes_stdin_and_preserves_cwd_and_noninteractive_environment"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::failed_exit_prefers_trimmed_stderr_then_stdout_and_preserves_invalid_utf8_lossily"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::process::tests::precancelled_and_zero_deadline_commands_never_create_launch_side_effects"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
