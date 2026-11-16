@@ -475,7 +475,7 @@
     },
     {
       "id": "binary-preview-invalidation",
-      "acceptance": "Image, PDF, Office, audio and video reacquire only on own/ancestor or unknown changes, publish the replacement and release the old native snapshot. Hidden and rebound reads are fenced; failed refresh preserves the shown snapshot and Retry reacquires from the provider. Native Arc ownership replaces TS URL revocation.",
+      "acceptance": "Image, PDF, Office, audio and video reacquire only on own/ancestor or unknown changes, publish the replacement and release the old native snapshot. Hidden and rebound reads are fenced; failed refresh preserves the shown snapshot and Retry reacquires from the provider. Native Arc ownership replaces TS URL revocation. Image admission consumes provider-authorized bounded snapshots off the UI thread; replacement, revocation and disposal cancel owned work, fence replies and evict stale decode assets. AVIF conversion has bounded input/output, deadlines and child-process cleanup; actual Retry and damaged-image decoding are exercised.",
       "typescript": [
         {
           "path": "tests/component/editor/resources/fileResourceLease.test.tsx",
@@ -524,6 +524,62 @@
         {
           "package": "po-editor",
           "test": "documents::resource_tests::a_late_previous_provider_cannot_replace_a_rebound_preview_or_subscription"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::local_images_cannot_bypass_the_source_budget"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::image_reads_keep_provider_authority_after_root_replacement_and_reject_link_substitution"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::image_snapshots_use_registered_aliases_and_refuse_cancelled_or_revoked_reads"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::hosted_avif_decodes_again_when_the_provider_delivers_a_replacement"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::an_external_replacement_at_the_same_path_evicts_the_decoded_image"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::a_late_avif_transcode_cannot_replace_the_new_png_resource"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::revocation_discards_a_pending_image_and_retires_an_already_cached_image"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::disposing_the_image_view_cancels_its_owned_worker_and_receiver"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::image::tests::image_retry_click_reacquires_input_and_loads_new_authorized_bytes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::tests::conversion_admits_before_spawning_and_bounds_its_private_output"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::tests::codec_output_rejects_links_missing_files_and_invalid_pngs"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::tests::cancelling_or_timing_out_image_conversion_reaps_the_codec_and_removes_its_files"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::tests::hosted_avif_uses_the_same_codec_and_rejects_oversized_or_invalid_bytes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::tests::avif_is_transcoded_to_png_through_imageio"
         }
       ],
       "environment": "local"
@@ -3730,7 +3786,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -10413,7 +10469,7 @@
             },
             {
               "index": 14,
-              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A→B→A"
+              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A\u2192B\u2192A"
             }
           ]
         }

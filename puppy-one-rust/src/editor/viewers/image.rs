@@ -9,66 +9,80 @@ use crate::{
     ui::appearance::ActiveAppearance,
 };
 use gpui::{prelude::*, *};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
     let resource = match request.input {
         SurfaceInput::Resource(resource) => Some(resource.clone()),
         _ => None,
     };
-    let image = resource.as_ref().and_then(source);
-    let view = cx.new(|_| ImagePreview {
-        resource,
-        image,
-        transcoding: false,
-        generation: 0,
+    let view = cx.new(|cx| {
+        let mut view = ImagePreview::new(resource, cx);
+        view.load(request.name, cx);
+        view
     });
-    transcode_if_needed(&view, request.name, cx);
     Box::new(ImageSurface { view })
 }
 
-/// AVIF (shown by the product's Chromium, unknown to GPUI's decoder) goes
-/// through the platform codec off the foreground thread.
-fn transcode_if_needed(view: &Entity<ImagePreview>, name: &str, cx: &mut App) {
-    if !crate::platform::image_transcode::needs_transcode(name) {
-        return;
+/// The declared image budget also applies when the provider identifies the
+/// format by MIME rather than a filename extension.
+fn source_budget() -> u64 {
+    crate::editor::registry::manifest()
+        .viewers
+        .iter()
+        .find(|viewer| viewer.id == "image-preview")
+        .unwrap()
+        .resource_policy
+        .max_source_bytes
+}
+
+fn image_format(mime: &str) -> Option<ImageFormat> {
+    match mime.split(';').next()?.trim().to_ascii_lowercase().as_str() {
+        "image/apng" => Some(ImageFormat::Png),
+        "image/vnd.microsoft.icon" | "image/x-icon" => Some(ImageFormat::Ico),
+        mime => ImageFormat::from_mime_type(mime),
     }
-    let data = match view.read(cx).resource.as_ref().map(|r| r.data()) {
-        Some(Ok(data)) => data.clone(),
-        _ => return,
+}
+
+/// Called only by the background loader. GPUI receives owned bytes, never an
+/// ambient filesystem path that it could reopen outside provider authority.
+fn source(resource: &PreviewResource, name: &str, cancel: &AtomicBool) -> Option<Arc<Image>> {
+    if cancel.load(Ordering::Acquire) {
+        return None;
+    }
+    let mime = match resource.data().ok()? {
+        PreviewData::Bytes { mime, .. } => Some(mime.as_str()),
+        PreviewData::LocalFile(_) => None,
     };
-    let generation = view.update(cx, |v, _| {
-        v.image = None;
-        v.transcoding = true;
-        v.generation
-    });
-    let budget = crate::editor::registry::source_budget(name);
-    let task = cx.background_executor().spawn(async move {
-        match data {
-            PreviewData::LocalFile(path) => crate::platform::image_transcode::to_png(&path, budget),
-            PreviewData::Bytes { bytes, .. } => {
-                crate::platform::image_transcode::bytes_to_png(&bytes, budget)
-            }
-        }
-    });
-    let view = view.downgrade();
-    cx.spawn(async move |cx| {
-        let result = task.await;
-        let _ = view.update(cx, |v, cx| {
-            if generation != v.generation {
-                return;
-            }
-            if let Ok(png) = result {
-                v.image = Some(ImageSource::from(Arc::new(Image::from_bytes(
-                    ImageFormat::Png,
-                    png,
-                ))));
-            }
-            v.transcoding = false;
-            cx.notify();
-        });
-    })
-    .detach();
+    let format = crate::formats::resolve(Some(name), mime);
+    let transcode = format.id == "avif";
+    let native_format = if transcode {
+        ImageFormat::Png
+    } else {
+        format
+            .mime_types
+            .iter()
+            .find_map(|mime| image_format(mime))
+            .or_else(|| mime.and_then(image_format))?
+    };
+    let bytes = resource.bytes(source_budget())?;
+    if cancel.load(Ordering::Acquire) {
+        return None;
+    }
+    let bytes = if transcode {
+        crate::platform::image_transcode::bytes_to_png_cancellable(&bytes, source_budget(), cancel)
+            .ok()?
+    } else {
+        bytes
+    };
+    resource.data().ok()?;
+    if cancel.load(Ordering::Acquire) {
+        return None;
+    }
+    Some(Arc::new(Image::from_bytes(native_format, bytes)))
 }
 
 struct ImageSurface {
@@ -87,40 +101,87 @@ impl ViewerSurface for ImageSurface {
     }
     fn rebind_resource(&self, resource: &PreviewResource, cx: &mut App) {
         self.view.update(cx, |view, cx| {
-            view.generation += 1;
-            view.transcoding = false;
-            // Local files keep the same path after an external write. Drop
-            // GPUI's decoded asset so the new lease displays the new bytes.
-            if let Some(image) = view.image.take() {
-                image.remove_asset(cx);
-            }
             view.resource = Some(resource.clone());
-            view.image = source(resource);
-            cx.notify();
+            view.load(&resource.identity.path.as_path().to_string_lossy(), cx);
         });
-        let name = resource.identity.path.as_path().to_string_lossy();
-        transcode_if_needed(&self.view, &name, cx);
     }
 }
 
-fn source(resource: &PreviewResource) -> Option<ImageSource> {
-    resource.data().ok().and_then(|data| match data {
-        PreviewData::LocalFile(path) => Some(ImageSource::from(path.clone())),
-        PreviewData::Bytes { mime, bytes } => ImageFormat::from_mime_type(mime)
-            .map(|format| ImageSource::from(Arc::new(Image::from_bytes(format, bytes.to_vec())))),
-    })
+struct Pending(Arc<AtomicBool>);
+impl Drop for Pending {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Release);
+    }
 }
-
 struct ImagePreview {
     resource: Option<PreviewResource>,
     image: Option<ImageSource>,
-    /// A platform transcode is running: show loading, not failure.
-    transcoding: bool,
+    pending: Option<Pending>,
+    loading: Option<Task<()>>,
     generation: u64,
 }
 impl EventEmitter<SurfaceEvent> for ImagePreview {}
 impl ImagePreview {
-    /// `onRetryInput`: forget the failed decode and read the file again.
+    fn new(resource: Option<PreviewResource>, cx: &mut Context<Self>) -> Self {
+        cx.on_release(|view, cx| {
+            view.pending = None;
+            view.loading = None;
+            if let Some(image) = view.image.take() {
+                image.remove_asset(cx);
+            }
+        })
+        .detach();
+        Self {
+            resource,
+            image: None,
+            pending: None,
+            loading: None,
+            generation: 0,
+        }
+    }
+    fn retire(&mut self, cx: &mut Context<Self>) {
+        self.generation += 1;
+        self.pending = None;
+        self.loading = None;
+        if let Some(image) = self.image.take() {
+            image.remove_asset(cx);
+        }
+    }
+    fn load(&mut self, name: &str, cx: &mut Context<Self>) {
+        let resource = self.resource.clone();
+        let name = name.to_owned();
+        self.start_load(cx, move |cancel| async move {
+            source(resource.as_ref()?, &name, &cancel)
+        });
+    }
+    fn start_load<F, Fut>(&mut self, cx: &mut Context<Self>, prepare: F)
+    where
+        F: FnOnce(Arc<AtomicBool>) -> Fut,
+        Fut: std::future::Future<Output = Option<Arc<Image>>> + Send + 'static,
+    {
+        self.retire(cx);
+        let generation = self.generation;
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.pending = Some(Pending(cancel.clone()));
+        let task = cx.background_spawn(prepare(cancel));
+        self.loading = Some(cx.spawn(async move |this, cx| {
+            let image = task.await;
+            let _ = this.update(cx, |view, cx| {
+                if view.generation != generation {
+                    return;
+                }
+                view.pending = None;
+                view.image = view
+                    .resource
+                    .as_ref()
+                    .filter(|r| r.data().is_ok())
+                    .and(image.map(ImageSource::from));
+                cx.notify();
+            });
+        }));
+        cx.notify();
+    }
+    /// `onRetryInput`: the host reacquires a provider snapshot.
     fn retry(&mut self, cx: &mut Context<Self>) {
         cx.emit(SurfaceEvent::RetryInput);
     }
@@ -142,6 +203,7 @@ pub(super) fn resource_failure(
         .child(
             div()
                 .id(id)
+                .debug_selector(move || id.to_owned())
                 .mt(px(6.))
                 .h(px(theme::control()))
                 .px(px(11.))
@@ -183,11 +245,10 @@ impl Render for ImagePreview {
             "editor.resource.unavailable",
             &[("kind", t("editor.resource.kind.image").into())],
         );
-        let image = self
-            .resource
-            .as_ref()
-            .filter(|r| r.data().is_ok())
-            .and(self.image.clone());
+        if self.resource.as_ref().is_some_and(|r| r.data().is_err()) {
+            self.retire(cx);
+        }
+        let image = self.image.clone();
         let view = cx.weak_entity();
         let content = match image {
             Some(image) => img(image)
@@ -198,7 +259,7 @@ impl Render for ImagePreview {
                 .with_loading(move || note(t("editor.preview.loading").into(), p.muted))
                 .with_fallback(move || failure(failed.clone(), view.clone(), p))
                 .into_any_element(),
-            None if self.transcoding => note(t("editor.preview.loading").into(), p.muted),
+            None if self.pending.is_some() => note(t("editor.preview.loading").into(), p.muted),
             None => failure(failed, view, p),
         };
         div()
@@ -215,108 +276,4 @@ impl Render for ImagePreview {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-
-    #[gpui::test]
-    fn hosted_avif_decodes_again_when_the_provider_delivers_a_replacement(cx: &mut TestAppContext) {
-        cx.executor().allow_parking();
-        let provider = Arc::new(crate::workspace::testing::Resources::default());
-        provider.bytes.lock().unwrap().insert(
-            "picture.avif".into(),
-            include_bytes!("../../../fixtures/media/red.avif").to_vec(),
-        );
-        let ws = crate::workspace::Workspace::from_provider(provider).unwrap();
-        let resource = ws.resource(std::path::Path::new("picture.avif")).unwrap();
-        let (view, cx) = cx.add_window_view(|_, _| ImagePreview {
-            image: None,
-            resource: Some(resource.clone()),
-            transcoding: false,
-            generation: 0,
-        });
-        for _ in 0..2 {
-            cx.update(|_, cx| {
-                ImageSurface { view: view.clone() }.rebind_resource(&resource, cx);
-                assert!(view.read(cx).transcoding);
-            });
-            cx.run_until_parked();
-            view.read_with(cx, |view, _| {
-                assert!(!view.transcoding);
-                assert!(
-                    matches!(&view.image, Some(ImageSource::Image(_))),
-                    "hosted AVIF must decode to an in-memory PNG"
-                );
-            });
-        }
-    }
-
-    #[gpui::test]
-    fn an_external_replacement_at_the_same_path_evicts_the_decoded_image(cx: &mut TestAppContext) {
-        cx.executor().allow_parking();
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("image.png");
-        std::fs::write(&path, include_bytes!("../../../fixtures/editor/sample.png")).unwrap();
-        let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
-        let resource = ws.resource(std::path::Path::new("image.png")).unwrap();
-        let (view, cx) = cx.add_window_view(|_, _| ImagePreview {
-            image: source(&resource),
-            resource: Some(resource),
-            transcoding: false,
-            generation: 0,
-        });
-        cx.update(|window, cx| {
-            let _ = window.draw(cx);
-        });
-        view.read_with(cx, |view, cx| {
-            assert!(view.image.as_ref().unwrap().is_asset_cached(cx))
-        });
-        std::fs::write(&path, include_bytes!("../../../fixtures/editor/broken.png")).unwrap();
-        let replacement = ws.resource(std::path::Path::new("image.png")).unwrap();
-        cx.update(|_, cx| {
-            ImageSurface { view: view.clone() }.rebind_resource(&replacement, cx);
-            assert!(
-                !view.read(cx).image.as_ref().unwrap().is_asset_cached(cx),
-                "same-path cache must not keep displaying obsolete bytes"
-            )
-        });
-    }
-
-    #[gpui::test]
-    fn a_late_avif_transcode_cannot_replace_the_new_png_resource(cx: &mut TestAppContext) {
-        cx.executor().allow_parking();
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("old.avif"),
-            include_bytes!("../../../fixtures/media/red.avif"),
-        )
-        .unwrap();
-        std::fs::write(
-            dir.path().join("new.png"),
-            include_bytes!("../../../fixtures/editor/sample.png"),
-        )
-        .unwrap();
-        let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
-        let old = ws.resource(std::path::Path::new("old.avif")).unwrap();
-        let new = ws.resource(std::path::Path::new("new.png")).unwrap();
-        let (view, cx) = cx.add_window_view(|_, _| ImagePreview {
-            image: source(&old),
-            resource: Some(old),
-            transcoding: false,
-            generation: 0,
-        });
-        cx.update(|_, cx| {
-            transcode_if_needed(&view, "old.avif", cx);
-            ImageSurface { view: view.clone() }.rebind_resource(&new, cx);
-        });
-        cx.run_until_parked();
-        view.read_with(cx, |view, _| {
-            assert!(
-                matches!(&view.image, Some(ImageSource::Resource(_))),
-                "obsolete transcode replaced the new source"
-            );
-            assert_eq!(view.resource.as_ref().unwrap(), &new);
-            assert!(!view.transcoding);
-        });
-    }
-}
+mod tests;
