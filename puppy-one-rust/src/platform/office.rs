@@ -297,7 +297,7 @@ mod lifetime_tests {
         let script = fixture(
             dir.path(),
             &format!(
-                "trap '[ -d \"$PWD\" ] && printf alive > \"{}\"' TERM\nprintf '%s' \"$PWD\" > '{}'\nwhile :; do /bin/sleep 1; done",
+                "trap '[ -d \"$PWD\" ] && printf alive > \"{}\"; exit 0' TERM\nprintf '%s' \"$PWD\" > '{}'\nwhile :; do :; done",
                 alive_on_term.display(),
                 receipt.display()
             ),
