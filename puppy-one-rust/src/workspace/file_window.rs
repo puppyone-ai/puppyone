@@ -70,15 +70,12 @@ impl ResourcePort for FileProvider {
             .preview_bytes(path, max.min(Limits::FILE_WINDOW_BYTES as u64))
     }
     fn markdown_asset_bytes(&self, path: &RelativePath, max: u64) -> Result<Vec<u8>> {
-        if path != &self.bound
-            && !crate::formats::preferred_mime(&path.as_path().to_string_lossy()).is_some_and(
-                |mime| {
-                    mime.starts_with("image/")
-                        || mime.starts_with("audio/")
-                        || mime.starts_with("video/")
-                },
-            )
-        {
+        if path == &self.bound {
+            return self.preview_bytes(path, max);
+        }
+        if !crate::formats::preferred_mime(&path.as_path().to_string_lossy()).is_some_and(|mime| {
+            mime.starts_with("image/") || mime.starts_with("audio/") || mime.starts_with("video/")
+        }) {
             return Err(Error::unsupported());
         }
         self.inner.markdown_asset_bytes(path, max)

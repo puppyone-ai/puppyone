@@ -148,3 +148,45 @@ fn media_port_enforces_its_byte_budget_and_fences_revocation_before_and_after_di
     );
     assert_eq!(provider.calls.load(Ordering::SeqCst), calls);
 }
+
+#[test]
+fn markdown_asset_requests_cannot_bypass_the_bound_documents_physical_limit() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("note.md");
+    let max = Limits::FILE_WINDOW_BYTES;
+    std::fs::write(&path, vec![b'a'; max]).unwrap();
+    let ws = Workspace::open_file(&path).unwrap();
+    assert_eq!(
+        ws.markdown_asset_bytes(Path::new("note.md"), (max * 2) as u64)
+            .unwrap()
+            .len(),
+        max
+    );
+    std::fs::write(&path, vec![b'a'; max + 1]).unwrap();
+    assert!(
+        ws.markdown_asset_bytes(Path::new("note.md"), (max * 2) as u64)
+            .is_err(),
+        "a media-purpose request must not widen the bound document budget"
+    );
+    // The image budget belongs to its caller; the document's 1 MiB rule
+    // must not prevent legitimate larger image assets.
+    std::fs::write(temp.path().join("image.png"), vec![b'b'; max + 1]).unwrap();
+    assert_eq!(
+        ws.markdown_asset_bytes(Path::new("image.png"), (max * 2) as u64)
+            .unwrap()
+            .len(),
+        max + 1
+    );
+    assert!(
+        ws.markdown_asset_bytes(Path::new("image.png"), max as u64)
+            .is_err()
+    );
+    assert_eq!(
+        Workspace::open(temp.path())
+            .unwrap()
+            .markdown_asset_bytes(Path::new("note.md"), (max * 2) as u64)
+            .unwrap()
+            .len(),
+        max + 1
+    );
+}

@@ -44,6 +44,7 @@ impl Shell {
                     | Command::Settings
                     | Command::Feedback
                     | Command::CloseFile
+                    | Command::OpenExternal
             )
         {
             return;

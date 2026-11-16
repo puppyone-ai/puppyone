@@ -220,3 +220,59 @@ fn bound_file_retry_never_upgrades_to_a_parent_project_grant(cx: &mut TestAppCon
         assert!(s.prefs.store.read(cx).state.recent_projects.is_empty());
     });
 }
+
+#[gpui::test]
+fn bound_file_refuses_system_open_while_projects_report_a_missing_target(cx: &mut TestAppContext) {
+    for standalone in [true, false] {
+        let (_temp, root) = files();
+        let (view, cx) = setup(cx);
+        if standalone {
+            workspace(&view, cx, &root);
+        } else {
+            view.update(cx, |s, cx| {
+                s.session
+                    .project
+                    .update(cx, |p, _| p.record.fixture = false);
+                s.session
+                    .docs
+                    .update(cx, |d, _| d.begin(Intent::OpenFolder(root.clone())));
+            });
+            settle_cloud(&view, cx, "project admission", &|s, cx| {
+                s.files(cx).state().is_some()
+            });
+            view.update(cx, |s, cx| {
+                s.session
+                    .docs
+                    .update(cx, |d, _| d.begin(Intent::OpenFile("note.md".into())));
+            });
+            settle_cloud(&view, cx, "project document", &|s, cx| {
+                s.files(cx).document.is_some()
+            });
+        }
+        // Stop background observations and remove the physical file before
+        // dispatch: an erroneous OS handoff is observable as a synchronous
+        // path error, without ever starting a real desktop application.
+        view.update(cx, |s, cx| {
+            s.session.docs.update(cx, |d, _| d.pause_watch())
+        });
+        std::fs::remove_file(root.join("note.md")).unwrap();
+        view.read_with(cx, |s, cx| {
+            assert!(
+                !s.files(cx)
+                    .workspace
+                    .as_ref()
+                    .unwrap()
+                    .absolute(Path::new("note.md"))
+                    .unwrap()
+                    .is_file()
+            );
+            assert!(s.dialogs.read(cx).is_empty());
+        });
+        command(&view, cx, Command::from_protocol("open-external").unwrap());
+        view.read_with(cx, |s, cx| {
+            assert_eq!(s.dialogs.read(cx).is_empty(), standalone,
+                "file windows must reject the command before resolving its path; projects must report the missing target");
+            assert_eq!(s.files(cx).opened().map(|(_, p)| p), Some(Path::new("note.md")));
+        });
+    }
+}

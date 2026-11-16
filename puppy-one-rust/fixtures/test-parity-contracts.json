@@ -14816,6 +14816,33 @@
           "test": "editor::workbench::runtime::tests::standalone_file_runtime_neither_restores_nor_overwrites_its_parent_project_layout"
         }
       ]
+    },
+    {
+      "id": "native-file-window-secondary-entry-boundaries",
+      "acceptance": "The generic open-external editor command is rejected in a standalone file window before resolving or handing off its target, while project windows still execute the same command and surface missing-file failures. A bound document requested through the Markdown-asset port retains the 1 MiB physical limit; unrelated media retains its caller-defined budget, and ordinary project providers retain their normal limits. The newer native HTML toolbar has explicit browser/Finder/project and Agent actions; those separate product extensions are not claimed to match the frozen TS File Mode IPC gate.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/ipc/electron.file-mode.test.mjs",
+          "sha256": "558ca9cc7e0d45dd2b7b79e13aac0ee77c49014d392170cb960a2eb30abf6e64",
+          "cases": [
+            {
+              "index": 18,
+              "name": "File Mode IPC gate > refuses workspace:open-entry-external"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_refuses_system_open_while_projects_report_a_missing_target"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::markdown_asset_requests_cannot_bypass_the_bound_documents_physical_limit"
+        }
+      ]
     }
   ],
   "openAcceptance": [
