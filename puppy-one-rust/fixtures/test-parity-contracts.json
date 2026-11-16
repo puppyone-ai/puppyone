@@ -13053,6 +13053,171 @@
           "test": "cloud::publication::tests::git_push_tests::real_first_push_requires_absence_even_when_updating_main_would_be_a_fast_forward"
         }
       ]
+    },
+    {
+      "id": "native-git-sync-configuration-and-branch-operations",
+      "acceptance": "Git owns explicit merge/rebase/fast-forward and autostash policies; defaults apply only when all relevant keys are absent. A successful bounded NUL-framed config snapshot preserves empty values, multivars, includes and branch-name case; errors/cancellation never mean absence. Incomplete, ambiguous or empty upstream/push settings refuse fallback publication. Real isolated repositories verify default rebase with dirty/untracked content restoration, explicit merge parent identities, explicit autostash false refusal, ff-only and stale push preservation, upstream versus triangular push destinations, detached/removed targets, three upstream remote names (including slashes), same-name new-branch publication, and an external checkout during a paused actual receive. OIDs, remote main, private bytes and upstream configuration are asserted. These are local Git acceptance tests, not Cloud enrollment, API authentication or UI recovery-dialog acceptance.",
+      "environment": "Private local bare repositories; re-executed exact tests use child-only isolated Git configuration and bounded processes. The receive hook has a finite deadline and is released on unwind.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/gitSyncConfig.test.mjs",
+          "sha256": "b3b7faf1a904fc1d118d994e19297195c3aa06f4a1a82fb058eb7db78d37d97e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git synchronization configuration > keeps the old rebase/autostash default only without explicit policy"
+            },
+            {
+              "index": 1,
+              "name": "Git synchronization configuration > does not override branch.feature/work.rebase"
+            },
+            {
+              "index": 2,
+              "name": "Git synchronization configuration > does not override pull.rebase"
+            },
+            {
+              "index": 3,
+              "name": "Git synchronization configuration > does not override pull.ff"
+            },
+            {
+              "index": 4,
+              "name": "Git synchronization configuration > does not override rebase.autoStash=false"
+            },
+            {
+              "index": 5,
+              "name": "Git synchronization configuration > does not override merge.autoStash=false"
+            },
+            {
+              "index": 6,
+              "name": "Git synchronization configuration > does not override pull.autoStash=false"
+            },
+            {
+              "index": 7,
+              "name": "Git synchronization configuration > does not treat configuration I/O failure as absence"
+            },
+            {
+              "index": 8,
+              "name": "Git synchronization configuration > does not treat an explicitly empty push remote as absence"
+            },
+            {
+              "index": 9,
+              "name": "Git synchronization configuration > does not replace an incomplete or non-branch upstream with a default"
+            },
+            {
+              "index": 10,
+              "name": "Git synchronization configuration > does not replace an incomplete or non-branch upstream with a default"
+            },
+            {
+              "index": 11,
+              "name": "Git synchronization configuration > does not replace an incomplete or non-branch upstream with a default"
+            },
+            {
+              "index": 12,
+              "name": "Git synchronization configuration > does not replace an incomplete or non-branch upstream with a default"
+            },
+            {
+              "index": 13,
+              "name": "Git synchronization configuration > does not replace an incomplete or non-branch upstream with a default"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/source-control/status/workspace.branch-target.integration.test.mjs",
+          "sha256": "054cdf8aeaa649f2674a7055cb2346bd1a9cd66b5ac40bb2c8d4eb410f505a01",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ordinary Desktop branch targets > push honors origin upstream without changing either main"
+            },
+            {
+              "index": 1,
+              "name": "ordinary Desktop branch targets > push honors puppyone upstream without changing either main"
+            },
+            {
+              "index": 2,
+              "name": "ordinary Desktop branch targets > push honors team/cloud upstream without changing either main"
+            },
+            {
+              "index": 3,
+              "name": "ordinary Desktop branch targets > publishes a new feature to the same name, leaving main and private files alone"
+            },
+            {
+              "index": 4,
+              "name": "ordinary Desktop branch targets > does not display a guessed main destination while detached"
+            },
+            {
+              "index": 5,
+              "name": "ordinary Desktop branch targets > honors pull.rebase=false rather than forcing a rebase for a Cloud remote"
+            },
+            {
+              "index": 6,
+              "name": "ordinary Desktop branch targets > honors branch.main.rebase=false rather than forcing a rebase for a Cloud remote"
+            },
+            {
+              "index": 7,
+              "name": "ordinary Desktop branch targets > does not upload a later checkout or rebind it after an in-flight push"
+            },
+            {
+              "index": 8,
+              "name": "ordinary Desktop branch targets > ff-only rejection and stale Push preserve local commits, files and upstream"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::explicit_merge_policy_keeps_both_original_parents"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::empty_push_remote_is_rejected_before_publication"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::defaults_apply_only_when_all_relevant_policy_keys_are_absent"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::real_configuration_preserves_includes_empty_values_and_multivars"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::configuration_errors_and_cancellation_cannot_become_absence"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::incomplete_or_ambiguous_upstreams_cannot_publish_to_a_fallback"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::default_pull_rebases_and_restores_dirty_and_untracked_files"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::explicit_autostash_false_leaves_dirty_work_and_commits_untouched"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::ff_only_and_stale_push_preserve_exact_refs_worktree_and_upstream"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::pull_target_uses_upstream_or_current_branch_and_never_push_preferences"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::hosted_push_honors_every_upstream_name_without_changing_either_main"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::checkout_during_publication_cannot_change_the_upload_or_rebind_either_branch"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::publishing_a_new_branch_pushes_its_commit_and_tracks_it"
+        }
+      ]
     }
   ],
   "openAcceptance": [

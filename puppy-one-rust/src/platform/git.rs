@@ -8,6 +8,9 @@
 #[cfg(test)]
 #[path = "git/push_tests.rs"]
 mod push_tests;
+#[path = "git/sync_config.rs"]
+mod sync_config;
+use sync_config::binding;
 pub mod runner;
 pub mod sync_state;
 use std::{
@@ -596,17 +599,23 @@ fn synchronize(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
     match op {
         // A branch that tracks nothing pulls its sync target by name.
         Operation::Pull => {
-            let mut args = vec!["pull", "--ff-only"];
-            if let Some(t) = current
-                .target
-                .as_ref()
-                .filter(|_| current.upstream.is_none())
-            {
-                args.extend([t.remote.as_str(), t.branch.as_str()]);
-            }
+            let args = sync_config::pull_args(root, cancel)?;
+            let args: Vec<_> = args.iter().map(String::as_str).collect();
             git(root, &args, None, cancel).map_err(|e| format!("Unable to pull changes: {e}"))?;
         }
-        // `isMissingUpstreamError`: a first push publishes the branch.
+        // Hosted projects send the captured commit to the branch's binding,
+        // even when local/upstream names differ. Hosting does not select main.
+        Operation::Push
+            if remotes(root, cancel).iter().any(|remote| {
+                remote.name.eq_ignore_ascii_case("puppyone")
+                    || [&remote.fetch_url, &remote.push_url]
+                        .into_iter()
+                        .any(|url| url.as_deref().is_some_and(cloud_locator))
+            }) =>
+        {
+            publish(root, cancel)?;
+        }
+        // `isMissingUpstreamError`: a first generic push publishes the branch.
         Operation::Push => match git(root, &["push"], None, cancel) {
             Err(e) if missing_upstream(&e) => publish(root, cancel)?,
             other => drop(other.map_err(|e| format!("Unable to push changes: {e}"))?),
@@ -649,44 +658,6 @@ fn missing_upstream(message: &str) -> bool {
     ]
     .iter()
     .any(|needle| message.contains(needle))
-}
-/// `readGitBranchBinding`: the branch and its configured remote, merge
-/// destination and push remote.
-struct Binding {
-    branch: String,
-    remote: Option<String>,
-    destination: Option<String>,
-    push_remote: Option<String>,
-}
-fn binding(root: &Path, cancel: &AtomicBool) -> Result<Binding, String> {
-    let branch = text(root, &["branch", "--show-current"], cancel)
-        .ok_or("Unable to synchronize changes: current workspace is not on a branch.")?;
-    let config = |key: String| text(root, &["config", "--get", &key], cancel);
-    let remote = config(format!("branch.{branch}.remote"));
-    let merge = text(
-        root,
-        &["config", "--get-all", &format!("branch.{branch}.merge")],
-        cancel,
-    );
-    if (remote.is_some() || merge.is_some())
-        && (remote.is_none()
-            || !merge
-                .as_deref()
-                .is_some_and(|m| m.starts_with("refs/heads/") && !m.contains('\n')))
-    {
-        return Err(
-            "Unable to synchronize changes: current branch upstream is incomplete or is not a remote branch."
-                .into(),
-        );
-    }
-    let push_remote = config(format!("branch.{branch}.pushRemote"))
-        .or_else(|| config("remote.pushDefault".into()));
-    Ok(Binding {
-        destination: merge.map(|m| m["refs/heads/".len()..].to_owned()),
-        branch,
-        remote,
-        push_remote,
-    })
 }
 /// `pushWorkspaceGitWithDefaultUpstream`: push the branch's commit (the
 /// object, not a moving HEAD; never forced) to the default remote, then make
