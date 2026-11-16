@@ -136,6 +136,11 @@ pub trait ViewerSurface {
     fn text(&self, _cx: &App) -> Option<String> {
         None
     }
+    /// `O(1)` rope [`crate::editor::text::buffer::Buffer`] snapshot for
+    /// rope-backed surfaces (`CE-02`, `DP-44`); falls back to `self.text(cx)`.
+    fn buffer(&self, cx: &App) -> Option<crate::editor::text::buffer::Buffer> {
+        self.text(cx).map(crate::editor::text::buffer::Buffer::new)
+    }
     /// An input-method composition is open (snapshots wait for it).
     fn composing(&self, _cx: &App) -> bool {
         false

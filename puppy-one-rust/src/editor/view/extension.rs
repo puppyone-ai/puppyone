@@ -10,7 +10,7 @@ use super::{
     command::Command,
     decoration::{Block, Decorations, RevealLayer},
     editor::EditorView,
-    plugins::{FindPlugin, ViewPlugin},
+    plugins::{ConflictBannerPlugin, FindPlugin, ViewPlugin},
     style::LineStyle,
 };
 use crate::{
@@ -244,8 +244,18 @@ pub trait EditorExtension: Any {
 }
 
 #[derive(Default)]
-struct RegisteredKeymaps(HashSet<TypeId>);
+struct RegisteredKeymaps {
+    types: HashSet<TypeId>,
+    core_bound: bool,
+}
 impl Global for RegisteredKeymaps {}
+
+pub(super) fn mark_core_keys_bound(cx: &mut App) -> bool {
+    let g = cx.default_global::<RegisteredKeymaps>();
+    let was = g.core_bound;
+    g.core_bound = true;
+    !was
+}
 
 /// Composed set of editor extensions, state fields, transaction filters, and
 /// view plugins (`TA-20`).
@@ -261,6 +271,7 @@ impl ExtensionSet {
     pub fn with_core_plugins() -> Self {
         let mut set = Self::default();
         set.plugins.push(Box::new(FindPlugin::default()));
+        set.plugins.push(Box::new(ConflictBannerPlugin::default()));
         set
     }
 
@@ -291,16 +302,17 @@ impl ExtensionSet {
     }
 
     pub fn ensure_keymaps_registered(&self, cx: &mut App) {
+        super::bind_keys(cx);
         for ext in &self.extensions {
             let ty = (*ext).as_ref().type_id();
-            let is_new = cx.default_global::<RegisteredKeymaps>().0.insert(ty);
+            let is_new = cx.default_global::<RegisteredKeymaps>().types.insert(ty);
             if is_new {
                 ext.register_keymap(cx);
             }
         }
         for plugin in &self.plugins {
             let ty = plugin.as_any().type_id();
-            let is_new = cx.default_global::<RegisteredKeymaps>().0.insert(ty);
+            let is_new = cx.default_global::<RegisteredKeymaps>().types.insert(ty);
             if is_new {
                 plugin.register_keymap(cx);
             }

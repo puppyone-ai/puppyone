@@ -77,7 +77,7 @@ fn assert_text(host: &Entity<Host>, text: &str, cx: &mut VisualTestContext) {
     host.read_with(cx, |h, cx| {
         assert_eq!(h.surface.text(cx).as_deref(), Some(text));
         let source = h.surface.as_test_probe().unwrap().code_editor().unwrap();
-        assert_eq!(source.read(cx).field.read(cx).value().to_string(), text);
+        assert_eq!(source.read(cx).text(cx), text);
     });
 }
 

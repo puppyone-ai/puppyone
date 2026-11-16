@@ -389,6 +389,8 @@ pub struct LineStyle {
     pub strike: bool,
     /// `white-space: pre` (no wrapping), as in code panels.
     pub nowrap: bool,
+    /// Optional tab stop width override (e.g. `2` or `4` in code surfaces).
+    pub tab_size: Option<usize>,
     /// Painted above the text (markers, checkboxes).
     pub overlays: Vec<Paint>,
     /// Interactive areas (task checkboxes): rect and the format command.
@@ -464,6 +466,7 @@ impl LineStyle {
             inset_bottom: None,
             strike: false,
             nowrap: false,
+            tab_size: None,
             overlays: Vec::new(),
             hotspots: Vec::new(),
             trailing: None,

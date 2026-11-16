@@ -157,8 +157,9 @@ struct Session {
     /// The file name the pane shows (`editorLabel`).
     name: String,
     baseline: String,
-    /// Last logical text observed by the host so Working Copy snapshots survive a viewer panic (`RG-23`).
-    last_known_text: Option<String>,
+    /// Last logical rope snapshot observed by the host so Working Copy snapshots
+    /// survive a viewer panic in `O(1)` without copying full text (`RG-23`, `CE-02`).
+    last_known_buffer: Option<Buffer>,
     revision: u64,
     frozen: bool,
     /// The resolved viewer: another viewer for the same id means a new surface.
@@ -478,7 +479,7 @@ impl DocumentEditor {
         let can_switch_plain_text = self
             .session
             .as_ref()
-            .is_some_and(|s| s.last_known_text.is_some());
+            .is_some_and(|s| s.last_known_buffer.is_some());
         let local_path = self.local_file_path(&doc_id, &doc_name);
         self.subscription = None;
         self.chrome.open = false;
@@ -510,7 +511,7 @@ impl DocumentEditor {
         let can_switch_plain_text = self
             .session
             .as_ref()
-            .is_some_and(|s| s.last_known_text.is_some());
+            .is_some_and(|s| s.last_known_buffer.is_some());
         let local_path = self.local_file_path(&doc_id, &doc_name);
         let weak_close = cx.weak_entity();
         let weak_plain = cx.weak_entity();
@@ -541,11 +542,14 @@ impl DocumentEditor {
     }
 
     fn switch_faulted_to_plain_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some((id, raw_path, text)) = self
-            .session
-            .as_ref()
-            .and_then(|s| Some((s.id.clone(), s.raw_path.clone(), s.last_known_text.clone()?)))
-        else {
+        let Some((id, raw_path, text)) = self.session.as_ref().and_then(|s| {
+            let buf = s.last_known_buffer.as_ref()?;
+            Some((
+                s.id.clone(),
+                s.raw_path.clone(),
+                buf.slice_cow(0..buf.len()).into_owned(),
+            ))
+        }) else {
             return;
         };
         let (_, resolved, context) = self.resolve_for_host(&id, &raw_path);
@@ -704,20 +708,20 @@ impl DocumentEditor {
         if std::mem::take(&mut self.suppress_surface_change) {
             return;
         }
-        let Some(text) = self.text(cx) else { return };
+        let Some(buf) = self.buffer(cx) else { return };
         let Some(session) = &mut self.session else {
             return;
         };
         self.external_history = None;
         session.revision += 1;
-        session.last_known_text = Some(text.clone());
-        let dirty = text != session.baseline;
+        session.last_known_buffer = Some(buf.clone());
+        let dirty = !buf.eq_str(&session.baseline);
         let id = session.id.clone();
         let revision = session.revision;
         cx.emit(ClientMessage::LiveBuffer {
             id: id.clone(),
             revision,
-            text: Buffer::new(text),
+            text: buf,
         });
         cx.emit(ClientMessage::Dirty {
             id,
@@ -726,26 +730,32 @@ impl DocumentEditor {
         });
     }
 
-    /// Logical text snapshot (`displayed` normalization respected, falling back
-    /// to `last_known_text` if the viewer surface faulted: `RG-23`).
-    pub fn text(&self, cx: &App) -> Option<String> {
+    /// `O(1)` logical [`Buffer`] snapshot (`CE-02`, `DP-44`, `RG-23`).
+    pub fn buffer(&self, cx: &App) -> Option<Buffer> {
         if self.is_faulted() {
-            return self.session.as_ref()?.last_known_text.clone();
+            return self.session.as_ref()?.last_known_buffer.clone();
         }
         let Some(surface) = &self.surface else {
             return None;
         };
-        match catch_unwind(AssertUnwindSafe(|| surface.text(cx))) {
+        match catch_unwind(AssertUnwindSafe(|| surface.buffer(cx))) {
             Ok(Some(shown)) => Some(match &self.displayed {
-                Some((normalized, raw)) if *normalized == shown => raw.clone(),
+                Some((normalized, raw)) if shown.eq_str(normalized) => Buffer::new(raw.clone()),
                 _ => shown,
             }),
             Ok(None) => None,
             Err(_) => self
                 .session
                 .as_ref()
-                .and_then(|s| s.last_known_text.clone()),
+                .and_then(|s| s.last_known_buffer.clone()),
         }
+    }
+
+    /// Logical text snapshot (`displayed` normalization respected, falling back
+    /// to `last_known_buffer` if the viewer surface faulted: `RG-23`).
+    pub fn text(&self, cx: &App) -> Option<String> {
+        self.buffer(cx)
+            .map(|b| b.slice_cow(0..b.len()).into_owned())
     }
 
     fn perform_history(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
@@ -763,10 +773,10 @@ impl DocumentEditor {
             self.install_faulted_surface("undo", msg, cx);
             return;
         }
-        let after = self.text(cx);
-        if after != before {
-            if let (Some(session), Some(latest)) = (&mut self.session, &after) {
-                session.last_known_text = Some(latest.clone());
+        let after = self.buffer(cx);
+        if after.as_ref().map(|b| b.slice_cow(0..b.len()).into_owned()) != before {
+            if let (Some(session), Some(latest)) = (&mut self.session, after) {
+                session.last_known_buffer = Some(latest);
             }
             self.external_history = None;
             return;
@@ -906,7 +916,7 @@ impl DocumentEditor {
                     raw_path: name.clone(),
                     name: label(name),
                     baseline: text.clone(),
-                    last_known_text: Some(text.clone()),
+                    last_known_buffer: Some(Buffer::new(text.clone())),
                     revision: *revision,
                     frozen: false,
                     viewer,
@@ -938,7 +948,7 @@ impl DocumentEditor {
                     raw_path: name.clone(),
                     name: label(name),
                     baseline: String::new(),
-                    last_known_text: None,
+                    last_known_buffer: None,
                     revision: 0,
                     frozen: false,
                     viewer,
@@ -999,7 +1009,7 @@ impl DocumentEditor {
                     raw_path: name.clone(),
                     name: label(name),
                     baseline: String::new(),
-                    last_known_text: None,
+                    last_known_buffer: None,
                     revision: 0,
                     frozen: false,
                     viewer: resolved.viewer,
@@ -1026,8 +1036,8 @@ impl DocumentEditor {
             }
             HostMessage::Snapshot { request, freeze } => {
                 let composing = self.composing(cx);
-                let text = self.text(cx);
-                if let (Some(session), Some(text)) = (&mut self.session, text) {
+                let buf = self.buffer(cx);
+                if let (Some(session), Some(buf)) = (&mut self.session, buf) {
                     if composing {
                         replies.push(ClientMessage::Deferred {
                             request: *request,
@@ -1035,12 +1045,12 @@ impl DocumentEditor {
                         });
                     } else {
                         session.frozen = *freeze;
-                        session.last_known_text = Some(text.clone());
+                        session.last_known_buffer = Some(buf.clone());
                         replies.push(ClientMessage::Snapshot {
                             request: *request,
                             id: session.id.clone(),
                             revision: session.revision,
-                            text: Buffer::new(text),
+                            text: buf,
                         });
                     }
                 }

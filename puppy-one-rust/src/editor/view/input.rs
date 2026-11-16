@@ -119,6 +119,15 @@ impl EntityInputHandler for EditorView {
             // delete the selection).
             return;
         }
+        if range.is_none() && !self.composing() && !self.secondary.is_empty() {
+            self.apply_multicursor_replace(
+                text,
+                crate::editor::text::state::UserEvent::Input,
+                None,
+                cx,
+            );
+            return;
+        }
         let target = self.input_target(range);
         self.apply_input(target, text, text.len()..text.len(), false, cx);
     }

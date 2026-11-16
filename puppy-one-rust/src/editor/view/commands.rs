@@ -228,6 +228,11 @@ impl EditorView {
     fn try_intercept(&mut self, intent: EditIntent, cx: &mut Context<Self>) -> bool {
         self.commit_composition(cx);
         if intent == EditIntent::Escape {
+            if !self.secondary.is_empty() {
+                self.secondary.clear();
+                cx.notify();
+                return true;
+            }
             let mut consumed = false;
             for plugin in &mut self.extensions.plugins {
                 consumed |= plugin.on_escape(&self.state);
@@ -264,6 +269,58 @@ impl EditorView {
         }
         self.commit_composition(cx);
         if self.read_only {
+            return;
+        }
+        if !self.secondary.is_empty() {
+            let tag = if backward {
+                Annotation::DELETE_BACKWARD
+            } else {
+                Annotation::DELETE_FORWARD
+            };
+            let mut items: Vec<(usize, std::ops::Range<usize>)> =
+                Vec::with_capacity(1 + self.secondary.len());
+            let range_for = |sel: Selection| {
+                if !sel.is_empty() {
+                    sel.as_range()
+                } else if backward {
+                    words::previous_grapheme_in(&self.state.doc, sel.head)..sel.head
+                } else {
+                    sel.head..words::next_grapheme_in(&self.state.doc, sel.head)
+                }
+            };
+            items.push((0, range_for(self.state.selection)));
+            for (i, &sec) in self.secondary.iter().enumerate() {
+                items.push((i + 1, range_for(sec)));
+            }
+            items.sort_by_key(|(_, r)| (r.start, r.end));
+            let mut changes = Vec::with_capacity(items.len());
+            let mut carets = vec![0usize; items.len()];
+            let mut delta: isize = 0;
+            for (owner, r) in items {
+                let pos = (r.start as isize + delta).max(0) as usize;
+                carets[owner] = pos;
+                delta -= r.len() as isize;
+                if !r.is_empty() {
+                    changes.push(crate::editor::text::change::Change {
+                        range: r,
+                        insert: String::new(),
+                    });
+                }
+            }
+            if changes.is_empty() {
+                return;
+            }
+            let primary = Selection::cursor(carets[0]);
+            self.secondary = carets[1..]
+                .iter()
+                .copied()
+                .filter(|&p| p != primary.head)
+                .map(Selection::cursor)
+                .collect();
+            let tr = Transaction::edit(ChangeSet::new(changes), Some(primary), UserEvent::Delete)
+                .with_annotation(tag)
+                .with_annotation(super::editor::MULTICURSOR_ANNOTATION);
+            self.dispatch(tr, cx);
             return;
         }
         let s = self.state.selection;

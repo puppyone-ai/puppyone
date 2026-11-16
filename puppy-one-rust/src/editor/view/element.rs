@@ -135,6 +135,7 @@ impl EditorElement {
             keys: Default::default(),
             text_end: (1, 0.),
             rooms: Vec::new(),
+            tab_size: super::projection::TAB_SIZE,
             window,
             app: cx,
         };
@@ -531,13 +532,11 @@ impl Element for EditorElement {
         let layered = view.caches.decorations.clone();
         let surface = layered.surface().clone();
         let selection = view.state.selection;
+        let secondary = view.secondary.clone();
         let composition = view.composition_range();
         let clause = view.composition_clause();
-        let show_caret = focused
-            && selection.is_empty()
-            && !view.read_only
-            && view.caret_visible()
-            && layout.covers(selection.head);
+        let can_show_carets = focused && !view.read_only && view.caret_visible();
+        let show_caret = can_show_carets && selection.is_empty() && layout.covers(selection.head);
         window.handle_input(
             &focus,
             ElementInputHandler::new(bounds, self.view.clone()),
@@ -560,6 +559,11 @@ impl Element for EditorElement {
             if clause.is_none() {
                 for b in layout.line_break_boxes(selection.as_range(), space) {
                     window.paint_quad(fill(b, color));
+                }
+                for sec in &secondary {
+                    for b in layout.line_break_boxes(sec.as_range(), space) {
+                        window.paint_quad(fill(b, color));
+                    }
                 }
             }
             // TA-13: binary-search decoration underlines over only the visible
@@ -596,6 +600,16 @@ impl Element for EditorElement {
                 let c = layout.caret(selection.head, selection.upstream);
                 let r = Bounds::new(point(c.x, c.top), size(px(surface.caret_width), c.height));
                 window.paint_quad(fill(r, surface.caret));
+            }
+            if can_show_carets {
+                for sec in &secondary {
+                    if sec.is_empty() && layout.covers(sec.head) {
+                        let c = layout.caret(sec.head, sec.upstream);
+                        let r =
+                            Bounds::new(point(c.x, c.top), size(px(surface.caret_width), c.height));
+                        window.paint_quad(fill(r, surface.caret));
+                    }
+                }
             }
         });
         let moved = self.view.update(cx, |v, _| {

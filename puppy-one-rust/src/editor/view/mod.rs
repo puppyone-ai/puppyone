@@ -80,6 +80,9 @@ pub const KEY_CONTEXT: &str = "PuppyEditor";
 /// Cross-platform standard editor keymap using GPUI's `secondary-` modifier
 /// (`Cmd` on macOS, `Ctrl` on Windows/Linux, `TA-17`).
 pub fn bind_keys(cx: &mut App) {
+    if !extension::mark_core_keys_bound(cx) {
+        return;
+    }
     let c = Some(KEY_CONTEXT);
     cx.bind_keys([
         KeyBinding::new("left", MoveLeft, c),
@@ -145,19 +148,36 @@ macro_rules! motion {
 impl Render for EditorView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.watch_focus(window, cx);
+        let mut headers = Vec::new();
         let mut overlays = Vec::new();
         for plugin in &self.extensions.plugins {
+            headers.extend(plugin.header(self, cx));
             overlays.extend(plugin.overlay(self, cx));
         }
+        self.has_header_banner = !headers.is_empty();
 
         let focus_target = div()
             .relative()
-            .size_full()
+            .flex_1()
+            .min_h_0()
+            .w_full()
             .track_focus(&self.focus)
             .child(EditorElement { view: cx.entity() })
             .children(overlays);
 
-        let mut scoped = self.extensions.bind_actions(focus_target, cx);
+        let body = if headers.is_empty() {
+            div().size_full().flex().flex_col().child(focus_target)
+        } else {
+            div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .bg(self.surface().background)
+                .children(headers)
+                .child(focus_target)
+        };
+
+        let mut scoped = self.extensions.bind_actions(body, cx);
         for ext_ctx in self.extensions.key_contexts().into_iter().rev() {
             scoped = div().size_full().key_context(ext_ctx).child(scoped);
         }

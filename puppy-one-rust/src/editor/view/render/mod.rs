@@ -66,6 +66,8 @@ pub struct RenderCx<'a> {
     /// The ready inline images of the line being laid out (an inline
     /// formula): the leaf keeps room for each, the line paints it there.
     pub rooms: Vec<Room>,
+    /// Tab stop width of the current line box (`TAB_SIZE` by default).
+    pub tab_size: usize,
     pub window: &'a mut Window,
     pub app: &'a mut App,
 }
@@ -346,13 +348,14 @@ impl RenderCx<'_> {
             .collect();
         let hidden = d.hidden_in(&source);
         let marks = d.marks_in(&source);
-        let leaf = LeafText::build_from_buffer(
+        let leaf = LeafText::build_buffer_with_tabs(
             self.doc,
             source.clone(),
             &hidden,
             &replaced,
             &marks,
             strike,
+            self.tab_size,
         );
         let wrap = wrap.map(|w| self.snap(w));
         let (measure_key, metrics) = self.measure(&leaf, style, wrap);
@@ -902,6 +905,10 @@ impl RenderCx<'_> {
             Some((placed, height))
         });
         let wrap = (!style.nowrap).then(|| (width - x - p.right - b.right).max(0.));
+        let prev_tab = std::mem::replace(
+            &mut self.tab_size,
+            style.tab_size.unwrap_or(super::projection::TAB_SIZE),
+        );
         let (text, text_height) = self.text(
             source.clone(),
             &style.text,
@@ -912,6 +919,7 @@ impl RenderCx<'_> {
             x,
             y,
         );
+        self.tab_size = prev_tab;
         let content_height = embed.as_ref().map_or(text_height, |(_, h)| *h);
         let height = y + content_height + drop + p.bottom + b.bottom;
         let mut line = self.block_box(top, left, width, height);

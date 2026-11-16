@@ -16,13 +16,17 @@ pub mod features;
 mod navigation;
 pub mod platform;
 pub mod shared;
+mod source_highlight;
 pub mod style;
 #[cfg(test)]
 mod tests;
 
-pub use self::core::{
-    commands::{FormatCommand, block_move::set_enabled as set_block_drag_enabled},
-    links::{find_links, find_wiki_links},
+pub use self::{
+    core::{
+        commands::{FormatCommand, block_move::set_enabled as set_block_drag_enabled},
+        links::{find_links, find_wiki_links},
+    },
+    source_highlight::source_highlights,
 };
 
 use self::core::{

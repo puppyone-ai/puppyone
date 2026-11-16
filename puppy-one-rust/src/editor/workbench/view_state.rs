@@ -78,6 +78,16 @@ impl SurfaceViewState {
         ))
     }
 
+    /// Clamps `(anchor, head)` byte offsets in `O(log n)` on a rope [`Buffer`]
+    /// without materialising `flat` (`WB-11`, `CE-02`).
+    pub fn clamped_selection_in_buffer(
+        &self,
+        doc: &crate::editor::text::buffer::Buffer,
+    ) -> Option<(usize, usize)> {
+        let (anchor, head) = self.selection?;
+        Some((doc.clamp(anchor), doc.clamp(head)))
+    }
+
     /// Filters fold entries to lines that still exist in a `line_count`-line document (`WB-11`).
     pub fn clamped_folds(&self, line_count: usize) -> Vec<(usize, bool)> {
         self.folds

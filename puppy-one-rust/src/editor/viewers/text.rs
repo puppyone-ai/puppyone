@@ -15,7 +15,7 @@ use crate::{
             HostCommand, MarkdownCommand, PaneEntries, PaneItemId, PaneSegmentId, SurfaceEvent,
             SurfaceEvents, SurfaceRequest, ViewerSurface,
         },
-        text::{history::minimal_diff_utf16, selection::Selection},
+        text::{buffer::Buffer, history::minimal_diff_buffers_utf16, selection::Selection},
         view::{EditorView, editor::EditorEvent, extension::config_transaction},
         workbench::{
             find::FindEvent,
@@ -109,15 +109,16 @@ pub fn open_markdown(
                     return;
                 }
                 syncing_for_editor.set(true);
-                let next_doc = editor.read(cx).state().doc.clone();
-                if let Some(prev) = source_for_editor.text(cx)
-                    && !next_doc.eq_str(&prev)
-                    && let Some((range16, insert)) = minimal_diff_utf16(&prev, &next_doc)
+                let next_doc = editor.read(cx).committed_doc().clone();
+                if let Some(prev) = source_for_editor.buffer(cx)
+                    && prev != next_doc
+                    && let Some((range16, insert)) = minimal_diff_buffers_utf16(&prev, &next_doc)
                 {
                     if source_for_editor.edit_utf16(&[(range16, insert)], window, cx) {
                         echo_for_editor.set(true);
                     } else {
-                        source_for_editor.replace_text(next_doc.as_str(), window, cx);
+                        let full = next_doc.slice_cow(0..next_doc.len());
+                        source_for_editor.replace_text(&full, window, cx);
                     }
                 }
                 syncing_for_editor.set(false);
@@ -135,10 +136,10 @@ pub fn open_markdown(
                     echo_for_source.set(false);
                     return;
                 }
-                let Some(text) = source_for_source.text(cx) else {
+                let Some(next_buf) = source_for_source.buffer(cx) else {
                     return;
                 };
-                let same = editor_for_source.read(cx).state().doc.eq_str(&text);
+                let same = *editor_for_source.read(cx).committed_doc() == next_buf;
                 if same {
                     if !echo_for_source.replace(false)
                         && let Some(cb) = events_for_source.borrow().as_ref()
@@ -149,7 +150,7 @@ pub fn open_markdown(
                 }
                 echo_for_source.set(false);
                 syncing_for_source.set(true);
-                editor_for_source.update(cx, |e, cx| e.sync_text(&text, cx));
+                editor_for_source.update(cx, |e, cx| e.sync_buffer(&next_buf, cx));
                 syncing_for_source.set(false);
             }),
             cx,
@@ -277,13 +278,26 @@ impl ViewerSurface for TextSurface {
                 EditorEvent::Changed(_) | EditorEvent::CompositionEnded => {
                     events(SurfaceEvent::Changed, cx)
                 }
+                EditorEvent::FindResult { current, total } => events(
+                    SurfaceEvent::FindResult {
+                        current: *current,
+                        total: *total,
+                    },
+                    cx,
+                ),
                 EditorEvent::OpenPaths(paths) => events(SurfaceEvent::OpenPaths(paths.clone()), cx),
             },
         ))
     }
 
     fn text(&self, cx: &App) -> Option<String> {
-        Some(self.editor.read(cx).text().to_owned())
+        let doc = self.editor.read(cx).committed_doc();
+        Some(doc.slice_cow(0..doc.len()).into_owned())
+    }
+
+    fn buffer(&self, cx: &App) -> Option<Buffer> {
+        let doc = self.editor.read(cx).committed_doc();
+        Some(Buffer::from_rope(doc.rope().clone()))
     }
 
     fn composing(&self, cx: &App) -> bool {
@@ -368,9 +382,11 @@ impl ViewerSurface for TextSurface {
         let (_, scroll_y) = state.clamped_scroll(None, None);
         self.restored_scroll_y.set(Some(scroll_y));
         self.editor.update(cx, |e, cx| {
-            if let Some((anchor, head)) = state.clamped_selection(e.text()) {
+            let doc = e.committed_doc();
+            if let Some((anchor, head)) = state.clamped_selection_in_buffer(doc) {
                 e.set_selection(Selection::range(anchor, head), cx);
             }
+            e.set_scroll_top(scroll_y, cx);
         });
         if let Some(source) = &self.source {
             source.restore_view_state(state, window, cx);

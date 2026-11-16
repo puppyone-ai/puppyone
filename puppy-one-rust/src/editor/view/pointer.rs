@@ -62,6 +62,18 @@ impl EditorView {
         let Some((offset, upstream)) = self.offset_for(event.position) else {
             return;
         };
+        if event.modifiers.alt && event.click_count == 1 && !event.modifiers.shift {
+            self.pointer.drag = None;
+            self.add_selection(
+                Selection {
+                    upstream,
+                    ..Selection::cursor(offset)
+                },
+                cx,
+            );
+            return;
+        }
+        self.secondary.clear();
         self.pointer.link_press = None;
         if event.click_count == 1
             && self.state.selection.is_empty()

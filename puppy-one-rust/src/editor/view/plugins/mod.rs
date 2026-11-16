@@ -2,7 +2,9 @@
 //! Find (`plugins::find::FindPlugin`) and format add-ons (such as Markdown's
 //! `BlockDragAddon`) mount onto `EditorView` through [`ViewPlugin`] instead of
 //! hardcoding format or search state into the view core.
+pub mod conflicts;
 pub mod find;
+pub use conflicts::ConflictBannerPlugin;
 pub use find::FindPlugin;
 
 use super::{editor::EditorView, layout::DocLayout};
@@ -111,6 +113,12 @@ pub trait ViewPlugin: Any {
         _bounds: Bounds<Pixels>,
         _window: &mut Window,
     ) {
+    }
+
+    /// Stacked banner elements rendered above the document scrollport (e.g.
+    /// Git conflict marker banner, `CE-21`).
+    fn header(&self, _view: &EditorView, _cx: &mut Context<EditorView>) -> Vec<AnyElement> {
+        Vec::new()
     }
 
     /// Floating GPUI elements rendered above the document scrollport.

@@ -121,6 +121,19 @@ pub fn minimal_diff(before: &Buffer, after: &str) -> Option<ChangeSet> {
     minimal_diff_buffers(before, &after_buf)
 }
 
+/// Minimal UTF-16 `(range, insert)` turning `before` into `after` directly on
+/// two rope [`Buffer`]s without flattening either (`TA-70`, `CE-02`).
+pub fn minimal_diff_buffers_utf16(
+    before: &Buffer,
+    after: &Buffer,
+) -> Option<(Range<usize>, String)> {
+    let cs = minimal_diff_buffers(before, after)?;
+    let ch = cs.changes().first()?;
+    let start = before.byte_to_utf16(ch.range.start);
+    let end = before.byte_to_utf16(ch.range.end);
+    Some((start..end, ch.insert.clone()))
+}
+
 /// Minimal UTF-16 `(range, insert)` turning `before` into `after` (`TA-70`
 /// companion pane sync without full-document replacement).
 pub fn minimal_diff_utf16(before: &str, after: &Buffer) -> Option<(Range<usize>, String)> {
@@ -128,11 +141,7 @@ pub fn minimal_diff_utf16(before: &str, after: &Buffer) -> Option<(Range<usize>,
         return None;
     }
     let before_buf = Buffer::from_rope(Rope::from_text(before));
-    let cs = minimal_diff_buffers(&before_buf, after)?;
-    let ch = cs.changes().first()?;
-    let start = before_buf.byte_to_utf16(ch.range.start);
-    let end = before_buf.byte_to_utf16(ch.range.end);
-    Some((start..end, ch.insert.clone()))
+    minimal_diff_buffers_utf16(&before_buf, after)
 }
 
 fn replacement(before: &Buffer, after: &Buffer) -> Option<ChangeSet> {
@@ -238,6 +247,12 @@ impl History {
 
     pub fn composing(&self) -> bool {
         self.composing.is_some()
+    }
+
+    /// Pre-composition document snapshot (`O(1)` rope handle) while an IME
+    /// composition is open; `None` otherwise (`CE-02`, `TA-16`).
+    pub fn composing_doc(&self) -> Option<&Buffer> {
+        self.composing.as_ref().map(|c| &c.doc)
     }
 
     /// Close the open composition at `state`: one sealed `Input` step from

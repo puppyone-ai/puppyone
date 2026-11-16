@@ -17,7 +17,7 @@ use super::{
 use crate::editor::text::{
     buffer::Buffer,
     change::ChangeSet,
-    history::{History, minimal_diff},
+    history::{History, minimal_diff, minimal_diff_buffers},
     selection::Selection,
     state::{Annotation, EditorState, Transaction, UserEvent},
 };
@@ -38,6 +38,10 @@ pub const BLINK: Duration = Duration::from_millis(530);
 /// Annotation tag identifying companion Source <-> Live Preview synchronization
 /// transactions (`TA-70`).
 pub const SYNC_COMPANION_ANNOTATION: &str = "sync.companion";
+
+/// Annotation tag identifying transactions that already carry mapped secondary
+/// cursor positions (`CE-01`).
+pub const MULTICURSOR_ANNOTATION: &str = "input.multicursor";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Granularity {
@@ -60,6 +64,11 @@ pub enum EditorEvent {
     /// An IME composition ended without changing the document (cancelled).
     /// Hosts that deferred work while it was open can proceed.
     CompositionEnded,
+    /// Active Find match counts updated after a document edit (`CE-02`, `CE-03`).
+    FindResult {
+        current: usize,
+        total: usize,
+    },
     OpenPaths(Vec<String>),
 }
 
@@ -144,6 +153,9 @@ pub(super) struct ImeState {
 
 pub struct EditorView {
     pub(super) state: EditorState,
+    /// Secondary cursors/selections (`CE-01` multi-cursor editing).
+    pub(super) secondary: Vec<Selection>,
+    pub(super) committed_rev: u64,
     pub(super) history: History,
     pub(super) extensions: ExtensionSet,
     pub(super) focus: FocusHandle,
@@ -162,6 +174,7 @@ pub struct EditorView {
     /// the top (a file window's title bar), added to the resting start
     /// padding so content only passes under it when scrolled.
     chrome_inset: f32,
+    pub(super) has_header_banner: bool,
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -201,6 +214,8 @@ impl EditorView {
         extensions.ensure_keymaps_registered(cx);
         Self {
             state,
+            secondary: Vec::new(),
+            committed_rev: 0,
             history: History::default(),
             extensions,
             focus: cx.focus_handle(),
@@ -215,6 +230,7 @@ impl EditorView {
             read_only: false,
             dark: true,
             chrome_inset: 0.,
+            has_header_banner: false,
         }
     }
 
@@ -222,8 +238,48 @@ impl EditorView {
         self.state.doc.as_str()
     }
 
+    /// Committed document rope snapshot (`O(1)` borrow; excludes uncommitted
+    /// IME preedit text while composing, `CE-02`, `CE-03`).
+    pub fn committed_doc(&self) -> &Buffer {
+        self.history.composing_doc().unwrap_or(&self.state.doc)
+    }
+
+    /// Revision of the committed document (does not advance during IME preedit,
+    /// `CE-03`).
+    pub fn committed_revision(&self) -> u64 {
+        self.committed_rev
+    }
+
     pub fn state(&self) -> &EditorState {
         &self.state
+    }
+
+    pub fn secondary_selections(&self) -> &[Selection] {
+        &self.secondary
+    }
+
+    pub fn add_selection(&mut self, selection: Selection, cx: &mut Context<Self>) {
+        self.commit_composition(cx);
+        let clamped = Selection::range(
+            self.state.doc.clamp(selection.anchor),
+            self.state.doc.clamp(selection.head),
+        );
+        if clamped.as_range() != self.state.selection.as_range()
+            && !self
+                .secondary
+                .iter()
+                .any(|s| s.as_range() == clamped.as_range())
+        {
+            self.secondary.push(clamped);
+            cx.notify();
+        }
+    }
+
+    pub fn clear_secondary_selections(&mut self, cx: &mut Context<Self>) {
+        if !self.secondary.is_empty() {
+            self.secondary.clear();
+            cx.notify();
+        }
     }
 
     /// Document top and bottom of the block holding `offset`, as the last
@@ -358,6 +414,8 @@ impl EditorView {
     pub fn reset_document(&mut self, text: &str, cx: &mut Context<Self>) {
         self.abandon_composition(cx);
         self.state = EditorState::new(text);
+        self.secondary.clear();
+        self.committed_rev = self.committed_rev.wrapping_add(1);
         self.history.clear();
         self.caches.doc_deco_key = None;
         self.caches.reveal_deco_key = None;
@@ -371,6 +429,17 @@ impl EditorView {
     pub fn sync_text(&mut self, text: &str, cx: &mut Context<Self>) {
         self.abandon_composition(cx);
         let Some(changes) = minimal_diff(&self.state.doc, text) else {
+            return;
+        };
+        let tr = Transaction::edit(changes, None, UserEvent::Input)
+            .with_annotation(SYNC_COMPANION_ANNOTATION)
+            .with_scroll_into_view(false);
+        self.dispatch(tr, cx);
+    }
+
+    pub fn sync_buffer(&mut self, after: &Buffer, cx: &mut Context<Self>) {
+        self.abandon_composition(cx);
+        let Some(changes) = minimal_diff_buffers(&self.state.doc, after) else {
             return;
         };
         let tr = Transaction::edit(changes, None, UserEvent::Input)
@@ -431,10 +500,25 @@ impl EditorView {
         let event = tr.event;
         let is_external = tr.is_annotation(Annotation::EXTERNAL);
         let is_compose = tr.is_annotation(Annotation::INPUT_COMPOSE);
+        let is_multicursor = tr.is_annotation(MULTICURSOR_ANNOTATION);
         let effects = tr.effects.clone();
         let applied = self.state.apply(tr);
         if let Some(ref applied) = applied {
             self.extensions.prepare_applied(applied, &self.state);
+            if !is_multicursor && !self.secondary.is_empty() {
+                for sec in &mut self.secondary {
+                    *sec = sec.map(&applied.changes);
+                }
+                let primary_range = self.state.selection.as_range();
+                let mut seen = Vec::new();
+                self.secondary.retain(|s| {
+                    let r = s.as_range();
+                    r != primary_range && !seen.contains(&r) && {
+                        seen.push(r);
+                        true
+                    }
+                });
+            }
         }
 
         // The caret stays where the input method put it while it composes.
@@ -458,9 +542,23 @@ impl EditorView {
         let doc_modified = applied.is_some();
         match applied {
             Some(applied) => {
+                if !is_compose && !self.history.composing() {
+                    self.committed_rev = self.state.revision;
+                }
                 self.history.record(&applied, &self.state, Instant::now());
                 let focused = self.focused_before;
                 self.extensions.applied(&applied, &self.state, focused);
+                if !is_compose
+                    && let Some(find_res) = self
+                        .plugin::<super::plugins::FindPlugin>()
+                        .filter(|p| !p.marks.query.is_empty())
+                        .map(|p| p.marks.result())
+                {
+                    cx.emit(EditorEvent::FindResult {
+                        current: find_res.0,
+                        total: find_res.1,
+                    });
+                }
                 if !is_external && !is_compose {
                     cx.emit(EditorEvent::Changed(event));
                 }
@@ -515,9 +613,30 @@ impl EditorView {
         }
     }
 
+    pub fn chrome_inset(&self) -> f32 {
+        self.chrome_inset
+    }
+
+    fn effective_chrome_inset(&self) -> f32 {
+        if self.has_header_banner {
+            0.
+        } else {
+            self.chrome_inset
+        }
+    }
+
     /// How far the document is scrolled from its top.
     pub fn scroll_top(&self) -> f32 {
         self.scroll_y
+    }
+
+    /// Restore vertical scroll offset (`WB-10`).
+    pub fn set_scroll_top(&mut self, y: f32, cx: &mut Context<Self>) {
+        let clamped = y.max(0.);
+        if self.scroll_y != clamped {
+            self.scroll_y = clamped;
+            cx.notify();
+        }
     }
 
     /// Synchronise Document Layer and Reveal Layer decorations (`TA-11`).
@@ -528,7 +647,8 @@ impl EditorView {
                 .selection_changed(&self.state, focused, self.pointer.drag.is_some());
         }
         let s = self.state.selection;
-        let inset_bits = self.chrome_inset.to_bits();
+        let effective_inset = self.effective_chrome_inset();
+        let inset_bits = effective_inset.to_bits();
 
         if self.extensions.supports_layered_decorations() {
             let doc_key = DocDecoKey {
@@ -539,9 +659,9 @@ impl EditorView {
             };
             if self.caches.doc_deco_key != Some(doc_key) {
                 let raw = self.extensions.decorate_document(&self.state, self.dark);
-                let doc_layer = if self.chrome_inset != 0. {
+                let doc_layer = if effective_inset != 0. {
                     let mut adjusted = (*raw).clone();
-                    adjusted.surface.content.top += self.chrome_inset;
+                    adjusted.surface.content.top += effective_inset;
                     Rc::new(adjusted)
                 } else {
                     raw
@@ -611,7 +731,7 @@ impl EditorView {
                     dark: self.dark,
                 };
                 let mut decorations = self.extensions.decorate_legacy(&input);
-                decorations.surface.content.top += self.chrome_inset;
+                decorations.surface.content.top += effective_inset;
                 let rc = Rc::new(decorations);
                 self.caches.doc_layer = rc.clone();
                 self.caches.decorations = LayeredDecorations::new(rc, Rc::default());
@@ -712,10 +832,14 @@ impl EditorView {
         self.dispatch(Transaction::select(selection), cx);
     }
 
-    /// Insert text at the selection (paste, programmatic input). An open
-    /// composition is committed first.
+    /// Insert text at the selection (paste, programmatic input, or multi-cursor
+    /// typing). An open composition is committed first.
     pub fn insert(&mut self, text: &str, event: UserEvent, cx: &mut Context<Self>) {
         self.commit_composition(cx);
+        if !self.secondary.is_empty() {
+            self.apply_multicursor_replace(text, event, None, cx);
+            return;
+        }
         let range = self.state.selection.as_range();
         let caret = range.start + text.len();
         self.dispatch(
@@ -726,6 +850,74 @@ impl EditorView {
             ),
             cx,
         );
+    }
+
+    /// Apply `text` across `[primary, ..secondary]` in a single `ChangeSet`
+    /// transaction so `⌘Z` reverts all cursors together (`CE-01`).
+    pub(super) fn apply_multicursor_replace(
+        &mut self,
+        text: &str,
+        event: UserEvent,
+        extra_tag: Option<&'static str>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.read_only {
+            return;
+        }
+        let mut items: Vec<(usize, std::ops::Range<usize>)> =
+            Vec::with_capacity(1 + self.secondary.len());
+        items.push((0, self.state.selection.as_range()));
+        for (i, sec) in self.secondary.iter().enumerate() {
+            items.push((i + 1, sec.as_range()));
+        }
+        items.sort_by_key(|(_, r)| (r.start, r.end));
+        // Coalesce overlapping cursor selections.
+        let mut merged: Vec<(Vec<usize>, std::ops::Range<usize>)> = Vec::with_capacity(items.len());
+        for (idx, r) in items {
+            if let Some((owners, prev)) = merged.last_mut()
+                && r.start < prev.end
+            {
+                prev.end = prev.end.max(r.end);
+                owners.push(idx);
+            } else if let Some((owners, prev)) = merged.last_mut()
+                && r.start == prev.end
+                && r.is_empty()
+                && prev.start == prev.end
+            {
+                owners.push(idx);
+            } else {
+                merged.push((vec![idx], r));
+            }
+        }
+        let mut changes = Vec::with_capacity(merged.len());
+        let mut new_carets = vec![0usize; 1 + self.secondary.len()];
+        let mut delta: isize = 0;
+        for (owners, range) in merged {
+            let new_pos = (range.start as isize + delta + text.len() as isize) as usize;
+            for owner in owners {
+                new_carets[owner] = new_pos;
+            }
+            delta += text.len() as isize - range.len() as isize;
+            changes.push(crate::editor::text::change::Change {
+                range,
+                insert: text.to_owned(),
+            });
+        }
+        let primary = Selection::cursor(new_carets[0]);
+        let mut next_secondary = Vec::with_capacity(self.secondary.len());
+        for &pos in &new_carets[1..] {
+            let sel = Selection::cursor(pos);
+            if pos != primary.head && !next_secondary.iter().any(|s: &Selection| s.head == pos) {
+                next_secondary.push(sel);
+            }
+        }
+        self.secondary = next_secondary;
+        let mut tr = Transaction::edit(ChangeSet::new(changes), Some(primary), event)
+            .with_annotation(MULTICURSOR_ANNOTATION);
+        if let Some(tag) = extra_tag {
+            tr = tr.with_annotation(tag);
+        }
+        self.dispatch(tr, cx);
     }
 
     pub fn dark(&self) -> bool {
@@ -747,8 +939,6 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         self.extensions = ExtensionSet::single(extension);
-        self.extensions
-            .add_plugin(Box::new(super::plugins::FindPlugin::default()), cx);
         self.extensions.ensure_keymaps_registered(cx);
         self.caches.doc_deco_key = None;
         self.caches.reveal_deco_key = None;

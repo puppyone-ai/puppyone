@@ -127,6 +127,9 @@ impl EditorView {
 
     fn end_composition(&mut self, cx: &mut Context<Self>) {
         let changed = self.history.end_composition(&self.state, Instant::now());
+        if changed {
+            self.committed_rev = self.state.revision;
+        }
         self.blink.epoch = Instant::now();
         cx.emit(if changed {
             EditorEvent::Changed(UserEvent::Input)
