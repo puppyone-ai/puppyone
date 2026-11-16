@@ -80,35 +80,42 @@ pub struct WriteOutcome {
 #[derive(Clone, Debug)]
 pub struct PreviewResource {
     pub identity: ResourceId,
+    binding: ResourceId,
     data: PreviewData,
     lease: Lease,
 }
 impl PreviewResource {
     pub fn data(&self) -> Result<&PreviewData> {
         self.lease.check()?;
+        if self.identity != self.binding {
+            return Err(Error::new(
+                ErrorKind::ForeignResource,
+                "Preview resource binding cannot be changed",
+            ));
+        }
         Ok(&self.data)
     }
     /// The resource's bytes, when there are at most `max` of them (a local
     /// file is read here, a hosted one is already in memory).
     pub fn bytes(&self, max: u64) -> Option<Vec<u8>> {
-        use std::io::Read;
-        match self.data().ok()? {
-            PreviewData::Bytes { bytes, .. } => (bytes.len() as u64 <= max).then(|| bytes.to_vec()),
-            PreviewData::LocalFile(file) => {
-                let mut out = Vec::new();
-                std::fs::File::open(file)
-                    .ok()?
-                    .take(max + 1)
-                    .read_to_end(&mut out)
-                    .ok()?;
-                (out.len() as u64 <= max).then_some(out)
+        let bytes = match self.data().ok()? {
+            PreviewData::Bytes { bytes, .. } => {
+                (bytes.len() as u64 <= max).then(|| bytes.to_vec())?
             }
-        }
+            PreviewData::LocalFile(_) => self
+                .lease
+                .provider
+                .preview_bytes(&self.binding.path, max)
+                .ok()?,
+        };
+        self.lease.check().ok()?;
+        (bytes.len() as u64 <= max).then_some(bytes)
     }
 }
 impl PartialEq for PreviewResource {
     fn eq(&self, other: &Self) -> bool {
         self.identity == other.identity
+            && self.binding == other.binding
             && self.lease.id == other.lease.id
             && self.data == other.data
     }
@@ -437,6 +444,7 @@ impl Workspace {
         }
         let data = self.finish(self.provider.preview(&identity.path))?;
         Ok(PreviewResource {
+            binding: identity.clone(),
             identity,
             data,
             lease: self.lease.clone(),

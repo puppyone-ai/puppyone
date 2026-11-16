@@ -65,6 +65,11 @@ pub trait DocumentStoragePort: Send + Sync {
 }
 pub trait ResourcePort: Send + Sync {
     fn preview(&self, path: &RelativePath) -> Result<PreviewData>;
+    /// Deferred local bytes are opened by the admitted provider, never by
+    /// treating the display/platform path in PreviewData as read authority.
+    fn preview_bytes(&self, _path: &RelativePath, _max: u64) -> Result<Vec<u8>> {
+        Err(Error::unsupported())
+    }
     fn platform_path(&self, _path: &RelativePath) -> Result<PathBuf> {
         Err(Error::unsupported())
     }

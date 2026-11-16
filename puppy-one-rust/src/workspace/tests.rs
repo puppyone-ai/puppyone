@@ -81,6 +81,72 @@ fn revocation_fences_reads_writes_and_existing_preview_leases() {
     assert_eq!(preview.data().unwrap_err().kind, ErrorKind::StaleLease);
     assert_eq!(calls, memory.calls.load(Ordering::SeqCst));
 }
+
+#[test]
+fn deferred_preview_reads_use_the_provider_and_discard_bytes_after_revocation() {
+    use super::ports::{DataPort, DocumentStoragePort, ResourcePort, ResourceWatchPort};
+    struct Deferred(Memory);
+    impl DataPort for Deferred {
+        fn descriptor(&self) -> Descriptor {
+            self.0.descriptor()
+        }
+        fn list(&self, path: &RelativePath) -> Result<Vec<contracts::Entry>> {
+            self.0.list(path)
+        }
+    }
+    impl DocumentStoragePort for Deferred {
+        fn read(&self, path: &RelativePath) -> Result<TextSnapshot> {
+            self.0.read(path)
+        }
+        fn write(&self, path: &RelativePath, base: &Revision, text: &str) -> Result<WriteResult> {
+            self.0.write(path, base, text)
+        }
+    }
+    impl ResourcePort for Deferred {
+        fn preview(&self, _: &RelativePath) -> Result<PreviewData> {
+            // This is deliberately not an accessible ambient filename.
+            Ok(PreviewData::LocalFile("provider-owned-resource".into()))
+        }
+        fn preview_bytes(&self, path: &RelativePath, _: u64) -> Result<Vec<u8>> {
+            // Deliberately ignore the budget: the public facade must also
+            // enforce its output limit when a provider violates its contract.
+            Ok(self.0.read(path)?.text.into_bytes())
+        }
+    }
+    impl ResourceWatchPort for Deferred {
+        fn watch(&self, _: &RelativePath, _: &Revision, _: Notify) -> Result<WatchSubscription> {
+            Err(Error::unsupported())
+        }
+    }
+    let provider = Arc::new(Deferred(Memory::new("memory://deferred/project/")));
+    let ws = Workspace::from_provider(provider.clone()).unwrap();
+    let preview = ws.resource(Path::new("note.md")).unwrap();
+    assert_eq!(preview.bytes(64).unwrap(), b"original");
+    assert_eq!(provider.0.calls.load(Ordering::SeqCst), 1);
+    assert!(preview.bytes(2).is_none());
+    let weak = Arc::downgrade(&ws);
+    *provider.0.hook.lock().unwrap() = Some(Box::new(move || weak.upgrade().unwrap().revoke()));
+    assert!(preview.bytes(64).is_none());
+    let calls = provider.0.calls.load(Ordering::SeqCst);
+    assert_eq!(calls, 3);
+    assert!(preview.bytes(u64::MAX).is_none());
+    assert_eq!(provider.0.calls.load(Ordering::SeqCst), calls);
+}
+
+#[test]
+fn cached_preview_snapshots_obey_budgets_without_fetching_the_provider_again() {
+    let memory = Arc::new(Memory::new("memory://snapshots/project/"));
+    let ws = Workspace::from_provider(memory.clone()).unwrap();
+    let preview = ws.resource(Path::new("image.png")).unwrap();
+    let calls = memory.calls.load(Ordering::SeqCst);
+    assert_eq!(preview.bytes(3), Some(vec![1, 2, 3]));
+    assert_eq!(preview.bytes(u64::MAX), Some(vec![1, 2, 3]));
+    assert!(preview.bytes(2).is_none());
+    assert_eq!(memory.calls.load(Ordering::SeqCst), calls);
+    ws.revoke();
+    assert!(preview.bytes(3).is_none());
+    assert_eq!(memory.calls.load(Ordering::SeqCst), calls);
+}
 #[test]
 fn readonly_capabilities_are_enforced_before_dispatch() {
     let mut memory = Memory::new("memory://account/project/");

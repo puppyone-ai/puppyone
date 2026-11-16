@@ -7,6 +7,96 @@ fn setup(bytes: &[u8]) -> (tempfile::TempDir, Arc<Workspace>) {
     let ws = Workspace::open(temp.path()).unwrap();
     (temp, ws)
 }
+
+#[test]
+fn deferred_preview_reads_stay_bound_to_the_admitted_root_after_a_rename() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("project");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("file.bin"), b"admitted").unwrap();
+    let ws = Workspace::open(&root).unwrap();
+    let preview = ws.resource(Path::new("file.bin")).unwrap();
+    std::fs::rename(&root, temp.path().join("renamed")).unwrap();
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("file.bin"), b"different workspace").unwrap();
+    assert_eq!(preview.bytes(100).unwrap(), b"admitted");
+}
+
+#[cfg(unix)]
+#[test]
+fn deferred_preview_reads_refuse_replaced_leaf_and_parent_symlinks() {
+    use std::os::unix::fs::symlink;
+    for replace_parent in [false, true] {
+        for inside in [false, true] {
+            let temp = tempdir().unwrap();
+            let outside = tempdir().unwrap();
+            std::fs::create_dir(temp.path().join("docs")).unwrap();
+            std::fs::create_dir(temp.path().join("other")).unwrap();
+            std::fs::write(temp.path().join("docs/file.bin"), b"admitted").unwrap();
+            let replacement = if inside {
+                temp.path().join("other")
+            } else {
+                outside.path().to_path_buf()
+            };
+            std::fs::write(replacement.join("file.bin"), b"not admitted").unwrap();
+            let ws = Workspace::open(temp.path()).unwrap();
+            let preview = ws.resource(Path::new("docs/file.bin")).unwrap();
+            if replace_parent {
+                std::fs::rename(temp.path().join("docs"), temp.path().join("saved-docs")).unwrap();
+                symlink(&replacement, temp.path().join("docs")).unwrap();
+            } else {
+                std::fs::remove_file(temp.path().join("docs/file.bin")).unwrap();
+                symlink(
+                    replacement.join("file.bin"),
+                    temp.path().join("docs/file.bin"),
+                )
+                .unwrap();
+            }
+            assert!(
+                preview.bytes(100).is_none(),
+                "parent={replace_parent}, inside={inside}"
+            );
+        }
+    }
+}
+
+#[test]
+fn deferred_preview_byte_budgets_handle_growth_empty_files_and_integer_limits() {
+    let (temp, ws) = setup(b"data");
+    let preview = ws.resource(Path::new("note.md")).unwrap();
+    assert!(preview.bytes(3).is_none());
+    assert_eq!(preview.bytes(4).unwrap(), b"data");
+    assert_eq!(preview.bytes(u64::MAX).unwrap(), b"data");
+    std::fs::write(temp.path().join("note.md"), b"grown after admission").unwrap();
+    assert!(preview.bytes(4).is_none());
+    std::fs::write(temp.path().join("note.md"), b"").unwrap();
+    assert_eq!(preview.bytes(0).unwrap(), b"");
+    ws.revoke();
+    assert!(preview.bytes(u64::MAX).is_none());
+}
+
+#[test]
+fn deferred_preview_identity_cannot_be_retargeted_after_admission() {
+    let (temp, ws) = setup(b"admitted");
+    std::fs::write(temp.path().join("other.bin"), b"another resource").unwrap();
+    let preview = ws.resource(Path::new("note.md")).unwrap();
+    let mut changed_path = preview.clone();
+    changed_path.identity.path = contracts::RelativePath::new(Path::new("other.bin")).unwrap();
+    assert_eq!(
+        changed_path.data().unwrap_err().kind,
+        ErrorKind::ForeignResource
+    );
+    assert!(changed_path.bytes(100).is_none());
+    let mut changed_storage = preview.clone();
+    changed_storage.identity.storage =
+        contracts::StorageId::new("memory://foreign/project/").unwrap();
+    assert_eq!(
+        changed_storage.data().unwrap_err().kind,
+        ErrorKind::ForeignResource
+    );
+    assert!(changed_storage.bytes(100).is_none());
+    assert_eq!(preview.bytes(100).unwrap(), b"admitted");
+}
 #[test]
 fn real_utf8_read_edit_atomic_save_and_reopen() {
     let (temp, ws) = setup("你好\noriginal\n".as_bytes());

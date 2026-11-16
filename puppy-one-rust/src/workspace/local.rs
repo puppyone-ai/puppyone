@@ -231,11 +231,14 @@ impl Workspace {
         ))
     }
     fn read_from(dir: &Dir, name: &Path) -> Result<(Vec<u8>, Metadata)> {
+        Self::read_bounded(dir, name, MAX_TEXT_BYTES as u64)
+    }
+    fn read_bounded(dir: &Dir, name: &Path, max: u64) -> Result<(Vec<u8>, Metadata)> {
         let meta = dir.symlink_metadata(name).map_err(io)?;
         if !meta.is_file() {
             return Err(crate::localization::t("native.workspace.regularOnly").into());
         }
-        if meta.len() > MAX_TEXT_BYTES as u64 {
+        if meta.len() > max {
             return Err(crate::localization::t("native.workspace.fileTooLarge").into());
         }
         let mut options = OpenOptions::new();
@@ -250,16 +253,19 @@ impl Workspace {
         if !opened.is_file() {
             return Err(crate::localization::t("native.workspace.typeChanged").into());
         }
+        if opened.len() > max {
+            return Err(crate::localization::t("native.workspace.fileTooLarge").into());
+        }
         let mut bytes = Vec::new();
         Read::by_ref(&mut file)
-            .take((MAX_TEXT_BYTES + 1) as u64)
+            .take(max.saturating_add(1))
             .read_to_end(&mut bytes)
             .map_err(io)?;
         let after = file.metadata().map_err(io)?;
         if opened.len() != after.len() || opened.modified().ok() != after.modified().ok() {
             return Err(crate::localization::t("native.workspace.changedWhileReading").into());
         }
-        if bytes.len() > MAX_TEXT_BYTES {
+        if bytes.len() as u64 > max {
             return Err(crate::localization::t("native.workspace.fileTooLarge").into());
         }
         Ok((bytes, opened))
@@ -553,6 +559,10 @@ impl Workspace {
             return Err(crate::localization::t("native.workspace.regularOnly").into());
         }
         Ok(self.path.join(relative))
+    }
+    pub fn preview_bytes(&self, relative: &Path, max: u64) -> Result<Vec<u8>> {
+        let (dir, name) = self.parent(relative)?;
+        Self::read_bounded(&dir, &name, max).map(|(bytes, _)| bytes)
     }
     pub fn absolute(&self, relative: &Path) -> Result<PathBuf> {
         validate(relative, true)?;

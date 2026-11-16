@@ -166,6 +166,9 @@ impl ResourcePort for LocalProvider {
             .resource(path.as_path())
             .map(PreviewData::LocalFile)
     }
+    fn preview_bytes(&self, path: &RelativePath, max: u64) -> Result<Vec<u8>> {
+        self.inner.preview_bytes(path.as_path(), max)
+    }
     fn platform_path(&self, path: &RelativePath) -> Result<std::path::PathBuf> {
         self.inner.absolute(path.as_path())
     }

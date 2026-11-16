@@ -9310,7 +9310,7 @@
     },
     {
       "id": "local-workspace-filesystem-core",
-      "acceptance": "Real temporary filesystem and public native provider facade: stable resource identity, directory admission, exact Unicode and empty creation, nested entries, no clobber, relative-path and filename checks; text revisions/conflicts, cross-grant concurrent conditional saves and 0666 mode preservation; raw preview bytes and no binary-as-text; direct and parent symlink rejection; file/folder rename, move-to-parent, delete and root protection; source-preserving recursive copies, exact basenames, dotfiles/compound extensions, readonly directory modes, keep-both naming and eight concurrent copies; recursive import, absolute sources, collision rejection and failed-tree rollback. Rust boolean entry kinds and string write arguments statically exclude the TS unknown-kind/non-string payload cases. Native revisions are opaque and binary text rejection is an error, not a fabricated editable document. The remaining cases in this TS file (project metadata/config, MIME/preview metadata, range/alias and Office conversion, preferred-name/cross-root APIs) are not credited here. Native macOS/Linux rename and move publication uses atomic no-replace operations; additional real filesystem tests require one concurrent winner with all losing sources preserved, preserve existing hardlink/symlink destinations, and follow actual filesystem case identity. tools/verify-filesystem-case-sensitivity.py also runs the case collision test on a verified case-sensitive fixture (HFSX on macOS), with verified unmount cleanup; this does not claim Windows or Linux execution on a macOS host.",
+      "acceptance": "Real temporary filesystem and public native provider facade: stable resource identity, directory admission, exact Unicode and empty creation, nested entries, no clobber, relative-path and filename checks; text revisions/conflicts, cross-grant concurrent conditional saves and 0666 mode preservation; raw preview bytes and no binary-as-text; direct and parent symlink rejection; file/folder rename, move-to-parent, delete and root protection; source-preserving recursive copies, exact basenames, dotfiles/compound extensions, readonly directory modes, keep-both naming and eight concurrent copies; recursive import, absolute sources, collision rejection and failed-tree rollback. Rust boolean entry kinds and string write arguments statically exclude the TS unknown-kind/non-string payload cases. Native revisions are opaque and binary text rejection is an error, not a fabricated editable document. The remaining cases in this TS file (project metadata/config, MIME/preview metadata, range/alias and Office conversion, preferred-name/cross-root APIs) are not credited here. Native macOS/Linux rename and move publication uses atomic no-replace operations; additional real filesystem tests require one concurrent winner with all losing sources preserved, preserve existing hardlink/symlink destinations, and follow actual filesystem case identity. tools/verify-filesystem-case-sensitivity.py also runs the case collision test on a verified case-sensitive fixture (HFSX on macOS), with verified unmount cleanup; this does not claim Windows or Linux execution on a macOS host. Deferred PreviewResource::bytes re-enters the admitted provider instead of reopening its ambient path, retains the originally admitted directory after a root rename, rejects later leaf/parent symlink substitutions, bounds growth and u64::MAX budgets, and discards a provider reply after lease revocation. Cached remote byte snapshots do not refetch. Native consumers that directly use PreviewData::LocalFile and the WebView protocol have separate pending read-authority/streaming audits. Preview identity is checked against its private admission binding before data access, preventing path/storage retargeting of an existing handle.",
       "typescript": [
         {
           "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
@@ -9647,6 +9647,30 @@
         {
           "package": "po-workspace",
           "test": "workspace::local_compatibility_tests::existing_hardlink_and_symlink_destinations_are_never_replaced"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::deferred_preview_reads_stay_bound_to_the_admitted_root_after_a_rename"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::deferred_preview_reads_refuse_replaced_leaf_and_parent_symlinks"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::deferred_preview_byte_budgets_handle_growth_empty_files_and_integer_limits"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::deferred_preview_reads_use_the_provider_and_discard_bytes_after_revocation"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::cached_preview_snapshots_obey_budgets_without_fetching_the_provider_again"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::deferred_preview_identity_cannot_be_retargeted_after_admission"
         }
       ],
       "environment": "local"
