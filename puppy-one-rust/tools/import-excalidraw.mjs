@@ -22,6 +22,7 @@ import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {root} from './product-bundle.mjs';
 import {bundleProductPage, BASE_STYLES} from './product-web-bundle.mjs';
+import {hostPatcher, requireInstalledHostPatches} from './excalidraw-host-contract.mjs';
 
 const PACKAGE = '@excalidraw/excalidraw';
 const ASSET_PATH = 'new URL("__assets__/excalidraw/", document.baseURI).href';
@@ -29,8 +30,10 @@ const rewrites = {fallback: 0, unsubscribe: 0, patched: 0};
 const sdkRewrites = {
   name: 'excalidraw-assets',
   setup(build) {
+    const patcher = hostPatcher(build.initialOptions.absWorkingDir);
     build.onLoad({filter: /[\\/]@excalidraw[\\/]excalidraw[\\/]dist[\\/]prod[\\/].*\.js$/}, async args => {
       let contents = await readFile(args.path, 'utf8');
+      if (path.basename(args.path) === 'index.js') requireInstalledHostPatches(contents, 'prod', await patcher);
       if (contents.includes('Puppyone desktop breakpoint')) rewrites.patched++;
       contents = contents.replace(/`https:\/\/esm\.sh\/\$\{[^;\n]+?\/dist\/prod\/`/g, () => {
         rewrites.fallback++;

@@ -2470,7 +2470,9 @@
         "src/features/create_new/create_entry_menu_registry.rs",
         "tools/native-whiteboard-bridge.ts",
         "tools/verify-whiteboard-bridge.mjs",
-        "tools/verify-viewer-pack.py"
+        "tools/verify-viewer-pack.py",
+        "tools/excalidraw-host-contract.mjs",
+        "tools/verify-whiteboard-sdk.mjs"
       ],
       "evidence": [
         "test:only_the_current_ready_board_can_open_workspace_links",
@@ -2484,7 +2486,8 @@
         "test:source_mode_retires_board_writes_and_returns_the_latest_json",
         "test:pack_verification_runs_off_the_ui_thread_and_mounts_the_latest_document",
         "test:closing_a_board_during_pack_loading_discards_its_result",
-        "test:a_missing_pack_finishes_loading_without_changing_source_or_starting_installation"
+        "test:a_missing_pack_finishes_loading_without_changing_source_or_starting_installation",
+        "test:the_installed_sdk_has_every_host_patch_and_executes_resize_callbacks"
       ],
       "remaining": "The fixed on-demand Excalidraw pack and native document-generation ownership are qualified by actual archive/model tests and GPUI transport acceptance. Real OS canvas drawing, IME, undo keyboard handling and embedded HTML interaction remain unqualified; actual frame latency and full interaction budgets still need native-window evidence. Third-party pack activation, signatures and uninstall are separate."
     },

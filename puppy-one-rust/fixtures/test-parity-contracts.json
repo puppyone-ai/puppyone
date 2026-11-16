@@ -12930,6 +12930,56 @@
           "test": "workspace::local_compatibility_tests::whiteboard_text_admission_and_duplicate_names_keep_the_full_registered_suffix"
         }
       ]
+    },
+    {
+      "id": "native-whiteboard-sdk-host-patches",
+      "acceptance": "Execute the real pinned product host patcher against actual installed dev and prod SDK source. Require all patches to already be installed; prove upstream patching is reversible and idempotent, reject missing/duplicated integration points and individually removed installed patches, and execute the actual ResizeObserver and native onResize callbacks to prove repaint and ordering. The native production importer uses this complete check before SDK rewrites; the native pack still ships only the production SDK. This matches all eight script-level TypeScript cases and does not claim actual OS resizing, pointer layout or canvas rendering acceptance.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/excalidrawHostIntegrationPatch.test.mjs",
+          "sha256": "836fd0257ca8712ad716b54d5418e12ea35e64c3bf72afd821562aa549b8db40",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Excalidraw Desktop host integration > keeps mouse-driven dev editors on desktop layout and portals in the themed overlay root"
+            },
+            {
+              "index": 1,
+              "name": "Excalidraw Desktop host integration > is idempotent and fails closed when dev changes"
+            },
+            {
+              "index": 2,
+              "name": "Excalidraw Desktop host integration > repaints dev breakpoints when window resize already updated the canvas dimensions"
+            },
+            {
+              "index": 3,
+              "name": "Excalidraw Desktop host integration > updates dev editor breakpoints on native resize before any observer delivery"
+            },
+            {
+              "index": 4,
+              "name": "Excalidraw Desktop host integration > keeps mouse-driven prod editors on desktop layout and portals in the themed overlay root"
+            },
+            {
+              "index": 5,
+              "name": "Excalidraw Desktop host integration > is idempotent and fails closed when prod changes"
+            },
+            {
+              "index": 6,
+              "name": "Excalidraw Desktop host integration > repaints prod breakpoints when window resize already updated the canvas dimensions"
+            },
+            {
+              "index": 7,
+              "name": "Excalidraw Desktop host integration > updates prod editor breakpoints on native resize before any observer delivery"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::the_installed_sdk_has_every_host_patch_and_executes_resize_callbacks"
+        }
+      ]
     }
   ],
   "openAcceptance": [

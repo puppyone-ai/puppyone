@@ -470,3 +470,33 @@ fn a_missing_pack_finishes_loading_without_changing_source_or_starting_installat
     cx.update(|w, cx| s.pane_segment("source", w, cx));
     assert_eq!(text(&s, cx), "{broken");
 }
+
+#[test]
+fn the_installed_sdk_has_every_host_patch_and_executes_resize_callbacks() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bytes = crate::platform::process::run(
+        Path::new("node"),
+        &["tools/verify-whiteboard-sdk.mjs"],
+        &root,
+        None,
+        std::time::Duration::from_secs(30),
+        &std::sync::atomic::AtomicBool::new(false),
+    )
+    .expect("actual pinned SDK host patches must execute");
+    let result: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(result["passed"], true);
+    let expected: Vec<String> = ["dev", "prod"]
+        .into_iter()
+        .flat_map(|build| {
+            [
+                "desktop-layout-overlay-and-offsets",
+                "idempotent-and-fail-closed",
+                "observer-repaints-after-unchanged-dimensions",
+                "native-resize-updates-before-observer",
+            ]
+            .into_iter()
+            .map(move |name| format!("{build}:{name}"))
+        })
+        .collect();
+    assert_eq!(result["checks"], serde_json::json!(expected));
+}
