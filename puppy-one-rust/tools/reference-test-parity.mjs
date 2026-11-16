@@ -255,3 +255,5 @@ if (process.argv.includes('--check')) {
   if (await readFile(archiveFile, 'utf8') !== archiveOutput) throw Error('Stale TS activation archive oracle');
 } else await writeFile(archiveFile, archiveOutput);
 console.log(`${archiveCases.length} TS archive byte streams and extraction outcomes verified`);
+
+await import('./reference-git-sync.mjs');

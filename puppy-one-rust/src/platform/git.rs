@@ -6,6 +6,7 @@
 //! inside the opened folder: a change elsewhere in the repository is shown but
 //! cannot be staged, discarded or opened from here.
 use super::process;
+pub mod sync_state;
 use std::{
     path::{Component, Path},
     sync::atomic::AtomicBool,
@@ -57,6 +58,8 @@ pub struct Snapshot {
     pub remotes: Vec<String>,
     /// `.puppyone/config.json` turns Cloud backup on (`backup.enabled`).
     pub cloud_backup: bool,
+    /// Presentation metadata is kept separately from the authorized target.
+    pub sync_metadata: sync_state::Metadata,
 }
 /// `readGitRepositoryOperationKind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -192,7 +195,7 @@ pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
     let remotes = remotes(root, cancel);
     let config = workspace_config(root);
     snapshot.target = sync_target(root, &snapshot, &remotes, config.as_ref(), cancel);
-    snapshot.remotes = remotes.into_iter().map(|r| r.name).collect();
+    snapshot.remotes = remotes.iter().map(|r| r.name.clone()).collect();
     snapshot.cloud_backup = config
         .as_ref()
         .and_then(|c| c.pointer("/backup/enabled"))
@@ -215,6 +218,7 @@ pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
             snapshot.behind = parts.next().unwrap_or(0);
         }
     }
+    snapshot.sync_metadata = sync_state::Metadata::from_git(&snapshot, &remotes, config);
     Ok(snapshot)
 }
 /// `readGitRepositoryOperationKind`: the first of the rebase directories and

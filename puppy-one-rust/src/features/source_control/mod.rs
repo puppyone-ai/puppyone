@@ -1091,7 +1091,12 @@ impl SourceControl {
             .into_any_element()
     }
     /// `GitIncomingUpdateNotice` in the sync priority region.
-    fn incoming_notice(&self, behind: u32, primary: bool, cx: &mut Context<Self>) -> Div {
+    fn incoming_notice(
+        &self,
+        sync: &git::sync_state::State,
+        primary: bool,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let t = cx.palette();
         let m = theme::ty();
         div()
@@ -1120,17 +1125,23 @@ impl SourceControl {
                             .text_color(t.muted)
                             .child(tf(
                                 "source-control.commit.commits",
-                                &[("count", (behind as usize).into())],
+                                &[("count", sync.behind.into())],
                             )),
                     )
                     .child(
                         operation_button(
                             "git-pull",
                             "arrow-down",
-                            tr("source-control.sync.pull"),
+                            tr(if self.running == Some(Operation::Pull.label()) {
+                                "source-control.sync.pulling"
+                            } else {
+                                "source-control.sync.pull"
+                            }),
                             primary,
-                            self.busy,
+                            self.busy || sync.pull_disabled,
                         )
+                        .debug_selector(|| "git-pull".into())
+                        .tooltip(sync.pull_title.clone())
                         // `handlePullGit` runs without a confirmation.
                         .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Pull, cx))),
                     ),
@@ -1154,18 +1165,19 @@ impl SourceControl {
         let operation = snapshot.operation.is_some();
         // `syncBlocked`.
         let blocked = conflicts || operation;
+        let sync = git::sync_state::for_snapshot(snapshot);
         let committed = committed_action(snapshot, blocked);
         // `remote.ahead` / `behind`: counted against an existing target only.
-        let (ahead, behind) = if snapshot.remote_exists() {
-            (snapshot.ahead, snapshot.behind)
+        let ahead = if snapshot.remote_exists() {
+            snapshot.ahead
         } else {
-            (0, 0)
+            0
         };
         let primary = primary_slot(SlotCandidates {
             conflicts,
             // `operationPrimaryAction`: Continue, once nothing conflicts.
             operation,
-            sync: behind > 0,
+            sync: sync.behind > 0 && !sync.pull_disabled,
             staged: has(Panel::Staged) && !blocked,
             committed: committed.is_some_and(|(_, disabled)| !disabled),
             stage_and_commit: has(Panel::Unstaged) && !blocked,
@@ -1191,17 +1203,16 @@ impl SourceControl {
             panels.push(self.panel(Panel::Merge, count as f32, header, body));
         }
         if ahead > 0 || committed.is_some() {
-            let push = tr("source-control.sync.push");
             let action = committed.map(|(kind, disabled)| {
                 let (id, label, loading) = match kind {
                     CommittedAction::Publish => (
                         "git-publish",
-                        "source-control.sync.publish",
+                        tr("source-control.sync.publish").to_owned(),
                         "source-control.sync.publishing",
                     ),
                     CommittedAction::Push => (
                         "git-push",
-                        "source-control.sync.push",
+                        sync.push_label.clone(),
                         "source-control.sync.pushing",
                     ),
                 };
@@ -1209,14 +1220,20 @@ impl SourceControl {
                 operation_button(
                     id,
                     "arrow-up",
-                    tr(if self.running == Some(op.label()) {
-                        loading
+                    if self.running == Some(op.label()) {
+                        tr(loading).to_owned()
                     } else {
                         label
-                    }),
+                    },
                     primary == Some(PrimarySlot::Committed),
-                    self.busy || disabled,
+                    self.busy || disabled || (kind == CommittedAction::Push && sync.push_disabled),
                 )
+                .debug_selector(move || id.into())
+                .tooltip(if blocked && !(snapshot.ahead > 0 && snapshot.behind > 0) {
+                    tr("source-control.sync.resolveBeforeSync").to_owned()
+                } else {
+                    sync.push_title.clone()
+                })
                 // `handlePushGit` / `handlePublishGitBranch` run without a
                 // confirmation.
                 .on_click(cx.listener(move |s, _, _, cx| s.operation(kind.operation(), cx)))
@@ -1235,9 +1252,9 @@ impl SourceControl {
                                 "action",
                                 match committed {
                                     Some((CommittedAction::Publish, _)) => {
-                                        tr("source-control.sync.publish")
+                                        tr("source-control.sync.publish").to_owned()
                                     }
-                                    _ => push,
+                                    _ => sync.push_label.clone(),
                                 }
                                 .into(),
                             ),
@@ -1323,8 +1340,8 @@ impl SourceControl {
             .flex_1()
             .min_h_0()
             .pt(px(metric::SIDEBAR_LIST_PADDING_BLOCK));
-        if behind > 0 {
-            list = list.child(self.incoming_notice(behind, primary == Some(PrimarySlot::Sync), cx));
+        if sync.behind > 0 {
+            list = list.child(self.incoming_notice(&sync, primary == Some(PrimarySlot::Sync), cx));
         }
         list = list.child(stack);
         // `.desktop-git-fixed-region`.
@@ -2143,5 +2160,143 @@ mod tests {
                 s.painted_rows
             );
         });
+    }
+
+    #[gpui::test]
+    fn native_sync_buttons_use_the_live_state_and_do_not_dispatch_disabled_operations(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = cx.add_window_view(SourceControl::new);
+        // Exercise the actual rendered buttons and listeners. No root is
+        // attached, so dispatch is observed without pushing to a network.
+        for (ahead, behind, exists, head, busy, conflict, operation, selector, expected) in [
+            (
+                2,
+                0,
+                true,
+                true,
+                false,
+                false,
+                false,
+                "git-push",
+                Some(Operation::Push),
+            ),
+            (2, 3, true, true, false, false, false, "git-push", None),
+            (2, 0, true, true, true, false, false, "git-push", None),
+            (2, 0, true, true, false, true, false, "git-push", None),
+            (2, 0, true, true, false, false, true, "git-push", None),
+            (
+                0,
+                0,
+                false,
+                true,
+                false,
+                false,
+                false,
+                "git-publish",
+                Some(Operation::Publish),
+            ),
+            (
+                0,
+                3,
+                true,
+                true,
+                false,
+                false,
+                false,
+                "git-pull",
+                Some(Operation::Pull),
+            ),
+            (0, 3, true, true, true, false, false, "git-pull", None),
+        ] {
+            view.update(cx, |s, cx| {
+                let snapshot = Snapshot {
+                    branch: "topic".into(),
+                    head: if head { "head".into() } else { String::new() },
+                    ahead,
+                    behind,
+                    target: Some(git::SyncTarget {
+                        remote: "backup".into(),
+                        branch: "topic".into(),
+                        exists,
+                    }),
+                    remotes: vec!["backup".into()],
+                    sync_metadata: git::sync_state::Metadata {
+                        hosting: git::sync_state::Hosting::Cloud,
+                        ..Default::default()
+                    },
+                    changes: if conflict {
+                        vec![Change {
+                            path: "conflict.md".into(),
+                            original: None,
+                            index: 'U',
+                            worktree: 'U',
+                        }]
+                    } else {
+                        vec![]
+                    },
+                    operation: operation.then_some(git::RepositoryOperation::Merge),
+                    ..Default::default()
+                };
+                s.sections = project_sections(&snapshot);
+                s.snapshot = Some(snapshot);
+                s.busy = busy;
+                s.running = None;
+                s.queued_operation = None;
+                cx.notify();
+            });
+            cx.run_until_parked();
+            cx.update(|window, cx| {
+                let _ = window.draw(cx);
+            });
+            if operation {
+                assert!(
+                    cx.debug_bounds(selector).is_none(),
+                    "an active repository operation hides its unavailable sync action"
+                );
+                continue;
+            }
+            let bounds = cx
+                .debug_bounds(selector)
+                .unwrap_or_else(|| panic!("missing {selector}: ahead={ahead}, behind={behind}, busy={busy}, conflict={conflict}, operation={operation}"));
+            cx.simulate_click(bounds.center(), Modifiers::default());
+            view.read_with(cx, |s, _| {
+                assert_eq!(s.running, expected.as_ref().map(Operation::label), "{selector}: ahead={ahead}, behind={behind}, busy={busy}, conflict={conflict}, operation={operation}");
+                assert!(s.queued_operation.is_none(), "disabled buttons must not queue an operation");
+            });
+        }
+        for (head, detached, target) in [
+            (false, false, true),
+            (true, true, false),
+            (true, false, false),
+        ] {
+            view.update(cx, |s, cx| {
+                let snapshot = Snapshot {
+                    branch: if detached {
+                        "HEAD (no branch)".into()
+                    } else {
+                        "topic".into()
+                    },
+                    head: if head { "head".into() } else { String::new() },
+                    target: target.then(|| git::SyncTarget {
+                        remote: "origin".into(),
+                        branch: "topic".into(),
+                        exists: false,
+                    }),
+                    ..Default::default()
+                };
+                s.sections = project_sections(&snapshot);
+                s.snapshot = Some(snapshot);
+                s.busy = false;
+                s.running = None;
+                cx.notify();
+            });
+            cx.run_until_parked();
+            cx.update(|window, cx| {
+                let _ = window.draw(cx);
+            });
+            assert!(cx.debug_bounds("git-publish").is_none());
+            assert!(cx.debug_bounds("git-push").is_none());
+        }
     }
 }

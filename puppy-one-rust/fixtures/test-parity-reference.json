@@ -51,6 +51,22 @@
     "tests/unit/platform/local-agent-activation/activation-journal.test.mjs": "5498d8a9acb802851bd1867be986eca01bbcf7b60e094b02395af44a03695763",
     "electron/main/local-agent-activation/managed-artifact-installer.mjs": "3db29180bfc0e8ab636eee68b666d5da98adfdea618a4355dcfb285de610e6bb",
     "package-lock.json": "ee9c90632b79febfc00faaf0bc6344420f2b0614a62dd1e56af68acfa9cb5252",
-    "electron/local-api/files/byte-range.mjs": "cd1904382b2e2d0f85a583265cb97729956b551673f45dfa7769b92612ef2940"
+    "electron/local-api/files/byte-range.mjs": "cd1904382b2e2d0f85a583265cb97729956b551673f45dfa7769b92612ef2940",
+    "tests/unit/source-control/status/gitSyncState.test.mjs": "9d49d0d210fcc0aaeb2c8bd4daab66c957d2ba61ae3751f9ec8f1d21175ee491",
+    "tests/unit/source-control/status/__snapshots__/gitSyncState.test.mjs.snap": "266c0fa9c4635083a179b1b01d69ef2862f40ab6bf93ac78897657ffaa44ff01",
+    "src/features/source-control/viewModel.ts": "39cf613294aa330597f31515cf99a4d1b5bef408aa58c9da0c73bede1837d4c1",
+    "src/features/source-control/remotes.ts": "78a4bfba5b829f69ecfb857be66c947e0cf2a9d618885c8b9dfb96632a3fc8d8",
+    "src/lib/localization/core/bidi.ts": "3188ceb523ef1bdbdd2af35b739652c69aacf273c7c6feeaa09651f85e3a5f4a",
+    "src/lib/localization/core/catalog.ts": "4f7d2a54e4557acb0c5a43e1660ff066eeb8a9b3a1e1dd69050ac15700a5d595",
+    "src/lib/localization/core/formatters.ts": "e5035262b4780bb1987b09d3a2261e5e83bb9a5b4f4e18e718b9a832b47b6990",
+    "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",
+    "src/lib/localization/core/types.ts": "3aec054f6883723dbf6819d2033adbcab3b5633666d1feed406c73479292290f",
+    "src/lib/localization/core/manifest.ts": "d534b6698f42e97c11bc914733032d40a3d6e67ea1e46a5d76aa2f6d383eb449",
+    "src/lib/localization/core/message-formatter.ts": "c8b00202c56c601a2249c0190d68ae3cb23d16f5a77cc9802de745f2c30253db",
+    "src/lib/localization/core/resolve-locale.ts": "44274e944a03badb276d38c5a8219d4ac55050121f142339ad559547a0eb9d6f",
+    "src/lib/localization/core/index.ts": "ec4654d4af947a15c7355c97815234792148801d5f0af2c8ce12bee05934b3a5",
+    "src/lib/localization/react/LocalizationProvider.tsx": "1b13d96387bfa9ef1ec64b262fd5cb0064c63b8790d0b581915ba7228a38722f",
+    "src/lib/localization/react/index.ts": "8c8e5b102801595a8a3f44118e55bf0c5da2cfe0976672ae707c4f28e18a64df",
+    "src/lib/localization/index.ts": "8e43a19b9f21477cfae72ba89a0be480c1eab890c4a7c2fd28e088aceafd731e"
   }
 }

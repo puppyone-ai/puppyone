@@ -3838,7 +3838,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -10578,7 +10578,7 @@
             },
             {
               "index": 14,
-              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A→B→A"
+              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A\u2192B\u2192A"
             }
           ]
         }
@@ -10676,7 +10676,7 @@
           "cases": [
             {
               "index": 2,
-              "name": "registered database DOM viewer > drops late opening results across A→B→A and releases every native lease"
+              "name": "registered database DOM viewer > drops late opening results across A\u2192B\u2192A and releases every native lease"
             },
             {
               "index": 3,
@@ -10887,6 +10887,373 @@
         {
           "package": "po-editor",
           "test": "editor::viewers::database::admission_tests::the_database_open_budget_includes_provider_admission_before_the_engine_exists"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-git-sync-presentation",
+      "acceptance": "The established getGitSyncState presentation matches all 82 frozen TS cases field for field, including inactive, local, configured backup, untracked, tracked and Cloud-hosted branches; null versus empty refs, HEAD absence, all ahead/behind/existence combinations, remote/config priority, message IDs, interpolation order and bidi isolation. Native status retains remote URLs, configuration and effective hosting, while presentation fallback never authorizes a different Git mutation target. Real repository tests verify metadata admission and removed-remote refusal; rendered GPUI buttons verify actual dispatch, divergence/conflict/busy inhibition, ongoing-operation hiding, and absent unborn/detached/missing-target actions. This row covers the established sync presentation, not newer Project Reach wording, native screen-reader activation, or all Git transport mechanisms.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/status/gitSyncState.test.mjs",
+          "sha256": "9d49d0d210fcc0aaeb2c8bd4daab66c957d2ba61ae3751f9ec8f1d21175ee491",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git sync state characterization > preserves no snapshot"
+            },
+            {
+              "index": 1,
+              "name": "Git sync state characterization > preserves not a repository"
+            },
+            {
+              "index": 2,
+              "name": "Git sync state characterization > preserves local only"
+            },
+            {
+              "index": 3,
+              "name": "Git sync state characterization > preserves initial branch"
+            },
+            {
+              "index": 4,
+              "name": "Git sync state characterization > preserves detached branch"
+            },
+            {
+              "index": 5,
+              "name": "Git sync state characterization > preserves cloud backup configured without remote"
+            },
+            {
+              "index": 6,
+              "name": "Git sync state characterization > preserves cloud backup disabled without remote"
+            },
+            {
+              "index": 7,
+              "name": "Git sync state characterization > preserves cloud target absent"
+            },
+            {
+              "index": 8,
+              "name": "Git sync state characterization > preserves cloud remote absent"
+            },
+            {
+              "index": 9,
+              "name": "Git sync state characterization > preserves cloud empty ref"
+            },
+            {
+              "index": 10,
+              "name": "Git sync state characterization > preserves cloud 0/0 exists=false head=null"
+            },
+            {
+              "index": 11,
+              "name": "Git sync state characterization > preserves publish origin 0/0 exists=false head=null"
+            },
+            {
+              "index": 12,
+              "name": "Git sync state characterization > preserves publish Puppyone 0/0 exists=false head=null"
+            },
+            {
+              "index": 13,
+              "name": "Git sync state characterization > preserves cloud 0/0 exists=false head=head"
+            },
+            {
+              "index": 14,
+              "name": "Git sync state characterization > preserves publish origin 0/0 exists=false head=head"
+            },
+            {
+              "index": 15,
+              "name": "Git sync state characterization > preserves publish Puppyone 0/0 exists=false head=head"
+            },
+            {
+              "index": 16,
+              "name": "Git sync state characterization > preserves cloud 0/0 exists=true head=null"
+            },
+            {
+              "index": 17,
+              "name": "Git sync state characterization > preserves publish origin 0/0 exists=true head=null"
+            },
+            {
+              "index": 18,
+              "name": "Git sync state characterization > preserves publish Puppyone 0/0 exists=true head=null"
+            },
+            {
+              "index": 19,
+              "name": "Git sync state characterization > preserves cloud 0/0 exists=true head=head"
+            },
+            {
+              "index": 20,
+              "name": "Git sync state characterization > preserves publish origin 0/0 exists=true head=head"
+            },
+            {
+              "index": 21,
+              "name": "Git sync state characterization > preserves publish Puppyone 0/0 exists=true head=head"
+            },
+            {
+              "index": 22,
+              "name": "Git sync state characterization > preserves upstream origin 0/0"
+            },
+            {
+              "index": 23,
+              "name": "Git sync state characterization > preserves upstream Puppyone 0/0"
+            },
+            {
+              "index": 24,
+              "name": "Git sync state characterization > preserves cloud 2/0 exists=false head=null"
+            },
+            {
+              "index": 25,
+              "name": "Git sync state characterization > preserves publish origin 2/0 exists=false head=null"
+            },
+            {
+              "index": 26,
+              "name": "Git sync state characterization > preserves publish Puppyone 2/0 exists=false head=null"
+            },
+            {
+              "index": 27,
+              "name": "Git sync state characterization > preserves cloud 2/0 exists=false head=head"
+            },
+            {
+              "index": 28,
+              "name": "Git sync state characterization > preserves publish origin 2/0 exists=false head=head"
+            },
+            {
+              "index": 29,
+              "name": "Git sync state characterization > preserves publish Puppyone 2/0 exists=false head=head"
+            },
+            {
+              "index": 30,
+              "name": "Git sync state characterization > preserves cloud 2/0 exists=true head=null"
+            },
+            {
+              "index": 31,
+              "name": "Git sync state characterization > preserves publish origin 2/0 exists=true head=null"
+            },
+            {
+              "index": 32,
+              "name": "Git sync state characterization > preserves publish Puppyone 2/0 exists=true head=null"
+            },
+            {
+              "index": 33,
+              "name": "Git sync state characterization > preserves cloud 2/0 exists=true head=head"
+            },
+            {
+              "index": 34,
+              "name": "Git sync state characterization > preserves publish origin 2/0 exists=true head=head"
+            },
+            {
+              "index": 35,
+              "name": "Git sync state characterization > preserves publish Puppyone 2/0 exists=true head=head"
+            },
+            {
+              "index": 36,
+              "name": "Git sync state characterization > preserves upstream origin 2/0"
+            },
+            {
+              "index": 37,
+              "name": "Git sync state characterization > preserves upstream Puppyone 2/0"
+            },
+            {
+              "index": 38,
+              "name": "Git sync state characterization > preserves cloud 0/3 exists=false head=null"
+            },
+            {
+              "index": 39,
+              "name": "Git sync state characterization > preserves publish origin 0/3 exists=false head=null"
+            },
+            {
+              "index": 40,
+              "name": "Git sync state characterization > preserves publish Puppyone 0/3 exists=false head=null"
+            },
+            {
+              "index": 41,
+              "name": "Git sync state characterization > preserves cloud 0/3 exists=false head=head"
+            },
+            {
+              "index": 42,
+              "name": "Git sync state characterization > preserves publish origin 0/3 exists=false head=head"
+            },
+            {
+              "index": 43,
+              "name": "Git sync state characterization > preserves publish Puppyone 0/3 exists=false head=head"
+            },
+            {
+              "index": 44,
+              "name": "Git sync state characterization > preserves cloud 0/3 exists=true head=null"
+            },
+            {
+              "index": 45,
+              "name": "Git sync state characterization > preserves publish origin 0/3 exists=true head=null"
+            },
+            {
+              "index": 46,
+              "name": "Git sync state characterization > preserves publish Puppyone 0/3 exists=true head=null"
+            },
+            {
+              "index": 47,
+              "name": "Git sync state characterization > preserves cloud 0/3 exists=true head=head"
+            },
+            {
+              "index": 48,
+              "name": "Git sync state characterization > preserves publish origin 0/3 exists=true head=head"
+            },
+            {
+              "index": 49,
+              "name": "Git sync state characterization > preserves publish Puppyone 0/3 exists=true head=head"
+            },
+            {
+              "index": 50,
+              "name": "Git sync state characterization > preserves upstream origin 0/3"
+            },
+            {
+              "index": 51,
+              "name": "Git sync state characterization > preserves upstream Puppyone 0/3"
+            },
+            {
+              "index": 52,
+              "name": "Git sync state characterization > preserves cloud 2/3 exists=false head=null"
+            },
+            {
+              "index": 53,
+              "name": "Git sync state characterization > preserves publish origin 2/3 exists=false head=null"
+            },
+            {
+              "index": 54,
+              "name": "Git sync state characterization > preserves publish Puppyone 2/3 exists=false head=null"
+            },
+            {
+              "index": 55,
+              "name": "Git sync state characterization > preserves cloud 2/3 exists=false head=head"
+            },
+            {
+              "index": 56,
+              "name": "Git sync state characterization > preserves publish origin 2/3 exists=false head=head"
+            },
+            {
+              "index": 57,
+              "name": "Git sync state characterization > preserves publish Puppyone 2/3 exists=false head=head"
+            },
+            {
+              "index": 58,
+              "name": "Git sync state characterization > preserves cloud 2/3 exists=true head=null"
+            },
+            {
+              "index": 59,
+              "name": "Git sync state characterization > preserves publish origin 2/3 exists=true head=null"
+            },
+            {
+              "index": 60,
+              "name": "Git sync state characterization > preserves publish Puppyone 2/3 exists=true head=null"
+            },
+            {
+              "index": 61,
+              "name": "Git sync state characterization > preserves cloud 2/3 exists=true head=head"
+            },
+            {
+              "index": 62,
+              "name": "Git sync state characterization > preserves publish origin 2/3 exists=true head=head"
+            },
+            {
+              "index": 63,
+              "name": "Git sync state characterization > preserves publish Puppyone 2/3 exists=true head=head"
+            },
+            {
+              "index": 64,
+              "name": "Git sync state characterization > preserves upstream origin 2/3"
+            },
+            {
+              "index": 65,
+              "name": "Git sync state characterization > preserves upstream Puppyone 2/3"
+            },
+            {
+              "index": 66,
+              "name": "Git sync state characterization > preserves origin preferred"
+            },
+            {
+              "index": 67,
+              "name": "Git sync state characterization > preserves named puppyone fallback"
+            },
+            {
+              "index": 68,
+              "name": "Git sync state characterization > preserves first remote fallback"
+            },
+            {
+              "index": 69,
+              "name": "Git sync state characterization > preserves canonical cloud URL under another name"
+            },
+            {
+              "index": 70,
+              "name": "Git sync state characterization > preserves source-of-truth preferred"
+            },
+            {
+              "index": 71,
+              "name": "Git sync state characterization > preserves primary remote preferred"
+            },
+            {
+              "index": 72,
+              "name": "Git sync state characterization > preserves backup remote preferred"
+            },
+            {
+              "index": 73,
+              "name": "Git sync state characterization > preserves watched branch fallback"
+            },
+            {
+              "index": 74,
+              "name": "Git sync state characterization > preserves missing preferred remote falls back"
+            },
+            {
+              "index": 75,
+              "name": "Git sync state characterization > preserves publish without HEAD or target"
+            },
+            {
+              "index": 76,
+              "name": "Git sync state characterization > preserves empty publish ref preserved"
+            },
+            {
+              "index": 77,
+              "name": "Git sync state characterization > preserves upstream without matching remote"
+            },
+            {
+              "index": 78,
+              "name": "Git sync state characterization > preserves upstream without slash"
+            },
+            {
+              "index": 79,
+              "name": "Git sync state characterization > preserves upstream uses fetch URL if push absent"
+            },
+            {
+              "index": 80,
+              "name": "Git sync state characterization > preserves upstream ignores cloud name with generic URL"
+            },
+            {
+              "index": 81,
+              "name": "Git sync state characterization > preserves cloud hosting precedes upstream"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::all_82_frozen_ts_sync_states_match_every_field_and_bidi_interpolation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::cloud_presentation_rejects_split_and_conflicting_locators_without_changing_targets"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::hosting_priority_keeps_configuration_target_upstream_and_provider_fallback_distinct"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::native_snapshot_projection_retains_urls_config_and_separate_mutation_authority"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::real_git_status_keeps_remote_metadata_and_config_without_retargeting_the_branch"
+        },
+        {
+          "package": "po-app",
+          "test": "features::source_control::tests::native_sync_buttons_use_the_live_state_and_do_not_dispatch_disabled_operations"
         }
       ],
       "environment": "local"
