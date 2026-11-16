@@ -98,6 +98,7 @@
     "shared/project-import/sources.mjs": "af5013092380b1191940483ee30b6eb0953c95799b67b2a07f9474e5a0d297e5",
     "src/features/project-import/importSourceRegistry.ts": "44d119fcb2987affda9ae9c4cf752b06b94c812801d0597f526c86ce8fa7e457",
     "src/components/onboarding/OnboardingEntryActions.tsx": "d772760468022770e4a2574dd723deda5e87364b3d75bcfc93a3545eca6b44a3",
-    "src/components/onboarding/ImportSourcePreview.tsx": "2223f29cbe352e2402f89198a141a96ed4221ebbd342c80c5650ea019f22c046"
+    "src/components/onboarding/ImportSourcePreview.tsx": "2223f29cbe352e2402f89198a141a96ed4221ebbd342c80c5650ea019f22c046",
+    "electron/main/project-import/app-folders.mjs": "a4d1ae45b5fbf0e64d8a12b6553c259a571647cb7ce25090ecbbaddf53baa7e7"
   }
 }

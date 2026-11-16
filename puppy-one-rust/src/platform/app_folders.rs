@@ -2,7 +2,14 @@
 //! other apps already know about. Each app is asked only through the file
 //! where it records its own vaults or recent folders; nothing is scanned. A
 //! folder is offered only while it still exists, at most 50 per app.
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::atomic::AtomicBool,
+    time::Duration,
+};
+
+const PLIST_TIMEOUT: Duration = Duration::from_secs(5);
+const PLIST_OUTPUT_LIMIT: usize = 1024 * 1024;
 
 const MAX_FOLDERS_PER_APP: usize = 50;
 /// The apps whose recorded folders can be listed on the Homepage in place.
@@ -26,17 +33,23 @@ pub struct Places {
 }
 impl Places {
     pub fn native() -> Self {
-        let home = super::paths::home_dir();
-        let app_data = if cfg!(target_os = "macos") {
-            home.join("Library/Application Support")
-        } else if cfg!(target_os = "windows") {
-            std::env::var_os("APPDATA")
+        Self::for_platform(super::paths::home_dir(), std::env::consts::OS, |name| {
+            std::env::var_os(name)
+        })
+    }
+    fn for_platform(
+        home: PathBuf,
+        platform: &str,
+        env: impl Fn(&str) -> Option<std::ffi::OsString>,
+    ) -> Self {
+        let app_data = match platform {
+            "macos" => home.join("Library/Application Support"),
+            "windows" => env("APPDATA")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| home.join("AppData/Roaming"))
-        } else {
-            std::env::var_os("XDG_CONFIG_HOME")
+                .unwrap_or_else(|| home.join("AppData/Roaming")),
+            _ => env("XDG_CONFIG_HOME")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| home.join(".config"))
+                .unwrap_or_else(|| home.join(".config")),
         };
         Self { home, app_data }
     }
@@ -69,8 +82,13 @@ pub fn list(app: &str, places: &Places) -> Result<Vec<AppFolder>, String> {
             continue;
         }
         let path = super::paths::normalize(Path::new(&path));
-        if !seen.insert(path.clone()) || !path.is_dir() {
+        if !seen.insert(path.clone()) {
             continue;
+        }
+        match std::fs::metadata(&path).map_err(Read::from) {
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) | Err(Read::Missing) => continue,
+            Err(Read::Failed(error)) => return Err(error),
         }
         let name = path
             .file_name()
@@ -93,11 +111,16 @@ enum Read {
 }
 type Candidates = Result<Vec<(String, Option<u64>)>, Read>;
 
+impl From<std::io::Error> for Read {
+    fn from(error: std::io::Error) -> Self {
+        match error.kind() {
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => Self::Missing,
+            _ => Self::Failed(error.to_string()),
+        }
+    }
+}
 fn read_file(path: &Path) -> Result<String, Read> {
-    std::fs::read_to_string(path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => Read::Missing,
-        _ => Read::Failed(e.to_string()),
-    })
+    std::fs::read_to_string(path).map_err(Read::from)
 }
 fn json(text: &str) -> Result<serde_json::Value, Read> {
     serde_json::from_str(text).map_err(|e| Read::Failed(e.to_string()))
@@ -124,9 +147,7 @@ fn obsidian(places: &Places) -> Candidates {
 /// projects.
 fn vscode_history(product: &Path) -> Candidates {
     let database = product.join("User/globalStorage/state.vscdb");
-    if !database.is_file() {
-        return Err(Read::Missing);
-    }
+    std::fs::metadata(&database).map_err(Read::from)?;
     let connection = rusqlite::Connection::open_with_flags(
         &database,
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -156,44 +177,84 @@ fn vscode_history(product: &Path) -> Candidates {
         .as_array()
         .into_iter()
         .flatten()
-        .filter(|entry| entry["remoteAuthority"].is_null())
+        .filter(|entry| match &entry["remoteAuthority"] {
+            serde_json::Value::Null | serde_json::Value::Bool(false) => true,
+            serde_json::Value::String(value) => value.is_empty(),
+            serde_json::Value::Number(value) => value.as_f64() == Some(0.),
+            _ => false,
+        })
         .filter_map(|entry| entry["folderUri"].as_str())
         .filter(|uri| uri.starts_with("file:"))
         // One malformed URI must not hide the app's other folders.
-        .filter_map(|uri| url::Url::parse(uri).ok()?.to_file_path().ok())
+        .filter_map(local_folder_uri)
         .map(|path| (path.to_string_lossy().into_owned(), None))
         .collect())
+}
+
+// Node's fileURLToPath rejects malformed escapes, invalid UTF-8 and encoded
+// path separators. A permissive URL parser alone does not reject all of these.
+fn local_folder_uri(uri: &str) -> Option<PathBuf> {
+    let url = url::Url::parse(uri).ok()?;
+    let mut bytes = url.path().as_bytes().iter().copied();
+    while let Some(byte) = bytes.next() {
+        if byte != b'%' {
+            continue;
+        }
+        let high = (bytes.next()? as char).to_digit(16)?;
+        let low = (bytes.next()? as char).to_digit(16)?;
+        let decoded = high * 16 + low;
+        if decoded == 0
+            || decoded == u32::from(b'/')
+            || cfg!(windows) && decoded == u32::from(b'\\')
+        {
+            return None;
+        }
+    }
+    let path = url.to_file_path().ok()?;
+    path.to_str()?;
+    Some(path)
 }
 
 /// Typora records recent folders only in its macOS preferences. (The
 /// product converts the whole file, which fails on the dates and data it
 /// also keeps; this reads the one key.)
 fn typora(places: &Places) -> Candidates {
-    if !cfg!(target_os = "macos") {
+    typora_with(
+        places,
+        cfg!(target_os = "macos"),
+        Path::new("/usr/bin/plutil"),
+        PLIST_TIMEOUT,
+    )
+}
+fn typora_with(places: &Places, macos: bool, executable: &Path, timeout: Duration) -> Candidates {
+    if !macos {
         return Ok(vec![]);
     }
     let plist = places
         .home
         .join("Library/Preferences/abnerworks.Typora.plist");
-    if !plist.is_file() {
-        return Err(Read::Missing);
-    }
-    // Only the one key: the whole file holds values JSON cannot carry
-    // (dates, data), which a whole-file conversion refuses.
-    let output = std::process::Command::new("/usr/bin/plutil")
-        .args(["-extract", "recentFolder", "json", "-o", "-"])
-        .arg(&plist)
-        .output()
-        .map_err(|e| Read::Failed(e.to_string()))?;
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr).into_owned()
-            + &String::from_utf8_lossy(&output.stdout);
-        // Typora has not recorded a folder yet.
-        if error.contains("No value at that key path") {
-            return Ok(vec![]);
-        }
-        return Err(Read::Failed(error));
-    }
+    std::fs::metadata(&plist).map_err(Read::from)?;
+    let path = plist
+        .to_str()
+        .ok_or_else(|| Read::Failed("Invalid preferences path.".into()))?;
+    // Extract one key: unrelated date/data values need not be converted to JSON.
+    let output = super::process::run_output(
+        executable,
+        &["-extract", "recentFolder", "json", "-o", "-", path],
+        plist.parent().unwrap(),
+        None,
+        timeout,
+        &AtomicBool::new(false),
+        super::process::OutputLimits {
+            stdout: PLIST_OUTPUT_LIMIT,
+            stderr: PLIST_OUTPUT_LIMIT,
+        },
+    );
+    let output = match output {
+        Ok(output) => output,
+        Err(error) if error.contains("No value at that key path") => return Ok(vec![]),
+        Err(error) => return Err(Read::Failed(error)),
+    };
     let folders = json(&String::from_utf8_lossy(&output.stdout))?;
     Ok(folders
         .as_array()
@@ -204,119 +265,4 @@ fn typora(places: &Places) -> Candidates {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn places(dir: &Path) -> Places {
-        Places {
-            home: dir.join("home"),
-            app_data: dir.join("data"),
-        }
-    }
-
-    #[test]
-    fn obsidian_offers_its_vaults_that_still_exist_newest_first() {
-        let dir = tempfile::tempdir().unwrap();
-        let (old, new) = (dir.path().join("Old"), dir.path().join("New"));
-        std::fs::create_dir(&old).unwrap();
-        std::fs::create_dir(&new).unwrap();
-        std::fs::create_dir_all(dir.path().join("data/obsidian")).unwrap();
-        let registry = serde_json::json!({ "vaults": {
-            "a": { "path": old, "ts": 1 },
-            "b": { "path": new, "ts": 9 },
-            "c": { "path": dir.path().join("Gone"), "ts": 5 },
-            "d": { "path": "relative/vault", "ts": 7 },
-        }});
-        std::fs::write(
-            dir.path().join("data/obsidian/obsidian.json"),
-            registry.to_string(),
-        )
-        .unwrap();
-        let folders = list("obsidian", &places(dir.path())).unwrap();
-        let names: Vec<_> = folders.iter().map(|f| f.name.as_str()).collect();
-        assert_eq!(names, ["New", "Old"]);
-        assert_eq!(folders[0].last_used_at, Some(9));
-    }
-
-    #[test]
-    fn vs_code_and_cursor_offer_local_folders_from_their_history() {
-        let dir = tempfile::tempdir().unwrap();
-        let project = dir.path().join("project");
-        std::fs::create_dir(&project).unwrap();
-        let storage = dir.path().join("data/Cursor/User/globalStorage");
-        std::fs::create_dir_all(&storage).unwrap();
-        let connection = rusqlite::Connection::open(storage.join("state.vscdb")).unwrap();
-        connection
-            .execute(
-                "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
-                [],
-            )
-            .unwrap();
-        let history = serde_json::json!({ "entries": [
-            { "folderUri": url::Url::from_file_path(&project).unwrap().to_string() },
-            { "folderUri": "vscode-remote://ssh-remote+box/home/x", "remoteAuthority": "ssh-remote+box" },
-            { "fileUri": "file:///tmp/a.md" },
-            { "folderUri": "file:///%E0%A4%A" },
-        ]});
-        connection
-            .execute(
-                "INSERT INTO ItemTable (key, value) VALUES (?, ?)",
-                ["history.recentlyOpenedPathsList", &history.to_string()],
-            )
-            .unwrap();
-        drop(connection);
-        let folders = list("cursor", &places(dir.path())).unwrap();
-        assert_eq!(folders.len(), 1);
-        assert_eq!(folders[0].name, "project");
-        // VS Code is not installed here: nothing to offer, not a failure.
-        assert_eq!(list("vscode", &places(dir.path())), Ok(vec![]));
-    }
-
-    /// Typora's preferences also keep dates and data, which a whole-file
-    /// JSON conversion refuses; its recent folders are still read.
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn typora_offers_its_recent_folders_beside_values_json_cannot_carry() {
-        let dir = tempfile::tempdir().unwrap();
-        let notes = dir.path().join("notes");
-        std::fs::create_dir(&notes).unwrap();
-        let prefs = dir.path().join("home/Library/Preferences");
-        std::fs::create_dir_all(&prefs).unwrap();
-        let plist = prefs.join("abnerworks.Typora.plist");
-        let plutil = |args: &[&str]| {
-            let status = std::process::Command::new("/usr/bin/plutil")
-                .args(args)
-                .arg(&plist)
-                .status()
-                .unwrap();
-            assert!(status.success(), "{args:?}");
-        };
-        plutil(&["-create", "xml1"]);
-        plutil(&["-insert", "lastLaunch", "-date", "2026-11-14T00:00:00Z"]);
-        assert_eq!(
-            list("typora", &places(dir.path())),
-            Ok(vec![]),
-            "no folder yet"
-        );
-        plutil(&["-insert", "recentFolder", "-array"]);
-        plutil(&[
-            "-insert",
-            "recentFolder.0",
-            "-string",
-            &notes.to_string_lossy(),
-        ]);
-        let folders = list("typora", &places(dir.path())).unwrap();
-        assert_eq!(folders.len(), 1);
-        assert_eq!(folders[0].name, "notes");
-    }
-
-    #[test]
-    fn a_record_that_cannot_be_read_is_an_error_and_unknown_apps_are_refused() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(dir.path().join("data/obsidian")).unwrap();
-        std::fs::write(dir.path().join("data/obsidian/obsidian.json"), "{not json").unwrap();
-        assert!(list("obsidian", &places(dir.path())).is_err());
-        assert!(list("notion", &places(dir.path())).is_err());
-        assert_eq!(list("typora", &places(dir.path())), Ok(vec![]));
-    }
-}
+mod tests;

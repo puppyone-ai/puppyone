@@ -12348,6 +12348,89 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-app-folder-discovery",
+      "acceptance": "App discovery reads only each application-owned record, adds no files and returns at most fifty unique existing absolute folders in recorded order (Obsidian newest first). Real JSON and readonly SQLite TEXT/BLOB records verify missing, corrupt and wrong-type records, malformed/encoded-separator/invalid-UTF8 file URIs, duplicates, remote authorities, single-file entries, local empty authority markers, and unchanged database bytes with no sidecars. ENOENT/ENOTDIR are empty; permission and other read/stat failures remain errors, including deterministic real ELOOP failures. The production platform routing function honors Linux XDG_CONFIG_HOME and Windows APPDATA overrides and platform defaults without mutating global environment; those two TS cases qualify routing logic only, not non-macOS execution. Typora is skipped off macOS; on macOS real plutil extracts only recentFolder despite unrelated date/data values. Its child process has a five-second deadline, one-MiB per-stream output budget and joined cleanup; controlled converter failures and child exit exercise this same production entry. Unknown source ids are rejected. This row qualifies these six frozen TS acceptance cases and additional native boundary regressions; runtime qualification is macOS.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/app-folder-discovery.test.mjs",
+          "sha256": "489f1f339255638fa9b0fdc992b118ecf5cd4427a349775945f7a66e08dd8543",
+          "cases": [
+            {
+              "index": 0,
+              "name": "recorded app folder discovery > lists existing Obsidian vaults in place without changing their files"
+            },
+            {
+              "index": 1,
+              "name": "recorded app folder discovery > skips a malformed URI without hiding valid local folders"
+            },
+            {
+              "index": 2,
+              "name": "recorded app folder discovery > treats an absent app record as empty, and reports unreadable or corrupt records"
+            },
+            {
+              "index": 3,
+              "name": "recorded app folder discovery > uses the configured app data folder on linux"
+            },
+            {
+              "index": 4,
+              "name": "recorded app folder discovery > uses the configured app data folder on win32"
+            },
+            {
+              "index": 5,
+              "name": "recorded app folder discovery > only offers Typora preferences on macOS and rejects unknown sources"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::obsidian_offers_its_vaults_that_still_exist_newest_first"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::vs_code_and_cursor_offer_local_folders_from_their_history"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::typora_offers_its_recent_folders_beside_values_json_cannot_carry"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::a_record_that_cannot_be_read_is_an_error_and_unknown_apps_are_refused"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::app_data_routing_uses_each_platform_override_and_default_without_mutating_the_environment"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::sqlite_history_rejects_malformed_uris_without_hiding_valid_local_folders_or_writing_records"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::discovery_distinguishes_missing_corrupt_and_wrong_type_records"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::filesystem_read_failures_are_reported_instead_of_being_treated_as_missing"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::obsidian_caps_unique_existing_folders_at_fifty_and_preserves_their_contents"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::typora_is_not_read_outside_macos_even_when_a_record_exists"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_folders::tests::plist_conversion_has_bounded_time_output_and_an_owned_child_lifetime"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
