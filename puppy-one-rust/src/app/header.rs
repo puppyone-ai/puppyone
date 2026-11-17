@@ -408,8 +408,9 @@ pub(super) struct UpdateButton {
     on_click: Option<ClickHandler>,
 }
 impl UpdateButton {
-    pub fn new(state: &crate::features::updates::UpdateState) -> Option<Self> {
+    pub fn new(state: Option<&crate::features::updates::UpdateState>) -> Option<Self> {
         use crate::features::updates::{Titlebar, words};
+        let state = state?;
         let kind = crate::features::updates::titlebar(state)?;
         let version = words::version(state);
         let label = match kind {
@@ -449,8 +450,9 @@ impl RenderOnce for UpdateButton {
         let ty = theme::ty().header;
         let hover = theme::mix(accent, t.hover, 0.18);
         let on_click = self.on_click.filter(|_| interactive);
-        h_flex()
-            .id("titlebar-update")
+        gpui_kit::base::Button::new("titlebar-update")
+            .accessibility_label(self.label.clone())
+            .disabled(!interactive)
             .flex_none()
             .h(px(theme::control()))
             .max_w(px(220.))
@@ -533,3 +535,7 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "header_update_tests.rs"]
+mod update_tests;

@@ -462,8 +462,9 @@ pub fn check_from_menu(window: AnyWindowHandle, app_name: &'static str, cx: &mut
         s.check(cx);
         s.after(
             move |state, cx| {
+                let state = state.clone().enforce_monotonic();
                 if !state.status.actionable() {
-                    show(window, presentation(state, app_name), cx);
+                    show(window, presentation(&state, app_name), cx);
                 }
             },
             cx,
@@ -491,6 +492,7 @@ fn unavailable(app_name: &str) -> Prompt {
 
 /// `createUpdateCheckPresentation` for the states the menu answers.
 fn presentation(state: &UpdateState, app_name: &str) -> Prompt {
+    let state = state.clone().enforce_monotonic();
     let current = state.current_version.clone();
     let app = || ("appName", crate::localization::Arg::from(app_name));
     match state.status {

@@ -285,9 +285,8 @@ impl WindowChrome {
             bar = bar.leading(self.project_context(self.rail, cx));
         }
         // `app-status`: an update to download or restart into comes first.
-        if let Some(button) = crate::features::updates::state(cx)
-            .as_ref()
-            .and_then(header::UpdateButton::new)
+        if let Some(button) =
+            header::UpdateButton::new(crate::features::updates::state(cx).as_ref())
         {
             bar = bar.action(button.on_click(|_, _, cx| {
                 if let Some(updates) = crate::features::updates::global(cx) {

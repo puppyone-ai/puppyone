@@ -15330,6 +15330,115 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-update-titlebar-interaction",
+      "acceptance": "The real native titlebar component accepts an optional update capability and renders no command when absent or nonactionable. Manual-download and prepared-restart buttons expose the candidate version, Button role and focus, and each pointer/Enter/Space action activates once. Installing exposes disabled accessibility state and ignores pointer and keyboard activation; returning to ready restores activation. Native quit cancellation returns to Downloaded (the ready equivalent of TS blocked). These GPUI event tests do not replace real screen-reader or OS relaunch acceptance.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/notifications/desktopUpdateTitlebarModel.test.ts",
+          "sha256": "2ea3f21af8b37e727bc8269e4fc8437a593ea333d3c8802afd21c2cf7f95f276",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop update titlebar presentation > stays hidden when the app shell does not provide updater capability"
+            },
+            {
+              "index": 8,
+              "name": "desktop update titlebar presentation > appears only after the update is downloaded and follows the restart lifecycle"
+            },
+            {
+              "index": 9,
+              "name": "desktop update titlebar presentation > offers a manual download when the user disables automatic downloads"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::header::update_tests::actionable_update_buttons_expose_the_version_and_activate_from_pointer_and_keyboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::header::update_tests::absent_capability_and_nonactionable_update_states_render_no_titlebar_command"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::cancelled_restarts_keep_the_prepared_app_and_ordinary_quit_installs_without_relaunch"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-update-menu-presentation",
+      "acceptance": "The native menu checks the real service and reports the current version without downloading or quitting. Available/downloading/ready/installing and cancelled-restart ready states stay quiet. Both direct presentation and the menu callback independently normalize a stale candidate to up-to-date. Missing/disabled capability reports unavailability, failures retain diagnostics, and acknowledgement causes no update action. Assertions observe the GPUI platform prompt API and its OK response, not the actual macOS alert pixels.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.native-update-menu-action.test.mjs",
+          "sha256": "1b72776a108f29c601bf89524454494b95d5b040eb79f41643ceb832837a1942",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native update menu action > reports an up-to-date release without starting an update"
+            },
+            {
+              "index": 1,
+              "name": "native update menu action > keeps the native check quiet while an update is available"
+            },
+            {
+              "index": 2,
+              "name": "native update menu action > keeps the native check quiet while an update is downloading"
+            },
+            {
+              "index": 3,
+              "name": "native update menu action > keeps the native check quiet while an update is downloaded"
+            },
+            {
+              "index": 4,
+              "name": "native update menu action > keeps the native check quiet while an update is blocked"
+            },
+            {
+              "index": 5,
+              "name": "native update menu action > keeps the native check quiet while an update is installing"
+            },
+            {
+              "index": 6,
+              "name": "native update menu action > never offers an update action for an older candidate"
+            },
+            {
+              "index": 7,
+              "name": "native update menu action > keeps disabled builds honest instead of running a dead command"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::menu::current_version_prompts_once_without_starting_an_update"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::menu::actionable_and_cancelled_restart_states_keep_menu_checks_quiet"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::menu::stale_candidates_have_current_version_presentation_and_no_update_command"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::menu::absent_disabled_and_failed_services_report_an_honest_acknowledgement"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

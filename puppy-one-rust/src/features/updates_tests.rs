@@ -678,3 +678,6 @@ fn disabled_updates_never_schedule_background_checks(cx: &mut gpui::TestAppConte
         Status::Disabled
     );
 }
+
+#[path = "updates_menu_tests.rs"]
+mod menu;
