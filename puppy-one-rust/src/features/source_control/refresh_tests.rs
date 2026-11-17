@@ -108,6 +108,7 @@ impl<'a> Fixture<'a> {
             }
         }
     }
+    #[track_caller]
     fn settle(&mut self, condition: impl Fn(&SourceControl) -> bool) {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
@@ -115,7 +116,17 @@ impl<'a> Fixture<'a> {
             if self.view.read_with(self.cx, |s, _| condition(s)) {
                 break;
             }
-            assert!(Instant::now() < deadline, "the status owner did not settle");
+            if Instant::now() >= deadline {
+                let state = self.view.read_with(self.cx, |s, _| {
+                    format!("busy={}, running={:?}, read={:?}, absent={}, snapshot={}, dirty={}, error={:?}, failure={}",
+                        s.busy, s.running, s.read_ticket, s.repository_absent, s.snapshot.is_some(), s.dirty, s.error, s.failure.is_some())
+                });
+                panic!(
+                    "the status owner did not settle: {state}; reads started={}, active={}",
+                    self.reads.started.load(Ordering::SeqCst),
+                    self.reads.active.load(Ordering::SeqCst)
+                );
+            }
             std::thread::sleep(Duration::from_millis(1));
         }
         assert!(!self.reads.timed_out.load(Ordering::SeqCst));
