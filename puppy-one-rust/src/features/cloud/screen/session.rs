@@ -17,9 +17,12 @@ use gpui::{
     MouseMoveEvent, MouseUpEvent, Pixels, RenderImage, ScrollWheelEvent, Window, px,
 };
 use image::{Frame as ImageFrame, RgbaImage};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
 };
 
 /// Where a session's display comes from: a Cloud Computer's screen
