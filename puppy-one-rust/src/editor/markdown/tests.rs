@@ -20,6 +20,7 @@ mod document_scope_acceptance;
 mod editor_view_acceptance;
 mod html_acceptance;
 mod inline_acceptance;
+mod linked_image_acceptance;
 mod math_acceptance;
 mod table_inline_acceptance;
 mod table_media_acceptance;

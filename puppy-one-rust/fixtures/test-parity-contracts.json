@@ -17374,6 +17374,101 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-linked-image-labels-and-size",
+      "acceptance": "Pair nested link-label brackets per physical line, recover an inner link after a stray opener, honor escaped closers and scan 200000 malformed openers within one second. Native read-only badge rows hide source syntax, retain independent outer targets, and dispatch each actual image click exactly once through Markdown link policy. Mixed text/image labels keep surrounding text and link marks without capturing adjacent images; actual PNG painting and alt labels honor width, two-axis size, wiki embed size and literal non-size pipes. Bitmap reads use local document capabilities; remote HTTP delivery is not claimed.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownLinkedImage.test.ts",
+          "sha256": "c23b65a43dd3087799693a923034b88da5174d7ddb84ac145a8016228ae1d789",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown image inside a link > hides the link syntax around a badge image"
+            },
+            {
+              "index": 1,
+              "name": "Markdown image inside a link > wraps the image in the link label"
+            },
+            {
+              "index": 2,
+              "name": "Markdown image inside a link > projects a row of badges independently"
+            },
+            {
+              "index": 3,
+              "name": "Markdown image inside a link > keeps a label that mixes text and an image"
+            },
+            {
+              "index": 4,
+              "name": "Markdown image inside a link > opens the link when the image is clicked"
+            },
+            {
+              "index": 5,
+              "name": "Markdown image inside a link > does not treat an image beside a link as a label"
+            },
+            {
+              "index": 6,
+              "name": "Markdown image size > applies a width and keeps the description"
+            },
+            {
+              "index": 7,
+              "name": "Markdown image size > applies both axes and keeps the description"
+            },
+            {
+              "index": 8,
+              "name": "Markdown image size > applies an embed width and keeps the description"
+            },
+            {
+              "index": 9,
+              "name": "Markdown image size > keeps a pipe that is not a size in the description"
+            },
+            {
+              "index": 10,
+              "name": "Markdown link label scanning > reads a nested image as part of the label"
+            },
+            {
+              "index": 11,
+              "name": "Markdown link label scanning > recovers the inner link after a stray opening bracket"
+            },
+            {
+              "index": 12,
+              "name": "Markdown link label scanning > does not pair brackets across a line break"
+            },
+            {
+              "index": 13,
+              "name": "Markdown link label scanning > honours an escaped closing bracket"
+            },
+            {
+              "index": 14,
+              "name": "Markdown link label scanning > stays linear on a pathological run of opening brackets"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::linked_image_acceptance::link_labels_pair_nested_images_recover_stray_openers_and_respect_line_escapes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::linked_image_acceptance::malformed_link_labels_remain_bounded_for_two_hundred_thousand_openers"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::linked_image_acceptance::linked_badges_hide_syntax_keep_independent_targets_and_open_once_in_read_only"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::linked_image_acceptance::linked_image_labels_keep_mixed_text_and_do_not_capture_adjacent_images"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::linked_image_acceptance::image_sizes_change_painted_dimensions_without_corrupting_alt_text"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

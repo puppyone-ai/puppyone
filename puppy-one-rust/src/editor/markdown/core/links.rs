@@ -1,7 +1,7 @@
 //! Link token scanners (core/links/markdownLinkModel.ts, wikiLinkModel.ts,
 //! shared/inlineTokenScan.ts). Only links these scanners recognise are
 //! decorated; everything else stays visible source, as in the product.
-use std::ops::Range;
+use std::{collections::HashMap, ops::Range};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LinkToken {
@@ -132,7 +132,31 @@ fn destination(value: &str) -> Option<String> {
 
 /// `[label](destination "title")` tokens of one source string.
 pub fn find_links(source: &str) -> Vec<LinkToken> {
+    // No inline destination can exist without this adjacent delimiter. Avoid
+    // building a bracket index for ordinary prose and unmatched opening runs.
+    if !source.contains("](") {
+        return Vec::new();
+    }
     let bytes = source.as_bytes();
+    // Pair nested labels once. Looking for the first `]` mistakes an image's
+    // destination for the outer link; rescanning every unmatched `[` is quadratic.
+    let mut openings = Vec::new();
+    let mut closings = HashMap::new();
+    let mut at = 0;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'\n' => openings.clear(),
+            b'\\' => at += 1,
+            b'[' => openings.push(at),
+            b']' => {
+                if let Some(open) = openings.pop() {
+                    closings.insert(open, at);
+                }
+            }
+            _ => {}
+        }
+        at += 1;
+    }
     let mut tokens = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
@@ -140,10 +164,12 @@ pub fn find_links(source: &str) -> Vec<LinkToken> {
             i += 1;
             continue;
         }
-        let (label_to, next) = scan_delimiter(bytes, i + 1, b"]");
-        let Some(label_to) = label_to.filter(|&t| t > i + 1 && bytes.get(t + 1) == Some(&b'('))
+        let Some(label_to) = closings
+            .get(&i)
+            .copied()
+            .filter(|&t| t > i + 1 && bytes.get(t + 1) == Some(&b'('))
         else {
-            i = next;
+            i += 1;
             continue;
         };
         let href_from = label_to + 2;
