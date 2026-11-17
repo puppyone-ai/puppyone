@@ -510,6 +510,10 @@ impl<'a> Walker<'a> {
                 }
                 self.push(Frame::TableHead, node);
             }
+            Tag::TableCell => {
+                self.syntax.table_cells.push(trim(doc, range.clone()));
+                self.push(Frame::Other, HlNode::new(range, Hl::NONE, false));
+            }
             Tag::HtmlBlock => {
                 // Lezer `HTMLBlock` children of the document.
                 if self.stack.len() == 1 {
@@ -1029,6 +1033,9 @@ fn shift_syntax_base(syntax: &mut Syntax, base: usize) {
         shift_span(r, base);
     }
     for r in &mut syntax.tables {
+        shift_span(r, base);
+    }
+    for r in &mut syntax.table_cells {
         shift_span(r, base);
     }
     for n in &mut syntax.note_definitions {

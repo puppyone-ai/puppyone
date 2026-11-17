@@ -410,6 +410,8 @@ pub struct Syntax {
     pub code_lines: Vec<Range<usize>>,
     pub highlights: Vec<(Span, Hl)>,
     pub tables: Vec<Span>,
+    /// Parser-owned content ranges; custom inline syntax cannot cross cells.
+    pub table_cells: Vec<Span>,
     pub callouts: Vec<Callout>,
     pub note_definitions: Vec<usize>,
     pub inline_tags: Vec<Span>,
@@ -488,12 +490,6 @@ impl Syntax {
         syntax.code_lines = fences.iter().map(|f| f.lines.clone()).collect();
 
         let mut blocks: Vec<Range<usize>> = syntax.code_lines.clone();
-        blocks.extend(
-            syntax
-                .tables
-                .iter()
-                .map(|t| doc.line_index(t.start)..doc.line_index(t.end) + 1),
-        );
         for f in features {
             let mut extra_blocks = Vec::new();
             if feature::catch_feature_panic(f.id(), "recognize_blocks", || {
@@ -510,14 +506,15 @@ impl Syntax {
         }
         blocks.sort_by_key(|r| r.start);
 
-        lines::add_line_elements_in_lines(
+        let inline_ranges = lines::inline_ranges(
             doc,
             start_line..end_line,
             &blocks,
-            features,
-            &mut syntax.elements,
+            &syntax.tables,
+            &syntax.table_cells,
         );
-        footnotes::add_in_lines(doc, start_line..end_line, &blocks, &mut syntax);
+        lines::add_inline_elements(doc, &inline_ranges, features, &mut syntax.elements);
+        footnotes::add_in_ranges(doc, &inline_ranges, &mut syntax);
         let html = inline_html::elements_in_buffer(doc, &syntax.inline_tags);
         syntax.elements.extend(html);
         syntax.elements.sort_by(|a, b| {
@@ -541,7 +538,13 @@ impl Syntax {
         syntax.elements.retain(|e| {
             !matches!(
                 e.kind,
-                Kind::Highlight | Kind::Comment | Kind::FeatureInline(_)
+                Kind::Highlight
+                    | Kind::Comment
+                    | Kind::WikiLink
+                    | Kind::Strike
+                    | Kind::ImageEmbed
+                    | Kind::VideoEmbed
+                    | Kind::FeatureInline(_)
             ) || !code
                 .iter()
                 .any(|c| c.start < e.range.end && e.range.start < c.end)
@@ -1073,6 +1076,7 @@ impl Syntax {
             }
         };
         splice_spans_in_place(&mut prev.tables, win.tables);
+        splice_spans_in_place(&mut prev.table_cells, win.table_cells);
         splice_spans_in_place(&mut prev.inline_tags, win.inline_tags);
         splice_spans_in_place(&mut prev.html_blocks, win.html_blocks);
         splice_spans_in_place(&mut prev.top_blocks, win.top_blocks);

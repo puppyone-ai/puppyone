@@ -159,18 +159,22 @@ fn clamp_element(doc: &Buffer, mut e: Element) -> Option<Element> {
     Some(e)
 }
 
-/// Wiki links, `~~strike~~`, `==highlight==`, `%%comment%%`, and feature
-/// `recognize_inline` hooks across `line_window` outside `blocks`.
-pub fn add_line_elements_in_lines(
+/// The source ranges that share the page's inline policy. Table cells are
+/// separate regions, so delimiters in neighboring cells cannot form a pair.
+/// Code and feature-owned blocks remain excluded. All inputs are sorted;
+/// walking their cursors keeps this pass linear in the parsed window.
+pub fn inline_ranges(
     doc: &Buffer,
     line_window: Range<usize>,
     blocks: &[Range<usize>],
-    features: Features,
-    elements: &mut Vec<Element>,
-) {
+    tables: &[Span],
+    cells: &[Span],
+) -> Vec<Span> {
     let mut block = blocks.iter().peekable();
-    let end_limit = line_window.end.min(doc.line_count());
-    for line in line_window.start..end_limit {
+    let mut table = tables.iter().peekable();
+    let mut cell = cells.iter().peekable();
+    let mut out = Vec::new();
+    for line in line_window.start..line_window.end.min(doc.line_count()) {
         while block.peek().is_some_and(|b| b.end <= line) {
             block.next();
         }
@@ -178,7 +182,39 @@ pub fn add_line_elements_in_lines(
             continue;
         }
         let range = doc.line_range(line);
-        let text_cow = doc.line_cow(line);
+        while table.peek().is_some_and(|t| t.end <= range.start) {
+            table.next();
+        }
+        if table
+            .peek()
+            .is_some_and(|t| t.start < range.end && t.end > range.start)
+        {
+            while cell.peek().is_some_and(|c| c.end <= range.start) {
+                cell.next();
+            }
+            while cell.peek().is_some_and(|c| c.start < range.end) {
+                let c = cell.next().unwrap();
+                if !c.is_empty() {
+                    out.push(c.clone());
+                }
+            }
+        } else {
+            out.push(range);
+        }
+    }
+    out
+}
+
+/// Wiki links, `~~strike~~`, `==highlight==`, `%%comment%%`, and feature
+/// `recognize_inline` hooks over each eligible line or table cell.
+pub fn add_inline_elements(
+    doc: &Buffer,
+    ranges: &[Span],
+    features: Features,
+    elements: &mut Vec<Element>,
+) {
+    for range in ranges {
+        let text_cow = doc.slice_cow(range.clone());
         let text = text_cow.as_ref();
         let bytes = text.as_bytes();
         for token in links::find_wiki_links(text) {

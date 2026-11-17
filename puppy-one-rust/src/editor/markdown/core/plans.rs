@@ -254,6 +254,7 @@ pub fn window_syntax_view(
         code_lines,
         highlights: Vec::new(),
         tables: slice_spans(&syntax.tables),
+        table_cells: slice_spans(&syntax.table_cells),
         callouts,
         note_definitions: Vec::new(),
         inline_tags: Vec::new(),

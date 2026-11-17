@@ -15,6 +15,7 @@ use crate::{
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
 mod block_acceptance;
+mod table_inline_acceptance;
 
 #[test]
 fn dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans() {

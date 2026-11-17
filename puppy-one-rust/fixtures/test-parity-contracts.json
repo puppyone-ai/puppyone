@@ -16508,6 +16508,69 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-table-shared-inline-policy",
+      "acceptance": "Actual drawn native table cells preserve nested bold/italic roles, wiki links within prose, bare URL links and decoded entities without changing source or revision. A 20,000-unmatched-bracket cell parses, mounts and draws within the TS two-second budget. Supplemental regressions forbid custom inline delimiters spanning neighboring cells, preserve code literals in cells and prose, include table footnotes in document-wide first-reference numbering, and verify edited wiki-link display across real input/undo/redo and cell range splicing against a full parse. The randomized incremental syntax and plans equivalence test guards shared parser changes. These native presentation checks do not claim browser pixel identity.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
+          "sha256": "3543942774675a149ad6b8d4030ad98fe0b5dc9c888e7b21cf27178a3aaaff6c",
+          "cases": [
+            {
+              "index": 51,
+              "name": "Markdown table cells use the page pipeline > handles nesting a scanner could not"
+            },
+            {
+              "index": 52,
+              "name": "Markdown table cells use the page pipeline > keeps a wiki link inside plain text"
+            },
+            {
+              "index": 53,
+              "name": "Markdown table cells use the page pipeline > links a bare URL"
+            },
+            {
+              "index": 54,
+              "name": "Markdown table cells use the page pipeline > decodes an entity"
+            },
+            {
+              "index": 55,
+              "name": "Markdown table cells use the page pipeline > keeps a long pathological source linear"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_inline_acceptance::table_inline_delimiters_cannot_cross_cells_and_code_stays_literal"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_inline_acceptance::table_inline_ranges_match_full_parse_after_prefix_and_cell_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_inline_acceptance::editing_table_wiki_links_updates_the_display_and_supports_undo_redo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_inline_acceptance::table_cells_render_nested_marks_wiki_links_bare_urls_and_entities"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_inline_acceptance::pathological_table_inline_source_stays_within_the_ts_acceptance_budget"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_inline_acceptance::table_footnotes_participate_in_document_order_and_keep_inline_code_literal"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::incremental_syntax_and_plans_match_full_parse_across_random_edits"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
