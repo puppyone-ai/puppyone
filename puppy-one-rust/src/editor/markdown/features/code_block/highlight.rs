@@ -4,9 +4,9 @@
 //! syntax to eleven colour roles. Parsing is GPUI Kit's tree-sitter
 //! highlighter; its capture names resolve to the same roles.
 use super::style::SyntaxColors;
-use crate::editor::code::highlight::Roles;
+use crate::editor::code::highlight::{Roles, syntax_highlighter};
 use gpui::HighlightStyle;
-use gpui_kit::component::{Rope, highlighter::SyntaxHighlighter};
+use gpui_kit::component::Rope;
 use std::{cell::RefCell, collections::HashMap, ops::Range, sync::Arc};
 
 /// `MARKDOWN_CODE_HIGHLIGHT_SOURCE_BYTE_LIMIT` / `_LINE_UNIT_LIMIT`.
@@ -49,7 +49,7 @@ pub fn highlight(code: &str, language: &str, colors: &SyntaxColors) -> Highlight
     if let Some(found) = CACHE.with(|c| c.borrow().get(&key).cloned()) {
         return found;
     }
-    let mut highlighter = SyntaxHighlighter::new(grammar);
+    let mut highlighter = syntax_highlighter(grammar);
     highlighter.update(None, &Rope::from(code), None);
     let roles = Roles(colors.clone());
     let mut styles = highlighter.styles(&(0..code.len()), &roles);
@@ -88,5 +88,47 @@ mod tests {
         );
         assert!(highlight("fn main() {}", "rust", &colors).is_empty());
         assert!(highlight("x", "", &colors).is_empty());
+    }
+    #[test]
+    fn jsx_and_tsx_fences_keep_syntax_roles_without_a_code_view() {
+        for (language, source) in [
+            (
+                "jsx",
+                "// example\nconst view = <button title=\"Go\">{42}</button>;",
+            ),
+            (
+                "tsx",
+                "// example\nconst view: number = <button title=\"Go\">{42}</button>;",
+            ),
+        ] {
+            let colors = MarkdownTheme::resolve(true, Scale::Medium)
+                .code_block
+                .syntax;
+            let fenced = highlight(source, language, &colors);
+            let mut tokens = vec![
+                ("// example", colors.comment),
+                ("const", colors.keyword),
+                ("button", colors.type_name),
+                ("title", colors.property),
+                ("\"Go\"", colors.string),
+                ("42", colors.constant),
+            ];
+            if language == "tsx" {
+                tokens.push(("number", colors.type_name));
+            }
+            for (token, color) in tokens {
+                for (start, _) in source.match_indices(token) {
+                    let expected = start..start + token.len();
+                    assert!(
+                        fenced.iter().any(|(range, style)| {
+                            range.start <= expected.start
+                                && range.end >= expected.end
+                                && style.color == Some(color.into())
+                        }),
+                        "fenced {language} role missing for {token:?}: {fenced:?}"
+                    );
+                }
+            }
+        }
     }
 }

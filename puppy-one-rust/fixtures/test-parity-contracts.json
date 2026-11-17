@@ -16188,6 +16188,125 @@
         }
       ],
       "environment": "Controlled provider and owned temporary files; native GPUI rendering, real click/keyboard events, bounded worker pool, no live Cloud or real OS window smoke claim."
+    },
+    {
+      "id": "native-code-language-parsing-and-indentation",
+      "acceptance": "Language aliases, explicit hints, JSX/TSX filename refinement and filename fallback match the pinned TS resolver oracle (756 combinations). Actual native surfaces parse and color all seven TS language examples plus JSX/TSX, preserve source bytes and emit no edit. Python uses four spaces and TypeScript two for both displayed tabs and real Tab/Enter input; undo preserves the original source. JSX/TSX source surfaces and independently initialized Markdown fences retain JavaScript, JSX tag/attribute and TypeScript roles. Explicit plaintext remains authoritative, including the shared catalog default for TOML; parser availability does not silently override format routing. Existing rebind, JSON indentation and theme projection regressions also execute.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/code/codeLanguageSupport.test.ts",
+          "sha256": "4baaf917b9410b3d0d7ccdefafa2d1850f45d75db310d86aba541c45af1637e1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "code language support > resolves javascript and component.jsx to jsx"
+            },
+            {
+              "index": 1,
+              "name": "code language support > resolves typescript and component.tsx to tsx"
+            },
+            {
+              "index": 2,
+              "name": "code language support > resolves python and worker.py to python"
+            },
+            {
+              "index": 3,
+              "name": "code language support > resolves bash and deploy.sh to shell"
+            },
+            {
+              "index": 4,
+              "name": "code language support > resolves yml and workflow.yml to yaml"
+            },
+            {
+              "index": 5,
+              "name": "code language support > resolves null and schema.sql to sql"
+            },
+            {
+              "index": 6,
+              "name": "code language support > resolves null and pyproject.toml to toml"
+            },
+            {
+              "index": 7,
+              "name": "code language support > resolves null and notes.txt to plaintext"
+            },
+            {
+              "index": 8,
+              "name": "code language support > loads real javascript parsing support"
+            },
+            {
+              "index": 9,
+              "name": "code language support > loads real python parsing support"
+            },
+            {
+              "index": 10,
+              "name": "code language support > loads real json parsing support"
+            },
+            {
+              "index": 11,
+              "name": "code language support > loads real yaml parsing support"
+            },
+            {
+              "index": 12,
+              "name": "code language support > loads real sql parsing support"
+            },
+            {
+              "index": 13,
+              "name": "code language support > loads real shell parsing support"
+            },
+            {
+              "index": 14,
+              "name": "code language support > loads real toml parsing support"
+            },
+            {
+              "index": 15,
+              "name": "code language support > uses Python's conventional four-space indentation"
+            },
+            {
+              "index": 16,
+              "name": "code language support > keeps tab rendering aligned with the language indentation width"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::code::language::tests::languages_and_indent_match_current_ts"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::code_block::highlight::tests::supported_languages_highlight_and_others_stay_plain"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::code_block::highlight::tests::jsx_and_tsx_fences_keep_syntax_roles_without_a_code_view"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::code::tests::native_code_surfaces_execute_each_required_language_parser"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::code::tests::native_python_and_typescript_align_tab_display_with_enter_and_tab_input"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::code::tests::jsx_and_tsx_source_keep_javascript_jsx_and_typescript_roles"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::code::tests::code_language_rebind_keeps_entity_selection_and_history"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::code::tests::code_platform_typing_autocloses_and_indents_json"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::code::tests::markdown_source_highlighting_subtheme_tokens_and_indent_guides"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
