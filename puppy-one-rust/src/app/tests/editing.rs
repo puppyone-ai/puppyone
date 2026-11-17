@@ -348,6 +348,98 @@ fn a_hibernated_tab_keeps_its_undo_history_when_it_comes_back(cx: &mut TestAppCo
         "# Original\n"
     );
 }
+/// A page that edited holds the only copy of its undo history (the web
+/// engine's model cannot be detached), so the live slot budget (`WB-01`)
+/// never releases it while it is hidden; a clean Markdown copy goes instead.
+#[gpui::test]
+fn a_hidden_page_holding_its_undo_history_is_not_hibernated(cx: &mut TestAppContext) {
+    let flow = |prompt: &str| {
+        format!(
+            "{{\"kind\":\"puppyflow\",\"version\":1,\"title\":\"Matrix\",\"description\":\"\",\"steps\":[{{\"id\":\"step_matrix\",\"agent\":\"codex\",\"prompt\":\"{prompt}\",\"enabled\":true}}]}}\n"
+        )
+    };
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("flow.puppyflow"), flow("alpha")).unwrap();
+    std::fs::write(temp.path().join("a.md"), "# A\n").unwrap();
+    std::fs::write(temp.path().join("b.md"), "# B\n").unwrap();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                cx.update(|w, cx| {
+                    w.draw(cx).clear(cx);
+                });
+                if view.read_with(cx, |s, cx| ready(s, cx)) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Workbench did not settle"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    let open = |view: &Entity<Shell>, cx: &mut VisualTestContext, path: &'static str| {
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile(path.into())))
+        });
+        settle(view, cx, &|s, cx| {
+            !s.files(cx).busy()
+                && s.files(cx)
+                    .opened()
+                    .is_some_and(|(_, p)| p == std::path::Path::new(path))
+        });
+    };
+    let active_key = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.files(cx)
+                .state()
+                .unwrap()
+                .layout
+                .active_editor()
+                .unwrap()
+                .to_owned()
+        })
+    };
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.set_max_live_slots(1);
+            d.begin(Intent::OpenFolder(temp.path().into()))
+        })
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    open(&view, cx, "flow.puppyflow");
+    let flow_key = active_key(&view, cx);
+    let page = view.read_with(cx, |s, cx| s.editor.read(cx).front.clone());
+    let generation = page
+        .read_with(cx, |h, cx| h.page_generation(cx))
+        .expect("a PuppyFlow page");
+    let edit =
+        serde_json::json!({"type": "content", "generation": generation, "text": flow("human")});
+    assert!(page.update(cx, |h, cx| h.page_deliver(&edit.to_string(), cx)));
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).saving() && !s.files(cx).dirty
+    });
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("flow.puppyflow")).unwrap(),
+        flow("human")
+    );
+    open(&view, cx, "a.md");
+    let a_key = active_key(&view, cx);
+    open(&view, cx, "b.md");
+    settle(&view, cx, &|s, cx| s.files(cx).is_hibernated(&a_key));
+    view.read_with(cx, |s, cx| {
+        assert!(!s.files(cx).is_hibernated(&flow_key));
+        assert!(s.files(cx).slot_for_key(&flow_key).is_some());
+    });
+    assert!(page.read_with(cx, |h, cx| h.holds_page_history(cx)));
+}
+
 #[gpui::test]
 fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     cx: &mut TestAppContext,

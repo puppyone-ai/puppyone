@@ -230,6 +230,21 @@ impl DocumentEditor {
         self.surface.as_ref()?.as_test_probe()?.csv_editor()
     }
 
+    /// Window tests deliver a web page's message to the open surface.
+    #[cfg(feature = "test-support")]
+    pub fn page_deliver(&self, body: &str, cx: &mut App) -> bool {
+        self.surface
+            .as_ref()
+            .and_then(|s| s.as_test_probe())
+            .is_some_and(|probe| probe.page_deliver(body, cx))
+    }
+
+    /// The generation the open page's next messages must carry.
+    #[cfg(feature = "test-support")]
+    pub fn page_generation(&self, cx: &App) -> Option<u64> {
+        self.surface.as_ref()?.as_test_probe()?.page_generation(cx)
+    }
+
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             workbench: false,
@@ -333,6 +348,18 @@ impl DocumentEditor {
         self.surface
             .as_ref()
             .and_then(|s| catch_unwind(AssertUnwindSafe(|| s.composing(cx))).ok())
+            .unwrap_or(false)
+    }
+
+    /// Whether the open surface's undo history lives only in its page
+    /// (`WB-01` retention guard).
+    pub fn holds_page_history(&self, cx: &App) -> bool {
+        if self.is_faulted() {
+            return false;
+        }
+        self.surface
+            .as_ref()
+            .and_then(|s| catch_unwind(AssertUnwindSafe(|| s.holds_page_history(cx))).ok())
             .unwrap_or(false)
     }
 

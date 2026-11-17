@@ -108,6 +108,8 @@ pub struct Runtime {
     host_mru: Vec<String>,
     /// Slots currently in active IME composition reported by `EditorArea` (`WB-01`).
     composing_slots: std::collections::BTreeSet<SlotId>,
+    /// Slots whose undo history lives only in their page, reported by `EditorArea` (`WB-01`).
+    page_history_slots: std::collections::BTreeSet<SlotId>,
     /// Saved `SurfaceViewState`s queued to restore when `EditorArea` opens/rehydrates a slot (`WB-10`).
     pending_view_restores: BTreeMap<SlotId, super::view_state::SurfaceViewState>,
     /// Mapping of recently hibernated `SlotId -> (workspace_key, resource_key)` so `EditorArea::sync`
@@ -1002,6 +1004,15 @@ impl Runtime {
         }
     }
 
+    /// Marks whether `slot`'s undo history lives only in its page (`WB-01`).
+    pub fn set_slot_page_history(&mut self, slot: SlotId, held: bool) {
+        if held {
+            self.page_history_slots.insert(slot);
+        } else {
+            self.page_history_slots.remove(&slot);
+        }
+    }
+
     /// Records `state` into the owning workspace's bounded `ViewStateStore` (`WB-10`).
     pub fn record_view_state(&mut self, slot: SlotId, state: super::view_state::SurfaceViewState) {
         if slot == 0 {
@@ -1138,6 +1149,7 @@ impl Runtime {
                 unflushable_draft: slot.files.has_unflushable_draft(),
                 owned_by_mutation: self.mutation_owns_slot(*id),
                 composing: self.composing_slots.contains(id),
+                page_history: self.page_history_slots.contains(id),
             })
             .collect();
 
@@ -1161,6 +1173,7 @@ impl Runtime {
             slot.files.pause_watch();
             let models = slot.files.take_document_models();
             self.composing_slots.remove(&slot_id);
+            self.page_history_slots.remove(&slot_id);
             self.pending_view_restores.remove(&slot_id);
             if self.evicted_slot_keys.len() >= 128
                 && let Some(first) = self.evicted_slot_keys.keys().next().copied()

@@ -55,7 +55,8 @@ impl Drop for InputState {
         }
     }
 }
-struct NativeWindow {
+/// An offscreen AppKit window that hosts one WebView child.
+pub(super) struct NativeWindow {
     window: Retained<AnyObject>,
     view: Retained<AnyObject>,
 }
@@ -69,7 +70,7 @@ impl HasWindowHandle for NativeWindow {
     }
 }
 impl NativeWindow {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         // SAFETY: the isolated process initializes and uses AppKit on its main thread.
         unsafe {
             let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];

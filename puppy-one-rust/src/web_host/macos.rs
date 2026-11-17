@@ -365,3 +365,11 @@ mod whiteboard_probe;
 pub(super) fn run_whiteboard_probe(root: &std::path::Path) {
     whiteboard_probe::run(root);
 }
+
+#[cfg(feature = "dev-capture")]
+#[path = "macos_structured_probe.rs"]
+mod structured_probe;
+#[cfg(feature = "dev-capture")]
+pub(super) fn run_structured_probe() {
+    structured_probe::run();
+}

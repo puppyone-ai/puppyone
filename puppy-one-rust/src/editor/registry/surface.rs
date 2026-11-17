@@ -118,6 +118,21 @@ pub trait SurfaceTestProbe {
     fn special_surface(&self, _cx: &App) -> Option<SpecialSurfaceProbe> {
         None
     }
+    /// A web page's message, as its engine would deliver it.
+    #[cfg(any(test, feature = "test-support"))]
+    fn page_deliver(&self, _body: &str, _cx: &mut App) -> bool {
+        false
+    }
+    /// The generation the page's next messages must carry.
+    #[cfg(any(test, feature = "test-support"))]
+    fn page_generation(&self, _cx: &App) -> Option<u64> {
+        None
+    }
+    /// The entry document a created or recreated page boots.
+    #[cfg(test)]
+    fn page_entry(&self, _cx: &App) -> Option<String> {
+        None
+    }
 }
 
 pub trait ViewerSurface {
@@ -145,6 +160,11 @@ pub trait ViewerSurface {
     }
     /// An input-method composition is open (snapshots wait for it).
     fn composing(&self, _cx: &App) -> bool {
+        false
+    }
+    /// The undo history lives only in the surface's page (a web engine model
+    /// that cannot be detached): releasing the surface would lose it.
+    fn holds_page_history(&self, _cx: &App) -> bool {
         false
     }
     /// The file changed on disk: show its new text in place.

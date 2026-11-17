@@ -77,4 +77,10 @@ name = "webview-whiteboard-probe"
 path = "bin/webview-whiteboard-probe.rs"
 required-features = ["dev-capture"]
 test = false
+
+[[bin]]
+name = "webview-structured-probe"
+path = "bin/webview-structured-probe.rs"
+required-features = ["dev-capture"]
+test = false
 bench = false

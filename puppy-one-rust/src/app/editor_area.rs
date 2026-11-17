@@ -310,6 +310,7 @@ impl EditorArea {
         let sampled: Vec<(
             u64,
             bool,
+            bool,
             Option<crate::editor::workbench::view_state::SurfaceViewState>,
         )> = self
             .hosts
@@ -317,12 +318,18 @@ impl EditorArea {
             .filter(|(slot, _)| **slot != 0)
             .map(|(slot, editor)| {
                 let s = editor.read(cx);
-                (*slot, s.composing(cx), s.view_state(cx))
+                (
+                    *slot,
+                    s.composing(cx),
+                    s.holds_page_history(cx),
+                    s.view_state(cx),
+                )
             })
             .collect();
         self.docs.update(cx, |d, _| {
-            for (slot, composing, vs) in sampled {
+            for (slot, composing, page_history, vs) in sampled {
                 d.set_slot_composing(slot, composing);
+                d.set_slot_page_history(slot, page_history);
                 if let Some(vs) = vs {
                     d.record_view_state(slot, vs);
                 }
@@ -395,6 +402,7 @@ impl EditorArea {
             self.docs.update(cx, |d, _| {
                 for (id, vs) in evicted_final {
                     d.set_slot_composing(id, false);
+                    d.set_slot_page_history(id, false);
                     if let Some(vs) = vs {
                         d.record_view_state(id, vs);
                     }

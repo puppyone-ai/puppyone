@@ -42,6 +42,8 @@ pub struct SlotCandidate {
     pub unflushable_draft: bool,
     pub owned_by_mutation: bool,
     pub composing: bool,
+    /// The undo history lives only in the open page and would die with it.
+    pub page_history: bool,
 }
 
 impl SlotCandidate {
@@ -57,6 +59,7 @@ impl SlotCandidate {
             || self.unflushable_draft
             || self.owned_by_mutation
             || self.composing
+            || self.page_history
     }
 }
 
@@ -174,6 +177,7 @@ mod tests {
             unflushable_draft: false,
             owned_by_mutation: false,
             composing: false,
+            page_history: false,
         }
     }
 
@@ -202,6 +206,25 @@ mod tests {
         // are evictable because `dirty.md`, `ime.md`, and `active.md` are pinned!
         let evicted = select_slots_to_hibernate(&candidates, &mru, 3);
         assert_eq!(evicted, vec![1, 4]);
+    }
+
+    #[test]
+    fn a_page_holding_the_only_undo_history_is_never_hibernated() {
+        let mut page = clean_slot(1, "map.contextmap", false);
+        page.page_history = true;
+        let candidates = vec![
+            page,
+            clean_slot(2, "notes.md", false),
+            clean_slot(3, "active.md", true),
+        ];
+        let mru = vec![
+            "active.md".into(),
+            "notes.md".into(),
+            "map.contextmap".into(),
+        ];
+        // The page is the oldest, but only the clean Markdown copy may go:
+        // its history outlives its view, the page's would not.
+        assert_eq!(select_slots_to_hibernate(&candidates, &mru, 1), vec![2]);
     }
 
     #[test]
