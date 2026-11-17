@@ -87,7 +87,7 @@ pub(super) struct EditorArea {
     /// Pending prompt for a Finder file dropped from outside this workspace (`WB-21`).
     pub pending_external_drop: Option<PendingExternalDrop>,
     /// Re-renders once a transient "Saved" status lapses.
-    pub saved_refresh: Option<Task<()>>,
+    pub saved_refresh: Option<(std::time::Instant, Task<()>)>,
     /// Where each pane and split was painted, in window coordinates: what
     /// a drop or a split resize is measured against.
     pub(super) pane_bounds: Painted,

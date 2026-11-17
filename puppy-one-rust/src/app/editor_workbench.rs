@@ -149,26 +149,30 @@ impl EditorArea {
     }
     /// A "Saved" status lapses on its own: the area draws again then.
     pub(super) fn schedule_saved_refresh(&mut self, cx: &mut Context<Self>) {
-        use crate::documents::SaveStatus;
-        if self.saved_refresh.is_some() {
+        let docs = self.docs.read(cx);
+        let expires = docs
+            .retained_slots()
+            .into_iter()
+            .filter_map(|slot| docs.slot(slot).and_then(|f| f.save_status_expiry()))
+            .min();
+        if self.saved_refresh.as_ref().map(|(at, _)| *at) == expires {
             return;
         }
-        let docs = self.docs.read(cx);
-        let saved = docs.retained_slots().into_iter().any(|slot| {
-            docs.slot(slot)
-                .is_some_and(|f| f.save_status() == SaveStatus::Saved)
-        });
-        if saved {
-            self.saved_refresh = Some(cx.spawn(async move |this, cx| {
+        // Dropping the previous task retires its deadline. After the earliest
+        // confirmation expires, arrange the next retained document's repaint.
+        self.saved_refresh = expires.map(|at| {
+            let task = cx.spawn(async move |this, cx| {
                 cx.background_executor()
-                    .timer(crate::documents::SAVED_STATUS_DURATION)
+                    .timer(at.saturating_duration_since(std::time::Instant::now()))
                     .await;
                 let _ = this.update(cx, |s, cx| {
                     s.saved_refresh = None;
+                    s.schedule_saved_refresh(cx);
                     cx.notify();
                 });
-            }));
-        }
+            });
+            (at, task)
+        });
     }
     /// `.editor-save-overlay` / `EditorSaveButton`: a failed save offers
     /// Retry everywhere; hosted documents also show Saving… and Saved
@@ -187,6 +191,7 @@ impl EditorArea {
         let chip = |id: &'static str| {
             h_flex()
                 .id(SharedString::from(format!("{id}-{slot}")))
+                .debug_selector(move || format!("{id}-{slot}"))
                 .h(px(theme::control()))
                 .px(px(10.))
                 .gap(px(6.))

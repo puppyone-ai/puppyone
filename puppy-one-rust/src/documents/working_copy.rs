@@ -294,13 +294,24 @@ impl WorkingCopy {
         } else if self.save_announced && self.session.as_ref().is_some_and(|s| s.has_active_write())
         {
             SaveStatus::Saving
-        } else if self
-            .saved_at
-            .is_some_and(|at| at.elapsed() < SAVED_STATUS_DURATION)
+        } else if !self.dirty
+            && self
+                .saved_at
+                .is_some_and(|at| at.elapsed() < SAVED_STATUS_DURATION)
         {
             SaveStatus::Saved
         } else {
             SaveStatus::Clean
+        }
+    }
+
+    /// The window schedules its repaint from the current confirmation's
+    /// deadline, including when another save replaces an earlier confirmation.
+    pub fn save_status_expiry(&self) -> Option<Instant> {
+        if self.save_status() == SaveStatus::Saved {
+            self.saved_at.map(|at| at + SAVED_STATUS_DURATION)
+        } else {
+            None
         }
     }
 
@@ -1056,6 +1067,9 @@ impl WorkingCopy {
                     && s.id == id
                     && revision >= s.revision
                 {
+                    if dirty || revision > self.revision {
+                        self.saved_at = None;
+                    }
                     s.local_edit(revision, dirty);
                     if s.needs_snapshot {
                         self.auto_save.schedule(now);

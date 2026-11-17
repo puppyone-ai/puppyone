@@ -13,7 +13,7 @@ fn snapshot_serials(view: &Entity<Shell>, cx: &mut VisualTestContext, slots: &[u
     })
 }
 
-fn open_project_files(
+pub(super) fn open_project_files(
     view: &Entity<Shell>,
     cx: &mut VisualTestContext,
     root: &std::path::Path,
