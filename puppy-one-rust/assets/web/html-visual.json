@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "2d2cf6a629b2658750e80b536fd9d6999888ebef",
+  "sourceCommit": "1ee92392ecdcd3ba8c4b976a0d55cfb8bd35a484",
   "entry": "tools/html-visual-entry.tsx",
   "entryHash": "1a1050159c7992d44aac15aef7886aa6137124827ace4ff12fed7565afb908b4",
   "outputs": {
     "html-visual.js": "4c4d24d8f5c0ecad184bc5ebf2862c10424a01fa2e3777f22feff2ba341b6d80",
-    "html-visual.css": "c81af083700a852ed6840c4586bf97c40be4703aeab5b5f07567ecc63161f84d",
+    "html-visual.css": "721ed23a77de1cf6b2883f5452454c5f2e185fce945abb24ad80ace552b64ea8",
     "html-visual-geist.woff2": "e24cec106619c03f0b3519e31b9bc55e0d5e926b6a95b8d798cd8cef215b1505"
   },
   "sourceHashes": {
@@ -59,7 +59,7 @@
     "src/shared-ui/primitives/Tooltip.tsx": "7f97a01872ca9d539db60207bfe2b5d4229b2cb42519da4140a25e42d895f995",
     "src/shared-ui/primitives/orderedDitherField.ts": "239290461cda787a12ee74b3087a23263f6d8d796a5cbd747c91f055fa1c56c6",
     "src/shared-ui/styles/control-geometry.css": "ac9b6bc2f31de92373b028de482517cec75a3b5a13a5a3fee06b0f19a03554f3",
-    "src/shared-ui/styles/editor/html-editor.css": "1428a06311681786b7428a0b93fc80ece39df910000515fac2ccec26a2af8361",
+    "src/shared-ui/styles/editor/html-editor.css": "7dab730074dc9c7d9cb28d9e5a669394bd6803761a1e9a84c12096ef53ac3a64",
     "src/shared-ui/styles/floating-notice.css": "2b4b2942af26b8a7dc59226011c3aa5205f7919e195f095eae7c2d3ecca20e5e",
     "src/shared-ui/styles/loading-mark.css": "733f198e5b1bf3cc347fa325d8d0b44a26031b9a6c4ab6525383063c9218fb50",
     "src/styles/fallback-theme.generated.css": "eb2953ed7b9daf748d89c95341b5b833d24eb1019d002608259f7ff1300d6236",
