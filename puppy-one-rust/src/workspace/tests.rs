@@ -256,13 +256,20 @@ fn local_watch_coalesces_changes_and_drop_releases_its_worker() {
             }),
         )
         .unwrap();
-    std::fs::write(dir.path().join("note.md"), "after").unwrap();
+    // Subscribe performs an immediate baseline check. Publish a completed
+    // replacement so this coalescing/lifetime test never races a truncated file.
+    // In-place writes and failure recovery have their own real-watch acceptance.
+    let replacement = dir.path().join("note.tmp");
+    std::fs::write(&replacement, "after").unwrap();
+    std::fs::rename(&replacement, dir.path().join("note.md")).unwrap();
     let deadline = Instant::now() + Duration::from_secs(4);
     while !wake.load(Ordering::SeqCst) {
         assert!(Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(matches!(watch.next(), Some(WatchEvent::Invalidated)));
+    let event = watch.next();
+    assert!(matches!(event, Some(WatchEvent::Invalidated)), "{event:?}");
+    assert_eq!(ws.read(Path::new("note.md")).unwrap().text, "after");
     assert!(watch.next().is_none());
     drop(watch);
     // The notify closure is held only while the watch worker lives.
