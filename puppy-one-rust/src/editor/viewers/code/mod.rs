@@ -427,12 +427,18 @@ pub fn open_with(
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
     let view = cx.new(|cx| CodeView::new_with(request, language, soft_wrap, window, cx));
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
     let editor = view.read(cx).editor.clone();
-    Box::new(CodeSurface { view, editor })
+    Box::new(CodeSurface {
+        view,
+        #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+        editor,
+    })
 }
 
 pub(crate) struct CodeSurface {
     pub(crate) view: Entity<CodeView>,
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
     pub(crate) editor: Entity<EditorView>,
 }
 
