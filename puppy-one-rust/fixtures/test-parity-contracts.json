@@ -17276,6 +17276,69 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-editor-view-lifecycle-and-source-input",
+      "acceptance": "Native editor mount/release and distinct view identity; exact widget-state replacement and idempotent unmount disposal; IME text survives with neighboring decorations and commits into one undo unit; shifted HTML block keeps its stable native identity, opens current source at start + 1, edits the canonical document and restores updated preview on exit; Escape collapses source at its current end without document/history changes, including read-only; table inline HTML preserves authored text and color. Six pinned TS cases. GPUI rendering clears its frame arena before lifecycle observations. Native RAII/widget identity replaces DOM identity; no whole-product or real-OS teardown claim.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownEditorView.test.ts",
+          "sha256": "2779656bbe478cdc6949e823dd8cc282950b13c4d7e0fb6820d479ee76f55b85",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown EditorView lifecycle > mounts live preview and disposes the embed host on destroy"
+            },
+            {
+              "index": 1,
+              "name": "Markdown EditorView lifecycle > disposes widget sessions by exact DOM on remount and destroy"
+            },
+            {
+              "index": 2,
+              "name": "Markdown EditorView lifecycle > keeps IME composition from wiping decorations until composition ends"
+            },
+            {
+              "index": 3,
+              "name": "Markdown EditorView lifecycle > edits an HTML block in the canonical CodeMirror source and restores its preview"
+            },
+            {
+              "index": 4,
+              "name": "Markdown EditorView lifecycle > collapses a revealed HTML source block with Escape"
+            },
+            {
+              "index": 5,
+              "name": "Markdown preview/policy convergence > compiles table-cell style HTML through the shared plan adapter"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::editor_view_acceptance::html_source_control_tracks_shifted_blocks_and_round_trips_canonical_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::editor_view_acceptance::escape_collapses_revealed_html_source_without_editing_or_history"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::editor_view_acceptance::markdown_ime_keeps_composed_text_and_neighbor_decorations_until_commit"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::editor_view_acceptance::table_inline_html_keeps_author_color_and_text_through_the_shared_policy"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::editor_view_acceptance::closing_native_markdown_releases_its_document_capability_and_view_identity"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::editor_view_acceptance::widget_sessions_release_only_the_replaced_or_unmounted_identity_once"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

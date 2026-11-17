@@ -907,6 +907,15 @@ impl EditorExtension for MarkdownExtension {
         if !self.live {
             return None;
         }
+        // Revealed blocks share one source owner. Escape restores its preview
+        // without changing the document, including in a read-only surface.
+        if intent == EditIntent::Escape
+            && let Some(range) = self.preview.revealed_source.take()
+        {
+            return Some(Transaction::select(Selection::cursor(
+                state.doc.clamp(range.end),
+            )));
+        }
         let (syntax, plans) = self.parse(state);
         commands::intercept(
             intent,

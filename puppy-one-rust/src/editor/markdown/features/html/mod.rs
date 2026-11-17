@@ -182,9 +182,12 @@ impl MarkdownFeature for HtmlFeature {
         state: &EditorState,
     ) -> Option<Transaction> {
         let ShowSource(range) = command.payload::<ShowSource>()?;
-        let len = state.doc.len();
-        preview.revealed_source = Some(range.start.min(len)..range.end.min(len));
-        Some(Transaction::select(Selection::cursor(range.start.min(len))))
+        let range = state.doc.clamp_range(range.clone());
+        let caret = state
+            .doc
+            .clamp(range.start.saturating_add(1).min(range.end));
+        preview.revealed_source = Some(range);
+        Some(Transaction::select(Selection::cursor(caret)))
     }
 }
 
