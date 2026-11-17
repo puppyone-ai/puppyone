@@ -92,7 +92,25 @@ fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
                     open = rest;
                     if open.is_empty() {
                         let flow = range.start..next.end;
-                        let html = markdown_html(doc.slice(flow.clone()));
+                        // Render the slice with the document's first-wins
+                        // reference definitions, just as ordinary Markdown
+                        // does. Put them first so a duplicate authored inside
+                        // the flow cannot override an earlier document label.
+                        // Definitions emit no HTML and never widen the source
+                        // range owned by the widget.
+                        let definitions = cx
+                            .syntax
+                            .link_defs
+                            .iter()
+                            .map(|(_, raw)| raw.as_str())
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        let source = doc.slice(flow.clone());
+                        let html = if definitions.is_empty() {
+                            markdown_html(source)
+                        } else {
+                            markdown_html(&format!("{definitions}\n\n{source}"))
+                        };
                         if crossed && matches!(dom::parse(&html), dom::Parsed::Complete(_)) {
                             out.push(HtmlBlock {
                                 range: flow,

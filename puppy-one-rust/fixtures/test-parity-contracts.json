@@ -16571,6 +16571,199 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-html-flow-surface-and-source",
+      "acceptance": "HTML details, centered divs and table cells retain nested Markdown roles in the exact sanitized nodes consumed by the native surface and draw as one nonzero-height widget, hiding authored tags without editing source. A complete cross-block flow owns the entire authored source range. The actual source-button click reveals all authored HTML lines with unchanged bytes and revision. Markdown images reach the actual document media reader at the resolved workspace-relative path; script nodes and contents are absent from the sanitized surface. Native plan/surface/input acceptance is covered, not browser pixel identity.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
+          "sha256": "3543942774675a149ad6b8d4030ad98fe0b5dc9c888e7b21cf27178a3aaaff6c",
+          "cases": [
+            {
+              "index": 23,
+              "name": "Markdown inside HTML > renders the Markdown in details"
+            },
+            {
+              "index": 24,
+              "name": "Markdown inside HTML > renders the Markdown in a centered div"
+            },
+            {
+              "index": 25,
+              "name": "Markdown inside HTML > renders the Markdown in a table cell"
+            },
+            {
+              "index": 26,
+              "name": "Markdown inside HTML > projects the same block when a range starts inside it"
+            },
+            {
+              "index": 27,
+              "name": "Markdown inside HTML > reveals the whole authored source from the widget"
+            },
+            {
+              "index": 28,
+              "name": "Markdown inside HTML > runs Markdown images through the media path"
+            },
+            {
+              "index": 29,
+              "name": "Markdown inside HTML > keeps script out of a Markdown flow"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::markdown_inside_html_keeps_its_nested_roles_and_one_native_flow"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::html_source_button_reveals_the_entire_authored_flow_without_editing"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::markdown_images_inside_html_use_the_document_media_reader"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::executable_html_is_removed_from_the_native_markdown_flow"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-markdown-html-inline-and-block-semantics",
+      "acceptance": "The production HTML/MDX DOM conversion preserves inline strong/emphasis/strike/code, link targets, image alt/source, linked-image nesting, raw inline tags, entity text, escaped punctuation and literal code. Attribute quotes cannot inject markup. Real native inline table contexts retain leading heading/list prefixes as text. Block conversion preserves heading/list/blockquote/code/rule/table/raw HTML structure, ordered-list start, header/body cell roles and literal code. Acceptance compares semantic nodes consumed by the native renderer; paragraph/thead/tbody wrappers, inter-block whitespace, equivalent entity spelling and percent-encoded attribute quotes need not match TS serializer bytes.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
+          "sha256": "3543942774675a149ad6b8d4030ad98fe0b5dc9c888e7b21cf27178a3aaaff6c",
+          "cases": [
+            {
+              "index": 30,
+              "name": "Markdown HTML renderer > renders inline **b** *i* ~~s~~ `c`"
+            },
+            {
+              "index": 31,
+              "name": "Markdown HTML renderer > renders inline [x](https://example.com)"
+            },
+            {
+              "index": 32,
+              "name": "Markdown HTML renderer > renders inline ![a](b.png)"
+            },
+            {
+              "index": 33,
+              "name": "Markdown HTML renderer > renders inline [![a](b.png)](https://e.com)"
+            },
+            {
+              "index": 34,
+              "name": "Markdown HTML renderer > renders inline a <b>raw</b> c"
+            },
+            {
+              "index": 35,
+              "name": "Markdown HTML renderer > renders inline a &copy; b"
+            },
+            {
+              "index": 36,
+              "name": "Markdown HTML renderer > renders inline 1 < 2 & 3"
+            },
+            {
+              "index": 37,
+              "name": "Markdown HTML renderer > renders inline \\*x\\*"
+            },
+            {
+              "index": 38,
+              "name": "Markdown HTML renderer > renders inline # not a heading"
+            },
+            {
+              "index": 39,
+              "name": "Markdown HTML renderer > renders inline - not a list"
+            },
+            {
+              "index": 40,
+              "name": "Markdown HTML renderer > renders inline `<b>`"
+            },
+            {
+              "index": 41,
+              "name": "Markdown HTML renderer > quotes an attribute value"
+            },
+            {
+              "index": 42,
+              "name": "Markdown HTML renderer > renders the block # H"
+            },
+            {
+              "index": 43,
+              "name": "Markdown HTML renderer > renders the block - a\n- b"
+            },
+            {
+              "index": 44,
+              "name": "Markdown HTML renderer > renders the block 3. a"
+            },
+            {
+              "index": 45,
+              "name": "Markdown HTML renderer > renders the block > q"
+            },
+            {
+              "index": 46,
+              "name": "Markdown HTML renderer > renders the block ```\n<b>\n```"
+            },
+            {
+              "index": 47,
+              "name": "Markdown HTML renderer > renders the block ---"
+            },
+            {
+              "index": 48,
+              "name": "Markdown HTML renderer > renders the block | a |\n| - |\n| b |"
+            },
+            {
+              "index": 49,
+              "name": "Markdown HTML renderer > renders the block <div>x</div>"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::native_html_inline_conversion_preserves_roles_links_images_and_escaping"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::inline_table_context_does_not_promote_heading_or_list_prefixes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::native_html_block_conversion_preserves_the_ts_semantic_structure"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-markdown-html-document-reference-context",
+      "acceptance": "Rendered Markdown references inside HTML resolve through their owning document, including definitions preceding or following the flow; undefined references stay literal. Native reference definitions supply the host context represented by the TS resolver callback. Document-wide first-definition precedence survives duplicate definitions inside the flow, changing the owning definition refreshes the cached plan, and injected definitions neither render as text nor widen the widget source range.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
+          "sha256": "3543942774675a149ad6b8d4030ad98fe0b5dc9c888e7b21cf27178a3aaaff6c",
+          "cases": [
+            {
+              "index": 50,
+              "name": "Markdown HTML renderer > resolves a reference through its host"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::html_flows_resolve_document_references_outside_their_own_source_range"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::html_reference_plans_refresh_after_definition_edits_and_keep_first_definition"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
