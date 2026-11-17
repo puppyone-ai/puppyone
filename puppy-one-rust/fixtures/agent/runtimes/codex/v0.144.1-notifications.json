@@ -1,0 +1,60 @@
+{
+  "codexVersion": "0.144.1",
+  "notifications": [
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "threadId": "thread-fixture",
+        "turnId": "turn-fixture",
+        "itemId": "message-fixture",
+        "delta": "hello"
+      },
+      "expectedType": "assistant.delta"
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "thread-fixture",
+        "turnId": "turn-fixture",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 1288,
+            "inputTokens": 1200,
+            "cachedInputTokens": 400,
+            "outputTokens": 88,
+            "reasoningOutputTokens": 33
+          },
+          "last": {
+            "totalTokens": 128,
+            "inputTokens": 100,
+            "cachedInputTokens": 20,
+            "outputTokens": 28,
+            "reasoningOutputTokens": 10
+          },
+          "modelContextWindow": 200000
+        }
+      },
+      "expectedType": "usage.updated"
+    },
+    {
+      "method": "configWarning",
+      "params": {
+        "summary": "Invalid config",
+        "details": "Unknown key",
+        "path": "/workspace/.codex/config.toml"
+      },
+      "expectedType": "provider.warning"
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "thread-fixture",
+        "turn": {
+          "id": "turn-fixture",
+          "status": "completed"
+        }
+      },
+      "expectedType": "turn.completed"
+    }
+  ]
+}

@@ -1,0 +1,1167 @@
+{
+  "source_repository": "puppyone",
+  "source_base_commit": "671143f2a30d352099eda35ad37f053450d4a8f9",
+  "source_roots": [
+    "src/features/desktop-agent",
+    "electron/main/agent",
+    "shared/agent-contract",
+    "electron/main/ipc/agent-ipc.mjs",
+    "electron/main/ipc/agent-activity-ipc.mjs",
+    "electron/main/item-hosts/agent-process-service.mjs",
+    "electron/main/item-hosts/agent-host-authority.mjs",
+    "electron/utility/agent"
+  ],
+  "policy": "Preserve business ownership and public behavior while replacing platform mechanisms. These mappings identify implemented native coverage and explicit remaining gaps; they are not a file-count completion percentage. No source file is declared fully equivalent.",
+  "groups": [
+    {
+      "name": "Renderer Agent controllers",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/application/AgentSessionController.ts",
+        "src/features/desktop-agent/application/AgentSessionLifecycle.ts",
+        "src/features/desktop-agent/application/AgentTurnSubmissionCoordinator.ts",
+        "src/features/desktop-agent/application/AgentClientPort.ts",
+        "src/features/desktop-agent/application/AgentSessionReplica.ts",
+        "src/features/desktop-agent/application/AgentSessionPreparer.ts",
+        "src/features/desktop-agent/application/AgentReferenceDraftManager.ts",
+        "src/features/desktop-agent/application/AgentReferencePreviewStore.ts",
+        "src/features/desktop-agent/application/LocalAgentConnectionLoader.ts",
+        "src/features/desktop-agent/application/SessionUiStateStore.ts",
+        "src/features/desktop-agent/application/agent-controller-state.ts",
+        "src/features/desktop-agent/application/agent-controller-values.ts",
+        "src/features/desktop-agent/application/agent-error.ts",
+        "src/features/desktop-agent/application/agent-runtime-discovery-cache.ts",
+        "src/features/desktop-agent/application/agent-runtime-selection.ts",
+        "src/features/desktop-agent/domain/agent-backend-routing.ts",
+        "src/features/desktop-agent/domain/agent-provider-routing.ts",
+        "src/features/desktop-agent/domain/agent-session-controls.ts",
+        "src/features/desktop-agent/domain/agent-prompt-mentions.ts",
+        "src/features/desktop-agent/domain/agent-workspace-path.ts",
+        "src/features/desktop-agent/domain/agent-degraded-recovery.ts",
+        "src/features/desktop-agent/domain/agent-session-open-error.ts",
+        "src/features/desktop-agent/domain/agent-chat-history-target.ts",
+        "src/features/desktop-agent/application/AgentControllerRegistry.ts",
+        "src/features/desktop-agent/application/ConversationHistoryController.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/application/agent_session_controller.rs",
+        "src/features/desktop_agent/application/agent_session_lifecycle.rs",
+        "src/features/desktop_agent/application/agent_turn_submission_coordinator.rs",
+        "src/features/desktop_agent/application/agent_client_port.rs",
+        "src/features/desktop_agent/application/agent_session_replica.rs",
+        "src/features/desktop_agent/application/agent_session_preparer.rs",
+        "src/features/desktop_agent/application/agent_reference_draft_manager.rs",
+        "src/features/desktop_agent/application/agent_reference_preview_store.rs",
+        "src/features/desktop_agent/application/session_ui_state_store.rs",
+        "src/features/desktop_agent/application/agent_controller_state.rs",
+        "src/features/desktop_agent/application/agent_controller_values.rs",
+        "src/features/desktop_agent/application/agent_error.rs",
+        "src/features/desktop_agent/application/agent_runtime_discovery_cache.rs",
+        "src/features/desktop_agent/application/agent_runtime_selection.rs",
+        "src/features/desktop_agent/application/ui_runtime.rs",
+        "src/features/desktop_agent/application/tests/mod.rs",
+        "src/features/desktop_agent/application/tests/fake_client.rs",
+        "src/features/desktop_agent/application/tests/session_feed.rs",
+        "src/features/desktop_agent/domain/agent_backend_routing.rs",
+        "src/features/desktop_agent/domain/agent_provider_routing.rs",
+        "src/features/desktop_agent/domain/agent_session_controls.rs",
+        "src/features/desktop_agent/domain/agent_prompt_mentions.rs",
+        "src/features/desktop_agent/domain/agent_workspace_path.rs",
+        "src/features/desktop_agent/domain/agent_degraded_recovery.rs",
+        "src/features/desktop_agent/domain/agent_session_open_error.rs",
+        "src/features/desktop_agent/domain/agent_chat_history_target.rs",
+        "src/features/session_transport/managed_operation_scope.rs",
+        "src/features/desktop_agent/application/tests/controller.rs",
+        "src/features/desktop_agent/application/tests/display_fixture.rs",
+        "src/features/desktop_agent/application/tests/support.rs",
+        "src/features/desktop_agent/application/agent_controller_registry.rs",
+        "src/features/desktop_agent/application/conversation_history_controller.rs",
+        "src/features/desktop_agent/application/tests/controller_registry.rs",
+        "src/features/desktop_agent/application/tests/history_controller.rs",
+        "src/features/desktop_agent/application/tests/session_ui_state.rs",
+        "src/features/desktop_agent/application/tests/submission_lifecycle.rs",
+        "src/features/desktop_agent/application/tests/reference_drafts.rs",
+        "src/features/desktop_agent/domain/tests.rs"
+      ],
+      "remaining": "The Renderer application layer is ported over a generic AgentClientPort (product method names) and a UiRuntime (window executor; a paused tokio clock in tests): AgentSessionController with its typed StatePatch and derived control state, the display replica (attach/ACK coalescing/watermark/bounded recovery with silent→reconnecting→degraded stages), session preparation, lifecycle, turn submission intents and reference drafts. Async methods do their synchronous prefix eagerly and keep running un-awaited, like JS promises. The product session-feed suite passes against the real Main service harness, and 44 of the 45 controller tests pass over the ported withDisplayFeed fixture (Main control/transcript reducers); the remaining one drives the item-host process service. AgentControllerRegistry and ConversationHistoryController pass their product suites, as does the session UI store. The submission-lifecycle, reference-draft, prompt-mention and workspace-path suites pass too. Remaining: the window client over AgentHostHandle, and moving the GPUI views off the legacy controller. The legacy controller and runtime port are removed."
+    },
+    {
+      "name": "Native platform client",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/infrastructure/electron/electronAgentClient.ts",
+        "src/features/desktop-agent/infrastructure/electron/agentSessionClient.ts",
+        "src/features/desktop-agent/infrastructure/electron/agentExecutionClient.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/infrastructure/host/agent_host_client.rs",
+        "src/features/desktop_agent/infrastructure/host/project_agent_client.rs",
+        "src/features/desktop_agent/infrastructure/host/window_runtime.rs",
+        "src/features/desktop_agent/infrastructure/host/tests.rs",
+        "src/features/desktop_agent/infrastructure/host/mod.rs"
+      ],
+      "remaining": "The window client (preload agent:* bridge + getElectronAgentClient) runs over AgentHostHandle: each port method maps to its IPC channel, structured failure envelopes become AgentOperationError, attachment staging captures native paths or sends bytes inline within the 25 MB in-flight budget, and the window's frame sink feeds onAgentSessionFrame on the GPUI executor (WindowUiRuntime). createProjectAgentClientProvider attaches the project context and fills in session instance ids. End-to-end tests drive AgentSessionController through the host thread. Not represented yet: agentSessionClient's per-session MessagePort transcript connection and agentExecutionClient's item-host execution ownership (they arrive with the item-host process service); every local chat uses this client."
+    },
+    {
+      "name": "Chat presentation",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/AgentChatTabPanel.tsx",
+        "src/features/desktop-agent/ui/AgentTranscript.tsx",
+        "src/features/desktop-agent/ui/AgentComposer.tsx",
+        "src/features/desktop-agent/ui/AgentApprovalDock.tsx",
+        "src/features/desktop-agent/ui/AgentQuestionDock.tsx",
+        "src/features/desktop-agent/ui/AgentConversationHistory.tsx",
+        "src/features/desktop-agent/ui/AgentSessionControlPicker.tsx",
+        "src/features/desktop-agent/domain/agent-chat-presentation.ts",
+        "src/features/desktop-agent/domain/agent-ui-state.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/panel/mod.rs",
+        "src/features/desktop_agent/ui/composer/mod.rs",
+        "src/features/desktop_agent/ui/transcript/view.rs",
+        "src/features/desktop_agent/ui/panel/status.rs",
+        "src/features/desktop_agent/ui/docks/mod.rs",
+        "src/features/desktop_agent/ui/agent_conversation_history/mod.rs"
+      ],
+      "remaining": "AgentChatTabPanel, its transcript, composer, approval and question docks, session-control pickers and the History browser are the native GPUI panel over AgentSessionController (see Native GPUI Agent panel); the legacy native chat view is removed. Mermaid graphics, accessibility and pixel parity remain."
+    },
+    {
+      "name": "Agent workbench items",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx",
+        "src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx",
+        "src/features/desktop-agent/workbench/agentChatCloseAdapter.ts",
+        "src/features/desktop-agent/workbench/projectAgentControllers.ts",
+        "src/features/desktop-agent/ui/useAgentConversationHistory.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/workbench/item.rs",
+        "src/features/desktop_agent/workbench/chats.rs",
+        "src/features/workbench/mod.rs",
+        "src/features/workbench/persistence.rs",
+        "src/app/right_sidebar/launcher/history.rs",
+        "src/features/desktop_agent/infrastructure/host/agent_host_global.rs",
+        "src/features/desktop_agent/ui/panel/mod.rs",
+        "src/features/desktop_agent/ui/agent_conversation_history/mod.rs"
+      ],
+      "remaining": "Every local Agent chat, the Built-in Agent included, is an AgentChatTabPanel item over a per-project AgentControllerRegistry on the window's Agent host bridge (roots authorized per open project): creation prepares the recipe's runtime, a retained chat reopens its saved session (one retained before the switch reopens new), close releases the session before the tab leaves and re-presents the running decision when refused, presentAgentChatWorkbenchItem feeds the tab detail, chat file links open in the editor, and compute prompts open Account or Model Connections. The process host starts on first use and drains on quit. History is AgentChatHistoryBrowser over the project's ConversationHistoryController (permission gate, catalog plus native pages, exclusions, source notes, load more), and a History target opens as restoreAgentChatWorkbenchItem does: the launcher becomes the chat only once its saved session opened, otherwise a retryable creation failure. Routing preferences and the item-host process service remain; the hosted Agent still uses the native chat view."
+    },
+    {
+      "name": "Codex runtime and protocol",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs",
+        "electron/main/agent/runtimes/codex/codex-events.mjs",
+        "electron/main/agent/runtimes/codex/codex-interactions.mjs",
+        "electron/main/agent/runtimes/codex/codex-native-values.mjs",
+        "electron/main/agent/runtimes/codex/codex-history-reader.mjs",
+        "electron/main/agent/runtimes/codex/codex-history-projection.mjs",
+        "electron/main/agent/runtimes/codex/codex-history-discovery.mjs",
+        "electron/main/agent/runtimes/codex/codex-history-source.mjs",
+        "electron/main/agent/runtimes/codex/codex-identity.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/codex/codex_app_server_adapter.rs",
+        "src/agent/runtimes/codex/codex_events.rs",
+        "src/agent/runtimes/codex/codex_interactions.rs",
+        "src/agent/runtimes/codex/codex_native_values.rs",
+        "src/agent/runtimes/codex/codex_history_reader.rs",
+        "src/agent/runtimes/codex/codex_history_projection.rs",
+        "src/agent/runtimes/codex/codex_history_discovery.rs",
+        "src/agent/runtimes/codex/codex_history_source.rs",
+        "src/agent/runtimes/codex/codex_identity.rs",
+        "src/agent/runtimes/codex/tests.rs",
+        "src/agent/transports/rpc_connection.rs"
+      ],
+      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product adapter and paginated-history tests (FakeConnection via connectionFactory). Discovery (codex-discovery, executable discovery) and the runtime definition are pending; the running app still uses legacy_codex_app_server_adapter.rs until the Agent host switches to AgentService."
+    },
+    {
+      "name": "Bounded native JSONL transport",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/transports/jsonl-rpc-connection.mjs",
+        "electron/main/agent/transports/managed-agent-process.mjs",
+        "electron/main/agent/transports/jsonl-stream.mjs",
+        "electron/main/agent/transports/native-request-ledger.mjs"
+      ],
+      "targets": [
+        "src/agent/transports/jsonl_rpc_connection.rs",
+        "src/agent/transports/managed_agent_process.rs",
+        "src/agent/transports/jsonl_stream.rs",
+        "src/agent/transports/native_request_ledger.rs",
+        "src/agent/transports/tests.rs"
+      ],
+      "remaining": "Ported 1:1 with an injectable spawner and the product transport tests. The Codex/ACP/Pi adapters still use legacy_jsonl_rpc_connection.rs until they move onto the new runtime port."
+    },
+    {
+      "name": "Native installation inventory",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/connections/local-agent-inventory.mjs",
+        "electron/main/agent/connections/local-agent-connection-policy.mjs",
+        "electron/main/agent/connections/probes/codex-local-probe.mjs",
+        "electron/main/agent/connections/tools/claude-tool.mjs",
+        "electron/main/agent/connections/tools/codex-tool.mjs",
+        "electron/main/agent/connections/tools/cursor-tool.mjs",
+        "electron/main/agent/connections/tools/local-agent-tool-registry.mjs",
+        "electron/main/agent/connections/tools/opencode-tool.mjs"
+      ],
+      "targets": [
+        "src/agent/connections/local_agent_inventory.rs",
+        "src/agent/connections/local_agent_connection_policy.rs",
+        "src/agent/connections/probes/codex_local_probe.rs",
+        "src/agent/connections/tools/claude_tool.rs",
+        "src/agent/connections/tools/codex_tool.rs",
+        "src/agent/connections/tools/cursor_tool.rs",
+        "src/agent/connections/tools/local_agent_tool_registry.rs",
+        "src/agent/connections/tools/opencode_tool.rs",
+        "src/agent/connections/tools/mod.rs",
+        "src/agent/connections/tests.rs",
+        "fixtures/agent/connections/local-connection-policy.json",
+        "src/agent/connections/legacy_local_agent_inventory.rs"
+      ],
+      "remaining": "Ported 1:1 with the product inventory tests (deduplicated scans, five-minute cache, sanitized 24-hour persisted snapshot, Refresh superseding an in-flight scan, per-tool failure isolation) and the connection-policy characterization regenerated from the product (26 cases). The executable-candidate and process-budget cases run with platform/local_agent_installation. The app's Settings and setup still read legacy_local_agent_inventory.rs until the host switches to AgentService."
+    },
+    {
+      "name": "ACP protocol core",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/protocols/acp/acp-client.mjs",
+        "electron/main/agent/protocols/acp/acp-event-normalizer.mjs",
+        "electron/main/agent/protocols/acp/acp-history-discovery.mjs",
+        "electron/main/agent/protocols/acp/acp-history-replay.mjs",
+        "electron/main/agent/protocols/acp/acp-interactions.mjs",
+        "electron/main/agent/protocols/acp/acp-limits.mjs",
+        "electron/main/agent/protocols/acp/acp-methods.mjs",
+        "electron/main/agent/protocols/acp/acp-native-values.mjs",
+        "electron/main/agent/protocols/acp/acp-prompt-input.mjs",
+        "electron/main/agent/protocols/acp/acp-runtime-adapter.mjs",
+        "electron/main/agent/protocols/acp/acp-session-config.mjs"
+      ],
+      "targets": [
+        "src/agent/protocols/acp/acp_client.rs",
+        "src/agent/protocols/acp/acp_event_normalizer.rs",
+        "src/agent/protocols/acp/acp_history_discovery.rs",
+        "src/agent/protocols/acp/acp_history_replay.rs",
+        "src/agent/protocols/acp/acp_interactions.rs",
+        "src/agent/protocols/acp/acp_limits.rs",
+        "src/agent/protocols/acp/acp_methods.rs",
+        "src/agent/protocols/acp/acp_native_values.rs",
+        "src/agent/protocols/acp/acp_prompt_input.rs",
+        "src/agent/protocols/acp/acp_runtime_adapter.rs",
+        "src/agent/protocols/acp/acp_session_config.rs",
+        "src/agent/protocols/acp/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port (bootstrap, history replay, permission/question correlation, workspace file delegate, config options) with the product ACP client, history-replay and prompt-input tests. The fileSystemFactory injection is replaced by the real Main file delegate. The app still runs legacy_acp_runtime_adapter.rs until the host switches to AgentService."
+    },
+    {
+      "name": "Pi RPC protocol core",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/protocols/pi-rpc/pi-event-normalizer.mjs",
+        "electron/main/agent/protocols/pi-rpc/pi-prompt-input.mjs",
+        "electron/main/agent/protocols/pi-rpc/pi-rpc-client.mjs",
+        "electron/main/agent/protocols/pi-rpc/pi-rpc-runtime-adapter.mjs"
+      ],
+      "targets": [
+        "src/agent/protocols/pi_rpc/pi_event_normalizer.rs",
+        "src/agent/protocols/pi_rpc/pi_prompt_input.rs",
+        "src/agent/protocols/pi_rpc/pi_rpc_client.rs",
+        "src/agent/protocols/pi_rpc/pi_rpc_runtime_adapter.rs",
+        "src/agent/protocols/pi_rpc/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product Pi RPC client, event-normalizer and prompt-input tests (scripted process). The app still runs legacy_pi_rpc_adapter.rs until the host switches to AgentService."
+    },
+    {
+      "name": "Claude Agent SDK runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/claude/claude-agent-sdk-adapter.mjs",
+        "electron/main/agent/runtimes/claude/claude-discovery.mjs",
+        "electron/main/agent/runtimes/claude/claude-events.mjs",
+        "electron/main/agent/runtimes/claude/claude-history-discovery.mjs",
+        "electron/main/agent/runtimes/claude/claude-history-reader.mjs",
+        "electron/main/agent/runtimes/claude/claude-history-source.mjs",
+        "electron/main/agent/runtimes/claude/claude-identity.mjs",
+        "electron/main/agent/runtimes/claude/claude-interactions.mjs",
+        "electron/main/agent/runtimes/claude/claude-message-channel.mjs",
+        "electron/main/agent/runtimes/claude/claude-native-values.mjs",
+        "electron/main/agent/runtimes/claude/claude-prompt-input.mjs",
+        "electron/main/agent/runtimes/claude/claude-runtime-definition.mjs",
+        "electron/main/agent/runtimes/claude/claude-spawn.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/claude/claude_agent_sdk/mod.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk/process_transport.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk/query.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk/sessions.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk/tests.rs",
+        "src/agent/runtimes/claude/claude_agent_sdk_adapter.rs",
+        "src/agent/runtimes/claude/claude_discovery.rs",
+        "src/agent/runtimes/claude/claude_events.rs",
+        "src/agent/runtimes/claude/claude_history_discovery.rs",
+        "src/agent/runtimes/claude/claude_history_reader.rs",
+        "src/agent/runtimes/claude/claude_history_source.rs",
+        "src/agent/runtimes/claude/claude_identity.rs",
+        "src/agent/runtimes/claude/claude_interactions.rs",
+        "src/agent/runtimes/claude/claude_message_channel.rs",
+        "src/agent/runtimes/claude/claude_native_values.rs",
+        "src/agent/runtimes/claude/claude_prompt_input.rs",
+        "src/agent/runtimes/claude/claude_runtime_definition.rs",
+        "src/agent/runtimes/claude/claude_spawn.rs",
+        "src/agent/runtimes/claude/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the AgentRuntimeAdapter port with the product adapter, events, spawn and prompt-input tests. claude_agent_sdk/ is the Rust equivalent of @anthropic-ai/claude-agent-sdk@0.3.159 (stream-json control protocol, listSessions/getSessionInfo/getSessionMessages/forkSession); its session helpers match the official SDK on real transcripts, and the initialization handshake is verified against Claude Code 2.1.291. The app still runs legacy_claude_adapter.rs until the host switches to AgentService. The legacy CLI adapter and its history reader are removed."
+    },
+    {
+      "name": "Product-owned PuppyOne runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/puppyone-agent/model-connection-binding.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/model-connection-verifier.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-adapter.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-approval.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-discovery.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-environment.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-history-source.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-identity.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-kernel.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-public-identity.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/main.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/model-configuration.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/policy.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/redact-model-response.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/runtime.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/session-resolver.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_adapter.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_approval.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_discovery.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_environment.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_history_source.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_identity.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_kernel.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_runtime_definition.rs",
+        "src/agent/runtimes/puppyone_agent/model_connection_binding.rs",
+        "src/agent/runtimes/puppyone_agent/model_connection_verifier.rs",
+        "src/agent/runtimes/puppyone_agent/tests.rs",
+        "src/agent/runtimes/puppyone_agent/model_client.rs",
+        "src/agent/runtimes/puppyone_agent/tools.rs",
+        "src/agent/runtimes/puppyone_agent/mod.rs",
+        "src/agent/model_connections/schema.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/mod.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/session.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/tools.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/turn.rs",
+        "src/agent/runtimes/puppyone_agent/native_kernel/tests.rs",
+        "src/agent/runtimes/puppyone_agent/native_model_connections.rs",
+        "src/agent/host/agent_host.rs"
+      ],
+      "remaining": "The Main-side Built-in Agent modules are ported 1:1. Its worker is the in-process native kernel: the native inference loop and workspace tools serve the bundled worker's puppyone-pi-rpc-v1 protocol (state, models, prompt, steer, abort, compact, get_messages, extension_ui confirm approvals under the product policy, Pi-shaped sessions under the managed profile) over in-memory pipes, so PuppyOneAgentAdapter, the model-connection binding and the Pi RPC client and normalizer run unchanged. Leases come from this app's model connections (mc_ ids, no secret in the bootstrap envelope). The Pi SDK itself (extensions, skills, prompt templates, thinking levels, auto-retry, jsonl sessions) is not reimplemented, and the legacy harness adapter and session store are removed (the kernel reuses its workspace tools and model client)."
+    },
+    {
+      "name": "Reference ingestion",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/infrastructure/attachments/agent-attachment-store.mjs",
+        "electron/main/agent/agent-reference-authorization.mjs",
+        "electron/main/agent/agent-attachment-store.mjs"
+      ],
+      "targets": [
+        "src/agent/agent_reference_authorization.rs",
+        "src/agent/infrastructure/attachments/agent_attachment_store.rs",
+        "src/agent/infrastructure/attachments/mod.rs",
+        "src/agent/infrastructure/attachments/tests.rs"
+      ],
+      "remaining": "agent-reference-authorization and the attachment store are ported 1:1 with the product authorization and attachment-store tests: live workspace references re-canonicalized per turn with a shared 32-file/25 MB budget and portable root-independent ids; external files and pathless inline bytes copied into private 0600 snapshots bound to owner, workspace and draft epoch, deduplicated, leased by one turn, expired, revoked and swept with the staging of exited processes, with TOCTOU detection and transactional batch rollback. agent-attachment-store.mjs is a deprecated re-export. The composer still uses legacy_attachments.rs until the host switches to AgentService. The legacy attachment staging and prompt model are removed; references flow through AgentReferenceDraftManager and the Main attachment store."
+    },
+    {
+      "name": "Session catalog and capacity",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/persistence/agent-conversation-catalog.mjs",
+        "electron/main/agent/persistence/agent-session-repository.mjs"
+      ],
+      "targets": [
+        "src/agent/persistence/agent_conversation_catalog.rs",
+        "src/agent/persistence/agent_session_repository.rs",
+        "src/agent/persistence/tests.rs"
+      ],
+      "remaining": "The conversation catalog and session repository are ported 1:1 with the product catalog, catalog-concurrency and repository tests (serialized read/modify/persist, atomic owner-only replacement, memory published only after the rename, malformed files preserved, native identity partitioned by source scope, ICU-ordered records). The app runs every local chat on AgentService with this catalog; the legacy catalog and native-harness leases are gone."
+    },
+    {
+      "name": "Native rich transcript and composer",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/SafeMarkdown.tsx",
+        "src/features/desktop-agent/ui/AgentReferenceDisplayList.tsx",
+        "src/features/desktop-agent/ui/AgentRecoverySurface.tsx",
+        "src/features/desktop-agent/ui/composer/AgentAttachmentButton.tsx",
+        "src/features/desktop-agent/ui/composer/AgentCommandSuggestions.tsx",
+        "src/features/desktop-agent/ui/composer/AgentVisualAttachmentList.tsx",
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownCodeBlock.tsx",
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownDocument.tsx",
+        "src/features/desktop-agent/ui/transcript/transcript-viewport.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/transcript/transcript_viewport.rs",
+        "src/features/desktop_agent/ui/agent_markdown/mod.rs",
+        "src/features/desktop_agent/ui/panel/mod.rs",
+        "src/features/desktop_agent/ui/composer/mod.rs",
+        "src/features/desktop_agent/ui/transcript/view.rs",
+        "src/features/desktop_agent/ui/panel/status.rs",
+        "src/features/desktop_agent/ui/docks/mod.rs"
+      ],
+      "remaining": "Bounded virtual rows, native Markdown/table/code rendering, copy, previews, slash suggestions and per-thread drafts are implemented. The panel renders them over the display contract. Full renderer registry, inline assets, advanced autocomplete, accessibility and OS visual verification remain pending."
+    },
+    {
+      "name": "Agent Markdown blocks and policy",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownEnvironment.tsx",
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownMermaidBlock.tsx",
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownSourceBlock.tsx",
+        "src/features/desktop-agent/ui/markdown/agentMarkdownBlockRegistry.tsx",
+        "src/features/desktop-agent/ui/markdown/agentMarkdownPolicy.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/agent_markdown/mod.rs",
+        "src/features/desktop_agent/ui/agent_markdown/mermaid.rs",
+        "src/features/desktop_agent/ui/agent_markdown_policy.rs"
+      ],
+      "remaining": "Mermaid blocks render through the shared render service and fall back to their source; long answers open on the policy's first window (24 KiB, 240 blocks) with Show full response / Collapse; links keep the product's href classification. The block registry is a fixed match rather than an extensible registry, and the environment's image-loading capability has no native counterpart (assistant images show their alt text)."
+    },
+    {
+      "name": "Provider activities",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/AgentProviderActivities.tsx",
+        "src/features/desktop-agent/ui/styles/provider-activities.css"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/panel/status.rs"
+      ],
+      "remaining": "Provider notices are display activities (provider.notification / provider.activity) rendered by the panel's AgentProviderActivities dock: running/failed/warning lines, the rest under a closed Notifications disclosure with source tooltips."
+    },
+    {
+      "name": "Tool activity step lines",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/AgentToolActivityGroup.tsx",
+        "src/features/desktop-agent/ui/activity/AgentToolGlyph.tsx",
+        "src/features/desktop-agent/ui/activity/AgentToolStepText.tsx",
+        "src/features/desktop-agent/ui/activity/agent-tool-steps.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/activity/agent_tool_steps.rs",
+        "src/features/desktop_agent/ui/agent_theme.rs"
+      ],
+      "remaining": "Tool groups are step lines with their glyph, verb and subject, and three or more file reads fold into an Explored line, as the product; the evidence trees (AgentToolEvidenceTree, AgentToolTextEvidence) and the native model's missing durations remain. The panel renders them through the ported activity views; the legacy step lines are removed."
+    },
+    {
+      "name": "Shared Agent contract",
+      "status": "partial",
+      "sources": [
+        "shared/agent-contract/activity-semantics.mjs",
+        "shared/agent-contract/activity-semantics.mjs.d.ts",
+        "shared/agent-contract/constants.d.mts",
+        "shared/agent-contract/constants.mjs",
+        "shared/agent-contract/display-schema.mjs",
+        "shared/agent-contract/display-schema.mjs.d.ts",
+        "shared/agent-contract/display-state.mjs",
+        "shared/agent-contract/display-state.mjs.d.ts",
+        "shared/agent-contract/display-types.ts",
+        "shared/agent-contract/event-content-update.mjs",
+        "shared/agent-contract/event-content-update.mjs.d.ts",
+        "shared/agent-contract/event-schema.mjs",
+        "shared/agent-contract/history-schema.mjs",
+        "shared/agent-contract/local-connection-schema.mjs",
+        "shared/agent-contract/native-session-id.mjs",
+        "shared/agent-contract/operation-error.mjs",
+        "shared/agent-contract/operation-error.mjs.d.ts",
+        "shared/agent-contract/reference-identity.mjs",
+        "shared/agent-contract/reference-identity.mjs.d.ts",
+        "shared/agent-contract/reference-input.mjs",
+        "shared/agent-contract/reference-input.mjs.d.ts",
+        "shared/agent-contract/runtime-schema.mjs",
+        "shared/agent-contract/schema.mjs",
+        "shared/agent-contract/schema.mjs.d.ts",
+        "shared/agent-contract/types.ts",
+        "shared/agent-contract/user-message-types.ts",
+        "shared/agent-contract/validation.mjs"
+      ],
+      "targets": [
+        "src/agent/contract/mod.rs",
+        "src/agent/contract/js.rs",
+        "src/agent/contract/validation.rs",
+        "src/agent/contract/constants.rs",
+        "src/agent/contract/activity_semantics.rs",
+        "src/agent/contract/native_session_id.rs",
+        "src/agent/contract/operation_error.rs",
+        "src/agent/contract/event_content_update.rs",
+        "src/agent/contract/event_schema.rs",
+        "src/agent/contract/history_schema.rs",
+        "src/agent/contract/reference_identity.rs",
+        "src/agent/contract/reference_input.rs",
+        "src/agent/contract/workspace_resource_reference.rs",
+        "src/agent/contract/local_connection_schema.rs",
+        "src/agent/contract/runtime_schema.rs",
+        "src/agent/contract/display_types.rs",
+        "src/agent/contract/display_state.rs",
+        "src/agent/contract/display_metrics.rs",
+        "src/agent/contract/display_schema.rs",
+        "src/agent/contract/schema.rs",
+        "src/agent/contract/types.rs",
+        "src/agent/contract/tests.rs"
+      ],
+      "remaining": "Every module is ported file by file over JSON values with JavaScript string/number/date semantics (src/agent/contract/js.rs). In-process requests carry Uint8Array bytes tagged as base64; dates without an offset parse as UTC instead of local time; display entries are shared Arc values with a weak per-entry size cache in place of the product's WeakMap. The TypeScript-only type files have no runtime counterpart beyond the accessors in types.rs."
+    },
+    {
+      "name": "Main transcript projection",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/domain/transcript/content-readers.mjs",
+        "electron/main/agent/domain/transcript/content-readers.mjs.d.ts",
+        "electron/main/agent/domain/transcript/display-control.mjs",
+        "electron/main/agent/domain/transcript/display-projection.mjs",
+        "electron/main/agent/domain/transcript/display-projection.mjs.d.ts",
+        "electron/main/agent/domain/transcript/display-window.mjs",
+        "electron/main/agent/domain/transcript/file-change.mjs",
+        "electron/main/agent/domain/transcript/file-change.mjs.d.ts",
+        "electron/main/agent/domain/transcript/message-identity.mjs",
+        "electron/main/agent/domain/transcript/provider-activity-policy.mjs",
+        "electron/main/agent/domain/transcript/provider-notice-policy.mjs",
+        "electron/main/agent/domain/transcript/provider-notice-policy.mjs.d.ts",
+        "electron/main/agent/domain/transcript/transcript-indexes.mjs",
+        "electron/main/agent/domain/transcript/transcript-indexes.mjs.d.ts",
+        "electron/main/agent/domain/transcript/transcript-reducer.mjs",
+        "electron/main/agent/domain/transcript/transcript-reducer.mjs.d.ts",
+        "electron/main/agent/domain/transcript/turn-lifecycle.mjs",
+        "electron/main/agent/domain/transcript/turn-lifecycle.mjs.d.ts",
+        "electron/main/agent/domain/transcript/turn-timing.mjs",
+        "electron/main/agent/domain/transcript/turn-timing.mjs.d.ts"
+      ],
+      "targets": [
+        "src/agent/domain/transcript/mod.rs",
+        "src/agent/domain/transcript/transcript_indexes.rs",
+        "src/agent/domain/transcript/content_readers.rs",
+        "src/agent/domain/transcript/message_identity.rs",
+        "src/agent/domain/transcript/file_change.rs",
+        "src/agent/domain/transcript/turn_timing.rs",
+        "src/agent/domain/transcript/provider_activity_policy.rs",
+        "src/agent/domain/transcript/provider_notice_policy.rs",
+        "src/agent/domain/transcript/turn_lifecycle.rs",
+        "src/agent/domain/transcript/display_projection.rs",
+        "src/agent/domain/transcript/display_control.rs",
+        "src/agent/domain/transcript/display_window.rs",
+        "src/agent/domain/transcript/transcript_reducer.rs",
+        "src/agent/domain/transcript/tests.rs"
+      ],
+      "remaining": "Ported with the product's projection tests (desktop-agent.projection.test.ts). Test timelines read Main rows directly until the Renderer's transcript-rows builder is ported; object key order inside display entries can differ where the product spreads undefined values."
+    },
+    {
+      "name": "Main session control and actor",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/domain/agent-control-view.mjs",
+        "electron/main/agent/domain/agent-conversation-metadata.mjs",
+        "electron/main/agent/domain/agent-event-checkpoint.mjs",
+        "electron/main/agent/domain/agent-event-workspace-paths.mjs",
+        "electron/main/agent/domain/agent-recovery.mjs",
+        "electron/main/agent/domain/agent-reference-error.mjs",
+        "electron/main/agent/domain/agent-session-actor.mjs",
+        "electron/main/agent/domain/agent-session-control.mjs"
+      ],
+      "targets": [
+        "src/agent/domain/agent_session_control.rs",
+        "src/agent/domain/agent_recovery.rs",
+        "src/agent/domain/agent_control_view.rs",
+        "src/agent/domain/agent_event_checkpoint.rs",
+        "src/agent/domain/agent_event_workspace_paths.rs",
+        "src/agent/domain/agent_session_actor.rs",
+        "src/agent/domain/agent_conversation_metadata.rs",
+        "src/agent/domain/agent_reference_error.rs",
+        "src/agent/domain/tests.rs"
+      ],
+      "remaining": "Control reducer, recovery, checkpointing, workspace paths and the SessionActor (single-threaded Rc handle with ordered re-entrant publication) are ported with the actor-level product tests. Windows path containment is not exercised on macOS; the service-level control tests arrive with the application layer."
+    },
+    {
+      "name": "Event envelope and edit evidence",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/agent-events.mjs",
+        "electron/main/agent/migrations/legacy-file-change-evidence.mjs",
+        "electron/main/agent/runtime/agent-file-change-blocks.mjs",
+        "electron/main/agent/runtime/agent-file-change-evidence.mjs"
+      ],
+      "targets": [
+        "src/agent/agent_events.rs",
+        "src/agent/runtime/agent_file_change_blocks.rs",
+        "src/agent/runtime/agent_file_change_evidence.rs",
+        "src/agent/migrations/legacy_file_change_evidence.rs"
+      ],
+      "remaining": "Envelope creation, redaction and renderer bounds are ported; jsdiff structuredPatch is replaced by the similar crate (Myers line diff), whose hunk boundaries can differ from jsdiff on ambiguous edits. Cyclic payloads cannot occur in JSON values."
+    },
+    {
+      "name": "Main Agent application service",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/application/agent-event-journal.mjs",
+        "electron/main/agent/application/agent-input-policy.mjs",
+        "electron/main/agent/application/agent-reference-policy.mjs",
+        "electron/main/agent/application/agent-runtime-catalog.mjs",
+        "electron/main/agent/application/agent-service.mjs",
+        "electron/main/agent/application/agent-session-store.mjs",
+        "electron/main/agent/application/history/agent-history-queries.mjs",
+        "electron/main/agent/application/history/history-catalog-port.mjs",
+        "electron/main/agent/application/history/history-operation.mjs",
+        "electron/main/agent/application/history/native-conversation-indexer.mjs",
+        "electron/main/agent/application/processes/agent-process-supervisor.mjs",
+        "electron/main/agent/application/runtime-resolution/runtime-readiness-store.mjs",
+        "electron/main/agent/application/runtime-resolution/runtime-resolution-coordinator.mjs",
+        "electron/main/agent/application/session/agent-history-hydration.mjs",
+        "electron/main/agent/application/session/agent-session-commands.mjs",
+        "electron/main/agent/application/session/agent-session-feed.mjs",
+        "electron/main/agent/application/session/agent-session-lifecycle.mjs",
+        "electron/main/agent/application/session/agent-session-open-errors.mjs",
+        "electron/main/agent/application/session/agent-session-runtime.mjs",
+        "electron/main/agent/application/turn/agent-command-outcome-policy.mjs",
+        "electron/main/agent/application/turn/agent-command-policy.mjs",
+        "electron/main/agent/application/turn/agent-start-transaction.mjs",
+        "electron/main/agent/application/turn/agent-turn-coordinator.mjs",
+        "electron/main/agent/application/turn/agent-turn-queue.mjs",
+        "electron/main/agent/agent-service.mjs"
+      ],
+      "targets": [
+        "src/agent/application/agent_event_journal.rs",
+        "src/agent/application/agent_input_policy.rs",
+        "src/agent/application/agent_reference_policy.rs",
+        "src/agent/application/agent_runtime_catalog.rs",
+        "src/agent/application/agent_service.rs",
+        "src/agent/application/agent_session_store.rs",
+        "src/agent/application/history/agent_history_queries.rs",
+        "src/agent/application/history/history_catalog_port.rs",
+        "src/agent/application/history/history_operation.rs",
+        "src/agent/application/history/mod.rs",
+        "src/agent/application/history/native_conversation_indexer.rs",
+        "src/agent/application/mod.rs",
+        "src/agent/application/ports.rs",
+        "src/agent/application/processes/agent_process_supervisor.rs",
+        "src/agent/application/processes/mod.rs",
+        "src/agent/application/runtime_resolution/mod.rs",
+        "src/agent/application/runtime_resolution/runtime_readiness_store.rs",
+        "src/agent/application/runtime_resolution/runtime_resolution_coordinator.rs",
+        "src/agent/application/session/agent_history_hydration.rs",
+        "src/agent/application/session/agent_session_commands.rs",
+        "src/agent/application/session/agent_session_feed.rs",
+        "src/agent/application/session/agent_session_lifecycle.rs",
+        "src/agent/application/session/agent_session_open_errors.rs",
+        "src/agent/application/session/agent_session_runtime.rs",
+        "src/agent/application/session/mod.rs",
+        "src/agent/application/tests/control.rs",
+        "src/agent/application/tests/harness.rs",
+        "src/agent/application/tests/mod.rs",
+        "src/agent/application/tests/service.rs",
+        "src/agent/application/turn/agent_command_outcome_policy.rs",
+        "src/agent/application/turn/agent_command_policy.rs",
+        "src/agent/application/turn/agent_start_transaction.rs",
+        "src/agent/application/turn/agent_turn_coordinator.rs",
+        "src/agent/application/turn/agent_turn_queue.rs",
+        "src/agent/application/turn/mod.rs",
+        "src/agent/agent_error.rs",
+        "src/agent/tasks.rs",
+        "src/agent/sender.rs"
+      ],
+      "remaining": "Every application module (service, session runtime/lifecycle/commands/feed, turns and queue, history indexer and queries, runtime resolution, process supervisor) is ported onto a single-threaded tokio LocalSet with the product's service and control tests. Project-session operation fences (operation.assertCurrent) are not wired yet; the IPC handlers, item-host process split and Renderer feed client arrive with the host layer."
+    },
+    {
+      "name": "Main runtime port and registry",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtime/agent-history-read-result.mjs",
+        "electron/main/agent/runtime/agent-operation-error.mjs",
+        "electron/main/agent/runtime/agent-runtime-manifest.mjs",
+        "electron/main/agent/runtime/agent-runtime-port.mjs",
+        "electron/main/agent/runtime/agent-runtime-registry.mjs",
+        "electron/main/agent/runtime/agent-runtime-resolution.mjs",
+        "electron/main/agent/runtime/agent-session-history-port.mjs",
+        "electron/main/agent/runtime/history-source-scope.mjs",
+        "electron/main/agent/runtime/native-persistence-reporter.mjs",
+        "electron/main/agent/runtime/runtime-discovery-supervisor.mjs"
+      ],
+      "targets": [
+        "src/agent/runtime/agent_runtime_port.rs",
+        "src/agent/runtime/agent_runtime_registry.rs",
+        "src/agent/runtime/agent_runtime_manifest.rs",
+        "src/agent/runtime/agent_runtime_resolution.rs",
+        "src/agent/runtime/agent_operation_error.rs",
+        "src/agent/runtime/agent_history_read_result.rs",
+        "src/agent/runtime/agent_session_history_port.rs",
+        "src/agent/runtime/history_source_scope.rs",
+        "src/agent/runtime/native_persistence_reporter.rs",
+        "src/agent/runtime/runtime_discovery_supervisor.rs"
+      ],
+      "remaining": "The adapter port is a trait whose optional methods are named by implements(); requests and results stay plain objects. Concrete runtimes still run on the legacy adapter until each is ported onto this port."
+    },
+    {
+      "name": "Session record and legacy format",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/domain/agent-session-model.mjs",
+        "electron/main/agent/migrations/legacy-session-format.mjs"
+      ],
+      "targets": [
+        "src/agent/domain/agent_session_model.rs",
+        "src/agent/migrations/legacy_session_format.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_channels.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_config_directory.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_history_source.rs",
+        "src/agent/runtimes/puppyone_agent/puppyone_agent_public_identity.rs"
+      ],
+      "remaining": "The session record keeps the product's derived getters over the SessionActor; the legacy snapshot model it replaces remains as domain/legacy_session_model.rs until the old UI and runtimes are removed."
+    },
+    {
+      "name": "Codex reference input",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/codex/codex-reference-input.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/codex/codex_reference_input.rs"
+      ],
+      "remaining": "Ported 1:1 (workspace text appendix, native localImage inputs, authorization errors) with the product cases; live wiring follows the runtime switch."
+    },
+    {
+      "name": "Main security boundaries",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/security/authorized-workspace-reference-prompt.mjs",
+        "electron/main/agent/security/authorized-project-instructions.mjs",
+        "electron/main/agent/security/acp-workspace-files.mjs"
+      ],
+      "targets": [
+        "src/agent/security/authorized_workspace_reference_prompt.rs",
+        "src/agent/security/authorized_project_instructions.rs",
+        "src/agent/security/acp_workspace_files.rs",
+        "src/agent/security/tests.rs",
+        "src/platform/paths.rs"
+      ],
+      "remaining": "Ported 1:1 over Node path semantics (node_path.rs) with the product ACP workspace-file cases and the cross-root grant. The fsModule injection is replaced by the real file system; Windows identity falls back to size and mtime as in the product."
+    },
+    {
+      "name": "Runtime executable discovery",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/transports/executable-discovery.mjs",
+        "electron/main/agent/transports/bounded-process-probe.mjs",
+        "electron/main/agent/connections/runtime-discovery-cache.mjs",
+        "electron/main/agent/runtimes/codex/codex-discovery.mjs",
+        "electron/main/agent/runtimes/codex/codex-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/transports/executable_discovery.rs",
+        "src/agent/transports/bounded_process_probe.rs",
+        "src/agent/connections/runtime_discovery_cache.rs",
+        "src/agent/runtimes/codex/codex_discovery.rs",
+        "src/agent/runtimes/codex/codex_runtime_definition.rs",
+        "src/agent/discovery/bounded_process_probe.rs",
+        "src/agent/discovery/command_environment.rs",
+        "src/agent/discovery/discovery_io_budget.rs",
+        "src/agent/discovery/executable_discovery_port.rs",
+        "src/agent/installation/executable_resolver.rs",
+        "src/agent/installation/candidate_identity.rs",
+        "src/agent/installation/installation_definition.rs",
+        "src/agent/installation/installation_registry.rs",
+        "src/agent/installation/definitions/mod.rs",
+        "src/agent/discovery/windows/registered_applications.rs",
+        "src/agent/discovery/windows/command_environment.rs",
+        "src/agent/discovery/windows/process_invocation.rs"
+      ],
+      "remaining": "Ported 1:1 with the platform half (login-shell environment, bounded probes, discovery I/O budget, installation definitions, candidate identity and the executable resolver) on the real file system; the product's fsModule/spawn fakes are replaced by temporary executables and an injectable probe runner. Verified live against the installed Codex (login shell, version probe, app-server inspection). Native process ownership reporting for probes is pending."
+    },
+    {
+      "name": "Cursor runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/cursor/cursor-acp-adapter.mjs",
+        "electron/main/agent/runtimes/cursor/cursor-completion-inspector.mjs",
+        "electron/main/agent/runtimes/cursor/cursor-discovery.mjs",
+        "electron/main/agent/runtimes/cursor/cursor-history-source.mjs",
+        "electron/main/agent/runtimes/cursor/cursor-identity.mjs",
+        "electron/main/agent/runtimes/cursor/cursor-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/cursor/cursor_acp_adapter.rs",
+        "src/agent/runtimes/cursor/cursor_completion_inspector.rs",
+        "src/agent/runtimes/cursor/cursor_discovery.rs",
+        "src/agent/runtimes/cursor/cursor_history_source.rs",
+        "src/agent/runtimes/cursor/cursor_identity.rs",
+        "src/agent/runtimes/cursor/cursor_runtime_definition.rs",
+        "src/agent/runtimes/cursor/tests.rs"
+      ],
+      "remaining": "Ported 1:1 with the product Cursor adapter and discovery tests on a scripted ACP connection. Live wiring follows the runtime switch."
+    },
+    {
+      "name": "Local Agent probes",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/connections/probes/bounded-probe-command.mjs",
+        "electron/main/agent/connections/probes/cursor-local-probe.mjs",
+        "electron/main/agent/connections/probes/executable-candidates.mjs",
+        "electron/main/agent/connections/probes/versioned-local-agent-probe.mjs"
+      ],
+      "targets": [
+        "src/agent/connections/probes/bounded_probe_command.rs",
+        "src/agent/connections/probes/cursor_local_probe.rs",
+        "src/agent/connections/probes/executable_candidates.rs",
+        "src/agent/connections/probes/versioned_local_agent_probe.rs"
+      ],
+      "remaining": "Ported 1:1; codex-local-probe and the local inventory tools are ported with the local-agent inventory."
+    },
+    {
+      "name": "Hermes runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/hermes/hermes-acp-adapter.mjs",
+        "electron/main/agent/runtimes/hermes/hermes-discovery.mjs",
+        "electron/main/agent/runtimes/hermes/hermes-history-source.mjs",
+        "electron/main/agent/runtimes/hermes/hermes-identity.mjs",
+        "electron/main/agent/runtimes/hermes/hermes-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/hermes/hermes_acp_adapter.rs",
+        "src/agent/runtimes/hermes/hermes_discovery.rs",
+        "src/agent/runtimes/hermes/hermes_history_source.rs",
+        "src/agent/runtimes/hermes/hermes_identity.rs",
+        "src/agent/runtimes/hermes/hermes_runtime_definition.rs",
+        "src/agent/runtimes/hermes/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
+    },
+    {
+      "name": "OpenCode protocol profile",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/opencode-protocol/opencode-acp-adapter.mjs",
+        "electron/main/agent/runtimes/opencode-protocol/opencode-history-source.mjs",
+        "electron/main/agent/runtimes/opencode-protocol/opencode-security-policy.mjs",
+        "electron/main/agent/runtimes/opencode-protocol/opencode-version.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/opencode_protocol/opencode_acp_adapter.rs",
+        "src/agent/runtimes/opencode_protocol/opencode_history_source.rs",
+        "src/agent/runtimes/opencode_protocol/opencode_security_policy.rs",
+        "src/agent/runtimes/opencode_protocol/opencode_version.rs",
+        "src/agent/runtimes/opencode_protocol/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
+    },
+    {
+      "name": "OpenCode native runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/opencode-native/opencode-native-discovery.mjs",
+        "electron/main/agent/runtimes/opencode-native/opencode-native-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/opencode_native/opencode_native_discovery.rs",
+        "src/agent/runtimes/opencode_native/opencode_native_runtime_definition.rs"
+      ],
+      "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
+    },
+    {
+      "name": "WorkBuddy runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/workbuddy/workbuddy-acp-adapter.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-channels.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-config-directory.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-discovery.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-environment.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-history-source.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-identity.mjs",
+        "electron/main/agent/runtimes/workbuddy/workbuddy-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/workbuddy/workbuddy_acp_adapter.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_channels.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_config_directory.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_discovery.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_environment.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_history_source.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_identity.rs",
+        "src/agent/runtimes/workbuddy/workbuddy_runtime_definition.rs",
+        "src/agent/runtimes/workbuddy/tests.rs"
+      ],
+      "remaining": "Ported 1:1 onto the shared ACP adapter with the product adapter and discovery tests (scripted ACP connection, injected discover/probe). Live wiring follows the runtime switch."
+    },
+    {
+      "name": "Pi runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/pi/pi-discovery.mjs",
+        "electron/main/agent/runtimes/pi/pi-event-normalizer.mjs",
+        "electron/main/agent/runtimes/pi/pi-history-source.mjs",
+        "electron/main/agent/runtimes/pi/pi-identity.mjs",
+        "electron/main/agent/runtimes/pi/pi-prompt-input.mjs",
+        "electron/main/agent/runtimes/pi/pi-rpc-adapter.mjs",
+        "electron/main/agent/runtimes/pi/pi-rpc-client.mjs",
+        "electron/main/agent/runtimes/pi/pi-runtime-definition.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/pi/pi_discovery.rs",
+        "src/agent/runtimes/pi/pi_history_source.rs",
+        "src/agent/runtimes/pi/pi_identity.rs",
+        "src/agent/runtimes/pi/pi_rpc_adapter.rs",
+        "src/agent/runtimes/pi/pi_runtime_definition.rs",
+        "src/agent/runtimes/pi/tests.rs",
+        "src/agent/protocols/pi_rpc/mod.rs"
+      ],
+      "remaining": "Ported 1:1 (the re-export modules map to protocols/pi_rpc) with the product Pi adapter and discovery tests on a scripted client and real temporary executables. Live wiring follows the runtime switch."
+    },
+    {
+      "name": "Process-local cache and quit coordination",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/cache/ephemeral-agent-session-cache.mjs",
+        "electron/main/agent/agent-persistence.mjs",
+        "electron/main/agent/agent-shutdown.mjs"
+      ],
+      "targets": [
+        "src/agent/cache/ephemeral_agent_session_cache.rs",
+        "src/agent/cache/mod.rs",
+        "src/agent/cache/tests.rs",
+        "src/agent/host/agent_host.rs"
+      ],
+      "remaining": "Ported 1:1 with the product persistence and shutdown tests: bounded, redacted, process-local recovery events (the legacy durable journal is removed once and never recreated), and quit held until Agent sessions and runtime resources drain (`AgentHostHandle::shutdown`; the unused AgentQuitCoordinator port was removed). agent-persistence.mjs is a deprecated re-export of the cache. Wiring follows the host switch to AgentService."
+    },
+    {
+      "name": "Production runtime composition",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/bootstrap/create-agent-runtime-host.mjs"
+      ],
+      "targets": [
+        "src/agent/bootstrap/create_agent_runtime_host.rs",
+        "src/agent/bootstrap/create_agent_runtime_host/tests.rs",
+        "src/agent/bootstrap/mod.rs"
+      ],
+      "remaining": "Ported 1:1 with the product production-composition test: the nine runtime definitions (Built-in Agent, Codex, Claude, OpenCode, Cursor, Hermes, Pi and both WorkBuddy channels) in one registry with Codex as the default and per-runtime discovery isolation. The app still composes sessions through legacy_create_agent_runtime_host.rs until the host switches to AgentService."
+    },
+    {
+      "name": "Agent IPC bridge",
+      "status": "partial",
+      "sources": [
+        "electron/main/ipc/agent-ipc.mjs"
+      ],
+      "targets": [
+        "src/agent/application/agent_requests.rs",
+        "src/agent/application/tests/requests.rs",
+        "src/agent/host/agent_host.rs",
+        "src/agent/host/mod.rs",
+        "src/agent/host/tests.rs",
+        "src/features/desktop_agent/infrastructure/host/agent_host_global.rs"
+      ],
+      "remaining": "Ported 1:1 with the product IPC-authorization and reference-IPC tests: every operation is a typed AgentRequest whose constructors carry the shared contract's constraints (the agent:* channel names and JSON schema remain only for the contract tests), its root authorized before the service runs, turn references authorized and staged snapshots leased per turn (released when the dispatch fails), and failures returned as the operation-failure envelope. Project-session fences are not wired (no project-session service yet); the production composition of electron/main.mjs runs on a dedicated Agent host thread (src/agent/host) that windows reach through AgentHostHandle (invoke, per-window frame sinks, open-project root authorization, close and drain); the GPUI client still talks to the legacy runtimes until the Renderer controllers move onto that handle."
+    },
+    {
+      "name": "Renderer presentation policy",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/domain/agent-activity-presentation.ts",
+        "src/features/desktop-agent/domain/agent-tool-evidence.ts",
+        "src/features/desktop-agent/domain/agent-stream-presentation.ts",
+        "src/features/desktop-agent/ui/transcript/transcript-rows.ts",
+        "src/features/desktop-agent/ui/transcript/transcript-layout.ts",
+        "src/features/desktop-agent/ui/agent-tool-group-presentation.ts",
+        "src/features/desktop-agent/ui/agentChatViewModel.ts",
+        "src/features/desktop-agent/ui/agentPanelPresentation.ts",
+        "src/features/desktop-agent/ui/agentErrorPresentation.ts",
+        "src/features/desktop-agent/ui/agent-history-presentation.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/domain/agent_activity_presentation.rs",
+        "src/features/desktop_agent/domain/agent_tool_evidence.rs",
+        "src/features/desktop_agent/domain/agent_stream_presentation.rs",
+        "src/features/desktop_agent/ui/transcript/transcript_rows.rs",
+        "src/features/desktop_agent/ui/transcript/transcript_layout.rs",
+        "src/features/desktop_agent/ui/transcript/transcript_viewport.rs",
+        "src/features/desktop_agent/ui/transcript/mod.rs",
+        "src/features/desktop_agent/ui/agent_tool_group_presentation.rs",
+        "src/features/desktop_agent/ui/activity/agent_tool_steps.rs",
+        "src/features/desktop_agent/ui/activity/mod.rs",
+        "src/features/desktop_agent/ui/agent_chat_view_model.rs",
+        "src/features/desktop_agent/ui/agent_panel_presentation.rs",
+        "src/features/desktop_agent/ui/agent_error_presentation.rs",
+        "src/features/desktop_agent/ui/agent_history_presentation.rs",
+        "src/features/desktop_agent/ui/tests/mod.rs",
+        "src/features/desktop_agent/ui/tests/timeline.rs",
+        "src/features/desktop_agent/ui/tests/tool_presentation.rs",
+        "src/features/desktop_agent/ui/tests/chat_view_model.rs"
+      ],
+      "remaining": "Pure presentation policy is ported over the display contract with its product suites: activity/tool/command classification and output, bounded tool evidence (UTF-16 budgets), streaming Markdown stable/tail splitting and grapheme catch-up, transcript rows (pending submissions, visibility), deterministic vertical rhythm and virtualization ranges, viewport anchors, tool grouping, readiness/session/error/history wording and the chat view model. The native panel (Native GPUI Agent panel) renders through these; the legacy chat still uses legacy_agent_* until the workbench moves onto the panel."
+    },
+    {
+      "name": "Native GPUI Agent panel",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/AgentPanelLayout.tsx",
+        "src/features/desktop-agent/ui/AgentPanelStatus.tsx",
+        "src/features/desktop-agent/ui/AgentEmptyState.tsx",
+        "src/features/desktop-agent/ui/AgentRuntimeLauncher.tsx",
+        "src/features/desktop-agent/ui/AgentHistoryNotice.tsx",
+        "src/features/desktop-agent/ui/AgentMessagePart.tsx",
+        "src/features/desktop-agent/ui/AgentPartRenderer.tsx",
+        "src/features/desktop-agent/ui/AgentPartRendererRegistry.tsx",
+        "src/features/desktop-agent/ui/AgentToolRendererRegistry.tsx",
+        "src/features/desktop-agent/ui/AgentTurnSummary.tsx",
+        "src/features/desktop-agent/ui/AgentRunFeedback.tsx",
+        "src/features/desktop-agent/ui/AgentPlanItem.tsx",
+        "src/features/desktop-agent/ui/AgentPromptInlineContent.tsx",
+        "src/features/desktop-agent/ui/activity/AgentActivityShell.tsx",
+        "src/features/desktop-agent/ui/activity/AgentCommandActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentFileChangeActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentFileQueryActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentGenericActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentNoticeActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentPlanActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentReasoningActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentSystemActivity.tsx",
+        "src/features/desktop-agent/ui/activity/AgentToolEvidenceTree.tsx",
+        "src/features/desktop-agent/ui/activity/AgentToolTextEvidence.tsx",
+        "src/features/desktop-agent/ui/activity/index.ts",
+        "src/features/desktop-agent/ui/transcript/TranscriptRow.tsx",
+        "src/features/desktop-agent/ui/useAgentRunActiveElapsed.ts",
+        "src/features/desktop-agent/ui/useAgentSessionPreparation.ts",
+        "src/features/desktop-agent/ui/composer/AgentComposerToolbar.tsx",
+        "src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute.tsx",
+        "src/features/desktop-agent/ui/useAgentRoutingPreferences.ts",
+        "src/features/desktop-agent/domain/agent-route-preference.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/activity/agent_activity_views/mod.rs",
+        "src/features/desktop_agent/ui/panel/mod.rs",
+        "src/features/desktop_agent/ui/transcript/view.rs",
+        "src/features/desktop_agent/ui/elements/mod.rs",
+        "src/features/desktop_agent/ui/panel/status.rs",
+        "src/features/desktop_agent/ui/docks/mod.rs",
+        "src/features/desktop_agent/ui/composer/mod.rs",
+        "src/features/desktop_agent/ui/panel/fixture.rs",
+        "src/features/workbench/mod.rs",
+        "src/features/desktop_agent/ui/panel/compute.rs",
+        "src/features/desktop_agent/ui/panel/routing.rs",
+        "src/features/settings/agent_routing_preferences.rs",
+        "src/features/cloud/agent/conversation.rs",
+        "src/features/cloud/agent/controller.rs",
+        "src/features/cloud/agent/projection.rs"
+      ],
+      "remaining": "AgentChatTabPanel is a GPUI view over AgentSessionController: launcher, status, empty state, virtual transcript (timeline rows, tool groups with Explored folds, activity shells with evidence trees, streaming Markdown stable/tail, turn summaries, live tail), approval/question docks and the composer (mention tokens, visual attachments, commands, model/effort/mode pickers). Offscreen captures cover a recorded conversation and a fresh chat. BuiltInAgentCompute selects a ready model-connection route (own connections; PuppyOne compute behind Payments with sign-in and credit prompts). The workbench opens every local chat on this panel. useAgentRoutingPreferences applies the remembered Agent's model, effort and mode to a session-less command target and records the user's choices (agentRoutingPreferences v2 in Preferences, imported from the product's storage keys); the Workbench marks each chat presented and command target as the product does. Stream frame smoothing, runtime picker popover and pixel parity remain. The hosted Agent (CloudAgentConversation over CloudAgentController and cloudAgentProjection) renders through the same panel with its own status; its History reads the target's locators. The pixel lab's chat scenarios run on the panel fixture."
+    },
+    {
+      "name": "Renderer panel support",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/useAgentStreamPresentation.ts",
+        "src/features/desktop-agent/ui/agent-stream-frame-scheduler.ts",
+        "src/features/desktop-agent/ui/AgentPickerPopover.tsx",
+        "src/features/desktop-agent/ui/agent-picker-limits.ts",
+        "src/features/desktop-agent/ui/agent-picker-presentation.ts",
+        "src/features/desktop-agent/ui/useAgentReferenceIngestion.ts",
+        "src/features/desktop-agent/ui/agentReferenceDropEvent.ts",
+        "src/features/desktop-agent/ui/composer/AgentPromptEditor.tsx",
+        "src/features/desktop-agent/ui/composer/agent-reference-presentation.ts",
+        "src/features/desktop-agent/ui/AgentConnectionStatus.tsx",
+        "src/features/desktop-agent/ui/AgentToolGroupContext.ts",
+        "src/features/desktop-agent/ui/transcript/useTranscriptScope.ts",
+        "src/features/desktop-agent/ui/transcript/useTranscriptViewport.ts",
+        "src/features/desktop-agent/ui/AgentActivityRenderBoundary.tsx",
+        "src/features/desktop-agent/ui/AgentBrandMark.tsx",
+        "src/features/desktop-agent/ui/AgentRuntimePicker.tsx",
+        "src/features/desktop-agent/ui/AgentSurfaceHeader.tsx",
+        "src/features/desktop-agent/ui/built-in-agent/built-in-agent-compute.css",
+        "src/features/desktop-agent/ui/desktop-agent.css",
+        "src/features/desktop-agent/ui/styles/activities.css",
+        "src/features/desktop-agent/ui/styles/agent-prompt-editor.css",
+        "src/features/desktop-agent/ui/styles/blocking.css",
+        "src/features/desktop-agent/ui/styles/composer.css",
+        "src/features/desktop-agent/ui/styles/foundation.css",
+        "src/features/desktop-agent/ui/styles/launcher.css",
+        "src/features/desktop-agent/ui/styles/pickers.css",
+        "src/features/desktop-agent/ui/styles/responsive.css",
+        "src/features/desktop-agent/ui/styles/theme.css",
+        "src/features/desktop-agent/ui/styles/tool-results.css",
+        "src/features/desktop-agent/ui/styles/transcript.css",
+        "src/features/desktop-agent/ui/agent-runtime-geometry.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/transcript/view.rs",
+        "src/features/desktop_agent/ui/composer/mod.rs",
+        "src/features/desktop_agent/ui/elements/mod.rs",
+        "src/features/desktop_agent/ui/panel/status.rs",
+        "src/features/desktop_agent/ui/panel/compute.rs",
+        "src/ui/agent_brand_mark.rs",
+        "src/features/desktop_agent/ui/agent_theme.rs",
+        "src/ui/form_input.rs"
+      ],
+      "remaining": "Streaming answers catch up a bounded grapheme step per 16 ms frame (useAgentStreamPresentation over nextAgentStreamText) and re-measure their row. The session-control picker follows AgentPickerPopover's limits (120 options, 360 px, search above six). Dropped Finder files and directories, Explorer resources and pasted images or files become references (useAgentReferenceIngestion); failed references show localizedReferenceError. The prompt editor's mentions are TextInput tokens. The live tail renders AgentConnectionStatus; a tool group's single open step is the panel's group selection (AgentToolGroupContext). The transcript keeps its follow, unread and jump-to-latest state for the panel's lifetime, which in GPUI spans hiding and moving the tab (useTranscriptViewport's remount memory). Activity views are total functions over display values, so no render-time error boundary exists (AgentActivityRenderBoundary). The CSS is expressed in the GPUI views and AgentTheme. AgentRuntimePicker and AgentSurfaceHeader are rendered only by the product's smoke harnesses, not by its chat. Remaining: mention-chip error styling, the announcement live region and pixel parity. agent-runtime-geometry's CSS variables are direct GPUI geometry: the transcript's top edge fade (topFade over 24 px, 18 px band, canvas to 78% at 46%) is painted per scroll frame, the virtual canvas and row offsets are the GPUI list's, the empty logo's turns rotate the brand mark and the picker overlay is an anchored popover."
+    },
+    {
+      "name": "Renderer module surface and harnesses",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/agentTypes.ts",
+        "src/features/desktop-agent/domain/agent-contract.ts",
+        "src/features/desktop-agent/domain/agent-projection-types.ts",
+        "src/features/desktop-agent/domain/agent-reference-capabilities.ts",
+        "src/features/desktop-agent/index.ts",
+        "src/features/desktop-agent/lazy.ts",
+        "src/features/desktop-agent/ui/AgentRenderStabilitySmokeHarness.tsx",
+        "src/features/desktop-agent/ui/AgentToolStabilitySmokeHarness.tsx",
+        "src/features/desktop-agent/ui/AgentVisualSmokeHarness.tsx",
+        "src/features/desktop-agent/visual-smoke.ts"
+      ],
+      "targets": [
+        "src/agent/contract/display_types.rs",
+        "src/agent/contract/reference_input.rs",
+        "src/features/desktop_agent/workbench/mod.rs",
+        "src/features/desktop_agent/ui/panel/fixture.rs",
+        "src/features/workbench/lab.rs"
+      ],
+      "remaining": "The type modules are the Rust display and reference-input contracts; lazy.ts's preparation, restore, discard and close entry points are the Workbench's Agent chat contribution. The smoke harnesses are the dev-capture panel fixture and the pixel lab's chat scenarios (recorded events through Main's reducers); the render-stability harnesses' long-stream timing checks are not ported."
+    },
+    {
+      "name": "Agent activity bridge",
+      "status": "partial",
+      "sources": [
+        "electron/main/ipc/agent-activity-ipc.mjs"
+      ],
+      "targets": [
+        "src/platform/agent_activity/host.rs",
+        "src/platform/agent_activity/service.rs"
+      ],
+      "remaining": "Terminal Agent file activity (subscribe, enrollment snapshot and toggle) is served by the native agent activity host without an IPC hop."
+    },
+    {
+      "name": "Agent item host",
+      "status": "partial",
+      "sources": [
+        "electron/main/item-hosts/agent-host-authority.mjs",
+        "electron/main/item-hosts/agent-process-service.mjs",
+        "electron/utility/agent/item-host.mjs",
+        "electron/utility/agent/main.mjs"
+      ],
+      "targets": [
+        "src/agent/host/agent_host.rs",
+        "src/agent/application/agent_service.rs",
+        "src/agent/application/session/agent_session_lifecycle.rs",
+        "src/agent/runtimes/puppyone_agent/native_model_connections.rs",
+        "src/agent/runtimes/puppyone_agent/model_connection_binding.rs"
+      ],
+      "remaining": "GPUI has no per-item utility process: the Agent host thread composes one AgentService, so the item host's service, catalog and attachment calls are in-process. Main's ownership fences are the service's own: sessions are owned by window and root with instance fences, concurrent creations and history opens of one locator are refused, an exited provider is retired and resumed on the next open, and closing a window or project closes its sessions, revokes its attachments and releases their model leases. The Built-in Agent's lease cannot change connection (NEW_SESSION_REQUIRED) and a changed connection fails validation (MODEL_BINDING_CHANGED) before the next turn; the main process's eager shutdown of a session whose connection is revoked mid-turn, host-process recovery and per-host pid diagnostics have no counterpart."
+    }
+  ]
+}

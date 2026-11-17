@@ -1,0 +1,24 @@
+{
+  "checkout": "../../puppyone-baseline-5e87974ef",
+  "commit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
+  "locale": "en-SG",
+  "icu": "78.2",
+  "inputs": {
+    "node_modules/@codemirror/state/dist/index.js": "1adb0b0ad37781dc26f5fd61ecd2b7528017c267e624856aa34ce14c32033c86",
+    "node_modules/@marijn/find-cluster-break/src/index.js": "b388956e964931f9de2e984e0f236f88c33c1e2e7f34f83d01f3676e6c47b616",
+    "src/shared-ui/core/dataResourcePath.ts": "78ab58a2a0f53f92ea6d5d46439fefac4be5cbd701cc6381d9b6e9798aab36b0",
+    "src/shared-ui/core/resourcePath.ts": "d25dc64fe07471bd736bb98f5798929d530b74222813e5fb9a8c587f2de7d118",
+    "src/shared-ui/core/resourceUri.ts": "168b6997c30e39a348d7c8540fb2fdf88fe8e6b43aff491ff221121f99fe43e4",
+    "src/shared-ui/editor/markdown/core/links/markdownHeadingIndex.ts": "95da2ccee5904f6d76ec46067585071dcd4fcc8fa98b4d0f6dda1a4a63a3eca6",
+    "src/shared-ui/editor/markdown/core/links/markdownLinkGraph.ts": "db0549d5480731f54f89468672972db5d0590439c3ed97c3d7ec9c3ffb0fcf1f",
+    "src/shared-ui/editor/markdown/core/links/markdownLinkModel.ts": "7363d2c445fd794aa08b59ffae40250f6024564f6a0b29f0ff51c8e3ee90adaa",
+    "src/shared-ui/editor/markdown/core/links/wikiLinkModel.ts": "6b28c3a5817776d8b752c8a8714c0471a4f3e84aec0942f3307a15ecc1a98b2b",
+    "src/shared-ui/editor/markdown/core/syntax/markdownFrontMatter.ts": "1dc0d1b1ca47833c7daa8dd6ba12f079d09ab2da48fc6b6173c3243fdb7e2773",
+    "src/shared-ui/editor/markdown/platform/policy/markdownUrlPolicy.ts": "1abdce5b27ac1651a6af4e06f954a950a41b1cb417becc1b937525181c4b99fd",
+    "src/shared-ui/editor/markdown/shared/inlineTokenScan.ts": "df3ec4a198059bf7a56114e58e82acc34775eb57167293855d5543db39c291bf"
+  },
+  "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned).",
+  "review20261104": "Repinned 2026-11-04 to qubits 671143f2a; paths follow the packages→src/shared-ui move. Reviewed drift (fe73bec8c): markdownLinkModel/markdownLinkReferences resolve reference-style links, inlineTokenScan recognises bare URLs, markdownHeadingIndex skips the new block syntax; ported natively as O-6.",
+  "review20261108": "Repinned 2026-11-08 to qubits 686d41c49; every input is byte-identical to 671143f2a.",
+  "review20261114": "Repinned 2026-11-14 to v0.4.4 (5e87974ef); every input is byte-identical to 686d41c49."
+}

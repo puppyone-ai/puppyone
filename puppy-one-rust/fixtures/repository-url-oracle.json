@@ -1,0 +1,961 @@
+{
+  "sourceCommit": "dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2",
+  "cases": [
+    {
+      "value": "",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "   ",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "--upload-pack=malicious",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "https://github.com/owner/repo.git",
+      "detected": "github",
+      "expected": {
+        "url": "https://github.com/owner/repo.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "https://github.com/group/sub/repo.GIT",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://github.com/owner/repo.git.git",
+      "detected": "github",
+      "expected": {
+        "url": "https://github.com/owner/repo.git.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "https://github.com/owner/CON",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://github.com/owner/trailing.",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://github.com/owner/.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://github.com/owner/..git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://github.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "http://github.com/owner/repo.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "http://github.com/group/sub/repo.GIT",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "http://github.com/owner/repo.git.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "http://github.com/owner/CON",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "http://github.com/owner/trailing.",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "http://github.com/owner/.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "http://github.com/owner/..git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "http://github.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git://github.com/owner/repo.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git://github.com/group/sub/repo.GIT",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git://github.com/owner/repo.git.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git://github.com/owner/CON",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git://github.com/owner/trailing.",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git://github.com/owner/.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git://github.com/owner/..git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git://github.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://github.com/owner/repo.git",
+      "detected": "github",
+      "expected": {
+        "url": "ssh://github.com/owner/repo.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "ssh://github.com/group/sub/repo.GIT",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://github.com/owner/repo.git.git",
+      "detected": "github",
+      "expected": {
+        "url": "ssh://github.com/owner/repo.git.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "ssh://github.com/owner/CON",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://github.com/owner/trailing.",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://github.com/owner/.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://github.com/owner/..git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://github.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@github.com/owner/repo.git",
+      "detected": "github",
+      "expected": {
+        "url": "ssh://git@github.com/owner/repo.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "ssh://git@github.com/group/sub/repo.GIT",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@github.com/owner/repo.git.git",
+      "detected": "github",
+      "expected": {
+        "url": "ssh://git@github.com/owner/repo.git.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "ssh://git@github.com/owner/CON",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@github.com/owner/trailing.",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@github.com/owner/.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@github.com/owner/..git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@github.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git@github.com:owner/repo.git",
+      "detected": "github",
+      "expected": {
+        "url": "git@github.com:owner/repo.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "git@github.com:group/sub/repo.GIT",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git@github.com:owner/repo.git.git",
+      "detected": "github",
+      "expected": {
+        "url": "git@github.com:owner/repo.git.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "git@github.com:owner/CON",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git@github.com:owner/trailing.",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git@github.com:owner/.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git@github.com:owner/..git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git@github.com:owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "GIT@github.com:owner/repo.git",
+      "detected": "github",
+      "expected": {
+        "url": "GIT@github.com:owner/repo.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "GIT@github.com:group/sub/repo.GIT",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "GIT@github.com:owner/repo.git.git",
+      "detected": "github",
+      "expected": {
+        "url": "GIT@github.com:owner/repo.git.git",
+        "provider": "github",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "GIT@github.com:owner/CON",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "GIT@github.com:owner/trailing.",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "GIT@github.com:owner/.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "GIT@github.com:owner/..git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "GIT@github.com:owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com/owner/repo.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com/group/sub/repo.GIT",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com/owner/repo.git.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com/owner/CON",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com/owner/trailing.",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com/owner/.git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com/owner/..git",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://gitlab.com/owner/repo.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "https://gitlab.com/owner/repo.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "https://gitlab.com/group/sub/repo.GIT",
+      "detected": "gitlab",
+      "expected": {
+        "url": "https://gitlab.com/group/sub/repo.GIT",
+        "provider": "gitlab",
+        "owner": "group/sub",
+        "namespace": "group/sub",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "https://gitlab.com/owner/repo.git.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "https://gitlab.com/owner/repo.git.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "https://gitlab.com/owner/CON",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "https://gitlab.com/owner/trailing.",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "https://gitlab.com/owner/.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "https://gitlab.com/owner/..git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "https://gitlab.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "http://gitlab.com/owner/repo.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "http://gitlab.com/group/sub/repo.GIT",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "http://gitlab.com/owner/repo.git.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "http://gitlab.com/owner/CON",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "http://gitlab.com/owner/trailing.",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "http://gitlab.com/owner/.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "http://gitlab.com/owner/..git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "http://gitlab.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git://gitlab.com/owner/repo.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git://gitlab.com/group/sub/repo.GIT",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git://gitlab.com/owner/repo.git.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git://gitlab.com/owner/CON",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git://gitlab.com/owner/trailing.",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git://gitlab.com/owner/.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git://gitlab.com/owner/..git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git://gitlab.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://gitlab.com/owner/repo.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "ssh://gitlab.com/owner/repo.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "ssh://gitlab.com/group/sub/repo.GIT",
+      "detected": "gitlab",
+      "expected": {
+        "url": "ssh://gitlab.com/group/sub/repo.GIT",
+        "provider": "gitlab",
+        "owner": "group/sub",
+        "namespace": "group/sub",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "ssh://gitlab.com/owner/repo.git.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "ssh://gitlab.com/owner/repo.git.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "ssh://gitlab.com/owner/CON",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://gitlab.com/owner/trailing.",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://gitlab.com/owner/.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://gitlab.com/owner/..git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://gitlab.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@gitlab.com/owner/repo.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "ssh://git@gitlab.com/owner/repo.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "ssh://git@gitlab.com/group/sub/repo.GIT",
+      "detected": "gitlab",
+      "expected": {
+        "url": "ssh://git@gitlab.com/group/sub/repo.GIT",
+        "provider": "gitlab",
+        "owner": "group/sub",
+        "namespace": "group/sub",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "ssh://git@gitlab.com/owner/repo.git.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "ssh://git@gitlab.com/owner/repo.git.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "ssh://git@gitlab.com/owner/CON",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@gitlab.com/owner/trailing.",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@gitlab.com/owner/.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@gitlab.com/owner/..git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "ssh://git@gitlab.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git@gitlab.com:owner/repo.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "git@gitlab.com:owner/repo.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "git@gitlab.com:group/sub/repo.GIT",
+      "detected": "gitlab",
+      "expected": {
+        "url": "git@gitlab.com:group/sub/repo.GIT",
+        "provider": "gitlab",
+        "owner": "group/sub",
+        "namespace": "group/sub",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "git@gitlab.com:owner/repo.git.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "git@gitlab.com:owner/repo.git.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "git@gitlab.com:owner/CON",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git@gitlab.com:owner/trailing.",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git@gitlab.com:owner/.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git@gitlab.com:owner/..git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "git@gitlab.com:owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "GIT@gitlab.com:owner/repo.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "GIT@gitlab.com:owner/repo.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "GIT@gitlab.com:group/sub/repo.GIT",
+      "detected": "gitlab",
+      "expected": {
+        "url": "GIT@gitlab.com:group/sub/repo.GIT",
+        "provider": "gitlab",
+        "owner": "group/sub",
+        "namespace": "group/sub",
+        "name": "repo"
+      }
+    },
+    {
+      "value": "GIT@gitlab.com:owner/repo.git.git",
+      "detected": "gitlab",
+      "expected": {
+        "url": "GIT@gitlab.com:owner/repo.git.git",
+        "provider": "gitlab",
+        "owner": "owner",
+        "namespace": "owner",
+        "name": "repo.git"
+      }
+    },
+    {
+      "value": "GIT@gitlab.com:owner/CON",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "GIT@gitlab.com:owner/trailing.",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "GIT@gitlab.com:owner/.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "GIT@gitlab.com:owner/..git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "GIT@gitlab.com:owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "gitlab.com/owner/repo.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "gitlab.com/group/sub/repo.GIT",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "gitlab.com/owner/repo.git.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "gitlab.com/owner/CON",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "gitlab.com/owner/trailing.",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "gitlab.com/owner/.git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "gitlab.com/owner/..git",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "gitlab.com/owner/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "detected": "gitlab",
+      "expected": null
+    },
+    {
+      "value": "https://token@github.com/owner/repo.git",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "https://github.com/owner/repo/tree/main",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://bitbucket.org/owner/repo.git",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "https://github.com.evil.test/owner/repo.git",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "https://evil.test/github.com/owner/repo",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "https://evilgithub.com/a/b",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "https://github.com@evil.test/a/b",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "ftp://github.com/a/b",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "git@github.com.evil.test:a/b",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "github.com:owner/repo",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "github.com",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "https://GITHUB.COM/Owner/Repo.GIT",
+      "detected": "github",
+      "expected": {
+        "url": "https://GITHUB.COM/Owner/Repo.GIT",
+        "provider": "github",
+        "owner": "Owner",
+        "namespace": "Owner",
+        "name": "Repo"
+      }
+    },
+    {
+      "value": "  git@GitLab.com:Group/Sub/Repo.GIT  ",
+      "detected": "gitlab",
+      "expected": {
+        "url": "git@GitLab.com:Group/Sub/Repo.GIT",
+        "provider": "gitlab",
+        "owner": "Group/Sub",
+        "namespace": "Group/Sub",
+        "name": "Repo"
+      }
+    },
+    {
+      "value": "git@github.com:a/b//",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "git@github.com:a//b",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://github.com/a/b?x=1",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://github.com/a/b#main",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "https://github.com:8443/a/b",
+      "detected": "github",
+      "expected": null
+    },
+    {
+      "value": "ssh://token@github.com/a/b",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "ssh://git:secret@github.com/a/b",
+      "detected": null,
+      "expected": null
+    },
+    {
+      "value": "https://github.com/a/%2e%2e/b",
+      "detected": "github",
+      "expected": null
+    }
+  ],
+  "projectNames": [
+    {
+      "value": "",
+      "expected": null
+    },
+    {
+      "value": ".",
+      "expected": null
+    },
+    {
+      "value": "..",
+      "expected": null
+    },
+    {
+      "value": "../escape",
+      "expected": null
+    },
+    {
+      "value": "bad/name",
+      "expected": null
+    },
+    {
+      "value": "CON",
+      "expected": null
+    },
+    {
+      "value": "trailing.",
+      "expected": null
+    },
+    {
+      "value": "Valid project",
+      "expected": "Valid project"
+    }
+  ]
+}

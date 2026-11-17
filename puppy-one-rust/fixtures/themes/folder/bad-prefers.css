@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-prefers; name: Bad Prefers; version: 1.0.0; modes: light; }
+@puppyone application { @media (prefers-color-scheme: dark) { :root { --po-accent: #000000; } } }

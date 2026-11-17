@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.asset; name: Asset; version: 1.0.0; modes: light; }
+@puppyone markdown { :root { --po-md-content-font: "Remote", url("https://example.com/x.woff2"); } }

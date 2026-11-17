@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "policy": "Minimum production line and branch percentages. Include zero-hit executable code; exclude AST-identified tests and development capture modules. Never lower thresholds to accommodate a regression. Language-specific coverage percentages are not evidence of TS acceptance parity.",
+  "thresholds": {
+    "editor": {
+      "lines": 76,
+      "branches": 62
+    },
+    "agent": {
+      "lines": 72,
+      "branches": 55
+    },
+    "workbench": {
+      "lines": 71,
+      "branches": 56
+    },
+    "workspace": {
+      "lines": 85,
+      "branches": 68
+    },
+    "platform": {
+      "lines": 85,
+      "branches": 66
+    },
+    "shared": {
+      "lines": 64,
+      "branches": 54
+    },
+    "all": {
+      "lines": 73,
+      "branches": 59
+    }
+  },
+  "establishment": {
+    "sourceCommit": "db127fe05b210863efe0e4cae784e684e0182b8a",
+    "method": "First clean-workspace production measurement. Development/test AST spans excluded. Full workspace plus seven explicit native acceptance cases. Earlier exploratory accumulated profiles are not a baseline."
+  }
+}

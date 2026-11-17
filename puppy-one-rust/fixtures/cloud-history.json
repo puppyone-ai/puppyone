@@ -1,0 +1,116 @@
+{
+ "comment": "Cloud History pixel fixture shared by tools/reference-cloud-entry.tsx and src/lab.rs (cloud-history-*).",
+ "now": 1793188800000,
+ "api": "https://api.puppyone.ai/api/v1",
+ "web": "https://app.puppyone.ai",
+ "page": {
+  "project_id": "0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab",
+  "commits": [
+   {
+    "commit_id": "0101010101010101010101010101010101010101",
+    "parent_ids": [
+     "0202020202020202020202020202020202020202"
+    ],
+    "who": "Codex",
+    "message": "Polish the onboarding guide",
+    "created_at": "2026-10-28T11:00:00Z",
+    "changes_loaded": false
+   },
+   {
+    "commit_id": "0202020202020202020202020202020202020202",
+    "parent_ids": [
+     "0303030303030303030303030303030303030303"
+    ],
+    "who": "",
+    "message": "",
+    "created_at": "2026-10-28T09:00:00Z",
+    "changes_loaded": false
+   },
+   {
+    "commit_id": "0303030303030303030303030303030303030303",
+    "parent_ids": [
+     "0404040404040404040404040404040404040404"
+    ],
+    "who": "Claude Code",
+    "message": "Add the pricing FAQ",
+    "created_at": "2026-10-27T09:00:00Z",
+    "changes_loaded": false
+   },
+   {
+    "commit_id": "0404040404040404040404040404040404040404",
+    "parent_ids": [
+     "0505050505050505050505050505050505050505"
+    ],
+    "who": "alice@example.com",
+    "message": "Import meeting notes",
+    "created_at": "2026-10-25T04:00:00Z",
+    "changes_loaded": false
+   },
+   {
+    "commit_id": "0505050505050505050505050505050505050505",
+    "parent_ids": [],
+    "who": "alice@example.com",
+    "message": "Initial upload",
+    "created_at": "2026-10-11T20:00:00Z",
+    "changes_loaded": false
+   }
+  ],
+  "head_commit_id": "0101010101010101010101010101010101010101",
+  "refs": [
+   {
+    "ref_name": "refs/heads/main",
+    "ref_type": "branch",
+    "commit_id": "0101010101010101010101010101010101010101"
+   },
+   {
+    "ref_name": "refs/tags/v1.0",
+    "ref_type": "tag",
+    "commit_id": "0303030303030303030303030303030303030303"
+   }
+  ],
+  "refs_included": true,
+  "snapshot_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "next_cursor": "page-2",
+  "has_more": true,
+  "total": 12,
+  "graph_health": "complete",
+  "unreadable_commit_ids": []
+ },
+ "empty": {
+  "project_id": "0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab",
+  "commits": [],
+  "head_commit_id": null,
+  "refs": [],
+  "refs_included": true,
+  "snapshot_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "next_cursor": null,
+  "has_more": false,
+  "total": 0,
+  "graph_health": "complete",
+  "unreadable_commit_ids": []
+ },
+ "detail": {
+  "commit_id": "0101010101010101010101010101010101010101",
+  "parent_ids": [
+   "0202020202020202020202020202020202020202"
+  ],
+  "who": "Codex",
+  "message": "Polish the onboarding guide",
+  "created_at": "2026-10-28T11:00:00Z",
+  "changes_loaded": true,
+  "changes": [
+   {
+    "path": "docs/onboarding.md",
+    "action": "update"
+   },
+   {
+    "path": "docs/images/welcome.png",
+    "action": "add"
+   },
+   {
+    "path": "docs/old-guide.md",
+    "op": "deleted"
+   }
+  ]
+ }
+}

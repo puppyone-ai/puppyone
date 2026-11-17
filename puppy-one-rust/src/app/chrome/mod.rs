@@ -1,0 +1,407 @@
+//! The window's chrome (`DesktopWindowChrome`): the Header with its project
+//! switcher, place menu, Cloud tools, Changes and Agent entries; the
+//! project rail (`ProjectSwitcherRail`); the one Header popover that is
+//! open; and the owners of what hangs off them — the project actions menu
+//! and the Header introductions.
+//!
+//! [`WindowChrome`] is an entity: it renders the Header as its view and the
+//! rail from a read ([`WindowChrome::rail`]), reads the window's other
+//! owners while it draws, takes what the window shows as a
+//! [`SessionView`], and asks the window for everything else
+//! ([`ChromeEvent`]).
+mod account;
+pub(super) mod navigation;
+mod project_menu;
+mod rail;
+
+use super::{
+    Command,
+    coachmarks::{Coachmark, HeaderCoachmarks},
+    editor_area::EditorArea,
+    header,
+    home::Homepage,
+    panes::PaneLayout,
+    project::ProjectLifecycle,
+    project_actions::ProjectActions,
+    right_sidebar::{RightSidebar, Surface},
+    session::{DocumentSession, SessionView},
+    window_cloud::WindowCloud,
+};
+use crate::features::settings::{PreferencesStore, observe_slice};
+use crate::theme;
+use crate::ui::components::IconButton;
+use crate::ui::components::{Button, ButtonVariant};
+use crate::workspace::cloud::catalog::Item;
+use gpui::{prelude::*, *};
+use std::path::PathBuf;
+
+/// Header popovers the chrome holds: one at a time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Popover {
+    Project,
+    /// `ProjectPlaceMenu`: the places and the account.
+    Place,
+    /// The Homepage brand's navigation (`OnboardingBrandLockup`).
+    Brand,
+    /// The signed-in account at the Homepage Header's end.
+    Account,
+}
+/// What the chrome asks of the window.
+pub(super) enum ChromeEvent {
+    Command(Command),
+    /// A Header popover opened or closed.
+    Popover(Option<Popover>),
+    /// The project menu's entry: enter it here.
+    OpenItem(Box<Item>),
+    /// A rail project: enter it here.
+    OpenProject(PathBuf),
+    /// The account's catalog, loaded again (`Retry`).
+    RefreshCatalog,
+    /// The project rail came or went: the panes share another width.
+    RailChanged,
+    /// A tool of the other computer's folder, shown or hidden.
+    HostTool(crate::features::hosts::Tool),
+    /// A place, the account or Home, from a navigation menu.
+    Navigate(navigation::Navigate),
+}
+
+/// The window's other owners, read while the chrome draws.
+pub(super) struct Owners {
+    pub preferences: Entity<PreferencesStore>,
+    pub docs: Entity<DocumentSession>,
+    pub project: Entity<ProjectLifecycle>,
+    pub panes: Entity<PaneLayout>,
+    pub sidebar: Entity<RightSidebar>,
+    pub home: Entity<Homepage>,
+    pub cloud: Entity<WindowCloud>,
+    pub editor: Entity<EditorArea>,
+}
+
+pub(super) struct WindowChrome {
+    session: SessionView,
+    owners: Owners,
+    /// `ProjectRowActions`, opened from the Homepage, the rail and the menu.
+    pub project_actions: Entity<ProjectActions>,
+    /// The Header introductions.
+    pub coachmarks: Entity<HeaderCoachmarks>,
+    /// The Header popover that is open: one at a time.
+    pub popover: Option<Popover>,
+    /// The project button's focus.
+    pub project_focus: FocusHandle,
+    /// A project path the Header menu just copied, and when.
+    copied_path: Option<(String, std::time::Instant)>,
+    /// The project rail replaces the Header's project button.
+    rail: bool,
+    weak: WeakEntity<Self>,
+}
+impl EventEmitter<ChromeEvent> for WindowChrome {}
+
+impl WindowChrome {
+    pub fn new(
+        owners: Owners,
+        project_actions: Entity<ProjectActions>,
+        coachmarks: Entity<HeaderCoachmarks>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        // A project's actions take the place of any Header popover.
+        cx.subscribe(&project_actions, |s, _, event, cx| {
+            if let super::project_actions::ActionsEvent::Opened = event {
+                s.show_popover(None, cx);
+            }
+        })
+        .detach();
+        cx.observe(&coachmarks, |_, _, cx| cx.notify()).detach();
+        // The titlebar's update action follows the update service.
+        if let Some(updates) = crate::features::updates::global(cx) {
+            cx.observe(&updates, |_, _, cx| cx.notify()).detach();
+        }
+        // The project rail takes room from the panes.
+        observe_slice(
+            &owners.preferences,
+            |store| store.state.project_switcher_rail,
+            |s: &mut Self, rail, cx| {
+                s.rail = *rail;
+                cx.emit(ChromeEvent::RailChanged);
+                cx.notify();
+            },
+            cx,
+        )
+        .detach();
+        let rail = owners.preferences.read(cx).state.project_switcher_rail;
+        Self {
+            session: SessionView::default(),
+            owners,
+            project_actions,
+            coachmarks,
+            popover: None,
+            project_focus: cx.focus_handle(),
+            copied_path: None,
+            rail,
+            weak: cx.weak_entity(),
+        }
+    }
+    /// What the window shows changed.
+    pub fn set_session(&mut self, session: SessionView, cx: &mut Context<Self>) {
+        if self.session != session {
+            self.coachmarks
+                .update(cx, |c, cx| c.set_session(session.clone(), cx));
+            self.session = session;
+            cx.notify();
+        }
+    }
+    /// The window opened or closed a popover.
+    pub fn set_popover(&mut self, popover: Option<Popover>, cx: &mut Context<Self>) {
+        if self.popover != popover {
+            self.popover = popover;
+            cx.notify();
+        }
+    }
+    /// A popover of the chrome's own opened or closed: the window decides.
+    fn show_popover(&mut self, popover: Option<Popover>, cx: &mut Context<Self>) {
+        cx.emit(ChromeEvent::Popover(popover));
+    }
+    fn command(&self, command: Command, cx: &mut Context<Self>) {
+        cx.emit(ChromeEvent::Command(command));
+    }
+    /// The width the panes share: the window, less the project rail.
+    pub fn rail_width(&self) -> f32 {
+        if self.rail {
+            theme::metric::PROJECT_RAIL_WIDTH
+        } else {
+            0.
+        }
+    }
+    pub fn rail_shown(&self) -> bool {
+        self.rail
+    }
+    /// A handler for a part drawn from a read (the rail).
+    fn listener<E: ?Sized>(
+        &self,
+        f: impl Fn(&mut Self, &E, &mut Window, &mut Context<Self>) + 'static,
+    ) -> impl Fn(&E, &mut Window, &mut App) + 'static {
+        crate::ui::listener(&self.weak, f)
+    }
+
+    /// The project being entered in this window, named as its Header will
+    /// name it (`projectOpening.projectName`).
+    pub(in crate::app) fn opening_project_name(&self, cx: &App) -> Option<String> {
+        let o = &self.owners;
+        let docs = o.docs.read(cx);
+        if docs.cloud_opening().is_some() {
+            let project = o.project.read(cx).record.cloud.clone()?;
+            return Some(
+                o.home
+                    .read(cx)
+                    .project_items(cx)
+                    .into_iter()
+                    .find(|i| i.cloud_project.as_deref() == Some(project.as_str()))
+                    .map(|i| i.label)
+                    .unwrap_or(project),
+            );
+        }
+        let root = docs.preparing_root()?;
+        Some(
+            o.preferences
+                .read(cx)
+                .state
+                .recent_projects
+                .iter()
+                .find(|p| p.path == root)
+                .map(|p| p.name.clone())
+                .or_else(|| root.file_name().map(|n| n.to_string_lossy().into_owned()))
+                .unwrap_or_default(),
+        )
+    }
+
+    /// The Header (`DesktopWindowChrome`).
+    ///
+    /// - The Homepage names the product (once there are projects), says
+    ///   what the account's catalog is doing (`HomepageCloudStatus`) and
+    ///   ends with the account: its circle, or Sign in.
+    /// - A local folder: the Explorer's expand button while it is closed,
+    ///   the project and its place, then the app status, Changes and the
+    ///   Agent entry, each group set off by a rule.
+    /// - A Cloud project (`CloudWorkspaceHeaderTools`): its Agents, a rule
+    ///   and the Agent entry, on the theme's own Header.
+    fn header(&self, cx: &mut Context<Self>) -> header::TitleBar {
+        use crate::localization::t as tr;
+        let o = &self.owners;
+        let session = &self.session;
+        if session.home {
+            let mut bar = header::TitleBar::new();
+            let home = o.home.read(cx);
+            let empty = home.project_items(cx).is_empty();
+            // `hasProjects || navigation.account`.
+            if home.has_projects(cx) || navigation::account_rows(cx) {
+                bar = bar.leading(self.brand(cx));
+            }
+            if crate::features::flags::cloud_enabled(&o.preferences, cx) {
+                let retry = self.weak.clone();
+                bar = bar.action(header::cloud_status(
+                    &o.cloud.read(cx).catalog,
+                    session.cloud_opening,
+                    empty,
+                    move |_, cx| {
+                        let _ = retry.update(cx, |_, cx| cx.emit(ChromeEvent::RefreshCatalog));
+                    },
+                    cx,
+                ));
+            }
+            if let Some(email) = account::email(cx) {
+                return bar.action(self.account(&email, cx));
+            }
+            return self.sign_in(bar, cx);
+        }
+        // `ProjectWindow` while another project is on its way in: the
+        // Header states that project and its location, and what belongs to
+        // the project on screen steps out of it.
+        let opening = session.opening;
+        let hosted = if opening {
+            session.cloud_opening
+        } else {
+            session.hosted.is_some() || o.cloud.read(cx).capture_hosted()
+        };
+        let (changes, agent, tabs) = {
+            let p = &o.preferences.read(cx).state;
+            (
+                !hosted && session.root.is_some() && p.header_changes,
+                p.header_terminal || hosted,
+                p.experimental.editor_tabs_in_header,
+            )
+        };
+        // With the rail on, the Header keeps the place alone.
+        let project = session.workspace || session.fixture || opening;
+        let mut bar = header::TitleBar::new();
+        if !o.panes.read(cx).explorer().open {
+            bar = bar.leading(
+                IconButton::new("expand-explorer", "panel-left")
+                    .label(tr("shared-ui.explorer.expandSidebar"))
+                    .w(px(theme::control()))
+                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                    .on_click(cx.listener(|s, _, _, cx| s.command(Command::ToggleExplorer, cx))),
+            );
+        }
+        if project {
+            bar = bar.leading(self.project_context(self.rail, cx));
+        }
+        // `app-status`: an update to download or restart into comes first.
+        if let Some(button) =
+            header::UpdateButton::new(crate::features::updates::state(cx).as_ref())
+        {
+            bar = bar.action(button.on_click(|_, _, cx| {
+                if let Some(updates) = crate::features::updates::global(cx) {
+                    updates.update(cx, |u, cx| u.update_now(cx));
+                }
+            }));
+        }
+        if opening {
+            return self.sign_in(bar, cx);
+        }
+        // `enableEditorTabsInHeader`: the editor's tabs move into the Header.
+        if tabs && o.docs.read(cx).state().is_some() {
+            bar = bar.tabs(o.editor.read(cx).tabs(cx));
+        }
+        let sidebar = o.sidebar.read(cx);
+        // `DeviceFolderHeaderActions`: what that computer allows here, and
+        // nothing of this computer's own.
+        if session.device.is_some() {
+            use crate::features::hosts::Tool;
+            use gpui_kit::base::Selectable as _;
+            for tool in sidebar.host_tools.read(cx).tools() {
+                let icon = match tool {
+                    Tool::Terminal => "square-terminal",
+                    Tool::Agent => "agent-entry",
+                    Tool::Git => "version-control",
+                };
+                bar = bar.action(
+                    Button::new(("host-tool", tool as usize))
+                        .variant(ButtonVariant::Titlebar)
+                        .icon(icon)
+                        .accessibility_label(tool.label())
+                        .tooltip(tool.label())
+                        .selected(sidebar.shows_host_tool(tool, cx))
+                        .w(px(theme::metric::TITLEBAR_TOOL_ACTION_WIDTH))
+                        .on_click(
+                            cx.listener(move |_, _, _, cx| cx.emit(ChromeEvent::HostTool(tool))),
+                        ),
+                );
+            }
+            return self.sign_in(bar, cx);
+        }
+        let coachmarks = self.coachmarks.read(cx);
+        if hosted {
+            let cloud = o.cloud.read(cx);
+            if let Some(agents) = cloud.agents_control(cx) {
+                bar = bar.action(agents).divider(cx);
+            }
+            // `HistoryTool`: the hosted Project's own record.
+            if crate::features::cloud::account::has_account(cx) {
+                let label = tr("source-control.history.title");
+                bar = bar.action(
+                    Button::new("cloud-history")
+                        .variant(ButtonVariant::Titlebar)
+                        .icon(crate::ui::components::Icon::new("history").stroke(1.75))
+                        .accessibility_label(label)
+                        .tooltip(label)
+                        .w(px(theme::metric::TITLEBAR_TOOL_ACTION_WIDTH))
+                        .on_click(cx.listener(|s, _, _, cx| s.command(Command::CloudHistory, cx))),
+                );
+            }
+        } else {
+            if changes {
+                use gpui_kit::base::Selectable as _;
+                let status = header::GitTitlebarStatus::of(sidebar.source_control.read(cx));
+                let introduced = coachmarks.active() == Some(Coachmark::Changes);
+                let button = header::ChangesButton::new(status)
+                    .selected(sidebar.shows(Surface::Git, cx))
+                    .coachmark(introduced)
+                    .on_click(cx.listener(|s, _, _, cx| s.command(Command::Changes, cx)))
+                    .into_any_element();
+                bar = bar.action(coachmarks.anchor(Coachmark::Changes, button));
+                if agent {
+                    bar = bar.divider(cx);
+                }
+            }
+        }
+        if agent {
+            let introduced = coachmarks.active() == Some(Coachmark::Agent);
+            let button = header::agent_entry(sidebar.shows(Surface::Agent, cx))
+                .when(introduced, |b| b.variant(ButtonVariant::TitlebarCoachmark))
+                .on_click(cx.listener(|s, _, _, cx| s.command(Command::ToggleRightSidebar, cx)))
+                .into_any_element();
+            bar = bar.action(coachmarks.anchor(Coachmark::Agent, button));
+        }
+        self.sign_in(bar, cx)
+    }
+    /// `windowNavigation.trailing`: Sign in at the Header's end while the
+    /// account is available and no one is signed in (`HeaderSignInButton`).
+    fn sign_in(&self, bar: header::TitleBar, cx: &mut Context<Self>) -> header::TitleBar {
+        use crate::localization::t as tr;
+        if !navigation::signs_in(cx) {
+            return bar;
+        }
+        let ty = theme::ty().header;
+        bar.action(
+            div().ml(px(4.)).child(
+                Button::new("header-sign-in")
+                    .debug_selector(|| "header-sign-in".into())
+                    .variant(ButtonVariant::Titlebar)
+                    .label(tr("cloud.auth.signIn"))
+                    .accessibility_label(tr("cloud.auth.signInToCloud"))
+                    .pl(px(7.))
+                    .pr(px(8.))
+                    .text_size(px(ty.content))
+                    .line_height(px(ty.line_height))
+                    .on_click(cx.listener(|_, _, _, cx| {
+                        cx.emit(ChromeEvent::Navigate(navigation::Navigate::SignIn))
+                    })),
+            ),
+        )
+    }
+}
+
+impl Render for WindowChrome {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().child(self.header(cx))
+    }
+}

@@ -83,6 +83,12 @@ jobs:
           name: ${{ inputs.windows_artifact_name }}
           path: ${{ env.WINDOWS_BUNDLE_DIRECTORY }}
 
+      - name: Download macOS build-once viewer packs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.macos_artifact_name }}-viewer-packs
+          path: ${{ github.workspace }}/artifacts/viewer-packs
+
       - name: Validate complete macOS and Windows Release Set before mutation
         id: release
         env:
@@ -223,6 +229,21 @@ jobs:
           run_release_targets upload_bundle \
             "${MACOS_BUNDLE_DIRECTORY}" "${MACOS_R2_PREFIX}" \
             "${WINDOWS_BUNDLE_DIRECTORY}" "${WINDOWS_R2_PREFIX}"
+
+      - name: Publish and verify on-demand Viewer Packs on R2 CDN
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/publish-viewer-packs-r2.mjs publish \
+            --packs-dir "${GITHUB_WORKSPACE}/artifacts/viewer-packs" \
+            --bucket "${R2_BUCKET}" \
+            --endpoint "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --public-origin "${PUBLIC_DOWNLOAD_ORIGIN}" \
+            --require-non-empty
 
       - name: Verify both immutable releases and commit the Release Set
         env:

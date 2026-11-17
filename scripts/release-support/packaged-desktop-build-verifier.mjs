@@ -1,6 +1,7 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import asarPackage from "@electron/asar";
+import { promisify } from "node:util";
 import plistPackage from "plist";
 import {
   assertDesktopBuildInfo,
@@ -12,7 +13,7 @@ import { getDesktopTargetDefinition } from "../desktop/targets/target-manifest.m
 
 import { verifyMacosAppIcon } from "../desktop/build/macos-app-icon.mjs";
 
-const { extractFile } = asarPackage;
+const run = promisify(execFile);
 const { parse: parsePlist } = plistPackage;
 
 export async function verifyPackagedDesktopBuild({
@@ -58,17 +59,6 @@ export async function verifyPackagedDesktopBuild({
       throw new Error(`${path.basename(application.path)} embeds a different Build Identity.`);
     }
 
-    const applicationPackage = JSON.parse(
-      extractFile(path.join(resourcesDirectory, "app.asar"), "package.json").toString("utf8"),
-    );
-    if (applicationPackage.version !== identity.version) {
-      throw new Error(
-        `${path.basename(application.path)} package version ${applicationPackage.version} must equal ${identity.version}.`,
-      );
-    }
-
-    await verifyMacosAppIcon(application.path);
-
     const plist = parsePlist(
       await fs.readFile(path.join(application.path, "Contents", "Info.plist"), "utf8"),
     );
@@ -87,20 +77,57 @@ export async function verifyPackagedDesktopBuild({
       }
     }
 
-    const updateConfigurationPath = path.join(resourcesDirectory, "app-update.yml");
-    const updateConfiguration = await fs.readFile(updateConfigurationPath, "utf8").catch((error) => {
-      if (error?.code === "ENOENT" && !policy.updateFeedUrl) return null;
-      throw error;
-    });
-    if (policy.updateFeedUrl) {
-      if (!updateConfiguration?.includes(`url: ${policy.updateFeedUrl}`)) {
-        throw new Error(`${path.basename(application.path)} does not embed its canonical update feed.`);
+    await verifyMacosAppIcon(application.path);
+
+    if (embeddedBuildInfo.runtime === "gpui") {
+      const executableName = String(plist.CFBundleExecutable ?? "puppy-one-rust");
+      const executablePath = path.join(application.path, "Contents", "MacOS", executableName);
+      const { stdout } = await run(executablePath, ["--puppyone-build-identity"]);
+      const stamped = JSON.parse(stdout);
+      if (stamped.runtime !== "gpui") {
+        throw new Error(`${path.basename(application.path)} executable did not report gpui runtime.`);
       }
-      if (!updateConfiguration.includes(`channel: ${policy.updateChannel}`)) {
-        throw new Error(`${path.basename(application.path)} does not embed its canonical update channel.`);
+      if (stamped.version !== identity.version || stamped.channel !== identity.channel) {
+        throw new Error(
+          `${path.basename(application.path)} executable identity ${stamped.channel} ${stamped.version} must equal ${identity.channel} ${identity.version}.`,
+        );
       }
-    } else if (updateConfiguration && /desktop\/(?:internal|stable)\//.test(updateConfiguration)) {
-      throw new Error("Development builds must not embed an Internal or Stable update feed.");
+      if (stamped.commitSha !== identity.commitSha || stamped.buildId !== identity.buildId) {
+        throw new Error(`${path.basename(application.path)} executable commit/buildId does not match Build Identity.`);
+      }
+      if (policy.updateFeedUrl) {
+        if (stamped.updateFeedUrl !== policy.updateFeedUrl) {
+          throw new Error(`${path.basename(application.path)} does not embed its canonical update feed.`);
+        }
+      } else if (stamped.updateFeedUrl && /desktop\/(?:internal|stable)\//.test(stamped.updateFeedUrl)) {
+        throw new Error("Development builds must not embed an Internal or Stable update feed.");
+      }
+    } else {
+      const { extractFile } = (await import("@electron/asar")).default;
+      const applicationPackage = JSON.parse(
+        extractFile(path.join(resourcesDirectory, "app.asar"), "package.json").toString("utf8"),
+      );
+      if (applicationPackage.version !== identity.version) {
+        throw new Error(
+          `${path.basename(application.path)} package version ${applicationPackage.version} must equal ${identity.version}.`,
+        );
+      }
+
+      const updateConfigurationPath = path.join(resourcesDirectory, "app-update.yml");
+      const updateConfiguration = await fs.readFile(updateConfigurationPath, "utf8").catch((error) => {
+        if (error?.code === "ENOENT" && !policy.updateFeedUrl) return null;
+        throw error;
+      });
+      if (policy.updateFeedUrl) {
+        if (!updateConfiguration?.includes(`url: ${policy.updateFeedUrl}`)) {
+          throw new Error(`${path.basename(application.path)} does not embed its canonical update feed.`);
+        }
+        if (!updateConfiguration.includes(`channel: ${policy.updateChannel}`)) {
+          throw new Error(`${path.basename(application.path)} does not embed its canonical update channel.`);
+        }
+      } else if (updateConfiguration && /desktop\/(?:internal|stable)\//.test(updateConfiguration)) {
+        throw new Error("Development builds must not embed an Internal or Stable update feed.");
+      }
     }
   }
 
@@ -175,6 +202,7 @@ async function verifyPackagedWindowsBuild({ releaseDirectory, identity, target, 
   if (JSON.stringify(embeddedBuildInfo) !== JSON.stringify(identity)) {
     throw new Error("Packaged Windows application embeds a different Build Identity.");
   }
+  const { extractFile } = (await import("@electron/asar")).default;
   const applicationPackage = JSON.parse(
     extractFile(path.join(resourcesDirectory, "app.asar"), "package.json").toString("utf8"),
   );

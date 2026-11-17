@@ -1,0 +1,579 @@
+{
+ "schema": 2,
+ "sourceCommit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
+ "inputs": {
+  "src/shared-ui/file/fileIconThemeRegistry.tsx": "b590dd4ff86744262452b06f60aa6a8d0bd35a6f9cfcb4dc4c2ecbbbb3ff47d8",
+  "src/shared-ui/file/fileIconTypes.ts": "85fa3f132329305d1a2dae7b245b8c6b4480f3e5191d0647d5556f22d6983705",
+  "src/shared-ui/file/fileIcons.tsx": "923489031652dc2b7cfbf15e8a99976e79a19dec0823fb67ccbaba321a505733",
+  "src/shared-ui/file/icon-themes/default/glyphs.tsx": "8a3f5f87c81046ecab87372a4fe6038f3a2fa08f070028c884f00c91a627a31c",
+  "src/shared-ui/file/icon-themes/default/index.ts": "66c3ac494202465dda0091d77964fdf35dcd38909883a7fc81a49871d8ba247e",
+  "src/shared-ui/file/icon-themes/default/previews.tsx": "9f2e2a738995bb47b5fc570c73672aac07f23c3ff31f8a3cf4b02128f00e37a9",
+  "src/shared-ui/file/icon-themes/iconThemeTypes.ts": "790c16bb05dba4b619172f1e4bd50b9ba0b531e6a18b1a514cbd79564909da09",
+  "src/shared-ui/file/icon-themes/registry.ts": "30b739d8552545f52972e355e26d00a52d4db7a3cab3690adf6789b79aff5829",
+  "src/shared-ui/file/icon-themes/shared/PreviewShell.tsx": "c22d45e6dca114d51e035fcf8a04b048fa7ceabacb0f2aa2779d300080981a70",
+  "src/shared-ui/file/icon-themes/shared/glyphLine.ts": "8828a607d818a6bf8a6c703cf8aa78994a94b8f96600a83df57fc309a4104367",
+  "src/shared-ui/file/icon-themes/shared/semanticGlyphs.tsx": "e7a96d23998ed3599802d0d560d1a91422619f60d7ff81856948aaa2bba87928",
+  "src/shared-ui/file/icon-themes/themeFactory.tsx": "869a5bf186e31aca8d7a3c267f30cb1ec6ec33358f8e93147440cab2fb3d3bdb",
+  "src/shared-ui/icons/productIcons.tsx": "5d7091884cb5840c491a24e5ac4a3a4e923366374ad3f2c73e68b9ed5a946a05",
+  "src/shared-ui/core/fileFormats.ts": "fa6b9b498d468fd22fa1c0129fc815154a28543ee82efaca52cf56179084d915",
+  "shared/fileFormats.json": "4121ae78dd4b9fa0b23a4a080b7aefe1169cd89648335ceed557fbeda7f737c5",
+  "public/fonts/geist/Geist-Variable.woff2": "e24cec106619c03f0b3519e31b9bc55e0d5e926b6a95b8d798cd8cef215b1505",
+  "node_modules/lucide-react/package.json": "fc04d9363ba3f8403287b181f66fd6a276c9cc9e2a0b3836ac46d64f6807079c",
+  "node_modules/lucide-react/dist/esm/icons/database.js": "d01eb407b528a3542dea96d5af61a3c0617b1dab4fbf458c69872dc690bb891a",
+  "node_modules/lucide-react/dist/esm/icons/workflow.js": "b3f6bb6898a80c609a951ebdc7ff29f32263701d10ac4aa6765e089c44b5776d"
+ },
+ "kinds": [
+  "folder",
+  "app",
+  "context-map",
+  "workflow",
+  "whiteboard",
+  "markdown",
+  "json",
+  "html",
+  "image",
+  "audio",
+  "pdf",
+  "video",
+  "word",
+  "excel",
+  "spreadsheet",
+  "database",
+  "presentation",
+  "archive",
+  "document",
+  "binary",
+  "code",
+  "text",
+  "file"
+ ],
+ "order": [
+  "default"
+ ],
+ "defaultTheme": "default",
+ "retired": {
+  "vscode": "default",
+  "lines": "default",
+  "semantic": "default",
+  "material": "default",
+  "minimal": "default"
+ },
+ "themes": {
+  "default": {
+   "id": "default",
+   "glyphs": {
+    "folder": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"-3 -3 30 30\" fill=\"none\" aria-hidden=\"true\" data-product-icon=\"folder\"><path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M2 10h20\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linecap=\"round\"></path></svg>",
+     "viewbox": 30,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 30
+      },
+      {
+       "mode": "line",
+       "value": 30
+      }
+     ],
+     "bindings": [
+      {
+       "token": "currentColor",
+       "alpha": 1
+      }
+     ]
+    },
+    "app": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\"><path d=\"M5.15 11.25h7.7c.7 0 1.25.5 1.37 1.18l.34 2.02H3.44l.34-2.02c.12-.68.67-1.18 1.37-1.18Z\" fill=\"{ink0}\" stroke=\"{ink1}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M9.65 11.25 8.75 6.8\" stroke=\"{ink1}\" stroke-width=\"{stroke1}\" stroke-linecap=\"round\"></path><circle cx=\"8.45\" cy=\"4.9\" r=\"2\" fill=\"{ink0}\" stroke=\"{ink1}\" stroke-width=\"{stroke2}\"></circle><circle cx=\"12.2\" cy=\"13.05\" r=\"0.62\" fill=\"{ink1}\" opacity=\"0.76\"></circle><circle cx=\"6.15\" cy=\"13.05\" r=\"0.46\" fill=\"{ink1}\" opacity=\"0.55\"></circle></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-icon-body",
+       "alpha": 0.72
+      },
+      {
+       "token": "accent",
+       "alpha": 1
+      }
+     ]
+    },
+    "context-map": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-complexity=\"minimal\" data-file-icon-product=\"context-map\" data-file-icon-shape=\"treasure-map\"><path d=\"M2.9 4.6 6.7 3l4.6 1.6L15.1 3v10.4L11.3 15l-4.6-1.6L2.9 15V4.6Z\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M4.8 11.8c1.15-2.8 3.35.65 4.55-1.75.55-1.1 1.1-1.65 2.05-1.85\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linecap=\"round\" stroke-dasharray=\"1 1.55\" data-file-icon-route=\"treasure-trail\"></path><path d=\"m11.7 5.5 1.9 1.9m0-1.9-1.9 1.9\" stroke=\"{ink0}\" stroke-width=\"{stroke2}\" stroke-linecap=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 15.3
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "accent",
+       "alpha": 1
+      }
+     ]
+    },
+    "workflow": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-workflow\" aria-hidden=\"true\"><rect width=\"8\" height=\"8\" x=\"3\" y=\"3\" rx=\"2\"></rect><path d=\"M7 11v4a2 2 0 0 0 2 2h4\"></path><rect width=\"8\" height=\"8\" x=\"13\" y=\"13\" rx=\"2\"></rect></svg>",
+     "viewbox": 24,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 24
+      }
+     ],
+     "bindings": [
+      {
+       "token": "accent",
+       "alpha": 1
+      }
+     ]
+    },
+    "whiteboard": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" data-file-icon-shape=\"whiteboard-diagram\"><rect x=\"3.5\" y=\"3.5\" width=\"11\" height=\"11\" rx=\"1.5\"></rect><rect x=\"5.75\" y=\"5.75\" width=\"2.9\" height=\"2.9\" rx=\"0.5\"></rect><circle cx=\"11.15\" cy=\"11.15\" r=\"1.5\"></circle><path d=\"m8.65 8.65 1.45 1.45\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "accent",
+       "alpha": 1
+      }
+     ]
+    },
+    "markdown": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"document\"><path d=\"M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M10.75 2.95v2.45h2.4\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linejoin=\"round\"></path><path d=\"M5.85 9.25h5.2M5.85 11.75h3.65\" stroke=\"{ink0}\" stroke-width=\"{stroke2}\" stroke-linecap=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "currentColor",
+       "alpha": 1
+      }
+     ]
+    },
+    "json": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\"><path d=\"M8.270006103515625 13.568004150390625Q7.37199951171875 13.568004150390625 6.86899658203125 13.054002075195312Q6.36599365234375 12.54 6.36599365234375 11.731997070312499V10.9019970703125Q6.36599365234375 10.47999755859375 6.26199462890625 10.217000122070313Q6.15799560546875 9.954002685546875 5.947996826171876 9.832005004882813Q5.737998046875 9.71000732421875 5.419998779296876 9.71000732421875V8.6479931640625Q5.737998046875 8.6479931640625 5.947996826171876 8.52799560546875Q6.15799560546875 8.407998046874999 6.26199462890625 8.143000488281249Q6.36599365234375 7.8780029296875 6.36599365234375 7.456003417968749V6.626003417968749Q6.36599365234375 5.81800048828125 6.86899658203125 5.30599853515625Q7.37199951171875 4.79399658203125 8.270006103515625 4.79399658203125H8.8740087890625V5.914017333984375Q8.196015625000001 5.888017578125 7.891017456054688 6.092017211914062Q7.586019287109375 6.296016845703124 7.586019287109375 6.774013671874999V7.546004638671874Q7.586019287109375 8.264002685546874 7.246018676757813 8.669002075195312Q6.906018066406251 9.07400146484375 6.442017822265625 9.15199951171875V9.19400146484375Q6.912017822265625 9.265999755859374 7.2490185546875 9.677998657226562Q7.586019287109375 10.08999755859375 7.586019287109375 10.811995849609374V11.583986816406249Q7.586019287109375 12.067984619140624 7.891017456054688 12.279984741210937Q8.196015625000001 12.49198486328125 8.8740087890625 12.47198486328125V13.568004150390625ZM9.73400146484375 13.568004150390625H9.129998779296875V12.47198486328125Q9.81399169921875 12.49198486328125 10.115989990234375 12.279984741210937Q10.41798828125 12.067984619140624 10.41798828125 11.583986816406249V10.811995849609374Q10.41798828125 10.08999755859375 10.754989013671874 9.677998657226562Q11.09198974609375 9.265999755859374 11.56198974609375 9.19400146484375V9.15199951171875Q11.10198974609375 9.07400146484375 10.759989013671875 8.669002075195312Q10.41798828125 8.264002685546874 10.41798828125 7.546004638671874V6.774013671874999Q10.41798828125 6.296016845703124 10.115989990234375 6.092017211914062Q9.81399169921875 5.888017578125 9.129998779296875 5.914017333984375V4.79399658203125H9.73400146484375Q10.642008056640625 4.79399658203125 11.140010986328125 5.30599853515625Q11.638013916015625 5.81800048828125 11.638013916015625 6.626003417968749V7.456003417968749Q11.638013916015625 7.8780029296875 11.742012939453126 8.143000488281249Q11.846011962890625 8.407998046874999 12.0560107421875 8.52799560546875Q12.266009521484374 8.6479931640625 12.5840087890625 8.6479931640625V9.71000732421875Q12.266009521484374 9.71000732421875 12.0560107421875 9.832005004882813Q11.846011962890625 9.954002685546875 11.742012939453126 10.217000122070313Q11.638013916015625 10.47999755859375 11.638013916015625 10.9019970703125V11.731997070312499Q11.638013916015625 12.54 11.140010986328125 13.054002075195312Q10.642008056640625 13.568004150390625 9.73400146484375 13.568004150390625Z\" fill=\"{ink0}\" /></svg>",
+     "viewbox": 18,
+     "strokes": [],
+     "bindings": [
+      {
+       "token": "file-accent-json",
+       "alpha": 1
+      }
+     ]
+    },
+    "html": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" data-file-icon-shape=\"html-window\"><rect x=\"3.5\" y=\"3.5\" width=\"11\" height=\"11\" rx=\"1.5\"></rect><path d=\"M3.5 6.75h11\" stroke-width=\"{stroke1}\" opacity=\"0.7\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 15.3
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-accent-html",
+       "alpha": 1
+      }
+     ]
+    },
+    "image": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\"><rect x=\"2.75\" y=\"3.75\" width=\"12.5\" height=\"10.5\" rx=\"1.25\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\"></rect><path d=\"M3.8 12.5 6.35 9.65l2.05 2.1 2.35-3.05 3.35 3.8\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></path><rect x=\"10.85\" y=\"5.6\" width=\"2\" height=\"2\" rx=\"0.35\" fill=\"{ink0}\"></rect></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-accent-image",
+       "alpha": 1
+      }
+     ]
+    },
+    "audio": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\"><path d=\"M2.6 10.9V7.1h2.25L8.7 4.35v9.3L4.85 10.9H2.6Z\" fill=\"{ink0}\"></path><path d=\"M10.8 6.55c1.05 1.1 1.05 2.8 0 3.9\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\"></path><path d=\"M12.95 5.05c1.8 1.95 1.8 5.9 0 7.9\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linecap=\"round\" opacity=\"0.78\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-accent-audio",
+       "alpha": 1
+      }
+     ]
+    },
+    "pdf": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"document\"><path d=\"M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M10.75 2.95v2.45h2.4\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linejoin=\"round\"></path><path d=\"M5.85 9.25h5.2M5.85 11.75h3.65\" stroke=\"{ink0}\" stroke-width=\"{stroke2}\" stroke-linecap=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-accent-pdf",
+       "alpha": 1
+      }
+     ]
+    },
+    "video": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"video-player\"><rect x=\"2.75\" y=\"4\" width=\"12.5\" height=\"10\" rx=\"1.5\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\"></rect><path d=\"m7.35 6.45 4.55 2.55-4.55 2.55v-5.1Z\" fill=\"{ink0}\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-accent-video",
+       "alpha": 1
+      }
+     ]
+    },
+    "word": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-office=\"word\" data-file-icon-shape=\"word-document\"><path d=\"M5.35 2.7h5.25l2.55 2.55v9.05c0 .55-.45 1-1 1h-6.8c-.55 0-1-.45-1-1V3.7c0-.55.45-1 1-1Z\" fill=\"{ink0}\" stroke=\"{ink1}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M10.6 2.9v2.35h2.35\" stroke=\"{ink1}\" stroke-width=\"{stroke1}\" stroke-linejoin=\"round\" opacity=\"0.82\"></path><path d=\"M9.7 8.15h2.15M9.7 10.15h2.15M9.7 12.15h1.55\" stroke=\"{ink1}\" stroke-width=\"{stroke2}\" stroke-linecap=\"round\" opacity=\"0.72\"></path><rect x=\"2.1\" y=\"5.15\" width=\"7.25\" height=\"8.35\" rx=\"1.15\" fill=\"{ink1}\"></rect><path d=\"m3.55 7.45.9 3.75 1.15-2.75 1.15 2.75.9-3.75\" stroke=\"#fff\" stroke-width=\"{stroke3}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "multiplied",
+       "value": 0.82
+      },
+      {
+       "mode": "multiplied",
+       "value": 0.84
+      },
+      {
+       "mode": "constant",
+       "value": 0.78
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-icon-body",
+       "alpha": 0.72
+      },
+      {
+       "token": "file-accent-word",
+       "alpha": 1
+      }
+     ]
+    },
+    "excel": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-office=\"excel\" data-file-icon-shape=\"excel-spreadsheet\"><rect x=\"5.05\" y=\"3\" width=\"9.85\" height=\"12\" rx=\"1.2\" fill=\"{ink0}\" stroke=\"{ink1}\" stroke-width=\"{stroke0}\"></rect><path d=\"M9.55 5.85h4M9.55 8.95h4M9.55 12.05h4M10.9 4.15v9.7M12.55 4.15v9.7\" stroke=\"{ink1}\" stroke-width=\"{stroke1}\" opacity=\"0.72\"></path><rect x=\"2.1\" y=\"5.15\" width=\"7.25\" height=\"8.35\" rx=\"1.15\" fill=\"{ink1}\"></rect><path d=\"m4.15 7.45 3.15 3.75M7.3 7.45 4.15 11.2\" stroke=\"#fff\" stroke-width=\"{stroke2}\" stroke-linecap=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "multiplied",
+       "value": 0.68
+      },
+      {
+       "mode": "constant",
+       "value": 0.88
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-icon-body",
+       "alpha": 0.72
+      },
+      {
+       "token": "file-accent-sheet",
+       "alpha": 1
+      }
+     ]
+    },
+    "spreadsheet": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"table-grid\" data-file-icon-grid=\"2x2\"><rect x=\"3.5\" y=\"3.5\" width=\"11\" height=\"11\" rx=\"1.25\" fill=\"{ink0}\" stroke=\"{ink1}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></rect><path d=\"M3.8 9h10.4M9 3.8v10.4\" stroke=\"{ink1}\" stroke-width=\"{stroke1}\" opacity=\"0.82\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "multiplied",
+       "value": 0.78
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-icon-body",
+       "alpha": 0.65
+      },
+      {
+       "token": "file-accent-sheet",
+       "alpha": 1
+      }
+     ]
+    },
+    "database": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"-3 -3 30 30\" fill=\"none\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-database\" aria-hidden=\"true\" data-file-icon-shape=\"database-cylinder\"><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"></ellipse><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"></path><path d=\"M3 12A9 3 0 0 0 21 12\"></path></svg>",
+     "viewbox": 30,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 30
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-accent-code",
+       "alpha": 1
+      }
+     ]
+    },
+    "presentation": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-office=\"presentation\" data-file-icon-shape=\"presentation-slide\"><rect x=\"4.45\" y=\"3.15\" width=\"10.65\" height=\"11.1\" rx=\"1.25\" fill=\"{ink0}\" stroke=\"{ink1}\" stroke-width=\"{stroke0}\"></rect><circle cx=\"11.45\" cy=\"7.45\" r=\"2.15\" fill=\"{ink2}\" stroke=\"{ink1}\" stroke-width=\"{stroke1}\"></circle><path d=\"M11.45 5.3v2.15h2.15\" fill=\"{ink1}\" stroke=\"{ink1}\" stroke-width=\"{stroke2}\" stroke-linejoin=\"round\"></path><path d=\"M10.25 11.15h2.85\" stroke=\"{ink1}\" stroke-width=\"{stroke3}\" stroke-linecap=\"round\" opacity=\"0.72\"></path><rect x=\"2.1\" y=\"5.15\" width=\"7.25\" height=\"8.35\" rx=\"1.15\" fill=\"{ink1}\"></rect><path d=\"M4.45 11.25v-3.8h1.3c1.18 0 1.88.57 1.88 1.55s-.7 1.55-1.88 1.55h-1.3M4.45 7.45v3.8\" stroke=\"#fff\" stroke-width=\"{stroke4}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "multiplied",
+       "value": 0.72
+      },
+      {
+       "mode": "multiplied",
+       "value": 0.72
+      },
+      {
+       "mode": "multiplied",
+       "value": 0.86
+      },
+      {
+       "mode": "constant",
+       "value": 0.82
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-icon-body",
+       "alpha": 0.72
+      },
+      {
+       "token": "file-accent-presentation",
+       "alpha": 1
+      },
+      {
+       "token": "file-accent-presentation",
+       "alpha": 0.2
+      }
+     ]
+    },
+    "archive": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"document\"><path d=\"M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M10.75 2.95v2.45h2.4\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linejoin=\"round\"></path><path d=\"M5.85 9.25h5.2M5.85 11.75h3.65\" stroke=\"{ink0}\" stroke-width=\"{stroke2}\" stroke-linecap=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-accent-pdf",
+       "alpha": 1
+      }
+     ]
+    },
+    "document": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"document\"><path d=\"M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M10.75 2.95v2.45h2.4\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linejoin=\"round\"></path><path d=\"M5.85 9.25h5.2M5.85 11.75h3.65\" stroke=\"{ink0}\" stroke-width=\"{stroke2}\" stroke-linecap=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "currentColor",
+       "alpha": 1
+      }
+     ]
+    },
+    "binary": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"blank-page\"><path d=\"M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M10.75 2.95v2.45h2.4\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linejoin=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "currentColor",
+       "alpha": 1
+      }
+     ]
+    },
+    "code": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\"><path d=\"m7.05 5.15-3.5 3.75 3.5 3.75\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></path><path d=\"m10.95 5.15 3.5 3.75-3.5 3.75\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "file-accent-code",
+       "alpha": 1
+      }
+     ]
+    },
+    "text": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"document\"><path d=\"M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M10.75 2.95v2.45h2.4\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linejoin=\"round\"></path><path d=\"M5.85 9.25h5.2M5.85 11.75h3.65\" stroke=\"{ink0}\" stroke-width=\"{stroke2}\" stroke-linecap=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "currentColor",
+       "alpha": 1
+      }
+     ]
+    },
+    "file": {
+     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 18 18\" fill=\"none\" aria-hidden=\"true\" data-file-icon-shape=\"blank-page\"><path d=\"M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z\" stroke=\"{ink0}\" stroke-width=\"{stroke0}\" stroke-linejoin=\"round\"></path><path d=\"M10.75 2.95v2.45h2.4\" stroke=\"{ink0}\" stroke-width=\"{stroke1}\" stroke-linejoin=\"round\"></path></svg>",
+     "viewbox": 18,
+     "strokes": [
+      {
+       "mode": "line",
+       "value": 18
+      },
+      {
+       "mode": "line",
+       "value": 18
+      }
+     ],
+     "bindings": [
+      {
+       "token": "currentColor",
+       "alpha": 1
+      }
+     ]
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,67 @@
+{
+  "comment": "Frame, edit-path, CSV large-table (CS-30) and 16 MiB code-adapter (CE-30) budgets enforced by tools/bench-editor.py --check. Milliseconds of CPU per frame (input dispatch through Window::draw: build, layout, prepaint, paint), release build, Apple Silicon (local calibration: Apple M2 Pro, max of 3 consecutive runs * 1.5). Means, not p95: the tail follows machine load. A 120Hz display leaves 8.3ms a frame for everything, the GPU included.",
+  "ci": {
+    "env": "GITHUB_ACTIONS",
+    "calibrated": false,
+    "uncalibratedMultiplier": 2.0,
+    "comment": "Shared GitHub macos-15 runners are virtualized and slower/noisier than local Apple M2 Pro hardware. Scaling checks (maxRatio) are hardware-independent and always enforced strictly (zero pending waivers remain). Absolute maxMs ceilings use per-budget `ciMaxMs` calibrated from max(mean over 3 consecutive macos-15 runs) * 1.5 once runner calibration completes; while `calibrated` is false during initial runner calibration, `uncalibratedMultiplier` (x2.0) prevents shared-VM false failures while result.json is collected."
+  },
+  "budgets": [
+    {"surface": "editor", "sections": 160, "maxMs": {"scrollMeanMs": 2.5, "resizeMeanMs": 2.5}},
+    {"surface": "window", "sections": 160, "maxMs": {"scrollMeanMs": 6.0, "resizeMeanMs": 4.0}},
+    {
+      "surface": "edit",
+      "sections": 160,
+      "maxMs": {
+        "typeMeanMs": 4.5,
+        "arrowMeanMs": 3.5,
+        "imeMeanMs": 4.5,
+        "findTypeMeanMs": 5.0
+      }
+    },
+    {
+      "surface": "csv",
+      "sections": 10000,
+      "maxMs": {
+        "firstMs": 26.5,
+        "scrollMeanMs": 2.5,
+        "cellTypeMeanMs": 4.5,
+        "structuralMeanMs": 4.5
+      }
+    },
+    {
+      "surface": "csv",
+      "sections": 50000,
+      "maxMs": {
+        "firstMs": 26.5,
+        "scrollMeanMs": 3.0,
+        "cellTypeMeanMs": 4.5,
+        "structuralMeanMs": 4.5
+      }
+    },
+    {
+      "surface": "code_edit",
+      "sections": 100,
+      "maxMs": {
+        "keystrokeAdapterMeanMs": 0.5,
+        "keystrokeFrameMeanMs": 6.0
+      }
+    }
+  ],
+  "scaling": [
+    {"comment": "A frame costs what is on screen: a document 10x-100x longer may not cost twice as much.",
+     "surface": "editor", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
+    {"surface": "editor", "metric": "resizeMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
+    {"surface": "window", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
+    {"surface": "edit", "metric": "typeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
+    {"surface": "edit", "metric": "arrowMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
+    {"surface": "edit", "metric": "imeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
+    {"surface": "edit", "metric": "findTypeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
+    {"surface": "csv", "metric": "firstMs", "small": 500, "large": 10000, "maxRatio": 2.0},
+    {"surface": "csv", "metric": "scrollMeanMs", "small": 500, "large": 10000, "maxRatio": 2.0},
+    {"surface": "csv", "metric": "cellTypeMeanMs", "small": 500, "large": 10000, "maxRatio": 2.0},
+    {"surface": "csv", "metric": "structuralMeanMs", "small": 500, "large": 10000, "maxRatio": 2.0},
+    {"surface": "code_edit", "metric": "keystrokeAdapterMeanMs", "small": 1, "large": 100, "maxRatio": 2.0, "minBaselineMs": 0.02},
+    {"surface": "code_edit", "metric": "keystrokeFrameMeanMs", "small": 1, "large": 100, "maxRatio": 2.0}
+  ]
+}

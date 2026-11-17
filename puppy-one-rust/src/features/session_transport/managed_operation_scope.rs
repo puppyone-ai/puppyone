@@ -1,0 +1,81 @@
+//! `session-transport/ManagedOperationScope.ts`: operations owned by one
+//! scope are released together, and a scoped wait ends with the scope.
+use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::tasks::{CancelSignal, Canceller};
+use crate::features::desktop_agent::UiRuntime;
+use std::cell::RefCell;
+use std::future::Future;
+use std::rc::Rc;
+
+type Release = Rc<dyn Fn()>;
+
+/// `new ManagedOperationScope()`.
+#[derive(Clone, Default)]
+pub struct ManagedOperationScope {
+    controller: Canceller,
+    operations: Rc<RefCell<Vec<(String, Release)>>>,
+}
+
+impl ManagedOperationScope {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// `scope.signal`.
+    pub fn signal(&self) -> CancelSignal {
+        self.controller.signal()
+    }
+
+    /// `scope.cancel()`.
+    pub fn cancel(&self) {
+        if self.signal().is_cancelled() {
+            return;
+        }
+        self.controller
+            .cancel(AgentError::new("The operation scope was cancelled."));
+        let releases: Vec<Release> = self
+            .operations
+            .borrow_mut()
+            .drain(..)
+            .map(|(_, r)| r)
+            .collect();
+        for release in releases {
+            release();
+        }
+    }
+}
+
+/// `ScopedOperationTimeoutError`.
+pub fn scoped_operation_timeout_error(timeout_ms: u64) -> AgentError {
+    let mut error = AgentError::new(format!("The operation timed out after {timeout_ms}ms."))
+        .with_name("ScopedOperationTimeoutError");
+    error.extra = Some(serde_json::json!({ "timeoutMs": timeout_ms }));
+    error
+}
+
+/// Whether `error` is a `ScopedOperationTimeoutError` (and its timeout).
+pub fn scoped_timeout_ms(error: &AgentError) -> Option<u64> {
+    (error.name.as_deref() == Some("ScopedOperationTimeoutError"))
+        .then(|| error.extra.as_ref().and_then(|e| e["timeoutMs"].as_u64()))
+        .flatten()
+}
+
+/// `waitForScopedOperation(promise, signal, timeoutMs)`.
+pub async fn wait_for_scoped_operation<T>(
+    runtime: &Rc<dyn UiRuntime>,
+    operation: impl Future<Output = AgentResult<T>>,
+    signal: &CancelSignal,
+    timeout_ms: u64,
+) -> AgentResult<T> {
+    let cancelled = || AgentError::new("The operation scope was cancelled.");
+    if signal.is_cancelled() {
+        return Err(cancelled());
+    }
+    let timer = runtime.sleep(timeout_ms);
+    tokio::select! {
+        biased;
+        _ = signal.cancelled() => Err(cancelled()),
+        result = operation => result,
+        () = timer => Err(scoped_operation_timeout_error(timeout_ms)),
+    }
+}

@@ -1,0 +1,3 @@
+@puppyone-theme { id: local.user.html-dark; name: Html Dark; version: 1.0.0; modes: light dark; }
+/* `html.dark` is a root alias, but not a dark variant. */
+@puppyone csv { html { --po-editable-table-radius: 3px; } html.dark { --po-editable-table-radius: 5px; } }

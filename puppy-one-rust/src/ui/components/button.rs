@@ -1,0 +1,861 @@
+//! Buttons: labelled commands and square icon commands, on GPUI Kit's
+//! headless button (focus, keyboard activation, accessibility).
+use super::{Icon, tooltip};
+use crate::{
+    theme::{self, Theme, metric},
+    ui::appearance::ActiveAppearance,
+};
+use gpui::{prelude::*, *};
+use gpui_kit::{
+    base::{Button as BaseButton, Disableable, Selectable, StyledExt as _},
+    component::{Sizable, Size},
+};
+use std::rc::Rc;
+
+type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+
+/// How a labelled button presents itself.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ButtonVariant {
+    /// Bordered and quiet (`.desktop-settings-action`).
+    #[default]
+    Outline,
+    /// Bordered, tinted with the accent.
+    OutlinePrimary,
+    /// Bordered, tinted with danger.
+    OutlineDanger,
+    /// A bordered command filled with success while it can run
+    /// (`.desktop-settings-save-action`).
+    Success,
+    /// Filled with the control material (`.desktop-git-operation-button`).
+    Filled,
+    /// Filled with the accent (`.desktop-git-operation-button.is-primary`).
+    FilledPrimary,
+    /// No chrome until hovered; hover raises the text colour
+    /// (`.desktop-titlebar-workspace-button`, toolbar commands).
+    Ghost,
+    /// `.desktop-titlebar-action`: hover only adds the backplate; pressed or
+    /// expanded wears the active fill.
+    Titlebar,
+    /// Dialog secondary action (`.desktop-dialog-button`).
+    Secondary,
+    /// Dialog primary action: the inverted text colour (`.desktop-dialog-button.primary`).
+    Solid,
+    /// Dialog destructive action (`.desktop-dialog-button.destructive`).
+    SolidDanger,
+    /// A quiet Git file action (`.desktop-working-file-actions
+    /// .secondary-action`, `.desktop-commit-stats .secondary-action`): no
+    /// chrome until hovered, left-sidebar meta type.
+    GitAction,
+    /// Its destructive sibling (`.danger-action`).
+    GitActionDanger,
+    /// A raised command on a content surface (`.secondary-action`, as the
+    /// binary diff summary's "Open current file").
+    Raised,
+    /// `.project-open-menu-button`: hint type in the muted colour, the hover
+    /// backplate while hovered or expanded.
+    Quiet,
+    /// A Header entry while its introduction shows
+    /// (`[data-coachmark-active="true"] > .desktop-titlebar-action`).
+    TitlebarCoachmark,
+    /// `.po-button.po-button--neutral`.
+    Pattern,
+    /// `.po-button.po-button--primary` (`.desktop-header-coachmark-button`).
+    PatternPrimary,
+    /// `.onboarding-entry-menu-root`'s neutral button: a shade deeper than
+    /// the usual fill, so it is found beside the toolbar's icons without
+    /// becoming the page's one colour; compact, meta type at semibold.
+    PatternDeep,
+    /// `.file-mode-window__action`: the title's muted ink a shade lighter at
+    /// rest, the full ink touched; the fill says hover or open.
+    TitlebarInk,
+    /// `.desktop-plan-card-action .desktop-settings-action`: a Plan card's
+    /// command in the page's own type, compact plus 6px tall.
+    PlanCard,
+    /// Its primary form, filled with Plan's orange.
+    PlanCardPrimary,
+    /// `.cloud-sign-in-primary`: filled with `--po-brand-blue` and `#fff` ink,
+    /// 36px tall at 14px medium.
+    Brand,
+}
+impl ButtonVariant {
+    fn outlined(self) -> bool {
+        matches!(
+            self,
+            Self::Outline | Self::OutlinePrimary | Self::OutlineDanger | Self::Success
+        )
+    }
+    fn plan_card(self) -> bool {
+        matches!(self, Self::PlanCard | Self::PlanCardPrimary)
+    }
+    fn dialog(self) -> bool {
+        matches!(self, Self::Secondary | Self::Solid | Self::SolidDanger)
+    }
+}
+/// Colours of a variant in one state.
+struct Paint {
+    border: Option<Rgba>,
+    bg: Rgba,
+    fg: Rgba,
+    hover_bg: Rgba,
+    hover_fg: Rgba,
+}
+fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: Theme) -> Paint {
+    // The product's Git primary is the brand blue in light mode.
+    let accent = if t.dark { t.accent } else { t.brand_blue };
+    let clear = theme::alpha(t.text, 0.);
+    match variant {
+        ButtonVariant::Success if !disabled => Paint {
+            border: Some(t.success),
+            bg: t.success,
+            fg: theme::on_solid(),
+            hover_bg: theme::shade(t.success, 0.88),
+            hover_fg: theme::on_solid(),
+        },
+        ButtonVariant::PlanCardPrimary => Paint {
+            border: Some(theme::plan_accent()),
+            bg: theme::plan_accent(),
+            fg: theme::plan_accent_ink(),
+            hover_bg: if disabled {
+                theme::plan_accent()
+            } else {
+                theme::lift(theme::plan_accent(), 0.85)
+            },
+            hover_fg: theme::plan_accent_ink(),
+        },
+        ButtonVariant::Brand if disabled => Paint {
+            border: None,
+            bg: t.control,
+            fg: t.text_disabled,
+            hover_bg: t.control,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::Brand => Paint {
+            border: None,
+            bg: t.brand_blue,
+            fg: theme::on_solid(),
+            hover_bg: theme::shade(t.brand_blue, 0.9),
+            hover_fg: theme::on_solid(),
+        },
+        ButtonVariant::Outline | ButtonVariant::Success | ButtonVariant::PlanCard => Paint {
+            border: Some(t.divider),
+            bg: clear,
+            // `.desktop-settings-action:disabled` only fades (62%).
+            fg: t.muted,
+            hover_bg: t.hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::OutlinePrimary => Paint {
+            border: Some(theme::alpha(t.accent, 0.28)),
+            bg: theme::alpha(t.accent, 0.09),
+            fg: t.accent,
+            hover_bg: theme::alpha(t.accent, 0.14),
+            hover_fg: t.accent,
+        },
+        ButtonVariant::OutlineDanger => Paint {
+            border: Some(theme::alpha(t.danger, 0.22)),
+            bg: theme::alpha(t.danger, 0.07),
+            fg: t.danger,
+            hover_bg: theme::alpha(t.danger, 0.12),
+            hover_fg: t.danger,
+        },
+        ButtonVariant::Filled if disabled => Paint {
+            border: None,
+            bg: clear,
+            fg: t.text_disabled,
+            hover_bg: clear,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::Filled => Paint {
+            border: None,
+            bg: t.control,
+            fg: t.muted,
+            hover_bg: t.control_hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::FilledPrimary if disabled => Paint {
+            border: None,
+            bg: theme::mix(accent, t.control, 0.12),
+            fg: t.text_disabled,
+            hover_bg: theme::mix(accent, t.control, 0.12),
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::FilledPrimary => Paint {
+            border: None,
+            bg: accent,
+            fg: t.text_inverse,
+            hover_bg: theme::mix(accent, t.text, 0.86),
+            hover_fg: t.text_inverse,
+        },
+        ButtonVariant::Secondary => Paint {
+            border: Some(if disabled { t.border } else { t.border_strong }),
+            bg: if disabled { t.control } else { clear },
+            fg: if disabled { t.text_disabled } else { t.muted },
+            hover_bg: t.hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::Solid | ButtonVariant::SolidDanger if disabled => Paint {
+            border: Some(t.border),
+            bg: t.control,
+            fg: t.text_disabled,
+            hover_bg: t.control,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::Solid => {
+            let hover = theme::mix(t.text, t.panel, 0.88);
+            Paint {
+                border: Some(t.text),
+                bg: t.text,
+                fg: t.text_inverse,
+                hover_bg: hover,
+                hover_fg: t.text_inverse,
+            }
+        }
+        ButtonVariant::SolidDanger => Paint {
+            border: Some(theme::mix(t.danger, t.border, 0.72)),
+            bg: t.danger,
+            fg: t.text_inverse,
+            hover_bg: theme::mix(t.danger, t.text, 0.86),
+            hover_fg: t.text_inverse,
+        },
+        ButtonVariant::Ghost => Paint {
+            border: None,
+            bg: if selected {
+                t.selected
+            } else if open {
+                t.hover
+            } else {
+                clear
+            },
+            fg: if selected || open { t.text } else { t.muted },
+            hover_bg: if selected { t.selected } else { t.hover },
+            hover_fg: t.text,
+        },
+        // `.onboarding-start-actions [data-onboarding-action="create"]`.
+        ButtonVariant::PatternDeep if disabled => Paint {
+            border: None,
+            bg: t.control,
+            fg: t.text_disabled,
+            hover_bg: t.control,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::PatternDeep => Paint {
+            border: None,
+            bg: theme::alpha(t.text, 0.09),
+            fg: t.text,
+            hover_bg: theme::alpha(t.text, 0.14),
+            hover_fg: t.text,
+        },
+        ButtonVariant::Pattern | ButtonVariant::PatternPrimary if disabled => Paint {
+            border: None,
+            bg: t.control,
+            fg: t.text_disabled,
+            hover_bg: t.control,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::GitAction | ButtonVariant::GitActionDanger if disabled => Paint {
+            border: Some(clear),
+            bg: clear,
+            fg: t.text_disabled,
+            hover_bg: clear,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::GitAction => Paint {
+            border: Some(clear),
+            bg: clear,
+            fg: t.subtle,
+            hover_bg: t.hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::GitActionDanger => Paint {
+            border: Some(clear),
+            bg: clear,
+            fg: theme::mix(t.danger, t.muted, 0.72),
+            hover_bg: theme::alpha(t.danger, 0.09),
+            hover_fg: t.danger,
+        },
+        ButtonVariant::Quiet => Paint {
+            border: None,
+            bg: if open { t.hover } else { clear },
+            fg: if open { t.text } else { t.muted },
+            hover_bg: t.hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::Raised => Paint {
+            border: Some(t.border),
+            bg: if disabled { t.control } else { t.panel_raised },
+            fg: if disabled { t.text_disabled } else { t.text },
+            hover_bg: t.control_hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::TitlebarCoachmark => Paint {
+            border: None,
+            bg: t.accent,
+            fg: t.text_inverse,
+            hover_bg: t.accent,
+            hover_fg: t.text_inverse,
+        },
+        ButtonVariant::Pattern => Paint {
+            border: None,
+            bg: t.control,
+            fg: t.text,
+            hover_bg: t.hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::PatternPrimary => Paint {
+            border: None,
+            bg: t.accent,
+            fg: t.text_inverse,
+            hover_bg: theme::mix(t.accent, t.canvas, 0.88),
+            hover_fg: t.text_inverse,
+        },
+        ButtonVariant::Titlebar if selected || open => Paint {
+            border: None,
+            bg: t.selected,
+            fg: t.text,
+            hover_bg: t.selected,
+            hover_fg: t.text,
+        },
+        ButtonVariant::Titlebar => Paint {
+            border: None,
+            bg: clear,
+            fg: t.muted,
+            hover_bg: t.hover,
+            hover_fg: t.muted,
+        },
+        // A shade lighter than the name at rest, as a project pane's handle
+        // is; touched, the name's ink.
+        ButtonVariant::TitlebarInk => Paint {
+            border: None,
+            bg: if selected || open { t.selected } else { clear },
+            fg: if selected || open {
+                t.muted
+            } else {
+                theme::alpha(t.muted, 0.68)
+            },
+            hover_bg: if selected || open {
+                t.selected
+            } else {
+                t.hover
+            },
+            hover_fg: t.muted,
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn dialog_recovery_is_solid_while_dismissal_stays_neutral_in_both_themes() {
+        for dark in [false, true] {
+            let theme = theme::pack_theme("default-neutral", dark);
+            let primary = paint(ButtonVariant::Solid, false, false, false, theme);
+            let neutral = paint(ButtonVariant::Secondary, false, false, false, theme);
+            assert_eq!(primary.bg, theme.text);
+            assert_eq!(primary.fg, theme.text_inverse);
+            assert_eq!(neutral.bg.a, 0.);
+            assert_eq!(neutral.fg, theme.muted);
+            assert_ne!(primary.bg, neutral.bg);
+            for variant in [ButtonVariant::Solid, ButtonVariant::Secondary] {
+                let disabled = paint(variant, false, false, true, theme);
+                assert_eq!(disabled.bg, theme.control);
+                assert_eq!(disabled.fg, theme.text_disabled);
+            }
+        }
+    }
+}
+/// Control heights: `xsmall` 22, `small` 24, medium 28, `large` 32.
+fn height(size: Size) -> Pixels {
+    match size {
+        Size::XSmall => px(theme::control_mini()),
+        Size::Small => px(24.),
+        Size::Medium => px(theme::control_compact()),
+        Size::Large => px(theme::control()),
+        Size::Size(size) => size,
+    }
+}
+
+/// A labelled command.
+#[derive(IntoElement)]
+pub struct Button {
+    id: ElementId,
+    base: BaseButton,
+    style: StyleRefinement,
+    variant: ButtonVariant,
+    size: Size,
+    label: Option<SharedString>,
+    accessible: Option<SharedString>,
+    leading: Option<AnyElement>,
+    icon: Option<Icon>,
+    trailing: Option<AnyElement>,
+    selected: bool,
+    /// Its popover is open (`aria-expanded`).
+    open: bool,
+    disabled: bool,
+    tooltip: Option<SharedString>,
+    on_click: Option<ClickHandler>,
+}
+impl Button {
+    pub fn new(id: impl Into<ElementId>) -> Self {
+        let id = id.into();
+        Self {
+            base: BaseButton::new(id.clone()),
+            id,
+            style: StyleRefinement::default(),
+            variant: ButtonVariant::default(),
+            size: Size::Medium,
+            label: None,
+            accessible: None,
+            leading: None,
+            icon: None,
+            trailing: None,
+            selected: false,
+            open: false,
+            disabled: false,
+            tooltip: None,
+            on_click: None,
+        }
+    }
+    pub fn variant(mut self, variant: ButtonVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+    /// Leading custom element (e.g. a brand mark or inline spinner).
+    pub fn leading(mut self, element: impl IntoElement) -> Self {
+        self.leading = Some(element.into_any_element());
+        self
+    }
+    /// Leading icon. A bare name gets the variant's size and stroke.
+    pub fn icon(mut self, icon: impl Into<Icon>) -> Self {
+        self.icon = Some(icon.into());
+        self
+    }
+    pub fn trailing(mut self, element: impl IntoElement) -> Self {
+        self.trailing = Some(element.into_any_element());
+        self
+    }
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+    /// The accessible name when it differs from the visible label (or there
+    /// is none).
+    pub fn accessibility_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.accessible = Some(label.into());
+        self
+    }
+    pub fn on_click(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(Rc::new(handler));
+        self
+    }
+    pub fn track_focus(mut self, handle: &FocusHandle) -> Self {
+        self.base = self.base.track_focus(handle);
+        self
+    }
+}
+impl Sizable for Button {
+    fn with_size(mut self, size: impl Into<Size>) -> Self {
+        self.size = size.into();
+        self
+    }
+}
+impl Selectable for Button {
+    fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+    fn is_selected(&self) -> bool {
+        self.selected
+    }
+    fn open(mut self, open: bool) -> Self {
+        self.open = open;
+        self
+    }
+    fn is_open(&self) -> bool {
+        self.open
+    }
+}
+impl Disableable for Button {
+    fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+}
+impl Styled for Button {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.style
+    }
+}
+impl InteractiveElement for Button {
+    fn interactivity(&mut self) -> &mut Interactivity {
+        self.base.interactivity()
+    }
+}
+impl StatefulInteractiveElement for Button {}
+impl RenderOnce for Button {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        let variant = self.variant;
+        let disabled = self.disabled;
+        let p = paint(variant, self.selected, self.open, disabled, t);
+        let outlined = variant.outlined();
+        let dialog = variant.dialog();
+        let filled = matches!(
+            variant,
+            ButtonVariant::Filled | ButtonVariant::FilledPrimary
+        );
+        let git = matches!(
+            variant,
+            ButtonVariant::GitAction | ButtonVariant::GitActionDanger
+        );
+        let raised = variant == ButtonVariant::Raised;
+        let deep = variant == ButtonVariant::PatternDeep;
+        let pattern = matches!(
+            variant,
+            ButtonVariant::Pattern | ButtonVariant::PatternPrimary
+        ) || deep;
+        let quiet = variant == ButtonVariant::Quiet;
+        let plan_card = variant.plan_card();
+        let brand = variant == ButtonVariant::Brand;
+        // Outline and Git file actions: 13px icon at stroke 2; filled Git
+        // actions: 15px at 2.25; entries: 14px at 1.85.
+        let icon = self.icon.map(|icon| {
+            if quiet {
+                icon.with_size(px(12.)).stroke(2.)
+            } else if outlined || git || raised {
+                icon.with_size(px(13.)).stroke(2.)
+            } else if filled {
+                icon.with_size(px(15.)).stroke(2.25)
+            } else {
+                icon
+            }
+        });
+        let label = self.label.clone();
+        let (hover_bg, hover_fg) = (p.hover_bg, p.hover_fg);
+        let group = hover_group(&self.id);
+        let icon = icon.map(|icon| {
+            let icon = if disabled {
+                icon
+            } else {
+                icon.group_hover_color(group.clone(), hover_fg)
+            };
+            icon.into_any_element()
+        });
+        self.base
+            .group(group)
+            .disabled(disabled)
+            .selected(self.selected)
+            .when_some(self.accessible.or(label.clone()), |b, name| {
+                b.accessibility_label(name)
+            })
+            .flex()
+            .flex_shrink_0()
+            .items_center()
+            .justify_center()
+            .gap(px(match variant {
+                ButtonVariant::Brand => 7.,
+                ButtonVariant::FilledPrimary => 5.,
+                ButtonVariant::Filled => 4.,
+                ButtonVariant::GitAction | ButtonVariant::GitActionDanger => 5.,
+                ButtonVariant::Raised => 8.,
+                ButtonVariant::Quiet => 4.,
+                _ => 6.,
+            }))
+            .h(height(
+                if (dialog || raised || pattern) && !deep && self.size == Size::Medium {
+                    Size::Large
+                } else if git && self.size == Size::Medium {
+                    Size::Small
+                } else {
+                    self.size
+                },
+            ))
+            .px(px(if dialog {
+                14.
+            } else if pattern {
+                10.
+            } else if quiet {
+                6.
+            } else if raised {
+                12.
+            } else if outlined {
+                9.
+            } else {
+                7.
+            }))
+            .rounded(px(if outlined || dialog || raised || quiet || pattern {
+                metric::CONTROL_RADIUS
+            } else {
+                metric::TOOLBAR_ACTION_RADIUS
+            }))
+            .when_some(p.border, |b, border| b.border_1().border_color(border))
+            .bg(p.bg)
+            .text_color(p.fg)
+            // `.desktop-dialog-button`: `--po-text-size-interface`.
+            .when(outlined || dialog, |b| {
+                let ty = theme::ty().ui;
+                b.text_size(px(if dialog { ty.control } else { ty.meta }))
+                    .font_weight(
+                        if matches!(variant, ButtonVariant::Solid | ButtonVariant::SolidDanger) {
+                            FontWeight::SEMIBOLD
+                        } else {
+                            FontWeight::MEDIUM
+                        },
+                    )
+            })
+            .when(git, |b| {
+                b.text_size(px(theme::ty().left.meta))
+                    .font_weight(FontWeight::MEDIUM)
+            })
+            .when(disabled && git, |b| b.opacity(0.62))
+            .when(raised, |b| {
+                b.text_size(px(theme::ty().ui.body))
+                    .font_weight(FontWeight::SEMIBOLD)
+            })
+            // `.po-button`: meta type at 650; `.onboarding-start-actions`: 500.
+            .when(pattern, |b| {
+                b.text_size(px(theme::ty().ui.meta)).font_weight(if deep {
+                    FontWeight::MEDIUM
+                } else {
+                    FontWeight(650.)
+                })
+            })
+            // `padding: 4px 6px` around the hint line.
+            .when(quiet, |b| {
+                b.h(px(24.))
+                    .text_size(px(theme::ty().ui.hint))
+                    .line_height(px(16.))
+            })
+            // `GitOperationButton` sets the right-sidebar control type.
+            .when(filled, |b| {
+                let ty = theme::ty().right;
+                b.text_size(px(ty.content))
+                    .line_height(px(ty.control_line_height))
+            })
+            .when(disabled && outlined, |b| b.opacity(0.62))
+            // `padding: 6px 12px; border-radius: 5px; font: inherit` at
+            // Plan's 13px label size.
+            .when(plan_card, |b| {
+                b.h(px(theme::control_compact() + 6.))
+                    .px(px(12.))
+                    .rounded(px(5.))
+                    .text_size(px(theme::ty().ui.label))
+                    .when(variant == ButtonVariant::PlanCard, |b| b.border_1())
+                    .when(disabled, |b| b.opacity(0.62))
+            })
+            // `.cloud-sign-in-primary`: `height: 36px; padding: 0 14px; border-radius: 8px; font-size: 14px; font-weight: 500`.
+            .when(brand, |b| {
+                b.h(px(36.))
+                    .px(px(14.))
+                    .rounded(px(8.))
+                    .text_size(px(theme::font_size(14.)))
+                    .line_height(px(theme::font_size(14.)))
+                    .font_weight(FontWeight::MEDIUM)
+            })
+            // `.desktop-titlebar-action:disabled`.
+            .when(
+                disabled && matches!(variant, ButtonVariant::Ghost | ButtonVariant::Titlebar),
+                |b| b.opacity(0.68),
+            )
+            .when(!disabled, |b| {
+                b.cursor(theme::clickable_cursor())
+                    .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
+            })
+            .when_some(self.tooltip, |b, text| b.tooltip(tooltip(text)))
+            .when_some(self.on_click.filter(|_| !disabled), |b, handler| {
+                b.on_click(move |event, window, cx| handler(event, window, cx))
+            })
+            .children(self.leading)
+            .children(icon)
+            .when_some(label, |b, label| {
+                b.child(div().min_w_0().truncate().child(label))
+            })
+            .children(self.trailing)
+            .refine_style(&self.style)
+    }
+}
+
+/// A square icon command. Its label is the accessible name and the tooltip.
+///
+/// Sizes: `xsmall` 22, `small` 24, medium 28, `large` 32.
+#[derive(IntoElement)]
+pub struct IconButton {
+    id: ElementId,
+    base: BaseButton,
+    style: StyleRefinement,
+    icon: Icon,
+    size: Size,
+    label: Option<SharedString>,
+    tooltip: Option<SharedString>,
+    show_tooltip: bool,
+    selected: bool,
+    /// Its popover is open (`aria-expanded`): the control-hover backplate.
+    open: bool,
+    disabled: bool,
+    danger: bool,
+    color: Option<Hsla>,
+    on_click: Option<ClickHandler>,
+}
+impl IconButton {
+    pub fn new(id: impl Into<ElementId>, icon: impl Into<Icon>) -> Self {
+        let id = id.into();
+        Self {
+            base: BaseButton::new(id.clone()),
+            id,
+            style: StyleRefinement::default(),
+            icon: icon.into(),
+            size: Size::Medium,
+            label: None,
+            tooltip: None,
+            show_tooltip: true,
+            selected: false,
+            open: false,
+            disabled: false,
+            danger: false,
+            color: None,
+            on_click: None,
+        }
+    }
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+    /// A tooltip other than the accessible name.
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+    /// Keep the accessible name but show no tooltip.
+    pub fn no_tooltip(mut self) -> Self {
+        self.show_tooltip = false;
+        self
+    }
+    pub fn danger(mut self) -> Self {
+        self.danger = true;
+        self
+    }
+    /// Resting icon colour (hover still raises it to the text colour).
+    pub fn color(mut self, color: impl Into<Hsla>) -> Self {
+        self.color = Some(color.into());
+        self
+    }
+    pub fn on_click(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(Rc::new(handler));
+        self
+    }
+}
+impl Sizable for IconButton {
+    fn with_size(mut self, size: impl Into<Size>) -> Self {
+        self.size = size.into();
+        self
+    }
+}
+impl Selectable for IconButton {
+    fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+    fn is_selected(&self) -> bool {
+        self.selected
+    }
+    fn open(mut self, open: bool) -> Self {
+        self.open = open;
+        self
+    }
+    fn is_open(&self) -> bool {
+        self.open
+    }
+}
+impl Disableable for IconButton {
+    fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+}
+impl Styled for IconButton {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.style
+    }
+}
+impl InteractiveElement for IconButton {
+    fn interactivity(&mut self) -> &mut Interactivity {
+        self.base.interactivity()
+    }
+}
+impl StatefulInteractiveElement for IconButton {}
+impl RenderOnce for IconButton {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        let disabled = self.disabled;
+        let (fg, hover_bg, hover_fg) = if self.danger {
+            // A destructive control may rest quiet and turn red on hover.
+            (
+                self.color.map(Rgba::from).unwrap_or(t.danger),
+                theme::alpha(t.danger, 0.12),
+                t.danger,
+            )
+        } else if self.selected {
+            (t.text, t.selected, t.text)
+        } else if self.open {
+            (t.text, t.control_hover, t.text)
+        } else {
+            (
+                self.color.map(Rgba::from).unwrap_or(t.utility),
+                t.hover,
+                t.text,
+            )
+        };
+        let label = self.label.clone();
+        let group = hover_group(&self.id);
+        let icon = if disabled {
+            self.icon
+        } else {
+            self.icon.group_hover_color(group.clone(), hover_fg)
+        };
+        self.base
+            .group(group)
+            .disabled(disabled)
+            .selected(self.selected)
+            .when_some(label.clone(), |b, label| b.accessibility_label(label))
+            .flex()
+            .flex_shrink_0()
+            .items_center()
+            .justify_center()
+            .size(height(self.size))
+            .rounded(px(metric::CONTROL_RADIUS))
+            .text_color(fg)
+            .when(self.selected, |b| b.bg(t.selected))
+            .when(self.open && !self.selected, |b| b.bg(t.control_hover))
+            .when(disabled, |b| b.opacity(0.5))
+            .when(!disabled, |b| {
+                b.cursor(theme::clickable_cursor())
+                    .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
+            })
+            .when_some(
+                self.tooltip.or(label).filter(|_| self.show_tooltip),
+                |b, text| b.tooltip(tooltip(text)),
+            )
+            .when_some(self.on_click.filter(|_| !disabled), |b, handler| {
+                b.on_click(move |event, window, cx| handler(event, window, cx))
+            })
+            .child(icon)
+            .refine_style(&self.style)
+    }
+}
+/// The hover group a control names so its icon follows its hover colour.
+pub(super) fn hover_group(id: &ElementId) -> SharedString {
+    format!("control-{id}").into()
+}

@@ -1,0 +1,541 @@
+//! Port of `DesktopWindowChrome`, `DesktopTitlebarActions` and
+//! `headerElements.tsx`: the Header's chrome and entries as components. The
+//! shell decides what the Header shows (`Shell::header`) and wires the
+//! project switcher to its popovers (`project_menu`); these only present.
+//!
+//! - [`TitleBar`]: `.desktop-titlebar`: leading entries after the native
+//!   window controls, the empty space that moves the window, and the
+//!   trailing actions
+//! - [`ChangesButton`]: the Changes entry, showing [`GitTitlebarStatus`]
+//! - [`agent_entry`]: the Agent entry
+use crate::{
+    features::source_control::SourceControl,
+    localization::{t as tr, tf},
+    theme::{self, metric},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Button, ButtonVariant, Icon},
+    },
+};
+use gpui::{prelude::*, *};
+use gpui_kit::{
+    base::{Selectable, h_flex},
+    component::Sizable as _,
+};
+use std::rc::Rc;
+
+type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+
+/// `.desktop-titlebar`: the Header's chrome; it fills the frame it is
+/// placed in.
+#[derive(IntoElement, Default)]
+pub(super) struct TitleBar {
+    leading: Vec<AnyElement>,
+    actions: Vec<AnyElement>,
+    tabs: Option<AnyElement>,
+}
+impl TitleBar {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn tabs(mut self, tabs: impl IntoElement) -> Self {
+        self.tabs = Some(tabs.into_any_element());
+        self
+    }
+    /// An entry after the native window controls (`.desktop-titlebar-left`),
+    /// 2px from the previous one.
+    pub fn leading(mut self, item: impl IntoElement) -> Self {
+        self.leading.push(item.into_any_element());
+        self
+    }
+    /// An entry at the window's end (`.desktop-titlebar-actions`), 2px from
+    /// the previous one.
+    pub fn action(mut self, item: impl IntoElement) -> Self {
+        self.actions.push(item.into_any_element());
+        self
+    }
+    /// `.desktop-titlebar-action-divider` (1×18, 3px margins) between two
+    /// actions.
+    pub fn divider(self, cx: &App) -> Self {
+        let line = div()
+            .w(px(1.))
+            .h(px(18.))
+            .mx(px(3.))
+            .bg(cx.palette().shell_divider);
+        self.action(line)
+    }
+}
+impl RenderOnce for TitleBar {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        // Empty space moves the window; a double click zooms it.
+        let with_tabs = self.tabs.is_some();
+        let drag = div()
+            .id("header-drag")
+            .when(!with_tabs, |d| d.flex_1())
+            .when(with_tabs, |d| {
+                d.w(px(metric::TITLEBAR_DRAG_MIN_WIDTH)).flex_shrink_0()
+            })
+            .h_full()
+            .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH))
+            .on_mouse_down(MouseButton::Left, |e, window, _| {
+                if e.click_count == 2 {
+                    window.zoom_window();
+                } else {
+                    window.start_window_move();
+                }
+            });
+        div()
+            .size_full()
+            .flex()
+            .items_center()
+            .bg(t.header)
+            .border_b_1()
+            .border_color(t.shell_divider)
+            .child(
+                h_flex()
+                    .h_full()
+                    .min_w_0()
+                    .pl(px(
+                        metric::TITLEBAR_NATIVE_CONTROLS_INSET + metric::TITLEBAR_CONTENT_START
+                    ))
+                    .gap(px(2.))
+                    .children(self.leading),
+            )
+            .when_some(self.tabs, |d, tabs| {
+                d.child(div().flex_1().min_w_0().h_full().child(tabs))
+            })
+            .child(drag)
+            .child(
+                h_flex()
+                    .h_full()
+                    .gap(px(2.))
+                    .pr(px(metric::TITLEBAR_CONTENT_END))
+                    .children(self.actions),
+            )
+    }
+}
+
+/// `GitTitlebarStatus` projected from the native Git snapshot.
+#[derive(Clone, Copy, Default, PartialEq, Debug)]
+pub(super) struct GitTitlebarStatus {
+    pub conflicts: usize,
+    pub incoming: u32,
+    pub local: usize,
+    pub outgoing: u32,
+}
+impl GitTitlebarStatus {
+    pub fn of(source_control: &SourceControl) -> Self {
+        source_control
+            .snapshot
+            .as_ref()
+            .map(|s| Self {
+                conflicts: s.changes.iter().filter(|c| c.conflict()).count(),
+                incoming: s.behind,
+                local: s.changes.len(),
+                outgoing: s.ahead,
+            })
+            .unwrap_or_default()
+    }
+}
+fn header_count(count: usize) -> String {
+    if count > 99 {
+        "99+".into()
+    } else {
+        count.to_string()
+    }
+}
+
+/// The Header's Changes entry: conflicts (⚠), or incoming (↓), outgoing (↑)
+/// and local (✱) counts, `✱ 0` when there is nothing; lit while the right
+/// sidebar shows Changes.
+#[derive(IntoElement)]
+pub(super) struct ChangesButton {
+    status: GitTitlebarStatus,
+    selected: bool,
+    coachmark: bool,
+    on_click: Option<ClickHandler>,
+}
+impl ChangesButton {
+    pub fn new(status: GitTitlebarStatus) -> Self {
+        Self {
+            status,
+            selected: false,
+            coachmark: false,
+            on_click: None,
+        }
+    }
+    /// Lit while its introduction shows.
+    pub fn coachmark(mut self, coachmark: bool) -> Self {
+        self.coachmark = coachmark;
+        self
+    }
+    pub fn on_click(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(Rc::new(handler));
+        self
+    }
+    /// The accessible label: "Changes" and each count in words.
+    fn label(&self) -> String {
+        let status = self.status;
+        let mut label = vec![tr("source-control.label.changes").to_string()];
+        if status.conflicts > 0 {
+            label.push(tf(
+                "source-control.commit.conflicts",
+                &[("count", status.conflicts.into())],
+            ));
+        }
+        if status.local > 0 {
+            label.push(tf(
+                "source-control.commit.files",
+                &[("count", status.local.into())],
+            ));
+        }
+        if status.incoming > 0 {
+            label.push(tf(
+                "source-control.sync.pullCount",
+                &[("count", status.incoming.into())],
+            ));
+        }
+        if status.outgoing > 0 {
+            label.push(tf(
+                "source-control.sync.localWaiting",
+                &[("count", status.outgoing.into())],
+            ));
+        }
+        label.join(", ")
+    }
+}
+impl Selectable for ChangesButton {
+    fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+    fn is_selected(&self) -> bool {
+        self.selected
+    }
+}
+impl RenderOnce for ChangesButton {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        let status = self.status;
+        let indicator = |icon: &'static str, color: Rgba, count: String| {
+            h_flex()
+                .h(px(20.))
+                .gap(px(2.))
+                .text_size(px(theme::ty().header.meta))
+                .text_color(t.muted)
+                .child(Icon::new(icon).color(color))
+                .child(count)
+        };
+        let mut indicators = h_flex().gap(px(4.));
+        if status.conflicts > 0 {
+            let danger = theme::tint(t.danger, 0.78);
+            indicators = indicators.child(
+                indicator("triangle-alert", danger, header_count(status.conflicts))
+                    .text_color(danger),
+            );
+        } else if status.local == 0 && status.incoming == 0 && status.outgoing == 0 {
+            indicators = indicators.child(indicator("asterisk", t.muted, "0".into()));
+        } else {
+            if status.incoming > 0 {
+                indicators = indicators.child(indicator(
+                    "arrow-down",
+                    theme::tint(t.accent, 0.74),
+                    header_count(status.incoming as usize),
+                ));
+            }
+            if status.outgoing > 0 {
+                indicators = indicators.child(indicator(
+                    "arrow-up",
+                    theme::tint(t.success, 0.72),
+                    header_count(status.outgoing as usize),
+                ));
+            }
+            if status.local > 0 {
+                indicators = indicators.child(indicator(
+                    "asterisk",
+                    theme::tint(t.warning, 0.76),
+                    header_count(status.local),
+                ));
+            }
+        }
+        let label = self.label();
+        Button::new("changes")
+            .variant(if self.coachmark {
+                ButtonVariant::TitlebarCoachmark
+            } else {
+                ButtonVariant::Titlebar
+            })
+            .accessibility_label(label.clone())
+            .tooltip(label)
+            .selected(self.selected)
+            .min_w(px(theme::control()))
+            .trailing(indicators)
+            .when_some(self.on_click, |button, handler| {
+                button.on_click(move |event, window, cx| handler(event, window, cx))
+            })
+    }
+}
+
+/// The Agent entry (`.desktop-titlebar-tool-action`): lit, and labelled
+/// "Hide", while the right sidebar shows the workbench.
+pub(super) fn agent_entry(open: bool) -> Button {
+    let label = tr(if open {
+        "shell.titlebar.hideAgent"
+    } else {
+        "shell.titlebar.showAgent"
+    });
+    Button::new("right")
+        .variant(ButtonVariant::Titlebar)
+        .icon("agent-entry")
+        .accessibility_label(label)
+        .tooltip(label)
+        .selected(open)
+        .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
+}
+
+/// `HomepageCloudStatus`: what the account's catalog is doing, never a
+/// project row and never the account itself (the Header's place menu and
+/// Sign in hold that): loading, a failure with what helps, or an empty
+/// catalog. `opening`: a Cloud project is on its way in; `empty`: the
+/// Homepage lists nothing.
+pub(super) fn cloud_status(
+    catalog: &Entity<crate::features::cloud::CloudCatalog>,
+    opening: bool,
+    empty: bool,
+    on_retry: impl Fn(&mut Window, &mut App) + 'static,
+    cx: &App,
+) -> AnyElement {
+    use crate::features::cloud::CatalogState as State;
+    use crate::features::cloud::account::Status;
+    let t = cx.palette();
+    let ty = theme::ty().header;
+    let account = crate::features::cloud::account::snapshot(cx);
+    let status = account.as_ref().map(|a| a.status);
+    let email = account
+        .as_ref()
+        .and_then(|a| a.account.as_ref())
+        .map(|a| a.email.clone());
+    let restoring = status == Some(Status::Restoring);
+    let signing_in = status == Some(Status::SigningIn);
+    let auth_error = account
+        .as_ref()
+        .filter(|a| a.account.is_none())
+        .and_then(|a| a.error);
+    let catalog = catalog.read(cx).state.clone();
+    let text = |text: String, color: Rgba| {
+        div()
+            .min_w_0()
+            .truncate()
+            .text_size(px(ty.content))
+            .line_height(px(ty.line_height))
+            .text_color(color)
+            .child(text)
+    };
+    let on_retry = Rc::new(on_retry);
+    let feedback: Option<AnyElement> = if opening {
+        None
+    } else if catalog == State::Failed || auth_error.is_some() {
+        let label = match &auth_error {
+            Some(error) => error.to_string(),
+            None => tr("cloud.catalog.loadFailed").to_owned(),
+        };
+        let sign_in = auth_error.is_some();
+        Some(
+            h_flex()
+                .min_w_0()
+                .gap(px(8.))
+                .child(text(label, t.danger))
+                .child(
+                    Button::new("homepage-cloud-retry")
+                        .variant(ButtonVariant::Titlebar)
+                        .label(tr("cloud.common.retry"))
+                        .on_click(move |_, window, cx| {
+                            if sign_in {
+                                crate::features::cloud::account::sign_in(cx);
+                            } else {
+                                on_retry(window, cx);
+                            }
+                        }),
+                )
+                .into_any_element(),
+        )
+    } else if restoring || catalog == State::Loading || (email.is_none() && signing_in) {
+        Some(
+            h_flex()
+                .gap(px(6.))
+                .child(
+                    crate::ui::loading::LoadingMark::new("homepage-cloud-loading")
+                        .size(crate::ui::loading::LoaderSize::Xs)
+                        .tone(crate::ui::loading::Tone::Neutral),
+                )
+                .child(text(
+                    tr(if signing_in {
+                        "cloud.home.waitingForSignIn"
+                    } else {
+                        "cloud.home.loading"
+                    })
+                    .to_owned(),
+                    t.utility,
+                ))
+                .into_any_element(),
+        )
+    } else if email.is_some() && matches!(&catalog, State::Ready(list) if list.is_empty()) && empty
+    {
+        Some(text(tr("cloud.catalog.empty").to_owned(), t.utility).into_any_element())
+    } else {
+        None
+    };
+    h_flex()
+        .min_w_0()
+        .max_w(px(360.))
+        .h(px(theme::control() - 4.))
+        .gap(px(8.))
+        .justify_end()
+        .children(feedback)
+        .into_any_element()
+}
+
+/// `DesktopUpdateTitlebarButton`: Download (automatic downloads off),
+/// Restart once the update is ready, a turning arrow while it installs.
+#[derive(IntoElement)]
+pub(super) struct UpdateButton {
+    kind: crate::features::updates::Titlebar,
+    label: String,
+    on_click: Option<ClickHandler>,
+}
+impl UpdateButton {
+    pub fn new(state: Option<&crate::features::updates::UpdateState>) -> Option<Self> {
+        use crate::features::updates::{Titlebar, words};
+        let state = state?;
+        let kind = crate::features::updates::titlebar(state)?;
+        let version = words::version(state);
+        let label = match kind {
+            Titlebar::Available => tf("updates.title.available", &[("version", version.into())]),
+            Titlebar::Ready => tf("updates.detail.downloaded", &[("version", version.into())]),
+            Titlebar::Installing => tr("updates.detail.installing").into(),
+        };
+        Some(Self {
+            kind,
+            label,
+            on_click: None,
+        })
+    }
+    pub fn on_click(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(Rc::new(handler));
+        self
+    }
+}
+impl RenderOnce for UpdateButton {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        use crate::features::updates::Titlebar;
+        let t = cx.palette();
+        let accent = t.update_accent;
+        let interactive = self.kind != Titlebar::Installing;
+        let (icon, text) = match self.kind {
+            Titlebar::Available => ("download", "updates.action.download"),
+            Titlebar::Ready => ("rotate-cw", "updates.action.restart"),
+            Titlebar::Installing => ("rotate-cw", "updates.action.restarting"),
+        };
+        let mut glyph = Icon::new(icon).with_size(px(15.)).stroke(2.3).color(accent);
+        if !interactive {
+            glyph = glyph.spinning("titlebar-update-spin");
+        }
+        let ty = theme::ty().header;
+        let hover = theme::mix(accent, t.hover, 0.18);
+        let on_click = self.on_click.filter(|_| interactive);
+        gpui_kit::base::Button::new("titlebar-update")
+            .accessibility_label(self.label.clone())
+            .disabled(!interactive)
+            .flex_none()
+            .h(px(theme::control()))
+            .max_w(px(220.))
+            .gap(px(6.))
+            .px(px(6.))
+            .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
+            .bg(Rgba { a: 0.12, ..accent })
+            .when(interactive, |d| d.hover(move |d| d.bg(hover)))
+            .child(glyph)
+            .child(
+                div()
+                    .min_w_0()
+                    .max_w(px(180.))
+                    .truncate()
+                    .text_size(px(ty.content))
+                    .line_height(px(ty.line_height))
+                    .text_color(theme::mix(accent, t.text, 0.72))
+                    .child(tr(text)),
+            )
+            .when_some(on_click, |d, handler| {
+                d.cursor(theme::clickable_cursor())
+                    .on_click(move |e, w, cx| handler(e, w, cx))
+            })
+            .tooltip(crate::ui::components::tooltip(self.label))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::platform::git::{Change, Snapshot};
+    use core::prelude::v1::test;
+    use gpui::TestAppContext;
+
+    #[gpui::test]
+    fn titlebar_counts_logical_files_once_and_keeps_remote_directions_separate(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = cx.add_window_view(SourceControl::new);
+        view.update(cx, |s, _| {
+            assert_eq!(GitTitlebarStatus::of(s), GitTitlebarStatus::default());
+            // Porcelain status already combines staged/unstaged records for
+            // one path, unlike the four TS entry arrays being deduplicated.
+            s.snapshot = Some(Snapshot {
+                ahead: 2,
+                behind: 4,
+                changes: vec![
+                    Change {
+                        path: "shared.md".into(),
+                        original: None,
+                        index: 'M',
+                        worktree: 'M',
+                    },
+                    Change {
+                        path: "conflict.md".into(),
+                        original: None,
+                        index: 'U',
+                        worktree: 'U',
+                    },
+                    Change {
+                        path: "new.md".into(),
+                        original: None,
+                        index: '?',
+                        worktree: '?',
+                    },
+                ],
+                ..Default::default()
+            });
+            assert_eq!(
+                GitTitlebarStatus::of(s),
+                GitTitlebarStatus {
+                    conflicts: 1,
+                    incoming: 4,
+                    local: 3,
+                    outgoing: 2
+                }
+            );
+            s.snapshot = None;
+            assert_eq!(GitTitlebarStatus::of(s), GitTitlebarStatus::default());
+        });
+    }
+}
+
+#[cfg(test)]
+#[path = "header_update_tests.rs"]
+mod update_tests;

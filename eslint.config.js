@@ -33,6 +33,8 @@ export default [
       "archive/**", "artifacts/**", "dist/**", "release/**", "node_modules/**",
       "licenses/**",
       "public/**", "**/*.d.ts", "eslint.config.js",
+      // The GPUI app checks its own sources (clippy, puppy-one-rust/tools/verify.py).
+      "puppy-one-rust/**",
     ],
   },
   {

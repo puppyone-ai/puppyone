@@ -1,0 +1,5 @@
+@puppyone-theme { id: local.user.bad-leak; name: Bad Leak; version: 1.0.0; modes: light dark; }
+@puppyone application {
+  :root { --po-accent: #112233; --po-canvas: #ffffff; --po-info: var(--po-accent); }
+  .dark .theme-root { --po-canvas: #000000; }
+}

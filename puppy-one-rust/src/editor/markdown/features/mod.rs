@@ -1,0 +1,17 @@
+//! Markdown features (product editor/markdown/features): each complex
+//! capability is a vertical slice — model, plan compiler, decorations,
+//! widget, commands and style together — implementing
+//! `core::feature::MarkdownFeature`. The built-in list is
+//! `markdown/composition.rs`.
+pub mod callout;
+pub mod code_block;
+pub mod front_matter;
+pub mod html;
+pub mod image;
+pub mod math;
+pub mod mdx;
+pub mod mermaid;
+pub mod rule;
+pub mod table;
+pub mod task;
+pub mod video;

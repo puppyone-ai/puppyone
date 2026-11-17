@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-selection; name: Bad Selection; version: 1.0.0; modes: light; }
+@puppyone application { :root { --po-text-selection-bg: var(--po-not-a-token); } }

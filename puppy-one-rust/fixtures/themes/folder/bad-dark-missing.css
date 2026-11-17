@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-dark; name: Bad Dark; version: 1.0.0; modes: light dark; }
+@puppyone application { :root { --po-accent: var(--po-info); } }

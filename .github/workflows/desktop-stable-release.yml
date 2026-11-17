@@ -37,7 +37,7 @@ jobs:
     name: Build signed and notarized macOS release once
     needs: resolve
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 120
     environment:
       name: desktop-signing
     permissions:
@@ -107,6 +107,7 @@ jobs:
           npm test --
           tests/integration/terminal/startup/terminalPreviewLauncher.test.mjs
           tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs
+          tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs
           tests/architecture/release/build-identity/macosReleasePolicy.test.mjs
 
       - name: Verify exact Internal promotion source
@@ -124,7 +125,23 @@ jobs:
             --github-output "${GITHUB_OUTPUT}"
 
       - name: Prepare release application without deployment secrets
-        run: npm run prepare:mac:release
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal --component rustfmt clippy
+          rustup default stable
+          BASELINE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).commit")"
+          BASELINE_DIR="${RUNNER_TEMP}/puppyone-product-baseline"
+          git worktree add --detach "${BASELINE_DIR}" "${BASELINE_COMMIT}"
+          npm --prefix "${BASELINE_DIR}" ci
+          echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
+          python3 puppy-one-rust/tools/fetch-pdfium.py
+          (cd puppy-one-rust && python3 tools/verify.py)
+          python3 puppy-one-rust/tools/release/verify-electron-to-gpui-ota.py
+          python3 puppy-one-rust/tools/release/package-excalidraw-pack.py --out artifacts/viewer-packs
+          node scripts/publish-viewer-packs-r2.mjs verify-local \
+            --packs-dir artifacts/viewer-packs \
+            --require-non-empty
 
       - name: Sign, notarize, and verify release package
         env:
@@ -138,6 +155,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "true"
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
+          PUPPYONE_BUILD_TIMESTAMP: ${{ steps.release.outputs.published_at }}
           PUPPYONE_RELEASE_TAG: ${{ steps.release.outputs.tag }}
         shell: bash
         run: |
@@ -149,7 +167,15 @@ jobs:
             export APPLE_API_KEY="${api_key_path}"
             trap 'rm -f "${api_key_path}"' EXIT
           fi
-          npm run package:mac:release
+          python3 puppy-one-rust/tools/release/package-macos.py \
+            --channel stable \
+            --build-number "${GITHUB_RUN_NUMBER}" \
+            --out release \
+            --flat-out \
+            --build-info-out generated/desktop-build-info.json \
+            --release
+          python3 puppy-one-rust/tools/release/verify-macos-release.py release --channel stable
+          node scripts/verify-packaged-desktop-build.mjs
 
       - name: Write stable release preface
         env:
@@ -224,12 +250,21 @@ jobs:
             artifacts/desktop-release-bundle/release.json
             artifacts/desktop-release-bundle/build-info.json
             artifacts/desktop-release-bundle/SHA256SUMS
+            artifacts/viewer-packs/*
 
       - name: Upload build-once stable release bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.release.outputs.artifact_name }}
           path: artifacts/desktop-release-bundle
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload build-once stable viewer packs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.release.outputs.artifact_name }}-viewer-packs
+          path: artifacts/viewer-packs
           if-no-files-found: error
           retention-days: 90
 

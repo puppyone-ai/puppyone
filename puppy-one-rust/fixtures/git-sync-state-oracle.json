@@ -1,0 +1,3517 @@
+{
+  "sourceCommit": "dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2",
+  "cases": [
+    {
+      "name": "no snapshot",
+      "status": null,
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "source-control.sync.noBranch",
+        "upstreamLabel": "source-control.history.inactive",
+        "remoteExists": false,
+        "setupRequired": true,
+        "setupTitle": "source-control.sync.chooseTarget",
+        "setupDetail": "source-control.sync.initializeThenCloud",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noLocalRepository",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.initializeBeforePull",
+        "pushTitle": "source-control.sync.initializeBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noLocalRepository"
+      }
+    },
+    {
+      "name": "not a repository",
+      "status": {
+        "isRepo": false,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "source-control.sync.noBranch",
+        "upstreamLabel": "source-control.history.inactive",
+        "remoteExists": false,
+        "setupRequired": true,
+        "setupTitle": "source-control.sync.chooseTarget",
+        "setupDetail": "source-control.sync.initializeThenCloud",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noLocalRepository",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.initializeBeforePull",
+        "pushTitle": "source-control.sync.initializeBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noLocalRepository"
+      }
+    },
+    {
+      "name": "local only",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "source-control.sync.localOnly",
+        "remoteExists": false,
+        "setupRequired": true,
+        "setupTitle": "source-control.sync.chooseTarget",
+        "setupDetail": "source-control.sync.backupLocalBranch {\"branch\":\"⁨topic⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noTrackingBranch",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.chooseBeforePull",
+        "pushTitle": "source-control.sync.chooseBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.chooseFirst"
+      }
+    },
+    {
+      "name": "initial branch",
+      "status": {
+        "isRepo": true,
+        "branch": null,
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "source-control.branch.initial",
+        "upstreamLabel": "source-control.sync.localOnly",
+        "remoteExists": false,
+        "setupRequired": true,
+        "setupTitle": "source-control.sync.chooseTarget",
+        "setupDetail": "source-control.sync.backupLocalBranch {\"branch\":\"⁨source-control.branch.initial⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noTrackingBranch",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.chooseBeforePull",
+        "pushTitle": "source-control.sync.chooseBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.chooseFirst"
+      }
+    },
+    {
+      "name": "detached branch",
+      "status": {
+        "isRepo": true,
+        "branch": "detached",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "source-control.branch.initial",
+        "upstreamLabel": "source-control.sync.localOnly",
+        "remoteExists": false,
+        "setupRequired": true,
+        "setupTitle": "source-control.sync.chooseTarget",
+        "setupDetail": "source-control.sync.backupLocalBranch {\"branch\":\"⁨source-control.branch.initial⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noTrackingBranch",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.chooseBeforePull",
+        "pushTitle": "source-control.sync.chooseBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.chooseFirst"
+      }
+    },
+    {
+      "name": "cloud backup configured without remote",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": {
+        "backup": {
+          "enabled": true
+        }
+      },
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone Cloud",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.cloudBackupEnabled",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.configureBeforePull",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.configureBeforePull",
+        "pushTitle": "source-control.sync.configureBeforePush",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.noConfiguredRemote"
+      }
+    },
+    {
+      "name": "cloud backup disabled without remote",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": {
+        "backup": {
+          "enabled": false
+        }
+      },
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "source-control.sync.localOnly",
+        "remoteExists": false,
+        "setupRequired": true,
+        "setupTitle": "source-control.sync.chooseTarget",
+        "setupDetail": "source-control.sync.backupLocalBranch {\"branch\":\"⁨topic⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noTrackingBranch",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.chooseBeforePull",
+        "pushTitle": "source-control.sync.chooseBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.chooseFirst"
+      }
+    },
+    {
+      "name": "cloud target absent",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone Cloud",
+        "remoteExists": false,
+        "setupRequired": true,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.configureCloudRemote",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨Puppyone Cloud⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.noCommittedToUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "cloud remote absent",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": null,
+          "ref": null,
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone Cloud",
+        "remoteExists": true,
+        "setupRequired": true,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.configureCloudRemote",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":0,\"target\":\"⁨Puppyone Cloud⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.cloud.upToDate",
+        "pushTitle": "source-control.sync.noCommittedToUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "cloud empty ref",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "",
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":0,\"target\":\"⁨⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.cloud.upToDate",
+        "pushTitle": "source-control.sync.noCommittedToUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "cloud 0/0 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.noCommittedToUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "publish origin 0/0 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 0/0 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePublish",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 0/0 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.noCommittedToUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "publish origin 0/0 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 0/0 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 0/0 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.cloud.upToDate",
+        "pushTitle": "source-control.sync.noCommittedToUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "publish origin 0/0 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 0/0 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.commitBeforePublish",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 0/0 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.cloud.upToDate",
+        "pushTitle": "source-control.sync.noCommittedToUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "publish origin 0/0 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 0/0 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "upstream origin 0/0",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "origin/main",
+        "ahead": 0,
+        "behind": 0
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.noLocalToPush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "upstream Puppyone 0/0",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "Puppyone/main",
+        "ahead": 0,
+        "behind": 0
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨Puppyone/main⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":0,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.noLocalToPush",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "cloud 2/0 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.uploadTo {\"count\":2,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish origin 2/0 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 2/0 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePublish",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 2/0 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.uploadTo {\"count\":2,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish origin 2/0 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 2/0 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 2/0 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.cloud.upToDate",
+        "pushTitle": "source-control.sync.uploadTo {\"count\":2,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish origin 2/0 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.localWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish Puppyone 2/0 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.commitBeforePublish",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.localWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "cloud 2/0 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.cloud.upToDate",
+        "pushTitle": "source-control.sync.uploadTo {\"count\":2,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish origin 2/0 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.localWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish Puppyone 2/0 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.localWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "upstream origin 2/0",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "origin/main",
+        "ahead": 2,
+        "behind": 0
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendTo {\"action\":\"source-control.sync.push\",\"count\":2,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "upstream Puppyone 2/0",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "Puppyone/main",
+        "ahead": 2,
+        "behind": 0
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨Puppyone/main⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":0,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendTo {\"action\":\"source-control.sync.publish\",\"count\":2,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "cloud 0/3 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.downloadCount {\"count\":3}",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.downloadBeforeUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "publish origin 0/3 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 0/3 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePublish",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 0/3 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.downloadCount {\"count\":3}",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.downloadBeforeUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "publish origin 0/3 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 0/3 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 0/3 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.downloadCount {\"count\":3}",
+        "pullTitle": "source-control.sync.downloadFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.downloadBeforeUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "publish origin 0/3 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 0/3 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.commitBeforePublish",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 0/3 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.downloadCount {\"count\":3}",
+        "pullTitle": "source-control.sync.downloadFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.downloadBeforeUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "publish origin 0/3 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.sendDiverged {\"action\":\"source-control.sync.push\",\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 0/3 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 0,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.sendDiverged {\"action\":\"source-control.sync.publish\",\"count\":0,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "upstream origin 0/3",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "origin/main",
+        "ahead": 0,
+        "behind": 3
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullCount {\"count\":3}",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.noLocalToPush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "upstream Puppyone 0/3",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "Puppyone/main",
+        "ahead": 0,
+        "behind": 3
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨Puppyone/main⁩\"}",
+        "behind": 3,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":3,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullCount {\"count\":3}",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pushTitle": "source-control.sync.noLocalToPush",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "cloud 2/3 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.downloadCount {\"count\":3}",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.downloadBeforeUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish origin 2/3 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 2/3 exists=false head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePublish",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 2/3 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.downloadCount {\"count\":3}",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.downloadBeforeUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish origin 2/3 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "publish Puppyone 2/3 exists=false head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": false,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/main⁩\"}"
+      }
+    },
+    {
+      "name": "cloud 2/3 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.downloadCount {\"count\":3}",
+        "pullTitle": "source-control.sync.downloadFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.downloadBeforeUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish origin 2/3 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.localWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish Puppyone 2/3 exists=true head=null",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.commitBeforePublish",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.localWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "cloud 2/3 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.syncingWith {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.cloudCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.downloadCount {\"count\":3}",
+        "pullTitle": "source-control.sync.downloadFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.downloadBeforeUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish origin 2/3 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.sendDiverged {\"action\":\"source-control.sync.push\",\"count\":2,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.localWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "publish Puppyone 2/3 exists=true head=head",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "origin/main",
+          "exists": true,
+          "ahead": 2,
+          "behind": 3
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.sendDiverged {\"action\":\"source-control.sync.publish\",\"count\":2,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.localWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "upstream origin 2/3",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "origin/main",
+        "ahead": 2,
+        "behind": 3
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨origin/main⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.pullBeforeSend {\"count\":3,\"action\":\"source-control.sync.push\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullCount {\"count\":3}",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨origin/main⁩\"}",
+        "pushTitle": "source-control.sync.sendDiverged {\"action\":\"source-control.sync.push\",\"count\":2,\"target\":\"⁨origin/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "upstream Puppyone 2/3",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "Puppyone/main",
+        "ahead": 2,
+        "behind": 3
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨Puppyone/main⁩\"}",
+        "behind": 3,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.pullBeforeSend {\"count\":3,\"action\":\"source-control.sync.publish\"}",
+        "pullDisabled": false,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullCount {\"count\":3}",
+        "pullTitle": "source-control.sync.pullFrom {\"count\":3,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pushTitle": "source-control.sync.sendDiverged {\"action\":\"source-control.sync.publish\",\"count\":2,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "origin preferred",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          },
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/topic",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/topic⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/topic⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/topic⁩\"}"
+      }
+    },
+    {
+      "name": "named puppyone fallback",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "other",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          },
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/topic",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨Puppyone/topic⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨Puppyone/topic⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨Puppyone/topic⁩\"}"
+      }
+    },
+    {
+      "name": "first remote fallback",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "other",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          },
+          {
+            "name": "second",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "other/topic",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨other⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨other/topic⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨other/topic⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨other/topic⁩\"}"
+      }
+    },
+    {
+      "name": "canonical cloud URL under another name",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "backup",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "backup/topic",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨backup⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨backup/topic⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨backup/topic⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨backup/topic⁩\"}"
+      }
+    },
+    {
+      "name": "source-of-truth preferred",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          },
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": {
+        "sync": {
+          "sourceOfTruth": {
+            "remote": "Puppyone",
+            "branch": "sync"
+          }
+        },
+        "git": {
+          "primaryRemote": "origin",
+          "watchedBranch": "watch"
+        },
+        "backup": {
+          "remote": "origin",
+          "branch": "backup"
+        }
+      },
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/sync",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨Puppyone/sync⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨Puppyone/sync⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨Puppyone/sync⁩\"}"
+      }
+    },
+    {
+      "name": "primary remote preferred",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          },
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": {
+        "git": {
+          "primaryRemote": "Puppyone",
+          "watchedBranch": "watch"
+        },
+        "backup": {
+          "remote": "origin",
+          "branch": "backup"
+        }
+      },
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/backup",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨Puppyone/backup⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨Puppyone/backup⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨Puppyone/backup⁩\"}"
+      }
+    },
+    {
+      "name": "backup remote preferred",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          },
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": "https://example.com/git/project.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": {
+        "backup": {
+          "remote": "Puppyone",
+          "branch": "backup"
+        }
+      },
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/backup",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨Puppyone⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨Puppyone/backup⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨Puppyone/backup⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.publish\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨Puppyone/backup⁩\"}"
+      }
+    },
+    {
+      "name": "watched branch fallback",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": {
+        "git": {
+          "watchedBranch": "watch"
+        }
+      },
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/watch",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/watch⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/watch⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/watch⁩\"}"
+      }
+    },
+    {
+      "name": "missing preferred remote falls back",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": {
+        "git": {
+          "primaryRemote": "missing"
+        }
+      },
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/topic",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/topic⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/topic⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/topic⁩\"}"
+      }
+    },
+    {
+      "name": "publish without HEAD or target",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": null,
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin/topic",
+        "remoteExists": false,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noRemoteBranch {\"target\":\"⁨origin/topic⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.remoteBranchMissing",
+        "pushTitle": "source-control.sync.commitBeforePush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.createRemote {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨origin/topic⁩\"}"
+      }
+    },
+    {
+      "name": "empty publish ref preserved",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": {
+          "remote": "origin",
+          "ref": "",
+          "exists": true,
+          "ahead": 0,
+          "behind": 0
+        }
+      },
+      "branch": null,
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.primaryRemote {\"remote\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.remoteCommitsOn {\"count\":0,\"target\":\"⁨⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendBranch {\"action\":\"source-control.sync.push\",\"branch\":\"⁨topic⁩\",\"target\":\"⁨⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noLocalWaiting {\"target\":\"⁨⁩\"}"
+      }
+    },
+    {
+      "name": "upstream without matching remote",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "elsewhere/main"
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "elsewhere/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨elsewhere/main⁩\"}",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":0,\"target\":\"⁨elsewhere/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": true,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.noLocalToPush",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    },
+    {
+      "name": "upstream without slash",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "origin",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "origin",
+        "ahead": 2,
+        "behind": 0
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "origin",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨origin⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":0,\"target\":\"⁨origin⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendTo {\"action\":\"source-control.sync.push\",\"count\":2,\"target\":\"⁨origin⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "upstream uses fetch URL if push absent",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "Puppyone",
+            "fetchUrl": "https://example.com/git/project.git",
+            "pushUrl": null,
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "Puppyone/main",
+        "ahead": 2,
+        "behind": 0
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨Puppyone/main⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":0,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendTo {\"action\":\"source-control.sync.publish\",\"count\":2,\"target\":\"⁨Puppyone/main⁩\"}",
+        "pushLabel": "source-control.sync.publish",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "upstream ignores cloud name with generic URL",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [
+          {
+            "name": "puppyone",
+            "fetchUrl": "https://example.com/repo.git",
+            "pushUrl": "https://example.com/repo.git",
+            "branches": []
+          }
+        ],
+        "effectiveHosting": {
+          "kind": "generic-git"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "puppyone/main",
+        "ahead": 2,
+        "behind": 0
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "puppyone/main",
+        "remoteExists": true,
+        "setupRequired": false,
+        "setupTitle": "source-control.sync.target",
+        "setupDetail": "source-control.sync.tracking {\"target\":\"⁨puppyone/main⁩\"}",
+        "behind": 0,
+        "ahead": 2,
+        "pullDetail": "source-control.sync.commitsOn {\"count\":0,\"target\":\"⁨puppyone/main⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.sync.pullRemote",
+        "pullTitle": "source-control.sync.upToDate",
+        "pushTitle": "source-control.sync.sendTo {\"action\":\"source-control.sync.push\",\"count\":2,\"target\":\"⁨puppyone/main⁩\"}",
+        "pushLabel": "source-control.sync.push",
+        "pushDetail": "source-control.sync.committedWaiting {\"count\":2}"
+      }
+    },
+    {
+      "name": "cloud hosting precedes upstream",
+      "status": {
+        "isRepo": true,
+        "branch": "topic",
+        "headCommitId": "head",
+        "remotes": [],
+        "effectiveHosting": {
+          "kind": "puppyone-cloud"
+        },
+        "syncTarget": null
+      },
+      "branch": {
+        "upstream": "origin/main",
+        "ahead": 9,
+        "behind": 9
+      },
+      "config": null,
+      "expected": {
+        "branchLabel": "topic",
+        "upstreamLabel": "Puppyone Cloud",
+        "remoteExists": false,
+        "setupRequired": true,
+        "setupTitle": "Puppyone Cloud",
+        "setupDetail": "source-control.sync.configureCloudRemote",
+        "behind": 0,
+        "ahead": 0,
+        "pullDetail": "source-control.sync.noCloudBranch {\"target\":\"⁨Puppyone Cloud⁩\"}",
+        "pullDisabled": true,
+        "pushDisabled": false,
+        "pullLabel": "source-control.action.download",
+        "pullTitle": "source-control.sync.cloudBranchMissing",
+        "pushTitle": "source-control.sync.noCommittedToUpload",
+        "pushLabel": "source-control.sync.upload",
+        "pushDetail": "source-control.sync.noCommittedWaiting"
+      }
+    }
+  ]
+}

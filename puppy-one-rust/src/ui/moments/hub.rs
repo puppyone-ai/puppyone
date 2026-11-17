@@ -1,0 +1,434 @@
+//! `OnboardingValueHub` (`onboarding-value-hub.css`) and its restrained radial
+//! spoke variant (`v4.html`): the person's files in one pile in the middle
+//! under the cast's label, with the Agents they use either drifting around them
+//! on two loose orbits ([`scene`]) or held still at the ends of radial spokes
+//! ([`spokes`]).
+use super::{Cast, Clock, Picture, paint};
+use crate::localization::t as tr;
+use crate::theme::{self, Theme};
+use crate::ui::agent_brands;
+use gpui::{prelude::*, *};
+use gpui_kit::base::v_flex;
+
+/// One Agent around the pile: angle in degrees from the right, distance from
+/// the centre and diameter as shares of the picture's side.
+struct Orbiting {
+    id: &'static str,
+    angle: f32,
+    radius: f32,
+    size: f32,
+}
+/// `HUB_AGENTS`: an odd number on two loose orbits, each its own size, so the
+/// ring reads as company gathering rather than a diagram.
+const AGENTS: [Orbiting; 7] = [
+    Orbiting {
+        id: "chatgpt",
+        angle: -90.,
+        radius: 44.,
+        size: 13.,
+    },
+    Orbiting {
+        id: "claude",
+        angle: -36.,
+        radius: 36.,
+        size: 12.,
+    },
+    Orbiting {
+        id: "cursor",
+        angle: 14.,
+        radius: 45.,
+        size: 10.5,
+    },
+    Orbiting {
+        id: "gemini",
+        angle: 64.,
+        radius: 37.,
+        size: 11.5,
+    },
+    Orbiting {
+        id: "github-copilot",
+        angle: 116.,
+        radius: 45.,
+        size: 10.5,
+    },
+    Orbiting {
+        id: "manus",
+        angle: 166.,
+        radius: 36.,
+        size: 11.5,
+    },
+    Orbiting {
+        id: "devin",
+        angle: 216.,
+        radius: 44.,
+        size: 10.5,
+    },
+];
+/// `v4.html` `HUB_AGENTS`: five stationary Agents connected to the Cloud pile
+/// by radial spokes instead of two planetary orbits.
+const SPOKE_AGENTS: [Orbiting; 5] = [
+    Orbiting {
+        id: "chatgpt",
+        angle: -96.,
+        radius: 43.,
+        size: 13.,
+    },
+    Orbiting {
+        id: "claude",
+        angle: -26.,
+        radius: 41.,
+        size: 12.,
+    },
+    Orbiting {
+        id: "gemini",
+        angle: 28.,
+        radius: 44.,
+        size: 11.5,
+    },
+    Orbiting {
+        id: "cursor",
+        angle: 152.,
+        radius: 43.,
+        size: 11.,
+    },
+    Orbiting {
+        id: "manus",
+        angle: 206.,
+        radius: 42.,
+        size: 11.5,
+    },
+];
+/// `.signin-spokes`: spokes start outside the file pile (`27%` of `side`) and
+/// stop `1.5%` short of each Agent tile's outer border.
+const SPOKE_FROM: f32 = 27.;
+const SPOKE_GAP: f32 = 1.5;
+const SPOKE_ACCENT: f32 = 0.24;
+/// The two dashed orbits, as shares of the side, and their mix of accent.
+const ORBITS: [(f32, f32); 2] = [(0.365, 0.28), (0.445, 0.16)];
+/// `onboarding-value-hub-turn`: once round in this many seconds.
+const TURN_SECONDS: f32 = 120.;
+/// The pile's drawing (`.onboarding-value-files`), zoomed a quarter past the
+/// scenes' scale; one card of it.
+const PILE: (f32, f32) = (142., 126.);
+const PILE_ZOOM: f32 = 1.25;
+const CARD: (f32, f32) = (100., 74.);
+
+/// One frame of the first-run picture; it has no steps, only the endless turn
+/// and drift.
+pub fn scene(t: &Theme, picture: Picture, clock: Clock, cast: Cast) -> AnyElement {
+    let side = picture.side;
+    let turn = clock
+        .motion
+        .map_or(0., |s| (s / TURN_SECONDS).fract() * std::f32::consts::TAU);
+    let orbits =
+        ORBITS.map(|(radius, accent)| (side * radius, theme::mix(t.accent, t.border, accent)));
+    let orbits = paint::paint(move |bounds, window| {
+        for (radius, color) in orbits {
+            // `stroke-dasharray: 2 5` with round caps on a 1px stroke: each
+            // dash reaches half a pixel past both ends, from 3 o'clock round.
+            paint::dashed_ring(
+                window,
+                bounds.center(),
+                radius,
+                [3., 4.],
+                1.,
+                turn - 0.5 / radius,
+                color,
+            );
+        }
+    });
+    div()
+        .relative()
+        .size(px(side))
+        .child(div().absolute().inset_0().child(orbits))
+        .child(center(t, picture, cast))
+        .children(
+            AGENTS
+                .iter()
+                .enumerate()
+                .map(|(index, agent)| self::agent(t, side, agent, drift(clock.motion, index))),
+        )
+        .into_any_element()
+}
+
+/// Restrained sign-in hub (`v4.html`): straight radial spokes from outside the
+/// Cloud pile to five stationary Agents, with no orbits or vertical drift so
+/// every spoke stays aligned with its Agent.
+pub fn spokes(t: &Theme, picture: Picture, _clock: Clock, cast: Cast) -> AnyElement {
+    let side = picture.side;
+    let stroke = theme::mix(t.accent, t.border, SPOKE_ACCENT);
+    let rays = SPOKE_AGENTS.map(|agent| {
+        let radians = agent.angle.to_radians();
+        // `stroke-linecap: round` on a 1px stroke reaches half a pixel past
+        // each endpoint.
+        let from = side * (SPOKE_FROM / 100.) - 0.5;
+        let to = side * ((agent.radius - agent.size / 2. - SPOKE_GAP) / 100.) + 0.5;
+        (radians, from, to)
+    });
+    let spokes = paint::paint(move |bounds, window| {
+        let origin = bounds.center();
+        for (radians, from, to) in rays {
+            let (sin, cos) = radians.sin_cos();
+            let start = point(origin.x + px(from * cos), origin.y + px(from * sin));
+            let end = point(origin.x + px(to * cos), origin.y + px(to * sin));
+            paint::polyline(window, &[start, end], 1., 1., stroke);
+        }
+    });
+    div()
+        .relative()
+        .size(px(side))
+        .child(div().absolute().inset_0().child(spokes))
+        .child(center(t, picture, cast))
+        .children(
+            SPOKE_AGENTS
+                .iter()
+                .map(|agent| self::agent(t, side, agent, 0.)),
+        )
+        .into_any_element()
+}
+
+fn center(t: &Theme, picture: Picture, cast: Cast) -> Div {
+    v_flex()
+        .absolute()
+        .inset_0()
+        .items_center()
+        .justify_center()
+        .child(
+            v_flex()
+                .items_center()
+                .gap(px(12.))
+                .child(pile(t, picture.scale * PILE_ZOOM))
+                .child(
+                    div()
+                        .text_color(t.accent_text)
+                        .text_size(px(theme::ty().ui.caption))
+                        .line_height(px(16.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .whitespace_nowrap()
+                        .child(tr(cast.center)),
+                ),
+        )
+}
+
+/// `onboarding-value-agent-drift`: 6s ease-in-out, alternating between -2px
+/// and 3px, each Agent 0.9s behind the one before; still at rest.
+fn drift(motion: Option<f32>, index: usize) -> f32 {
+    motion.map_or(0., |s| {
+        let phase = ((s + index as f32 * 0.9) / 6.).rem_euclid(2.);
+        let k = crate::ui::motion::ease_in_out(if phase < 1. { phase } else { 2. - phase });
+        -2. + 5. * k
+    })
+}
+
+/// One Agent's mark in its round tile (`.onboarding-value-agent`).
+fn agent(t: &Theme, side: f32, agent: &Orbiting, drift: f32) -> impl IntoElement {
+    let radians = agent.angle.to_radians();
+    let center = (
+        side * (0.5 + agent.radius / 100. * radians.cos()),
+        side * (0.5 + agent.radius / 100. * radians.sin()),
+    );
+    let diameter = side * agent.size / 100.;
+    let mark = diameter * 0.52;
+    let mark: AnyElement = match agent_brands::get(agent.id) {
+        // ChatGPT's artwork is white; it takes the surface's ink.
+        Some(brand) if brand.id == "chatgpt" => svg()
+            .path("agents/chatgpt-mark.svg")
+            .size(px(mark))
+            .text_color(t.text)
+            .into_any_element(),
+        Some(brand) => agent_brands::image(brand, t.dark, mark).into_any_element(),
+        None => div().into_any_element(),
+    };
+    div()
+        .absolute()
+        .left(px(center.0 - diameter / 2.))
+        .top(px(center.1 - diameter / 2. + drift))
+        .size(px(diameter))
+        .rounded_full()
+        .bg(t.panel_raised)
+        .shadow(vec![
+            paint::ring(t.border, px(1.)),
+            paint::shadow(t.shadow, px(6.), px(14.), px(-8.)),
+        ])
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(mark)
+}
+
+/// The kinds of file a project holds, as the pile shows them.
+#[derive(Clone, Copy)]
+enum Kind {
+    Folder,
+    Sheet,
+    Markdown,
+    Html,
+}
+/// `.onboarding-value-files`: back to front, each a step up and to the right
+/// of the one in front of it, so every kind shows its tag. The page itself
+/// leads; the folder that can hold them all comes last.
+const PILE_CARDS: [(Kind, f32, f32); 4] = [
+    (Kind::Folder, 42., 9.),
+    (Kind::Sheet, 28., 23.),
+    (Kind::Markdown, 14., 37.),
+    (Kind::Html, 0., 51.),
+];
+
+/// The pile, its 142×126 drawing at `zoom`.
+fn pile(t: &Theme, zoom: f32) -> impl IntoElement {
+    let u = |v: f32| paint::u(zoom, v);
+    PILE_CARDS.iter().fold(
+        div().relative().w(u(PILE.0)).h(u(PILE.1)),
+        |pile, &(kind, left, top)| pile.child(card(t, zoom, kind).left(u(left)).top(u(top))),
+    )
+}
+
+/// One file of the pile (`.onboarding-value-card`), placed by the caller.
+fn card(t: &Theme, zoom: f32, kind: Kind) -> Div {
+    let u = |v: f32| paint::u(zoom, v);
+    let (tag, accent): (SharedString, Rgba) = match kind {
+        Kind::Folder => (
+            tr("onboarding.value.folder").into(),
+            theme::alpha(t.text, 0.55),
+        ),
+        Kind::Sheet => ("CSV".into(), t.file.sheet),
+        Kind::Markdown => ("MD".into(), t.file.markdown),
+        Kind::Html => ("HTML".into(), t.file.html),
+    };
+    let ground = match kind {
+        Kind::Folder => theme::mix(t.text, t.panel_raised, 0.06),
+        _ => t.panel_raised,
+    };
+    let lift = paint::shadow(t.shadow, u(8.), u(18.), u(-12.));
+    let shadows = match kind {
+        // The page itself leads: a soft accent ring and a deeper lift.
+        Kind::Html => vec![
+            paint::ring(theme::alpha(t.accent, 0.09), u(6.)),
+            paint::shadow(t.shadow, u(12.), u(24.), u(-12.)),
+        ],
+        _ => vec![lift],
+    };
+    let card = div()
+        .absolute()
+        .w(u(CARD.0))
+        .h(u(CARD.1))
+        .pt(u(20.))
+        .px(u(9.))
+        .pb(u(9.))
+        .flex()
+        .flex_col()
+        .gap(u(5.))
+        .border_1()
+        .border_color(t.border)
+        .rounded(u(7.))
+        .bg(ground)
+        .shadow(shadows)
+        .child(
+            div()
+                .absolute()
+                .top(u(3.))
+                .right(u(6.))
+                .px(u(4.))
+                .py(u(2.))
+                .rounded(u(3.))
+                .bg(accent)
+                .text_color(t.text_inverse)
+                .text_size(u(7.5))
+                .line_height(u(7.5))
+                .font_weight(FontWeight::SEMIBOLD)
+                .whitespace_nowrap()
+                .child(tag),
+        );
+    let line = |width: f32, height: f32, color: Rgba| {
+        div()
+            .w(relative(width))
+            .h(u(height))
+            .flex_none()
+            .rounded(u(2.))
+            .bg(color)
+    };
+    let text = theme::alpha(t.text, 0.13);
+    match kind {
+        // A folder: its tab over the top-left corner, which it squares off.
+        Kind::Folder => card.rounded_tl(px(0.)).child(
+            div()
+                .absolute()
+                .top(u(-9.))
+                .left(u(-1.))
+                .w(u(36.))
+                .h(u(9.))
+                .border_1()
+                .border_b_0()
+                .border_color(t.border)
+                .rounded_tl(u(4.))
+                .rounded_tr(u(6.))
+                .bg(ground),
+        ),
+        // A table: its header row in the sheet's colour.
+        Kind::Sheet => card.child(div().grid().grid_cols(3).gap(u(2.)).children((0..9).map(
+            |cell| {
+                let weight = if cell < 3 { 0.4 } else { 0.14 };
+                div()
+                    .h(u(7.))
+                    .rounded(u(1.))
+                    .bg(theme::alpha(t.file.sheet, weight))
+            },
+        ))),
+        // A note: a heading and three lines of text.
+        Kind::Markdown => card
+            .child(line(0.6, 5., theme::alpha(t.text, 0.6)))
+            .child(line(1., 4., text))
+            .child(line(1., 4., text))
+            .child(line(0.55, 4., text)),
+        // A page: a banner over a small bar chart.
+        Kind::Html => card
+            .child(line(1., 8., theme::mix(t.file.html, t.text, 0.75)))
+            .child(
+                div()
+                    .h(u(24.))
+                    .flex()
+                    .items_end()
+                    .gap(u(5.))
+                    .pl(u(2.))
+                    .pr(u(30.))
+                    .children(
+                        [(0.45, 0.55), (0.7, 0.75), (0.95, 1.)].map(|(height, weight)| {
+                            div()
+                                .flex_1()
+                                .h(relative(height))
+                                .rounded_t(u(2.))
+                                .bg(theme::alpha(t.accent, weight))
+                        }),
+                    ),
+            ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn hub_and_spoke_agents_resolve_brand_artwork_and_spoke_bounds() {
+        for agent in AGENTS.iter().chain(SPOKE_AGENTS.iter()) {
+            assert!(
+                agent_brands::get(agent.id).is_some(),
+                "unknown brand `{}`",
+                agent.id
+            );
+        }
+        assert_eq!(
+            agent_brands::get("cursor").and_then(|b| b.dark),
+            Some("cursor-dark.svg")
+        );
+        for agent in SPOKE_AGENTS {
+            let to = agent.radius - agent.size / 2. - SPOKE_GAP;
+            assert!(
+                SPOKE_FROM < to && to < agent.radius - agent.size / 2.,
+                "spoke for `{}` must clear both the pile and the Agent border",
+                agent.id
+            );
+        }
+    }
+}

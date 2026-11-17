@@ -1,0 +1,121 @@
+id,project,status,owner,region,updated,budget,notes
+1,Sync engine,todo,dave,ap-south,2026-10-02,9594,
+2,Sync engine,done,erin,us-east,2026-10-02,11365,ok
+3,Agent runtime,done,bob,us-east,2026-10-18,55742,
+4,Settings pages,todo,erin,us-east,2026-10-19,76848,ok
+5,Explorer tree,todo,alice,ap-south,2026-10-28,17555,"quoted, with comma"
+6,Agent runtime,todo,erin,us-east,2026-10-19,40533,needs review
+7,Settings pages,todo,carol,us-east,2026-10-18,93437,
+8,Explorer tree,todo,dave,ap-south,2026-10-18,56145,"quoted, with comma"
+9,Search index,blocked,carol,eu-west,2026-10-08,23662,needs review
+10,Settings pages,in progress,erin,eu-west,2026-10-11,95709,ok
+11,Editor chrome,done,alice,ap-south,2026-10-14,21721,"quoted, with comma"
+12,CSV editor,blocked,dave,us-east,2026-10-22,10273,"quoted, with comma"
+13,Sync engine,in progress,erin,eu-west,2026-10-19,59895,
+14,Settings pages,in progress,dave,ap-south,2026-10-22,8619,
+15,Editor chrome,blocked,carol,ap-south,2026-10-13,87741,"quoted, with comma"
+16,Explorer tree,blocked,carol,us-east,2026-10-20,15447,ok
+17,Explorer tree,todo,carol,us-east,2026-10-24,32555,ok
+18,Agent runtime,blocked,alice,us-east,2026-10-15,52744,"quoted, with comma"
+19,CSV editor,blocked,erin,eu-west,2026-10-23,54533,"quoted, with comma"
+20,Agent runtime,todo,bob,us-east,2026-10-06,19930,needs review
+21,Markdown editor,done,dave,ap-south,2026-10-06,34538,"quoted, with comma"
+22,Explorer tree,todo,dave,ap-south,2026-10-12,80029,"quoted, with comma"
+23,CSV editor,done,dave,ap-south,2026-10-26,73404,ok
+24,Agent runtime,blocked,dave,us-east,2026-10-16,83237,ok
+25,Explorer tree,todo,alice,us-east,2026-10-15,21373,
+26,Sync engine,done,alice,us-east,2026-10-19,19926,
+27,Sync engine,done,alice,us-east,2026-10-20,49413,needs review
+28,Editor chrome,in progress,erin,eu-west,2026-10-16,16201,
+29,Search index,blocked,dave,eu-west,2026-10-10,11357,needs review
+30,Settings pages,in progress,carol,eu-west,2026-10-27,90809,needs review
+31,Explorer tree,todo,erin,eu-west,2026-10-05,90548,
+32,Editor chrome,done,carol,ap-south,2026-10-12,21994,"quoted, with comma"
+33,Markdown editor,in progress,bob,ap-south,2026-10-26,99494,needs review
+34,Markdown editor,blocked,bob,us-east,2026-10-17,64689,"quoted, with comma"
+35,Explorer tree,done,carol,eu-west,2026-10-09,25481,"quoted, with comma"
+36,Search index,in progress,carol,us-east,2026-10-08,13489,needs review
+37,Search index,todo,carol,us-east,2026-10-16,81897,
+38,Search index,in progress,alice,ap-south,2026-10-04,51026,needs review
+39,Search index,todo,dave,ap-south,2026-10-11,11470,ok
+40,Search index,blocked,alice,ap-south,2026-10-06,22382,needs review
+41,Explorer tree,todo,erin,eu-west,2026-10-26,86064,needs review
+42,Search index,in progress,bob,ap-south,2026-10-18,17268,
+43,Explorer tree,done,erin,ap-south,2026-10-05,56960,needs review
+44,Markdown editor,done,carol,us-east,2026-10-10,65788,needs review
+45,Sync engine,in progress,erin,eu-west,2026-10-27,17280,
+46,Sync engine,blocked,erin,ap-south,2026-10-14,65852,needs review
+47,CSV editor,done,dave,us-east,2026-10-20,615,needs review
+48,CSV editor,todo,dave,ap-south,2026-10-24,15872,
+49,Sync engine,blocked,alice,ap-south,2026-10-02,32670,needs review
+50,Editor chrome,done,alice,ap-south,2026-10-15,73726,
+51,Settings pages,blocked,carol,ap-south,2026-10-17,79547,needs review
+52,Editor chrome,blocked,erin,ap-south,2026-10-26,62757,needs review
+53,Editor chrome,todo,dave,us-east,2026-10-14,16041,ok
+54,Search index,in progress,alice,ap-south,2026-10-08,56243,
+55,Markdown editor,in progress,alice,us-east,2026-10-23,84439,"quoted, with comma"
+56,CSV editor,in progress,bob,eu-west,2026-10-08,97969,
+57,Agent runtime,blocked,bob,ap-south,2026-10-27,29422,needs review
+58,Agent runtime,blocked,carol,eu-west,2026-10-07,46842,"quoted, with comma"
+59,Settings pages,in progress,alice,eu-west,2026-10-18,60218,ok
+60,Explorer tree,blocked,carol,ap-south,2026-10-20,38825,
+61,Settings pages,todo,alice,us-east,2026-10-09,35741,
+62,CSV editor,in progress,bob,eu-west,2026-10-28,88701,"quoted, with comma"
+63,Agent runtime,todo,erin,ap-south,2026-10-19,64929,"quoted, with comma"
+64,Settings pages,in progress,alice,ap-south,2026-10-06,55847,
+65,Editor chrome,done,alice,eu-west,2026-10-03,79815,needs review
+66,Settings pages,in progress,alice,eu-west,2026-10-01,44553,ok
+67,Editor chrome,todo,alice,ap-south,2026-10-23,31352,
+68,CSV editor,in progress,alice,us-east,2026-10-07,40993,"quoted, with comma"
+69,Markdown editor,in progress,dave,ap-south,2026-10-22,23417,"quoted, with comma"
+70,Sync engine,done,carol,us-east,2026-10-01,2516,needs review
+71,Search index,todo,dave,us-east,2026-10-22,85310,ok
+72,Search index,blocked,erin,eu-west,2026-10-23,28304,needs review
+73,Sync engine,todo,bob,eu-west,2026-10-12,7228,needs review
+74,Explorer tree,done,carol,eu-west,2026-10-06,7361,
+75,Agent runtime,in progress,erin,us-east,2026-10-23,38511,
+76,Search index,todo,bob,eu-west,2026-10-15,574,"quoted, with comma"
+77,Sync engine,in progress,erin,eu-west,2026-10-08,4615,"quoted, with comma"
+78,Markdown editor,in progress,bob,us-east,2026-10-11,50120,
+79,Search index,in progress,erin,ap-south,2026-10-07,32629,
+80,Settings pages,in progress,alice,us-east,2026-10-13,77013,
+81,Agent runtime,done,carol,eu-west,2026-10-21,30614,
+82,CSV editor,blocked,carol,ap-south,2026-10-16,19690,"quoted, with comma"
+83,CSV editor,done,erin,ap-south,2026-10-14,96287,needs review
+84,Explorer tree,todo,alice,us-east,2026-10-02,17544,"quoted, with comma"
+85,Settings pages,blocked,dave,ap-south,2026-10-02,82382,
+86,Markdown editor,blocked,carol,us-east,2026-10-15,9289,
+87,Settings pages,blocked,carol,us-east,2026-10-28,34907,needs review
+88,Markdown editor,todo,dave,eu-west,2026-10-28,50242,
+89,Search index,in progress,alice,ap-south,2026-10-21,84348,needs review
+90,Settings pages,todo,carol,eu-west,2026-10-21,97514,"quoted, with comma"
+91,CSV editor,done,dave,us-east,2026-10-16,35328,
+92,Markdown editor,blocked,carol,ap-south,2026-10-17,37526,ok
+93,Search index,blocked,alice,ap-south,2026-10-07,40951,
+94,Search index,done,carol,eu-west,2026-10-03,66503,ok
+95,Editor chrome,blocked,bob,us-east,2026-10-03,76314,
+96,CSV editor,in progress,carol,us-east,2026-10-20,82894,"quoted, with comma"
+97,Settings pages,in progress,bob,eu-west,2026-10-16,51752,
+98,CSV editor,done,dave,ap-south,2026-10-15,53239,"quoted, with comma"
+99,CSV editor,blocked,carol,eu-west,2026-10-11,15947,"quoted, with comma"
+100,Explorer tree,in progress,carol,eu-west,2026-10-04,25756,
+101,Editor chrome,in progress,carol,us-east,2026-10-13,51239,
+102,Sync engine,blocked,carol,us-east,2026-10-09,13431,
+103,Editor chrome,todo,bob,eu-west,2026-10-14,67072,"quoted, with comma"
+104,Markdown editor,in progress,dave,us-east,2026-10-26,99931,ok
+105,Markdown editor,done,alice,ap-south,2026-10-14,59195,needs review
+106,Editor chrome,blocked,alice,ap-south,2026-10-05,22482,ok
+107,Agent runtime,in progress,carol,eu-west,2026-10-09,96966,"quoted, with comma"
+108,Agent runtime,todo,carol,eu-west,2026-10-18,87770,ok
+109,Settings pages,todo,bob,us-east,2026-10-07,65715,ok
+110,Markdown editor,blocked,carol,eu-west,2026-10-14,18397,needs review
+111,Markdown editor,done,bob,eu-west,2026-10-18,12039,"quoted, with comma"
+112,Markdown editor,in progress,carol,ap-south,2026-10-07,2732,ok
+113,Agent runtime,blocked,erin,us-east,2026-10-13,35520,"quoted, with comma"
+114,Explorer tree,blocked,carol,ap-south,2026-10-12,16598,needs review
+115,Settings pages,in progress,bob,eu-west,2026-10-13,84745,ok
+116,Agent runtime,in progress,alice,us-east,2026-10-02,55831,ok
+117,Search index,done,alice,eu-west,2026-10-27,69287,ok
+118,Search index,todo,alice,us-east,2026-10-05,20031,
+119,Search index,done,erin,us-east,2026-10-01,16569,needs review
+120,Explorer tree,in progress,bob,ap-south,2026-10-09,69339,ok
