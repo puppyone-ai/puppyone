@@ -14846,7 +14846,7 @@
     },
     {
       "id": "native-file-window-header-controls",
-      "acceptance": "Actual native File Mode Header controls expose localized button labels, toggle state and menu expansion. Real pointer dispatch toggles Markdown editing/source independently, and changes the CSV header-row setting while retaining its menu and bound document. Checkbox menu items expose role, label and live state; repeated toggles update, and Escape dismisses the menu. Only the reviewed CSV settings TS case is credited here; the additional Markdown and native accessibility checks do not claim every synthetic contribution combination or real OS assistive-technology acceptance.",
+      "acceptance": "Actual native File Mode Header controls expose localized button labels, toggle state and menu expansion. Real pointer dispatch toggles Markdown editing/source independently, and changes the CSV header-row setting while retaining its menu and bound document. Checkbox menu items expose role, label and live state; repeated toggles update, and Escape dismisses the menu. Only the reviewed CSV settings TS case is credited here; the additional Markdown and native accessibility checks do not claim every synthetic contribution combination or real OS assistive-technology acceptance. Flat file settings additionally focus their first enabled row, wrap ArrowUp/Down, support Home/End and Enter/Space, preserve focus while toggling, skip disabled/informational rows and restore the trigger on dismissal, including when every row becomes disabled; these native keyboard regressions do not claim additional TS case identities.",
       "typescript": [
         {
           "path": "tests/component/workspace/file-mode/fileModeApp.test.tsx",
@@ -14869,6 +14869,19 @@
           "package": "po-app",
           "target": "puppy-one-rust",
           "test": "app::tests::file_window_header::file_header_csv_settings_drive_the_live_document"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_header::file_settings_keyboard_navigates_and_restores_its_trigger"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::menu::tests::keyboard_menu_skips_unavailable_rows_and_recovers_when_the_focused_row_is_disabled"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::menu::tests::keyboard_menu_with_no_enabled_rows_still_dismisses_and_returns_focus"
         }
       ]
     }

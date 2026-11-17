@@ -18,6 +18,10 @@ use gpui_kit::{
 };
 use std::{rc::Rc, time::Duration};
 
+mod keyboard;
+#[cfg(test)]
+mod tests;
+
 type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 type KeyDownHandler = Rc<dyn Fn(&KeyDownEvent, &mut Window, &mut App)>;
 type MouseDownHandler = Rc<dyn Fn(&MouseDownEvent, &mut Window, &mut App)>;
@@ -333,6 +337,7 @@ pub struct Menu {
     footer: Option<AnyElement>,
     scroll: Option<ScrollHandle>,
     focus: Option<FocusHandle>,
+    keyboard_navigation: bool,
     key_down: Option<KeyDownHandler>,
     mouse_down_out: Option<MouseDownHandler>,
     absorb_mouse_down: bool,
@@ -351,6 +356,7 @@ impl Menu {
             footer: None,
             scroll: None,
             focus: None,
+            keyboard_navigation: false,
             key_down: None,
             mouse_down_out: None,
             absorb_mouse_down: false,
@@ -387,6 +393,12 @@ impl Menu {
     }
     pub fn track_focus(mut self, handle: &FocusHandle) -> Self {
         self.focus = Some(handle.clone());
+        self
+    }
+    /// Focusable flat rows, wrapping arrows, Home/End and Enter/Space activation.
+    /// The popover continues to own Escape and returning focus to its trigger.
+    pub fn keyboard_navigation(mut self) -> Self {
+        self.keyboard_navigation = true;
         self
     }
     pub fn on_key_down(
@@ -457,6 +469,16 @@ impl RenderOnce for Menu {
         let max_height = window.viewport_size().height - px(24.);
         let dismiss = self.on_dismiss.clone();
         let id = self.id.clone();
+        let keyboard = self.keyboard_navigation.then(|| {
+            keyboard::Keyboard::new(
+                &id,
+                &self.entries,
+                dismiss.clone(),
+                self.focus.clone(),
+                window,
+                cx,
+            )
+        });
         let scroll = self
             .scroll
             .unwrap_or_else(|| crate::ui::scrollbar::handle(child_id(&id, "scroll"), window, cx));
@@ -484,12 +506,19 @@ impl RenderOnce for Menu {
                         .gap(px(gap))
                         .children(items.into_iter().enumerate().map(|(row_index, item)| {
                             let fallback = child_id(&id, format!("{index}-{row_index}"));
-                            row(fallback, item, s, t, dismiss.clone())
+                            row(fallback, item, s, t, dismiss.clone(), keyboard.as_ref())
                         })),
                 ),
                 MenuEntry::Item(item) => {
                     let fallback = child_id(&id, index.to_string());
-                    surface.child(row(fallback, *item, s, t, dismiss.clone()))
+                    surface.child(row(
+                        fallback,
+                        *item,
+                        s,
+                        t,
+                        dismiss.clone(),
+                        keyboard.as_ref(),
+                    ))
                 }
             };
         }
@@ -500,11 +529,25 @@ impl RenderOnce for Menu {
         if let Some(elevation) = self.elevation {
             frame = frame.elevation(elevation);
         }
-        if let Some(focus) = &self.focus {
+        if let Some(focus) = keyboard
+            .as_ref()
+            .map(|keyboard| &keyboard.scope)
+            .or(self.focus.as_ref())
+        {
             frame = frame.track_focus(focus);
         }
-        if let Some(on_key) = self.key_down {
-            frame = frame.on_key_down(move |e, w, cx| on_key(e, w, cx));
+        if keyboard.is_some() || self.key_down.is_some() {
+            frame = frame.on_key_down(move |e, w, cx| {
+                if keyboard
+                    .as_ref()
+                    .is_some_and(|keyboard| keyboard.key_down(e, w, cx))
+                {
+                    return;
+                }
+                if let Some(on_key) = &self.key_down {
+                    on_key(e, w, cx);
+                }
+            });
         }
         if let Some(outside) = self.mouse_down_out {
             frame = frame.on_mouse_down_out(move |e, w, cx| outside(e, w, cx));
@@ -557,8 +600,11 @@ fn row(
     s: MenuStyle,
     t: Theme,
     dismiss: Option<Handler>,
+    keyboard: Option<&keyboard::Keyboard>,
 ) -> AnyElement {
     let element_id = item.id.unwrap_or(fallback_id);
+    let focus = keyboard.and_then(|keyboard| keyboard.focus(&element_id));
+    let restore_focus = focus.clone().filter(|_| item.stay_open);
     let group = SharedString::from(format!("menu-row-{element_id}"));
     let fact = item.fact || (item.on_click.is_none() && item.line);
     let disabled = item.disabled || fact;
@@ -639,6 +685,7 @@ fn row(
                 .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
         })
         .when(held, |d| d.bg(hover_bg).text_color(hover_fg))
+        .focus(move |s| s.bg(hover_bg).text_color(hover_fg))
         .children(
             item.icon
                 .map(|icon| {
@@ -721,12 +768,16 @@ fn row(
                 d.on_click(move |_, window, cx| {
                     cx.stop_propagation();
                     action(window, cx);
+                    if let Some(focus) = &restore_focus {
+                        focus.focus(window, cx);
+                    }
                     if let Some(dismiss) = &dismiss {
                         dismiss(window, cx);
                     }
                 })
             })
             .test_support()
+            .when_some(focus, |row, focus| row.track_focus(&focus))
             .into_any_element();
     };
     SubmenuRow {

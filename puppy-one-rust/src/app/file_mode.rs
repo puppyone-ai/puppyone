@@ -622,7 +622,9 @@ impl FileWindow {
             });
         })
         .trigger(trigger.open(open).aria_expanded(open))
-        .menu(move |surface, _, _| build(surface.variant(MenuVariant::Default)))
+        .menu(move |surface, _, _| {
+            build(surface.variant(MenuVariant::Default).keyboard_navigation())
+        })
     }
 
     fn share_popover(&self, trigger: Button, cx: &App) -> PopoverMenu {

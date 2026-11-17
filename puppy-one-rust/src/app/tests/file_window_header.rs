@@ -150,3 +150,59 @@ fn file_header_csv_settings_drive_the_live_document(cx: &mut TestAppContext) {
         )
     });
 }
+
+#[gpui::test]
+fn file_settings_keyboard_navigates_and_restores_its_trigger(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().canonicalize().unwrap().join("keyboard.csv");
+    std::fs::write(&path, "name,value\nfirst,1\n").unwrap();
+    let (view, cx) = setup(cx);
+    super::file_window_parity::bind(&view, cx, path.clone());
+    settle_cloud(&view, cx, "CSV keyboard menu", &|s, cx| {
+        s.files(cx).opened().is_some()
+    });
+    let original = std::fs::read(&path).unwrap();
+    click(cx, "file-settings");
+    cx.update(|w, _| assert_eq!(w.find("csv-header-row").focused(), Some(true)));
+    for (key, id) in [
+        ("end", "csv-reset-column-widths"),
+        ("down", "csv-header-row"),
+        ("up", "csv-reset-column-widths"),
+        ("home", "csv-header-row"),
+        ("down", "csv-row-numbers"),
+    ] {
+        cx.simulate_keystrokes(key);
+        draw(cx);
+        cx.update(|w, _| assert_eq!(w.find(id).focused(), Some(true), "{key} -> {id}"));
+    }
+    let before = cx.update(|w, _| w.find("csv-row-numbers").checked().unwrap());
+    for (key, expected) in [("space", !before), ("enter", before)] {
+        cx.simulate_keystrokes(key);
+        draw(cx);
+        cx.update(|w, _| {
+            assert_eq!(w.find("file-settings").expanded(), Some(true));
+            assert_eq!(w.find("csv-row-numbers").checked(), Some(expected));
+            assert_eq!(w.find("csv-row-numbers").focused(), Some(true));
+        });
+    }
+    cx.simulate_keystrokes("escape");
+    draw(cx);
+    cx.update(|w, _| {
+        assert_eq!(w.find("file-settings").expanded(), Some(false));
+        assert_eq!(w.find("file-settings").focused(), Some(true));
+    });
+    // Reopening must focus the first setting, not a stale row from the previous menu.
+    click(cx, "file-settings");
+    cx.update(|w, _| assert_eq!(w.find("csv-header-row").focused(), Some(true)));
+    cx.simulate_keystrokes("end enter");
+    draw(cx);
+    cx.update(|w, _| {
+        assert_eq!(w.find("file-settings").expanded(), Some(false));
+        assert_eq!(w.find("file-settings").focused(), Some(true));
+    });
+    assert_eq!(
+        std::fs::read(path).unwrap(),
+        original,
+        "view settings cannot rewrite CSV bytes"
+    );
+}
