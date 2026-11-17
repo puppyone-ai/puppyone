@@ -1258,21 +1258,19 @@ mod discovery {
         CodexDiscoveryOptions, MIN_SUPPORTED_CODEX_VERSION, discover_codex_executable,
         parse_codex_version,
     };
-    use crate::agent::application::tests_support::run_local;
+    use crate::agent::application::tests_support::{installed_shell_fixture, run_local};
     use crate::agent::discovery::bounded_process_probe::{ProbeRunner, default_probe_runner};
     use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
     use crate::agent::transports::executable_discovery::compare_versions;
     use core::prelude::v1::test;
     use std::cell::RefCell;
-    use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     use std::rc::Rc;
 
     fn codex(directory: &Path, version: &str) -> String {
         std::fs::create_dir_all(directory).unwrap();
         let path = directory.join("codex");
-        std::fs::write(&path, format!("#!/bin/sh\necho 'codex-cli {version}'\n")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        installed_shell_fixture(&path, &format!("#!/bin/sh\necho 'codex-cli {version}'\n"));
         path.to_string_lossy().into_owned()
     }
 

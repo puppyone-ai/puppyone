@@ -23,7 +23,9 @@ use super::tools::local_agent_tool_registry::{
 };
 use super::tools::opencode_tool::opencode_local_tool;
 use crate::agent::agent_error::AgentError;
-use crate::agent::application::tests_support::{run_local, run_paused_local};
+use crate::agent::application::tests_support::{
+    installed_shell_fixture, run_local, run_paused_local,
+};
 use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
 use crate::agent::discovery::executable_discovery_port::ReadEnvironment;
 use crate::agent::installation::executable_resolver::{
@@ -65,9 +67,7 @@ fn provided_environment() -> ReadEnvironment {
 }
 
 fn executable(path: &Path, contents: &str) {
-    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(path, contents).unwrap();
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    installed_shell_fixture(path, contents);
 }
 
 fn runner(answer: impl Fn(&[String]) -> ProbeResult + 'static) -> ProbeRunner {

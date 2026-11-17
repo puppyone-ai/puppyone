@@ -5,7 +5,7 @@ use super::claude::claude_discovery::{
 };
 use super::cursor::cursor_discovery::{CursorDiscoveryOptions, discover_cursor_backend};
 use super::opencode_native::opencode_native_discovery::build_user_open_code_environment;
-use crate::agent::application::tests_support::run_local;
+use crate::agent::application::tests_support::{installed_shell_fixture, run_local};
 use crate::agent::discovery::bounded_process_probe::{ProbeRunner, default_probe_runner};
 use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
 use crate::agent::installation::executable_resolver::ResolvedCandidate;
@@ -130,8 +130,12 @@ fn claude_version_and_capability_probes_use_private_disposable_profiles() {
             let sentinel = profile.join("settings.json");
             std::fs::write(&sentinel, b"keep user profile\n").unwrap();
             let cli = bin.join("claude");
-            std::fs::write(&cli, format!("#!/bin/sh\nif [ \"$1\" = --version ]; then echo '{version} (Claude Code)'; else echo '{help}'; fi\n")).unwrap();
-            std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o755)).unwrap();
+            installed_shell_fixture(
+                &cli,
+                &format!(
+                    "#!/bin/sh\nif [ \"$1\" = --version ]; then echo '{version} (Claude Code)'; else echo '{help}'; fi\n"
+                ),
+            );
             let probes = Rc::new(RefCell::new(Vec::new()));
             let captured = probes.clone();
             let real = default_probe_runner();

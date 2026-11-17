@@ -274,6 +274,10 @@ pub async fn run_bounded_process_probe(
 }
 
 #[cfg(all(test, unix))]
+#[path = "probe_lifecycle_tests.rs"]
+mod lifecycle_tests;
+
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::agent::application::tests_support::run_local;

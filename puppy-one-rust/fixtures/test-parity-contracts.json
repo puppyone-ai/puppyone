@@ -14159,7 +14159,7 @@
     },
     {
       "id": "native-command-environment-and-discovery-budget",
-      "acceptance": "Preserve byte-split Unicode probe output; bash/zsh/fish issue one bounded neutral-cwd probe and parse only private frames; environment timeout/missing-marker/nonzero failures retain inherited state and retry fresh; cancellation cannot become fallback or success; Linux defaults to bash; Windows persistent PATH replaces competing Path while preserving unrelated settings; batch invocation plans quote paths, disable expansion, reject unpreservable input, and keep native argv. A process-wide 16-slot filesystem budget retains timed-out/cancelled work until actual completion, and releases on failure or panic. Windows subprocess execution remains a separate native-host gap; the plan tests do not prove that the process adapter honors verbatim arguments.",
+      "acceptance": "Preserve byte-split Unicode probe output; bash/zsh/fish issue one bounded neutral-cwd probe and parse only private frames; environment timeout/missing-marker/nonzero failures retain inherited state and retry fresh; cancellation cannot become fallback or success; Linux defaults to bash; Windows persistent PATH replaces competing Path while preserving unrelated settings; batch invocation plans quote paths, disable expansion, reject unpreservable input, and keep native argv. A process-wide 16-slot filesystem budget retains timed-out/cancelled work until actual completion, and releases on failure or panic. Windows subprocess execution remains a separate native-host gap; the plan tests do not prove that the process adapter honors verbatim arguments. Real process tests acknowledge child startup before advancing the unchanged deadline, then require OS reaping on timeout or cancellation both with open output pipes and after EOF. Installed shell fixtures complete a bounded, side-effect-free preparation before their version/help/status acceptance; the production probe budgets and runner are unchanged.",
       "typescript": [
         {
           "path": "tests/unit/platform/local-agent-installation/electron.command-environment.test.mjs",
@@ -14272,6 +14272,18 @@
         {
           "package": "po-agent",
           "test": "agent::discovery::bounded_process_probe::tests::unicode_probe_output_survives_byte_chunks_and_real_pipe_boundaries"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::bounded_process_probe::lifecycle_tests::the_probe_deadline_reaps_a_running_child_before_or_after_output_eof"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::bounded_process_probe::lifecycle_tests::cancelling_a_probe_reaps_the_running_child_before_or_after_output_eof"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::discovery::bounded_process_probe::lifecycle_tests::installed_probe_preparation_preserves_actual_arguments_environment_and_side_effects"
         }
       ],
       "environment": "local"
@@ -16181,7 +16193,6 @@
   "openAcceptance": [
     "Full assertion-level review of the remaining TS inventory",
     "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
-    "Real Cloud and cross-device deployment acceptance",
-    "Resolve intermittent native Agent installation/version probe failures seen in full workspace runs; isolated and repeated same-feature passes do not establish a root cause or a fix"
+    "Real Cloud and cross-device deployment acceptance"
   ]
 }
