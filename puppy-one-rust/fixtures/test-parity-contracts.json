@@ -15291,6 +15291,45 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-update-service-background-cadence",
+      "acceptance": "One app-global service survives repeated initialization, keeping its original profile and quit handler. Controlled native time and real HTTP prove no check before 15 seconds, one initial check, manual checks between background checks, the exact six-hour interval, silence while an actionable candidate exists, retry after an error, no timer for disabled updates, and cancellation when the service is released. This covers the TS background/manual-check/disposal case with native service methods instead of Electron IPC.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 8,
+              "name": "Desktop updater channel isolation > checks Stable feeds quietly in the background and keeps the Settings command"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::repeated_initialization_keeps_the_existing_service_and_its_profile"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::background_checks_start_once_follow_the_cadence_and_stop_with_the_service"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::background_checks_retry_errors_on_the_next_interval"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::disabled_updates_never_schedule_background_checks"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

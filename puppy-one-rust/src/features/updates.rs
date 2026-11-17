@@ -47,6 +47,9 @@ pub fn state(cx: &App) -> Option<UpdateState> {
 
 /// Starts the service; `quit` ends the app the ordinary way.
 pub fn init(quit: fn(&mut App), cx: &mut App) {
+    if global(cx).is_some() {
+        return;
+    }
     let identity = build_identity::current();
     let config = updates::configuration(&identity, |k| std::env::var(k).ok());
     let data = crate::platform::data_dir();
@@ -85,23 +88,7 @@ pub fn init(quit: fn(&mut App), cx: &mut App) {
     }
     let state = UpdateState::new(identity.channel, identity.version, reason, automatic);
     let entity = cx.new(|cx| {
-        let schedule = state.reason.is_none().then(|| {
-            cx.spawn(async move |this, cx| {
-                let mut delay = updates::INITIAL_CHECK;
-                loop {
-                    cx.background_executor().timer(delay).await;
-                    delay = updates::CHECK_INTERVAL;
-                    let Ok(()) = this.update(cx, |s: &mut Updates, cx| {
-                        if s.state.status.checks_in_background() {
-                            s.check(cx);
-                        }
-                    }) else {
-                        return;
-                    };
-                }
-            })
-        });
-        Updates {
+        let mut service = Updates {
             state,
             config,
             candidate: None,
@@ -113,8 +100,10 @@ pub fn init(quit: fn(&mut App), cx: &mut App) {
             data_dir: data,
             downloads: updates::cache_path("update-download"),
             quit,
-            _schedule: schedule,
-        }
+            _schedule: None,
+        };
+        service.start_background_checks(cx);
+        service
     });
     // `installOnQuit`: the last moment before exit.
     let service = entity.clone();
@@ -161,6 +150,26 @@ pub fn install_fixture(preview: &str, cx: &mut App) {
 }
 
 impl Updates {
+    fn start_background_checks(&mut self, cx: &mut Context<Self>) {
+        if !self.usable() || self._schedule.is_some() {
+            return;
+        }
+        self._schedule = Some(cx.spawn(async move |this, cx| {
+            let mut delay = updates::INITIAL_CHECK;
+            loop {
+                cx.background_executor().timer(delay).await;
+                delay = updates::CHECK_INTERVAL;
+                let Ok(()) = this.update(cx, |s: &mut Updates, cx| {
+                    if s.state.status.checks_in_background() {
+                        s.check(cx);
+                    }
+                }) else {
+                    return;
+                };
+            }
+        }));
+    }
+
     /// `publishState`, with the monotonic guard.
     fn publish(&mut self, change: impl FnOnce(&mut UpdateState), cx: &mut Context<Self>) {
         let mut next = self.state.clone();

@@ -528,3 +528,153 @@ fn a_prepared_update_installs_on_ordinary_quit_without_a_restart_request(
         ["/feed/dev-mac.yml".to_owned(), format!("/feed/{name}")]
     );
 }
+
+#[gpui::test]
+fn repeated_initialization_keeps_the_existing_service_and_its_profile(
+    cx: &mut gpui::TestAppContext,
+) {
+    let feed = Feed::new(vec![]);
+    let updates = service(&feed, false, cx);
+    let expected = updates.entity_id();
+    cx.update(|cx| {
+        cx.set_global(Service(updates.clone()));
+        init(
+            |_| panic!("duplicate startup must not replace the quit handler"),
+            cx,
+        );
+        init(
+            |_| panic!("duplicate startup must not replace the quit handler"),
+            cx,
+        );
+        let current = global(cx).unwrap();
+        assert_eq!(current.entity_id(), expected);
+        assert!(!current.read(cx).state.automatically_download);
+        assert_eq!(current.read(cx).data_dir, updates.profile());
+    });
+    assert!(feed.requests().is_empty());
+}
+
+#[gpui::test]
+fn background_checks_start_once_follow_the_cadence_and_stop_with_the_service(
+    cx: &mut gpui::TestAppContext,
+) {
+    use std::time::Duration;
+    cx.executor().allow_parking();
+    let feed = Feed::new(vec![(
+        "stable-mac.yml".into(),
+        feed_for("1.4.0", b"not downloaded"),
+    )]);
+    let updates = Fixture::new(&feed, build_identity::Channel::Stable, "1.4.0", false, cx);
+    updates.update(cx, |u, cx| {
+        u.start_background_checks(cx);
+        u.start_background_checks(cx);
+    });
+    cx.run_until_parked(); // Arm the first timer without advancing the test clock.
+    cx.executor().advance_clock(Duration::from_millis(14_999));
+    cx.run_until_parked();
+    assert!(feed.requests().is_empty());
+    assert_eq!(updates.read_with(cx, |u, _| u.state.status), Status::Idle);
+    cx.executor().advance_clock(Duration::from_millis(1));
+    cx.run_until_parked();
+    settle(&updates, cx, |u| !u.busy);
+    assert_eq!(feed.requests(), ["/feed/stable-mac.yml"]);
+    assert_eq!(
+        updates.read_with(cx, |u, _| u.state.status),
+        Status::NotAvailable
+    );
+    // The Settings/manual command remains available between automatic checks.
+    updates.update(cx, |u, cx| u.check(cx));
+    settle(&updates, cx, |u| !u.busy);
+    assert_eq!(feed.requests().len(), 2);
+    cx.executor()
+        .advance_clock(Duration::from_millis(21_599_999));
+    cx.run_until_parked();
+    assert_eq!(feed.requests().len(), 2);
+    cx.executor().advance_clock(Duration::from_millis(1));
+    cx.run_until_parked();
+    settle(&updates, cx, |u| !u.busy);
+    assert_eq!(feed.requests().len(), 3);
+    feed.put(
+        "stable-mac.yml",
+        feed_for("1.4.1", b"pending manual download"),
+    );
+    updates.update(cx, |u, cx| u.check(cx));
+    settle(&updates, cx, |u| !u.busy);
+    assert_eq!(
+        updates.read_with(cx, |u, _| u.state.status),
+        Status::Available
+    );
+    for status in [
+        Status::Available,
+        Status::Downloading,
+        Status::Downloaded,
+        Status::Installing,
+    ] {
+        updates.update(cx, |u, cx| u.publish(|state| state.status = status, cx));
+        cx.executor()
+            .advance_clock(Duration::from_secs(6 * 60 * 60));
+        cx.run_until_parked();
+        assert_eq!(
+            feed.requests().len(),
+            4,
+            "{status:?} must keep the current candidate"
+        );
+    }
+    let weak = updates.downgrade();
+    drop(updates);
+    cx.run_until_parked();
+    assert!(weak.upgrade().is_none());
+    cx.executor()
+        .advance_clock(Duration::from_secs(6 * 60 * 60));
+    cx.run_until_parked();
+    assert_eq!(feed.requests().len(), 4);
+}
+
+#[gpui::test]
+fn background_checks_retry_errors_on_the_next_interval(cx: &mut gpui::TestAppContext) {
+    cx.executor().allow_parking();
+    let feed = Feed::new(vec![]);
+    let updates = service(&feed, false, cx);
+    updates.update(cx, |u, cx| u.start_background_checks(cx));
+    cx.run_until_parked();
+    cx.executor().advance_clock(updates::INITIAL_CHECK);
+    cx.run_until_parked();
+    settle(&updates, cx, |u| !u.busy);
+    assert_eq!(updates.read_with(cx, |u, _| u.state.status), Status::Error);
+    assert_eq!(feed.requests().len(), 1);
+    feed.put("dev-mac.yml", feed_for("0.4.4-dev.ga", b"same version"));
+    cx.executor().advance_clock(updates::CHECK_INTERVAL);
+    cx.run_until_parked();
+    settle(&updates, cx, |u| !u.busy);
+    updates.read_with(cx, |u, _| {
+        assert_eq!(u.state.status, Status::NotAvailable);
+        assert!(u.state.error.is_none());
+    });
+    assert_eq!(feed.requests().len(), 2);
+}
+
+#[gpui::test]
+fn disabled_updates_never_schedule_background_checks(cx: &mut gpui::TestAppContext) {
+    cx.executor().allow_parking();
+    let feed = Feed::new(vec![]);
+    let updates = service(&feed, true, cx);
+    updates.update(cx, |u, cx| {
+        u.state = UpdateState::new(
+            build_identity::Channel::Dev,
+            "0.4.4-dev.ga".into(),
+            Some("disabled fixture".into()),
+            true,
+        );
+        u.start_background_checks(cx);
+        u.start_background_checks(cx);
+        assert!(u._schedule.is_none());
+    });
+    cx.executor()
+        .advance_clock(updates::INITIAL_CHECK + updates::CHECK_INTERVAL);
+    cx.run_until_parked();
+    assert!(feed.requests().is_empty());
+    assert_eq!(
+        updates.read_with(cx, |u, _| u.state.status),
+        Status::Disabled
+    );
+}
