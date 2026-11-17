@@ -14,7 +14,7 @@ mod inline;
 mod lines;
 mod marks;
 
-pub use builder::{BlockDecoration, LineDecoration};
+pub use builder::{BlockDecoration, InlineDecoration, LineDecoration};
 
 use super::{
     classes::Class,

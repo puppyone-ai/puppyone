@@ -15,7 +15,7 @@
 //! Note: this module is pure (`R10`: zero `gpui` references).
 use super::{
     classes::Class,
-    decorations::{BlockDecoration, LineDecoration},
+    decorations::{BlockDecoration, InlineDecoration, LineDecoration},
     plans::{BlockEmbed, Plan},
     state::{FeatureStateStore, PreviewState},
     syntax::{Element, Kind, Syntax},
@@ -164,6 +164,10 @@ pub trait MarkdownFeature: Sync {
     /// Decorations it adds to a line box (overlays, hotspots).
     fn decorate_line(&self, _cx: &mut LineDecoration) {}
 
+    /// Inline content inside a block widget (for example table cells).
+    /// This context cannot replace the owning block or decorate a line box.
+    fn decorate_inline_content(&self, _cx: &mut InlineDecoration) {}
+
     /// Declarative keymap contributions (`TA-40`).
     fn keybindings(&self) -> &'static [FeatureKeybinding] {
         &[]
@@ -199,7 +203,7 @@ pub const FEATURE_PANIC_EVENT: &str = "[markdown-editor] feature panicked";
 
 /// Isolates a `MarkdownFeature` callback (`recognize_inline`, `recognize_blocks`,
 /// `compile_element`, `compile_blocks`, `block_widget`, `inline_widget`,
-/// `decorate_block`, `decorate_line`, `view_command`, `command`, `TA-33`).
+/// `decorate_block`, `decorate_line`, `decorate_inline_content`, `view_command`, `command`, `TA-33`).
 /// On panic, discards partial output and logs one diagnostic per feature ID per
 /// process session.
 pub fn catch_feature_panic<T>(

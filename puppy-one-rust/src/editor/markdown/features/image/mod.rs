@@ -14,7 +14,7 @@ pub mod source;
 use crate::editor::{
     markdown::{
         core::{
-            decorations::LineDecoration,
+            decorations::{InlineDecoration, LineDecoration},
             feature::MarkdownFeature,
             state::PreviewState,
             syntax::{Element, Kind},
@@ -50,7 +50,7 @@ pub struct ShowSource {
 
 /// The image an element shows, if it is one (a link around exactly one
 /// image is that image, linked).
-fn item(cx: &LineDecoration, e: &Element, document: &Path) -> Option<Item> {
+fn item(cx: &InlineDecoration, e: &Element, document: &Path) -> Option<Item> {
     let image = |e: &Element| matches!(e.kind, Kind::Image | Kind::ImageEmbed);
     let (image_el, link) = if image(e) {
         (e, None)
@@ -103,7 +103,7 @@ fn item(cx: &LineDecoration, e: &Element, document: &Path) -> Option<Item> {
 
 /// `.cm-md-image-widget` in a line with text: each image drawn where its
 /// source is, its alt text (or failure summary) standing in until it decodes.
-fn inline(cx: &mut LineDecoration, items: Vec<Item>) {
+fn inline(cx: &mut InlineDecoration, items: Vec<Item>) {
     let radius = cx.theme.block.radius;
     for item in items {
         if cx.preview.reveal.as_ref() == Some(&item.image) {
@@ -152,6 +152,55 @@ fn inline(cx: &mut LineDecoration, items: Vec<Item>) {
 /// The x-height of the body face, in ems.
 const X_HEIGHT: f32 = 0.5;
 
+/// Collect complete image elements inside one inline range, preserving linked images.
+fn items(cx: &InlineDecoration) -> (Vec<Item>, bool) {
+    let range = cx.range.clone();
+    let text = cx.doc.slice(range.clone());
+    if !text.contains('!') {
+        return (Vec::new(), false);
+    }
+    let start = cx
+        .syntax
+        .elements_in(range.clone())
+        .filter(|e| {
+            e.kind.block_marker() && e.line.as_ref().is_some_and(|l| l.start == range.start)
+        })
+        .map(Element::visible_start)
+        .max()
+        .unwrap_or(range.start)
+        .max(range.start);
+    let document = cx.assets.map(|a| a.document.clone()).unwrap_or_default();
+    let mut items = Vec::new();
+    let mut at = start;
+    let mut mixed = false;
+    let mut candidates: Vec<&Element> = cx
+        .syntax
+        .elements_in(start..range.end)
+        .filter(|e| {
+            matches!(e.kind, Kind::Image | Kind::ImageEmbed | Kind::Link)
+                && e.range.start >= start
+                && e.range.end <= range.end
+        })
+        .collect();
+    candidates.sort_by_key(|e| (e.range.start, std::cmp::Reverse(e.range.end)));
+    for e in candidates {
+        if e.range.start < at {
+            continue;
+        }
+        if !cx.doc.slice(at..e.range.start).trim().is_empty() {
+            mixed = true;
+        }
+        let Some(item) = item(cx, e, &document) else {
+            mixed = true;
+            continue;
+        };
+        at = e.range.end;
+        items.push(item);
+    }
+    mixed |= !cx.doc.slice(at..range.end).trim().is_empty();
+    (items, mixed)
+}
+
 impl MarkdownFeature for ImageFeature {
     fn id(&self) -> &'static str {
         ID
@@ -169,56 +218,21 @@ impl MarkdownFeature for ImageFeature {
         Some(Transaction::select(Selection::cursor(show.caret.min(len))))
     }
 
+    fn decorate_inline_content(&self, cx: &mut InlineDecoration) {
+        let (items, _) = items(cx);
+        inline(cx, items);
+    }
+
     /// A line of images shows them in place of its text.
     fn decorate_line(&self, cx: &mut LineDecoration) {
         let range = cx.range.clone();
-        let text = cx.doc.slice(range.clone());
-        if !text.contains('!') {
-            return;
-        }
-        let start = cx
-            .syntax
-            .elements_in(range.clone())
-            .filter(|e| {
-                e.kind.block_marker() && e.line.as_ref().is_some_and(|l| l.start == range.start)
-            })
-            .map(Element::visible_start)
-            .max()
-            .unwrap_or(range.start)
-            .max(range.start);
-        let document = cx.assets.map(|a| a.document.clone()).unwrap_or_default();
-        let mut items = Vec::new();
-        let mut at = start;
-        let mut mixed = false;
-        let mut candidates: Vec<&Element> = cx
-            .syntax
-            .elements_in(start..range.end)
-            .filter(|e| {
-                matches!(e.kind, Kind::Image | Kind::ImageEmbed | Kind::Link)
-                    && e.range.start >= start
-                    && e.range.end <= range.end
-            })
-            .collect();
-        candidates.sort_by_key(|e| (e.range.start, std::cmp::Reverse(e.range.end)));
-        for e in candidates {
-            if e.range.start < at {
-                continue;
-            }
-            if !cx.doc.slice(at..e.range.start).trim().is_empty() {
-                mixed = true;
-            }
-            let Some(item) = item(cx, e, &document) else {
-                mixed = true;
-                continue;
-            };
-            at = e.range.end;
-            items.push(item);
-        }
+        let mut content = cx.inline_content();
+        let (items, mixed) = items(&content);
         if items.is_empty() {
             return;
         }
-        if mixed || !cx.doc.slice(at..range.end).trim().is_empty() {
-            inline(cx, items);
+        if mixed {
+            inline(&mut content, items);
             return;
         }
         let block = items.len() == 1
@@ -228,7 +242,7 @@ impl MarkdownFeature for ImageFeature {
                 .slice(range.start..items[0].range.start)
                 .trim()
                 .is_empty();
-        let shown = items[0].range.start..items.last().map_or(at, |i| i.range.end);
+        let shown = items[0].range.start..items.last().map_or(range.end, |i| i.range.end);
         cx.hidden.push(shown);
         let mut h = std::hash::DefaultHasher::new();
         (range.start, block).hash(&mut h);

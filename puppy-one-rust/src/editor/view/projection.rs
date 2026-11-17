@@ -21,6 +21,10 @@ struct Piece {
     /// Relative to the leaf's source start.
     source: usize,
     source_len: usize,
+    /// Only original text has a byte-for-byte mapping. A replacement can
+    /// coincidentally have the same byte length while having different UTF-8
+    /// boundaries (for example image room spaces replacing ASCII syntax).
+    verbatim: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -145,6 +149,7 @@ impl LeafText {
                             display_len: at - run_start,
                             source: run_start - base,
                             source_len: at - run_start,
+                            verbatim: true,
                         });
                         text.push_str(&slice[run_start - base..at - base]);
                     }
@@ -154,6 +159,7 @@ impl LeafText {
                         display_len: width,
                         source: at - base,
                         source_len: 1,
+                        verbatim: false,
                     });
                     text.extend(std::iter::repeat_n(' ', width));
                     *column += width;
@@ -168,6 +174,7 @@ impl LeafText {
                     display_len: to - run_start,
                     source: run_start - base,
                     source_len: to - run_start,
+                    verbatim: true,
                 });
                 text.push_str(&slice[run_start - base..to - base]);
             }
@@ -199,6 +206,7 @@ impl LeafText {
                 display_len: shown.len(),
                 source: start - base,
                 source_len: end - start,
+                verbatim: false,
             });
             text.push_str(shown);
             column += shown.chars().count();
@@ -261,7 +269,7 @@ impl LeafText {
                 return p.display;
             }
             if offset < p.source + p.source_len || (offset == p.source && p.source_len == 0) {
-                if p.display_len == p.source_len {
+                if p.verbatim {
                     return p.display + (offset - p.source);
                 }
                 return if after && offset > p.source {
@@ -290,7 +298,7 @@ impl LeafText {
                 continue;
             }
             if index < p.display + p.display_len {
-                return if p.display_len == p.source_len {
+                return if p.verbatim {
                     p.source + (index - p.display)
                 } else if index - p.display < p.display_len.div_ceil(2) {
                     p.source
@@ -373,6 +381,53 @@ fn strike_over(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn equal_byte_length_replacements_remain_atomic_and_never_split_utf8_marks() {
+        let doc = "![alt](pic.png)";
+        let shown = "\u{2003}".repeat(5);
+        assert_eq!(doc.len(), shown.len());
+        let leaf = LeafText::build_replaced(
+            doc,
+            0..doc.len(),
+            &[],
+            &[(0..doc.len(), shown.clone().into())],
+            &[
+                Mark {
+                    range: 0..2,
+                    style: MarkStyle {
+                        color: Some(0xff0000ff),
+                        ..Default::default()
+                    },
+                },
+                Mark {
+                    range: 2..5,
+                    style: MarkStyle {
+                        bold: true,
+                        ..Default::default()
+                    },
+                },
+            ],
+            false,
+        );
+        assert_eq!(leaf.text, shown);
+        assert!(
+            leaf.marks.is_empty(),
+            "partial source markers cannot split an atomic replacement"
+        );
+        for offset in 1..doc.len() {
+            assert_eq!(leaf.to_display(offset, false), 0);
+            assert_eq!(leaf.to_display(offset, true), shown.len());
+        }
+        for (offset, _) in shown.char_indices() {
+            assert!([0, doc.len()].contains(&leaf.to_source(offset)));
+        }
+        let plain = LeafText::build(doc, 0..doc.len(), &[], &[], false);
+        for offset in 0..=doc.len() {
+            assert_eq!(plain.to_source(offset), offset);
+            assert_eq!(plain.to_display(offset, false), offset);
+        }
+    }
 
     #[test]
     fn hidden_ranges_and_tabs_map_both_ways() {

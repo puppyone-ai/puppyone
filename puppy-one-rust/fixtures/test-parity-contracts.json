@@ -17221,6 +17221,61 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-table-media-and-link-broker",
+      "acceptance": "Actual native table cells resolve inline and reference images through the injected DocumentAssets capability relative to the document, read each asset once, preserve alt fallback, decode and paint a ready image without changing source or revision. External table-link pointer clicks complete the editor gesture and open the policy-normalized URL rather than bypassing the host via the text component. Supplemental native tests cover blocked and missing images, code literals, workspace rebinding, image row growth and left/center/right alignment, wrapped-row hit testing, unsafe link rejection and drag cancellation, isolated feature panic output, and equal-byte-length UTF-8 replacement mapping. These supplemental checks add no TS case-count credit and do not claim DOM or browser pixel identity.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownEditorView.test.ts",
+          "sha256": "2779656bbe478cdc6949e823dd8cc282950b13c4d7e0fb6820d479ee76f55b85",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Markdown table plan adapter > routes images through the broker-backed resolveAssetUrl (no raw resolver)"
+            },
+            {
+              "index": 10,
+              "name": "Markdown table plan adapter > opens links through the broker-backed openHref wrapper"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::table_images_read_once_from_the_document_capability_and_render_ready"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::table_image_failures_keep_alt_text_and_never_load_code_or_blocked_paths"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::table_images_follow_workspace_rebinding_and_expand_aligned_cell_geometry"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::native_link_clicks_honor_policy_and_drag_cancellation_in_tables_and_prose"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::panicking_inline_content_hooks_discard_partial_output_and_preserve_healthy_media"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::table_links_activate_the_host_external_link_path"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::table_wrapped_cell_geometry_uses_painted_alignment_for_hit_testing"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::view::projection::tests::equal_byte_length_replacements_remain_atomic_and_never_split_utf8_marks"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

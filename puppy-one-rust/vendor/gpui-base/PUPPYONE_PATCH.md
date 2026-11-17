@@ -497,3 +497,13 @@ diff -ru registry/gpui-base-0.8.0/src/input/mod.rs vendor/gpui-base/src/input/mo
 creating a second dialog or focus scope. The application wrapper uses the title
 by default, and custom headings explicitly supply the same label. Rendered
 Homepage import-dialog tests inspect the native Dialog role and label.
+
+## The patch: aligned editor geometry
+
+Whole-leaf editor geometry records the text alignment used during prepaint.
+Caret positions and inverse hit testing apply each wrapped row's horizontal
+offset, so centered and right-aligned table content has the same painted and
+interactive coordinates. Piece-based inline flows keep their already positioned
+fragment geometry. `EditorSink::report_aligned` defaults to the previous report
+hook for custom sinks. Native table acceptance covers ready image placement,
+aligned link clicks, and caret/hit round trips across wrapped rows.

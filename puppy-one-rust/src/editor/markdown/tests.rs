@@ -20,6 +20,7 @@ mod html_acceptance;
 mod inline_acceptance;
 mod math_acceptance;
 mod table_inline_acceptance;
+mod table_media_acceptance;
 
 #[test]
 fn dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans() {

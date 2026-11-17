@@ -766,7 +766,7 @@ impl EditorView {
 
     /// Kit's rendering context: link and inline-code colours of the surface.
     /// Kept while the surface is unchanged so Kit's paragraph caches hold.
-    pub(super) fn kit_context(&mut self) -> Rc<RenderContext> {
+    pub(super) fn kit_context(&mut self, cx: &Context<Self>) -> Rc<RenderContext> {
         let surface = self.caches.decorations.surface();
         if let Some((s, kit)) = &self.caches.kit
             && s == surface
@@ -793,7 +793,21 @@ impl EditorView {
         if let Some(padding) = surface.inline_code_padding {
             style = style.with_inline_code_padding(padding);
         }
-        let kit = Rc::new(RenderContext::new(style));
+        let view = cx.entity().downgrade();
+        let kit = Rc::new(
+            RenderContext::new(style).on_link_click(move |href, event, w, cx| {
+                let _ = view.update(cx, |v, cx| match event {
+                    // Kit consumes the leaf mouse-up before it reaches the editor.
+                    // Finish the editor's existing press/release gesture, including
+                    // current-source policy, drag cancellation and selection restore.
+                    ClickEvent::Mouse(click) if click.up.button == MouseButton::Left => {
+                        v.mouse_up(&click.up, w, cx);
+                    }
+                    ClickEvent::Keyboard(_) => v.follow_href(href, cx),
+                    _ => {}
+                });
+            }),
+        );
         self.caches.kit = Some((surface.clone(), kit.clone()));
         kit
     }

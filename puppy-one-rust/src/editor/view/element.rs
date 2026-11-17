@@ -97,7 +97,7 @@ impl EditorElement {
             scroll,
             selection,
             read_only,
-        ) = self.view.update(cx, |v, _| {
+        ) = self.view.update(cx, |v, cx| {
             let s = v.state.selection;
             (
                 v.state.revision,
@@ -107,7 +107,7 @@ impl EditorElement {
                 v.caches.measures.clone(),
                 v.caches.heights.clone(),
                 v.caches.widget_states.clone(),
-                v.kit_context(),
+                v.kit_context(cx),
                 v.scroll_y,
                 (s.from(), s.to()),
                 v.read_only,

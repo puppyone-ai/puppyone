@@ -82,12 +82,10 @@ impl TableWidget {
                 let w = widths[c];
                 let border = if c + 1 < columns { 1. } else { 0. };
                 let wrap = (w - border - p.left - p.right).max(0.);
-                let (element, text_height) = cx.render.text_aligned(
+                let (element, text_height) = cx.render.inline_content_aligned(
                     cell.range.clone(),
                     style,
-                    false,
-                    Some(wrap),
-                    false,
+                    wrap,
                     table_top,
                     x + p.left,
                     row_top + p.top,
