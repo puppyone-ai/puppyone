@@ -104,7 +104,7 @@
 .project-computer-preview {
   position: relative;
   width: 22px;
-  height: 30px;
+  height: calc(var(--po-control-size) - 2px);
   border-radius: 3px;
   background: var(--po-surface);
   border: 1px solid color-mix(in srgb, var(--po-text) 12%, transparent);
@@ -121,7 +121,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: var(--po-type-ui-micro, 11px);
   line-height: 1.3;
   color: var(--po-muted);
 }
@@ -173,7 +173,7 @@
   color: var(--po-muted);
   font: inherit;
   text-align: start;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .computer-mode-muted-folders-toggle:hover {
@@ -195,7 +195,7 @@
   height: 17px;
   padding: 0 5px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 500;
   background: color-mix(in srgb, var(--po-text) 7%, transparent);
   color: var(--po-muted);
@@ -246,7 +246,7 @@
   border: 1px dashed color-mix(in srgb, var(--po-border) 85%, transparent);
   background: color-mix(in srgb, var(--po-surface) 50%, transparent);
   color: var(--po-muted);
-  font-size: 12.5px;
+  font-size: var(--po-type-ui-meta, 13px);
 }
 
 .computer-mode-group-add-button {
@@ -258,9 +258,9 @@
   border: 1px solid var(--po-border);
   background: var(--po-surface);
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 500;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .computer-mode-group-add-button:hover:not(:disabled) {
@@ -285,7 +285,7 @@
   background: color-mix(in srgb, var(--po-surface) 75%, var(--po-canvas));
   color: var(--po-text);
   text-align: start;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
   transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
 }
 
@@ -328,13 +328,13 @@
 }
 
 .computer-mode-destination-title {
-  font-size: 13px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 600;
   color: var(--po-text);
 }
 
 .computer-mode-destination-detail {
-  font-size: 12px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.4;
   color: var(--po-muted);
 }
@@ -345,7 +345,7 @@
   align-items: center;
   padding: 2px 7px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 500;
   background: color-mix(in srgb, var(--po-text) 7%, transparent);
   color: var(--po-muted);
@@ -426,14 +426,14 @@
   gap: 5px;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 600;
   color: #15803d;
   background: color-mix(in srgb, #22c55e 14%, transparent);
 }
 
 .computer-mode-runtime-meta {
-  font-size: 11px;
+  font-size: var(--po-type-ui-micro, 11px);
   color: var(--po-muted);
 }
 
@@ -450,14 +450,14 @@
 
 .computer-mode-screen-title {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--po-type-ui-body-large, 15px);
   font-weight: 600;
   color: var(--po-text);
 }
 
 .computer-mode-screen-note {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--po-type-ui-meta, 13px);
   line-height: 1.5;
   color: var(--po-muted);
 }
@@ -506,7 +506,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 500;
   color: var(--po-text);
 }
@@ -522,8 +522,8 @@
   border: 0;
   border-radius: 999px;
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--po-type-ui-micro, 11px);
   background: color-mix(in srgb, var(--po-text) 8%, transparent);
   color: var(--po-text);
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }

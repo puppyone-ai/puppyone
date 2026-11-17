@@ -7,8 +7,12 @@ import { appearanceFields } from "./preferencesPersistence";
 import { desktopPreferencesStore, useDesktopPreference } from "../../preferencesStore";
 import { useDesktopAppearance } from "./useDesktopAppearance";
 
-/** Mounted once per renderer; subscriptions belong to the window, not preference readers. */
-export function useDesktopPreferenceEffects(catalog: SubThemeCatalogSnapshot = BUILTIN_SUB_THEME_CATALOG) {
+/** Mounted once per renderer; subscriptions belong to the window, not preference readers.
+ * The file window passes `syncComputerMode: false`: Computer Mode belongs to project windows. */
+export function useDesktopPreferenceEffects(
+  catalog: SubThemeCatalogSnapshot = BUILTIN_SUB_THEME_CATALOG,
+  { syncComputerMode = true }: { syncComputerMode?: boolean } = {},
+) {
   const interfaceStyle = useDesktopPreference(s => s.interfaceStyle);
   const indicators = useDesktopPreference(s => s.agentFileActivityIndicatorsEnabled);
   const { activeThemeMode, resolvedAppearance, resolvedTheme } = useDesktopAppearance();
@@ -70,13 +74,13 @@ export function useDesktopPreferenceEffects(catalog: SubThemeCatalogSnapshot = B
     query.addEventListener("change", sync);
     window.addEventListener("storage", syncPreferenceStorageEvent);
     const stopGit = subscribeGitAutoCommitPreference();
-    syncComputerModePreference();
+    if (syncComputerMode) syncComputerModePreference();
     return () => {
       query.removeEventListener("change", sync);
       window.removeEventListener("storage", syncPreferenceStorageEvent);
       stopGit();
     };
-  }, []);
+  }, [syncComputerMode]);
 }
 function subscribeGitAutoCommitPreference() {
   const desktop = window.puppyoneDesktop;
@@ -93,7 +97,6 @@ function subscribeGitAutoCommitPreference() {
   return () => { active = false; stop?.(); };
 }
 function syncComputerModePreference() {
-  if (window.location.hash === "#file-mode") return;
   const enabled = desktopPreferencesStore.getState().experimentalSettings.enableComputerMode;
   void window.puppyoneDesktop?.localComputers?.setExperimentalOptIn({ enabled }).catch(() => undefined);
 }

@@ -107,7 +107,7 @@
   color: inherit;
   font: inherit;
   text-align: start;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   outline: none;
 }
 
@@ -207,7 +207,7 @@
 .computer-screen-sidebar-title {
   overflow: hidden;
   color: var(--po-text);
-  font-size: 13.5px;
+  font-size: var(--po-type-ui-label, 14px);
   font-weight: 500;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -220,7 +220,7 @@
   gap: 6px;
   min-width: 0;
   color: var(--po-text-subtle);
-  font-size: 12px;
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.15;
 }
 
@@ -263,10 +263,10 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--po-text) 8%, transparent);
   color: var(--po-text);
-  font-size: 12px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 500;
   line-height: 24px;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background-color 120ms ease, opacity 120ms ease;
 }
 
@@ -350,7 +350,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .computer-screen-pip-hit:focus-visible {
@@ -371,7 +371,7 @@
   background: rgba(15, 15, 16, 0.62);
   backdrop-filter: blur(8px);
   color: #ffffff;
-  font-size: 11px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 500;
   line-height: 1;
   pointer-events: none;
@@ -396,7 +396,7 @@
     0 8px 24px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.14);
   color: #ffffff;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
   opacity: 0;
   transition: opacity 140ms ease, background-color 140ms ease;
 }
@@ -550,7 +550,7 @@
   color: #ffffff;
   font: var(--po-type-ui-meta);
   font-weight: 500;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   opacity: 0;
   pointer-events: none;
   transform: translateY(4px);
@@ -623,10 +623,10 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
   color: #ffffff;
   font: var(--po-type-ui-meta);
-  font-size: 12px;
+  font-size: var(--po-type-ui-caption, 12px);
   font-weight: 500;
   line-height: 1;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   transition: background-color 120ms ease, opacity 120ms ease;
 }
 
@@ -679,10 +679,10 @@
     0 0 0 1px rgba(255, 255, 255, 0.14);
   color: #ffffff;
   font: var(--po-type-ui-meta);
-  font-size: 12.5px;
+  font-size: var(--po-type-ui-meta, 13px);
   font-weight: 500;
   line-height: 1;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   opacity: 0.88;
   pointer-events: auto;
   transition: opacity 140ms ease, background-color 140ms ease;
@@ -712,7 +712,7 @@
   background: rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.78);
   font-family: var(--po-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 11px;
+  font-size: var(--po-type-ui-micro, 11px);
   font-weight: 500;
   line-height: 1;
 }

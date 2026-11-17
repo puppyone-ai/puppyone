@@ -1,6 +1,5 @@
-import { FolderIcon } from "@puppyone/shared-ui";
+import { DisclosureIcon, FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 
 export type MutedLocalFoldersSectionProps = Readonly<{
@@ -35,7 +34,7 @@ export function MutedLocalFoldersSection({
           onClick={() => setExpanded((current) => !current)}
         >
           <span className="computer-mode-muted-folders-chevron" aria-hidden="true">
-            {expanded ? <ChevronDown size={14} strokeWidth={1.8} /> : <ChevronRight size={14} strokeWidth={1.8} />}
+            <DisclosureIcon expanded={expanded} size={14} />
           </span>
           <span className="onboarding-project-group-mark" aria-hidden="true">
             <FolderIcon size={15} strokeWidth={1.75} />

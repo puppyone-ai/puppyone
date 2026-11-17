@@ -1,5 +1,6 @@
 import { useLocalization } from "@puppyone/localization";
-import { Cloud, ExternalLink } from "lucide-react";
+import { CloudIcon } from "@puppyone/shared-ui";
+import { ExternalLink } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import {
   DesktopDialogCloseButton,
@@ -140,7 +141,7 @@ function CloudSignInDialogContent({
         </div>
         <div className="cloud-sign-in-copy">
           <span className="cloud-sign-in-eyebrow">
-            <Cloud size={15} strokeWidth={2} aria-hidden="true" />
+            <CloudIcon size={15} strokeWidth={2} aria-hidden="true" />
             {productName}
           </span>
           <div className="cloud-sign-in-moments">

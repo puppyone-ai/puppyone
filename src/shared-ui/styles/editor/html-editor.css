@@ -26,7 +26,7 @@
 .html-editor-selection[data-editing="false"] { box-shadow: none; }
 .html-editor-selection__tag { position: absolute; top: -18px; left: -2px; padding: 1px 6px; border-radius: 4px 4px 4px 0;
   background: var(--html-editor-accent); color: #fff; font-family: var(--po-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 10px; font-weight: 600; line-height: 15px; letter-spacing: 0.02em; white-space: nowrap; pointer-events: none; user-select: none; }
+  font-size: var(--po-type-ui-micro, 10px); font-weight: 600; line-height: 15px; letter-spacing: 0.02em; white-space: nowrap; pointer-events: none; user-select: none; }
 .html-editor-selection[data-near-top="true"] .html-editor-selection__tag { top: 0; left: 0; border-radius: 0 0 4px 0; }
 .html-block-action-rail { position: absolute; inset-inline: 0; z-index: 4; pointer-events: none; }
 .html-block-action-rail__menu { position: absolute; width: max-content; max-width: calc(100% - 50px); pointer-events: auto; }

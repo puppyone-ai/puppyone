@@ -51,7 +51,7 @@ type OpenedFile = Readonly<{ target: FileModeTarget; dataPort: DataPort; node: D
 export function FileModeApp() {
   const { locale, t } = useLocalization();
   const subThemeCatalog = useSubThemeCatalog();
-  useDesktopPreferenceEffects(subThemeCatalog.snapshot);
+  useDesktopPreferenceEffects(subThemeCatalog.snapshot, { syncComputerMode: false });
   const appearance = useFileModeAppearance(locale);
   const [opened, setOpened] = useState<OpenedFile | null>(null);
   const [failed, setFailed] = useState(false);

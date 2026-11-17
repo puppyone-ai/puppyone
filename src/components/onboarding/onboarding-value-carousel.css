@@ -47,7 +47,7 @@
   border: 0;
   border-radius: 11px;
   background: transparent;
-  cursor: var(--po-clickable-cursor, pointer);
+  cursor: var(--po-clickable-cursor, default);
   place-items: center;
   transition: width 260ms ease;
 }

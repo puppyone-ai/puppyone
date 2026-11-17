@@ -17,6 +17,15 @@ import {
   type FontCatalogEntry,
 } from "../../../../src/features/typography";
 
+// First run's scenes are drawings: their lettering and parts are measured on the
+// picture's own canvas and scaled with it (zoom), so they follow neither the
+// reader's text size nor the control scale.
+const PICTURE_STYLESHEETS = [
+  "src/components/onboarding/onboarding-value-carousel.css",
+  "src/components/onboarding/onboarding-value-hub.css",
+];
+const isPicture = (file: URL) => PICTURE_STYLESHEETS.some((name) => file.pathname.endsWith(`/${name}`));
+
 describe("typography architecture", () => {
   it("shares regular-weight content typography between discovery feedback and launcher labels", () => {
     const launcher = source("src/features/app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css");
@@ -292,6 +301,7 @@ describe("typography architecture", () => {
     const roots = ["src", "electron", "public"];
     for (const root of roots) {
       for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
+        if (isPicture(file)) continue;
         const contents = readFileSync(file, "utf8");
         expect(contents, file.pathname).not.toMatch(fractionalCssTypeSize);
         expect(contents, file.pathname).not.toMatch(fractionalInlineTypeSize);
@@ -363,7 +373,7 @@ describe("typography architecture", () => {
     for (const file of sourceFiles(new URL(`../../../../src/`, import.meta.url))) {
       if (!file.pathname.endsWith(".css")) continue;
       const contents = readFileSync(file, "utf8");
-      expect(contents, file.pathname).not.toMatch(rawControlDimension);
+      if (!isPicture(file)) expect(contents, file.pathname).not.toMatch(rawControlDimension);
       if (!file.pathname.endsWith("src/styles/typography/foundations.css")) {
         expect(contents, file.pathname).not.toContain("var(--po-text-size-sidebar");
       }

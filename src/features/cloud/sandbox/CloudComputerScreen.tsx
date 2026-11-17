@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useLocalization } from "@puppyone/localization";
+import { Tooltip } from "@puppyone/shared-ui";
 import { statusOf, type CloudSandbox, type CloudSandboxSettings, type CloudScreenSession } from "../files/contracts";
 import { CLOUD_SCREEN_RECONNECTS, cloudScreenAvailability, type CloudScreenAvailability } from "./cloudScreenState";
 import {
@@ -32,17 +33,18 @@ export function CloudScreenThumbnail({ active, onOpen }: {
   const { t } = useLocalization();
   const label = t("cloud.sandbox.screen.open");
   return (
-    <button
-      type="button"
-      className="cloud-screen-thumbnail"
-      data-active={active || undefined}
-      aria-pressed={active}
-      aria-label={label}
-      title={label}
-      onClick={onOpen}
-    >
-      <ScreenGlyph className="cloud-screen-thumbnail-glyph" />
-    </button>
+    <Tooltip content={label}>
+      <button
+        type="button"
+        className="cloud-screen-thumbnail"
+        data-active={active || undefined}
+        aria-pressed={active}
+        aria-label={label}
+        onClick={onOpen}
+      >
+        <ScreenGlyph className="cloud-screen-thumbnail-glyph" />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -185,16 +187,17 @@ export function ComputerScreenStage({
             <span className="computer-screen-led" data-power="running" />
             <span>{t("cloud.sandbox.screen.title")}</span>
           </span>
-          <button
-            type="button"
-            className="computer-screen-pip-close"
-            data-computer-screen-pip-close=""
-            aria-label={t("cloud.sandbox.screen.hide-pip")}
-            title={t("cloud.sandbox.screen.hide-pip")}
-            onClick={onHidePip}
-          >
-            <CloseGlyph className="computer-screen-pip-close-glyph" />
-          </button>
+          <Tooltip content={t("cloud.sandbox.screen.hide-pip")}>
+            <button
+              type="button"
+              className="computer-screen-pip-close"
+              data-computer-screen-pip-close=""
+              aria-label={t("cloud.sandbox.screen.hide-pip")}
+              onClick={onHidePip}
+            >
+              <CloseGlyph className="computer-screen-pip-close-glyph" />
+            </button>
+          </Tooltip>
         </>
       )}
     </div>
