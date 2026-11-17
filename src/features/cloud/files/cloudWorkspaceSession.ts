@@ -5,7 +5,7 @@ import { cloudWorkspaceIdentity, inspectCloudWorkspaceHandoff, takeCloudWorkspac
 import { workspaceFailure as failure, type WorkspaceEntry, type WorkspaceOpeningResult } from "./cloudWorkspaceProtocol";
 import type { CloudEntry, CloudSandboxSettings, CloudScreenSession, CloudWorkbench } from "./contracts";
 import { readCloudSandbox } from "../sandbox/cloudSandboxFeatures";
-import { recordWorkspaceRequest } from "../../../performance/editingLatencyProbe";
+import { recordWorkspaceRequest } from "../../../performance";
 
 type Opening = { result: Promise<WorkspaceOpeningResult>; progress: ReturnType<typeof createCloudWorkspaceOpeningProgress> };
 const openings = new Map<string, Opening>();

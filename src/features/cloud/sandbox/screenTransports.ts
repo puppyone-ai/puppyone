@@ -1,14 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
-import type { CloudScreenSession } from "../files/contracts";
+import type { CloudScreenViewerProps } from "./screenViewer";
 
-/** What a viewer reports; the screen view owns retries and copy. */
-export type CloudScreenViewerStatus = "connecting" | "connected" | "disconnected";
-
-export type CloudScreenViewerProps = {
-  session: CloudScreenSession;
-  interactive?: boolean;
-  onStatus: (status: CloudScreenViewerStatus) => void;
-};
+export type { CloudScreenViewerProps, CloudScreenViewerStatus } from "./screenViewer";
 
 /**
  * Viewers by wire format. The backend's screen Feature names its transport;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import RFB from "@novnc/novnc";
-import type { CloudScreenViewerProps } from "./screenTransports";
+import type { CloudScreenViewerProps } from "./screenViewer";
 
 /**
  * noVNC over the backend's ticketed WebSocket. Starts in read-only mode so the
