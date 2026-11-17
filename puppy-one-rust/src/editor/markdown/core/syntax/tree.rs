@@ -472,6 +472,7 @@ impl<'a> Walker<'a> {
                 self.push(Frame::Link, node);
             }
             Tag::CodeBlock(kind) => {
+                self.syntax.code_blocks.push(trim(doc, range.clone()));
                 let mut node = HlNode::new(range.clone(), Hl::NONE, false);
                 match kind {
                     CodeBlockKind::Fenced(_) => {
@@ -1040,6 +1041,9 @@ fn shift_syntax_base(syntax: &mut Syntax, base: usize) {
         shift_span(&mut p.range, base);
     }
     for (r, _) in &mut syntax.highlights {
+        shift_span(r, base);
+    }
+    for r in &mut syntax.code_blocks {
         shift_span(r, base);
     }
     for r in &mut syntax.tables {

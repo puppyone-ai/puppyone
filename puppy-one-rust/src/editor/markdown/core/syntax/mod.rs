@@ -407,6 +407,8 @@ pub struct Syntax {
     pub lists: Vec<List>,
     pub paragraphs: Vec<Paragraph>,
     pub fences: Vec<Fence>,
+    /// Parser-owned fenced/indented code, including quote and list containers.
+    pub code_blocks: Vec<Span>,
     pub code_lines: Vec<Range<usize>>,
     pub highlights: Vec<(Span, Hl)>,
     pub tables: Vec<Span>,
@@ -487,7 +489,20 @@ impl Syntax {
         let slice_cow = doc.slice_cow(byte_start..byte_end);
         let (mut syntax, link_defs) = tree::walk_slice(&slice_cow, byte_start, extra_link_defs);
         syntax.link_defs = link_defs;
-        syntax.code_lines = fences.iter().map(|f| f.lines.clone()).collect();
+        let mut code_lines: Vec<_> = fences.iter().map(|f| f.lines.clone()).collect();
+        code_lines.extend(syntax.code_blocks.iter().map(|r| {
+            doc.line_index(r.start)..doc.line_index(r.end.saturating_sub(1).max(r.start)) + 1
+        }));
+        code_lines.sort_by_key(|r| (r.start, r.end));
+        for range in code_lines {
+            if let Some(last) = syntax.code_lines.last_mut()
+                && range.start < last.end
+            {
+                last.end = last.end.max(range.end);
+            } else {
+                syntax.code_lines.push(range);
+            }
+        }
 
         let mut blocks: Vec<Range<usize>> = syntax.code_lines.clone();
         for f in features {
@@ -1049,27 +1064,34 @@ impl Syntax {
             }
         }
 
-        // 3. Fences & code_lines
+        // 3. Fence models and all code-line regions have independent indexes:
+        // indented/quoted code need not have a standalone fence model.
         let f_pre = prev.fences.partition_point(|f| f.range.end <= ob.start);
         let f_suf = prev
             .fences
             .partition_point(|f| f.range.start < ob.end)
             .max(f_pre);
         let win_f_len = win.fences.len();
-        let win_code_lines: Vec<Range<usize>> =
-            win.fences.iter().map(|f| f.lines.clone()).collect();
         prev.fences.splice(f_pre..f_suf, win.fences);
-        prev.code_lines.splice(f_pre..f_suf, win_code_lines);
         if bd != 0 || ld != 0 {
             for m in &mut prev.fences[f_pre + win_f_len..] {
                 m.range = shift_span_signed(&m.range, bd);
                 m.code = shift_span_signed(&m.code, bd);
                 m.lines = shift_span_signed(&m.lines, ld);
             }
-            if ld != 0 {
-                for r in &mut prev.code_lines[f_pre + win_f_len..] {
-                    *r = shift_span_signed(r, ld);
-                }
+        }
+        let c_pre = prev
+            .code_lines
+            .partition_point(|r| r.end <= sp.old_lines.start);
+        let c_suf = prev
+            .code_lines
+            .partition_point(|r| r.start < sp.old_lines.end)
+            .max(c_pre);
+        let win_c_len = win.code_lines.len();
+        prev.code_lines.splice(c_pre..c_suf, win.code_lines);
+        if ld != 0 {
+            for r in &mut prev.code_lines[c_pre + win_c_len..] {
+                *r = shift_span_signed(r, ld);
             }
         }
 
@@ -1118,6 +1140,7 @@ impl Syntax {
                 }
             }
         };
+        splice_spans_in_place(&mut prev.code_blocks, win.code_blocks);
         splice_spans_in_place(&mut prev.tables, win.tables);
         splice_spans_in_place(&mut prev.table_cells, win.table_cells);
         splice_spans_in_place(&mut prev.inline_tags, win.inline_tags);

@@ -246,7 +246,14 @@ pub fn window_syntax_view(
         .partition_point(|f| f.range.start < byte_window.end)
         .max(f_a);
     let fences = syntax.fences[f_a..f_b].to_vec();
-    let code_lines = fences.iter().map(|f| f.lines.clone()).collect();
+    let code_start = syntax
+        .code_lines
+        .partition_point(|r| r.end <= line_window.start);
+    let code_end = syntax
+        .code_lines
+        .partition_point(|r| r.start < line_window.end)
+        .max(code_start);
+    let code_lines = syntax.code_lines[code_start..code_end].to_vec();
 
     let c_a = syntax
         .callouts
@@ -263,6 +270,7 @@ pub fn window_syntax_view(
         lists: Vec::new(),
         paragraphs: Vec::new(),
         fences,
+        code_blocks: slice_spans(&syntax.code_blocks),
         code_lines,
         highlights: Vec::new(),
         tables: slice_spans(&syntax.tables),

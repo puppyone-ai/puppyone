@@ -16511,7 +16511,7 @@
     },
     {
       "id": "native-markdown-table-shared-inline-policy",
-      "acceptance": "Actual drawn native table cells preserve nested bold/italic roles, wiki links within prose, bare URL links and decoded entities without changing source or revision. A 20,000-unmatched-bracket cell parses, mounts and draws within the TS two-second budget. Supplemental regressions forbid custom inline delimiters and HTML tag pairs spanning neighboring cells or rows, keep valid links independent of unmatched neighboring markers, preserve code literals in cells and prose, include table footnotes in document-wide first-reference numbering, and verify edited wiki-link display across real input/undo/redo and cell range splicing against a full parse. The randomized incremental syntax and plans equivalence test guards shared parser changes. These native presentation checks do not claim browser pixel identity.",
+      "acceptance": "Actual drawn native table cells preserve nested bold/italic roles, wiki links within prose, bare URL links and decoded entities without changing source or revision. A 20,000-unmatched-bracket cell parses, mounts and draws within the TS two-second budget. Supplemental regressions forbid custom inline delimiters and HTML tag pairs spanning neighboring cells or rows, keep valid links independent of unmatched neighboring markers, preserve code literals in cells and prose, include table footnotes in document-wide first-reference numbering, and verify edited wiki-link display across real input/undo/redo and cell range splicing against a full parse. The randomized incremental syntax and plans equivalence test guards shared parser changes. These native presentation checks do not claim browser pixel identity. Supplementary native guards derive code exclusion from parser-owned indented, tab, quote and list code as well as standalone fences; ordinary indented paragraph continuation remains inline Markdown. Code text never activates custom syntax, media or footnotes, and parser code ranges splice independently from fence models after boundary edits. These guards add no TS case-count credit.",
       "typescript": [
         {
           "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
@@ -16572,6 +16572,18 @@
         {
           "package": "po-editor",
           "test": "editor::markdown::tests::table_inline_acceptance::table_html_tags_cannot_pair_across_neighboring_cells_or_rows"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::code_isolation_acceptance::indented_code_keeps_custom_syntax_media_and_footnotes_literal"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::code_isolation_acceptance::parser_code_ownership_handles_tabs_quotes_lists_and_paragraph_continuations"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::code_isolation_acceptance::indented_and_fenced_code_ranges_splice_independently_across_boundary_edits"
         }
       ],
       "environment": "local"
