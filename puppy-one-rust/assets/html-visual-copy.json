@@ -1,0 +1,71 @@
+{
+ "sourceCommit": "2d2cf6a629b2658750e80b536fd9d6999888ebef",
+ "sourceHashes": {
+  "locales/renderer/en/editor.json": "84dea9af6ead2f4d00ee4c4fc9ff7bb84b801ffb3c89d913b94ebe8ced489ccf",
+  "locales/renderer/es/editor.json": "189eb494b904fb770c00076122746bc61ae11058769838d6c0448da2dedb1481",
+  "locales/renderer/pt-BR/editor.json": "8411c732d46c313b48bfc8cd17014112c4c84e5a63a9bb656316c02fe37e1b12",
+  "locales/renderer/fr/editor.json": "6103a1f56a6e09e8238b11bba94945bfaca67720031f2122531bbd1cb1faf6b2",
+  "locales/renderer/de/editor.json": "08e57c6822976ecabfd336b066c4006fab3a4d7706e228e2cd2305a6ef8a20c8",
+  "locales/renderer/ja/editor.json": "ea8c6c3196a24d3f5884bbb0fd84a5ba2ed8d7464f2513014c5173c1c4e725f1",
+  "locales/renderer/ko/editor.json": "a26f70d15663ddde312c3d09142facb02c084702a669462b3c1c6164852ec345",
+  "locales/renderer/zh-Hans/editor.json": "06064211d96b2b40d1cbbda97bff0ae56a4ad1b43400db7bafe74d5de31c6867"
+ },
+ "locales": {
+  "en": {
+   "editor.html.linkUrl": "Link URL",
+   "editor.html.moveUp": "Move up",
+   "editor.html.moveDown": "Move down",
+   "editor.html.duplicateBlock": "Duplicate block",
+   "editor.html.deleteBlock": "Delete block"
+  },
+  "es": {
+   "editor.html.linkUrl": "URL del enlace",
+   "editor.html.moveUp": "Subir",
+   "editor.html.moveDown": "Bajar",
+   "editor.html.duplicateBlock": "Duplicar bloque",
+   "editor.html.deleteBlock": "Eliminar bloque"
+  },
+  "pt-BR": {
+   "editor.html.linkUrl": "URL do link",
+   "editor.html.moveUp": "Mover para cima",
+   "editor.html.moveDown": "Mover para baixo",
+   "editor.html.duplicateBlock": "Duplicar bloco",
+   "editor.html.deleteBlock": "Excluir bloco"
+  },
+  "fr": {
+   "editor.html.linkUrl": "URL du lien",
+   "editor.html.moveUp": "Monter",
+   "editor.html.moveDown": "Descendre",
+   "editor.html.duplicateBlock": "Dupliquer le bloc",
+   "editor.html.deleteBlock": "Supprimer le bloc"
+  },
+  "de": {
+   "editor.html.linkUrl": "Link-URL",
+   "editor.html.moveUp": "Nach oben verschieben",
+   "editor.html.moveDown": "Nach unten verschieben",
+   "editor.html.duplicateBlock": "Block duplizieren",
+   "editor.html.deleteBlock": "Block löschen"
+  },
+  "ja": {
+   "editor.html.linkUrl": "リンク URL",
+   "editor.html.moveUp": "上へ移動",
+   "editor.html.moveDown": "下へ移動",
+   "editor.html.duplicateBlock": "ブロックを複製",
+   "editor.html.deleteBlock": "ブロックを削除"
+  },
+  "ko": {
+   "editor.html.linkUrl": "링크 URL",
+   "editor.html.moveUp": "위로 이동",
+   "editor.html.moveDown": "아래로 이동",
+   "editor.html.duplicateBlock": "블록 복제",
+   "editor.html.deleteBlock": "블록 삭제"
+  },
+  "zh-Hans": {
+   "editor.html.linkUrl": "链接地址",
+   "editor.html.moveUp": "上移",
+   "editor.html.moveDown": "下移",
+   "editor.html.duplicateBlock": "复制此块",
+   "editor.html.deleteBlock": "删除此块"
+  }
+ }
+}

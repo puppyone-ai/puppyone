@@ -1,9 +1,9 @@
 {
-  "sourceCommit": "67b1e3865558b7b8fb62f0d79c3aa49a8909ad0b",
+  "sourceCommit": "2d2cf6a629b2658750e80b536fd9d6999888ebef",
   "entry": "tools/html-visual-entry.tsx",
   "entryHash": "1a1050159c7992d44aac15aef7886aa6137124827ace4ff12fed7565afb908b4",
   "outputs": {
-    "html-visual.js": "31410b96e9ff90cd25533615f5abf72077c04d01c1247236246065b5a9298ec9",
+    "html-visual.js": "4c4d24d8f5c0ecad184bc5ebf2862c10424a01fa2e3777f22feff2ba341b6d80",
     "html-visual.css": "c81af083700a852ed6840c4586bf97c40be4703aeab5b5f07567ecc63161f84d",
     "html-visual-geist.woff2": "e24cec106619c03f0b3519e31b9bc55e0d5e926b6a95b8d798cd8cef215b1505"
   },
@@ -40,9 +40,9 @@
     "src/shared-ui/editor/runtime/EditorTaskScheduler.ts": "f40cb1af8936c5dced5f11e59ce8917b6e78b4de8e877e7d6b4487c959523469",
     "src/shared-ui/editor/runtime/editorRuntimeAdmission.ts": "88bae89003ca0acbbd3ac2d8f8d5b91b9ffbe46290e216489a71fa0dda38d3fd",
     "src/shared-ui/editor/viewers/html/HtmlBlockActionRail.tsx": "6144eb3c0fab00b41b292fd660f6c0123fe3dc31258bd5b55737ed65a03fc810",
-    "src/shared-ui/editor/viewers/html/HtmlFloatingToolbar.tsx": "a140504bdc2b87481c5a2f28b674add9a9368f7efc85574225b7746b137a7ff6",
+    "src/shared-ui/editor/viewers/html/HtmlFloatingToolbar.tsx": "cb1f413fb7d7dde8f7c311e32252647d6b2690bb3f9055ac154b6e07e6690320",
     "src/shared-ui/editor/viewers/html/HtmlTextInput.tsx": "9ba5fb71a44d48a254349f7cf47a984832519c62a8aecf5d3cdc6f9e98a3b5d4",
-    "src/shared-ui/editor/viewers/html/HtmlVisualSession.ts": "b7e001393fe404f21860fc862336f47b0fd4ff8986b7a16552154dd94c138045",
+    "src/shared-ui/editor/viewers/html/HtmlVisualSession.ts": "968b3f0381bb7c3cfe4cead737cb7687fee557cda73db0b8bd982be7dbf729e1",
     "src/shared-ui/editor/viewers/html/HtmlVisualSurface.tsx": "d3e5be7b1921205e731727b3aabbf52e505cb8abda826e311bb436ecfc5e7945",
     "src/shared-ui/editor/viewers/html/htmlBridgeProtocol.ts": "8e435beb79c9ed6a36930735bc5274e6906ae0ba18ffbdfff788a892ee8a6b0b",
     "src/shared-ui/editor/viewers/html/htmlEditCompiler.ts": "4a7af489490ed14c5547502d5831967e8549c25cd2bb5f569ae476db90c95143",
