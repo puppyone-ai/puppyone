@@ -16,6 +16,7 @@ use gpui::{Entity, TestAppContext, VisualTestContext};
 
 mod block_acceptance;
 mod code_isolation_acceptance;
+mod document_scope_acceptance;
 mod editor_view_acceptance;
 mod html_acceptance;
 mod inline_acceptance;

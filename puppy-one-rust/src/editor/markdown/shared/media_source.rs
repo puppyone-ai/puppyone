@@ -41,7 +41,7 @@ impl MediaSource {
         match self {
             Self::Workspace(path) => format!(
                 "workspace:{}:{}",
-                assets.map_or("", |a| a.workspace.as_str()),
+                assets.map(|a| a.workspace_identity()).unwrap_or_default(),
                 path.display()
             ),
             Self::Remote(url) => format!("remote:{url}"),

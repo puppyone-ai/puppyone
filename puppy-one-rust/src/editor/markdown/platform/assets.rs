@@ -328,9 +328,10 @@ pub fn resolve_key(
                 });
             }
             let target = path.to_string_lossy().into_owned();
-            let rev = BROKER.with(|b| b.borrow().revision(&assets.workspace, &target));
+            let workspace_id = assets.workspace_identity();
+            let rev = BROKER.with(|b| b.borrow().revision(&workspace_id, &target));
             Ok(AssetKey {
-                workspace_id: assets.workspace.clone(),
+                workspace_id: workspace_id.into_owned(),
                 target,
                 stamp: ContentStamp::Revision(rev),
             })
@@ -447,7 +448,8 @@ pub fn retry(source: &MediaSource, assets: Option<&DocumentAssets>, cx: &mut App
                 } else {
                     let target = path.to_string_lossy().into_owned();
                     BROKER.with(|b| {
-                        b.borrow_mut().bump_revision(&assets.workspace, &target);
+                        b.borrow_mut()
+                            .bump_revision(&assets.workspace_identity(), &target);
                     });
                 }
             }

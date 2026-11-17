@@ -17339,6 +17339,41 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-document-asset-identity",
+      "acceptance": "Preserve the host workspace identity, document path and native view-owned typed read capability; absent identity falls back to the trimmed document path. Real bitmap loading and painting must isolate unnamed documents sharing a relative image path, reuse an explicit shared workspace cache, and retry only the targeted fallback scope. Native Entity IDs and typed capabilities replace CodeMirror view-id/purpose strings; no browser principal object is fabricated.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownEditorView.test.ts",
+          "sha256": "2779656bbe478cdc6949e823dd8cc282950b13c4d7e0fb6820d479ee76f55b85",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Markdown host workspace identity > builds principals from the host-injected workspace id facet"
+            },
+            {
+              "index": 8,
+              "name": "Markdown host workspace identity > falls back to a document-derived workspace id when no facet is set"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::document_scope_acceptance::document_media_preserves_host_identity_and_separates_unnamed_document_scopes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::document_scope_acceptance::document_asset_identity_preserves_host_values_and_trims_only_the_fallback_path"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::editor_view_acceptance::closing_native_markdown_releases_its_document_capability_and_view_identity"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

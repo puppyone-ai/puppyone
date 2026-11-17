@@ -14,6 +14,7 @@ use crate::{
     workspace::{PreviewResource, Workspace},
 };
 use std::{
+    borrow::Cow,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -28,6 +29,23 @@ pub struct DocumentAssets {
     pub workspace: String,
     pub document: PathBuf,
     pub read: AssetReader,
+}
+
+impl DocumentAssets {
+    /// Broker scope: preserve the host identity, or isolate standalone documents.
+    /// The raw workspace remains the authority for local filesystem containment.
+    pub fn workspace_identity(&self) -> Cow<'_, str> {
+        if !self.workspace.is_empty() {
+            return Cow::Borrowed(&self.workspace);
+        }
+        let document = self.document.to_string_lossy();
+        let document = document.trim();
+        if document.is_empty() {
+            Cow::Borrowed("workspace:anonymous")
+        } else {
+            Cow::Owned(format!("doc:{document}"))
+        }
+    }
 }
 
 impl std::fmt::Debug for DocumentAssets {
