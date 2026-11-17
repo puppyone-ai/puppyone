@@ -410,7 +410,7 @@ fn absent_repositories_are_quiet_states_and_retire_old_history_instead_of_retryi
     f.refresh();
     let pending = f.request();
     f.cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let at = f.cx.debug_bounds("git-init").unwrap().center();
     f.cx.simulate_click(at, Modifiers::default());
@@ -421,7 +421,7 @@ fn absent_repositories_are_quiet_states_and_retire_old_history_instead_of_retryi
     pending.finish(Err("fatal: not a git repository".into()));
     f.settle(|s| !s.busy && s.repository_absent);
     f.cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let at = f.cx.debug_bounds("git-init").unwrap().center();
     f.cx.simulate_click(at, Modifiers::default());

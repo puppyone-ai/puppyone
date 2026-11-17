@@ -32,7 +32,7 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
         s.sync_editor(w, cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     // Home lands on the heading's visible start (after its hidden marker);
     // then select the title and replace it.
@@ -166,7 +166,7 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
                 std::thread::sleep(std::time::Duration::from_millis(2));
             }
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
         };
     view.update(cx, |s, cx| {
@@ -403,7 +403,7 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
     fn path(csv: &Entity<crate::editor::csv::CsvEditor>, cx: &App, row: usize) -> Option<String> {

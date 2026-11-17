@@ -129,7 +129,7 @@ fn allowing_history_records_permission_and_enables_its_browser_once(cx: &mut Tes
         .unwrap();
     cx.run_until_parked();
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let calls = Rc::new(Cell::new(0));
     let browser = launcher.update_in(cx, |l, window, cx| {
@@ -140,7 +140,7 @@ fn allowing_history_records_permission_and_enables_its_browser_once(cx: &mut Tes
     });
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     assert_eq!(calls.get(), 0);
     let bounds = cx

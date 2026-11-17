@@ -71,7 +71,7 @@ pub fn app() -> TestAppContext {
 pub fn draw(cx: &mut VisualTestContext) -> f64 {
     let t = Instant::now();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     t.elapsed().as_secs_f64() * 1000.
 }

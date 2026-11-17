@@ -48,7 +48,7 @@ fn bitmap(view: &ImagePreview) -> Arc<RenderImage> {
 }
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 

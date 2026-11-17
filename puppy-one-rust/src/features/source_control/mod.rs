@@ -2296,7 +2296,7 @@ mod tests {
             s.snapshot = Some(snapshot);
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.update(cx, |s, _| {
             assert_eq!(s.sections.len(), 1);
@@ -2411,7 +2411,7 @@ mod tests {
             });
             cx.run_until_parked();
             cx.update(|window, cx| {
-                let _ = window.draw(cx);
+                window.draw(cx).clear(cx);
             });
             if operation {
                 assert!(
@@ -2457,7 +2457,7 @@ mod tests {
             });
             cx.run_until_parked();
             cx.update(|window, cx| {
-                let _ = window.draw(cx);
+                window.draw(cx).clear(cx);
             });
             assert!(cx.debug_bounds("git-publish").is_none());
             assert!(cx.debug_bounds("git-push").is_none());

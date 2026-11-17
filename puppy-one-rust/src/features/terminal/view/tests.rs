@@ -59,7 +59,7 @@ fn a_click_on_a_link_opens_it_and_a_selection_does_not(cx: &mut TestAppContext) 
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let (origin, grid) = view.read_with(cx, |s, _| (s.bounds.origin, s.grid.clone()));
     let at = |row: f32, col: f32| {
@@ -95,7 +95,7 @@ fn native_pointer_selection_copy_and_shift_override(cx: &mut TestAppContext) {
         view
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     // A drop on an exited session, or from a workspace without local
     // paths, is refused with the product notice.
@@ -113,7 +113,7 @@ fn native_pointer_selection_copy_and_shift_override(cx: &mut TestAppContext) {
         s.bounds.origin
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let cell_w = view.read_with(cx, |s, _| s.grid.cell_w);
     let start = origin + point(px(PAD_LEFT), px(PAD_TOP + 4.));

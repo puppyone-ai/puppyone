@@ -11,6 +11,13 @@ import rust_paths  # noqa: E402
 
 root = Path(__file__).resolve().parents[1]
 errors = []
+# Window::draw returns an explicit frame-arena cleanup token. Discarding it
+# retains the rendered element tree, invalidating teardown tests and excluding
+# cleanup from frame benchmarks. The production event loop clears this token.
+for path in (root / "src").rglob("*.rs"):
+    if re.search(r"\blet\s+_\s*=\s*(?:w|window)\.draw\(\w+\)\s*;", path.read_text()):
+        errors.append(f"{path.relative_to(root)}: clear the Window::draw frame arena")
+
 # UI primitives, the component library and the native text input (ui::input).
 primitives = list((root / "src/ui").rglob("*.rs"))
 for path in primitives:

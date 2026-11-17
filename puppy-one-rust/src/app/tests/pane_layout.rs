@@ -67,7 +67,7 @@ fn opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima(cx: &mut TestA
     let (view, cx) = setup(cx);
     cx.simulate_resize(size(px(760.), px(700.)));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     // Explorer alone fits: the window keeps its width.
     assert_eq!(cx.update(|w, _| f32::from(w.bounds().size.width)), 760.);
@@ -84,7 +84,7 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
     cx.update(|_, cx| cx.set_reduce_motion(true));
     cx.simulate_resize(size(px(1280.), px(800.)));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let edge = view.read_with(cx, |s, _| s.frame.layout.editor.x);
     assert_eq!(edge, 320.);
@@ -141,7 +141,7 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     cx.simulate_resize(size(px(1280.), px(800.)));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     // The stored layout arriving is shown at once, not as a close.
     let store = view.read_with(cx, |s, _| s.prefs.store.clone());
@@ -156,7 +156,7 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
         )
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.read_with(cx, |s, cx| {
         assert_eq!(
@@ -189,7 +189,7 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
     cx.update(|_, cx| cx.set_reduce_motion(true));
     cx.simulate_resize(size(px(1280.), px(800.)));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     // Armed at 100, still armed at 134 (hysteresis), open again at 200.
     drag(
@@ -225,7 +225,7 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
     view.read_with(cx, |s, _| assert_eq!(s.frame.layout.editor.x, 0.));
     cx.simulate_keystrokes("escape");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.read_with(cx, |s, cx| {
         assert!(s.panes.read(cx).dragging().is_none());
@@ -252,7 +252,7 @@ fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppCon
     cx.update(|_, cx| cx.set_reduce_motion(true));
     cx.simulate_resize(size(px(1280.), px(800.)));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.read_with(cx, |s, cx| assert!(!s.panes.read(cx).right().open));
     // A short pull snaps back closed…

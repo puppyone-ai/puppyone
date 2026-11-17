@@ -808,7 +808,7 @@ mod tests {
         });
         let surface = StructuredSurface { view: view.clone() };
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.run_until_parked();
 

@@ -262,7 +262,7 @@ fn wait_for_plan(
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 
@@ -371,7 +371,7 @@ fn settings_manage_one_space_its_members_and_its_plan(cx: &mut TestAppContext) {
         Some((2, true))
     );
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     settings.update(cx, |s, cx| s.select_page(Page::Account, cx));
     wait_for_plan(&settings, cx, |p| !p.loading && p.summary.is_some());
@@ -445,7 +445,7 @@ fn a_space_made_from_the_place_menu_opens_its_members_ready_to_invite(cx: &mut T
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.read_with(cx, |s, cx| {
         assert!(!s.has_dialog("CreateSpace", cx));

@@ -31,7 +31,7 @@ fn state(status: Status, automatic: bool) -> UpdateState {
 }
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
 }
 

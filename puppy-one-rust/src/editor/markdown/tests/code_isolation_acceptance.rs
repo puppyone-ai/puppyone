@@ -51,7 +51,7 @@ fn indented_code_keeps_custom_syntax_media_and_footnotes_literal(cx: &mut TestAp
     });
     visual.run_until_parked();
     visual.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     visual.run_until_parked();
     view.read_with(visual, |v, _| {

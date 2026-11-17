@@ -115,7 +115,7 @@ fn setup_with_focus<'a>(
 
 fn hidden(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Vec<std::ops::Range<usize>> {
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| v.decorations().hidden.clone())
 }
@@ -164,7 +164,7 @@ fn lists_continue_and_tasks_toggle_with_history(cx: &mut TestAppContext) {
 /// The lines each block of the frame shows, widgets as their line ranges.
 fn blocks(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Vec<std::ops::Range<usize>> {
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         v.decorations()
@@ -315,7 +315,7 @@ fn an_image_line_shows_its_images_and_reveals_on_request(cx: &mut TestAppContext
     });
     let embeds = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.update(cx, |v, _| {
             v.decorations()
@@ -425,7 +425,7 @@ fn missing_and_ambiguous_link_targets_are_underlined(cx: &mut TestAppContext) {
         v.set_selection(Selection::cursor(text.len()), cx)
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         let lines: Vec<_> = v
@@ -743,7 +743,7 @@ fn cursor_movement_rebuilds_zero_document_layer_blocks_and_zero_full_height_plan
     let (view, cx) = setup(cx, text);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let (rebuilds_before, full_plans_before) =
@@ -755,7 +755,7 @@ fn cursor_movement_rebuilds_zero_document_layer_blocks_and_zero_full_height_plan
     ] {
         cx.simulate_keystrokes(chord);
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
 
@@ -780,13 +780,13 @@ fn typing_on_upper_line_preserves_paragraph_cache_hits_for_lines_below(cx: &mut 
     let (view, cx) = setup(cx, &initial);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(8), cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let (hits_before, misses_before) = view.read_with(cx, |v, _| v.paragraph_cache_stats());
     cx.simulate_input("X");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let (hits_after, misses_after) = view.read_with(cx, |v, _| v.paragraph_cache_stats());
     let new_hits = hits_after - hits_before;
@@ -812,7 +812,7 @@ fn block_id_remains_stable_across_prefix_edits_and_reuses_unchanged_widget_rc(
     let (view, cx) = setup(cx, text);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let before_widgets: Vec<_> = view.update(cx, |v, _| {
@@ -830,7 +830,7 @@ fn block_id_remains_stable_across_prefix_edits_and_reuses_unchanged_widget_rc(
     // Edit line 0 above both block widgets.
     cx.simulate_input("updated ");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let after_widgets: Vec<_> = view.update(cx, |v, _| {
@@ -1040,7 +1040,7 @@ fn revealed_code_and_table_lines_carry_source_classes_and_setext_gets_heading_st
         v.set_selection(Selection::cursor(code_hash_at), cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     view.update(cx, |v, _| {
@@ -1081,7 +1081,7 @@ fn revealed_code_and_table_lines_carry_source_classes_and_setext_gets_heading_st
         v.set_selection(Selection::cursor(table_at), cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         let decos = v.decorations();
@@ -1304,7 +1304,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
         v.run_command(&Command::new("test-panic-hooks", "panic-cmd"), w, cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     view.update(cx, |v, _| {
@@ -1338,7 +1338,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
     });
     cx.simulate_input("!");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         assert!(v.text().contains("- [x] healthy"));

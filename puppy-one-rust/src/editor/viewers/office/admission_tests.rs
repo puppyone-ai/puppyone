@@ -263,7 +263,7 @@ fn office_revocation_shows_native_retry_and_a_fresh_provider_can_recover(cx: &mu
     });
     ws.revoke();
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let button = cx.debug_bounds("office-retry").unwrap();
     assert!(!folder.exists());

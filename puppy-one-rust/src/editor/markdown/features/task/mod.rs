@@ -217,13 +217,13 @@ mod tests {
             )
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.update_in(cx, |v, w, cx| {
             v.run_command(&toggle_command(0), w, cx);
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.update(cx, |v, _| {
             assert_eq!(v.text(), "- [ ] Ship release\n- [ ] Write docs\n");

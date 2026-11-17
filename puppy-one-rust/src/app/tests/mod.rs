@@ -49,14 +49,14 @@ pub(in crate::app) fn setup(cx: &mut TestAppContext) -> (Entity<Shell>, &mut Vis
     });
     let view = content.unwrap();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     (view, cx)
 }
 fn command(view: &Entity<Shell>, cx: &mut VisualTestContext, command: Command) {
     view.update_in(cx, |s, w, cx| s.command(command, w, cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 /// How soon after a change a frame still shows the motion's early part.
@@ -71,7 +71,7 @@ fn session_of(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Entity<Explor
 }
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 /// A long Markdown document open in the window's editor, from a folder
@@ -136,7 +136,7 @@ fn drag(
         );
     }
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let _ = view;
 }
@@ -241,7 +241,7 @@ pub(in crate::app) fn settle_cloud(
         view.update_in(cx, |s, w, cx| s.receive(w, cx));
         cx.run_until_parked();
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         if cx.update(|_, cx| ready(view.read(cx), cx)) {
             break;

@@ -1230,7 +1230,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(cx, |v, _| {
             assert_eq!(v.objects.as_ref().unwrap().len(), 1);
@@ -1300,7 +1300,7 @@ mod tests {
             cx.notify();
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
 }

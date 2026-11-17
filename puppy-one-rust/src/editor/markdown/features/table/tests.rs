@@ -31,7 +31,7 @@ fn setup(cx: &mut TestAppContext) -> (Entity<EditorView>, &mut VisualTestContext
     });
     view.update_in(cx, |v, w, cx| v.focus(w, cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     (view, cx)
 }
@@ -47,7 +47,7 @@ fn run(
         v.run_command(&structure(0, op, row, column), w, cx)
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 

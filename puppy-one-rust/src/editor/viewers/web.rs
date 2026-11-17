@@ -477,7 +477,7 @@ mod tests {
         let (frame, cx) =
             cx.add_window_view(|_, _| WebFrame::new(Some(dummy_content("hello world")), false));
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         frame.read_with(cx, |f, cx| {
             assert_eq!(f.find(FindEvent::Query("hello".into()), cx), None);
@@ -536,7 +536,7 @@ mod tests {
                 cx.notify();
             });
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
                 let live = live_host_count(w);
                 assert!(
                     live <= MAX_LIVE_WEBVIEWS_PER_WINDOW,
@@ -558,7 +558,7 @@ mod tests {
             cx.notify();
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
             assert_eq!(live_host_count(w), MAX_LIVE_WEBVIEWS_PER_WINDOW);
         });
         cx.run_until_parked();

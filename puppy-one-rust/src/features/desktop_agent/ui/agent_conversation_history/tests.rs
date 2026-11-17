@@ -88,7 +88,7 @@ fn setup(
 }
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
 }
 fn click(cx: &mut VisualTestContext, selector: &'static str) {

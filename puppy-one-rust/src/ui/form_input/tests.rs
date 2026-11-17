@@ -18,7 +18,7 @@ fn setup(
         input
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     (input, cx)
 }
@@ -111,7 +111,7 @@ fn mentions_insert_at_the_caret_as_atomic_tokens(cx: &mut TestAppContext) {
     let (input, cx) = setup(cx, true, 1000);
     let draw = |cx: &mut VisualTestContext| {
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         })
     };
     // The caret sits after "fix " with text following.

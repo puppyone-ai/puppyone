@@ -78,7 +78,7 @@ fn an_unfinished_installation_scan_never_recommends_installing_an_agent(cx: &mut
     let rendered = |cx: &mut VisualTestContext| {
         cx.run_until_parked();
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.debug_bounds("agent-setup-activate:codex").is_some()
     };
@@ -304,7 +304,7 @@ fn ui(cx: &mut TestAppContext) -> (UiFixture, &mut VisualTestContext) {
 fn draw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 fn has(cx: &mut VisualTestContext, selector: &'static str) -> bool {

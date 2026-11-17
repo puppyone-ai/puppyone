@@ -8,7 +8,7 @@ use serde_json::json;
 
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
 }
 

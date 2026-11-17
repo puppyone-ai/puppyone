@@ -8,7 +8,7 @@ fn table_html_tags_cannot_pair_across_neighboring_cells_or_rows(cx: &mut TestApp
     let source = "| Left | Right |\n| --- | --- |\n| <b>left | right</b> |\n| <i>open | <b>valid</b> |\n| end | </i>tail |\n\nafter";
     let (view, visual) = setup_with_focus(cx, source, false);
     visual.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.read_with(visual, |v, _| {
         let leaves = &v.layout().unwrap().leaves;
@@ -46,7 +46,7 @@ fn table_inline_delimiters_cannot_cross_cells_and_code_stays_literal(cx: &mut Te
     );
     let (view, visual) = setup_with_focus(cx, source, false);
     visual.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.read_with(visual, |v, _| {
         let leaves = &v.layout().unwrap().leaves;
@@ -164,7 +164,7 @@ fn editing_table_wiki_links_updates_the_display_and_supports_undo_redo(cx: &mut 
         });
         visual.run_until_parked();
         visual.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(visual, |v, _| {
             assert_eq!(v.text(), expected_source);
@@ -217,7 +217,7 @@ fn table_cells_render_nested_marks_wiki_links_bare_urls_and_entities(cx: &mut Te
         let start = source.find(cell).unwrap();
         let (view, visual) = setup_with_focus(cx, &source, false);
         visual.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(visual, |v, _| {
             assert!(matches!(&v.decorations().blocks[0], Block::Widget { lines, .. } if *lines == (0..3)));
@@ -245,7 +245,7 @@ fn pathological_table_inline_source_stays_within_the_ts_acceptance_budget(cx: &m
     let start = std::time::Instant::now();
     let (view, visual) = setup_with_focus(cx, &source, false);
     visual.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     assert!(
         start.elapsed() < std::time::Duration::from_secs(2),
@@ -272,7 +272,7 @@ fn table_footnotes_participate_in_document_order_and_keep_inline_code_literal(
     let source = "| Value |\n| --- |\n| First[^b] and `[^a]` |\n\nNext[^a]\n\n[^a]: first note\n\n[^b]: second note";
     let (view, visual) = setup_with_focus(cx, source, false);
     visual.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.read_with(visual, |v, _| {
         let text = v

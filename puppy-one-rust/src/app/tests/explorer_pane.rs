@@ -102,7 +102,7 @@ fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     explorer.read_with(cx, |e, _| {
         assert!(e.painted_rows > 0);
@@ -145,7 +145,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let fade = |explorer: &Entity<ExplorerSession>, cx: &mut VisualTestContext| {
         explorer.read_with(cx, |e, _| {
@@ -162,7 +162,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     assert_eq!(fade(&explorer, cx), 0.);
 }

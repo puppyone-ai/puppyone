@@ -78,9 +78,9 @@ fn experimental_import_settings_names_the_sources_and_opens_the_shared_picker_on
     cx.simulate_click(bounds.center(), Modifiers::default());
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
         w.simulate_next_frame(cx);
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     assert_eq!(*events.borrow(), ["closed", "import"]);
     shell.read_with(cx, |s, cx| {

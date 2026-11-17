@@ -250,7 +250,7 @@ fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
         s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.read_with(cx, |s, cx| {
         assert!(!s.panes.read(cx).right().open);

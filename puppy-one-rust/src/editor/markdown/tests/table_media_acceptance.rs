@@ -50,7 +50,7 @@ fn table_images_read_once_from_the_document_capability_and_render_ready(cx: &mut
         for _ in 0..3 {
             visual.run_until_parked();
             visual.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
         }
         assert_eq!(
@@ -134,7 +134,7 @@ fn table_image_failures_keep_alt_text_and_never_load_code_or_blocked_paths(
     for _ in 0..3 {
         visual.run_until_parked();
         visual.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
     assert_eq!(*reads.lock().unwrap(), [PathBuf::from("notes/absent.png")]);
@@ -202,7 +202,7 @@ fn table_images_follow_workspace_rebinding_and_expand_aligned_cell_geometry(
             for _ in 0..3 {
                 visual.run_until_parked();
                 visual.update(|w, cx| {
-                    let _ = w.draw(cx);
+                    w.draw(cx).clear(cx);
                 });
             }
             let start = source.find("![alt]").unwrap();
@@ -260,7 +260,7 @@ fn native_link_clicks_honor_policy_and_drag_cancellation_in_tables_and_prose(
             };
             let (view, visual) = setup_with_focus(cx, &source, false);
             visual.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
             let at = source.find("label").unwrap();
             let position = view.read_with(visual, |v, _| {
@@ -370,7 +370,7 @@ fn table_links_activate_the_host_external_link_path(cx: &mut TestAppContext) {
             format!("| Wide column header |\n| {separator} |\n| [docs]({href}) |\n\nafter");
         let (view, visual) = setup_with_focus(cx, &source, false);
         visual.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         let at = source.find("docs").unwrap();
         let position = view.read_with(visual, |v, _| {
@@ -395,7 +395,7 @@ fn table_wrapped_cell_geometry_uses_painted_alignment_for_hit_testing(cx: &mut T
         let source = format!("| Content |\n| {separator} |\n| {cell} |\n\nafter");
         let (view, visual) = setup_with_focus(cx, &source, false);
         visual.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(visual, |v, _| {
             let leaf = v

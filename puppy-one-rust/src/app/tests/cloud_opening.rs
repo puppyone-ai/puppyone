@@ -164,7 +164,7 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
             view.update_in(cx, |s, w, cx| s.receive(w, cx));
             cx.run_until_parked();
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
             if cx.update(|_, cx| ready(view.read(cx), cx)) {
                 break;
@@ -307,7 +307,7 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
             view.update_in(cx, |s, w, cx| s.receive(w, cx));
             cx.run_until_parked();
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
             if cx.update(|_, cx| ready(view.read(cx), cx)) {
                 break;
@@ -386,7 +386,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
             view.update_in(cx, |s, w, cx| s.receive(w, cx));
             cx.run_until_parked();
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
             if cx.update(|_, cx| ready(view.read(cx), cx)) {
                 break;
@@ -560,7 +560,7 @@ fn a_vanished_cloud_projects_link_is_ended_from_its_notice(cx: &mut TestAppConte
             view.update_in(cx, |s, w, cx| s.receive(w, cx));
             cx.run_until_parked();
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
             if cx.update(|_, cx| ready(view.read(cx), cx)) {
                 break;

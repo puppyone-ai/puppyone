@@ -1136,7 +1136,7 @@ fn rg02_rg03_oversized_opens_in_pane_card_and_large_text_locks_readonly_banner(
     });
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     assert!(cx.debug_bounds("document-readonly-banner").is_some());
     let ed = view.update(cx, |v, _| {

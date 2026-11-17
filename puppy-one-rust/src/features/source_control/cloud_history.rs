@@ -1377,7 +1377,7 @@ mod tests {
         let (view, vcx) = cx.add_window_view(|_, cx| CloudHistory::new(cx));
         let draw = |vcx: &mut gpui::VisualTestContext| {
             vcx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             })
         };
         // Loading, then the list with its pagination footer.

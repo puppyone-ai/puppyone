@@ -57,7 +57,7 @@ fn setup<'a>(
     let (view, cx) = cx.add_window_view(move |_, cx| EditorView::new(&text, plain(), cx));
     view.update_in(cx, |v, w, cx| v.focus(w, cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     (view, cx)
 }
@@ -92,7 +92,7 @@ fn typing_motion_deletion_and_history(cx: &mut TestAppContext) {
 fn layout_centres_the_rail_and_maps_points_to_offsets(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx, "one\ntwo");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         let layout = v.layout().unwrap();
@@ -201,7 +201,7 @@ fn a_new_editor_lays_out_for_its_pane_on_its_first_frame(cx: &mut TestAppContext
                 cx.notify();
                 p.editor.clone()
             });
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
             (editor.clone(), pane_layout(&editor, cx))
         })
     };
@@ -210,7 +210,7 @@ fn a_new_editor_lays_out_for_its_pane_on_its_first_frame(cx: &mut TestAppContext
     // The first frame is final: the next one lays out the same.
     let again = cx.update(|w, cx| {
         w.refresh();
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
         pane_layout(&editor, cx)
     });
     assert_eq!(again, first);
@@ -231,7 +231,7 @@ fn long_document(lines: usize, words: usize) -> String {
 fn settle(cx: &mut VisualTestContext) {
     for _ in 0..6 {
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.run_until_parked();
     }
@@ -401,7 +401,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         v.set_selection(Selection::cursor(2), cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let events = Rc::new(RefCell::new(Vec::new()));
     let sink = events.clone();
@@ -478,7 +478,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
     });
     assert!(events.borrow().is_empty());
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let jump = view.read_with(cx, |v, _| {
         v.caches
@@ -500,7 +500,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         "heading navigation is not a document edit"
     );
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update_in(cx, |v, w, cx| {
         v.mouse_down(&down(at), w, cx);
@@ -515,7 +515,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         "a save/modal barrier cancels the old gesture"
     );
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update_in(cx, |v, w, cx| {
         v.mouse_down(&down(at), w, cx);
@@ -534,7 +534,7 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
     let initial = "alpha beta gamma delta epsilon\nsecond line here";
     let (view, cx) = setup(cx, initial);
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let far_right = view.read_with(cx, |v, _| {
@@ -586,11 +586,11 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
 
     // Also verify when the old layout offset lands mid-codepoint (e.g. byte 1 or 2 of "中文").
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update_in(cx, |v, _, cx| v.replace_text("ab third", cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let byte_two = view.read_with(cx, |v, _| {
         let layout = v.caches.layout.as_ref().unwrap();

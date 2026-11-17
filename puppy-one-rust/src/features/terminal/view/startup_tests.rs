@@ -151,7 +151,7 @@ fn native_agent_cover_blocks_user_input_but_reveals_on_first_tui_and_cancels_its
     });
     let bridge = bridge.borrow_mut().take().unwrap();
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     assert!(cx.debug_bounds("terminal-startup-cover").is_some());
     view.update(cx, |s, cx| {
@@ -187,7 +187,7 @@ fn native_agent_cover_blocks_user_input_but_reveals_on_first_tui_and_cancels_its
     bridge.outlet.send(Event::Data(b"49hready".to_vec()));
     cx.run_until_parked();
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     assert!(cx.debug_bounds("terminal-startup-cover").is_none());
     view.update(cx, |s, cx| {

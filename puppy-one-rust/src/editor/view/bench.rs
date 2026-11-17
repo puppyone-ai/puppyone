@@ -71,7 +71,7 @@ fn time_input_frame(
     let t = Instant::now();
     dispatch(cx);
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     t.elapsed().as_secs_f64() * 1000.
 }

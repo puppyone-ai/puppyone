@@ -24,7 +24,7 @@ fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
         s.dialogs.read(cx).settings.entity_id()
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |s, cx| {
         s.dialogs.read(cx).settings.clone().update(cx, |s, cx| {
@@ -33,7 +33,7 @@ fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     command(&view, cx, Command::Escape);
     command(&view, cx, Command::Settings);

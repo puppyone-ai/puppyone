@@ -28,7 +28,7 @@ fn setup(cx: &mut TestAppContext) -> (Entity<ComposerView>, Log, &mut VisualTest
         .detach();
     });
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     (composer, log, cx)
 }

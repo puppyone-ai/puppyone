@@ -758,7 +758,7 @@ mod tests {
         });
         let view = content.unwrap();
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         (view, cx)
     }
@@ -779,7 +779,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
 
@@ -822,7 +822,7 @@ mod tests {
             s.command(Command::CompareCloudConflict, w, cx);
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(cx, |s, cx| {
             assert!(s.editor.read(cx).comparing_conflict);
@@ -994,11 +994,11 @@ mod tests {
             assert!(handled);
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.run_until_parked();
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(cx, |s, cx| {
             assert!(s.editor.read(cx).pending_external_drop.is_some());

@@ -108,7 +108,7 @@ fn a_hosted_chat_with_an_unconfirmed_submission_cannot_close(cx: &mut TestAppCon
     });
     // The conversation draws its status, transcript and composer.
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |s, cx| {
         s.close(tab, false, cx);
@@ -126,7 +126,7 @@ fn a_hosted_chat_with_an_unconfirmed_submission_cannot_close(cx: &mut TestAppCon
         hosted(cx, &|c| c.can_release())
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |s, cx| {
         s.close(tab, false, cx);
@@ -162,7 +162,7 @@ fn project_switch_retains_tabs_without_starting_a_process(cx: &mut TestAppContex
         assert_eq!(s.project().unwrap().content.len(), 2);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |s, cx| {
         let ids = s.project().unwrap().layout.groups[&0].tabs.clone();
@@ -173,7 +173,7 @@ fn project_switch_retains_tabs_without_starting_a_process(cx: &mut TestAppContex
         assert_eq!(s.project().unwrap().layout.groups[&0].active, None);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 #[gpui::test]
@@ -270,7 +270,7 @@ fn split_move_and_overflow_keep_the_same_content_instance(cx: &mut TestAppContex
         );
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 
@@ -307,7 +307,7 @@ fn native_history_read_failure_renders_retry_but_confirmed_missing_history_does_
             .then(|| -> CreationRetry { Rc::new(move |_, _| retried.set(retried.get() + 1)) });
         view.update(cx, |w, cx| w.fail_creation(0, rendered.into(), retry, cx));
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         let message_selector = if retryable {
             "floating-notice-message:History messages could not be loaded. Try again."
@@ -321,7 +321,7 @@ fn native_history_read_failure_renders_retry_but_confirmed_missing_history_does_
             cx.simulate_click(bounds.center(), Modifiers::none());
             cx.run_until_parked();
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
             assert_eq!(retries.get(), 1);
             assert!(view.read_with(cx, |w, _| w.creation_failure.is_none()));
