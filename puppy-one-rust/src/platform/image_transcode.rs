@@ -186,8 +186,8 @@ pub fn to_png(path: &Path, max_bytes: u64) -> Result<Vec<u8>, String> {
         return Ok(png);
     }
 
-    if let Ok(bytes) = std::fs::read(path)
-        && let Ok(img) = image::load_from_memory(&bytes)
+    if let Ok(bytes) = read_regular(path, max_bytes)
+        && let Ok(img) = decode_fallback_pixels(&bytes, MAX_DECODE_BYTES as u64)
     {
         let mut cursor = std::io::Cursor::new(Vec::new());
         if img.write_to(&mut cursor, image::ImageFormat::Png).is_ok() {
@@ -261,16 +261,17 @@ fn decode_with_image_crate(
     max_source_bytes: u64,
     target_max_px: u32,
 ) -> Result<DecodedImage, DecodeError> {
+    precheck_size(input, max_source_bytes)?;
     let owned;
     let bytes: &[u8] = match input {
         ImageInput::Bytes { bytes, .. } => bytes,
         ImageInput::File(path) => {
-            precheck_size(input, max_source_bytes)?;
-            owned = std::fs::read(path).map_err(|e| DecodeError::Failed(e.to_string()))?;
+            owned = read_regular(path, max_source_bytes).map_err(DecodeError::Failed)?;
             &owned
         }
     };
-    let dynamic = image::load_from_memory(bytes).map_err(|e| DecodeError::Failed(e.to_string()))?;
+    let dynamic = decode_fallback_pixels(bytes, MAX_DECODE_BYTES as u64)
+        .map_err(|e| DecodeError::Failed(e.to_string()))?;
     let (nw, nh) = (dynamic.width().max(1), dynamic.height().max(1));
     let cap = clamp_decode_max_px(target_max_px, nw, nh);
     let resized = if nw.max(nh) > cap {
@@ -278,7 +279,7 @@ fn decode_with_image_crate(
     } else {
         dynamic
     };
-    let rgba = resized.to_rgba8();
+    let rgba = resized.into_rgba8();
     let (w, h) = (rgba.width(), rgba.height());
     let bgra = rgba_to_premultiplied_bgra(rgba.into_raw());
     Ok(DecodedImage {
@@ -294,6 +295,40 @@ fn decode_with_image_crate(
     })
 }
 
+/// Unlike ImageIO thumbnails, these codecs expand the original raster first.
+/// Admit that raster before allocating it, including later RGBA expansion of
+/// grayscale/RGB inputs and the original depth of 16-bit inputs. The codec's
+/// allocation limit is best-effort: this is not a process RSS ceiling.
+fn decode_fallback_pixels(
+    bytes: &[u8],
+    pixel_budget: u64,
+) -> image::ImageResult<image::DynamicImage> {
+    use image::ImageDecoder;
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
+    let mut limits = image::Limits::default();
+    limits.max_alloc = Some(MAX_DECODE_BYTES as u64);
+    reader.limits(limits.clone());
+    let mut decoder = reader.into_decoder()?;
+    let (width, height) = decoder.dimensions();
+    let native_bytes = decoder.total_bytes();
+    let rgba_bytes = u64::from(width)
+        .saturating_mul(u64::from(height))
+        .saturating_mul(4);
+    if native_bytes.max(rgba_bytes) > pixel_budget {
+        return Err(image::ImageError::Limits(
+            image::error::LimitError::from_kind(image::error::LimitErrorKind::InsufficientMemory),
+        ));
+    }
+    // Include the destination raster in the codec's own allocation accounting.
+    limits.reserve(native_bytes)?;
+    decoder.set_limits(limits)?;
+    image::DynamicImage::from_decoder(decoder)
+}
+
+#[cfg(test)]
+#[path = "image_fallback_tests.rs"]
+mod fallback_tests;
+
 fn sips_to_png(path: &Path) -> Result<Vec<u8>, String> {
     let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
     let out = dir.path().join("preview.png");
@@ -301,6 +336,8 @@ fn sips_to_png(path: &Path) -> Result<Vec<u8>, String> {
         .arg("-s")
         .arg("format")
         .arg("png")
+        .arg("--resampleHeightWidthMax")
+        .arg("4096")
         .arg(path)
         .arg("--out")
         .arg(&out)
@@ -323,7 +360,7 @@ fn sips_to_png(path: &Path) -> Result<Vec<u8>, String> {
         }
         std::thread::sleep(Duration::from_millis(10));
     }
-    std::fs::read(&out).map_err(|e| e.to_string())
+    read_regular(&out, MAX_OUTPUT_BYTES as u64)
 }
 
 #[cfg(target_os = "macos")]

@@ -487,7 +487,7 @@
     },
     {
       "id": "binary-preview-invalidation",
-      "acceptance": "Image, PDF, Office, audio and video reacquire only on own/ancestor or unknown changes, publish the replacement and release the old native snapshot. Hidden and rebound reads are fenced; failed refresh preserves the shown snapshot and Retry reacquires from the provider. Native Arc ownership replaces TS URL revocation. Image admission consumes provider-authorized bounded snapshots off the UI thread; replacement, revocation and disposal cancel owned work, fence replies and evict stale decode assets. AVIF conversion has bounded input/output, deadlines and child-process cleanup; actual Retry and damaged-image decoding are exercised. Media surfaces grant one provider resource, use leased readers for HEAD and Range without whole-file copies, preserve registered MIME for extensionless inputs, and retire protocol clones and stale frame IPC on replacement, failure, revocation or disposal.",
+      "acceptance": "Image, PDF, Office, audio and video reacquire only on own/ancestor or unknown changes, publish the replacement and release the old native snapshot. Hidden and rebound reads are fenced; failed refresh preserves the shown snapshot and Retry reacquires from the provider. Native Arc ownership replaces TS URL revocation. Image admission consumes provider-authorized bounded snapshots off the UI thread; replacement, revocation and disposal cancel owned work, fence replies and evict stale decode assets. AVIF conversion has bounded input/output, deadlines and child-process cleanup; actual Retry and damaged-image decoding are exercised. Media surfaces grant one provider resource, use leased readers for HEAD and Range without whole-file copies, preserve registered MIME for extensionless inputs, and retire protocol clones and stale frame IPC on replacement, failure, revocation or disposal. Additional native decoder acceptance bounds source bytes and rejects excessive original raster expansion before decoding, including grayscale-to-RGBA and sixteen-bit pixels; all five enabled fallback codecs, invalid/oversized headers, premultiplied BGRA, downsampling and real macOS sips output are exercised. The 64 MiB raster admission and best-effort codec limits are not a process RSS ceiling or a claim that Chromium uses this native implementation.",
       "typescript": [
         {
           "path": "tests/component/editor/resources/fileResourceLease.test.tsx",
@@ -644,6 +644,54 @@
         {
           "package": "po-platform",
           "test": "platform::webview::stream_tests::cumulative_projection_budgets_charge_actual_range_bytes_and_refuse_new_references_before_open"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::fallback_tests::enabled_fallback_codecs_apply_the_pixel_budget_before_shrinking"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::fallback_tests::oversized_headers_are_rejected_before_invalid_pixel_data_is_decoded"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::fallback_tests::corrupt_and_empty_inputs_never_produce_a_fabricated_frame"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::fallback_tests::system_fallback_resamples_its_output_and_preserves_the_source"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::fallback_tests::grayscale_and_sixteen_bit_inputs_account_for_native_and_rgba_expansion"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::fallback_tests::fallback_checks_the_source_budget_for_both_file_and_bytes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::fallback_tests::fallback_preserves_natural_dimensions_and_resizes_without_upscaling"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::decoding_tests::avif_is_transcoded_to_png_through_imageio"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::decoding_tests::display_size_decode_scales_down_and_enforces_source_and_memory_budgets"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::decoding_tests::avif_decodes_in_process_to_bgra_frames"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::decoding_tests::exif_orientation_rotates_thumbnail_dimensions_in_imageio"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::image_transcode::decoding_tests::quick_look_preview_respects_timeout_and_returns_metadata"
         }
       ],
       "environment": "local"
