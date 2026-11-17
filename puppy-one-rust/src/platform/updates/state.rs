@@ -125,6 +125,9 @@ pub enum Titlebar {
     Installing,
 }
 pub fn titlebar(state: &UpdateState) -> Option<Titlebar> {
+    if !state.candidate_allowed() {
+        return None;
+    }
     match state.status {
         Status::Available if !state.automatically_download => Some(Titlebar::Available),
         Status::Downloaded => Some(Titlebar::Ready),
@@ -180,5 +183,45 @@ mod tests {
         assert_eq!(titlebar(&state(Status::Downloading, Some("0.4.5"))), None);
         let initial = UpdateState::new(Channel::Dev, "0.1.0".into(), Some("off".into()), true);
         assert_eq!(initial.status, Status::Disabled);
+    }
+
+    #[test]
+    fn titlebar_hides_nonactionable_states_even_when_a_candidate_is_present() {
+        for status in [
+            Status::Disabled,
+            Status::Idle,
+            Status::Checking,
+            Status::NotAvailable,
+            Status::Available,
+            Status::Downloading,
+            Status::Error,
+        ] {
+            assert_eq!(titlebar(&state(status, Some("0.4.5"))), None, "{status:?}");
+        }
+    }
+
+    #[test]
+    fn titlebar_refuses_stale_cross_channel_and_malformed_candidates_in_every_actionable_state() {
+        for status in [Status::Available, Status::Downloaded, Status::Installing] {
+            for candidate in [
+                Some("0.4.4"),
+                Some("0.4.3"),
+                Some("0.4.5-internal.1"),
+                None,
+                Some("v0.4.5"),
+                Some("0.4.5+build"),
+            ] {
+                let mut offered = state(status, candidate);
+                offered.automatically_download = false;
+                assert_eq!(titlebar(&offered), None, "{status:?} {candidate:?}");
+            }
+            let mut internal = state(status, Some("0.4.4-internal.81"));
+            internal.channel = Channel::Internal;
+            internal.current_version = "0.4.4-internal.80".into();
+            internal.automatically_download = false;
+            assert!(titlebar(&internal).is_some());
+            internal.available_version = Some("0.4.4-internal.79".into());
+            assert_eq!(titlebar(&internal), None);
+        }
     }
 }

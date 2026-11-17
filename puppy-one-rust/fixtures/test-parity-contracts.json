@@ -14884,6 +14884,180 @@
           "test": "ui::components::menu::tests::keyboard_menu_with_no_enabled_rows_still_dismisses_and_returns_focus"
         }
       ]
+    },
+    {
+      "id": "native-update-version-policy",
+      "acceptance": "Canonical SemVer parsing and precedence, strict version increase, same/older candidate rejection, stable/internal channel isolation and malformed-input failure preserve all 19 TS version policy cases. Native evaluate.allowed is the TS newer predicate.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/policy/desktopUpdatePolicy.test.mjs",
+          "sha256": "3be43bfa01335025bb59bdc13d44395295b98b1f53d180fda1cca81a36afaec2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop updater monotonic version policy > accepts only a strictly newer candidate (0.3.13 -> 0.3.14)"
+            },
+            {
+              "index": 1,
+              "name": "Desktop updater monotonic version policy > accepts only a strictly newer candidate (0.3.13-internal.33 -> 0.3.13-internal.34)"
+            },
+            {
+              "index": 2,
+              "name": "Desktop updater monotonic version policy > accepts only a strictly newer candidate (0.3.13-internal.33 -> 0.3.14-internal.1)"
+            },
+            {
+              "index": 3,
+              "name": "Desktop updater monotonic version policy > implements canonical SemVer prerelease ordering without deployment dependencies"
+            },
+            {
+              "index": 4,
+              "name": "Desktop updater monotonic version policy > rejects non-canonical SemVer 01.0.0"
+            },
+            {
+              "index": 5,
+              "name": "Desktop updater monotonic version policy > rejects non-canonical SemVer 1.01.0"
+            },
+            {
+              "index": 6,
+              "name": "Desktop updater monotonic version policy > rejects non-canonical SemVer 1.0.01"
+            },
+            {
+              "index": 7,
+              "name": "Desktop updater monotonic version policy > rejects non-canonical SemVer 1.0.0-alpha.01"
+            },
+            {
+              "index": 8,
+              "name": "Desktop updater monotonic version policy > rejects non-canonical SemVer 1.0"
+            },
+            {
+              "index": 9,
+              "name": "Desktop updater monotonic version policy > rejects a non-forward candidate (0.3.13 -> 0.3.13)"
+            },
+            {
+              "index": 10,
+              "name": "Desktop updater monotonic version policy > rejects a non-forward candidate (0.3.13 -> 0.3.11)"
+            },
+            {
+              "index": 11,
+              "name": "Desktop updater monotonic version policy > rejects a non-forward candidate (0.3.13 -> 0.1.14)"
+            },
+            {
+              "index": 12,
+              "name": "Desktop updater monotonic version policy > rejects a non-forward candidate (0.3.13-internal.33 -> 0.3.13-internal.32)"
+            },
+            {
+              "index": 13,
+              "name": "Desktop updater monotonic version policy > rejects a newer version from the wrong stable channel"
+            },
+            {
+              "index": 14,
+              "name": "Desktop updater monotonic version policy > rejects a newer version from the wrong internal channel"
+            },
+            {
+              "index": 15,
+              "name": "Desktop updater monotonic version policy > fails closed for malformed version input (not-semver -> 0.3.14)"
+            },
+            {
+              "index": 16,
+              "name": "Desktop updater monotonic version policy > fails closed for malformed version input (0.3.13 -> v0.3.14)"
+            },
+            {
+              "index": 17,
+              "name": "Desktop updater monotonic version policy > fails closed for malformed version input (0.3.13 ->  0.3.14)"
+            },
+            {
+              "index": 18,
+              "name": "Desktop updater monotonic version policy > fails closed for malformed version input (0.3.13 -> null)"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::policy::tests::only_a_strictly_newer_candidate_is_accepted"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::policy::tests::semver_prerelease_ordering_is_canonical"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::policy::tests::wrong_channel_and_malformed_input_fail_closed"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-update-titlebar-candidate-guard",
+      "acceptance": "Nonactionable update states stay hidden. Before exposing download/restart/installing UI, the presentation independently requires a strictly newer same-channel candidate; stale, absent, malformed and cross-channel candidates stay hidden even when passed directly without a prior service normalization. These model tests do not close native click, focus, restart cancellation or OS installation acceptance.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/notifications/desktopUpdateTitlebarModel.test.ts",
+          "sha256": "2ea3f21af8b37e727bc8269e4fc8437a593ea333d3c8802afd21c2cf7f95f276",
+          "cases": [
+            {
+              "index": 1,
+              "name": "desktop update titlebar presentation > stays hidden for disabled"
+            },
+            {
+              "index": 2,
+              "name": "desktop update titlebar presentation > stays hidden for idle"
+            },
+            {
+              "index": 3,
+              "name": "desktop update titlebar presentation > stays hidden for checking"
+            },
+            {
+              "index": 4,
+              "name": "desktop update titlebar presentation > stays hidden for not-available"
+            },
+            {
+              "index": 5,
+              "name": "desktop update titlebar presentation > stays hidden for available"
+            },
+            {
+              "index": 6,
+              "name": "desktop update titlebar presentation > stays hidden for downloading"
+            },
+            {
+              "index": 7,
+              "name": "desktop update titlebar presentation > stays hidden for error"
+            },
+            {
+              "index": 10,
+              "name": "desktop update titlebar presentation > fails closed and stays hidden for a 1.4.0 candidate (same)"
+            },
+            {
+              "index": 11,
+              "name": "desktop update titlebar presentation > fails closed and stays hidden for a 1.3.9 candidate (older)"
+            },
+            {
+              "index": 12,
+              "name": "desktop update titlebar presentation > fails closed and stays hidden for a 1.5.0-internal.1 candidate (cross-channel)"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::state::tests::titlebar_hides_nonactionable_states_even_when_a_candidate_is_present"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::state::tests::titlebar_refuses_stale_cross_channel_and_malformed_candidates_in_every_actionable_state"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::state::tests::only_a_newer_same_channel_version_is_ever_offered"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::state::tests::the_titlebar_shows_only_what_it_can_act_on"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
