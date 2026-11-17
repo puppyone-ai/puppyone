@@ -14,6 +14,8 @@ use crate::{
 };
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
+mod block_acceptance;
+
 #[test]
 fn dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans() {
     use super::{
@@ -74,6 +76,14 @@ fn setup<'a>(
     cx: &'a mut TestAppContext,
     text: &str,
 ) -> (Entity<EditorView>, &'a mut VisualTestContext) {
+    setup_with_focus(cx, text, true)
+}
+
+fn setup_with_focus<'a>(
+    cx: &'a mut TestAppContext,
+    text: &str,
+    focused: bool,
+) -> (Entity<EditorView>, &'a mut VisualTestContext) {
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
@@ -89,7 +99,9 @@ fn setup<'a>(
             cx,
         )
     });
-    view.update_in(cx, |v, w, cx| v.focus(w, cx));
+    if focused {
+        view.update_in(cx, |v, w, cx| v.focus(w, cx));
+    }
     cx.run_until_parked();
     (view, cx)
 }

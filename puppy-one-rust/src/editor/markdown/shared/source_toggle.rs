@@ -40,6 +40,7 @@ pub fn source_toggle(
         .text_color(t.muted);
     let mut toggle = div()
         .id(id)
+        .debug_selector(|| group.to_owned())
         .absolute()
         .top(px(INSET))
         .left(px(toggle_left(width)))

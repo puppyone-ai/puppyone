@@ -1169,7 +1169,16 @@ impl Syntax {
 
     pub fn reveal_element(&self, caret: usize) -> Option<&Element> {
         self.elements_in(caret..caret)
-            .filter(|e| e.kind.reveals() && caret > e.range.start && caret < e.range.end)
+            .filter(|e| {
+                e.kind.reveals()
+                    && if matches!(e.kind, Kind::FootnoteReference | Kind::FootnoteDefinition) {
+                        // Footnote markers expose their source on either
+                        // boundary, matching the product's caret-touch rule.
+                        e.range.start <= caret && caret <= e.range.end
+                    } else {
+                        e.range.start < caret && caret < e.range.end
+                    }
+            })
             .min_by_key(|e| e.range.len())
     }
 

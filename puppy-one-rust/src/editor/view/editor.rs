@@ -807,7 +807,9 @@ impl EditorView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.focus.focus(window, cx);
+        if command.focuses_editor() {
+            self.focus.focus(window, cx);
+        }
         self.commit_composition(cx);
         if let Some(tr) = self.extensions.command(command, &self.state) {
             self.dispatch(tr, cx);

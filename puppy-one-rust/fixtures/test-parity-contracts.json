@@ -16307,6 +16307,207 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-callout-presentation-and-focus",
+      "acceptance": "The seven TS callout kinds render their expected appearance and title; authored titles replace defaults, ordinary quotes remain quotes, and bold body text remains editable Markdown. A never-focused pane keeps its rendered header; moving the focused caret into and out of the title reveals and hides the marker. Actual fold-button clicks exercise both minus/plus defaults in editable and read-only panes, keep focus and valid selection unchanged, preserve all source bytes and leave document revision at zero. Existing tests retain fold state across edits/undo/redo and preserve IME command commits.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
+          "sha256": "3543942774675a149ad6b8d4030ad98fe0b5dc9c888e7b21cf27178a3aaaff6c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown callouts > renders > [!NOTE]\n> body"
+            },
+            {
+              "index": 1,
+              "name": "Markdown callouts > renders > [!tip]\n> body"
+            },
+            {
+              "index": 2,
+              "name": "Markdown callouts > renders > [!IMPORTANT]\n> body"
+            },
+            {
+              "index": 3,
+              "name": "Markdown callouts > renders > [!WARNING]\n> body"
+            },
+            {
+              "index": 4,
+              "name": "Markdown callouts > renders > [!CAUTION]\n> body"
+            },
+            {
+              "index": 5,
+              "name": "Markdown callouts > renders > [!done]\n> body"
+            },
+            {
+              "index": 6,
+              "name": "Markdown callouts > renders > [!unknown]\n> body"
+            },
+            {
+              "index": 7,
+              "name": "Markdown callouts > uses an authored title in place of the default"
+            },
+            {
+              "index": 8,
+              "name": "Markdown callouts > keeps the body as editable Markdown lines"
+            },
+            {
+              "index": 9,
+              "name": "Markdown callouts > shows the marker while the caret is on the title line"
+            },
+            {
+              "index": 10,
+              "name": "Markdown callouts > keeps the header in a pane that has never held focus"
+            },
+            {
+              "index": 11,
+              "name": "Markdown callouts > starts folded with a minus marker and never rewrites the source to toggle"
+            },
+            {
+              "index": 12,
+              "name": "Markdown callouts > starts open with a plus marker"
+            },
+            {
+              "index": 13,
+              "name": "Markdown callouts > leaves an ordinary quote alone"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_acceptance::callout_appearances_titles_and_markdown_body_render_without_changing_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_acceptance::callout_markers_reveal_only_while_the_focused_caret_touches_the_title"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_acceptance::callout_fold_buttons_toggle_both_initial_states_without_source_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::callout::tests::callouts_follow_the_product_marker"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::a_callout_folds_in_the_pane_without_an_edit"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::callout_fold_and_mdx_tabs_map_accurately_across_edits_undo_and_redo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::run_command_commits_active_ime_composition_before_executing_command"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::read_only_allows_view_commands_and_blocks_document_edits"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-markdown-footnote-presentation-and-navigation",
+      "acceptance": "Rendered footnote references and definitions use first-reference numbering, repeated references reuse their number, definition bodies remain visible and unresolved references remain literal. Real pointer clicks navigate from a reference to its definition and back with no source or revision change. Both boundaries and the interior of a focused editable footnote reveal its source; leaving the marker or enabling read-only restores presentation. This criterion does not credit footnotes inside table cells.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
+          "sha256": "3543942774675a149ad6b8d4030ad98fe0b5dc9c888e7b21cf27178a3aaaff6c",
+          "cases": [
+            {
+              "index": 14,
+              "name": "Markdown footnotes > numbers references by first use and shows the definition marker"
+            },
+            {
+              "index": 15,
+              "name": "Markdown footnotes > jumps from a reference to its definition and back"
+            },
+            {
+              "index": 16,
+              "name": "Markdown footnotes > leaves a reference without a definition as text"
+            },
+            {
+              "index": 17,
+              "name": "Markdown footnotes > shows the reference source when the caret touches it"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_acceptance::footnotes_render_first_use_numbers_and_reveal_only_the_touched_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_acceptance::footnote_pointer_navigation_jumps_to_definition_and_back_without_editing"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::syntax::footnotes::tests::notes_are_numbered_by_first_reference"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::a_footnote_marker_jumps_to_its_counterpart"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::markers_hide_and_reveal_with_the_caret"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-markdown-front-matter-widget-and-source",
+      "acceptance": "A closed nonempty front-matter block at document start supplies title/tags keys with unquoted Hello and joined a, b values to the native table model and renders as a nonzero-height widget hiding its delimiters. A real source-button click exposes the metadata without changing source bytes or revision; existing edit/leave coverage checks source retention and restoring the table. Non-leading, unclosed and empty candidates render no metadata widget. Table model and native widget/input acceptance are covered; this does not claim browser pixel identity.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
+          "sha256": "3543942774675a149ad6b8d4030ad98fe0b5dc9c888e7b21cf27178a3aaaff6c",
+          "cases": [
+            {
+              "index": 18,
+              "name": "Markdown front matter > reads as a table and keeps the document untouched"
+            },
+            {
+              "index": 19,
+              "name": "Markdown front matter > opens its source from the widget"
+            },
+            {
+              "index": 20,
+              "name": "Markdown front matter > ignores a rule that is not at the top"
+            },
+            {
+              "index": 21,
+              "name": "Markdown front matter > ignores an unclosed block"
+            },
+            {
+              "index": 22,
+              "name": "Markdown front matter > ignores an empty block"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_acceptance::front_matter_table_and_source_button_preserve_metadata_and_reject_invalid_blocks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::front_matter::tests::metadata_at_the_top_reads_as_a_table"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::front_matter_source_shows_until_the_caret_leaves"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

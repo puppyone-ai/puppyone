@@ -836,6 +836,7 @@ impl RenderCx<'_> {
         let id = self.leaves.len();
         div()
             .id(("editor-hotspot", id))
+            .debug_selector(|| command.feature().to_owned())
             .absolute()
             .left(px(rect.x))
             .top(px(rect.y))
