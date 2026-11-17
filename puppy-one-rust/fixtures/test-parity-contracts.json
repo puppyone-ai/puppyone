@@ -15615,6 +15615,140 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-update-disabled-configurations",
+      "acceptance": "Real configuration and disablement resolve packaged/unpackaged Dev and unpackaged Internal/Stable before any signature inspection. Native service entry points stay callable twice, retain Disabled with no error, create no schedule, perform no HTTP or preference/archive write, and never quit. Native typed methods replace the six Electron IPC handlers; no native updater engine must be constructed for these disabled states.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop updater channel isolation > keeps disabled dev updates usable without a native updater (packaged: false)"
+            },
+            {
+              "index": 1,
+              "name": "Desktop updater channel isolation > keeps disabled dev updates usable without a native updater (packaged: true)"
+            },
+            {
+              "index": 2,
+              "name": "Desktop updater channel isolation > keeps disabled internal updates usable without a native updater (packaged: false)"
+            },
+            {
+              "index": 3,
+              "name": "Desktop updater channel isolation > keeps disabled stable updates usable without a native updater (packaged: false)"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::configuration_tests::preflight_rejections_are_ordered_and_never_inspect_signatures_when_disabled_earlier"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::disabled_service_commands_do_not_write_check_download_or_quit"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-update-compiled-channel-feeds",
+      "acceptance": "The real Python release-identity producer feeds the native runtime resolver. Stable and Internal stamps preserve their exact production origins, channel metadata names, versions and force-dev=false despite hostile runtime overrides. Both macOS architectures share the channel feed and the production payload selector chooses their matching archive. The public runtime entry consumes only its compiled feed; no runtime URL or channel variable can replace it, including when no feed was compiled. Native policy rejects same, older and cross-channel candidates after configuration; Rust has no third-party channel setter that can re-enable downgrades. This covers macOS routing and configuration, not Windows routes, signed release execution or live network publication.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop updater channel isolation > pins Internal builds to the Internal feed and ignores runtime overrides"
+            },
+            {
+              "index": 5,
+              "name": "Desktop updater channel isolation > pins Stable builds to the Stable feed and stable-only releases"
+            },
+            {
+              "index": 9,
+              "name": "Desktop updater channel isolation > overrides electron-updater's channel side effect and keeps downgrades disabled"
+            },
+            {
+              "index": 35,
+              "name": "Desktop updater platform routing > routes 'stable' on 'darwin'/'arm64' to its own feed"
+            },
+            {
+              "index": 36,
+              "name": "Desktop updater platform routing > routes 'internal' on 'darwin'/'arm64' to its own feed"
+            },
+            {
+              "index": 37,
+              "name": "Desktop updater platform routing > routes 'stable' on 'darwin'/'x64' to its own feed"
+            },
+            {
+              "index": 38,
+              "name": "Desktop updater platform routing > routes 'internal' on 'darwin'/'x64' to its own feed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::configuration_tests::actual_release_stamps_pin_both_macos_channels_and_ignore_runtime_overrides"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::configuration_tests::runtime_cannot_replace_the_compiled_feed_or_enable_a_packaged_dev_build"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::policy::tests::only_a_strictly_newer_candidate_is_accepted"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-update-explicit-development-configuration",
+      "acceptance": "An unpackaged Dev identity requires both an allowed development feed and an exact explicit 1/true/yes flag; missing, false or differently cased flags leave it disabled. Whitespace/trailing URL slashes normalize, and the native adapter additionally rejects nonlocal HTTP, file URLs, credentials and queries. Packaged Dev ignores runtime and compiled release feeds on the shared macOS configuration path, independent of architecture. Windows runtime behavior is not claimed.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Desktop updater channel isolation > keeps Development updates off unless an unpackaged test opts in explicitly"
+            },
+            {
+              "index": 7,
+              "name": "Desktop updater channel isolation > never enables a Development override inside a packaged app"
+            },
+            {
+              "index": 41,
+              "name": "Desktop updater platform routing > keeps packaged Development updates disabled on 'darwin'/'arm64'"
+            },
+            {
+              "index": 42,
+              "name": "Desktop updater platform routing > keeps packaged Development updates disabled on 'darwin'/'x64'"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::configuration_tests::development_requires_an_allowed_feed_and_an_exact_explicit_opt_in"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::configuration_tests::runtime_cannot_replace_the_compiled_feed_or_enable_a_packaged_dev_build"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

@@ -13,6 +13,8 @@ pub mod feed;
 pub mod policy;
 mod preferences;
 pub use preferences::{read_automatic_download, write_automatic_download};
+#[cfg(test)]
+mod configuration_tests;
 #[cfg(target_os = "macos")]
 pub mod prepared;
 pub mod state;
@@ -53,9 +55,17 @@ fn feed_url(value: &str, loopback: bool) -> Option<url::Url> {
 }
 
 pub fn configuration(identity: &Identity, env: impl Fn(&str) -> Option<String>) -> Configuration {
+    resolve_configuration(identity, option_env!("PUPPYONE_UPDATE_FEED_URL"), env)
+}
+
+fn resolve_configuration(
+    identity: &Identity,
+    compiled_feed: Option<&str>,
+    env: impl Fn(&str) -> Option<String>,
+) -> Configuration {
     let release_feed = match identity.channel {
         Channel::Dev => None,
-        _ => option_env!("PUPPYONE_UPDATE_FEED_URL").and_then(|v| feed_url(v, false)),
+        _ => compiled_feed.and_then(|v| feed_url(v, false)),
     };
     let development = (!identity.packaged && identity.channel == Channel::Dev)
         .then(|| env("PUPPYONE_DESKTOP_DEV_UPDATE_URL"))

@@ -244,30 +244,50 @@ fn a_failed_preference_write_preserves_service_state_and_can_be_retried(
 
 #[gpui::test]
 fn disabled_service_commands_do_not_write_check_download_or_quit(cx: &mut gpui::TestAppContext) {
-    let feed = Feed::new(vec![]);
-    let updates = service(&feed, true, cx);
-    updates.update(cx, |u, cx| {
-        u.state = UpdateState::new(
-            build_identity::Channel::Dev,
-            "0.4.4-dev.ga".into(),
-            Some("unavailable fixture".into()),
-            true,
-        );
-        let original = u.state.clone();
-        u.check(cx);
-        u.update_now(cx);
-        u.set_automatically_download(false, cx).unwrap();
-        u.quit_cancelled(cx);
-        u.install_on_exit();
-        assert_eq!(u.state, original);
-        assert!(!u.busy);
-        assert!(!u.restart_requested);
-    });
-    cx.run_until_parked();
-    assert!(feed.requests().is_empty());
-    assert!(!updates.profile().exists());
-    assert!(!updates.root.path().join("downloads").exists());
-    assert_eq!(updates.quits(cx), 0);
+    use build_identity::Channel::{Dev, Internal, Stable};
+    for (channel, packaged) in [
+        (Dev, false),
+        (Dev, true),
+        (Internal, false),
+        (Stable, false),
+    ] {
+        let feed = Feed::new(vec![]);
+        let updates = service(&feed, true, cx);
+        let identity = build_identity::Identity {
+            channel,
+            packaged,
+            ..build_identity::current()
+        };
+        let config = updates::configuration(&identity, |_| None);
+        let reason = updates::disabled_reason(&config, packaged, || {
+            panic!("disabled before native signature inspection")
+        });
+        assert!(reason.is_some());
+        updates.update(cx, |u, cx| {
+            u.config = config;
+            u.state = UpdateState::new(channel, identity.version, reason, true);
+            let original = u.state.clone();
+            assert_eq!(original.status, Status::Disabled);
+            assert_eq!(original.error, None);
+            for _ in 0..2 {
+                u.start_background_checks(cx);
+                u.check(cx);
+                u.update_now(cx);
+                u.set_automatically_download(false, cx).unwrap();
+                u.quit_cancelled(cx);
+                u.install_on_exit();
+                assert_eq!(u.state, original);
+            }
+            assert!(u._schedule.is_none());
+            assert!(!u.busy);
+            assert!(!u.restart_requested);
+        });
+        cx.run_until_parked();
+        assert!(feed.requests().is_empty());
+        assert!(!updates.profile().exists());
+        assert!(!updates.root.path().join("downloads").exists());
+        assert_eq!(updates.quits(cx), 0);
+    }
 }
 
 #[cfg(target_os = "macos")]
