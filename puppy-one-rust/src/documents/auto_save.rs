@@ -6,15 +6,29 @@ pub(super) const IDLE: Duration = Duration::from_millis(800);
 pub(super) const MAX_WAIT: Duration = Duration::from_millis(2000);
 pub(super) const SLOW_SAVE: Duration = Duration::from_millis(1500);
 
-#[derive(Default)]
 pub(super) struct Scheduler {
+    idle: Duration,
+    max_wait: Duration,
     first: Option<Instant>,
     due: Option<Instant>,
 }
+impl Default for Scheduler {
+    fn default() -> Self {
+        Self::new(IDLE, MAX_WAIT)
+    }
+}
 impl Scheduler {
+    pub fn new(idle: Duration, max_wait: Duration) -> Self {
+        Self {
+            idle,
+            max_wait,
+            first: None,
+            due: None,
+        }
+    }
     pub fn schedule(&mut self, now: Instant) {
         let first = *self.first.get_or_insert(now);
-        self.due = Some((now + IDLE).min(first + MAX_WAIT));
+        self.due = Some((now + self.idle).min(first + self.max_wait));
     }
     pub fn delay(&self, now: Instant) -> Option<Duration> {
         self.due.map(|due| due.saturating_duration_since(now))
@@ -41,6 +55,37 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn custom_delays_bound_continuous_edits_and_restart_after_cancel_or_flush() {
+        let origin = Instant::now();
+        let mut s = Scheduler::new(Duration::from_millis(10), Duration::from_millis(25));
+        let mut saves = Vec::new();
+        for elapsed in (0..30).step_by(6) {
+            let now = origin + Duration::from_millis(elapsed);
+            s.schedule(now);
+            let due = now + s.delay(now).unwrap();
+            if due <= now + Duration::from_millis(6) {
+                assert!(s.take_due(due));
+                saves.push(due.duration_since(origin).as_millis());
+            }
+        }
+        assert_eq!(saves, [25]);
+        assert_eq!(s.delay(origin + Duration::from_millis(30)), None);
+        s.schedule(origin + Duration::from_millis(30));
+        assert_eq!(
+            s.delay(origin + Duration::from_millis(30)),
+            Some(Duration::from_millis(10))
+        );
+        assert!(s.flush());
+        assert!(!s.flush());
+        s.schedule(origin + Duration::from_millis(31));
+        s.cancel();
+        assert!(!s.take_due(origin + Duration::from_secs(1)));
+        s.schedule(origin + Duration::from_secs(1));
+        assert!(!s.take_due(origin + Duration::from_millis(1009)));
+        assert!(s.take_due(origin + Duration::from_millis(1010)));
+    }
+
     #[test]
     fn actual_typescript_scheduler_transition_oracle() {
         let fixture: serde_json::Value =

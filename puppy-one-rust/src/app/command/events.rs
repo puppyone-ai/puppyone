@@ -813,6 +813,21 @@ impl Shell {
             self.receive(window, cx);
         }
     }
+    /// Hiding can happen without a separate focus transition.
+    pub(in crate::app) fn window_visibility_changed(
+        &mut self,
+        visibility: WindowVisibility,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !visibility.is_visible() {
+            self.session
+                .docs
+                .update(cx, |docs, _| docs.flush_pending_auto_save());
+            self.receive(window, cx);
+        }
+    }
+
     /// The window came forward or went behind.
     pub(in crate::app) fn window_activated(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let active = window.is_window_active();

@@ -652,6 +652,13 @@ impl WorkingCopy {
         self.watch.is_some()
     }
 
+    /// Read-only protocol probe: distinguishes a window-triggered snapshot
+    /// from a later idle timer without imposing a wall-clock timing assertion.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn snapshot_request_serial(&self) -> u64 {
+        self.serial
+    }
+
     pub fn operation_ready(&self) -> bool {
         matches!(self.phase, Phase::Prepared)
     }

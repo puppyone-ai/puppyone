@@ -4,7 +4,7 @@
   "contracts": [
     {
       "id": "save-scheduling",
-      "acceptance": "800 ms idle, 2000 ms maximum wait, flush once, cancel future saves; exact TS scheduler oracle.",
+      "acceptance": "800 ms idle and 2000 ms maximum wait by default; caller-supplied scheduler delays honor the same quiet-period/first-edit bound, reset after cancel or flush, and flush only once. The exact default TS transition oracle still runs. Scheduler disposal is not credited by this criterion.",
       "typescript": [
         {
           "path": "tests/unit/editor/document-session/autoSavePolicy.test.ts",
@@ -17,6 +17,10 @@
             {
               "index": 1,
               "name": "idle auto-save scheduler > bounds the wait from the first unsaved edit while edits keep arriving"
+            },
+            {
+              "index": 2,
+              "name": "idle auto-save scheduler > honours custom delays"
             },
             {
               "index": 3,
@@ -79,17 +83,31 @@
         {
           "package": "po-editor",
           "test": "documents::tests::closing_before_the_pause_drains_the_last_input_without_a_later_autosave"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::auto_save::tests::custom_delays_bound_continuous_edits_and_restart_after_cancel_or_flush"
         }
       ],
       "environment": "local"
     },
     {
       "id": "save-lifecycle",
-      "acceptance": "Blur flushes pending typing; close drains latest input; quick autosave is quiet, slow and manual save are announced.",
+      "acceptance": "Actual GPUI platform deactivation flushes every pending retained editor, leaves the idle editor untouched and preserves the active tab. Hidden-window events flush pending typing immediately; visible events retain the idle delay. Tests enter text through the native editor, observe the existing snapshot protocol serial through a read-only test probe, verify actual temporary file contents, and cross the later timer deadline without another request. Closing a native editor drains once; stale retained-host input, blur and visibility events cannot recreate or rewrite the retired Working Copy. Existing tests also cover quiet/slow/explicit save status and retry. The TS manual-mode exception and the entire quiet-status component suite are not credited here.",
       "typescript": [
         {
           "path": "tests/unit/editor/document-session/windowAutoSave.test.ts",
-          "sha256": "1817f44452f2f0f6328eef391555c7ba8e2478843a9e22fbd687f66646e3cf0f"
+          "sha256": "1817f44452f2f0f6328eef391555c7ba8e2478843a9e22fbd687f66646e3cf0f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "auto-save when the person leaves the window > writes every registered document's pending typing when the window loses focus"
+            },
+            {
+              "index": 1,
+              "name": "auto-save when the person leaves the window > writes pending typing when the window is hidden, but not when it becomes visible"
+            }
+          ]
         },
         {
           "path": "tests/component/editor/document-session/quietAutoSaveStatus.test.tsx",
@@ -116,6 +134,25 @@
         {
           "package": "po-editor",
           "test": "documents::tests::a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::autosave::window_blur_writes_all_pending_editors_once_and_leaves_idle_editors_untouched"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::autosave::window_visibility_flushes_pending_typing_only_when_hidden"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::autosave::retired_editor_drains_once_and_later_window_events_cannot_write_it_again"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::window_blur_flushes_each_retained_project_once_without_activating_it"
         }
       ],
       "environment": "local"

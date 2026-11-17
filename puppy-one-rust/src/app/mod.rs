@@ -314,6 +314,8 @@ impl Shell {
         .detach();
         cx.observe_window_activation(window, Self::window_activated)
             .detach();
+        cx.observe_window_visibility(window, Self::window_visibility_changed)
+            .detach();
         // The Homepage disclosure follows the analytics state.
         if let Some(telemetry) = crate::features::telemetry::global(cx) {
             cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();
