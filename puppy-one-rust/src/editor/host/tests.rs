@@ -15,6 +15,8 @@ use crate::{
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use std::{cell::RefCell, rc::Rc};
 
+mod external_consistency;
+
 fn setup<'a>(
     cx: &'a mut TestAppContext,
     name: &str,
@@ -1183,6 +1185,7 @@ fn rg10_rg11_instance_context_drops_on_close_and_cloud_source_blocks_external_pa
             }),
             source_kind: SourceKind::Cloud,
             sniffed_format: None,
+            models: Default::default(),
         },
     };
 

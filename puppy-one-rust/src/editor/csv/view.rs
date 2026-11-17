@@ -19,6 +19,7 @@ use super::{
 };
 use crate::{
     editor::{
+        document_session::models::{ModelHandle, ModelKind, ModelLease},
         frame::{self, FrameTheme},
         table::{
             COLUMN_MIN_WIDTH,
@@ -148,6 +149,21 @@ pub struct CsvEditor {
     /// Dev capture: a cell to activate once mounted (`PUPPYONE_CSV_ACTIVE`, `CS-15`).
     #[cfg(any(test, feature = "dev-capture"))]
     pending_active: Option<(usize, usize)>,
+    /// Set on the document's table view: its model outlives it.
+    model_lease: Option<ModelLease>,
+}
+
+impl Drop for CsvEditor {
+    fn drop(&mut self) {
+        let Some(lease) = self.model_lease.take() else {
+            return;
+        };
+        if self.loading || self.model.undo_len() + self.model.redo_len() == 0 {
+            return;
+        }
+        let empty = CsvModel::new("", self.model.delimiter());
+        lease.detach(std::mem::replace(&mut self.model, empty));
+    }
 }
 
 impl EventEmitter<CsvEvent> for CsvEditor {}
@@ -223,6 +239,7 @@ impl CsvEditor {
             find: Default::default(),
             #[cfg(any(test, feature = "dev-capture"))]
             pending_active: None,
+            model_lease: None,
         };
         if let Some(full_rc) = full_rc {
             let generation = this.parse_generation;
@@ -276,6 +293,37 @@ impl CsvEditor {
             }
         }
         this
+    }
+
+    /// Make this the document's table view (`DocumentModels`): it continues
+    /// the table model, and so the history, a destroyed view left for the
+    /// same text, and leaves its own behind when it is dropped.
+    pub fn attach_model(&mut self, models: &ModelHandle) {
+        let (delimiter, text) = (self.model.delimiter(), self.model.text());
+        let Some((lease, retained)) = models.attach::<CsvModel>(ModelKind::Table, |model| {
+            model.delimiter() == delimiter && model.text() == text
+        }) else {
+            return;
+        };
+        self.model_lease = Some(lease);
+        let Some(model) = retained else {
+            return;
+        };
+        // The retained model is complete: no background parse is needed.
+        self.parse_generation += 1;
+        self.parse_task = None;
+        self.loading = false;
+        self.model = model;
+        let stored = preferences::read(&self.document_id);
+        if stored.first_record_as_header.is_none() {
+            self.header = self.model.content().suggested_header;
+        }
+        let widths = stored
+            .column_layout
+            .as_ref()
+            .filter(|(d, w)| *d == delimiter && w.len() == self.model.column_count())
+            .map(|(_, w)| w.as_slice());
+        self.layout = ColumnLayout::new(&self.model, widths);
     }
 
     pub fn is_live(&self) -> bool {

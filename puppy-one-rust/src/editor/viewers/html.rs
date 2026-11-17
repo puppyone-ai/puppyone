@@ -58,7 +58,11 @@ enum Mode {
 type FlushCallback = Box<dyn FnOnce(&mut Window, &mut App)>;
 
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
-    let source: Rc<dyn ViewerSurface> = Rc::from(code::open_with(
+    Box::new(surface(request, window, cx))
+}
+
+fn surface(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> HtmlSurface {
+    let source: Rc<dyn ViewerSurface> = Rc::from(code::open_document(
         request,
         None,
         request.file_mode,
@@ -184,7 +188,7 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
             });
         }));
     }
-    Box::new(HtmlSurface {
+    HtmlSurface {
         source,
         interact,
         empty,
@@ -198,7 +202,7 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
         read_only,
         scroll_ratio,
         visual,
-    })
+    }
 }
 
 /// `htmlDocumentEmpty`: nothing but whitespace, comments and an empty skeleton.
@@ -275,6 +279,16 @@ struct HtmlSurface {
     scroll_ratio: Rc<Cell<f32>>,
     /// The Edit page while Edit mode is shown.
     visual: Rc<RefCell<Option<html_visual::Session>>>,
+}
+
+impl Drop for HtmlSurface {
+    fn drop(&mut self) {
+        // The page callbacks hold the surface's parts: without them the
+        // pages, the Edit session and the source view go with the surface.
+        self.interact.retire();
+        let session = self.visual.borrow_mut().take();
+        drop(session);
+    }
 }
 
 impl HtmlSurface {
@@ -949,6 +963,7 @@ mod tests {
             assets: None,
             references: None,
             source_kind: SourceKind::Local,
+            models: Default::default(),
         };
         let source: Rc<dyn ViewerSurface> =
             Rc::from(code::open_with(&request, None, false, window, cx));
@@ -1094,5 +1109,58 @@ mod tests {
             );
             assert!(!html_after.contains("before.html"));
         });
+    }
+
+    /// Closing an HTML document takes its pages with it. The page's edit
+    /// callback and the Edit session's callbacks hold parts of the surface;
+    /// neither may keep the pages or the source view alive once it is gone.
+    #[gpui::test]
+    fn a_dropped_surface_releases_its_pages_and_source_view(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+                gpui_kit::init(cx);
+            }
+            cx.text_system()
+                .add_fonts(crate::editor::view::style::font_bytes())
+                .unwrap();
+        });
+        let text = "<!doctype html><html><head></head><body><h1>Draft</h1></body></html>";
+        let (_, cx) = cx.add_window_view(|_, _| EmptyPage);
+        let (source, page, edit_page) = cx.update(|window, cx| {
+            let resolved = resolve(&EditorDocument::local("site/index.html"));
+            let surface = surface(
+                &SurfaceRequest {
+                    id: "html-drop",
+                    name: "site/index.html",
+                    input: SurfaceInput::Text(text),
+                    format: resolved.format,
+                    resolved_extension: Some(".html"),
+                    dark: false,
+                    scale: Scale::default(),
+                    workspace: None,
+                    file_mode: false,
+                    folder: None,
+                    web_source: None,
+                    assets: None,
+                    references: None,
+                    source_kind: SourceKind::Local,
+                    models: Default::default(),
+                },
+                window,
+                cx,
+            );
+            surface.pane_segment(PaneSegmentId::Edit, window, cx);
+            let edit_page = surface.visual.borrow().as_ref().unwrap().frame.downgrade();
+            (
+                surface.code_editor().unwrap().downgrade(),
+                surface.interact.frame.downgrade(),
+                edit_page,
+            )
+        });
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        assert!(source.upgrade().is_none(), "the source view leaked");
+        assert!(page.upgrade().is_none(), "the Interact page leaked");
+        assert!(edit_page.upgrade().is_none(), "the Edit page leaked");
     }
 }

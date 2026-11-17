@@ -247,6 +247,7 @@ fn code_edit_cost() {
                 assets: None,
                 references: None,
                 source_kind: SourceKind::Local,
+                models: Default::default(),
             },
             w,
             cx,

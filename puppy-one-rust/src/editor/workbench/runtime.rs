@@ -468,7 +468,7 @@ impl Runtime {
                 }
                 let host = self.hosts.get_mut(self.active.as_ref().unwrap()).unwrap();
                 host.interact();
-                host.hibernated.remove(&key);
+                let hibernated = host.hibernated.remove(&key);
                 if let Some(slot) = host.slots.values_mut().find(|s| s.key == key) {
                     slot.opening = self.navigation;
                     slot.restoring = false;
@@ -481,6 +481,9 @@ impl Runtime {
                     Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
                 files.task_scope = self.scratch.task_scope.clone();
                 files.file_window = self.file_window;
+                if let Some(hibernated) = hibernated {
+                    files.inherit_document_models(hibernated.models);
+                }
                 files.begin(Intent::OpenFile(path), wake);
                 host.slots.insert(
                     self.serial,
@@ -843,6 +846,7 @@ impl Runtime {
                                 super::retention::HibernatedSlot {
                                     path,
                                     failed_at_navigation: Some(self.navigation),
+                                    models: slot.files.take_document_models(),
                                 },
                             );
                         }
@@ -1155,6 +1159,7 @@ impl Runtime {
             };
             let rel = path.to_path_buf();
             slot.files.pause_watch();
+            let models = slot.files.take_document_models();
             self.composing_slots.remove(&slot_id);
             self.pending_view_restores.remove(&slot_id);
             if self.evicted_slot_keys.len() >= 128
@@ -1169,6 +1174,7 @@ impl Runtime {
                 super::retention::HibernatedSlot {
                     path: rel,
                     failed_at_navigation: None,
+                    models,
                 },
             );
             self.generation += 1;
@@ -1220,6 +1226,7 @@ impl Runtime {
             let mut files = Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
             files.task_scope = self.scratch.task_scope.clone();
             files.file_window = self.file_window;
+            files.inherit_document_models(entry.models);
             files.begin(Intent::OpenFile(entry.path.clone()), wake);
             host.slots.insert(
                 self.serial,

@@ -250,3 +250,140 @@ impl ResourceWatchPort for Resources {
         panic!("binary previews have no text revision")
     }
 }
+
+/// Scriptable text storage for tests crossing the actual provider, document
+/// coordinator and viewer boundaries. Reads capture immutable snapshots before
+/// an optional blocking hook; notifications are scoped exactly like real watches.
+pub struct Texts {
+    pub descriptor: Descriptor,
+    pub files: Mutex<std::collections::BTreeMap<String, TextSnapshot>>,
+    pub reads: Mutex<Vec<String>>,
+    pub writes: Mutex<Vec<(String, Revision, String)>>,
+    pub failures: Mutex<std::collections::BTreeMap<String, Error>>,
+    pub after_read: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    watches: Resources,
+}
+
+impl Texts {
+    pub fn new(root: std::path::PathBuf) -> Self {
+        let mut descriptor = Memory::new("memory://text-matrix/project/").descriptor;
+        descriptor.local_root = Some(root);
+        descriptor.capabilities.watch = true;
+        Self {
+            descriptor,
+            files: Default::default(),
+            reads: Default::default(),
+            writes: Default::default(),
+            failures: Default::default(),
+            after_read: Default::default(),
+            watches: Resources::default(),
+        }
+    }
+
+    pub fn put(&self, path: &str, text: &str, version: &str) {
+        self.files.lock().unwrap().insert(
+            path.into(),
+            TextSnapshot {
+                text: text.into(),
+                revision: Revision(version.into()),
+                encoding: Default::default(),
+                line_ending: Default::default(),
+            },
+        );
+    }
+
+    pub fn publish(&self, event: WatchEvent) {
+        self.watches.publish(event);
+    }
+
+    fn snapshot(&self, path: &RelativePath) -> Result<TextSnapshot> {
+        let key = path.as_path().to_string_lossy();
+        self.files
+            .lock()
+            .unwrap()
+            .get(key.as_ref())
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorKind::NotFound, "Text fixture removed"))
+    }
+}
+
+impl DataPort for Texts {
+    fn descriptor(&self) -> Descriptor {
+        self.descriptor.clone()
+    }
+    fn list(&self, _: &RelativePath) -> Result<Vec<Entry>> {
+        Ok(Vec::new())
+    }
+}
+
+impl DocumentStoragePort for Texts {
+    fn read(&self, path: &RelativePath) -> Result<TextSnapshot> {
+        let key = path.as_path().to_string_lossy().into_owned();
+        self.reads.lock().unwrap().push(key.clone());
+        let result = self
+            .failures
+            .lock()
+            .unwrap()
+            .get(&key)
+            .cloned()
+            .map_or_else(|| self.snapshot(path), Err);
+        let hook = self.after_read.lock().unwrap().take();
+        if let Some(hook) = hook {
+            hook();
+        }
+        result
+    }
+    fn write(&self, path: &RelativePath, base: &Revision, text: &str) -> Result<WriteResult> {
+        let key = path.as_path().to_string_lossy().into_owned();
+        self.writes
+            .lock()
+            .unwrap()
+            .push((key.clone(), base.clone(), text.into()));
+        let mut files = self.files.lock().unwrap();
+        let current = files
+            .get_mut(&key)
+            .ok_or_else(|| Error::new(ErrorKind::NotFound, "Text fixture removed"))?;
+        if &current.revision != base {
+            return Ok(WriteResult::Conflict(current.clone()));
+        }
+        current.text = text.into();
+        current.revision = Revision(format!("saved-{}", blake3::hash(text.as_bytes())));
+        Ok(WriteResult::Saved(current.clone()))
+    }
+}
+
+impl ResourcePort for Texts {
+    fn preview(&self, path: &RelativePath) -> Result<PreviewData> {
+        Ok(PreviewData::Bytes {
+            mime: "text/plain".into(),
+            bytes: self.snapshot(path)?.text.into_bytes().into(),
+        })
+    }
+    fn stat_entry(&self, path: &RelativePath) -> Result<EntryStat> {
+        Ok(EntryStat {
+            size: self.snapshot(path)?.text.len() as u64,
+            is_file: true,
+            readonly: false,
+        })
+    }
+    fn read_head(&self, path: &RelativePath, max_bytes: usize) -> Result<Vec<u8>> {
+        Ok(self
+            .snapshot(path)?
+            .text
+            .as_bytes()
+            .iter()
+            .take(max_bytes)
+            .copied()
+            .collect())
+    }
+}
+
+impl ResourceWatchPort for Texts {
+    fn watch(&self, _: &RelativePath, _: &Revision, notify: Notify) -> Result<WatchSubscription> {
+        let subscription = self.watches.watch_root(notify)?;
+        // Unlike a binary root subscription, a newly read text document already
+        // has a baseline. Only explicit subsequent notifications invalidate it.
+        subscription.next();
+        Ok(subscription)
+    }
+}

@@ -7,7 +7,7 @@
 
 use super::contribution::SourceKind;
 use crate::{
-    editor::navigation::ReferenceContext,
+    editor::{document_session::models::ModelHandle, navigation::ReferenceContext},
     formats::FileFormat,
     platform::webview,
     typography::Scale,
@@ -78,6 +78,8 @@ pub struct DocumentContext {
     pub source_kind: SourceKind,
     /// Sniffed format when extension/MIME resolved to `unknown` (`RG-01`).
     pub sniffed_format: Option<&'static FileFormat>,
+    /// The open document's retained models: its history outlives the view.
+    pub models: ModelHandle,
 }
 
 impl std::fmt::Debug for DocumentContext {
@@ -91,6 +93,7 @@ impl std::fmt::Debug for DocumentContext {
                 "sniffed_format",
                 &self.sniffed_format.map(|fmt| fmt.id.as_str()),
             )
+            .field("models", &self.models)
             .finish()
     }
 }
@@ -112,6 +115,7 @@ impl PartialEq for DocumentContext {
             && self.assets == other.assets
             && self.source_kind == other.source_kind
             && same_sniff
+            && self.models == other.models
     }
 }
 
@@ -143,6 +147,9 @@ pub struct SurfaceRequest<'a> {
     pub references: Option<ReferenceContext>,
     /// Real origin of the document (`RG-11`).
     pub source_kind: SourceKind,
+    /// Where the document's own view attaches its model (`DocumentModels`);
+    /// followers and previews leave it alone.
+    pub models: ModelHandle,
 }
 
 /// The viewer's input, as its manifest `source` asks.

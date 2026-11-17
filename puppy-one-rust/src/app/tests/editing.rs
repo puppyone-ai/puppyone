@@ -258,6 +258,96 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
         "# Original\n"
     );
 }
+/// A hidden clean tab gives up its live editor to stay within the live
+/// slot budget (`WB-01`), but the document is still open: coming back to it
+/// re-creates the view, and its undo history is still there (the product
+/// keeps a document's history for as long as it is open).
+#[gpui::test]
+fn a_hibernated_tab_keeps_its_undo_history_when_it_comes_back(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("a.md"), "# Original\n").unwrap();
+    std::fs::write(temp.path().join("b.md"), "# Second\n").unwrap();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                cx.update(|w, cx| {
+                    w.draw(cx).clear(cx);
+                });
+                if view.read_with(cx, |s, cx| ready(s, cx)) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Workbench did not settle"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    let open = |view: &Entity<Shell>, cx: &mut VisualTestContext, path: &'static str| {
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile(path.into())))
+        });
+        settle(view, cx, &|s, cx| {
+            !s.files(cx).busy()
+                && s.files(cx)
+                    .opened()
+                    .is_some_and(|(_, p)| p == std::path::Path::new(path))
+        });
+    };
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.set_max_live_slots(1);
+            d.begin(Intent::OpenFolder(temp.path().into()))
+        })
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    open(&view, cx, "a.md");
+    let (key, first_view) = view.read_with(cx, |s, cx| {
+        (
+            s.files(cx)
+                .state()
+                .unwrap()
+                .layout
+                .active_editor()
+                .unwrap()
+                .to_owned(),
+            s.editor.read(cx).front.downgrade(),
+        )
+    });
+    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_input("Retained");
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).saving() && !s.files(cx).dirty
+    });
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("a.md")).unwrap(),
+        "# Retained\n"
+    );
+    open(&view, cx, "b.md");
+    settle(&view, cx, &|s, cx| s.files(cx).is_hibernated(&key));
+    assert!(
+        first_view.upgrade().is_none(),
+        "the hibernated document's editor must actually be released"
+    );
+    open(&view, cx, "a.md");
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.files(cx).document.as_ref().unwrap().text, "# Retained\n");
+    });
+    command(&view, cx, Command::Undo);
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).saving() && !s.files(cx).dirty
+    });
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("a.md")).unwrap(),
+        "# Original\n"
+    );
+}
 #[gpui::test]
 fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     cx: &mut TestAppContext,

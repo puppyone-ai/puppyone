@@ -222,6 +222,11 @@ impl Interact {
     pub fn set_on_edit(&self, on_edit: Rc<dyn Fn(&mut App)>) {
         self.state.borrow_mut().on_edit = Some(on_edit);
     }
+    /// The surface is closing: the edit callback holds its parts (this page
+    /// among them), so it goes first.
+    pub fn retire(&self) {
+        self.state.borrow_mut().on_edit = None;
+    }
     /// What Interact shows now.
     pub fn element(&self) -> AnyElement {
         match self.access() {

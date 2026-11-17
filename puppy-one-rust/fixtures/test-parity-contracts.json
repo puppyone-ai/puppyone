@@ -17751,6 +17751,278 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-external-consistency-matrix",
+      "acceptance": "Real Documents coordinators, a controllable text storage provider and the actual native DocumentEditor surfaces for Markdown, plain text, Python, JSON, CSV, TSV and HTML source. Clean storage updates reach the open view with exactly one reread and no write, and unrelated paths never reread. Dirty local text yields to storage without a conflict or writeback, and a later manual save writes once against the adopted revision (the native port has no TS persistence 'reason' field; the explicit save intent is the trigger). Destroying the whole host and recreating it shows the latest storage or saved text without saving again, and the view is asserted released. Undo/redo history belongs to the open document instance, not the view: the working copy owns DocumentModels, the destroyed view leaves its text history (or CSV table model) behind, and the next view of the same text continues it. Closing the document, another document with identical text, an unseen external update and an open IME composition each isolate or discard that history; a superseded view cannot install it late. A hidden clean tab released by WB-01 hibernation keeps the history for its next view. HTML history is read in its source view selected through the pane menu, as in the product matrix. One watcher batch updates two panes with one own-path reread each; an obsolete read (serialized per path natively) never reaches the view; a failed refresh keeps the stable text and recovers on retry; a pathless notification rereads. Not credited: the editable-viewer completeness case, Whiteboard, Context Map and PuppyFlow WebKit pages, and the HTML live preview iframe update (Rust verifies the native source text only). Closing an HTML surface releases its Interact page, Edit page and source view; the earlier callbacks leaked all three.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/document-session/editorExternalConsistencyMatrix.integration.test.tsx",
+          "sha256": "d25a82d99c815e38f1c9826c510c398c50d5aaff371c25224e0bc87ca6cdd54d",
+          "cases": [
+            {
+              "index": 3,
+              "name": "P0 editor external-consistency matrix > 'Markdown': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 4,
+              "name": "P0 editor external-consistency matrix > 'plain text': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 5,
+              "name": "P0 editor external-consistency matrix > 'source code': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 6,
+              "name": "P0 editor external-consistency matrix > 'JSON': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 7,
+              "name": "P0 editor external-consistency matrix > 'CSV': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 8,
+              "name": "P0 editor external-consistency matrix > 'TSV': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 13,
+              "name": "P0 editor external-consistency matrix > 'Markdown': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 14,
+              "name": "P0 editor external-consistency matrix > 'plain text': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 15,
+              "name": "P0 editor external-consistency matrix > 'source code': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 16,
+              "name": "P0 editor external-consistency matrix > 'JSON': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 17,
+              "name": "P0 editor external-consistency matrix > 'CSV': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 18,
+              "name": "P0 editor external-consistency matrix > 'TSV': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 23,
+              "name": "P0 editor external-consistency matrix > 'Markdown': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 24,
+              "name": "P0 editor external-consistency matrix > 'plain text': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 25,
+              "name": "P0 editor external-consistency matrix > 'source code': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 26,
+              "name": "P0 editor external-consistency matrix > 'JSON': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 27,
+              "name": "P0 editor external-consistency matrix > 'CSV': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 28,
+              "name": "P0 editor external-consistency matrix > 'TSV': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 29,
+              "name": "P0 editor external-consistency matrix > 'HTML': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 32,
+              "name": "P0 editor external-consistency matrix > 'Markdown': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 33,
+              "name": "P0 editor external-consistency matrix > 'plain text': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 34,
+              "name": "P0 editor external-consistency matrix > 'source code': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 35,
+              "name": "P0 editor external-consistency matrix > 'JSON': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 36,
+              "name": "P0 editor external-consistency matrix > 'CSV': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 37,
+              "name": "P0 editor external-consistency matrix > 'TSV': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 38,
+              "name": "P0 editor external-consistency matrix > 'HTML': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 42,
+              "name": "P0 editor external-consistency matrix > 'Markdown': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 43,
+              "name": "P0 editor external-consistency matrix > 'plain text': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 44,
+              "name": "P0 editor external-consistency matrix > 'source code': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 45,
+              "name": "P0 editor external-consistency matrix > 'JSON': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 46,
+              "name": "P0 editor external-consistency matrix > 'CSV': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 47,
+              "name": "P0 editor external-consistency matrix > 'TSV': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 48,
+              "name": "P0 editor external-consistency matrix > 'HTML': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 52,
+              "name": "P0 editor external-consistency matrix > 'Markdown': saves subsequent edits against the adopted disk version"
+            },
+            {
+              "index": 53,
+              "name": "P0 editor external-consistency matrix > 'plain text': saves subsequent edits against the adopted disk version"
+            },
+            {
+              "index": 54,
+              "name": "P0 editor external-consistency matrix > 'source code': saves subsequent edits against the adopted disk version"
+            },
+            {
+              "index": 55,
+              "name": "P0 editor external-consistency matrix > 'JSON': saves subsequent edits against the adopted disk version"
+            },
+            {
+              "index": 56,
+              "name": "P0 editor external-consistency matrix > 'CSV': saves subsequent edits against the adopted disk version"
+            },
+            {
+              "index": 57,
+              "name": "P0 editor external-consistency matrix > 'TSV': saves subsequent edits against the adopted disk version"
+            },
+            {
+              "index": 58,
+              "name": "P0 editor external-consistency matrix > 'HTML': saves subsequent edits against the adopted disk version"
+            },
+            {
+              "index": 60,
+              "name": "P0 editor external-consistency matrix > updates different format Panes from one watcher batch without cross-reading or writeback"
+            },
+            {
+              "index": 61,
+              "name": "P0 editor external-consistency matrix > discards an obsolete read that resolves after a newer matching watcher event"
+            },
+            {
+              "index": 62,
+              "name": "P0 editor external-consistency matrix > keeps the last stable editor model when an external refresh read fails"
+            },
+            {
+              "index": 63,
+              "name": "P0 editor external-consistency matrix > treats a null path list as an intentional bulk refresh"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_native_surface_without_writes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::destroyed_native_views_reopen_the_latest_external_text_without_saving"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::saved_local_edits_survive_destroyed_native_views_without_duplicate_saves"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::saved_local_history_survives_destroying_and_recreating_native_views"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::dirty_native_edits_yield_to_external_updates_without_conflict_or_writeback"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::manual_save_after_external_adoption_uses_the_new_storage_revision"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::one_watcher_batch_updates_each_pane_from_its_own_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::an_obsolete_read_never_replaces_the_text_of_a_newer_event"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::a_failed_refresh_read_keeps_the_last_stable_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::a_pathless_change_notification_refreshes_the_open_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::closing_a_document_retires_its_retained_history"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::another_document_with_identical_text_starts_its_own_history"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::history_recorded_before_an_unseen_external_update_is_discarded"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::an_open_composition_is_left_out_of_the_retained_history"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::models::tests::a_detached_model_reaches_the_next_view_of_the_same_kind_once"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::models::tests::mismatched_kinds_and_contents_discard_the_retained_model"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::models::tests::a_superseded_view_cannot_install_its_history_late"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::models::tests::a_retired_owner_releases_models_and_refuses_later_views"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html::tests::a_dropped_surface_releases_its_pages_and_source_view"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::a_hibernated_tab_keeps_its_undo_history_when_it_comes_back"
+        }
+      ],
+      "environment": "Native GPUI test platform with a controllable in-memory text provider; no OS file watcher, real WebKit page or live Cloud claim."
     }
   ],
   "openAcceptance": [

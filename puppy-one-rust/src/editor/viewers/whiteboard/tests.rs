@@ -41,6 +41,7 @@ fn surface(cx: &mut VisualTestContext, text: &str, pack: bool, dir: &Path) -> Wh
             assets: None,
             references: None,
             source_kind: crate::editor::registry::SourceKind::Local,
+            models: Default::default(),
         };
         // These tests qualify the host protocol and source editor. The separate
         // required real-pack test qualifies the full SDK assets.

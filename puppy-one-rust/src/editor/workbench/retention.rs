@@ -7,6 +7,7 @@
 //! composition, held resource operations, unflushable drafts or Cloud conflicts
 //! is strictly pinned and never evicted.
 
+use crate::editor::document_session::models::DocumentModels;
 use std::path::PathBuf;
 
 /// Default maximum live `Slot`s retained per workspace (`WB-01`).
@@ -17,11 +18,13 @@ pub const MAX_BACKGROUND_HOSTS: usize = 3;
 
 /// Metadata retained for a hibernated clean tab (`WB-01`) so it can re-hydrate
 /// through the workspace Provider on re-activation without holding a live
-/// `WorkingCopy` or `DocumentEditor`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// `WorkingCopy` or `DocumentEditor`. The document is still open: its
+/// retained models (undo history) wait here for its next view.
+#[derive(Debug)]
 pub struct HibernatedSlot {
     pub path: PathBuf,
     pub failed_at_navigation: Option<u64>,
+    pub models: DocumentModels,
 }
 
 /// Snapshot of a live slot evaluated by the retention policy (`WB-01`).

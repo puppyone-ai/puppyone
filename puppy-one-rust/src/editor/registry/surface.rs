@@ -110,7 +110,7 @@ pub trait SurfaceTestProbe {
     fn html_page_deliver(&self, _body: &str, _cx: &mut App) -> Option<SharedString> {
         None
     }
-    #[cfg(feature = "test-support")]
+    #[cfg(any(test, feature = "test-support"))]
     fn csv_editor(&self) -> Option<gpui::Entity<crate::editor::csv::CsvEditor>> {
         None
     }

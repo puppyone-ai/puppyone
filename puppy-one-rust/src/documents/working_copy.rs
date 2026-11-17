@@ -17,6 +17,7 @@ use crate::{
     editor::{
         document_session::{
             document_editing_session::DocumentEditingSession,
+            models::DocumentModels,
             types::{
                 Completion, ConflictState, SessionError, Snapshot, StorageObservation,
                 WriteOutcome as SessionWriteOutcome,
@@ -165,6 +166,12 @@ pub struct WorkingCopy {
     pub allow_quit: bool,
     pub outgoing: Vec<HostMessage>,
     pub file_window: bool,
+    /// The open document instance's retained view models (undo history
+    /// that survives a destroyed view), keyed by its editing-instance id.
+    pub(super) models: Option<(String, DocumentModels)>,
+    /// Models handed over for the next document instance this copy opens
+    /// (a hidden document coming back after its live copy was released).
+    inherited_models: Option<DocumentModels>,
 
     pub(super) deferred_document: Option<Document>,
     pub(super) saved_at: Option<Instant>,
@@ -215,6 +222,8 @@ impl Default for WorkingCopy {
             allow_quit: false,
             outgoing: Vec::new(),
             file_window: false,
+            models: None,
+            inherited_models: None,
             deferred_document: None,
             saved_at: None,
             saving_since: None,
@@ -252,6 +261,22 @@ impl WorkingCopy {
             format!("{}:{}:{target}", self.owner_id, self.provider_epoch),
             generation,
         )
+    }
+
+    /// Releases the open document's retained models (and any not yet
+    /// claimed) to whoever keeps the document open without this copy.
+    pub fn take_document_models(&mut self) -> DocumentModels {
+        let inherited = self.inherited_models.take();
+        self.models
+            .take()
+            .map(|(_, models)| models)
+            .or(inherited)
+            .unwrap_or_default()
+    }
+
+    /// The next document instance this copy opens continues `models`.
+    pub fn inherit_document_models(&mut self, models: DocumentModels) {
+        self.inherited_models = Some(models);
     }
 
     pub fn set_draft_journal(&mut self, journal: Option<DraftJournal>) {
@@ -967,11 +992,20 @@ impl WorkingCopy {
             assets,
             source_kind,
             sniffed_format: self.sniffed_format,
+            models: Default::default(),
         }
     }
 
     fn push_context(&mut self, id: &str, relative: &Path) {
-        let context = self.build_context(relative);
+        let mut context = self.build_context(relative);
+        let (_, models) = match self.models.take() {
+            Some(current) if current.0 == id => self.models.insert(current),
+            _ => {
+                let inherited = self.inherited_models.take().unwrap_or_default();
+                self.models.insert((id.to_owned(), inherited))
+            }
+        };
+        context.models = models.handle();
         self.outgoing.push(HostMessage::Context {
             id: id.to_owned(),
             context,
@@ -1037,6 +1071,7 @@ impl WorkingCopy {
                 can_reveal_in_finder: oversized.can_reveal_in_finder,
             });
         } else {
+            self.models = None;
             self.outgoing.push(HostMessage::Clear);
         }
     }

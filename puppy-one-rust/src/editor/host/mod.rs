@@ -413,6 +413,7 @@ impl DocumentEditor {
             assets,
             source_kind,
             sniffed_format: None,
+            models: Default::default(),
         }
     }
 
@@ -568,6 +569,7 @@ impl DocumentEditor {
             assets: context.assets,
             references: self.references.clone(),
             source_kind: context.source_kind,
+            models: context.models,
         };
         let surface = code::open_with(&request, Some("plaintext"), false, window, cx);
         self.displayed = None;
@@ -683,6 +685,7 @@ impl DocumentEditor {
             assets: context.assets,
             references: self.references.clone(),
             source_kind: context.source_kind,
+            models: context.models,
         };
         #[cfg(test)]
         let custom = self.custom_factory;

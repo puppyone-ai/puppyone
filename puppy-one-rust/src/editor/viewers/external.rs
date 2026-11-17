@@ -99,6 +99,7 @@ impl Chooser {
             assets: self.assets.clone(),
             references: self.references.clone(),
             source_kind: self.source_kind,
+            models: Default::default(),
         };
         self.opened = Some((self.render)(&request, &self.candidates[index], window, cx));
         cx.notify();

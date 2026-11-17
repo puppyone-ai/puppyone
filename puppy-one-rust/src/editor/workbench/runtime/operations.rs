@@ -413,12 +413,17 @@ impl Runtime {
                 };
                 if let Ok(res_id) = mutation.workspace.resource_id(&new_path) {
                     let new_key = resource_key(&res_id);
-                    host.hibernated.remove(&old_key);
+                    let models = host
+                        .hibernated
+                        .remove(&old_key)
+                        .map(|hibernated| hibernated.models)
+                        .unwrap_or_default();
                     host.hibernated.insert(
                         new_key.clone(),
                         super::super::retention::HibernatedSlot {
                             path: new_path.clone(),
                             failed_at_navigation: None,
+                            models,
                         },
                     );
                     host.view_states.rename(&old_key, new_key.clone());

@@ -14,12 +14,15 @@ use super::{
     render::{MeasureCache, ParagraphCache},
     widget::{BlockId, WidgetStateStore},
 };
-use crate::editor::text::{
-    buffer::Buffer,
-    change::ChangeSet,
-    history::{History, minimal_diff, minimal_diff_buffers},
-    selection::Selection,
-    state::{Annotation, EditorState, Transaction, UserEvent},
+use crate::editor::{
+    document_session::models::{ModelHandle, ModelKind, ModelLease},
+    text::{
+        buffer::Buffer,
+        change::ChangeSet,
+        history::{History, minimal_diff, minimal_diff_buffers},
+        selection::Selection,
+        state::{Annotation, EditorState, Transaction, UserEvent},
+    },
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::text::{TextViewStyle, editor_host::RenderContext};
@@ -175,6 +178,28 @@ pub struct EditorView {
     /// padding so content only passes under it when scrolled.
     chrome_inset: f32,
     pub(super) has_header_banner: bool,
+    /// Set on the document's own view: its history outlives it.
+    model: Option<ModelLease>,
+}
+
+/// The text and history a destroyed view leaves to the document's next view.
+struct RetainedText {
+    doc: Buffer,
+    history: History,
+}
+
+impl Drop for EditorView {
+    fn drop(&mut self) {
+        let Some(lease) = self.model.take() else {
+            return;
+        };
+        let doc = self.committed_doc().clone();
+        let mut history = std::mem::take(&mut self.history);
+        history.seal();
+        if history.can_undo() || history.can_redo() {
+            lease.detach(RetainedText { doc, history });
+        }
+    }
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -231,7 +256,24 @@ impl EditorView {
             dark: true,
             chrome_inset: 0.,
             has_header_banner: false,
+            model: None,
         }
+    }
+
+    /// Make this the document's own view (`DocumentModels`): it continues
+    /// the history a destroyed view left for the same text, and leaves its
+    /// own history behind when it is dropped. Followers never attach.
+    pub fn attach_model(&mut self, models: &ModelHandle) {
+        let doc = &self.state.doc;
+        let Some((lease, retained)) =
+            models.attach::<RetainedText>(ModelKind::Text, |retained| retained.doc == *doc)
+        else {
+            return;
+        };
+        if let Some(retained) = retained {
+            self.history = retained.history;
+        }
+        self.model = Some(lease);
     }
 
     pub fn text(&self) -> &str {
