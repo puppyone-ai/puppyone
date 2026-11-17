@@ -473,6 +473,12 @@ impl WindowCloud {
     pub fn close_screen(&mut self, cx: &mut Context<Self>) {
         self.screen.update(cx, |s, cx| s.close(cx));
     }
+    /// Computer Mode: the window's local workspace, whose computer (if it
+    /// is one) the screen shows.
+    pub fn set_screen_local(&mut self, root: Option<std::path::PathBuf>, cx: &mut Context<Self>) {
+        self.screen
+            .update(cx, |s, cx| s.set_local_workspace(root, cx));
+    }
     pub fn set_screen_target(&mut self, target: Option<SandboxTarget>, cx: &mut Context<Self>) {
         self.screen.update(cx, |s, cx| s.set_target(target, cx));
     }

@@ -143,7 +143,11 @@
       "native.screen.operating": "{name} is using it",
       "native.screen.disconnected": "Disconnected",
       "native.screen.unfold": "Show live preview",
-      "native.screen.fold": "Hide live preview"
+      "native.screen.fold": "Hide live preview",
+      "native.whiteboard.packDetail": "Install the Whiteboard add-on (~15 MB) to draw and edit boards, or view the JSON source directly.",
+      "native.whiteboard.installPack": "Install Whiteboard add-on",
+      "native.whiteboard.installingPack": "Installing Whiteboard add-on…",
+      "native.whiteboard.viewJsonSource": "View JSON source"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -287,7 +291,11 @@
       "native.screen.operating": "{name} 正在操作",
       "native.screen.disconnected": "已断开",
       "native.screen.unfold": "展开预览",
-      "native.screen.fold": "收起预览"
+      "native.screen.fold": "收起预览",
+      "native.whiteboard.packDetail": "安装白板扩展包（约 15 MB）即可绘制与编辑画布，也可直接查看 JSON 源码。",
+      "native.whiteboard.installPack": "一键下载安装白板插件",
+      "native.whiteboard.installingPack": "正在下载安装白板插件…",
+      "native.whiteboard.viewJsonSource": "查看 JSON 源码"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -431,7 +439,11 @@
       "native.screen.operating": "{name} が操作中",
       "native.screen.disconnected": "切断",
       "native.screen.unfold": "プレビューを表示",
-      "native.screen.fold": "プレビューを隠す"
+      "native.screen.fold": "プレビューを隠す",
+      "native.whiteboard.packDetail": "ホワイトボード拡張（約 15 MB）をインストールして描画・編集するか、JSON ソースを直接表示できます。",
+      "native.whiteboard.installPack": "ホワイトボード拡張をインストール",
+      "native.whiteboard.installingPack": "ホワイトボード拡張をインストール中…",
+      "native.whiteboard.viewJsonSource": "JSON ソースを表示"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -575,7 +587,11 @@
       "native.screen.operating": "{name} 사용 중",
       "native.screen.disconnected": "연결 끊김",
       "native.screen.unfold": "미리보기 펼치기",
-      "native.screen.fold": "미리보기 접기"
+      "native.screen.fold": "미리보기 접기",
+      "native.whiteboard.packDetail": "화이트보드 추가 기능(약 15 MB)을 설치하여 보드를 편집하거나 JSON 소스를 바로 볼 수 있습니다.",
+      "native.whiteboard.installPack": "화이트보드 추가 기능 설치",
+      "native.whiteboard.installingPack": "화이트보드 추가 기능 설치 중…",
+      "native.whiteboard.viewJsonSource": "JSON 소스 보기"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -719,7 +735,11 @@
       "native.screen.operating": "{name} lo está usando",
       "native.screen.disconnected": "Desconectado",
       "native.screen.unfold": "Mostrar vista previa",
-      "native.screen.fold": "Ocultar vista previa"
+      "native.screen.fold": "Ocultar vista previa",
+      "native.whiteboard.packDetail": "Instala el complemento de pizarra (~15 MB) para dibujar y editar, o consulta directamente el código JSON.",
+      "native.whiteboard.installPack": "Instalar complemento de pizarra",
+      "native.whiteboard.installingPack": "Instalando complemento de pizarra…",
+      "native.whiteboard.viewJsonSource": "Ver código JSON"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -863,7 +883,11 @@
       "native.screen.operating": "{name} está usando",
       "native.screen.disconnected": "Desconectado",
       "native.screen.unfold": "Mostrar prévia",
-      "native.screen.fold": "Ocultar prévia"
+      "native.screen.fold": "Ocultar prévia",
+      "native.whiteboard.packDetail": "Instale o complemento de quadro branco (~15 MB) para desenhar e editar, ou veja o código JSON diretamente.",
+      "native.whiteboard.installPack": "Instalar complemento de quadro branco",
+      "native.whiteboard.installingPack": "Instalando complemento de quadro branco…",
+      "native.whiteboard.viewJsonSource": "Ver código JSON"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -1007,7 +1031,11 @@
       "native.screen.operating": "{name} l’utilise",
       "native.screen.disconnected": "Déconnecté",
       "native.screen.unfold": "Afficher l’aperçu",
-      "native.screen.fold": "Masquer l’aperçu"
+      "native.screen.fold": "Masquer l’aperçu",
+      "native.whiteboard.packDetail": "Installez le module Tableau blanc (~15 Mo) pour dessiner et modifier, ou affichez directement le code JSON.",
+      "native.whiteboard.installPack": "Installer le module Tableau blanc",
+      "native.whiteboard.installingPack": "Installation du module Tableau blanc…",
+      "native.whiteboard.viewJsonSource": "Afficher le code JSON"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1151,7 +1179,11 @@
       "native.screen.operating": "{name} arbeitet hier",
       "native.screen.disconnected": "Getrennt",
       "native.screen.unfold": "Vorschau einblenden",
-      "native.screen.fold": "Vorschau ausblenden"
+      "native.screen.fold": "Vorschau ausblenden",
+      "native.whiteboard.packDetail": "Installiere das Whiteboard-Zusatzmodul (~15 MB) zum Zeichnen und Bearbeiten oder zeige den JSON-Quelltext direkt an.",
+      "native.whiteboard.installPack": "Whiteboard-Zusatzmodul installieren",
+      "native.whiteboard.installingPack": "Whiteboard-Zusatzmodul wird installiert…",
+      "native.whiteboard.viewJsonSource": "JSON-Quelltext anzeigen"
     }
   }
 }

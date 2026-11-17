@@ -112,7 +112,6 @@ jobs:
           npm --prefix "${BASELINE_DIR}" ci
           echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
           python3 puppy-one-rust/tools/fetch-pdfium.py
-          python3 puppy-one-rust/tools/fetch-excalidraw-fonts.py
 
       - name: Verify GPUI source and Electron-to-GPUI OTA contract
         shell: bash
@@ -134,6 +133,10 @@ jobs:
             --flat-out \
             --build-info-out generated/desktop-build-info.json
           python3 puppy-one-rust/tools/release/verify-macos-release.py release --channel internal
+          python3 puppy-one-rust/tools/release/package-excalidraw-pack.py --out artifacts/viewer-packs
+          node scripts/publish-viewer-packs-r2.mjs verify-local \
+            --packs-dir artifacts/viewer-packs \
+            --require-non-empty
 
       - name: Verify packaged Internal Build Identity
         run: node scripts/verify-packaged-desktop-build.mjs
@@ -245,12 +248,21 @@ jobs:
             artifacts/desktop-release-bundle/release.json
             artifacts/desktop-release-bundle/build-info.json
             artifacts/desktop-release-bundle/SHA256SUMS
+            artifacts/viewer-packs/*
 
       - name: Upload build-once release bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.release.outputs.artifact_name }}
           path: artifacts/desktop-release-bundle
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build-once viewer packs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.release.outputs.artifact_name }}-viewer-packs
+          path: artifacts/viewer-packs
           if-no-files-found: error
           retention-days: 30
 

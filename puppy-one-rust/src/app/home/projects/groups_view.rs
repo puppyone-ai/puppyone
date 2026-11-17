@@ -172,11 +172,36 @@ impl Homepage {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        use super::super::groups::DropAction;
+        use super::super::{
+            folder::ComputerKind,
+            groups::{DropAction, GroupId},
+        };
         let t = cx.palette();
         let layout = self.preferences.read(cx).state.homepage_project_layout;
         let grid = layout == HomepageLayout::Grid;
         let id = group.id.clone();
+        // Computer Mode: the spaces' projects are Cloud computers, this
+        // computer's computers its own, and the plain folders quiet.
+        let computer_mode = crate::features::flags::computer_mode_enabled(&self.preferences, cx);
+        let plain = id == GroupId::PlainFolders;
+        let look = match &id {
+            GroupId::Space(_) | GroupId::SharedUnresolved if computer_mode => {
+                Look::Computer(ComputerKind::Cloud)
+            }
+            GroupId::LocalComputers => Look::Computer(ComputerKind::OnDevice),
+            GroupId::PlainFolders if grid => Look::Plain,
+            _ => Look::Folder,
+        };
+        // The quiet grid fills its row with cells at least 190px wide, 8px apart.
+        let (columns, col_gap, cell_w, row_gap) = if plain && grid {
+            let width = cell_w * columns as f32 + col_gap * (columns as f32 - 1.);
+            let count = (((width + 8.) / 198.).floor() as usize).max(1);
+            let cell = (width - 8. * (count as f32 - 1.)) / count as f32;
+            (count, 8., cell, 8.)
+        } else {
+            (columns, col_gap, cell_w, CELL_ROW_GAP)
+        };
+        let closed = plain && self.plain_folders_closed;
         let available = group.drop.as_ref().is_some_and(|d| d.enabled);
         let over = available && self.drop_over.as_ref() == Some(&id);
         let ids: Vec<String> = group.items.iter().map(|i| i.id.clone()).collect();
@@ -221,12 +246,55 @@ impl Homepage {
                 }
             };
             cells.push(if grid {
-                self.project_tile(index, item, focus, cell_w, lit, is_stop, busy, keys, cx)
+                self.project_tile(
+                    index, item, focus, cell_w, lit, is_stop, busy, look, keys, cx,
+                )
             } else {
-                self.project_row(index, item, focus, lit, is_stop, narrow, busy, keys, cx)
+                self.project_row(
+                    index, item, focus, lit, is_stop, narrow, busy, look, keys, cx,
+                )
             });
         }
-        let content = if let Some(text) = group.empty_text.clone().filter(|_| cells.is_empty()) {
+        let new_computer = |id: &'static str, cx: &mut Context<Self>| {
+            Button::new(id)
+                .variant(ButtonVariant::Outline)
+                .icon(Icon::new("plus").small().stroke(2.))
+                .label(tr("onboarding.computerMode.createAction"))
+                .disabled(busy)
+                .h(px(24.))
+                .px(px(10.))
+                .text_size(px(theme::ty().ui.meta))
+                .font_weight(FontWeight::MEDIUM)
+                .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)))
+        };
+        let content = if closed {
+            div().into_any_element()
+        } else if let Some(text) = group
+            .empty_text
+            .clone()
+            .filter(|_| cells.is_empty() && id == GroupId::LocalComputers)
+        {
+            // `.computer-mode-empty-computers`: why the group is empty, and
+            // the way to fill it.
+            h_flex()
+                .justify_between()
+                .gap(px(12.))
+                .px(px(14.))
+                .py(px(12.))
+                .mx(px(inset))
+                .rounded(px(10.))
+                .border_1()
+                .border_dashed()
+                .border_color(theme::alpha(t.border, 0.85))
+                .bg(theme::alpha(t.panel, 0.5))
+                .text_size(px(theme::ty().ui.meta))
+                .text_color(t.muted)
+                .child(div().min_w_0().child(text))
+                .when(group.create, |d| {
+                    d.child(new_computer("home-new-computer-empty", cx))
+                })
+                .into_any_element()
+        } else if let Some(text) = group.empty_text.clone().filter(|_| cells.is_empty()) {
             div()
                 .min_h(px(32.))
                 .flex()
@@ -250,10 +318,7 @@ impl Homepage {
                     ),
                 );
             }
-            v_flex()
-                .gap(px(CELL_ROW_GAP))
-                .children(rows)
-                .into_any_element()
+            v_flex().gap(px(row_gap)).children(rows).into_any_element()
         } else {
             div()
                 .flex()
@@ -306,6 +371,18 @@ impl Homepage {
                 .stroke(1.75)
                 .color(t.muted)
                 .into_any_element(),
+            super::super::groups::Mark::Computers => Icon::new("cpu")
+                .with_size(px(15.))
+                .stroke(1.75)
+                .color(t.muted)
+                .into_any_element(),
+        });
+        // New computer beside the computers' heading, while it has any.
+        let create = (group.create && !group.items.is_empty()).then(|| {
+            div()
+                .debug_selector(|| "home-new-computer".into())
+                .flex_none()
+                .child(new_computer("home-new-computer", cx))
         });
         // The plan and whether this account owns a shared space, said
         // quietly after the name rather than as badges.
@@ -346,29 +423,35 @@ impl Homepage {
                         cx.emit(HomeEvent::ManageSpace(space.clone()))
                     }))
             });
-        let head = h_flex()
-            .min_w_0()
-            .h(px(24.))
-            .items_center()
-            .gap(px(8.))
-            .mx(px(inset))
-            .text_size(px(ty.body))
-            .line_height(px(20.))
-            .text_color(t.text)
-            .children(mark)
-            .child(
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(group.title.clone()),
-            )
-            .children(detail)
-            .children(presence)
-            .child(div().flex_1())
-            .children(agents)
-            .children(head_end)
-            .children(manage);
+        let head = if plain {
+            self.plain_folders_head(group.title.clone(), group.items.len(), inset, cx)
+        } else {
+            h_flex()
+                .min_w_0()
+                .h(px(24.))
+                .items_center()
+                .gap(px(8.))
+                .mx(px(inset))
+                .text_size(px(ty.body))
+                .line_height(px(20.))
+                .text_color(t.text)
+                .children(mark)
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .font_weight(FontWeight::MEDIUM)
+                        .child(group.title.clone()),
+                )
+                .children(detail)
+                .children(presence)
+                .child(div().flex_1())
+                .children(agents)
+                .children(head_end)
+                .children(manage)
+                .children(create)
+                .into_any_element()
+        };
         let drop_action = group.drop.clone().filter(|d| d.enabled).map(|d| d.action);
         div()
             .id(("home-group", index))
@@ -382,6 +465,14 @@ impl Homepage {
             .gap(px(if grid { 6. } else { 4. }))
             .when(index > 0, |d| {
                 d.pt(px(24.)).border_t_1().border_color(t.divider)
+            })
+            // `.computer-mode-muted-folders`: set off by a dashed rule, quiet
+            // until the pointer comes.
+            .when(plain, |d| {
+                d.border_dashed()
+                    .border_color(theme::alpha(t.border, 0.8))
+                    .opacity(0.76)
+                    .hover(|s| s.opacity(0.96))
             })
             .when(dragging && !available, |d| d.opacity(0.38))
             .when(available || lit, |d| {
@@ -436,6 +527,86 @@ impl Homepage {
                     cx.notify();
                 }))
             })
+            .into_any_element()
+    }
+}
+
+impl Homepage {
+    /// `.computer-mode-muted-folders-head`: the plain folders' toggle, their
+    /// count and what they are.
+    fn plain_folders_head(
+        &self,
+        title: String,
+        count: usize,
+        inset: f32,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let ty = theme::ty().ui;
+        let open = !self.plain_folders_closed;
+        h_flex()
+            .id("home-plain-folders-toggle")
+            .debug_selector(|| "home-plain-folders-toggle".into())
+            .min_w_0()
+            .h(px(26.))
+            .mx(px(inset - 6.))
+            .px(px(6.))
+            .items_center()
+            .gap(px(7.))
+            .rounded(px(7.))
+            .text_size(px(ty.body))
+            .line_height(px(20.))
+            .text_color(t.muted)
+            .cursor(theme::clickable_cursor())
+            .hover(|s| s.bg(theme::alpha(t.text, 0.04)).text_color(t.text))
+            .on_click(cx.listener(|s, _, _, cx| {
+                s.plain_folders_closed = !s.plain_folders_closed;
+                cx.notify();
+            }))
+            .child(
+                Icon::new(if open {
+                    "chevron-down"
+                } else {
+                    "chevron-right"
+                })
+                .with_size(px(14.))
+                .stroke(1.8)
+                .color(t.muted),
+            )
+            .child(
+                Icon::product(ProductIcon::Folder)
+                    .with_size(px(15.))
+                    .stroke(1.75)
+                    .color(t.muted),
+            )
+            .child(
+                div()
+                    .flex_none()
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(title),
+            )
+            .child(
+                div()
+                    .flex_none()
+                    .min_w(px(18.))
+                    .h(px(17.))
+                    .px(px(5.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_full()
+                    .bg(theme::alpha(t.text, 0.07))
+                    .text_size(px(ty.caption))
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(count.to_string()),
+            )
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_color(t.subtle)
+                    .child(tr("onboarding.computerMode.plainFolders.hint")),
+            )
             .into_any_element()
     }
 }

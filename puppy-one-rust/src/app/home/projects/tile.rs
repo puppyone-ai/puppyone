@@ -2,7 +2,7 @@
 use super::{
     super::{
         display::{item_caption, item_name, modification_time, parent_for_display},
-        folder::ProjectFolderGlyph,
+        folder::{ComputerKind, ProjectComputerGlyph, ProjectFolderGlyph},
     },
     *,
 };
@@ -33,9 +33,13 @@ impl Homepage {
         lit: bool,
         is_stop: bool,
         busy: bool,
+        look: Look,
         keys: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if look == Look::Plain {
+            return self.plain_tile(index, item, focus, lit, is_stop, busy, keys, cx);
+        }
         let t = cx.palette();
         let ty = theme::ty().ui;
         let name = item_name(item);
@@ -44,7 +48,19 @@ impl Homepage {
             None => item_caption(item),
         };
         let modified = modified_ago(item);
-        let caption = if item.remote.is_some() {
+        // A computer on this computer says whether it runs, then when it
+        // changed (`[powerLabel, modified]`).
+        let power =
+            (look == Look::Computer(ComputerKind::OnDevice)).then(|| self.item_power(item, cx));
+        let caption = if let Some(power) = power {
+            Some(
+                [Some(tr(power.label()).to_owned()), modified.clone()]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
+                    .join(" · "),
+            )
+        } else if item.remote.is_some() {
             Some(item_caption(item))
         } else {
             modified.clone().or_else(|| {
@@ -106,11 +122,20 @@ impl Homepage {
             .when(self.dragging_item(item, cx), |d| d.opacity(0.62))
             .tooltip(crate::ui::components::tooltip(tooltip))
             .child(
-                div().mb(px(8.)).child(
-                    ProjectFolderGlyph::grid(self.item_previews(item))
+                div().mb(px(8.)).child(match look {
+                    Look::Computer(kind) => ProjectComputerGlyph::grid(
+                        kind,
+                        power.unwrap_or(super::super::folder::ComputerPower::Running),
+                        self.item_previews(item),
+                    )
+                    .lit(lit)
+                    .fade(fade.or(status.map(|_| 0.4)))
+                    .into_any_element(),
+                    _ => ProjectFolderGlyph::grid(self.item_previews(item))
                         .lit(lit)
-                        .fade(fade.or(status.map(|_| 0.4))),
-                ),
+                        .fade(fade.or(status.map(|_| 0.4)))
+                        .into_any_element(),
+                }),
             )
             .child(
                 h_flex()
@@ -167,6 +192,87 @@ impl Homepage {
                     .absolute()
                     .top(px(4.))
                     .right(px(4.))
+                    .when(!lit, |d| d.invisible())
+                    .child(actions)
+            }))
+            .into_any_element()
+    }
+}
+
+impl Homepage {
+    /// A plain folder in Computer Mode's quiet grid: a small folder beside
+    /// its name in a bordered row (`.computer-mode-muted-folders-body`).
+    #[allow(clippy::too_many_arguments)]
+    fn plain_tile(
+        &self,
+        index: usize,
+        item: &Item,
+        focus: FocusHandle,
+        lit: bool,
+        is_stop: bool,
+        busy: bool,
+        keys: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let ty = theme::ty().ui;
+        let name = item_name(item);
+        let place = item
+            .local_path
+            .as_deref()
+            .map(|path| path_for_display(Path::new(path)))
+            .unwrap_or_default();
+        let status = item
+            .local_path
+            .as_deref()
+            .and_then(|path| self.folder_status(Path::new(path)));
+        let tile = self
+            .open_control(("home-tile", index), item, focus, busy, keys, cx)
+            .w_full()
+            .min_w_0()
+            .min_h(px(38.))
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .px(px(10.))
+            .py(px(6.))
+            .rounded(px(8.))
+            .border_1()
+            .border_color(theme::alpha(t.border, 0.65))
+            .bg(if lit && !busy {
+                t.hover
+            } else {
+                theme::alpha(t.panel, 0.55)
+            })
+            .text_color(t.text)
+            .when(busy, |d| d.opacity(0.58))
+            .when(self.dragging_item(item, cx), |d| d.opacity(0.62))
+            .tooltip(crate::ui::components::tooltip(place))
+            .child(
+                div().flex_none().child(
+                    ProjectFolderGlyph::tiny()
+                        .lit(lit)
+                        .fade(status.map(|_| 0.4)),
+                ),
+            )
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_size(px(ty.body))
+                    .line_height(px(18.))
+                    .child(name),
+            );
+        let actions = self.project_actions_trigger(index, item, is_stop, busy, cx);
+        div()
+            .relative()
+            .min_w_0()
+            .child(tile)
+            .children(actions.map(|actions| {
+                div()
+                    .absolute()
+                    .top(px(5.))
+                    .right(px(5.))
                     .when(!lit, |d| d.invisible())
                     .child(actions)
             }))

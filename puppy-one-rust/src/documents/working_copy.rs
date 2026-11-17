@@ -2276,11 +2276,17 @@ impl WorkingCopy {
             self.observation_retry = None;
             self.observation_pending = true;
         }
-        if let Some(event) = self.watch.as_ref().and_then(workspace::Subscription::next) {
+        if matches!(self.phase, Phase::Idle)
+            && let Some(event) = self.watch.as_ref().and_then(workspace::Subscription::next)
+        {
             match event {
                 workspace::ports::WatchEvent::Invalidated
                 | workspace::ports::WatchEvent::Changed(_) => self.observation_pending = true,
-                workspace::ports::WatchEvent::Failed(error) => self.error = Some(error.to_string()),
+                workspace::ports::WatchEvent::Failed(error) => {
+                    if self.error.is_none() {
+                        self.error = Some(error.to_string());
+                    }
+                }
             }
         }
         self.pump_with(ctx, &mut open_folder);

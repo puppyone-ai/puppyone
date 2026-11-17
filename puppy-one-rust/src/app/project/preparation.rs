@@ -13,7 +13,7 @@ use crate::{
     theme::{self, metric},
     ui::{
         appearance::ActiveAppearance,
-        components::{Button, ButtonVariant},
+        components::{Button, ButtonVariant, covering},
         loading::{self, LoaderSize, LoadingMark, Tone, model::Shape},
     },
 };
@@ -141,16 +141,18 @@ impl ProjectLifecycle {
                     .tone(Tone::Neutral),
             )
             .children(detail);
+        // Over what the window showed before: none of it takes the pointer
+        // or shows its web content through.
+        let layer = div()
+            .id("project-preparation")
+            .debug_selector(|| "project-preparation".into())
+            .absolute()
+            .left_0()
+            .top(px(top))
+            .w(px(w))
+            .h(px((h - top).max(0.)));
         Some(
-            div()
-                .id("project-preparation")
-                .debug_selector(|| "project-preparation".into())
-                .absolute()
-                .left_0()
-                .top(px(top))
-                .w(px(w))
-                .h(px((h - top).max(0.)))
-                .occlude()
+            covering(layer)
                 .bg(t.canvas)
                 .when_some(
                     explorer.filter(|explorer| explorer.w > 0.),

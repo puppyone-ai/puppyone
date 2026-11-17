@@ -3,6 +3,7 @@
 //! (`useHomepageFirstPaint`, `useHomepageListHold`, `useHomepageCloudProjects`,
 //! `useProjectGroupFocus`, `HomepageComputers`).
 use super::{display::project_name, *};
+use crate::platform::local_computers::normalize_path;
 use std::collections::HashSet;
 
 /// `HOMEPAGE_FIRST_PAINT_BUDGET_MS`: the longest a list waits.
@@ -289,6 +290,15 @@ impl Homepage {
         let spaces = self.spaces.read(cx);
         let cloud = crate::features::flags::cloud_enabled(&self.preferences, cx)
             && crate::features::cloud::account::has_account(cx);
+        // Computer Mode: which folders are this computer's computers.
+        let computers = self.computer_paths(cx);
+        let is_computer = |item: &Item| {
+            item.local_path.as_deref().is_some_and(|path| {
+                computers
+                    .as_ref()
+                    .is_some_and(|c| c.contains(&normalize_path(path)))
+            })
+        };
         groups::groups(groups::Inputs {
             spaces: if cloud { spaces.spaces() } else { &[] },
             items,
@@ -307,7 +317,27 @@ impl Homepage {
             local_share: self.local_share,
             remote: self.remote_items(cx),
             presence: self.presence.clone(),
+            computers: computers
+                .is_some()
+                .then_some(&is_computer as &dyn Fn(&Item) -> bool),
+            can_create: !self.session.busy,
         })
+    }
+
+    /// Computer Mode's computers on this computer, by their folder; `None`
+    /// while the mode is off.
+    pub(in crate::app::home) fn computer_paths(&self, cx: &App) -> Option<HashSet<String>> {
+        if !crate::features::flags::computer_mode_enabled(&self.preferences, cx) {
+            return None;
+        }
+        Some(
+            crate::features::computer_mode::read(cx)
+                .map(|c| c.computers())
+                .unwrap_or_default()
+                .iter()
+                .map(|record| normalize_path(&record.workspace_path))
+                .collect(),
+        )
     }
 
     /// `projectAudience` of `MinimalOnboarding`: who can open a local folder

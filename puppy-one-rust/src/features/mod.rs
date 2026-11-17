@@ -1,6 +1,7 @@
 pub mod agent_presence;
 pub mod build_info;
 pub mod cloud;
+pub mod computer_mode;
 pub mod create_new;
 pub mod desktop_agent;
 pub mod feedback;

@@ -151,9 +151,13 @@ impl HostState {
 
     /// Cuts `cutouts` (window coordinates) out of the view where they
     /// cross it: floating surfaces over the page show through. `false`
-    /// where the platform cannot cut and one crosses it: the view hides.
+    /// where the platform cannot cut and one crosses it, or where one covers
+    /// the view whole (a layer over the page): the view hides.
     fn cut(&self, cutouts: &[crate::ui::native_cover::Cutout]) -> bool {
         let (x, y, w, h) = self.showing();
+        if cutouts.iter().any(|c| covers(c, (x, y, w, h))) {
+            return false;
+        }
         let local: Vec<[f32; 5]> = cutouts
             .iter()
             .filter_map(|c| {
@@ -185,10 +189,29 @@ impl HostState {
             size: (w, h),
         };
         #[cfg(target_os = "macos")]
-        self.mask(&applied.holes, applied.size);
+        {
+            self.mask(&applied.holes, applied.size);
+            self.let_through(&applied.holes);
+        }
         true
     }
-
+    /// Where the clipping view lets the pointer through: the holes the
+    /// mask cuts, which AppKit's hit test never sees.
+    #[cfg(target_os = "macos")]
+    fn let_through(&self, holes: &[[f32; 5]]) {
+        let Some(clip) = self.clip.borrow().as_ref().map(clip_key) else {
+            return;
+        };
+        let holes: Vec<[f32; 4]> = holes.iter().map(|&[x, y, w, h, _]| [x, y, w, h]).collect();
+        HOLES.with(|all| {
+            let mut all = all.borrow_mut();
+            if holes.is_empty() {
+                all.remove(&clip);
+            } else {
+                all.insert(clip, holes);
+            }
+        });
+    }
     /// The view's layer mask: its whole rectangle less `holes`
     /// (top-left origin), or none.
     #[cfg(target_os = "macos")]
@@ -271,12 +294,21 @@ impl HostState {
         }
     }
 }
-
+/// Whether `cutout` lies over the whole of the window rectangle
+/// `(x, y, w, h)` (to half a pixel).
+fn covers(cutout: &crate::ui::native_cover::Cutout, (x, y, w, h): (f32, f32, f32, f32)) -> bool {
+    let b = cutout.bounds;
+    f32::from(b.origin.x) <= x + 0.5
+        && f32::from(b.origin.y) <= y + 0.5
+        && f32::from(b.origin.x + b.size.width) >= x + w - 0.5
+        && f32::from(b.origin.y + b.size.height) >= y + h - 0.5
+}
 #[cfg(target_os = "macos")]
 impl Drop for HostState {
     fn drop(&mut self) {
         self.yield_focus_to_window();
         if let Some(clip) = self.clip.borrow_mut().take() {
+            HOLES.with(|all| all.borrow_mut().remove(&clip_key(&clip)));
             // SAFETY: a live NSView on the main thread.
             unsafe {
                 let _: () = objc2::msg_send![&*clip, removeFromSuperview];
@@ -285,6 +317,78 @@ impl Drop for HostState {
     }
 }
 
+/// Whether `(x, y)` (from the top-left) lies in one of `holes`
+/// (`x, y, w, h`, the same origin).
+#[cfg(any(test, target_os = "macos"))]
+fn in_holes(holes: &[[f32; 4]], x: f32, y: f32) -> bool {
+    holes
+        .iter()
+        .any(|&[hx, hy, hw, hh]| x >= hx && x < hx + hw && y >= hy && y < hy + hh)
+}
+/// A clipping view's key in [`HOLES`]: its address.
+#[cfg(target_os = "macos")]
+fn clip_key(clip: &objc2::rc::Retained<objc2::runtime::AnyObject>) -> usize {
+    objc2::rc::Retained::as_ptr(clip) as usize
+}
+/// The class of the views web content sits in: an `NSView` whose hit test
+/// finds nothing where a floating surface is cut out of the page, so AppKit
+/// hands presses and the wheel there to the window's own view (it hit-tests
+/// frames, never the mask the cut paints).
+#[cfg(target_os = "macos")]
+fn clip_class() -> &'static objc2::runtime::AnyClass {
+    use objc2::runtime::{AnyClass, AnyObject, ClassBuilder, Sel};
+    const NAME: &std::ffi::CStr = c"PuppyOneWebContentClip";
+    if let Some(class) = AnyClass::get(NAME) {
+        return class;
+    }
+    unsafe extern "C-unwind" fn hit_test(
+        this: &AnyObject,
+        _: Sel,
+        point: CgPoint,
+    ) -> *mut AnyObject {
+        use objc2::{class, msg_send};
+        // SAFETY: AppKit hit-tests on the main thread, `point` in the
+        // superview's coordinates; `this` is a live clipping view.
+        unsafe {
+            let superview: *mut AnyObject = msg_send![this, superview];
+            let local: CgPoint = msg_send![this, convertPoint: point, fromView: superview];
+            let bounds: CgRect = msg_send![this, bounds];
+            // The clipping view is not flipped; holes count from its top.
+            let (x, y) = (local.x as f32, (bounds.height - local.y) as f32);
+            let key = std::ptr::from_ref(this) as usize;
+            let through =
+                HOLES.with(|all| all.borrow().get(&key).is_some_and(|h| in_holes(h, x, y)));
+            if through {
+                return std::ptr::null_mut();
+            }
+            msg_send![super(this, class!(NSView)), hitTest: point]
+        }
+    }
+    let mut builder = ClassBuilder::new(NAME, objc2::class!(NSView))
+        .expect("the clipping view's class is registered once");
+    // SAFETY: the signature of `-[NSView hitTest:]`.
+    unsafe {
+        builder.add_method(
+            objc2::sel!(hitTest:),
+            hit_test as unsafe extern "C-unwind" fn(_, _, _) -> _,
+        );
+    }
+    builder.register()
+}
+/// CGPoint's layout and Objective-C encoding.
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CgPoint {
+    x: f64,
+    y: f64,
+}
+// SAFETY: the same layout as CGPoint.
+#[cfg(target_os = "macos")]
+unsafe impl objc2::Encode for CgPoint {
+    const ENCODING: objc2::Encoding =
+        objc2::Encoding::Struct("CGPoint", &[f64::ENCODING, f64::ENCODING]);
+}
 /// CGRect's layout and Objective-C encoding.
 #[cfg(target_os = "macos")]
 #[repr(C)]
@@ -343,6 +447,10 @@ thread_local! {
     static PAINTED_IN_SEQ: RefCell<HashSet<u64>> = RefCell::new(Default::default());
     static OVERLAY: RefCell<HashMap<u64, bool>> = RefCell::new(Default::default());
     static SCHEDULED: RefCell<HashSet<u64>> = RefCell::new(Default::default());
+    /// Where each clipping view lets the pointer through (`x, y, w, h` from
+    /// its top-left), by [`clip_key`].
+    #[cfg(target_os = "macos")]
+    static HOLES: RefCell<HashMap<usize, Vec<[f32; 4]>>> = RefCell::new(Default::default());
 }
 
 fn next_use_tick() -> u64 {
@@ -727,10 +835,15 @@ impl WebHost {
         PAINTED_IN_SEQ.with(|p| {
             p.borrow_mut().insert(state.window);
         });
+        // In its clipping view on macOS, which lets the pointer through where
+        // a floating surface is cut out of the page.
+        #[cfg(target_os = "macos")]
+        self.clip_to(&state, rect, rect, 0.);
+        #[cfg(not(target_os = "macos"))]
         if state.bounds.get() != rect {
             state.bounds.set(rect);
             match &state.engine {
-                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                #[cfg(target_os = "windows")]
                 HostEngine::Native(view) => {
                     let _ = view.set_bounds(wry::Rect {
                         position: wry::dpi::LogicalPosition::new(rect.0, rect.1).into(),
@@ -793,21 +906,22 @@ impl WebHost {
         shown: (f32, f32, f32, f32),
         radius: f32,
     ) {
-        use objc2::{class, msg_send, rc::Retained, runtime::AnyObject};
+        use objc2::{msg_send, rc::Retained, runtime::AnyObject};
         state.bounds.set(view);
         state.shown.set(shown);
         let Some(web) = state.webview_ptr() else {
             return;
         };
         let mut slot = state.clip.borrow_mut();
-        // SAFETY: live AppKit views on the main thread.
+        // SAFETY: live AppKit views on the main thread; the WebView moves
+        // into a layer-backed PuppyOneWebContentClip view that clips its subviews.
         unsafe {
             if slot.is_none() {
                 let parent: *mut AnyObject = msg_send![web, superview];
                 if parent.is_null() {
                     return;
                 }
-                let clip: Retained<AnyObject> = msg_send![class!(NSView), new];
+                let clip: Retained<AnyObject> = msg_send![clip_class(), new];
                 let _: () = msg_send![&*clip, setWantsLayer: true];
                 let layer: *mut AnyObject = msg_send![&*clip, layer];
                 let _: () = msg_send![layer, setMasksToBounds: true];
@@ -1309,5 +1423,53 @@ mod tests {
         assert_eq!((full.width(), full.height()), (400, 450));
         assert_eq!(full.get_pixel(10, 10).0, [20, 30, 40, 255]);
         assert_eq!(full.get_pixel(10, 440).0, [200, 100, 50, 255]);
+    }
+
+    /// A layer over the whole view hides it; a menu over part of it is cut.
+    #[test]
+    fn only_a_shape_over_the_whole_view_covers_it() {
+        use crate::ui::native_cover::Cutout;
+        let shape = |x: f32, y: f32, w: f32, h: f32| Cutout {
+            bounds: gpui::Bounds::new(
+                gpui::point(gpui::px(x), gpui::px(y)),
+                gpui::size(gpui::px(w), gpui::px(h)),
+            ),
+            radius: 0.,
+        };
+        let view = (300., 40., 700., 760.);
+        assert!(covers(&shape(0., 0., 1280., 800.), view));
+        assert!(covers(&shape(300.2, 40., 699.9, 760.), view));
+        assert!(!covers(&shape(320., 60., 224., 300.), view));
+        assert!(!covers(&shape(0., 40., 1280., 700.), view));
+    }
+
+    /// The pointer passes through a cut-out hole, edges included at its
+    /// start, and nowhere else.
+    #[test]
+    fn the_pointer_passes_through_only_the_holes() {
+        let holes = [[20., 10., 224., 300.], [400., 0., 40., 40.]];
+        assert!(in_holes(&holes, 20., 10.));
+        assert!(in_holes(&holes, 100., 200.));
+        assert!(in_holes(&holes, 439., 39.));
+        assert!(!in_holes(&holes, 244., 100.));
+        assert!(!in_holes(&holes, 100., 310.));
+        assert!(!in_holes(&[], 100., 100.));
+    }
+
+    /// The clipping view's class registers once, its `hitTest:` matching
+    /// `NSView`'s signature (checked as it is added) and replacing it.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_clipping_view_has_its_own_hit_test() {
+        let class = clip_class();
+        assert!(std::ptr::eq(class, clip_class()));
+        let hit_test = objc2::sel!(hitTest:);
+        let own = class.instance_method(hit_test).unwrap();
+        let view = objc2::class!(NSView).instance_method(hit_test).unwrap();
+        assert!(!std::ptr::eq(own, view));
+        assert!(std::ptr::eq(
+            class.superclass().unwrap(),
+            objc2::class!(NSView)
+        ));
     }
 }

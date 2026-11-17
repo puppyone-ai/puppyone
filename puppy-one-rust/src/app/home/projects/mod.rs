@@ -45,6 +45,38 @@ impl Render for ProjectDrag {
     }
 }
 
+/// How a project shows: a folder, or in Computer Mode a computer, and the
+/// plain folders kept quiet at the bottom.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::app::home) enum Look {
+    Folder,
+    Computer(super::folder::ComputerKind),
+    /// `.computer-mode-muted-folders`: a small folder beside its name.
+    Plain,
+}
+
+impl Homepage {
+    /// What a computer on this computer is doing (`toVisualPowerState`):
+    /// running unless the registry says it starts or sleeps.
+    pub(in crate::app::home) fn item_power(
+        &self,
+        item: &Item,
+        cx: &App,
+    ) -> super::folder::ComputerPower {
+        use super::folder::ComputerPower;
+        use crate::platform::local_computers::Status;
+        let record = item
+            .local_path
+            .as_deref()
+            .and_then(|path| crate::features::computer_mode::read(cx)?.for_path(Path::new(path)));
+        match record.map(|r| r.status) {
+            Some(Status::Asleep | Status::Stopped) => ComputerPower::Asleep,
+            Some(Status::Provisioning) => ComputerPower::Provisioning,
+            _ => ComputerPower::Running,
+        }
+    }
+}
+
 /// The Homepage's own menus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::app) enum HomeMenu {

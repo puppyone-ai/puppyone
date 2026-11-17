@@ -16,13 +16,15 @@ fn data() -> &'static Value {
         // with per-file SHA-256 hashes: CloudSignInDialog
         // (`tools/import-sign-in-explainer.py`), first run's moments
         // (`tools/import-onboarding-value.py`), Projects Home
-        // (`tools/import-onboarding-home.py`) and Cloud Computer Screen
-        // (`tools/import-cloud-computer-screen.py`).
+        // (`tools/import-onboarding-home.py`), Cloud Computer Screen
+        // (`tools/import-cloud-computer-screen.py`) and Computer Mode
+        // (`tools/import-computer-mode.py`).
         let ahead = [
             include_str!("../assets/sign-in-explainer.json"),
             include_str!("../assets/onboarding-value.json"),
             include_str!("../assets/onboarding-home.json"),
             include_str!("../assets/cloud-computer-screen.json"),
+            include_str!("../assets/computer-mode.json"),
         ]
         .map(|source| serde_json::from_str::<Value>(source).expect("catalog ahead of the pin"));
         for (locale, messages) in ahead.iter().flat_map(|a| a["locales"].as_object().unwrap()) {
@@ -1109,6 +1111,50 @@ mod tests {
             "cloud.settings.computer.failed",
             "settings.experimental.cloudComputerScreen.title",
             "settings.experimental.cloudComputerScreen.detail",
+        ];
+        for (code, _) in Locale::choices() {
+            let locale = Locale { code: code.into() };
+            for key in keys {
+                let value = locale.text(key);
+                assert_ne!(value, key, "{code} lacks {key}");
+                assert!(!value.trim().is_empty(), "{code} has empty {key}");
+            }
+        }
+    }
+    #[test]
+    fn computer_mode_messages_resolve_in_every_product_locale() {
+        let keys = [
+            "onboarding.computerMode.sectionTitle",
+            "onboarding.computerMode.createAction",
+            "onboarding.computerMode.thisMacTitle",
+            "onboarding.computerMode.thisComputerTitle",
+            "onboarding.computerMode.emptyOnDevice",
+            "onboarding.computerMode.plainFolders.title",
+            "onboarding.computerMode.plainFolders.hint",
+            "onboarding.computerMode.status.running",
+            "onboarding.computerMode.status.provisioning",
+            "onboarding.computerMode.status.asleep",
+            "onboarding.computerMode.dialog.title",
+            "onboarding.computerMode.dialog.whereLabel",
+            "onboarding.computerMode.dialog.cloudTitle",
+            "onboarding.computerMode.dialog.cloudDetail",
+            "onboarding.computerMode.dialog.cloudUnavailable",
+            "onboarding.computerMode.dialog.onDeviceTitle",
+            "onboarding.computerMode.dialog.onDeviceDetail",
+            "onboarding.computerMode.dialog.runtimeReady",
+            "onboarding.computerMode.dialog.runtimeManaged",
+            "onboarding.computerMode.dialog.nameLabel",
+            "onboarding.computerMode.dialog.defaultName",
+            "onboarding.computerMode.dialog.submit",
+            "onboarding.computerMode.dialog.submitting",
+            "onboarding.computerMode.screen.asleepNote",
+            "onboarding.computerMode.screen.wakeAction",
+            "onboarding.computerMode.screen.sleepAction",
+            "onboarding.computerMode.screen.provisioningNote",
+            "onboarding.computerMode.screen.workspaceReadyNote",
+            "onboarding.computerMode.screen.startDesktopAction",
+            "settings.experimental.computerMode.title",
+            "settings.experimental.computerMode.detail",
         ];
         for (code, _) in Locale::choices() {
             let locale = Locale { code: code.into() };

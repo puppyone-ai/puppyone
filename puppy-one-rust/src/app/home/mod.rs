@@ -37,6 +37,7 @@ use crate::ui::components::Menu;
 use crate::ui::components::MenuItem;
 use crate::ui::components::PopoverMenu;
 use crate::ui::components::ProductIcon;
+use crate::ui::components::cover;
 use crate::workspace::cloud::{
     catalog::{self, Item},
     locator::{self, Locator},
@@ -133,6 +134,8 @@ pub(in crate::app) struct Homepage {
     pub list_held_since: Option<Instant>,
     pub place_focus: Option<(groups::GroupId, Instant, Option<Instant>)>,
     pub drop_over: Option<groups::GroupId>,
+    /// Computer Mode's plain folders are folded away.
+    pub(in crate::app) plain_folders_closed: bool,
     pub(in crate::app::home) spaces_wait: Option<Instant>,
     pub(in crate::app) shared_ids: Option<std::collections::HashSet<String>>,
     pub(in crate::app) local_share: bool,
@@ -188,6 +191,9 @@ impl Homepage {
         cx.observe(&hosts, |h, _, cx| h.refresh(cx)).detach();
         let link = crate::features::hosts::host_link(cx);
         cx.observe(&link, |h, _, cx| h.refresh(cx)).detach();
+        // Computer Mode's computers: a computer made, woken or put to sleep.
+        let computers = crate::features::computer_mode::global(&preferences, cx);
+        cx.observe(&computers, |_, _, cx| cx.notify()).detach();
         let activation = crate::features::local_agents::activation_store(cx);
         cx.subscribe(
             &activation,
@@ -273,6 +279,7 @@ impl Homepage {
             list_held_since: None,
             place_focus: None,
             drop_over: None,
+            plain_folders_closed: false,
             spaces_wait: None,
             shared_ids: None,
             local_share: false,
@@ -548,7 +555,11 @@ impl Homepage {
                 cx.listener(|s, _, _, cx| s.command(Command::OpenFolder, cx)),
                 cx.listener(|s, _, w, cx| s.begin_import(w, cx)),
             )
-            .agents_menu(self.new_project_menu(busy, cx));
+            .agents_menu(self.new_project_menu(busy, cx))
+            .computer_mode(crate::features::flags::computer_mode_enabled(
+                &self.preferences,
+                cx,
+            ));
             let view = (!list_held).then(|| self.project_toolbar(busy, cx));
             let head = OnboardingBrandLockup::projects(start_actions, view);
             let note = (crate::features::flags::cloud_enabled(&self.preferences, cx)
@@ -585,11 +596,16 @@ impl Homepage {
                 .mb(px(8.))
                 .rounded(px(metric::CARD_RADIUS))
                 .when(self.dragging, |d| d.bg(t.hover))
-                .child(OnboardingCreateProjectAction::new(
-                    true,
-                    busy,
-                    cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)),
-                ));
+                .child(
+                    OnboardingCreateProjectAction::new(
+                        true,
+                        busy,
+                        cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)),
+                    )
+                    .computer_mode(
+                        crate::features::flags::computer_mode_enabled(&self.preferences, cx),
+                    ),
+                );
             let actions = OnboardingEntryActions::new(
                 busy,
                 self.dragging,
@@ -746,10 +762,12 @@ impl Render for Homepage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let size = window.viewport_size();
         let (w, h) = (f32::from(size.width), f32::from(size.height));
-        let root = div().absolute().top_0().left_0().size_full();
         if !self.session.home {
-            return root;
+            return div().absolute().top_0().left_0().size_full();
         }
+        // The project the window keeps stays in the tree beneath: none of it
+        // takes the pointer or shows its web content through the page.
+        let root = cover();
         match &self.intro {
             Some(timeline) if timeline.finished() => {
                 cx.defer_in(window, |h, _, cx| h.refresh(cx));

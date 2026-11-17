@@ -4,9 +4,13 @@
 //! rows) so adjacent projects align identically; a folder whose root holds
 //! files shows up to three sheets between its back and front, each printed
 //! with the layout of its kind (`sheet`).
+mod computer;
 mod sheet;
 #[cfg(test)]
 mod tests;
+
+pub(in crate::app::home) use computer::ProjectComputerGlyph;
+pub(in crate::app) use computer::{ComputerKind, ComputerPower};
 
 use super::previews::{PreviewKind, ProjectAssetPreview};
 use crate::{
@@ -99,6 +103,8 @@ pub(in crate::app::home) struct ProjectFolderGlyph {
     sheets: Vec<PreviewKind>,
     is_lit: bool,
     fade: Option<f32>,
+    /// Another size than the Grid's or the List's, without sheets.
+    size: Option<(f32, f32)>,
 }
 
 impl ProjectFolderGlyph {
@@ -109,6 +115,15 @@ impl ProjectFolderGlyph {
             sheets: previews.iter().take(3).map(|p| p.kind).collect(),
             is_lit: false,
             fade: None,
+            size: None,
+        }
+    }
+
+    /// `24 × 18`, a plain folder's in Computer Mode's quiet grid.
+    pub fn tiny() -> Self {
+        Self {
+            size: Some((24., 18.)),
+            ..Self::compact(&[])
         }
     }
 
@@ -133,11 +148,11 @@ impl ProjectFolderGlyph {
 impl RenderOnce for ProjectFolderGlyph {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let t = cx.palette();
-        let (w, h) = if self.compact {
+        let (w, h) = self.size.unwrap_or(if self.compact {
             LIST_FOLDER_SIZE
         } else {
             GRID_FOLDER_SIZE
-        };
+        });
         let folder = faded(if self.is_lit { lit(t) } else { tones(t) }, self.fade, t);
         let paper = sheet::Paper::new(self.fade, t);
         let count = self.sheets.len();

@@ -75,22 +75,16 @@ and @lezer/common and highlight (MIT) with style-mod, w3c-keyname and crelt
 lucide-react (ISC) and tslib (0BSD). License comments are kept at the end of
 the script. It runs only in the HTML viewer's Edit-mode WebView.
 
-## Excalidraw whiteboard bundle
+## Excalidraw whiteboard Viewer Pack (`puppyone.excalidraw`)
 
-`assets/web/excalidraw.{js,css}` is the product's whiteboard
-(`ExcalidrawViewer` over its `ExcalidrawDocumentModel`) bundled against the
-product checkout by `tools/import-excalidraw.mjs`, with a receipt in
-`assets/web/excalidraw.json`. It includes `@excalidraw/excalidraw` 0.18.1
-(MIT) and the dependencies it loads, such as Mermaid with
-@excalidraw/mermaid-to-excalidraw, KaTeX and React (MIT). The product's host
-patches apply, and the build redirects the SDK's CDN font fallback to the
-app's own fonts and makes scene-listener cleanup idempotent, as the product's
-build does. The SDK's fonts are shipped unchanged from the pinned npm package
-(`tools/fetch-excalidraw-fonts.py`, which checks the lockfile's sha512 and
-each file's digest) in `Resources/excalidraw/fonts`. The SDK license ships as
-`EXCALIDRAW_LICENSE.txt` and the fonts' embedded copyright and license
-notices as `EXCALIDRAW_FONT_NOTICES.txt` (`licenses/excalidraw/`, copied
-from the product). It runs only in the whiteboard's WebView.
+The Excalidraw whiteboard (`ExcalidrawViewer` over `ExcalidrawDocumentModel`,
+including `@excalidraw/excalidraw` 0.18.1 MIT and its 234 SDK fonts) is
+decoupled from the base application binary and app bundle as the on-demand
+`puppyone.excalidraw` Viewer Pack (`tools/release/package-excalidraw-pack.py`),
+with its SHA-256 digests pinned in `assets/web/excalidraw.json` and
+`assets/web/excalidraw-fonts.json`. When installed into the user's
+`viewer-packs/` directory, the archive carries `LICENSE` and `FONT-NOTICES.txt`
+(`licenses/excalidraw/`) and runs only inside the whiteboard's WebView.
 
 ## Diagram and formula render page
 

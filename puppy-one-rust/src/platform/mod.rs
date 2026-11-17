@@ -26,6 +26,7 @@ pub mod host_budget;
 pub mod html_page_store;
 pub mod image_transcode;
 pub mod local_agent_setup;
+pub mod local_computers;
 pub mod locale_format;
 pub mod office;
 pub mod paths;
@@ -46,6 +47,7 @@ pub mod themes;
 pub mod ui_state_store;
 pub mod updates;
 pub mod url_scheme;
+pub mod viewer_packs;
 pub mod watchdog;
 pub mod webview;
 

@@ -1,6 +1,12 @@
 //! The product's Excalidraw whiteboard (`ExcalidrawViewer` over its
-//! `ExcalidrawDocumentModel`), bundled from its sources by
-//! `tools/import-excalidraw.mjs` and running in the system web engine.
+//! `ExcalidrawDocumentModel`), decoupled from the base binary as an on-demand
+//! Viewer Pack (`puppyone.excalidraw`, `platform::viewer_packs`) and paired
+//! with the native JSON source editor (`Mode::Source`).
+//!
+//! Until the person installs the Whiteboard pack, opening a `.excalidraw`
+//! document presents a native card offering one-click pack installation or
+//! immediate JSON source editing; once installed, the board mounts in place
+//! without reopening the tab.
 //!
 //! This side owns the document text the host saves: the page sends the
 //! serialized board after every local edit (the SDK's first normalized
@@ -10,50 +16,49 @@
 //! reach the board's own history. A link on an element is resolved here
 //! (`documentNavigation`): a workspace document opens in the workbench, an
 //! address in the browser.
-//!
-//! The SDK's fonts (13 MB) are not embedded: they are served from disk
-//! ([`fonts_dir`]); without them the board's text uses the system's fonts.
 use super::{
+    code,
     html_visual::script_json,
     web::{WebFrame, parse_find_result},
 };
 use crate::{
-    editor::registry::{AssetReader, DocumentAssets},
     editor::{
         navigation::{self, Reference, ReferenceContext},
         registry::{
-            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+            AssetReader, DocumentAssets, HostCommand, PaneEntries, PaneItemId, PaneSegmentId,
+            SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
         },
-        workbench::find::FindEvent,
+        workbench::{
+            find::FindEvent,
+            pane::{Segment, Segmented},
+            view_state::SurfaceViewState,
+        },
     },
-    platform::webview::{Content, DiskAssets, Entry, Ipc, ResourceSource, Source},
+    localization::t,
+    platform::{
+        viewer_packs::{self, ExcalidrawPack},
+        webview::{Content, DiskAssets, Entry, Ipc, ResourceSource, Source},
+    },
+    theme,
     typography::Scale,
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Button, ButtonVariant, Icon},
+    },
 };
 use gpui::{prelude::*, *};
+use gpui_kit::{base::Disableable as _, component::Sizable as _};
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
+use std::{cell::Cell, path::Path, rc::Rc, sync::Arc};
 
-const SCRIPT: &[u8] = include_bytes!("../../../assets/web/excalidraw.js");
-const STYLE: &[u8] = include_bytes!("../../../assets/web/excalidraw.css");
 /// `__assets__/excalidraw/…`: the SDK's asset path (`EXCALIDRAW_ASSET_PATH`).
 const FONT_PREFIX: &str = "excalidraw";
+const EMBED_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
-/// Where the SDK's fonts live: an explicit override, the app bundle's
-/// resources, or the developer vendor folder
-/// (`tools/fetch-excalidraw-fonts.py`).
-pub fn fonts_dir() -> Option<PathBuf> {
-    let mut candidates = Vec::new();
-    if let Some(path) = std::env::var_os("PUPPYONE_EXCALIDRAW_ASSETS") {
-        candidates.push(PathBuf::from(path));
-    }
-    if let Ok(exe) = std::env::current_exe()
-        && let Some(dir) = exe.parent()
-    {
-        candidates.push(dir.join("../Resources/excalidraw"));
-    }
-    candidates
-        .push(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).join("vendor/excalidraw"));
-    candidates.into_iter().find(|p| p.join("fonts").is_dir())
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Mode {
+    Board,
+    Source,
 }
 
 /// Messages the page posts.
@@ -61,41 +66,9 @@ pub fn fonts_dir() -> Option<PathBuf> {
 #[serde(tag = "type", rename_all = "camelCase")]
 enum Inbound {
     Ready,
-    Content {
-        text: String,
-    },
-    /// An element's link was followed.
-    Link {
-        link: String,
-    },
+    Content { text: String },
+    Link { link: String },
 }
-
-/// `excalidraw`: the whiteboard editor.
-pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
-    let text = match request.input {
-        SurfaceInput::Text(text) => text.to_owned(),
-        _ => String::new(),
-    };
-    let root = request
-        .workspace
-        .as_ref()
-        .and_then(|w| w.local_root())
-        .map(|r| r.to_string_lossy().into_owned());
-    let assets = request.assets.clone();
-    let references = request.references.clone();
-    let view = cx.new(|cx| {
-        let mut view = WhiteboardView::new(request.name.to_owned(), root, text, request.dark);
-        view.assets = assets;
-        view.references = references;
-        view.show(cx);
-        view
-    });
-    Box::new(WhiteboardSurface { view })
-}
-
-/// An embedded page or one of its resources at most (the reader's own
-/// Markdown asset budget applies first).
-const EMBED_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 /// Workspace files by workspace-relative path, for embedded pages.
 struct Workspace(AssetReader);
@@ -105,28 +78,101 @@ impl ResourceSource for Workspace {
     }
 }
 
-/// What the page asked of the workbench.
 enum Asked {
     Changed,
     Open(Vec<String>),
     FindResult { current: usize, total: usize },
+    ViewSource,
+}
+
+/// `excalidraw`: the whiteboard editor with on-demand pack installation and JSON source mode.
+pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
+    let text = match request.input {
+        SurfaceInput::Text(text) => text.to_owned(),
+        _ => String::new(),
+    };
+    let source: Rc<dyn ViewerSurface> =
+        Rc::from(code::open_with(request, Some("json"), false, window, cx));
+    let root = request
+        .workspace
+        .as_ref()
+        .and_then(|w| w.local_root())
+        .map(|r| r.to_string_lossy().into_owned());
+    let assets = request.assets.clone();
+    let references = request.references.clone();
+    let pack = viewer_packs::load_excalidraw();
+    let mode = Rc::new(Cell::new(Mode::Board));
+    let board = cx.new(|cx| {
+        let mut view = WhiteboardView::new(request.name.to_owned(), root, text, request.dark);
+        view.assets = assets;
+        view.references = references;
+        view.pack = pack;
+        view.show(cx);
+        view
+    });
+    let host = cx.new(|cx| {
+        let mode_ref = mode.clone();
+        let source_ref = source.clone();
+        let _sub = cx.subscribe_in(
+            &board,
+            window,
+            move |host: &mut WhiteboardHost, _, asked: &Asked, window, cx| {
+                if matches!(asked, Asked::ViewSource) && mode_ref.get() != Mode::Source {
+                    let latest = host.board.read(cx).text.clone();
+                    source_ref.replace_text(&latest, window, cx);
+                    mode_ref.set(Mode::Source);
+                    if let Some(focus) = source_ref.focus_handle(cx) {
+                        focus.focus(window, cx);
+                    }
+                    cx.notify();
+                }
+            },
+        );
+        WhiteboardHost {
+            mode: mode.clone(),
+            board: board.clone(),
+            source: source.clone(),
+            _sub,
+        }
+    });
+    Box::new(WhiteboardSurface {
+        mode,
+        board,
+        source,
+        host,
+    })
+}
+
+struct WhiteboardHost {
+    mode: Rc<Cell<Mode>>,
+    board: Entity<WhiteboardView>,
+    source: Rc<dyn ViewerSurface>,
+    _sub: Subscription,
+}
+impl Render for WhiteboardHost {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        match self.mode.get() {
+            Mode::Board => self.board.clone().into_any_element(),
+            Mode::Source => self.source.element(),
+        }
+    }
 }
 
 struct WhiteboardView {
     name: String,
     workspace_root: Option<String>,
-    /// The board's text, mirrored from the page's model.
     text: String,
     enabled: bool,
     dark: bool,
-    /// The page answers messages (its receiver is installed).
     ready: bool,
-    /// The workspace's documents, for links (`resolveWorkspaceReference`).
     references: Option<ReferenceContext>,
-    /// Where embedded HTML pages and their resources are read from.
     assets: Option<DocumentAssets>,
+    pack: Option<ExcalidrawPack>,
+    installing: bool,
+    install_error: Option<String>,
     frame: Option<Entity<WebFrame>>,
     _inbox: Option<Task<()>>,
+    _installer: Option<Task<()>>,
 }
 impl EventEmitter<Asked> for WhiteboardView {}
 
@@ -141,12 +187,23 @@ impl WhiteboardView {
             ready: false,
             references: None,
             assets: None,
+            pack: None,
+            installing: false,
+            install_error: None,
             frame: None,
             _inbox: None,
+            _installer: None,
         }
     }
-    /// A new engine over the current text, input state and appearance.
+
     fn show(&mut self, cx: &mut Context<Self>) {
+        let Some(pack) = self.pack.clone() else {
+            self.ready = false;
+            self.frame = None;
+            self._inbox = None;
+            cx.notify();
+            return;
+        };
         let boot = serde_json::json!({
             "text": self.text,
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -156,26 +213,28 @@ impl WhiteboardView {
             "locale": crate::localization::current_code(),
             "direction": "ltr",
             "messages": crate::localization::messages(&["editor.whiteboard.", "common.", "shared-ui.", "editor.html."]),
-            // Embedded HTML pages (`WhiteboardEmbed`) resolve to the served
-            // workspace, where there is one.
             "assets": self.assets.is_some(),
         });
         let (tx, rx) = async_channel::unbounded::<String>();
         let content = Content {
             root: None,
-            source: self.assets.as_ref().map(|a| {
-                Source(std::sync::Arc::new(Workspace(a.read.clone()))
-                    as std::sync::Arc<dyn ResourceSource>)
-            }),
+            source: self
+                .assets
+                .as_ref()
+                .map(|a| Source(Arc::new(Workspace(a.read.clone())) as Arc<dyn ResourceSource>)),
             entry: Entry::Html(page(&boot, self.dark)),
             max_bytes: EMBED_MAX_BYTES,
-            assets: vec![("excalidraw.js", SCRIPT), ("excalidraw.css", STYLE)],
+            assets: Vec::new(),
             ipc: Some(Ipc(tx)),
             policy: None,
             frames: None,
-            disk_assets: fonts_dir().map(|dir| DiskAssets {
+            disk_assets: Some(DiskAssets {
                 prefix: FONT_PREFIX,
-                dir,
+                dir: pack.dir,
+                bundles: vec![
+                    ("excalidraw.js", pack.script),
+                    ("excalidraw.css", pack.style),
+                ],
             }),
             locked: false,
         };
@@ -195,6 +254,39 @@ impl WhiteboardView {
         }));
         cx.notify();
     }
+
+    fn start_install(&mut self, cx: &mut Context<Self>) {
+        if self.installing {
+            return;
+        }
+        self.installing = true;
+        self.install_error = None;
+        cx.notify();
+        let (tx, rx) = async_channel::bounded::<Result<ExcalidrawPack, String>>(1);
+        std::thread::spawn(move || {
+            let _ = tx.send_blocking(viewer_packs::install_excalidraw());
+        });
+        self._installer = Some(cx.spawn(async move |this, cx| {
+            let Ok(result) = rx.recv().await else {
+                return;
+            };
+            let _ = this.update(cx, |view, cx| {
+                view.installing = false;
+                match result {
+                    Ok(pack) => {
+                        view.install_error = None;
+                        view.pack = Some(pack);
+                        view.show(cx);
+                    }
+                    Err(error) => {
+                        view.install_error = Some(error);
+                        cx.notify();
+                    }
+                }
+            });
+        }));
+    }
+
     fn receive(&mut self, message: Inbound, cx: &mut Context<Self>) {
         match message {
             Inbound::Ready => self.ready = true,
@@ -207,8 +299,7 @@ impl WhiteboardView {
             Inbound::Link { link } => self.follow(&link, cx),
         }
     }
-    /// `onLinkOpen`: only a reference the workspace can open, or an
-    /// admitted address; anything else does nothing.
+
     fn follow(&mut self, link: &str, cx: &mut Context<Self>) {
         let references = self.references.clone();
         let resolve = move |target: &str| references.as_ref().map(|r| r.resolve(target));
@@ -223,7 +314,7 @@ impl WhiteboardView {
             Reference::Denied { .. } => {}
         }
     }
-    /// A message to the page's receiver; `false` before it is ready.
+
     fn post(&mut self, message: serde_json::Value, cx: &mut Context<Self>) -> bool {
         let script = format!(
             "window.__puppyoneWhiteboard&&window.__puppyoneWhiteboard({})",
@@ -235,20 +326,25 @@ impl WhiteboardView {
                 .as_ref()
                 .is_some_and(|frame| frame.read(cx).evaluate(&script))
     }
-    /// State the page must hold: a page that cannot take it yet is rebuilt
-    /// from the current state instead.
+
     fn post_state(&mut self, message: serde_json::Value, cx: &mut Context<Self>) {
         if !self.post(message, cx) {
             self.show(cx);
         }
     }
+
     fn replace_text(&mut self, text: &str, cx: &mut Context<Self>) {
         if self.text == text {
             return;
         }
         self.text = text.to_owned();
-        self.post_state(serde_json::json!({ "type": "reset", "text": text }), cx);
+        if self.pack.is_some() {
+            self.post_state(serde_json::json!({ "type": "reset", "text": text }), cx);
+        } else {
+            cx.notify();
+        }
     }
+
     fn history(&mut self, redo: bool, cx: &mut Context<Self>) {
         if self.ready && self.enabled {
             let direction = if redo { "redo" } else { "undo" };
@@ -258,12 +354,16 @@ impl WhiteboardView {
             );
         }
     }
+
     fn apply(&mut self, read_only: bool, dark: bool, cx: &mut Context<Self>) {
         let enabled = !read_only;
         if dark != self.dark {
             self.dark = dark;
-            // The running board takes the new tokens, keeping its undo
-            // history; one not yet ready is rebuilt in them.
+            if self.pack.is_none() {
+                self.enabled = enabled;
+                cx.notify();
+                return;
+            }
             let message =
                 serde_json::json!({ "type": "theme", "dark": dark, "css": theme_css(dark) });
             if !self.post(message, cx) {
@@ -274,15 +374,16 @@ impl WhiteboardView {
         }
         if enabled != self.enabled {
             self.enabled = enabled;
-            self.post_state(
-                serde_json::json!({ "type": "enabled", "value": enabled }),
-                cx,
-            );
+            if self.pack.is_some() {
+                self.post_state(
+                    serde_json::json!({ "type": "enabled", "value": enabled }),
+                    cx,
+                );
+            }
         }
     }
 }
 
-/// The product's tokens with the native theme's colours over them.
 fn theme_css(dark: bool) -> String {
     let tokens: String = crate::theme::pack_tokens(dark)
         .iter()
@@ -296,13 +397,9 @@ fn theme_css(dark: bool) -> String {
     format!(":root:root:root{{{tokens}color-scheme:{scheme}}}")
 }
 
-/// The entry document: the theme's tokens, the SDK's asset path, then the
-/// bundle.
 fn page(boot: &serde_json::Value, dark: bool) -> String {
     let locale = crate::localization::current_code();
     let scheme = if dark { "dark" } else { "light" };
-    // `.desktop-overlay-root` (dialogs.css): the SDK's dialogs and tooltips
-    // portal into it, under the page's tokens.
     format!(
         "<!doctype html><html lang=\"{lang}\" class=\"{class}\" data-initial-theme=\"{scheme}\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width\">\
@@ -320,161 +417,303 @@ fn page(boot: &serde_json::Value, dark: bool) -> String {
 }
 
 struct WhiteboardSurface {
-    view: Entity<WhiteboardView>,
+    mode: Rc<Cell<Mode>>,
+    board: Entity<WhiteboardView>,
+    source: Rc<dyn ViewerSurface>,
+    host: Entity<WhiteboardHost>,
 }
+
 impl ViewerSurface for WhiteboardSurface {
     fn set_reference_context(&self, context: Option<ReferenceContext>, cx: &mut App) {
-        self.view.update(cx, |view, _| view.references = context);
+        self.board.update(cx, |view, _| view.references = context);
     }
     fn element(&self) -> AnyElement {
-        self.view.clone().into_any_element()
+        self.host.clone().into_any_element()
     }
     fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
-        Some(
-            cx.subscribe(&self.view, move |_, asked: &Asked, cx| match asked {
-                Asked::Changed => events(SurfaceEvent::Changed, cx),
-                Asked::Open(paths) => events(SurfaceEvent::OpenPaths(paths.clone()), cx),
-                Asked::FindResult { current, total } => events(
+        let mode_board = self.mode.clone();
+        let events_board = events.clone();
+        let board_sub = cx.subscribe(&self.board, move |_, asked: &Asked, cx| match asked {
+            Asked::Changed if mode_board.get() == Mode::Board => {
+                events_board(SurfaceEvent::Changed, cx);
+            }
+            Asked::Open(paths) => events_board(SurfaceEvent::OpenPaths(paths.clone()), cx),
+            Asked::FindResult { current, total } if mode_board.get() == Mode::Board => {
+                events_board(
                     SurfaceEvent::FindResult {
                         current: *current,
                         total: *total,
                     },
                     cx,
-                ),
+                );
+            }
+            Asked::ViewSource => events_board(SurfaceEvent::Redraw, cx),
+            _ => {}
+        });
+        let mode_source = self.mode.clone();
+        let source_sub = self.source.subscribe(
+            Rc::new(move |event, cx| {
+                if mode_source.get() == Mode::Source {
+                    events(event, cx);
+                }
             }),
-        )
+            cx,
+        );
+        Some(Subscription::join(
+            board_sub,
+            source_sub.unwrap_or_else(|| Subscription::new(|| {})),
+        ))
     }
     fn text(&self, cx: &App) -> Option<String> {
-        Some(self.view.read(cx).text.clone())
-    }
-    fn replace_text(&self, text: &str, _: &mut Window, cx: &mut App) {
-        self.view.update(cx, |view, cx| view.replace_text(text, cx));
-    }
-    fn rebind_name(&self, name: &str, cx: &mut App) {
-        let name = name.to_owned();
-        self.view.update(cx, |view, _| view.name = name);
-    }
-    fn undo(&self, redo: bool, _: &mut Window, cx: &mut App) {
-        self.view.update(cx, |view, cx| view.history(redo, cx));
-    }
-    fn apply(&self, read_only: bool, dark: bool, _: Scale, _: &mut Window, cx: &mut App) {
-        self.view
-            .update(cx, |view, cx| view.apply(read_only, dark, cx));
-    }
-    fn pane(&self, _: &App) -> PaneEntries {
-        PaneEntries {
-            find: true,
-            ..Default::default()
+        match self.mode.get() {
+            Mode::Board => Some(self.board.read(cx).text.clone()),
+            Mode::Source => self.source.text(cx),
         }
     }
-    fn find(&self, event: FindEvent, _: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
-        let frame = self.view.read(cx).frame.clone()?;
-        frame.read(cx).find(event, cx)
+    fn buffer(&self, cx: &App) -> Option<crate::editor::text::buffer::Buffer> {
+        match self.mode.get() {
+            Mode::Board => Some(crate::editor::text::buffer::Buffer::new(
+                self.board.read(cx).text.clone(),
+            )),
+            Mode::Source => self.source.buffer(cx),
+        }
+    }
+    fn composing(&self, cx: &App) -> bool {
+        self.mode.get() == Mode::Source && self.source.composing(cx)
+    }
+    fn replace_text(&self, text: &str, window: &mut Window, cx: &mut App) {
+        self.source.replace_text(text, window, cx);
+        self.board
+            .update(cx, |view, cx| view.replace_text(text, cx));
+    }
+    fn rebind_name(&self, name: &str, cx: &mut App) {
+        self.source.rebind_name(name, cx);
+        let name = name.to_owned();
+        self.board.update(cx, |view, _| view.name = name);
+    }
+    fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
+        match self.mode.get() {
+            Mode::Board => self.board.update(cx, |view, cx| view.history(redo, cx)),
+            Mode::Source => self.source.undo(redo, window, cx),
+        }
+    }
+    fn apply(&self, read_only: bool, dark: bool, scale: Scale, window: &mut Window, cx: &mut App) {
+        self.source.apply(read_only, dark, scale, window, cx);
+        self.board
+            .update(cx, |view, cx| view.apply(read_only, dark, cx));
+    }
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let mut state = self.source.view_state(cx).unwrap_or_default();
+        state.mode = Some(match self.mode.get() {
+            Mode::Board => "live".into(),
+            Mode::Source => "source".into(),
+        });
+        Some(state)
+    }
+    fn restore_view_state(&self, state: &SurfaceViewState, window: &mut Window, cx: &mut App) {
+        self.source.restore_view_state(state, window, cx);
+        if let Some(mode) = state.mode.as_deref() {
+            let segment = if mode == "source" {
+                PaneSegmentId::Source
+            } else {
+                PaneSegmentId::Live
+            };
+            self.pane_segment(segment, window, cx);
+        }
+    }
+    fn command(&self, cmd: HostCommand, window: &mut Window, cx: &mut App) {
+        match cmd {
+            HostCommand::Undo => self.undo(false, window, cx),
+            HostCommand::Redo => self.undo(true, window, cx),
+            HostCommand::Source => {
+                let next = match self.mode.get() {
+                    Mode::Board => PaneSegmentId::Source,
+                    Mode::Source => PaneSegmentId::Live,
+                };
+                self.pane_segment(next, window, cx);
+            }
+            other if self.mode.get() == Mode::Source => self.source.command(other, window, cx),
+            _ => {}
+        }
+    }
+    fn focus_handle(&self, cx: &App) -> Option<FocusHandle> {
+        (self.mode.get() == Mode::Source)
+            .then(|| self.source.focus_handle(cx))
+            .flatten()
+    }
+    fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
+        match self.mode.get() {
+            Mode::Board => {
+                let frame = self.board.read(cx).frame.clone()?;
+                frame.read(cx).find(event, cx)
+            }
+            Mode::Source => self.source.find(event, window, cx),
+        }
+    }
+    fn pane(&self, cx: &App) -> PaneEntries {
+        let mut entries = match self.mode.get() {
+            Mode::Board => PaneEntries {
+                find: self.board.read(cx).frame.is_some(),
+                ..Default::default()
+            },
+            Mode::Source => self.source.pane(cx),
+        };
+        entries.segmented = Some(Segmented {
+            label: t("editor.mode.label").into(),
+            options: vec![
+                Segment {
+                    id: "live",
+                    icon: "editor-mode-edit",
+                    label: t("editor.mode.live").into(),
+                },
+                Segment {
+                    id: "source",
+                    icon: "editor-mode-source",
+                    label: t("editor.mode.source").into(),
+                },
+            ],
+            value: match self.mode.get() {
+                Mode::Board => "live",
+                Mode::Source => "source",
+            },
+        });
+        entries
+    }
+    fn pane_segment(&self, segment: PaneSegmentId, window: &mut Window, cx: &mut App) {
+        let next = if matches!(segment, PaneSegmentId::Source) {
+            Mode::Source
+        } else {
+            Mode::Board
+        };
+        if next == self.mode.get() || (self.mode.get() == Mode::Source && self.source.composing(cx))
+        {
+            return;
+        }
+        match next {
+            Mode::Source => {
+                let latest = self.board.read(cx).text.clone();
+                self.source.replace_text(&latest, window, cx);
+                self.mode.set(Mode::Source);
+                if let Some(focus) = self.source.focus_handle(cx) {
+                    focus.focus(window, cx);
+                }
+            }
+            Mode::Board => {
+                if let Some(latest) = self.source.text(cx) {
+                    self.board
+                        .update(cx, |view, cx| view.replace_text(&latest, cx));
+                }
+                self.mode.set(Mode::Board);
+            }
+        }
+        self.host.update(cx, |_, cx| cx.notify());
+    }
+    fn pane_item(&self, item: PaneItemId, window: &mut Window, cx: &mut App) {
+        if self.mode.get() == Mode::Source {
+            self.source.pane_item(item, window, cx);
+        }
     }
 }
 
 impl Render for WhiteboardView {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().children(self.frame.clone())
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(frame) = &self.frame {
+            return div().size_full().child(frame.clone()).into_any_element();
+        }
+        let p = cx.palette();
+        let ty = theme::ty();
+        let file_label = Path::new(&self.name)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| self.name.clone());
+        let install_label = if self.installing {
+            t("native.whiteboard.installingPack")
+        } else {
+            t("native.whiteboard.installPack")
+        };
+        div()
+            .id("whiteboard-pack-prompt")
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .p(px(32.))
+            .bg(p.canvas)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(14.))
+                    .max_w(px(460.))
+                    .px(px(28.))
+                    .py(px(24.))
+                    .rounded(px(10.))
+                    .border_1()
+                    .border_color(theme::alpha(p.divider, 0.72))
+                    .bg(p.panel)
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .text_size(px(ty.editor.data))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(p.text)
+                            .child(Icon::new("editor-mode-edit").with_size(px(16.)))
+                            .child(file_label)
+                            .child(
+                                div()
+                                    .text_color(p.text_disabled)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(" · EXCALIDRAW"),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(ty.ui.meta))
+                            .line_height(relative(1.5))
+                            .text_color(p.muted)
+                            .text_center()
+                            .child(t("native.whiteboard.packDetail").to_owned()),
+                    )
+                    .children(self.install_error.clone().map(|error| {
+                        div()
+                            .text_size(px(ty.ui.meta))
+                            .text_color(p.danger)
+                            .text_center()
+                            .child(error)
+                    }))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .items_center()
+                            .justify_center()
+                            .gap(px(10.))
+                            .pt(px(4.))
+                            .child(
+                                Button::new("whiteboard-install-pack")
+                                    .variant(ButtonVariant::Solid)
+                                    .icon("download")
+                                    .disabled(self.installing)
+                                    .label(install_label.to_owned())
+                                    .on_click(cx.listener(|v, _, _, cx| v.start_install(cx))),
+                            )
+                            .child(
+                                Button::new("whiteboard-view-json")
+                                    .variant(ButtonVariant::Secondary)
+                                    .icon("editor-mode-source")
+                                    .label(t("native.whiteboard.viewJsonSource").to_owned())
+                                    .on_click(
+                                        cx.listener(|_, _, _, cx| cx.emit(Asked::ViewSource)),
+                                    ),
+                            ),
+                    ),
+            )
+            .into_any_element()
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-
-    #[test]
-    fn the_page_carries_the_board_and_names_the_sdk_assets() {
-        let boot = serde_json::json!({ "text": "{\"type\":\"</script>\"}" });
-        let html = page(&boot, true);
-        assert!(html.contains(r#"class="dark" data-initial-theme="dark""#));
-        assert!(html.contains("color-scheme:dark"));
-        assert!(html.contains(r#"new URL("__assets__/excalidraw/",document.baseURI)"#));
-        assert!(html.contains(r#"id="desktop-overlay-root" class="desktop-overlay-root dark""#));
-        assert!(!html.contains("\"</script>"));
-        assert_eq!(
-            serde_json::from_str::<Inbound>(r#"{"type":"link","link":"notes/a.md"}"#).unwrap(),
-            Inbound::Link {
-                link: "notes/a.md".into()
-            }
-        );
-    }
-
-    #[test]
-    fn the_bundle_rewrites_the_font_fallback_and_carries_the_host_patches() {
-        let script = std::str::from_utf8(SCRIPT).unwrap();
-        assert!(!script.contains("esm.sh"), "no network font fallback");
-        assert!(script.contains("__assets__/excalidraw/"));
-        // The product's host patches: the desktop breakpoint and the
-        // themed overlay host (their marker comments are minified away).
-        assert!(script.contains(r#"matchMedia?.("(pointer: coarse)")"#));
-        assert!(script.contains(r#"getElementById("desktop-overlay-root")??document.body"#));
-        let style = std::str::from_utf8(STYLE).unwrap();
-        assert!(style.contains("url(excalidraw/fonts/Assistant/Assistant-Regular.woff2)"));
-    }
-
-    #[test]
-    fn the_listed_fonts_are_the_ones_installed() {
-        let manifest: serde_json::Value =
-            serde_json::from_str(include_str!("../../../assets/web/excalidraw-fonts.json"))
-                .unwrap();
-        let fonts = manifest["fonts"].as_object().unwrap();
-        for family in ["Assistant/", "Excalifont/", "Virgil/", "Xiaolai/"] {
-            assert!(fonts.keys().any(|k| k.starts_with(family)), "{family}");
-        }
-        // Where they are installed, each is the listed file.
-        if let Some(dir) = fonts_dir() {
-            for name in fonts.keys().take(8) {
-                assert!(dir.join("fonts").join(name).is_file(), "{name}");
-            }
-        }
-    }
-
-    #[gpui::test]
-    fn board_edits_become_the_document_and_links_open_their_documents(cx: &mut TestAppContext) {
-        let (view, cx) = cx.add_window_view(|_, cx| {
-            let mut view =
-                WhiteboardView::new("boards/plan.excalidraw".into(), None, "{}".into(), false);
-            view.show(cx);
-            view.ready = true;
-            view
-        });
-        let surface = WhiteboardSurface { view: view.clone() };
-        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-        let log = seen.clone();
-        let _subscription = cx.update(|_, cx| {
-            surface.subscribe(
-                std::rc::Rc::new(move |event, _| log.borrow_mut().push(event)),
-                cx,
-            )
-        });
-        let board = "{\"type\":\"excalidraw\",\"version\":2,\"elements\":[]}\n";
-        view.update(cx, |v, cx| {
-            v.receive(Inbound::Content { text: board.into() }, cx)
-        });
-        cx.run_until_parked();
-        assert_eq!(*seen.borrow(), [SurfaceEvent::Changed]);
-        assert_eq!(cx.update(|_, cx| surface.text(cx)).as_deref(), Some(board));
-        // A link without a workspace to resolve it opens nothing.
-        view.update(cx, |v, cx| {
-            v.receive(
-                Inbound::Link {
-                    link: "notes/a.md".into(),
-                },
-                cx,
-            )
-        });
-        cx.run_until_parked();
-        assert_eq!(seen.borrow().len(), 1);
-        // Read-only refuses the page's edits; a disk reload is the new text.
-        cx.update(|window, cx| surface.apply(true, false, Scale::default(), window, cx));
-        view.update(cx, |v, cx| {
-            v.receive(Inbound::Content { text: "x".into() }, cx)
-        });
-        cx.run_until_parked();
-        assert_eq!(seen.borrow().len(), 1);
-        cx.update(|window, cx| surface.replace_text("{}", window, cx));
-        assert_eq!(cx.update(|_, cx| surface.text(cx)).as_deref(), Some("{}"));
-    }
-}
+mod tests;

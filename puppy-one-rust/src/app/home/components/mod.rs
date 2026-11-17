@@ -11,5 +11,5 @@ pub(in crate::app::home) use layout::{
 };
 pub(in crate::app::home) use space_agents::SpaceAgents;
 pub(in crate::app::home) use start_actions::{
-    OnboardingCreateProjectAction, OnboardingEntryActions, OnboardingStartActions,
+    OnboardingCreateProjectAction, OnboardingEntryActions, OnboardingStartActions, create_action,
 };
