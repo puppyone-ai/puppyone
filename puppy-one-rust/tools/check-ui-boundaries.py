@@ -342,7 +342,8 @@ colour_literal = re.compile(r"\b(?:rgb|rgba|hsla|hsl)\s*\(|\b(?:Rgba|Hsla)\s*\{\
 colour_sources = {root / 'src/theme.rs', root / 'src/editor/tokens.rs'}
 for path in (root / 'src').rglob('*.rs'):
     if (path in colour_sources or root / 'src/platform/themes' in path.parents
-            or path.name == 'tests.rs' or path.name.endswith('_tests.rs')):
+            or path.name == 'tests.rs' or path.name.endswith('_tests.rs')
+            or 'tests' in path.relative_to(root / 'src').parts):
         continue
     for number, line in enumerate(path.read_text().splitlines(), 1):
         if colour_literal.search(line) and not line.lstrip().startswith('//'):

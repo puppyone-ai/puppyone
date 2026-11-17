@@ -19,6 +19,7 @@ mod code_isolation_acceptance;
 mod document_scope_acceptance;
 mod editor_view_acceptance;
 mod html_acceptance;
+mod html_policy_acceptance;
 mod inline_acceptance;
 mod linked_image_acceptance;
 mod math_acceptance;

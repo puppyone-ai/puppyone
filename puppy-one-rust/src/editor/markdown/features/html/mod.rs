@@ -49,8 +49,55 @@ pub struct HtmlBlock {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ShowSource(pub Range<usize>);
 
-/// The HTML blocks of the document as the surface shows them.
-fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
+fn source_fallback(range: Range<usize>, code: &'static str) -> Plan {
+    Plan {
+        element: None,
+        source: range,
+        presentation: Presentation::SourceFallback { code },
+        delete_units: Vec::new(),
+    }
+}
+
+/// A reduced nested element cannot grant link navigation or hide a forbidden root.
+fn admission_failure(html: &str, nodes: &[dom::Node]) -> Option<&'static str> {
+    if dom::has_blocked_root(html) {
+        return Some("htmlBlock.blocked-tag");
+    }
+    let mut pending: Vec<_> = nodes.iter().collect();
+    while let Some(node) = pending.pop() {
+        if let dom::Node::Element(element) = node {
+            if element.tag == "a"
+                && let Some(href) = element.attribute("href")
+                && crate::editor::markdown::navigation::safe_href(href).is_none()
+            {
+                return Some("htmlBlock.unsafe-href");
+            }
+            pending.extend(&element.children);
+        }
+    }
+    None
+}
+
+fn admit(
+    html: String,
+    range: Range<usize>,
+    nodes: &[dom::Node],
+    out: &mut Vec<HtmlBlock>,
+    fallbacks: &mut Vec<Plan>,
+) {
+    if let Some(code) = admission_failure(&html, nodes) {
+        fallbacks.push(source_fallback(range, code));
+    } else {
+        out.push(HtmlBlock {
+            html,
+            range,
+            embed: None,
+        });
+    }
+}
+
+/// The HTML flows and exact source fallbacks owned by this feature.
+fn blocks(cx: &CompileCx, fallbacks: &mut Vec<Plan>) -> Vec<HtmlBlock> {
     let doc = cx.doc;
     let lines = |span: &Range<usize>| {
         doc.line_range(doc.line_index(span.start)).start
@@ -73,57 +120,67 @@ fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
             continue;
         }
         match dom::parse(doc.slice(range.clone())) {
-            dom::Parsed::Complete(_) => out.push(HtmlBlock {
-                html: doc.slice(range.clone()).to_owned(),
+            dom::Parsed::Complete(nodes) => admit(
+                doc.slice(range.clone()).to_owned(),
                 range,
-                embed: None,
-            }),
+                &nodes,
+                &mut out,
+                fallbacks,
+            ),
             dom::Parsed::Incomplete(open) => {
                 let mut open = open;
-                let mut crossed = false;
-                let mut previous = range.end;
-                for (j, span) in spans.iter().enumerate().skip(i + 1).take(MAX_FLOW) {
-                    let next = lines(span);
-                    crossed |= !doc.slice(previous..next.start).trim().is_empty();
-                    previous = next.end;
-                    let Some(rest) = dom::balance(doc.slice(next.clone()), open) else {
-                        break;
-                    };
-                    open = rest;
-                    if open.is_empty() {
-                        let flow = range.start..next.end;
-                        // Render the slice with the document's first-wins
-                        // reference definitions, just as ordinary Markdown
-                        // does. Put them first so a duplicate authored inside
-                        // the flow cannot override an earlier document label.
-                        // Definitions emit no HTML and never widen the source
-                        // range owned by the widget.
-                        let definitions = cx
-                            .syntax
-                            .link_defs
-                            .iter()
-                            .map(|(_, raw)| raw.as_str())
-                            .collect::<Vec<_>>()
-                            .join("\n");
-                        let source = doc.slice(flow.clone());
-                        let html = if definitions.is_empty() {
-                            markdown_html(source)
-                        } else {
-                            markdown_html(&format!("{definitions}\n\n{source}"))
-                        };
-                        if crossed && matches!(dom::parse(&html), dom::Parsed::Complete(_)) {
-                            out.push(HtmlBlock {
-                                range: flow,
-                                html,
-                                embed: None,
-                            });
+                let mut resolved = false;
+                // Incomplete comments/declarations cannot be closed by a later tag.
+                if !open.is_empty() {
+                    for (j, span) in spans.iter().enumerate().skip(i + 1).take(MAX_FLOW) {
+                        let next = lines(span);
+                        let Some(rest) = dom::balance(doc.slice(next.clone()), open) else {
+                            fallbacks.push(source_fallback(
+                                range.start..next.end,
+                                "htmlBlock.malformed",
+                            ));
+                            resolved = true;
                             i = j;
+                            break;
+                        };
+                        open = rest;
+                        if open.is_empty() {
+                            let flow = range.start..next.end;
+                            // Document definitions retain first-wins precedence without
+                            // widening the range owned by this HTML flow.
+                            let definitions = cx
+                                .syntax
+                                .link_defs
+                                .iter()
+                                .map(|(_, raw)| raw.as_str())
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            let source = doc.slice(flow.clone());
+                            let html = if definitions.is_empty() {
+                                markdown_html(source)
+                            } else {
+                                markdown_html(&format!("{definitions}\n\n{source}"))
+                            };
+                            match dom::parse(&html) {
+                                dom::Parsed::Complete(nodes) => {
+                                    admit(html, flow, &nodes, &mut out, fallbacks)
+                                }
+                                _ => fallbacks.push(source_fallback(flow, "htmlBlock.malformed")),
+                            }
+                            resolved = true;
+                            i = j;
+                            break;
                         }
-                        break;
                     }
                 }
+                if !resolved {
+                    fallbacks.push(source_fallback(range, "htmlBlock.incomplete"));
+                }
             }
-            _ => {}
+            dom::Parsed::Malformed => fallbacks.push(source_fallback(range, "htmlBlock.malformed")),
+            dom::Parsed::Unsupported => {
+                fallbacks.push(source_fallback(range, "htmlBlock.unsupported"))
+            }
         }
         i += 1;
     }
@@ -136,7 +193,7 @@ impl MarkdownFeature for HtmlFeature {
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        for block in blocks(cx) {
+        for block in blocks(cx, out) {
             out.push(Plan {
                 element: None,
                 source: block.range.clone(),
@@ -196,6 +253,10 @@ mod tests {
     use super::*;
     use crate::editor::{markdown::core::syntax::Syntax, text::buffer::Buffer};
     use core::prelude::v1::test;
+
+    fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
+        super::blocks(cx, &mut Vec::new())
+    }
 
     #[test]
     fn html_blocks_and_flows_render_as_authored() {

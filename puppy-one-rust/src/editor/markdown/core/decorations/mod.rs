@@ -22,7 +22,7 @@ use super::{
     plans::{self, Plan, Presentation},
     presentation::{LineRhythm, block_rhythm_in_lines},
     state::{FeatureStateStore, PreviewState},
-    syntax::{Syntax, SyntaxSplice},
+    syntax::{Kind, Syntax, SyntaxSplice},
 };
 use crate::editor::{
     markdown::style::{MarkdownTheme, cascade::LineInput},
@@ -468,6 +468,30 @@ fn decorate_window(
         b.underlines.retain(|u| !literal(&u.range));
         b.colors.retain(|(r, _, _)| !literal(r));
         b.spans.retain(|s| !literal(&s.range));
+        // Restore only the semantic dimming of a whole literal comment after
+        // removing nested projections. Whitespace belongs to the block range,
+        // while the comment's exact span excludes indentation and line endings.
+        for plan in &source_fallbacks {
+            if let Some(comment) = cx.syntax.elements_in(plan.source.clone()).find(|e| {
+                e.kind == Kind::Comment
+                    && plan.source.start <= e.range.start
+                    && e.range.end <= plan.source.end
+                    && doc
+                        .slice_cow(plan.source.start..e.range.start)
+                        .trim()
+                        .is_empty()
+                    && doc
+                        .slice_cow(e.range.end..plan.source.end)
+                        .trim()
+                        .is_empty()
+            }) {
+                b.spans.push(builder::ClassSpan {
+                    range: comment.range.clone(),
+                    classes: Class::COMMENT,
+                    href: None,
+                });
+            }
+        }
     }
     let marks = b.marks();
     let hidden = merge(std::mem::take(&mut b.hidden));

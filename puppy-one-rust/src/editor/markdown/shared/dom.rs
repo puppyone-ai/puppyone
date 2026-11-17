@@ -119,6 +119,7 @@ pub fn hash_nodes(nodes: &[Node], hasher: &mut impl Hasher) {
 pub enum Parsed {
     Complete(Vec<Node>),
     /// An element is still open (a cross-block flow may close it later).
+    /// An empty stack denotes an unfinished special construct, not a flow.
     Incomplete(Vec<String>),
     Malformed,
     /// A comment, declaration, processing instruction, or depth-exceeded block.
@@ -337,7 +338,20 @@ fn invalid_table_child(parent: &str, child: &str) -> bool {
 pub fn parse(source: &str) -> Parsed {
     let trimmed = source.trim_start();
     if trimmed.starts_with("<!") || trimmed.starts_with("<?") {
-        return Parsed::Unsupported;
+        let closing = if trimmed.starts_with("<!--") {
+            "-->"
+        } else if trimmed.starts_with("<![CDATA[") {
+            "]]>"
+        } else if trimmed.starts_with("<?") {
+            "?>"
+        } else {
+            ">"
+        };
+        return if trimmed.contains(closing) {
+            Parsed::Unsupported
+        } else {
+            Parsed::Incomplete(Vec::new())
+        };
     }
     let Some(tokens) = tokens(source) else {
         return Parsed::Malformed;
@@ -416,6 +430,30 @@ pub fn parse(source: &str) -> Parsed {
         return Parsed::Incomplete(stack[1..].iter().map(|e| e.tag.clone()).collect());
     }
     Parsed::Complete(stack.pop().unwrap().children)
+}
+
+/// Inspect authored roots before sanitization drops executable elements.
+/// Callers validate structure first; nested blocked payloads remain reducible.
+pub fn has_blocked_root(source: &str) -> bool {
+    let Some(tokens) = tokens(source) else {
+        return false;
+    };
+    let mut depth = 0usize;
+    for token in tokens {
+        match token {
+            Token::Open { tag, void, .. } => {
+                if depth == 0 && is_blocked_tag(&tag) {
+                    return true;
+                }
+                if !void {
+                    depth += 1;
+                }
+            }
+            Token::Close(_) => depth = depth.saturating_sub(1),
+            Token::Text(_) => {}
+        }
+    }
+    false
 }
 
 /// Open tag balance across a cross-block HTML flow (`None` when mismatched or

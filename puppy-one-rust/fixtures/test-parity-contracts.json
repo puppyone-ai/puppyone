@@ -17469,6 +17469,157 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-html-authored-structure-and-source-fallback",
+      "acceptance": "Classify the sixteen authored HTML structure fixtures, including incomplete special constructs, without browser repair. Preserve forbidden HTML roots (including later roots) and unsafe anchors as exact literal source in editable and read-only native surfaces. Parser-owned malformed, incomplete, unsupported and rejected HTML blocks carry explicit source fallback codes; a later mismatched fragment belongs to one complete fallback range. Native rendering does not interpret display:none and retains safe red text, verified using a positive-size painted red underline. Raw inert attributes are not a browser DOM sink; no browser sanitizer byte identity or unreviewed media/profile behavior is claimed.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
+          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Markdown HTML authored-structure model > classifies balanced nested tags"
+            },
+            {
+              "index": 5,
+              "name": "Markdown HTML authored-structure model > classifies multiple balanced roots"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML authored-structure model > classifies void elements"
+            },
+            {
+              "index": 7,
+              "name": "Markdown HTML authored-structure model > classifies mismatched nesting"
+            },
+            {
+              "index": 8,
+              "name": "Markdown HTML authored-structure model > classifies orphan closing tag"
+            },
+            {
+              "index": 9,
+              "name": "Markdown HTML authored-structure model > classifies incomplete nested tag"
+            },
+            {
+              "index": 10,
+              "name": "Markdown HTML authored-structure model > classifies duplicate attribute"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML authored-structure model > classifies paragraph browser repair"
+            },
+            {
+              "index": 12,
+              "name": "Markdown HTML authored-structure model > classifies table foster parenting"
+            },
+            {
+              "index": 13,
+              "name": "Markdown HTML authored-structure model > classifies table text foster parenting"
+            },
+            {
+              "index": 14,
+              "name": "Markdown HTML authored-structure model > classifies comment payload with fake tags"
+            },
+            {
+              "index": 15,
+              "name": "Markdown HTML authored-structure model > classifies complete comment block"
+            },
+            {
+              "index": 16,
+              "name": "Markdown HTML authored-structure model > classifies incomplete comment block"
+            },
+            {
+              "index": 17,
+              "name": "Markdown HTML authored-structure model > classifies complete declaration"
+            },
+            {
+              "index": 18,
+              "name": "Markdown HTML authored-structure model > classifies complete processing instruction"
+            },
+            {
+              "index": 19,
+              "name": "Markdown HTML authored-structure model > classifies complete CDATA"
+            },
+            {
+              "index": 37,
+              "name": "Markdown HTML plan-level policy > keeps every blocked executable tag out of ordinary block plans"
+            },
+            {
+              "index": 48,
+              "name": "Markdown HTML cross-surface conformance > returns one exact malformed flow when a later HTML fragment mismatches the open stack"
+            },
+            {
+              "index": 49,
+              "name": "Markdown HTML cross-surface conformance > keeps malformed block source visible before mounting"
+            },
+            {
+              "index": 50,
+              "name": "Markdown HTML cross-surface conformance > keeps browser-repaired block source visible before mounting"
+            },
+            {
+              "index": 51,
+              "name": "Markdown HTML cross-surface conformance > keeps blocked block source visible before mounting"
+            },
+            {
+              "index": 52,
+              "name": "Markdown HTML cross-surface conformance > keeps special block source visible before mounting"
+            },
+            {
+              "index": 60,
+              "name": "Markdown HTML cross-surface conformance > leaves a blocked root as editor source (readOnly=false)"
+            },
+            {
+              "index": 61,
+              "name": "Markdown HTML cross-surface conformance > leaves a blocked root as editor source (readOnly=true)"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownEditorView.test.ts",
+          "sha256": "2779656bbe478cdc6949e823dd8cc282950b13c4d7e0fb6820d479ee76f55b85",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Markdown preview/policy convergence > reduces blocked styles in block HTML without dropping the element"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 75,
+              "name": "Markdown HTML reduction > still refuses a blocked root in any position"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_policy_acceptance::html_structure_preserves_authored_classification_instead_of_browser_repair"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_policy_acceptance::forbidden_html_roots_remain_literal_source_in_editable_and_read_only_surfaces"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_policy_acceptance::blocked_html_display_keeps_safe_text_and_inherited_color_painted"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_policy_acceptance::html_plan_rejections_keep_exact_source_ranges_and_stable_diagnostic_codes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_policy_acceptance::rejected_html_stays_opaque_after_prefix_edits_while_neighbor_marks_still_render"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
