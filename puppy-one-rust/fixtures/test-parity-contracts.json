@@ -15058,6 +15058,89 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-update-preference-storage",
+      "acceptance": "Missing destinations are rejected before native persistence (the Rust path API validates on use rather than constructing a JS store). Missing preferences default on without warnings; only literal false in schema 1 opts out, unsupported versions stay on, malformed or unsafe files warn once. Atomic private writes persist in synchronous caller order, recover after creation/replacement errors and clean their temporaries. The exact legacy one-key Rust document preserves its opt-out and migrates on write. Extra native tests cover links, named pipes, the inclusive 64 KiB read budget and concurrent atomic replacement; they do not claim Windows runtime verification.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/preferences/electron.update-preference-store.test.mjs",
+          "sha256": "d3bdf56d75dbefe5fa6545ec756723c0dc210a23acfb214e60732dc4019039fc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop update preference store > rejects a missing persistence path"
+            },
+            {
+              "index": 1,
+              "name": "Desktop update preference store > defaults automatic downloads on when no preference exists"
+            },
+            {
+              "index": 2,
+              "name": "Desktop update preference store > persists an automatic download opt-out"
+            },
+            {
+              "index": 3,
+              "name": "Desktop update preference store > fails open to automatic downloads for malformed preferences"
+            },
+            {
+              "index": 4,
+              "name": "Desktop update preference store > fails open for unsafe paths and unsupported schema versions"
+            },
+            {
+              "index": 5,
+              "name": "Desktop update preference store > serializes writes and recovers the queue after a failed mutation"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::versioned_preferences_accept_only_an_explicit_boolean_opt_out"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::legacy_native_opt_out_survives_and_the_next_write_migrates_it"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::persistence_is_private_and_updates_in_caller_order"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::invalid_destination_fails_without_residue_and_a_later_write_recovers"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::absent_directory_is_not_a_valid_persistence_destination"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::preference_links_are_not_read_and_atomic_writes_never_modify_their_targets"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::oversized_or_nonregular_preferences_fall_back_to_automatic_downloads"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::missing_and_unsupported_documents_are_quiet_but_unreadable_preferences_warn_once"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::temporary_file_creation_failure_does_not_poison_later_mutations"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::concurrent_writers_publish_whole_documents_without_colliding_temporary_files"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::a_named_pipe_is_rejected_without_waiting_for_a_writer"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

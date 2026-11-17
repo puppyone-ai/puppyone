@@ -11,6 +11,8 @@
 //! `PUPPYONE_DESKTOP_FORCE_DEV_UPDATE_CONFIG=1`, as the product's may.
 pub mod feed;
 pub mod policy;
+mod preferences;
+pub use preferences::{read_automatic_download, write_automatic_download};
 #[cfg(target_os = "macos")]
 pub mod prepared;
 pub mod state;
@@ -306,25 +308,6 @@ pub fn cache_path(name: &str) -> PathBuf {
     super::paths::home_dir()
         .join("Library/Caches")
         .join(format!("PuppyOne GPUI.{name}"))
-}
-
-/// `desktop-update-preferences.json`: whether updates download by themselves.
-pub fn read_automatic_download(data: &Path) -> bool {
-    std::fs::read(data.join("desktop-update-preferences.json"))
-        .ok()
-        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
-        .and_then(|v| v["automaticallyDownloadUpdates"].as_bool())
-        .unwrap_or(true)
-}
-pub fn write_automatic_download(data: &Path, enabled: bool) -> std::io::Result<()> {
-    std::fs::create_dir_all(data)?;
-    let path = data.join("desktop-update-preferences.json");
-    let temporary = data.join(".desktop-update-preferences.json.tmp");
-    std::fs::write(
-        &temporary,
-        serde_json::json!({ "automaticallyDownloadUpdates": enabled }).to_string(),
-    )?;
-    std::fs::rename(temporary, path)
 }
 
 #[cfg(test)]
