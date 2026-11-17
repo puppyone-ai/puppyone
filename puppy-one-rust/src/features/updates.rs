@@ -26,6 +26,8 @@ pub struct Updates {
     /// Callers waiting for the operation in flight (the menu's check).
     waiting: Vec<Waiter>,
     restart_requested: bool,
+    /// The profile chosen when this service starts.
+    data_dir: std::path::PathBuf,
     /// Where the archive downloads to.
     downloads: std::path::PathBuf,
     quit: fn(&mut App),
@@ -108,6 +110,7 @@ pub fn init(quit: fn(&mut App), cx: &mut App) {
             busy: false,
             waiting: Vec::new(),
             restart_requested: false,
+            data_dir: data,
             downloads: updates::cache_path("update-download"),
             quit,
             _schedule: schedule,
@@ -402,23 +405,25 @@ impl Updates {
     }
 
     /// `setAutomaticallyDownloadUpdates`.
-    pub fn set_automatically_download(&mut self, enabled: bool, cx: &mut Context<Self>) {
+    pub fn set_automatically_download(
+        &mut self,
+        enabled: bool,
+        cx: &mut Context<Self>,
+    ) -> std::io::Result<()> {
         if !self.usable() {
-            return;
+            return Ok(());
         }
         if self.state.automatically_download != enabled {
-            if let Err(error) =
-                updates::write_automatic_download(&crate::platform::data_dir(), enabled)
-            {
+            updates::write_automatic_download(&self.data_dir, enabled).inspect_err(|error| {
                 po_platform::diagnosticln!("Unable to save the update preference: {error}");
-                return;
-            }
+            })?;
             self.publish(|s| s.automatically_download = enabled, cx);
         }
         if enabled && self.state.status == Status::Available && !self.busy {
             self.busy = true;
             self.start_download(cx);
         }
+        Ok(())
     }
 
     /// The operation in flight, or none: `then` sees the state it leaves.
@@ -658,181 +663,5 @@ pub mod words {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use base64::Engine as _;
-    use core::prelude::v1::test;
-    use sha2::Digest as _;
-    use std::io::{BufRead as _, Write as _};
-
-    /// A feed on this computer: `/feed/dev-mac.yml` and its archive.
-    fn serve(files: Vec<(&'static str, Vec<u8>)>) -> url::Url {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        std::thread::spawn(move || {
-            for stream in listener.incoming().flatten() {
-                let mut reader = std::io::BufReader::new(stream.try_clone().unwrap());
-                let mut request = String::new();
-                if reader.read_line(&mut request).is_err() {
-                    continue;
-                }
-                let path = request.split_whitespace().nth(1).unwrap_or("").to_owned();
-                let mut line = String::new();
-                while reader.read_line(&mut line).is_ok_and(|n| n > 2) {
-                    line.clear();
-                }
-                let mut stream = stream;
-                match files
-                    .iter()
-                    .find(|(name, _)| path == format!("/feed/{name}"))
-                {
-                    Some((_, body)) => {
-                        let _ = write!(
-                            stream,
-                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                            body.len()
-                        );
-                        let _ = stream.write_all(body);
-                    }
-                    None => {
-                        let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-                    }
-                }
-            }
-        });
-        url::Url::parse(&format!("http://{address}/feed")).unwrap()
-    }
-
-    fn service(feed: url::Url, automatic: bool, cx: &mut gpui::TestAppContext) -> Entity<Updates> {
-        let channel = build_identity::Channel::Dev;
-        cx.new(|_| Updates {
-            state: UpdateState::new(channel, "0.4.4-dev.ga".into(), None, automatic),
-            config: Configuration {
-                channel,
-                current_version: "0.4.4-dev.ga".into(),
-                feed: Some(feed),
-                update_channel: Some("dev"),
-                force_dev: true,
-            },
-            candidate: None,
-            #[cfg(target_os = "macos")]
-            prepared: None,
-            busy: false,
-            waiting: Vec::new(),
-            restart_requested: false,
-            downloads: tempfile::tempdir().unwrap().keep(),
-            quit: |_| {},
-            _schedule: None,
-        })
-    }
-
-    fn settle(
-        service: &Entity<Updates>,
-        cx: &mut gpui::TestAppContext,
-        done: impl Fn(&Updates) -> bool,
-    ) {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-        while !service.read_with(cx, |s, _| done(s)) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "{:?}",
-                service.read_with(cx, |s, _| s.state.clone())
-            );
-            cx.run_until_parked();
-            std::thread::sleep(std::time::Duration::from_millis(20));
-        }
-    }
-
-    fn feed_for(version: &str, archive: &[u8]) -> Vec<u8> {
-        let digest =
-            base64::engine::general_purpose::STANDARD.encode(sha2::Sha512::digest(archive));
-        let arch = build_identity::node_architecture();
-        format!(
-            "version: {version}\nfiles:\n  - url: puppyone-gpui-{version}-{arch}.zip\n    sha512: {digest}\n    size: {}\npath: puppyone-gpui-{version}-{arch}.zip\nsha512: {digest}\nreleaseDate: '2026-11-15T00:00:00.000Z'\n",
-            archive.len()
-        )
-        .into_bytes()
-    }
-
-    /// `electron.update-service.test.mjs`: a newer version is offered, and
-    /// downloaded by itself once automatic downloads are turned on; the
-    /// archive is checked against the feed before anything uses it.
-    #[gpui::test]
-    fn a_newer_version_is_offered_downloaded_and_checked(cx: &mut gpui::TestAppContext) {
-        cx.executor().allow_parking();
-        let archive = b"not really a zip".to_vec();
-        let version = "0.4.5-dev.gb";
-        let name: &'static str = Box::leak(
-            format!(
-                "puppyone-gpui-{version}-{}.zip",
-                build_identity::node_architecture()
-            )
-            .into_boxed_str(),
-        );
-        let feed = serve(vec![
-            ("dev-mac.yml", feed_for(version, &archive)),
-            (name, archive),
-        ]);
-        let updates = service(feed, false, cx);
-        updates.update(cx, |u, cx| u.check(cx));
-        settle(&updates, cx, |u| !u.busy);
-        updates.read_with(cx, |u, _| {
-            assert_eq!(u.state.status, Status::Available);
-            assert_eq!(u.state.available_version.as_deref(), Some(version));
-            assert_eq!(titlebar(&u.state), Some(Titlebar::Available));
-        });
-        // Turning automatic downloads on downloads it; with nowhere to
-        // prepare it, the update stops at an honest error.
-        updates.update(cx, |u, cx| u.set_automatically_download(true, cx));
-        settle(&updates, cx, |u| !u.busy);
-        updates.read_with(cx, |u, _| {
-            assert_eq!(u.state.status, Status::Error);
-            assert_eq!(
-                u.state.error.as_deref(),
-                Some(if cfg!(target_os = "macos") {
-                    "This installation cannot be updated in place."
-                } else {
-                    "Auto updates are available on macOS only."
-                })
-            );
-        });
-    }
-
-    #[gpui::test]
-    fn an_older_or_tampered_update_is_never_offered(cx: &mut gpui::TestAppContext) {
-        cx.executor().allow_parking();
-        let older = serve(vec![("dev-mac.yml", feed_for("0.4.3-dev.gz", b"x"))]);
-        let updates = service(older, true, cx);
-        updates.update(cx, |u, cx| u.check(cx));
-        settle(&updates, cx, |u| !u.busy);
-        updates.read_with(cx, |u, _| {
-            assert_eq!(u.state.status, Status::NotAvailable);
-            assert_eq!(u.state.available_version, None);
-        });
-        // A payload that does not match its digest is refused.
-        let version = "0.4.5-dev.gb";
-        let name: &'static str = Box::leak(
-            format!(
-                "puppyone-gpui-{version}-{}.zip",
-                build_identity::node_architecture()
-            )
-            .into_boxed_str(),
-        );
-        let tampered = feed_for(version, b"the archive");
-        let feed = serve(vec![
-            ("dev-mac.yml", tampered),
-            (name, b"another one".to_vec()),
-        ]);
-        let updates = service(feed, true, cx);
-        updates.update(cx, |u, cx| u.check(cx));
-        settle(&updates, cx, |u| !u.busy);
-        updates.read_with(cx, |u, _| {
-            assert_eq!(u.state.status, Status::Error);
-            assert!(
-                u.state.error.as_deref().unwrap().contains("SHA-512"),
-                "{:?}",
-                u.state.error
-            );
-        });
-    }
-}
+#[path = "updates_tests.rs"]
+mod tests;

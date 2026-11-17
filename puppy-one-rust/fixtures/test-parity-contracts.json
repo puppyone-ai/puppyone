@@ -15141,6 +15141,156 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-update-service-rejections",
+      "acceptance": "Real loopback feeds reject stable older/same/cross-channel/malformed and internal older/same/stable candidates on both check and update commands, clearing the candidate without fetching any archive or requesting quit. Additional native regressions cover disabled command gates, shared operation waiters, retry after HTTP failure, and releasing every fixture listener/profile.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 10,
+              "name": "Desktop updater P0 monotonicity guard > rejects a older feed candidate before download or install"
+            },
+            {
+              "index": 11,
+              "name": "Desktop updater P0 monotonicity guard > rejects a same feed candidate before download or install"
+            },
+            {
+              "index": 12,
+              "name": "Desktop updater P0 monotonicity guard > rejects a cross-channel feed candidate before download or install"
+            },
+            {
+              "index": 13,
+              "name": "Desktop updater P0 monotonicity guard > rejects a malformed feed candidate before download or install"
+            },
+            {
+              "index": 21,
+              "name": "Desktop updater P0 monotonicity guard > protects Internal build ordering against candidate 1.4.0-internal.79"
+            },
+            {
+              "index": 22,
+              "name": "Desktop updater P0 monotonicity guard > protects Internal build ordering against candidate 1.4.0-internal.80"
+            },
+            {
+              "index": 23,
+              "name": "Desktop updater P0 monotonicity guard > protects Internal build ordering against candidate 1.4.0"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::stable_and_internal_rejections_never_download_or_request_a_quit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::disabled_service_commands_do_not_write_check_download_or_quit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::repeated_checks_share_one_operation_and_waiters_receive_its_settled_state"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::fixtures_release_their_profile_and_http_listener"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-update-service-download-preferences",
+      "acceptance": "Real HTTP archives with SHA-512 and explicit ad hoc fixture signatures reach prepared Downloaded state exactly once. Automatic, opt-out/manual and re-enabled paths preserve preferences; opting out after Downloading begins leaves the active download intact. Persistence failures return an error without changing service state, and retry succeeds in the service-owned profile. A higher internal candidate prepares first and requests ordinary quit only on a second explicit action. Fixture signatures do not replace production release certificate admission.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 15,
+              "name": "Desktop updater P0 monotonicity guard > automatically downloads a strictly newer same-channel candidate returned without updater events"
+            },
+            {
+              "index": 16,
+              "name": "Desktop updater P0 monotonicity guard > keeps checking but waits for a manual download after automatic downloads are disabled"
+            },
+            {
+              "index": 17,
+              "name": "Desktop updater P0 monotonicity guard > starts the pending download when automatic downloads are enabled"
+            },
+            {
+              "index": 18,
+              "name": "Desktop updater P0 monotonicity guard > keeps the prior preference when persistence fails and accepts a later retry"
+            },
+            {
+              "index": 20,
+              "name": "Desktop updater P0 monotonicity guard > applies an opt-out to future updates without cancelling an in-flight download"
+            },
+            {
+              "index": 24,
+              "name": "Desktop updater P0 monotonicity guard > downloads a higher Internal build without restarting until the next explicit action"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::automatic_manual_and_enabled_downloads_prepare_once_without_restarting"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::a_failed_preference_write_preserves_service_state_and_can_be_retried"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::disabling_automatic_updates_during_download_preserves_the_in_flight_archive"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-update-service-cancelled-and-ordinary-quit",
+      "acceptance": "A real prepared temporary app survives repeated restart cancellation; Installing returns to Downloaded and clears the relaunch request. Both a later ordinary quit after cancellation and an ordinary quit without any restart request atomically swap the fixture app without spawning the relaunch helper. Repeated commands do not recheck or redownload. These tests invoke the service cancellation hook and do not close the actual unsaved-window/session confirmation UI or production signed-app relaunch.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 27,
+              "name": "Desktop updater prepared restart (macOS) > swaps a prepared update in on an ordinary quit without reopening the app"
+            },
+            {
+              "index": 28,
+              "name": "Desktop updater prepared restart (macOS) > offers the restart again when a window keeps the app open"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::cancelled_restarts_keep_the_prepared_app_and_ordinary_quit_installs_without_relaunch"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::a_prepared_update_installs_on_ordinary_quit_without_a_restart_request"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

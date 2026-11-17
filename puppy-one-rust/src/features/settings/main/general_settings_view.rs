@@ -99,7 +99,8 @@ impl SettingsWorkspaceSurface {
             .tooltip(tr("updates.settings.autoDownload.detail"))
             .on_change(|enabled, _, cx| {
                 if let Some(updates) = crate::features::updates::global(cx) {
-                    updates.update(cx, |u, cx| u.set_automatically_download(enabled, cx));
+                    // The service reports persistence errors and leaves the switch unchanged.
+                    let _ = updates.update(cx, |u, cx| u.set_automatically_download(enabled, cx));
                 }
             }),
         );
