@@ -246,7 +246,16 @@ mod tests {
             .filter_map(|p| p.embed())
             .map(|e| e.feature)
             .collect();
-        assert_eq!(embeds, [ID, "code-block", "code-block"]);
+        assert_eq!(embeds, [ID, "code-block"]);
+        let code = compiled
+            .iter()
+            .find_map(|p| {
+                p.embed()?
+                    .model::<crate::editor::markdown::features::code_block::CodeBlock>()
+            })
+            .unwrap();
+        assert_eq!(code.language, "js");
+        assert_eq!(doc.slice(code.code.clone()).trim(), "x");
         let block = compiled[0]
             .embed()
             .unwrap()

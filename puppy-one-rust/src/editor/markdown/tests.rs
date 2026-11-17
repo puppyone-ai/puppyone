@@ -16,6 +16,7 @@ use gpui::{Entity, TestAppContext, VisualTestContext};
 
 mod block_acceptance;
 mod html_acceptance;
+mod inline_acceptance;
 mod table_inline_acceptance;
 
 #[test]

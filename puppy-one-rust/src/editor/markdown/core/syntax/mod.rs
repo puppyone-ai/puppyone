@@ -539,15 +539,19 @@ impl Syntax {
             .elements
             .dedup_by(|b, a| a.kind == b.kind && a.range == b.range);
 
-        // Line expressions and feature inline recognizers do not reach into inline code.
-        let code: Vec<Span> = syntax
+        // Code spans suppress line scanners unless a feature explicitly owns
+        // that entire span as part of its delimiter syntax. Resolve all code
+        // intersections before removing anything, so an outer code span still
+        // protects a nested feature-looking string.
+        let code: Vec<Element> = syntax
             .elements
             .iter()
             .filter(|e| e.kind == Kind::InlineCode)
-            .map(|e| e.range.clone())
+            .cloned()
             .collect();
+        let mut owned_code = Vec::new();
         syntax.elements.retain(|e| {
-            !matches!(
+            if !matches!(
                 e.kind,
                 Kind::Highlight
                     | Kind::Comment
@@ -556,10 +560,38 @@ impl Syntax {
                     | Kind::ImageEmbed
                     | Kind::VideoEmbed
                     | Kind::FeatureInline(_)
-            ) || !code
+            ) {
+                return true;
+            }
+            let overlaps: Vec<_> = code
                 .iter()
-                .any(|c| c.start < e.range.end && e.range.start < c.end)
+                .filter(|c| c.range.start < e.range.end && e.range.start < c.range.end)
+                .collect();
+            if overlaps.is_empty() {
+                return true;
+            }
+            let Kind::FeatureInline(id) = e.kind else {
+                return false;
+            };
+            let Some(owner) = feature::find(features, id) else {
+                return false;
+            };
+            let owns_all = overlaps.iter().all(|c| {
+                e.range.start < c.range.start
+                    && c.range.end < e.range.end
+                    && feature::catch_feature_panic(id, "owns_inline_code", || {
+                        owner.owns_inline_code(e, c)
+                    })
+                    .unwrap_or(false)
+            });
+            if owns_all {
+                owned_code.extend(overlaps.iter().map(|c| c.range.clone()));
+            }
+            owns_all
         });
+        syntax
+            .elements
+            .retain(|e| e.kind != Kind::InlineCode || !owned_code.contains(&e.range));
 
         let notes: Vec<Span> = syntax
             .elements
@@ -1186,9 +1218,12 @@ impl Syntax {
         self.elements_in(caret..caret)
             .filter(|e| {
                 e.kind.reveals()
-                    && if matches!(e.kind, Kind::FootnoteReference | Kind::FootnoteDefinition) {
-                        // Footnote markers expose their source on either
-                        // boundary, matching the product's caret-touch rule.
+                    && if matches!(
+                        e.kind,
+                        Kind::FootnoteReference | Kind::FootnoteDefinition | Kind::Entity
+                    ) {
+                        // Footnotes and character references expose source on
+                        // either boundary under the product's caret-touch rule.
                         e.range.start <= caret && caret <= e.range.end
                     } else {
                         e.range.start < caret && caret < e.range.end

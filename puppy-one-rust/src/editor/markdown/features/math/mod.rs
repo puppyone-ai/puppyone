@@ -171,15 +171,27 @@ impl MarkdownFeature for MathFeature {
         }
         for (open, close) in scan_inline_math(line_text) {
             let (from, to) = (line_start + open, line_start + close + 1);
+            let raw = &line_text[open + 1..close];
+            let backtick = raw
+                .strip_prefix('`')
+                .and_then(|s| s.strip_suffix('`'))
+                .filter(|s| !s.is_empty() && !s.contains('`'));
+            let delimiter_len = if backtick.is_some() { 2 } else { 1 };
             let mut e = Element::new(
                 Kind::FeatureInline(ID),
                 from..to,
-                vec![from..from + 1, to - 1..to],
-                Some(from + 1..to - 1),
+                vec![from..from + delimiter_len, to - delimiter_len..to],
+                Some(from + delimiter_len..to - delimiter_len),
             );
-            e.text = Some(tex::convert(&line_text[open + 1..close]));
+            e.text = Some(tex::convert(backtick.unwrap_or(raw)));
             out.push(e);
         }
+    }
+
+    fn owns_inline_code(&self, element: &Element, code: &Element) -> bool {
+        element.content == code.content
+            && code.range == (element.range.start + 1..element.range.end - 1)
+            && element.markers.first().is_some_and(|m| m.len() == 2)
     }
 
     fn scan_block_delimiters(
@@ -231,12 +243,7 @@ impl MarkdownFeature for MathFeature {
             self as render_broker, Kind as RenderKind, Request, hex,
         };
         let range = cx.doc.clamp_range(element.range.clone());
-        let raw_cow = cx.doc.slice_cow(range.clone());
-        let raw = raw_cow.as_ref();
-        let formula = raw
-            .strip_prefix('$')
-            .and_then(|s| s.strip_suffix('$'))
-            .unwrap_or(raw);
+        let formula = cx.doc.slice_cow(element.content.clone()?);
         let t = crate::editor::tokens::Tokens::get(cx.theme.dark, cx.theme.scale);
         let editor_bg = t.color("--po-editor-bg");
         let request = Request {
@@ -245,7 +252,7 @@ impl MarkdownFeature for MathFeature {
                 color: hex(t.color("--po-md-content-color")),
                 font_size: t.len("--po-md-math-inline-font-size", 15.),
             },
-            source: formula.to_owned(),
+            source: formula.into_owned(),
             background: hex(editor_bg),
             scale: 1.,
         };

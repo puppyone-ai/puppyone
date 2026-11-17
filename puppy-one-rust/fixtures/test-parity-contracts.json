@@ -16863,6 +16863,257 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-bare-and-reference-links",
+      "acceptance": "Drawn native link runs preserve URL/www/email text and exact targets (www uses HTTPS), exclude inline code, and do not double-link explicit destinations. Full/collapsed/shortcut references resolve case-insensitively with no delimiter residue; definitions remain visible with linked destinations and undefined references remain literal. Authored bytes and revision remain unchanged.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownInlineSyntax.test.ts",
+          "sha256": "0401118b8eea441de46831e836404aec39de929675cef8e3f582462058464ce5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown bare links > links a URL without changing its text"
+            },
+            {
+              "index": 1,
+              "name": "Markdown bare links > links a www host without changing its text"
+            },
+            {
+              "index": 2,
+              "name": "Markdown bare links > links an email without changing its text"
+            },
+            {
+              "index": 3,
+              "name": "Markdown bare links > leaves a URL inside code alone"
+            },
+            {
+              "index": 4,
+              "name": "Markdown bare links > does not double-link an explicit link destination"
+            },
+            {
+              "index": 5,
+              "name": "Markdown reference links > resolves the full form case-insensitively"
+            },
+            {
+              "index": 6,
+              "name": "Markdown reference links > resolves the collapsed form case-insensitively"
+            },
+            {
+              "index": 7,
+              "name": "Markdown reference links > resolves the shortcut form case-insensitively"
+            },
+            {
+              "index": 8,
+              "name": "Markdown reference links > keeps the definition visible and linked"
+            },
+            {
+              "index": 9,
+              "name": "Markdown reference links > leaves an undefined label as text"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::bare_links_preserve_text_and_never_double_link_or_activate_inside_code"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::reference_links_resolve_all_forms_keep_definitions_visible_and_leave_missing_labels_literal"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-markdown-reference-image-forms",
+      "acceptance": "Full/collapsed/shortcut reference images resolve the exact remote URL and alt text and produce one production native embed with the entire authored token hidden. The same forms with document-relative resources draw through the actual document reader, resolve notes/a.png once, hide image markers and preserve source. Remote delivery and browser pixels are not claimed by these offline widget/resource tests.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownInlineSyntax.test.ts",
+          "sha256": "0401118b8eea441de46831e836404aec39de929675cef8e3f582462058464ce5",
+          "cases": [
+            {
+              "index": 10,
+              "name": "Markdown reference links > renders the full image form"
+            },
+            {
+              "index": 11,
+              "name": "Markdown reference links > renders the collapsed image form"
+            },
+            {
+              "index": 12,
+              "name": "Markdown reference links > renders the shortcut image form"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::reference_images_generate_one_native_embed_for_full_collapsed_and_shortcut_forms"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::reference_image_forms_render_through_the_document_resource_reader"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-markdown-inline-text-atoms",
+      "acceptance": "Drawn native text decodes named/decimal/hex entities and known/signed emoji, keeps unknown shortcodes and code contents literal, and preserves authored bytes/revision. A focused caret touching either entity boundary or its interior reveals source; moving away restores the glyph and read-only never reveals it.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownInlineSyntax.test.ts",
+          "sha256": "0401118b8eea441de46831e836404aec39de929675cef8e3f582462058464ce5",
+          "cases": [
+            {
+              "index": 13,
+              "name": "Markdown text atoms > renders a named entity"
+            },
+            {
+              "index": 14,
+              "name": "Markdown text atoms > renders a decimal entity"
+            },
+            {
+              "index": 15,
+              "name": "Markdown text atoms > renders a hex entity"
+            },
+            {
+              "index": 16,
+              "name": "Markdown text atoms > renders an emoji"
+            },
+            {
+              "index": 17,
+              "name": "Markdown text atoms > renders a signed emoji"
+            },
+            {
+              "index": 18,
+              "name": "Markdown text atoms > leaves an unknown shortcode literal"
+            },
+            {
+              "index": 19,
+              "name": "Markdown text atoms > leaves an entity in code literal"
+            },
+            {
+              "index": 20,
+              "name": "Markdown text atoms > leaves a shortcode in code literal"
+            },
+            {
+              "index": 21,
+              "name": "Markdown text atoms > shows the source when the caret touches an entity"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::entity_and_emoji_atoms_preserve_authored_source_and_code_literals"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::entity_source_reveals_on_caret_touch_and_restores_without_edits"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-markdown-inline-marks-and-comments",
+      "acceptance": "Backslash hard breaks hide only the escape while retaining separate native line leaves. Single-tilde strike and valid double-equals highlights mark the exact text; spaced equals and heading underlines do not highlight. HTML block/multiline/inline and percent comments remain visible with the production dimmed color. Every rendering-only check preserves source and revision.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownInlineSyntax.test.ts",
+          "sha256": "0401118b8eea441de46831e836404aec39de929675cef8e3f582462058464ce5",
+          "cases": [
+            {
+              "index": 22,
+              "name": "Markdown inline marks > hides a backslash line break but keeps the break"
+            },
+            {
+              "index": 23,
+              "name": "Markdown inline marks > strikes single-tilde text"
+            },
+            {
+              "index": 24,
+              "name": "Markdown inline marks > highlights double-equals text and leaves a heading underline alone"
+            },
+            {
+              "index": 25,
+              "name": "Markdown inline marks > does not highlight spaced equals"
+            },
+            {
+              "index": 26,
+              "name": "Markdown inline marks > dims an HTML block comment and keeps it visible"
+            },
+            {
+              "index": 27,
+              "name": "Markdown inline marks > dims a multi-line HTML comment and keeps it visible"
+            },
+            {
+              "index": 28,
+              "name": "Markdown inline marks > dims an inline HTML comment and keeps it visible"
+            },
+            {
+              "index": 29,
+              "name": "Markdown inline marks > dims a percent comment and keeps it visible"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::inline_marks_hide_only_valid_delimiters_and_preserve_hard_line_breaks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::html_and_percent_comments_stay_visible_and_dimmed_in_every_context"
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "native-markdown-math-syntax-ownership",
+      "acceptance": "Backtick-wrapped inline math compiles one math plan with delimiter-free TeX and Unicode fallback. Nonempty pure math fences have one math owner and no duplicate code plan; ordinary or empty fences remain code. Supplementary native guards reject math inside code or partly crossing code spans. Language/body edits and windowed/full compilation preserve identical single ownership. This is syntax/plan acceptance, not a new KaTeX pixel-identity claim.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownInlineSyntax.test.ts",
+          "sha256": "0401118b8eea441de46831e836404aec39de929675cef8e3f582462058464ce5",
+          "cases": [
+            {
+              "index": 30,
+              "name": "Markdown math forms > treats backtick math as inline math"
+            },
+            {
+              "index": 31,
+              "name": "Markdown math forms > treats a math fence as block math"
+            },
+            {
+              "index": 32,
+              "name": "Markdown math forms > keeps other fences as code"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::backtick_math_and_math_fences_have_math_plans_while_other_fences_remain_code"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_acceptance::math_code_ownership_is_exact_and_incremental_fence_plans_keep_one_owner"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mermaid::tests::a_mermaid_fence_is_a_diagram_and_other_fences_stay_code"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

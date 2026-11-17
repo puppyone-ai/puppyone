@@ -172,7 +172,7 @@ fn inline_syntax_projects_like_the_product() {
         .find(|e| e.kind == Kind::Link && e.markers.is_empty())
         .unwrap();
     assert_eq!(&text[bare.range.clone()], "www.x.org");
-    assert_eq!(bare.href.as_deref(), Some("http://www.x.org"));
+    assert_eq!(bare.href.as_deref(), Some("https://www.x.org"));
     let strike = find(Kind::Strike);
     assert_eq!(&text[strike.content.clone().unwrap()], "gone");
     let highlight = find(Kind::Highlight);

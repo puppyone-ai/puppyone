@@ -417,6 +417,16 @@ impl<'a> Walker<'a> {
                 ref dest_url,
                 ..
             } => {
+                // pulldown-cmark excludes the consumed `[]` from collapsed
+                // reference event ranges. Native source hiding and image-line
+                // ownership need the entire authored token.
+                let range = if link_type == LinkType::Collapsed
+                    && doc.as_bytes().get(range.end..range.end + 2) == Some(b"[]")
+                {
+                    range.start..range.end + 2
+                } else {
+                    range
+                };
                 let image = matches!(tag, Tag::Image { .. });
                 // A reference link opens what its definition names.
                 let reference = matches!(
@@ -1114,8 +1124,18 @@ pub(super) fn walk_slice(
                 }
                 w.html(range);
             }
+            Event::HardBreak => {
+                w.inline_content(&range);
+                if doc_slice.as_bytes().get(range.start) == Some(&b'\\') {
+                    w.syntax.elements.push(Element::new(
+                        Kind::Escape,
+                        range.clone(),
+                        vec![range.start..range.start + 1],
+                        Some(range.start + 1..range.end),
+                    ));
+                }
+            }
             Event::SoftBreak
-            | Event::HardBreak
             | Event::FootnoteReference(_)
             | Event::InlineMath(_)
             | Event::DisplayMath(_) => w.inline_content(&range),
@@ -1143,6 +1163,17 @@ pub(super) fn walk_slice(
             continue;
         }
         link_defs.push((base + span.start..base + span.end, source.to_owned()));
+        // Definitions are not emitted as inline text events. Their direct
+        // destination still follows the same bare-link policy as prose.
+        let tail = &source[close + 2..];
+        if let Some(url) = autolink::find(tail).into_iter().next()
+            && matches!(tail[..url.start].trim(), "" | "<")
+        {
+            let range = span.start + close + 2 + url.start..span.start + close + 2 + url.end;
+            let mut link = Element::new(Kind::Link, range.clone(), vec![], Some(range));
+            link.href = Some(autolink::href(&tail[url]));
+            w.syntax.elements.push(link);
+        }
         let (open, close) = (span.start + open, span.start + close);
         w.syntax.elements.push(Element::new(
             Kind::LinkDefinition,

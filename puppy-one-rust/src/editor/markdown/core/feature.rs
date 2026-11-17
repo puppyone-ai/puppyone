@@ -91,9 +91,15 @@ pub trait MarkdownFeature: Sync {
     fn id(&self) -> &'static str;
 
     /// Line-level inline syntax extension (`TA-30`, `TA-40`), e.g. `$formula$`
-    /// in `features/math`. Called per non-code/non-table line; ranges are
+    /// in `features/math`. Called per non-code line or table cell; ranges are
     /// validated and clamped to `doc` boundaries (`TA-33`).
     fn recognize_inline(&self, _line_start: usize, _line_text: &str, _out: &mut Vec<Element>) {}
+
+    /// Whether a recognized feature uses a fully enclosed code span as its
+    /// own delimiter syntax. Other code intersections always suppress it.
+    fn owns_inline_code(&self, _element: &Element, _code: &Element) -> bool {
+        false
+    }
 
     /// Block-level syntax extension (`TA-30`, `TA-40`), returning line ranges
     /// owned by feature blocks that suppress inner line-level inline scanning.

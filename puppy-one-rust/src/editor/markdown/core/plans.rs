@@ -307,6 +307,7 @@ pub fn compile_blocks_in_window(
             .cmp(&b.source.start)
             .then(a.source.end.cmp(&b.source.end))
     });
+    retain_first_block_owner(&mut out);
     out
 }
 
@@ -341,7 +342,17 @@ pub fn compile(
             .cmp(&b.source.start)
             .then(a.source.end.cmp(&b.source.end))
     });
+    retain_first_block_owner(&mut plans);
     plans
+}
+
+/// Composition order decides which feature owns an identical block range.
+/// Stable source sorting preserves that order. Inline plans remain independent.
+fn retain_first_block_owner(plans: &mut Vec<Plan>) {
+    let mut claimed = std::collections::HashSet::new();
+    plans.retain(|plan| {
+        plan.embed().is_none() || claimed.insert((plan.source.start, plan.source.end))
+    });
 }
 
 fn shift_signed(v: usize, delta: isize) -> usize {
