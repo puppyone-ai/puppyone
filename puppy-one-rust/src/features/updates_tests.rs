@@ -6,6 +6,9 @@ use sha2::Digest as _;
 #[path = "updates_test_fixtures.rs"]
 mod fixtures;
 use fixtures::{Feed, Fixture};
+#[cfg(target_os = "macos")]
+#[path = "updates_preparation_tests.rs"]
+mod preparation;
 
 fn service(feed: &Feed, automatic: bool, cx: &mut gpui::TestAppContext) -> Fixture {
     Fixture::new(

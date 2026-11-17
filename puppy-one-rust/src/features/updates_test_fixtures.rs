@@ -149,6 +149,7 @@ impl Fixture {
             restart_requested: false,
             data_dir: root.path().join("profile"),
             downloads: root.path().join("downloads"),
+            download_cancel: None,
             quit,
             _schedule: None,
         });

@@ -16,6 +16,8 @@ pub use preferences::{read_automatic_download, write_automatic_download};
 #[cfg(target_os = "macos")]
 pub mod prepared;
 pub mod state;
+#[cfg(test)]
+mod transport_tests;
 
 use super::build_identity::{Channel, Identity};
 use state::Progress;
@@ -187,8 +189,19 @@ fn runtime() -> Result<tokio::runtime::Runtime, String> {
         .build()
         .map_err(|e| e.to_string())
 }
-fn client(config: &Configuration, timeout: Duration) -> Result<reqwest::Client, String> {
-    crate::platform::proxy::system(reqwest::Client::builder())
+fn client(
+    config: &Configuration,
+    destination: &url::Url,
+    timeout: Duration,
+) -> Result<reqwest::Client, String> {
+    // A forced local development feed stays on this computer even when an
+    // environment or fixed system proxy is configured (not just a PAC).
+    let builder = if config.force_dev && feed::local_http(destination) {
+        reqwest::Client::builder().no_proxy()
+    } else {
+        crate::platform::proxy::system(reqwest::Client::builder())
+    };
+    builder
         .redirect_policy(reqwest::redirect::Policy::none())
         .https_only(!config.force_dev)
         .timeout(timeout)
@@ -203,7 +216,7 @@ pub fn check(config: &Configuration) -> Result<Candidate, String> {
     };
     let metadata_url = feed::payload_url(feed, &format!("{channel}-mac.yml"), config.force_dev)?;
     let source = runtime()?.block_on(async {
-        let response = client(config, Duration::from_secs(30))?
+        let mut response = client(config, &metadata_url, Duration::from_secs(30))?
             .get(metadata_url.clone())
             .send()
             .await
@@ -217,11 +230,14 @@ pub fn check(config: &Configuration) -> Result<Candidate, String> {
         {
             return Err("The update metadata is too large.".into());
         }
-        let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-        if bytes.len() > feed::MAX_METADATA_BYTES {
-            return Err("The update metadata is too large.".into());
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+            if chunk.len() > feed::MAX_METADATA_BYTES.saturating_sub(bytes.len()) {
+                return Err("The update metadata is too large.".into());
+            }
+            bytes.extend_from_slice(&chunk);
         }
-        String::from_utf8(bytes.to_vec()).map_err(|_| "The update metadata is not text.".into())
+        String::from_utf8(bytes).map_err(|_| "The update metadata is not text.".into())
     })?;
     let metadata = feed::parse(&source).map_err(|errors| errors.join("; "))?;
     let file = feed::payload(&metadata, super::build_identity::node_architecture())
@@ -235,71 +251,102 @@ pub fn check(config: &Configuration) -> Result<Candidate, String> {
 }
 
 /// Downloads the candidate's archive into `directory`, checking its size
-/// and SHA-512 as it arrives; `progress` sees every chunk.
+/// and SHA-512 as it arrives; `progress` sees every chunk. The returned
+/// owner removes this archive when preparation finishes or is abandoned.
 pub fn download(
     config: &Configuration,
     candidate: &Candidate,
     directory: &Path,
     mut progress: impl FnMut(Progress),
     cancel: &AtomicBool,
-) -> Result<PathBuf, String> {
+) -> Result<tempfile::TempPath, String> {
     use sha2::Digest as _;
     use std::io::Write as _;
     if candidate.size > MAX_ARCHIVE_BYTES {
         return Err("The update archive is too large.".into());
     }
-    let _ = std::fs::remove_dir_all(directory);
+    if candidate.size == 0 {
+        return Err("The update archive is empty.".into());
+    }
+    if cancel.load(Ordering::Relaxed) {
+        return Err("The download was cancelled.".into());
+    }
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
-    let name = candidate
-        .url
-        .path_segments()
-        .and_then(|mut s| s.next_back())
-        .filter(|n| !n.is_empty() && !n.starts_with('.'))
-        .unwrap_or("update.zip");
-    let path = directory.join(name);
+    let mut file = tempfile::Builder::new()
+        .prefix("update-")
+        .suffix(".zip")
+        .tempfile_in(directory)
+        .map_err(|e| e.to_string())?;
     let mut hasher = sha2::Sha512::new();
     let started = std::time::Instant::now();
     runtime()?.block_on(async {
-        let mut response = client(config, Duration::from_secs(60 * 60))?
-            .get(candidate.url.clone())
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
-        if !response.status().is_success() {
-            return Err(format!("{} answered {}", candidate.url, response.status()));
-        }
-        let mut file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
-        let mut received = 0u64;
-        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
-            if cancel.load(Ordering::Relaxed) {
-                return Err("The download was cancelled.".into());
+        let transfer = async {
+            let mut response = client(config, &candidate.url, Duration::from_secs(60 * 60))?
+                .get(candidate.url.clone())
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+            if !response.status().is_success() {
+                return Err(format!("{} answered {}", candidate.url, response.status()));
             }
-            received += chunk.len() as u64;
-            if received > candidate.size {
+            if response
+                .content_length()
+                .is_some_and(|n| n > candidate.size)
+            {
                 return Err("The update archive is larger than its feed says.".into());
             }
-            hasher.update(&chunk);
-            file.write_all(&chunk).map_err(|e| e.to_string())?;
-            let seconds = started.elapsed().as_secs_f64().max(0.001);
-            progress(Progress {
-                percent: received as f64 * 100. / candidate.size as f64,
-                bytes_per_second: received as f64 / seconds,
-                transferred: received as f64,
-                total: candidate.size as f64,
-            });
+            if response
+                .content_length()
+                .is_some_and(|n| n < candidate.size)
+            {
+                return Err("The update archive is smaller than its feed says.".into());
+            }
+            let mut received = 0u64;
+            while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err("The download was cancelled.".into());
+                }
+                if chunk.len() as u64 > candidate.size - received {
+                    return Err("The update archive is larger than its feed says.".into());
+                }
+                received += chunk.len() as u64;
+                hasher.update(&chunk);
+                file.write_all(&chunk).map_err(|e| e.to_string())?;
+                let seconds = started.elapsed().as_secs_f64().max(0.001);
+                progress(Progress {
+                    percent: received as f64 * 100. / candidate.size as f64,
+                    bytes_per_second: received as f64 / seconds,
+                    transferred: received as f64,
+                    total: candidate.size as f64,
+                });
+            }
+            if received != candidate.size {
+                return Err("The update archive is smaller than its feed says.".into());
+            }
+            file.as_file().sync_all().map_err(|e| e.to_string())
+        };
+        // Cancellation also retires a request waiting for headers or a peer
+        // which has stopped producing chunks, without waiting for its timeout.
+        let cancelled = async {
+            while !cancel.load(Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        };
+        tokio::select! {
+            biased;
+            _ = cancelled => Err("The download was cancelled.".into()),
+            result = transfer => result,
         }
-        if received != candidate.size {
-            return Err("The update archive is smaller than its feed says.".into());
-        }
-        file.sync_all().map_err(|e| e.to_string())
     })?;
+    if cancel.load(Ordering::Relaxed) {
+        return Err("The download was cancelled.".into());
+    }
     use base64::Engine as _;
     let digest = base64::engine::general_purpose::STANDARD.encode(hasher.finalize());
     if digest != candidate.sha512 {
-        let _ = std::fs::remove_file(&path);
         return Err("The update archive does not match its feed's SHA-512.".into());
     }
-    Ok(path)
+    Ok(file.into_temp_path())
 }
 
 /// `~/Library/Caches/PuppyOne GPUI.<name>`: downloads and the prepared app,

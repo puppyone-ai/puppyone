@@ -30,8 +30,17 @@ pub struct Updates {
     data_dir: std::path::PathBuf,
     /// Where the archive downloads to.
     downloads: std::path::PathBuf,
+    download_cancel: Option<Arc<AtomicBool>>,
     quit: fn(&mut App),
     _schedule: Option<Task<()>>,
+}
+
+impl Drop for Updates {
+    fn drop(&mut self) {
+        if let Some(cancel) = &self.download_cancel {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
 }
 
 struct Service(Entity<Updates>);
@@ -99,6 +108,7 @@ pub fn init(quit: fn(&mut App), cx: &mut App) {
             restart_requested: false,
             data_dir: data,
             downloads: updates::cache_path("update-download"),
+            download_cancel: None,
             quit,
             _schedule: None,
         };
@@ -184,6 +194,9 @@ impl Updates {
         self.state.status != Status::Disabled
     }
     fn finish(&mut self, cx: &mut Context<Self>) {
+        if let Some(cancel) = self.download_cancel.take() {
+            cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
         self.busy = false;
         let state = self.state.clone();
         for waiter in std::mem::take(&mut self.waiting) {
@@ -277,15 +290,18 @@ impl Updates {
         );
         let config = self.config.clone();
         let downloads = self.downloads.clone();
-        let (progress_tx, progress_rx) = async_channel::unbounded::<Progress>();
+        let (progress_tx, progress_rx) = async_channel::bounded::<Progress>(1);
+        let operation = candidate.clone();
+        let progress_candidate = candidate.clone();
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.download_cancel = Some(cancel.clone());
         let task = cx.background_executor().spawn(async move {
-            let cancel = Arc::new(AtomicBool::new(false));
             updates::download(
                 &config,
                 &candidate,
                 &downloads,
                 |p| {
-                    let _ = progress_tx.try_send(p);
+                    let _ = progress_tx.force_send(p);
                 },
                 &cancel,
             )
@@ -298,7 +314,7 @@ impl Updates {
                     latest = newer;
                 }
                 let alive = this.update(cx, |s, cx| {
-                    if s.state.status == Status::Downloading {
+                    if s.owns_download(&progress_candidate) {
                         s.publish(|st| st.progress = Some(latest), cx);
                     }
                 });
@@ -310,32 +326,105 @@ impl Updates {
         .detach();
         cx.spawn(async move |this, cx| {
             let result = task.await;
-            let _ = this.update(cx, |s, cx| s.downloaded(result, cx));
+            let _ = this.update(cx, |s, cx| {
+                if s.owns_download(&operation) {
+                    s.downloaded(result, cx);
+                }
+            });
         })
         .detach();
     }
 
     fn downloaded(
         &mut self,
-        result: Result<(std::path::PathBuf, String), String>,
+        result: Result<(tempfile::TempPath, String), String>,
         cx: &mut Context<Self>,
     ) {
-        let prepared = result.and_then(|(archive, version)| {
-            #[cfg(target_os = "macos")]
-            {
-                let prepared = self
-                    .prepared
-                    .as_mut()
-                    .ok_or("This installation cannot be updated in place.")?;
-                prepared.prepare(&archive, &version)
+        let (archive, version) = match result {
+            Ok(downloaded) => downloaded,
+            Err(error) => {
+                self.preparation_finished(Err(error), cx);
+                return;
             }
-            #[cfg(not(target_os = "macos"))]
-            {
-                let _ = (archive, version);
-                Err("Auto updates are available on macOS only.".into())
-            }
-        });
-        match prepared {
+        };
+        if !updates::policy::evaluate(
+            self.state.channel,
+            &self.state.current_version,
+            Some(&version),
+        )
+        .allowed
+        {
+            // Apply the same monotonic guard to what actually downloaded,
+            // before unzipping it, rather than retaining the feed's old label.
+            self.publish(
+                |s| {
+                    s.status = Status::Downloaded;
+                    s.available_version = Some(version);
+                    s.progress = None;
+                    s.error = None;
+                },
+                cx,
+            );
+            self.finish(cx);
+            return;
+        }
+        let candidate = self
+            .candidate
+            .clone()
+            .filter(|candidate| self.owns_download(candidate) && candidate.version == version);
+        let Some(candidate) = candidate else {
+            self.publish(|s| s.available_version = None, cx);
+            self.preparation_finished(
+                Err("The downloaded update no longer matches the offered version.".into()),
+                cx,
+            );
+            return;
+        };
+        #[cfg(target_os = "macos")]
+        {
+            let Some(mut prepared) = self.prepared.take() else {
+                self.preparation_finished(
+                    Err("This installation cannot be updated in place.".into()),
+                    cx,
+                );
+                return;
+            };
+            let task = cx.background_executor().spawn(async move {
+                let result = prepared.prepare(&archive, &version);
+                drop(archive);
+                (prepared, result)
+            });
+            cx.spawn(async move |this, cx| {
+                let (mut prepared, result) = task.await;
+                let _ = this.update(cx, |s, cx| {
+                    if !s.owns_download(&candidate) {
+                        prepared.discard();
+                        s.prepared.get_or_insert(prepared);
+                        return;
+                    }
+                    s.prepared = Some(prepared);
+                    s.preparation_finished(result, cx);
+                });
+            })
+            .detach();
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (archive, version, candidate);
+            self.preparation_finished(Err("Auto updates are available on macOS only.".into()), cx);
+        }
+    }
+
+    fn owns_download(&self, candidate: &Candidate) -> bool {
+        self.busy
+            && self.state.status == Status::Downloading
+            && self.candidate.as_ref() == Some(candidate)
+            && self.state.available_version.as_deref() == Some(candidate.version.as_str())
+            && self.state.candidate_allowed()
+    }
+
+    fn preparation_finished(&mut self, result: Result<(), String>, cx: &mut Context<Self>) {
+        match result {
             Ok(()) => self.publish(
                 |s| {
                     s.status = Status::Downloaded;

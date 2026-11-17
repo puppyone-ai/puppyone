@@ -15439,6 +15439,182 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-update-downloaded-candidate-ownership",
+      "acceptance": "A native download completion is admitted against both its returned version and the still-owned complete Candidate. Older and equal Stable versions become NotAvailable; cross-channel, malformed and mismatching newer versions fail closed before extraction. Superseded success, failure and progress cannot finish another operation or publish its old payload. This preserves the TS stale downloaded downgrade acceptance without an Electron event bus.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 14,
+              "name": "Desktop updater P0 monotonicity guard > rejects a stale downloaded downgrade event and never calls quitAndInstall"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::preparation::stale_downloaded_versions_never_prepare_or_install_an_older_app"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::preparation::superseded_download_success_and_failure_cannot_publish_progress_or_finish_waiters"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::preparation::superseded_preparation_cannot_offer_or_install_its_old_payload"
+        }
+      ],
+      "environment": "macos"
+    },
+    {
+      "id": "native-update-background-preparation",
+      "acceptance": "The foreground returns while the owned archive is still Downloading. Real ditto and codesign run in background; readiness and waiting callers are published only after verification. Repeated actions and ordinary quit during preparation cannot install. Failure retires the archive and permits a later successful preparation. Explicit restart requests ordinary quit only after readiness; the actual swap/relaunch behavior is verified by the paired platform integration test using a separate owned app process and touch, rather than terminating the GPUI test runner. Service retirement cancels queued downloads at the real App entity-release boundary. This does not claim the unsaved-window confirmation UI or Developer ID distribution acceptance.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 26,
+              "name": "Desktop updater prepared restart (macOS) > offers the update only once the new app is prepared, then restarts by quitting and swapping it in"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::preparation::preparation_yields_the_foreground_and_only_verified_completion_offers_restart"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::preparation::preparation_failure_finishes_waiters_and_retires_the_archive_before_retry"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::preparation::releasing_the_service_cancels_queued_downloads_without_recreating_its_profile"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::prepared::integration_tests::verified_swap_reopens_once_after_the_owned_app_exits_and_next_launch_retires_the_backup"
+        }
+      ],
+      "environment": "macos"
+    },
+    {
+      "id": "native-update-prepared-swap-and-relaunch",
+      "acceptance": "All six TS macOS prepared-update integration cases use real signed throwaway apps, ditto, codesign, filesystem renames and an owned relaunch helper. Swap finishes under 200 ms, repeated installation does nothing, reopening waits for old-process exit then completes within 1 s, and next startup deletes the previous app. A 300 ms fixture grace ends the stuck owned process with SIGKILL and reopens within 1.5 s. Ordinary quit never spawns a helper. First-rename failure and injected second-rename failure preserve/restore the old app, reopen it, persist the failure marker and disable subsequent swaps. Wrong identity/version, tampering and native runtime mismatch revoke readiness; unwritable app/parent fails preflight. The actual shell helper starts a separate process session. As in TS, touch observes dispatch; these tests do not open a user app or claim real release-certificate notarization.",
+      "typescript": [
+        {
+          "path": "tests/integration/updates/installation/macosPreparedUpdate.test.mjs",
+          "sha256": "2a8959fd4c7812a6c9063f8c7c2478584a746c08c020c899b57ce2b8a0ae6b4b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "macOS prepared update > swaps in a verified update as the app exits and reopens it a moment after"
+            },
+            {
+              "index": 1,
+              "name": "macOS prepared update > ends an app still exiting after the grace period and reopens the update"
+            },
+            {
+              "index": 2,
+              "name": "macOS prepared update > swaps an update in on an ordinary quit without reopening the app"
+            },
+            {
+              "index": 3,
+              "name": "macOS prepared update > keeps the installed app, still reopens it, and stops offering swaps when one fails"
+            },
+            {
+              "index": 4,
+              "name": "macOS prepared update > refuses an update signed otherwise, holding another version, or changed after signing"
+            },
+            {
+              "index": 5,
+              "name": "macOS prepared update > is unavailable for an app it could not move"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::prepared::integration_tests::verified_swap_reopens_once_after_the_owned_app_exits_and_next_launch_retires_the_backup"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::prepared::integration_tests::relaunch_ends_only_the_owned_process_after_its_exit_grace_period"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::prepared::integration_tests::ordinary_exit_swaps_without_spawning_a_relaunch_helper"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::prepared::integration_tests::either_failed_rename_preserves_the_old_app_reopens_it_and_disables_future_swaps"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::prepared::integration_tests::signature_version_tampering_and_runtime_rejections_never_authorize_a_swap"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::prepared::integration_tests::an_unwritable_app_or_parent_is_rejected_before_staging_or_signature_work"
+        }
+      ],
+      "environment": "macos"
+    },
+    {
+      "id": "native-update-http-resource-ownership",
+      "acceptance": "Native transport extension to the feed contract: real local HTTP accepts exactly 64 KiB with UTF-8 split across chunks and rejects oversized declared, chunked or close-delimited metadata before the peer finishes. Invalid text, errors and redirects fail closed. Downloads validate nonzero/1 GiB admission, byte count and SHA-512, preserve existing destination files and retain independently owned temporary archives only until their consumers finish. Every tested checksum/size/truncation/status failure cleans only its own file. Cancellation interrupts stalled headers and chunks. Forced loopback development feeds bypass system/environment proxies; production feeds keep system proxy policy. This file-only citation does not claim the TS release verifier CLI, latest pointer, Windows metadata or remote Range checks.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/policy/desktopUpdateFeedVerifier.test.mjs",
+          "sha256": "ef4304561da9be47a686a52f691484e2cf24ef0aaa18f9503e40e64343d086fc"
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::transport_tests::metadata_at_the_exact_byte_limit_accepts_chunked_utf8_and_resolves_the_payload"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::transport_tests::oversized_metadata_is_rejected_before_the_server_finishes_its_body"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::transport_tests::metadata_transport_rejects_non_text_and_non_success_statuses"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::transport_tests::verified_archives_have_independent_owners_and_leave_existing_files_untouched"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::transport_tests::every_failed_download_cleans_only_its_partial_archive"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::transport_tests::cancellation_interrupts_both_stalled_headers_and_stalled_chunks"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::transport_tests::cancelled_or_out_of_budget_downloads_do_not_touch_the_destination"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

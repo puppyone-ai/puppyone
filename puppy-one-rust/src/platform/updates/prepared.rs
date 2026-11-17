@@ -36,6 +36,12 @@ done
 /// How long the reopen waits for this process before ending it.
 const EXIT_GRACE_MS: u64 = 5000;
 
+struct RelaunchTarget {
+    process_id: u32,
+    open: &'static str,
+    grace_ms: u64,
+}
+
 pub struct PreparedUpdate {
     app: PathBuf,
     staging: PathBuf,
@@ -195,12 +201,35 @@ impl PreparedUpdate {
         self.prepared = Some((bundle.clone(), version.to_owned()));
         Ok(())
     }
+    /// Revokes installation when the service no longer owns this candidate.
+    pub fn discard(&mut self) {
+        self.prepared = None;
+    }
+
     /// Swaps the prepared app in, as the very last thing before this process
     /// exits, and reopens it once the process has ended when asked. A
     /// failure is remembered, so no later update is offered a swap.
     pub fn install_on_exit(&mut self, relaunch: bool) -> bool {
+        self.install(
+            relaunch,
+            &RelaunchTarget {
+                process_id: std::process::id(),
+                open: "/usr/bin/open",
+                grace_ms: EXIT_GRACE_MS,
+            },
+        )
+        .0
+    }
+
+    // The production target is fixed above. Integration tests own a separate
+    // app child and use touch to observe the same real relaunch script safely.
+    fn install(
+        &mut self,
+        relaunch: bool,
+        target: &RelaunchTarget,
+    ) -> (bool, Option<std::process::Child>) {
         let Some((bundle, version)) = self.prepared.take() else {
-            return false;
+            return (false, None);
         };
         let previous = self
             .staging
@@ -221,7 +250,7 @@ impl PreparedUpdate {
                 false
             }
         };
-        if relaunch {
+        let helper = if relaunch {
             let log = std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
@@ -231,12 +260,12 @@ impl PreparedUpdate {
                 .args(["-c", RELAUNCH_SCRIPT])
                 .env_clear()
                 .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
-                .env("PUPPYONE_UPDATE_PID", std::process::id().to_string())
+                .env("PUPPYONE_UPDATE_PID", target.process_id.to_string())
                 .env("PUPPYONE_UPDATE_APP", &self.app)
-                .env("PUPPYONE_UPDATE_OPEN", "/usr/bin/open")
+                .env("PUPPYONE_UPDATE_OPEN", target.open)
                 .env(
                     "PUPPYONE_UPDATE_GRACE_TICKS",
-                    EXIT_GRACE_MS.div_ceil(50).to_string(),
+                    target.grace_ms.div_ceil(50).max(1).to_string(),
                 )
                 .stdin(std::process::Stdio::null());
             if let Ok(log) = log {
@@ -245,11 +274,30 @@ impl PreparedUpdate {
                 }
                 command.stderr(log);
             }
-            let _ = command.spawn();
-        }
-        installed
+            use std::os::unix::process::CommandExt as _;
+            // SAFETY: this post-fork callback only calls the async-signal-safe
+            // setsid syscall, with no allocation or shared locks. The helper
+            // must survive the old app's process session, like detached spawn.
+            unsafe {
+                command.pre_exec(|| {
+                    if libc::setsid() == -1 {
+                        Err(std::io::Error::last_os_error())
+                    } else {
+                        Ok(())
+                    }
+                });
+            }
+            command.spawn().ok()
+        } else {
+            None
+        };
+        (installed, helper)
     }
 }
+
+#[cfg(test)]
+#[path = "prepared_integration_tests.rs"]
+mod integration_tests;
 
 #[cfg(test)]
 mod tests {
