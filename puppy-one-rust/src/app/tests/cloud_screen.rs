@@ -23,6 +23,23 @@ fn click_selector(cx: &mut VisualTestContext, selector: &'static str) {
     draw(cx);
 }
 
+/// The open screen sits inside the main area's margin at the desktop's
+/// shape (the test desktop is 4×2: 2:1), centred, whatever the window.
+fn assert_screen_on_stage(cx: &mut VisualTestContext) {
+    let stage = cx.debug_bounds("cloud-screen-stage").unwrap();
+    let live = cx.debug_bounds("cloud-screen-live").unwrap();
+    let (w, h) = (f32::from(live.size.width), f32::from(live.size.height));
+    assert!((w / h - 2.).abs() < 0.02, "{live:?}");
+    let left = f32::from(live.origin.x - stage.origin.x);
+    let right = f32::from(stage.bottom_right().x - live.bottom_right().x);
+    let top = f32::from(live.origin.y - stage.origin.y);
+    let bottom = f32::from(stage.bottom_right().y - live.bottom_right().y);
+    for margin in [left, right, top, bottom] {
+        assert!(margin >= 31.5, "{live:?} in {stage:?}");
+    }
+    assert!((left - right).abs() <= 1. && (top - bottom).abs() <= 1.);
+}
+
 fn repository_context_json() -> Value {
     json!({
         "code": 0,
@@ -591,9 +608,13 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     view.read_with(cx, |s, cx| assert!(!s.modal(cx)));
     click_selector(cx, "cloud-screen-card");
     view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
-    let stage = cx.debug_bounds("cloud-screen-stage").unwrap();
-    assert_eq!(cx.debug_bounds("cloud-screen-live").unwrap(), stage);
+    assert_screen_on_stage(cx);
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
+
+    // A window of another shape scales the screen; its shape and margin stay.
+    cx.simulate_resize(size(px(900.), px(900.)));
+    draw(cx);
+    assert_screen_on_stage(cx);
 
     hold_recovered.store(false, Ordering::Release);
 }
@@ -711,8 +732,11 @@ fn explicit_take_control_gates_rfb_input_and_releases_on_escape_or_button(cx: &m
         assert!(!s.cloud.read(cx).screen_interactive(cx));
     });
     assert!(cx.debug_bounds("cloud-screen-take-control").is_some());
-    let live = cx.debug_bounds("cloud-screen-stage").unwrap();
-    let probe_pt = point(live.origin.x + px(40.), live.center().y);
+    let live = cx.debug_bounds("cloud-screen-live").unwrap();
+    // Off the centre, where `Take control` sits.
+    let probe_pt = point(live.origin.x + px(40.), live.origin.y + px(40.));
+    let stage = cx.debug_bounds("cloud-screen-stage").unwrap();
+    let margin_pt = point(stage.origin.x + px(8.), stage.center().y);
     cx.simulate_click(probe_pt, Modifiers::none());
     draw(cx);
     std::thread::sleep(Duration::from_millis(25));
@@ -725,6 +749,12 @@ fn explicit_take_control_gates_rfb_input_and_releases_on_escape_or_button(cx: &m
     });
     assert!(cx.debug_bounds("cloud-screen-release-control").is_some());
     assert!(cx.debug_bounds("cloud-screen-take-control").is_none());
+
+    // The margin around the screen is not the desktop.
+    cx.simulate_click(margin_pt, Modifiers::none());
+    draw(cx);
+    std::thread::sleep(Duration::from_millis(25));
+    assert_eq!(pointer_packets.load(Ordering::Acquire), 0);
 
     cx.simulate_click(probe_pt, Modifiers::none());
     settle_screen(&view, cx, "forwarded RFB pointer packet", &|_, _| {
@@ -846,10 +876,10 @@ fn an_agent_at_work_unfolds_the_card_into_a_live_preview_until_folded_by_hand(
     click_selector(cx, "cloud-screen-card-toggle");
     assert_eq!(live(cx).size, preview.size);
 
-    // Opened, the card is a row again and the screen fills the main area.
+    // Opened, the card is a row again and the screen stands on the main area.
     click_selector(cx, "cloud-screen-card");
     view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
-    assert_eq!(live(cx), cx.debug_bounds("cloud-screen-stage").unwrap());
+    assert_screen_on_stage(cx);
     assert!(cx.debug_bounds("cloud-screen-card-toggle").is_none());
 
     hold_open.store(false, Ordering::Release);

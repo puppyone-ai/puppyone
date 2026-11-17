@@ -98,13 +98,11 @@ pub struct CloudScreen {
     generation: u64,
     reconnect_delay: Duration,
     session_task: Option<Task<()>>,
-    resize_task: Option<Task<()>>,
     stream_cancel: Option<Cancellation>,
     command_tx: Option<async_channel::Sender<RfbCommand>>,
     frame_image: Option<Arc<RenderImage>>,
     frame_dims: Option<(u32, u32)>,
     viewport_bounds: Option<Bounds<Pixels>>,
-    last_sent_size: Option<(u16, u16)>,
     input: InputState,
 }
 
@@ -152,13 +150,11 @@ impl CloudScreen {
             generation: 0,
             reconnect_delay: Duration::from_secs(1),
             session_task: None,
-            resize_task: None,
             stream_cancel: None,
             command_tx: None,
             frame_image: None,
             frame_dims: None,
             viewport_bounds: None,
-            last_sent_size: None,
             input: InputState::default(),
         }
     }
@@ -404,11 +400,7 @@ impl CloudScreen {
         animate: bool,
         cx: &App,
     ) -> ScreenLayout {
-        let aspect = match self.frame_dims {
-            Some((w, h)) if w > 0 => h as f32 / w as f32,
-            _ if stage.w > 0. => stage.h / stage.w,
-            _ => 0.625,
-        };
+        let aspect = motion::aspect(self.frame_dims);
         let card = plane
             .filter(|_| self.entry_available(cx))
             .map(|plane| Card::new(plane, aspect));
@@ -422,7 +414,7 @@ impl CloudScreen {
             } else {
                 Place::Away
             };
-            let target = Pose::at(place, card, stage);
+            let target = Pose::at(place, card, stage, aspect);
             Some(
                 self.motion
                     .borrow_mut()
@@ -512,9 +504,31 @@ impl CloudScreen {
         }
     }
 
+    /// The open screen where the main area measured last (window
+    /// coordinates).
+    pub(super) fn screen_bounds(&self) -> Option<Rect> {
+        let stage = self.viewport_bounds?;
+        let stage = Rect::new(
+            f32::from(stage.origin.x),
+            f32::from(stage.origin.y),
+            f32::from(stage.size.width),
+            f32::from(stage.size.height),
+        );
+        Some(motion::on_stage(stage, motion::aspect(self.frame_dims)))
+    }
+
+    /// The desktop pixel under `position`; none in the margin around it.
     pub(super) fn pointer_at(&self, position: Point<Pixels>) -> Option<(u16, u16)> {
-        let bounds = self.viewport_bounds?;
+        let screen = self.screen_bounds()?;
+        let (x, y) = (f32::from(position.x), f32::from(position.y));
+        if x < screen.x || y < screen.y || x >= screen.right() || y >= screen.bottom() {
+            return None;
+        }
         let (fw, fh) = self.frame_dims?;
+        let bounds = Bounds {
+            origin: point(px(screen.x), px(screen.y)),
+            size: size(px(screen.w), px(screen.h)),
+        };
         map_pointer(bounds, position, fw, fh)
     }
 
@@ -812,20 +826,41 @@ impl Render for CloudScreen {
                 .absolute()
                 .inset_0(),
             )
+            // Before the first picture, the screen's empty shape where it
+            // will show.
             .when(self.frame_image.is_none(), |d| {
-                d.child(
-                    div()
+                let place = self.screen_bounds().zip(self.viewport_bounds);
+                let label = div()
+                    .text_size(px(meta))
+                    .line_height(relative(1.45))
+                    .child(tr("cloud.sandbox.screen.connecting"));
+                d.child(match place {
+                    Some((screen, stage)) => div()
+                        .id("cloud-screen-connecting")
+                        .absolute()
+                        .left(px(screen.x - f32::from(stage.origin.x)))
+                        .top(px(screen.y - f32::from(stage.origin.y)))
+                        .w(px(screen.w))
+                        .h(px(screen.h))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(motion::STAGE_RADIUS))
+                        .bg(theme::screen_surface())
+                        .border_1()
+                        .border_color(theme::alpha(t.text, 0.08))
+                        .text_color(theme::screen_overlay_muted())
+                        .child(label),
+                    None => div()
                         .id("cloud-screen-connecting")
                         .absolute()
                         .inset_0()
                         .flex()
                         .items_center()
                         .justify_center()
-                        .text_size(px(meta))
-                        .line_height(relative(1.45))
                         .text_color(t.subtle)
-                        .child(tr("cloud.sandbox.screen.connecting")),
-                )
+                        .child(label),
+                })
             })
             .into_any_element()
     }

@@ -137,6 +137,18 @@ pub fn screen_overlay_muted() -> Rgba {
 pub fn screen_overlay_border() -> Rgba {
     rgba(0xffffff24)
 }
+/// The Cloud Computer's screen itself, behind a picture of another shape.
+pub fn screen_surface() -> Rgba {
+    rgb(0x0c0c0c)
+}
+/// The open screen's shadow on the main area.
+pub fn screen_stage_shadow(dark: bool) -> Rgba {
+    if dark {
+        rgba(0x00000073)
+    } else {
+        rgba(0x0000002e)
+    }
+}
 /// `.pill`'s `0 10px 30px rgba(0, 0, 0, .35)`.
 pub fn screen_pill_shadow() -> Rgba {
     rgba(0x00000059)

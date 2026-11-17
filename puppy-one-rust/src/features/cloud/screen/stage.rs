@@ -5,7 +5,7 @@
 //! [`super::CloudScreen`].
 use super::{
     CloudScreen, ScreenLayout, StreamPhase,
-    motion::{Card, Place, Pose},
+    motion::{Card, Place, Pose, STAGE_RADIUS},
 };
 use crate::{
     geometry::Rect,
@@ -343,11 +343,19 @@ impl CloudScreen {
         } else {
             stage.x
         };
-        let clip = Rect::new(layout.clip_x, stage.y, right - layout.clip_x, stage.h);
+        // Landed, it is drawn inside the main area; on its way it crosses
+        // from the Explorer.
+        let left = if shown.place == Place::Stage && !shown.moving {
+            stage.x
+        } else {
+            layout.clip_x
+        };
+        let clip = Rect::new(left, stage.y, right - left, stage.h);
         if clip.w <= 0. {
             return None;
         }
         let on_stage = shown.place == Place::Stage && !shown.moving;
+        let t = cx.palette();
         let preview = shown.place == Place::Card { unfolded: true } && !shown.moving;
         let (rect, radius) = (pose.rect, pose.radius);
         let screen = div()
@@ -361,27 +369,27 @@ impl CloudScreen {
             .h(px(rect.h))
             .rounded(px(radius))
             .opacity(pose.opacity)
+            // A screen: dark where a picture of another shape leaves room,
+            // standing on the main area with a soft shadow as it lands.
+            .bg(theme::screen_surface())
+            // A blurred shadow is not clipped, so it fades out within the
+            // margin at the sides and top (`STAGE_MARGIN`).
+            .shadow(vec![BoxShadow {
+                color: theme::alpha(theme::screen_stage_shadow(t.dark), pose.fit).into(),
+                offset: point(px(0.), px(10. * pose.fit)),
+                blur_radius: px(20. * pose.fit),
+                spread_radius: px(-4. * pose.fit),
+                inset: false,
+            }])
             .child(picture(image, rect, shot, radius).absolute().inset_0())
-            // The ring hugs the picture where it shows, and fades as the
-            // screen grows into the main area.
-            .when(pose.fit < 1., |d| {
-                let (x, y) = (shot.x.max(rect.x), shot.y.max(rect.y));
-                let (right, bottom) = (
-                    shot.right().min(rect.right()),
-                    shot.bottom().min(rect.bottom()),
-                );
-                d.child(
-                    div()
-                        .absolute()
-                        .left(px(x - rect.x))
-                        .top(px(y - rect.y))
-                        .w(px((right - x).max(0.)))
-                        .h(px((bottom - y).max(0.)))
-                        .rounded(px(radius))
-                        .border_1()
-                        .border_color(theme::alpha(cx.palette().text, 0.08 * (1. - pose.fit))),
-                )
-            })
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .rounded(px(radius))
+                    .border_1()
+                    .border_color(theme::alpha(t.text, 0.08)),
+            )
             .when(preview, |d| d.child(grow_hint()))
             .when(on_stage, |d| d.child(self.stage_controls(entity)));
         Some(
@@ -463,6 +471,7 @@ impl CloudScreen {
         div()
             .absolute()
             .inset_0()
+            .rounded(px(STAGE_RADIUS))
             .flex()
             .items_center()
             .justify_center()
