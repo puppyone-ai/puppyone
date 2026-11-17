@@ -21,6 +21,7 @@ mod editor_view_acceptance;
 mod html_acceptance;
 mod html_policy_acceptance;
 mod inline_acceptance;
+mod inline_html_acceptance;
 mod linked_image_acceptance;
 mod math_acceptance;
 mod table_inline_acceptance;

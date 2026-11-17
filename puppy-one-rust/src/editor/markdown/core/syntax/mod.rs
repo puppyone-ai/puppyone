@@ -530,7 +530,7 @@ impl Syntax {
         );
         lines::add_inline_elements(doc, &inline_ranges, features, &mut syntax.elements);
         footnotes::add_in_ranges(doc, &inline_ranges, &mut syntax);
-        let html = inline_html::elements_in_buffer(doc, &syntax.inline_tags);
+        let html = inline_html::elements_in_buffer(doc, &syntax);
         syntax.elements.extend(html.into_iter().filter(|element| {
             // Inline HTML may span soft line breaks in a paragraph, but a
             // table cell is its own inline context. Any tag pair touching a

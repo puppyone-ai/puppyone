@@ -17620,6 +17620,137 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-inline-html-semantic-containers-and-projection",
+      "acceptance": "Production parsing owns inline HTML pairing within actual paragraph, heading and table-cell boundaries. Complete authored markers, Unicode byte ranges, nested Markdown and independent siblings survive; mismatched or incomplete ancestry never becomes a reveal target. Bounded queries inspect only the requested paragraph among 10,000 lines. Native painted text retains safe colors, strong/emphasis roles and marker atomicity across reveal, viewport scrolling and edits. Native parsing is eager rather than CodeMirror deferred-tree parsing; cache freshness and visible output are the acceptance here. Attribute-reduction diagnostics, font-weight CSS, br widgets and full HTML runs remain separately unreviewed.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts",
+          "sha256": "167b22ba4e55afd07a148211a4d96f0db0209f18f6a8db566ef4d8e56faf901c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown inline HTML semantic model > normalizes a styled span inside a list item"
+            },
+            {
+              "index": 1,
+              "name": "Markdown inline HTML semantic model > supports nested inline HTML and Markdown without flattening ranges"
+            },
+            {
+              "index": 2,
+              "name": "Markdown inline HTML semantic model > keeps adjacent elements independent"
+            },
+            {
+              "index": 3,
+              "name": "Markdown inline HTML semantic model > pairs tags across soft line breaks in the same paragraph"
+            },
+            {
+              "index": 4,
+              "name": "Markdown inline HTML semantic model > pairs a whole semantic container while constructing only the requested range"
+            },
+            {
+              "index": 5,
+              "name": "Markdown inline HTML semantic model > keeps an HTML-heavy 10,000-line range query bounded to its paragraph"
+            },
+            {
+              "index": 6,
+              "name": "Markdown inline HTML semantic model > renders the motivating styled strong label instead of exposing its tags"
+            },
+            {
+              "index": 7,
+              "name": "Markdown inline HTML semantic model > keeps incomplete and mismatched tags out of reveal state"
+            },
+            {
+              "index": 8,
+              "name": "Markdown inline HTML semantic model > tokenizes quoted tag delimiters and unquoted URL slashes safely"
+            },
+            {
+              "index": 9,
+              "name": "Markdown inline HTML semantic model > does not let plain less-than text hide a later closing tag"
+            },
+            {
+              "index": 10,
+              "name": "Markdown inline HTML semantic model > invalidates semantic caches and projects a newly parsed viewport"
+            },
+            {
+              "index": 17,
+              "name": "Markdown inline HTML live decorations > marks safe content and atomically hides only the HTML markers"
+            },
+            {
+              "index": 19,
+              "name": "Markdown inline HTML live decorations > keeps nested Markdown decorations while rendering the outer HTML mark"
+            },
+            {
+              "index": 20,
+              "name": "Markdown inline HTML live decorations > composes nested Markdown marks instead of reserving the outer range"
+            },
+            {
+              "index": 21,
+              "name": "Markdown inline HTML live decorations > reveals HTML markers without dropping the safe content style"
+            },
+            {
+              "index": 22,
+              "name": "Markdown inline HTML live decorations > leaves unsupported inline HTML source visible"
+            },
+            {
+              "index": 23,
+              "name": "Markdown inline HTML live decorations > keeps safe structure after reducing blocked style capabilities"
+            },
+            {
+              "index": 24,
+              "name": "Markdown HTML block classification > uses Lezer block context instead of line-start tag guessing"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::inline_html_keeps_unicode_marker_ranges_nested_roles_and_independent_siblings"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::inline_html_soft_line_queries_keep_the_whole_paragraph_owner"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::incomplete_and_mismatched_inline_html_never_become_reveal_targets"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::parser_keeps_quoted_delimiters_url_slashes_and_script_less_than_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::inline_html_paints_safe_colors_nested_markdown_and_styled_strong_labels"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::revealing_inline_html_keeps_content_color_and_only_collapses_markers"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::unsupported_inline_html_is_visible_and_block_ownership_comes_from_the_parser"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::html_heavy_range_queries_bound_candidates_to_the_requested_paragraph"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::late_inline_html_viewport_repaints_changed_color_and_shifted_ranges"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::syntax::inline_html::tests::allowed_tags_pair_within_a_paragraph"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::syntax::inline_html::tests::quoted_attribute_tokens_preserve_greater_than_and_unquoted_url_slashes"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [
