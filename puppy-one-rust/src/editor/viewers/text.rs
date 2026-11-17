@@ -91,13 +91,13 @@ pub fn open_markdown(
             window,
             cx,
         ));
-        let history_editor = editor.clone();
+        let history_editor = editor.downgrade();
         let history_gate = host_read_only.clone();
         if let Some(companion) = source.as_companion_history() {
             companion.set_history_owner(
                 Rc::new(move |redo, cx| {
                     if !history_gate.get() {
-                        history_editor.update(cx, |e, cx| e.replay_history(redo, cx));
+                        let _ = history_editor.update(cx, |e, cx| e.replay_history(redo, cx));
                     }
                 }),
                 cx,
@@ -208,6 +208,14 @@ pub struct TextSurface {
     source: Option<Rc<dyn ViewerSurface>>,
     split: Option<Entity<SourceSplit>>,
     _subscriptions: Vec<Subscription>,
+}
+
+impl Drop for TextSurface {
+    fn drop(&mut self) {
+        // A source view may outlive its surface for a frame or a pending
+        // callback. It must neither own nor replay the retired page history.
+        self.host_read_only.set(true);
+    }
 }
 
 impl TextSurface {

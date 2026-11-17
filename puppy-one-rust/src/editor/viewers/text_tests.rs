@@ -189,6 +189,28 @@ impl Render for Host {
         self.surface.element()
     }
 }
+fn companion_surface(text: &str, w: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
+    open_markdown(
+        &SurfaceRequest {
+            id: "paired",
+            name: "note.md",
+            input: SurfaceInput::Text(text),
+            format: registry::resolve(&EditorDocument::local("note.md")).format,
+            resolved_extension: None,
+            dark: true,
+            scale: Scale::Medium,
+            workspace: None,
+            file_mode: true,
+            folder: None,
+            web_source: None,
+            assets: None,
+            references: None,
+            source_kind: SourceKind::Local,
+        },
+        w,
+        cx,
+    )
+}
 fn setup<'a>(
     cx: &'a mut TestAppContext,
     text: &str,
@@ -203,26 +225,7 @@ fn setup<'a>(
     let changes = Rc::new(Cell::new(0));
     let count = changes.clone();
     let (host, cx) = cx.add_window_view(move |w, cx| {
-        let surface = open_markdown(
-            &SurfaceRequest {
-                id: "paired",
-                name: "note.md",
-                input: SurfaceInput::Text(&text),
-                format: registry::resolve(&EditorDocument::local("note.md")).format,
-                resolved_extension: None,
-                dark: true,
-                scale: Scale::Medium,
-                workspace: None,
-                file_mode: true,
-                folder: None,
-                web_source: None,
-                assets: None,
-                references: None,
-                source_kind: SourceKind::Local,
-            },
-            w,
-            cx,
-        );
+        let surface = companion_surface(&text, w, cx);
         let subscription = surface
             .subscribe(
                 Rc::new(move |event, _| {
@@ -312,15 +315,20 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
 fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
     cx: &mut TestAppContext,
 ) {
-    let (host, count, cx) = setup(cx, "");
+    let (host, count, cx) = setup(cx, "界🦀");
     host.update_in(cx, |h, w, cx| {
         h.surface.pane_item(PaneItemId::DocumentEditing, w, cx)
     });
-    let mut expected = String::new();
+    let mut expected = String::from("界🦀");
     for index in 0..50 {
         let insert = (index % 10).to_string();
+        let byte = expected
+            .char_indices()
+            .nth(expected.chars().count() / 2)
+            .unwrap()
+            .0;
+        let at = expected[..byte].encode_utf16().count();
         host.update_in(cx, |h, w, cx| {
-            let at = expected.encode_utf16().count();
             if index % 2 == 0 {
                 h.surface
                     .as_test_probe()
@@ -341,7 +349,7 @@ fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
                     });
             }
         });
-        expected.push_str(&insert);
+        expected.insert_str(byte, &insert);
         draw(cx);
         assert_text(&host, &expected, cx);
     }
@@ -437,3 +445,6 @@ fn companion_sync_preserves_read_only_maps_cursor_and_records_minimal_delta_weig
         );
     });
 }
+
+#[path = "text_companion_tests.rs"]
+mod companion;

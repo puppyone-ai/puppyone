@@ -213,15 +213,63 @@
     },
     {
       "id": "source-companion",
-      "acceptance": "Page and source edits propagate once, share undo/redo across focus, reject edits while gated, and take storage replacement.",
+      "acceptance": "Markdown page and companion source start from identical non-empty text. Source input updates a read-only page once; host input locks gate both views and shared undo. Fifty interleaved middle insertions around Unicode preserve identical text without echoes. Both views share undo/redo and adopt storage changes. Hiding/reopening the source retains identity, follows page edits and does not report changes for toggles. Disposing the pair removes both subscriptions, makes old history callbacks inert and releases the page even when a source entity remains. Actual source keyboard input, autosave and shared undo/redo preserve CRLF bytes on disk; native buffers use LF and the storage provider re-encodes CRLF. TS follower case 6 (HTML without an editable primary view) and HTML source-panel component cases 0-2 remain uncredited here.",
       "typescript": [
         {
           "path": "tests/unit/editor/document-session/codeMirrorFollower.test.ts",
-          "sha256": "95eafa122119d8cf9439b4b185da46a1cc8af0933a2de18f9ca08a59942d891e"
+          "sha256": "95eafa122119d8cf9439b4b185da46a1cc8af0933a2de18f9ca08a59942d891e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CodeMirror follower view > starts with the document's text and takes edits made in its editable view"
+            },
+            {
+              "index": 1,
+              "name": "CodeMirror follower view > sends its own edits through the document, into the editable view"
+            },
+            {
+              "index": 2,
+              "name": "CodeMirror follower view > edits a document whose editable view is read-only, which only stops typing there"
+            },
+            {
+              "index": 3,
+              "name": "CodeMirror follower view > shares one undo history with the editable view"
+            },
+            {
+              "index": 4,
+              "name": "CodeMirror follower view > takes a replacement read from storage"
+            },
+            {
+              "index": 5,
+              "name": "CodeMirror follower view > refuses typing while the document takes no edits, and keeps its copy unchanged"
+            },
+            {
+              "index": 7,
+              "name": "CodeMirror follower view > keeps CRLF line endings when the document preserves them"
+            },
+            {
+              "index": 8,
+              "name": "CodeMirror follower view > stays identical to the document through interleaved edits from both views"
+            },
+            {
+              "index": 9,
+              "name": "CodeMirror follower view > stops following once disposed"
+            }
+          ]
         },
         {
           "path": "tests/component/editor/document-session/documentSourcePanel.test.tsx",
-          "sha256": "a45f3212dda7ba6a0b5a45aed59d86ed756760fd9fd8d850c66fdb9b34a3b9cc"
+          "sha256": "a45f3212dda7ba6a0b5a45aed59d86ed756760fd9fd8d850c66fdb9b34a3b9cc",
+          "cases": [
+            {
+              "index": 3,
+              "name": "a page with its source in a panel beside it > Markdown > opens to read, and edits once Edit is on"
+            },
+            {
+              "index": 4,
+              "name": "a page with its source in a panel beside it > Markdown > keeps the page and its source panel on one text"
+            }
+          ]
         }
       ],
       "rust": [
@@ -232,9 +280,40 @@
         {
           "package": "po-editor",
           "test": "editor::viewers::text::tests::source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::companion::initial_source_matches_the_read_only_page_and_both_input_gates_are_independent"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::companion::hiding_and_reopening_source_retains_its_identity_and_tracks_page_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::companion::disposing_a_pair_retires_both_subscriptions_and_releases_its_history_owner"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::text::tests::companion_sync_preserves_read_only_maps_cursor_and_records_minimal_delta_weight"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window::a_file_window_shows_one_file_and_saves_it_as_it_is_edited",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window::file_window_markdown_source_panel_toggles_and_syncs",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::source_companion::source_panel_keyboard_edits_and_shared_undo_preserve_crlf_on_disk",
+          "target": "puppy-one-rust"
         }
       ],
-      "environment": "local"
+      "environment": "Native GPUI components and file-window integration with owned temporary CRLF files. No live Cloud or real WebKit HTML claim."
     },
     {
       "id": "cloud-event-shapes",
@@ -3935,7 +4014,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -10679,7 +10758,7 @@
             },
             {
               "index": 14,
-              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A→B→A"
+              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A\u2192B\u2192A"
             }
           ]
         }
@@ -10777,7 +10856,7 @@
           "cases": [
             {
               "index": 2,
-              "name": "registered database DOM viewer > drops late opening results across A→B→A and releases every native lease"
+              "name": "registered database DOM viewer > drops late opening results across A\u2192B\u2192A and releases every native lease"
             },
             {
               "index": 3,
@@ -11378,11 +11457,11 @@
             },
             {
               "index": 2,
-              "name": "gitRefreshScheduler > discards delayed responses across A → B workspace switches"
+              "name": "gitRefreshScheduler > discards delayed responses across A \u2192 B workspace switches"
             },
             {
               "index": 3,
-              "name": "gitRefreshScheduler > discards a delayed B response after A → B → A"
+              "name": "gitRefreshScheduler > discards a delayed B response after A \u2192 B \u2192 A"
             },
             {
               "index": 4,
@@ -13984,15 +14063,15 @@
             },
             {
               "index": 3,
-              "name": "stage → commit lifecycle > tracks a new file as untracked, then staged, then committed"
+              "name": "stage \u2192 commit lifecycle > tracks a new file as untracked, then staged, then committed"
             },
             {
               "index": 4,
-              "name": "stage → commit lifecycle > detects modifications to a committed file as unstaged"
+              "name": "stage \u2192 commit lifecycle > detects modifications to a committed file as unstaged"
             },
             {
               "index": 5,
-              "name": "stage → commit lifecycle > stages a specific path and makes a second commit"
+              "name": "stage \u2192 commit lifecycle > stages a specific path and makes a second commit"
             },
             {
               "index": 32,

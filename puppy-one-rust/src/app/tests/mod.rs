@@ -27,6 +27,7 @@ mod save_status;
 mod settings_import;
 mod sidebar_surfaces;
 mod sign_in_dialog;
+mod source_companion;
 mod window_chrome;
 
 pub(in crate::app) fn setup(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
