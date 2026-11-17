@@ -4014,7 +4014,7 @@
     },
     {
       "id": "agent-session-store-ownership",
-      "acceptance": "One destruction listener is retained per owner through 1\u21921\u21920 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
+      "acceptance": "One destruction listener is retained per owner through 1→1→0 session removal; a missing exact retired lookup leaves the unrelated allocation intact, and unqualified take returns that same allocation once and removes it. Other owners and roots cannot take it.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/electron.agent-session-store.test.mjs",
@@ -10758,7 +10758,7 @@
             },
             {
               "index": 14,
-              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A\u2192B\u2192A"
+              "name": "DOM-owned PDF transport and attachment lifecycle > retires pending requests even when a URL returns in A→B→A"
             }
           ]
         }
@@ -10856,7 +10856,7 @@
           "cases": [
             {
               "index": 2,
-              "name": "registered database DOM viewer > drops late opening results across A\u2192B\u2192A and releases every native lease"
+              "name": "registered database DOM viewer > drops late opening results across A→B→A and releases every native lease"
             },
             {
               "index": 3,
@@ -11457,11 +11457,11 @@
             },
             {
               "index": 2,
-              "name": "gitRefreshScheduler > discards delayed responses across A \u2192 B workspace switches"
+              "name": "gitRefreshScheduler > discards delayed responses across A → B workspace switches"
             },
             {
               "index": 3,
-              "name": "gitRefreshScheduler > discards a delayed B response after A \u2192 B \u2192 A"
+              "name": "gitRefreshScheduler > discards a delayed B response after A → B → A"
             },
             {
               "index": 4,
@@ -14063,15 +14063,15 @@
             },
             {
               "index": 3,
-              "name": "stage \u2192 commit lifecycle > tracks a new file as untracked, then staged, then committed"
+              "name": "stage → commit lifecycle > tracks a new file as untracked, then staged, then committed"
             },
             {
               "index": 4,
-              "name": "stage \u2192 commit lifecycle > detects modifications to a committed file as unstaged"
+              "name": "stage → commit lifecycle > detects modifications to a committed file as unstaged"
             },
             {
               "index": 5,
-              "name": "stage \u2192 commit lifecycle > stages a specific path and makes a second commit"
+              "name": "stage → commit lifecycle > stages a specific path and makes a second commit"
             },
             {
               "index": 32,
@@ -15990,6 +15990,81 @@
         }
       ],
       "environment": "Native GPUI component and protocol tests; owned temporary files and controlled in-memory hosted provider, no live Cloud mutation or OS screenshot claim."
+    },
+    {
+      "id": "document-drain-lifecycle",
+      "acceptance": "The actual document coordinator keeps Save, CloseFile and Quit barriers alive while newer input arrives during an admitted write, requests a fresh frozen snapshot immediately and drains it against the acknowledged storage revision before closing. Equal bytes under a new projection revision do not cause a duplicate write or phantom dirty state and later external text still adopts. Clean initialization never persists; matching external text and edits undone before auto-save adopt without writeback, and subsequent input uses the adopted conditional-write base. Real temporary files verify candidate convergence leaves inode and modification time untouched and new input after rejected-save adoption never replays discarded text. Provider panics before or after committing bytes return OutcomeUnknown, settle the close attempt, retain the draft, never retry automatically and allow explicit retry to converge. TS manual-mode variants and detached/remounted view lifecycle are not credited by these cases.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/documentEditingSession.test.ts",
+          "sha256": "d4ad98d2d334a8c539b0670dee150cd91952b78365ad38c0ada3711ab948de22",
+          "cases": [
+            {
+              "index": 10,
+              "name": "DocumentEditingSession > acknowledges matching external bytes before scheduled autosave without writing them back"
+            },
+            {
+              "index": 11,
+              "name": "DocumentEditingSession > never turns model initialization or projection replacement into persistence"
+            },
+            {
+              "index": 12,
+              "name": "DocumentEditingSession > accepts external content after an unsaved edit was undone (auto)"
+            },
+            {
+              "index": 15,
+              "name": "DocumentEditingSession > does not leave a phantom edit when model revisions change during a successful save"
+            },
+            {
+              "index": 16,
+              "name": "DocumentEditingSession > acknowledges a conditional write that discovers its candidate already on disk"
+            },
+            {
+              "index": 22,
+              "name": "DocumentEditingSession > drains a newer revision that arrives during an app-close write"
+            },
+            {
+              "index": 40,
+              "name": "DocumentEditingSession > saves new typing against the adopted disk version without replaying discarded edits"
+            },
+            {
+              "index": 44,
+              "name": "DocumentEditingSession > settles the drain when an adapter throws before returning a Promise"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::drains_the_latest_revision_arriving_during_save_close_or_quit"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::projection_revisions_during_save_do_not_leave_dirty_state_or_a_duplicate_write"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::clean_initialization_and_projection_changes_never_schedule_persistence"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::matching_external_text_and_edits_undone_before_autosave_adopt_without_writing"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::a_conditional_save_converges_without_replacing_the_matching_file_on_disk"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::typing_after_a_rejected_save_uses_the_adopted_disk_version_without_old_input"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::panicking_storage_settles_close_retains_the_draft_and_retries_unknown_outcomes"
+        }
+      ],
+      "environment": "Owned temporary files and controlled in-memory storage, real WorkingCopy coordinator and bounded I/O pool."
     }
   ],
   "openAcceptance": [

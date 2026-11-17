@@ -4,6 +4,8 @@ use std::path::Path;
 use tempfile::TempDir;
 #[path = "save_status_tests.rs"]
 mod save_status;
+#[path = "save_lifecycle_tests.rs"]
+mod save_lifecycle;
 fn setup() -> (TempDir, Documents, Wake) {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("a.md"), b"original").unwrap();

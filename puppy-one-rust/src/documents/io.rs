@@ -22,6 +22,26 @@ use std::{
     },
 };
 
+/// A provider can unwind before or after committing bytes. Deliver an unknown
+/// outcome to the coordinator so it retains the draft and settles its barrier;
+/// the pool's last-resort panic catch alone cannot acknowledge that write.
+pub(super) fn catch_save<T>(
+    work: impl FnOnce() -> crate::workspace::Result<T>,
+) -> crate::workspace::Result<T> {
+    catch_unwind(AssertUnwindSafe(work)).unwrap_or_else(|payload| {
+        let detail = payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| payload.downcast_ref::<&str>().copied())
+            .unwrap_or("Unknown storage failure");
+        let detail: String = detail.chars().take(300).collect();
+        Err(crate::workspace::Error::new(
+            crate::workspace::ErrorKind::OutcomeUnknown,
+            format!("Document storage failed unexpectedly: {detail}"),
+        ))
+    })
+}
+
 /// Persistent worker pool size (`>= Scheduler::POLICY.max_active` so waiting
 /// scopes never starve another scope's interactive slot).
 pub const POOL_WORKERS: usize = 6;

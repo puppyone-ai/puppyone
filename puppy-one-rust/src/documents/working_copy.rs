@@ -869,6 +869,10 @@ impl WorkingCopy {
             }
             return;
         }
+        self.request_barrier_snapshot(intent, ctx);
+    }
+
+    fn request_barrier_snapshot(&mut self, intent: Intent, ctx: &Wake) {
         self.autosave_request = None;
         self.serial += 1;
         self.auto_save.cancel();
@@ -1307,7 +1311,7 @@ impl WorkingCopy {
                             wake.notify();
                             return;
                         }
-                        let result = ws.save(&doc, snapshot_buf.as_str());
+                        let result = io::catch_save(|| ws.save(&doc, snapshot_buf.as_str()));
                         drop(lease);
                         let _ = tx.send(CopyCompleted::Save {
                             id: doc_id,
@@ -1347,6 +1351,12 @@ impl WorkingCopy {
                     self.fail(msg);
                 } else if s.conflicted() {
                     self.fail(crate::localization::t("editor.session.cloudConflict").into());
+                } else if s.needs_snapshot {
+                    // A late revision can arrive while the first frozen
+                    // snapshot is writing. Preserve the original intent and
+                    // re-snapshot immediately, without entering idle autosave
+                    // or releasing the close barrier early.
+                    self.request_barrier_snapshot(intent.clone(), ctx);
                 }
             }
         }
