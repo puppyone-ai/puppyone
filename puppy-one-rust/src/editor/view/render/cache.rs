@@ -1,12 +1,9 @@
 //! Per-frame caches of the render context: Kit paragraphs reused while their
-//! text and marks are unchanged, and shaped-text metrics.
+//! text, marks, style, and wrap width are unchanged (`TA-13`), and shaped-text
+//! metrics.
 use crate::editor::view::{projection::LeafText, style::TextStyle};
 use gpui_kit::base::text::editor_host::Paragraph;
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-    rc::Rc,
-};
+use std::{collections::HashMap, rc::Rc};
 
 /// One registered text leaf of the frame.
 #[derive(Clone)]
@@ -22,33 +19,45 @@ pub struct LeafEntry {
     pub measure_key: u64,
 }
 
-/// Kit paragraphs reused across frames while their text and marks are
-/// unchanged, so Kit keeps their shaped layout.
+/// Kit paragraphs reused across frames by content + style + width identity
+/// (`TA-13`), independent of raw document byte start so edits earlier in the
+/// document do not invalidate shaped paragraphs below them.
 #[derive(Default)]
 pub struct ParagraphCache {
-    entries: HashMap<u64, (u64, Paragraph, Rc<LeafText>)>,
-    used: HashMap<u64, (u64, Paragraph, Rc<LeafText>)>,
+    entries: HashMap<u64, (Paragraph, Rc<LeafText>)>,
+    used: HashMap<u64, (Paragraph, Rc<LeafText>)>,
+    pub hits: u64,
+    pub misses: u64,
 }
 
 impl ParagraphCache {
-    pub(super) fn get(&mut self, leaf: &LeafText, key: u64) -> (Paragraph, Rc<LeafText>) {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        leaf.text.hash(&mut h);
-        leaf.source.start.hash(&mut h);
-        for (r, m) in &leaf.marks {
-            (r.start, r.end, m).hash(&mut h);
-        }
-        let id = h.finish();
+    pub(super) fn get(&mut self, leaf: LeafText, key: u64) -> (Paragraph, Rc<LeafText>) {
         let found = self
             .used
-            .get(&id)
-            .or_else(|| self.entries.get(&id))
-            .filter(|(k, _, l)| *k == key && **l == *leaf)
+            .get(&key)
+            .or_else(|| self.entries.get(&key))
+            .filter(|(_, cached)| cached.same_content(&leaf))
             .cloned();
-        let entry = found.unwrap_or_else(|| (key, leaf.paragraph(key), Rc::new(leaf.clone())));
-        self.used.insert(id, entry.clone());
-        (entry.1, entry.2)
+        let (paragraph, leaf_rc) = match found {
+            Some((paragraph, cached)) => {
+                self.hits += 1;
+                let leaf_rc = if cached.source == leaf.source {
+                    cached
+                } else {
+                    Rc::new(leaf)
+                };
+                (paragraph, leaf_rc)
+            }
+            None => {
+                self.misses += 1;
+                let paragraph = leaf.paragraph(key);
+                (paragraph, Rc::new(leaf))
+            }
+        };
+        self.used.insert(key, (paragraph.clone(), leaf_rc.clone()));
+        (paragraph, leaf_rc)
     }
+
     /// Keep only what the last frame used.
     pub fn sweep(&mut self) {
         self.entries = std::mem::take(&mut self.used);

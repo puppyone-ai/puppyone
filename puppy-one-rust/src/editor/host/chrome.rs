@@ -1,15 +1,19 @@
 //! The pane around the native editor (EditorPaneShell + EditorFindHost):
 //! what the editor contributes to the pane menu, running its actions, and
-//! routing the find widget to the editor's adapter.
-use super::DocumentEditor;
+//! routing the find widget to the editor's adapter (`RG-21`, `RG-23`).
+use super::{DocumentEditor, panic_payload_summary};
 use crate::{
     documents::ClientMessage,
-    editor::workbench::{
-        find::{FindBar, FindEvent},
-        pane::{Action, Contribution},
+    editor::{
+        registry::{PaneEntries, PaneItemId, PaneSegmentId},
+        workbench::{
+            find::{FindBar, FindEvent},
+            pane::{Action, Contribution},
+        },
     },
 };
 use gpui::{prelude::*, *};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 impl DocumentEditor {
     /// `EditorPaneMenuContribution`: what the open viewer contributes (its
@@ -18,12 +22,14 @@ impl DocumentEditor {
         let (Some(session), Some(surface)) = (&self.session, &self.surface) else {
             return Contribution::default();
         };
-        let entries = surface.pane(cx);
-        // The product's pane menu has no split commands (`EditorPaneActionsMenu`
-        // ignores `onSplit`); panes split by dropping onto an edge.
-        // The live / source switch shows only where the provider policy
-        // declares it; a viewer's own view switch (the Context Map layout)
-        // is a plain view item.
+        if session.faulted {
+            return Contribution {
+                open_external: true,
+                ..Contribution::default()
+            };
+        }
+        let entries = catch_unwind(AssertUnwindSafe(|| surface.pane(cx)))
+            .unwrap_or_else(|_| PaneEntries::default());
         let segmented = entries.segmented.filter(|segmented| {
             session.viewer.policy.source_toggle
                 || !segmented.options.iter().any(|option| option.id == "source")
@@ -37,9 +43,7 @@ impl DocumentEditor {
         }
     }
 
-    /// A file window's title bar controls (`FileControls`): the editor's
-    /// view switch and its settings; the window has no find command, pane
-    /// close or external opener there.
+    /// A file window's title bar controls (`FileControls`).
     pub fn title_controls(&self, cx: &App) -> Contribution {
         Contribution {
             find: false,
@@ -47,6 +51,7 @@ impl DocumentEditor {
             ..self.contribution(cx)
         }
     }
+
     /// Runs a title bar control's action.
     pub fn run_title_action(
         &mut self,
@@ -56,10 +61,10 @@ impl DocumentEditor {
     ) {
         self.run_pane_action(action, window, cx);
     }
+
     pub(super) fn toggle_pane_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.chrome.open = !self.chrome.open;
         if self.chrome.open {
-            // The first item takes focus (not visibly, after a click).
             self.chrome.selected = 0;
             self.chrome.keyboard = false;
             self.chrome.focus.focus(window, cx);
@@ -125,6 +130,7 @@ impl DocumentEditor {
         }
         cx.notify();
     }
+
     /// Run a pane menu entry (`runAndClose` for commands).
     #[cfg(feature = "dev-capture")]
     pub fn lab_pane_segment(
@@ -135,6 +141,7 @@ impl DocumentEditor {
     ) {
         self.run_pane_action(Action::Segment(id), window, cx);
     }
+
     pub(super) fn run_pane_action(
         &mut self,
         action: Action,
@@ -145,11 +152,18 @@ impl DocumentEditor {
         if contribution.closes(&action) {
             self.close_pane_menu(false, window, cx);
         }
+        let mut panicked = None;
         match action {
             Action::Segment(id) => {
+                let seg = PaneSegmentId::parse(id);
                 if let Some(surface) = &self.surface {
-                    surface.pane_segment(id, window, cx);
-                    self.chrome.focus.focus(window, cx);
+                    if let Err(payload) =
+                        catch_unwind(AssertUnwindSafe(|| surface.pane_segment(seg, window, cx)))
+                    {
+                        panicked = Some(("pane_segment", panic_payload_summary(payload)));
+                    } else {
+                        self.chrome.focus.focus(window, cx);
+                    }
                 }
             }
             Action::Find => self.open_find(window, cx),
@@ -160,10 +174,17 @@ impl DocumentEditor {
                 action: "close-file".into(),
             }),
             Action::Item(id) => {
-                if let Some(surface) = &self.surface {
-                    surface.pane_item(id, window, cx);
+                let item = PaneItemId::parse(id);
+                if let Some(surface) = &self.surface
+                    && let Err(payload) =
+                        catch_unwind(AssertUnwindSafe(|| surface.pane_item(item, window, cx)))
+                {
+                    panicked = Some(("pane_item", panic_payload_summary(payload)));
                 }
             }
+        }
+        if let Some((phase, msg)) = panicked {
+            self.install_faulted_surface(phase, msg, cx);
         }
         cx.notify();
     }
@@ -172,7 +193,7 @@ impl DocumentEditor {
 
     /// `openFind` (⌘F or the menu), when the editor has a find adapter.
     pub(super) fn open_find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.blocked || !self.contribution(cx).find {
+        if self.blocked || self.is_faulted() || !self.contribution(cx).find {
             return;
         }
         let bar = match &self.find {
@@ -197,14 +218,28 @@ impl DocumentEditor {
     }
 
     fn find_event(&mut self, event: FindEvent, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(surface) = &self.surface else { return };
+        if self.is_faulted() {
+            return;
+        }
         let close = matches!(event, FindEvent::Close);
-        let result = surface.find(event, window, cx);
-        if let Some(bar) = &self.find {
-            match result {
-                Some((current, total)) => bar.update(cx, |b, cx| b.set_result(current, total, cx)),
-                None if close => bar.update(cx, |b, cx| b.hide(cx)),
-                None => {}
+        let outcome = {
+            let Some(surface) = &self.surface else { return };
+            catch_unwind(AssertUnwindSafe(|| surface.find(event, window, cx)))
+        };
+        match outcome {
+            Ok(result) => {
+                if let Some(bar) = &self.find {
+                    match result {
+                        Some((current, total)) => {
+                            bar.update(cx, |b, cx| b.set_result(current, total, cx))
+                        }
+                        None if close => bar.update(cx, |b, cx| b.hide(cx)),
+                        None => {}
+                    }
+                }
+            }
+            Err(payload) => {
+                self.install_faulted_surface("find", panic_payload_summary(payload), cx);
             }
         }
         cx.notify();

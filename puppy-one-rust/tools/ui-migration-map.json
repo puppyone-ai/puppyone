@@ -2626,7 +2626,7 @@
         "src/shared-ui/editor/EditorSaveButton.tsx"
       ],
       "targets": [
-        "src/editor/viewers/code/conflicts.rs",
+        "src/editor/view/plugins/conflicts.rs",
         "src/editor/viewers/code/mod.rs",
         "src/app/editor_workbench.rs"
       ],

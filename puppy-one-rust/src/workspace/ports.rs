@@ -62,6 +62,16 @@ pub trait DataPort: Send + Sync {
 pub trait DocumentStoragePort: Send + Sync {
     fn read(&self, path: &RelativePath) -> Result<TextSnapshot>;
     fn write(&self, path: &RelativePath, base: &Revision, text: &str) -> Result<WriteResult>;
+    /// Conditional write carrying an explicitly normalized target [`LineEnding`] (`DP-31`).
+    fn write_normalized(
+        &self,
+        path: &RelativePath,
+        base: &Revision,
+        text: &str,
+        _line_ending: LineEnding,
+    ) -> Result<WriteResult> {
+        self.write(path, base, text)
+    }
 }
 pub trait ResourcePort: Send + Sync {
     fn preview(&self, path: &RelativePath) -> Result<PreviewData>;
@@ -93,6 +103,15 @@ pub trait ResourcePort: Send + Sync {
         Err(SessionReadFailure::Resource(Error::unsupported()))
     }
     fn platform_path(&self, _path: &RelativePath) -> Result<PathBuf> {
+        Err(Error::unsupported())
+    }
+    /// Fast size/kind preflight without reading file contents (`RG-02`).
+    fn stat_entry(&self, _path: &RelativePath) -> Result<EntryStat> {
+        Err(Error::unsupported())
+    }
+    /// Reads at most `max_bytes` from the start of a regular file for magic-byte
+    /// and UTF-8 sniffing (`RG-01`).
+    fn read_head(&self, _path: &RelativePath, _max_bytes: usize) -> Result<Vec<u8>> {
         Err(Error::unsupported())
     }
 }
@@ -191,6 +210,10 @@ pub trait ResourceWatchPort: Send + Sync {
         baseline: &Revision,
         notify: Notify,
     ) -> Result<WatchSubscription>;
+    /// Number of full-file reads triggered by background document observation (`DP-51`).
+    fn observation_full_reads(&self) -> u64 {
+        0
+    }
 }
 pub trait Provider: DataPort + DocumentStoragePort + ResourcePort + ResourceWatchPort {}
 impl<T: DataPort + DocumentStoragePort + ResourcePort + ResourceWatchPort> Provider for T {}

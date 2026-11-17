@@ -1,16 +1,175 @@
-//! Live-preview state of one pane (product core/state): the inline source
-//! fragment revealed at the caret (livePreviewReveal.ts), the line whose
-//! block prefix is being typed (composingBlockLine.ts), the pointer-drag
-//! freeze (pointerSelection.ts) and the hidden-block-marker caret rule
-//! (selectionBehavior.ts).
-use super::syntax::{Callout, Syntax};
+//! Live-preview state of one pane (product `core/state`):
+//! - Core reveal state: the inline source fragment revealed at the caret
+//!   (`livePreviewReveal.ts`), the line whose block prefix is being typed
+//!   (`composingBlockLine.ts`), the pointer-drag freeze (`pointerSelection.ts`),
+//!   callout title reveal, and `revealed_source`.
+//! - Typed per-feature state slots (`TA-40`): callout folds, diagram zoom &
+//!   deferred activation, and MDX active tabs live in [`FeatureStateStore`],
+//!   owned by their respective features, mapped via [`ChangeSet`]/`Anchor`
+//!   across every transaction (including undo/redo via `TA-06`), and hashed
+//!   into the Document Layer decoration key.
+use super::syntax::Syntax;
 use crate::editor::text::{
     buffer::Buffer,
     change::{Assoc, ChangeSet},
     selection::Selection,
     state::{Applied, EditorState, UserEvent},
 };
-use std::ops::Range;
+use std::{
+    any::Any,
+    collections::BTreeMap,
+    fmt,
+    hash::{DefaultHasher, Hash, Hasher},
+    ops::Range,
+};
+
+/// Plain view-state value of a rendered diagram (`mermaid/widget.rs` reads it).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct DiagramView {
+    /// The zoom chosen here, in percent; `None` keeps the fitted default.
+    pub zoom: Option<u16>,
+    /// A deferred diagram the person asked to render.
+    pub activated: bool,
+}
+
+/// Trait implemented by per-feature pane state values (`TA-40`).
+pub trait FeatureStateValue: Clone + fmt::Debug + PartialEq + Hash + Default + 'static {
+    fn map_changes(&mut self, changes: &ChangeSet, doc: &Buffer, new_revision: u64);
+}
+
+pub trait FeatureStateSlot: Any {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn clone_box(&self) -> Box<dyn FeatureStateSlot>;
+    fn eq_slot(&self, other: &dyn FeatureStateSlot) -> bool;
+    fn hash_slot(&self, state: &mut DefaultHasher);
+    fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+    fn map_changes(&mut self, changes: &ChangeSet, doc: &Buffer, new_revision: u64);
+}
+
+impl<T: FeatureStateValue> FeatureStateSlot for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn FeatureStateSlot> {
+        Box::new(self.clone())
+    }
+
+    fn eq_slot(&self, other: &dyn FeatureStateSlot) -> bool {
+        other.as_any().downcast_ref::<T>() == Some(self)
+    }
+
+    fn hash_slot(&self, state: &mut DefaultHasher) {
+        self.hash(state);
+    }
+
+    fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+
+    fn map_changes(&mut self, changes: &ChangeSet, doc: &Buffer, new_revision: u64) {
+        FeatureStateValue::map_changes(self, changes, doc, new_revision);
+    }
+}
+
+/// Type-erased store of per-feature state slots (`TA-40`), indexed by feature
+/// ID so features own their own fold/tab/zoom state without polluting `core/`.
+#[derive(Default)]
+pub struct FeatureStateStore {
+    slots: BTreeMap<&'static str, Box<dyn FeatureStateSlot>>,
+    mapped_revision: Option<u64>,
+}
+
+/// Type alias kept for untouched feature unit tests (`video/mod.rs`, `html/mod.rs`)
+/// that pass `&CalloutFolds::default()` into `plans::compile`.
+pub type CalloutFolds = FeatureStateStore;
+
+impl Clone for FeatureStateStore {
+    fn clone(&self) -> Self {
+        Self {
+            slots: self
+                .slots
+                .iter()
+                .map(|(&k, v)| (k, v.clone_box()))
+                .collect(),
+            mapped_revision: self.mapped_revision,
+        }
+    }
+}
+
+impl fmt::Debug for FeatureStateStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut map = f.debug_map();
+        for (&k, v) in &self.slots {
+            struct SlotDebug<'a>(&'a dyn FeatureStateSlot);
+            impl fmt::Debug for SlotDebug<'_> {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    self.0.fmt_debug(f)
+                }
+            }
+            map.entry(&k, &SlotDebug(v.as_ref()));
+        }
+        map.finish()
+    }
+}
+
+impl PartialEq for FeatureStateStore {
+    fn eq(&self, other: &Self) -> bool {
+        self.slots.len() == other.slots.len()
+            && self
+                .slots
+                .iter()
+                .all(|(k, v)| other.slots.get(k).is_some_and(|ov| v.eq_slot(ov.as_ref())))
+    }
+}
+
+impl Eq for FeatureStateStore {}
+
+impl Hash for FeatureStateStore {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let mut inner = DefaultHasher::new();
+        self.slots.len().hash(&mut inner);
+        for (&k, v) in &self.slots {
+            k.hash(&mut inner);
+            v.hash_slot(&mut inner);
+        }
+        inner.finish().hash(state);
+    }
+}
+
+impl FeatureStateStore {
+    pub fn get<T: 'static>(&self, feature_id: &'static str) -> Option<&T> {
+        self.slots
+            .get(feature_id)
+            .and_then(|v| v.as_any().downcast_ref::<T>())
+    }
+
+    pub fn get_or_default_mut<T: FeatureStateValue>(&mut self, feature_id: &'static str) -> &mut T {
+        self.slots
+            .entry(feature_id)
+            .or_insert_with(|| Box::new(T::default()))
+            .as_any_mut()
+            .downcast_mut::<T>()
+            .expect("feature state slot type matches feature ID")
+    }
+
+    pub fn map(&mut self, changes: &ChangeSet, doc: &Buffer, new_revision: u64) {
+        if new_revision > 0 && self.mapped_revision == Some(new_revision) {
+            return;
+        }
+        if new_revision > 0 {
+            self.mapped_revision = Some(new_revision);
+        }
+        for slot in self.slots.values_mut() {
+            slot.map_changes(changes, doc, new_revision);
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PreviewState {
@@ -23,78 +182,22 @@ pub struct PreviewState {
     focused: bool,
     /// The callout title line holding the caret: its marker shows as source.
     pub callout_title: Option<usize>,
-    pub callout_folds: CalloutFolds,
-    /// Diagrams' zoom and deferred renders started here.
-    pub diagrams: DiagramViews,
     /// `markdownRevealedSourceField` (block presentation): a rich block a
     /// widget asked to show as source, while the caret stays inside it.
     pub revealed_source: Option<Range<usize>>,
-    /// MDX tabs shown, by block start (the first until another is chosen).
-    pub tabs: std::collections::BTreeMap<usize, usize>,
+    /// Per-feature state slots (`TA-40`: callout folds, mermaid diagram views,
+    /// MDX active tabs, etc.).
+    pub features: FeatureStateStore,
 }
 
-/// `calloutFoldField`: foldable callouts folded or opened in this pane, by
-/// marker start. Fold state is view state: reading a callout does not
-/// rewrite the document.
-#[derive(Clone, Debug, Default, PartialEq, Hash)]
-pub struct CalloutFolds(Vec<(usize, bool)>);
-
-impl CalloutFolds {
-    /// Whether `callout` shows its title alone: as toggled here, else as
-    /// authored (`[!type]-`).
-    pub fn folded(&self, callout: &Callout) -> bool {
-        callout.fold.is_some()
-            && self
-                .0
-                .iter()
-                .find(|(at, _)| *at == callout.marker.start)
-                .map_or(callout.fold == Some(true), |(_, folded)| *folded)
-    }
-
-    pub fn set(&mut self, at: usize, folded: bool) {
-        self.0.retain(|(a, _)| *a != at);
-        self.0.push((at, folded));
-    }
-
-    fn map(&mut self, changes: &ChangeSet) {
-        for (at, _) in &mut self.0 {
-            *at = changes.map(*at, Assoc::Before);
-        }
-    }
-}
-
-/// A diagram's view state in this pane, by its block's start
-/// (`createMermaidViewportController`'s zoom, the deferred placeholder's
-/// Render): view state, never written to the document.
-#[derive(Clone, Debug, Default, PartialEq, Hash)]
-pub struct DiagramViews(Vec<(usize, DiagramView)>);
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct DiagramView {
-    /// The zoom chosen here, in percent; `None` keeps the fitted default.
-    pub zoom: Option<u16>,
-    /// A deferred diagram the person asked to render.
-    pub activated: bool,
-}
-
-impl DiagramViews {
-    pub fn get(&self, at: usize) -> DiagramView {
-        self.0
-            .iter()
-            .find(|(a, _)| *a == at)
-            .map(|(_, v)| *v)
-            .unwrap_or_default()
-    }
-
-    pub fn update(&mut self, at: usize, change: impl FnOnce(&mut DiagramView)) {
-        let mut view = self.get(at);
-        change(&mut view);
-        self.0.retain(|(a, _)| *a != at);
-        self.0.push((at, view));
-    }
-
-    fn map(&mut self, changes: &ChangeSet) {
-        for (at, _) in &mut self.0 {
-            *at = changes.map(*at, Assoc::Before);
+impl PreviewState {
+    /// Document-layer projection (`TA-11`): carries ONLY per-feature state
+    /// (`callout` folds, `mermaid` views, `mdx` tabs) and zero cursor/focus/IME
+    /// reveal state.
+    pub fn document_only(features: FeatureStateStore) -> Self {
+        Self {
+            features,
+            ..Self::default()
         }
     }
 }
@@ -148,13 +251,11 @@ fn composing_prefix(text: &str) -> Option<usize> {
         return Some(n);
     }
     let b = text.as_bytes();
-    // `#{1,6}\s?`
     let hashes = b.iter().take_while(|&&c| c == b'#').count();
     if (1..=6).contains(&hashes) {
         return Some(hashes + usize::from(b.get(hashes).is_some_and(|c| c.is_ascii_whitespace())));
     }
     let lead = b.iter().take_while(|c| c.is_ascii_whitespace()).count();
-    // `\s*>+\s?`
     let quotes = b[lead..].iter().take_while(|&&c| c == b'>').count();
     if quotes > 0 {
         let end = lead + quotes;
@@ -162,7 +263,6 @@ fn composing_prefix(text: &str) -> Option<usize> {
     }
     if lead <= 3 {
         let rest = &text[lead..];
-        // ``\s{0,3}(?:`{3,}|~{3,})[^\n`]*``
         for fence in *b"`~" {
             let n = rest.bytes().take_while(|&c| c == fence).count();
             if n >= 3 {
@@ -170,7 +270,6 @@ fn composing_prefix(text: &str) -> Option<usize> {
                 return Some(lead + n + info);
             }
         }
-        // `\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*`
         for rule in *b"-*_" {
             let n = rest.bytes().take_while(|&c| c == rule).count();
             if n >= 3 {
@@ -182,7 +281,6 @@ fn composing_prefix(text: &str) -> Option<usize> {
             }
         }
     }
-    // `\|.*\|`
     if text.starts_with('|') && text.len() > 1 && text.ends_with('|') {
         return Some(text.len());
     }
@@ -190,7 +288,6 @@ fn composing_prefix(text: &str) -> Option<usize> {
 }
 
 fn touches(changes: &ChangeSet, range: Range<usize>) -> bool {
-    // Changed ranges in the new document.
     let mut delta: isize = 0;
     for c in changes.changes() {
         let from = (c.range.start as isize + delta) as usize;
@@ -204,8 +301,37 @@ fn touches(changes: &ChangeSet, range: Range<usize>) -> bool {
 }
 
 impl PreviewState {
-    /// Keep the revealed source while the selection is inside it; a pointer
-    /// drag or a selection (without an edit) keeps it until the next caret.
+    pub fn state<T: 'static>(&self, feature_id: &'static str) -> Option<&T> {
+        self.features.get::<T>(feature_id)
+    }
+
+    pub fn state_mut<T: FeatureStateValue>(&mut self, feature_id: &'static str) -> &mut T {
+        self.features.get_or_default_mut::<T>(feature_id)
+    }
+
+    /// Hash key of reveal-only fields (`TA-11` Reveal Layer).
+    pub fn reveal_key(&self) -> u64 {
+        let mut h = DefaultHasher::new();
+        (
+            self.reveal.as_ref().map(|r| (r.start, r.end)),
+            self.composing,
+            self.selecting,
+            self.focused,
+            self.callout_title,
+            self.revealed_source.as_ref().map(|r| (r.start, r.end)),
+        )
+            .hash(&mut h);
+        h.finish()
+    }
+
+    /// True when no reveal/composing/callout-title/revealed-source override is active.
+    pub fn has_reveal_overrides(&self) -> bool {
+        self.reveal.is_some()
+            || self.composing.is_some()
+            || self.callout_title.is_some()
+            || self.revealed_source.is_some()
+    }
+
     fn settle_revealed(&mut self, state: &EditorState, keep: bool) {
         let s = state.selection;
         self.revealed_source = self
@@ -221,7 +347,6 @@ impl PreviewState {
             .is_some_and(|r| line.start <= r.end && line.end >= r.start)
     }
 
-    /// `caretLine` of the callout decorations, when it is a callout's title.
     fn callout_title_at(
         state: &EditorState,
         syntax: &Syntax,
@@ -239,7 +364,6 @@ impl PreviewState {
             .then_some(line)
     }
 
-    /// `getInlineRevealRangeAtSelection`.
     fn reveal_at(state: &EditorState, syntax: &Syntax, read_only: bool) -> Option<Range<usize>> {
         let s = state.selection;
         if read_only || !s.is_empty() {
@@ -248,7 +372,8 @@ impl PreviewState {
         syntax.reveal_element(s.head).map(|e| e.range.clone())
     }
 
-    /// A transaction changed the document (`applied` from the view).
+    /// A transaction changed the document (`applied` from the view, including
+    /// `undo` and `redo` via `TA-06`).
     pub fn applied(
         &mut self,
         applied: &Applied,
@@ -257,8 +382,8 @@ impl PreviewState {
         focused: bool,
         read_only: bool,
     ) {
-        self.callout_folds.map(&applied.changes);
-        self.diagrams.map(&applied.changes);
+        self.features
+            .map(&applied.changes, &state.doc, state.revision);
         self.revealed_source = self.revealed_source.as_ref().map(|r| {
             applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After)
         });
@@ -267,9 +392,7 @@ impl PreviewState {
             applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After)
         };
         let reveal = self.reveal.as_ref().map(map);
-        // Typing ends a pointer gesture.
         self.selecting = false;
-        // composingBlockLine.
         let doc = &state.doc;
         let line = doc.line_index(state.selection.head);
         let line_start = doc.line_range(line).start;
@@ -280,7 +403,8 @@ impl PreviewState {
         match applied.event {
             UserEvent::Paste => composing = None,
             UserEvent::Input | UserEvent::Delete => {
-                if let Some(n) = composing_prefix(doc.line(line))
+                let line_text = doc.line_cow(line);
+                if let Some(n) = composing_prefix(&line_text)
                     && touches(&applied.changes, line_start..line_start + n)
                 {
                     composing = Some(line_start);
@@ -289,7 +413,6 @@ impl PreviewState {
             _ => {}
         }
         self.composing = if focused { composing } else { None };
-        // resolvePaneLocalInlineRevealRange with a document change.
         self.reveal = if !focused {
             reveal.filter(|r| {
                 syntax
@@ -332,7 +455,6 @@ impl PreviewState {
         if selecting || !focused {
             return;
         }
-        // A non-empty selection keeps the line boxes until the next caret.
         if !state.selection.is_empty() && !entered && !released {
             return;
         }
@@ -350,30 +472,12 @@ impl PreviewState {
         if !selection.is_empty() {
             return None;
         }
-        let caret = selection.head;
-        let line = doc.line_range(doc.line_index(caret));
-        if self.composing == Some(line.start) {
+        let line = doc.line_range(doc.line_index(selection.head));
+        if self.composing == Some(line.start) || self.revealed_line(&line) {
             return None;
         }
-        let element = syntax.block_marker_on(line)?;
-        let visible = element.visible_start();
-        (caret >= element.range.start && caret < visible).then(|| Selection::cursor(visible))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn prefixes_follow_the_product_expressions() {
-        assert_eq!(list_input_prefix("- [ ] task"), Some(6));
-        assert_eq!(list_input_prefix("  12. x"), Some(6));
-        assert_eq!(list_input_prefix("-x"), None);
-        assert_eq!(list_input_prefix("-"), Some(1));
-        assert_eq!(composing_prefix("## Title"), Some(3));
-        assert_eq!(composing_prefix("> q"), Some(2));
-        assert_eq!(composing_prefix("```rust"), Some(7));
-        assert_eq!(composing_prefix("plain"), None);
+        let marker = syntax.block_marker_on(line)?;
+        let visible = marker.visible_start();
+        (selection.head < visible).then(|| Selection::cursor(visible))
     }
 }

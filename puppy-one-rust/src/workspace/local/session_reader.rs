@@ -11,7 +11,7 @@ impl Workspace {
         let (dir, name) = self.parent(relative)?;
         let (file, before) = Self::open_regular(&dir, &name)?;
         let size = before.len();
-        let before = Version::new(&[], &before);
+        let before = StatFingerprint::from_metadata(&before);
         let observed = file.try_clone().map_err(io)?;
         let validate = Arc::new(move || {
             let current = dir.symlink_metadata(&name).map_err(|error| {
@@ -25,8 +25,8 @@ impl Workspace {
             if !current.is_file()
                 || current.len() != size
                 || opened.len() != size
-                || Version::new(&[], &current) != before
-                || Version::new(&[], &opened) != before
+                || StatFingerprint::from_metadata(&current) != before
+                || StatFingerprint::from_metadata(&opened) != before
             {
                 return Err(SessionReadFailure::Changed);
             }

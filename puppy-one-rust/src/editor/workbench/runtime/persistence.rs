@@ -7,8 +7,13 @@ use std::time::{Duration, Instant};
 
 impl Runtime {
     pub fn native() -> Self {
+        let journal = crate::platform::draft_journal::DraftJournal::native();
+        let mut scratch = Documents::default();
+        scratch.set_draft_journal(Some(journal.clone()));
         Self {
+            scratch,
             storage: Some(Storage::native()),
+            draft_journal: Some(journal),
             ..Default::default()
         }
     }
@@ -30,6 +35,13 @@ impl Runtime {
                     let Some(value) = value.filter(|v| v["version"] == 1) else {
                         continue;
                     };
+                    if let Ok(entries) = serde_json::from_value::<
+                        Vec<super::super::view_state::PersistedViewStateEntry>,
+                    >(value["viewStates"].clone())
+                    {
+                        host.view_states =
+                            super::super::view_state::ViewStateStore::from_persisted(entries);
+                    }
                     let Some(editors) = value["group"]["editors"]
                         .as_array()
                         .filter(|v| v.len() <= 128)
@@ -55,7 +67,11 @@ impl Runtime {
                             continue;
                         }
                         self.serial += 1;
-                        let mut files = Documents::in_workspace(ws.clone());
+                        let mut files = Documents::in_workspace_with_journal(
+                            ws.clone(),
+                            self.draft_journal.clone(),
+                        );
+                        files.task_scope = self.scratch.task_scope.clone();
                         files.begin(Intent::OpenFile(path), wake);
                         host.slots.insert(
                             self.serial,
@@ -68,6 +84,7 @@ impl Runtime {
                                 closing: false,
                                 reported_error: None,
                                 restoring: true,
+                                rehydrating: None,
                             },
                         );
                     }
@@ -129,8 +146,11 @@ impl Runtime {
                     catalog.activate(id);
                 }
                 host.state = Workbench { catalog, layout };
-                for slot in host.slots.values_mut() {
+                for (slot_id, slot) in &mut host.slots {
                     slot.restoring = false;
+                    if let Some(vs) = host.view_states.get(&slot.key).cloned() {
+                        self.pending_view_restores.insert(*slot_id, vs);
+                    }
                 }
                 self.generation += 1;
             }
@@ -157,15 +177,30 @@ impl Runtime {
                 .editors
                 .iter()
                 .filter_map(|input| {
-                    let slot = host
+                    let path = if let Some(slot) = host
                         .slots
                         .values()
-                        .find(|s| s.admitted && s.key == input.id)?;
-                    let path = slot.files.opened()?.1.to_str()?;
+                        .find(|s| s.admitted && s.key == input.id)
+                    {
+                        slot.files.opened()?.1.to_str()?.to_owned()
+                    } else {
+                        let hib = host.hibernated.get(&input.id)?;
+                        hib.path.to_str()?.to_owned()
+                    };
                     Some(json!({"id":input.id,"resource":path,"label":input.label}))
                 })
                 .collect();
-            let value = json!({"version":1,"group":{"editors":editors,"activeEditorId":host.state.catalog.active,"mostRecentlyUsed":host.state.catalog.mru},"layout":host.state.layout});
+            let view_states = host.view_states.to_persisted();
+            let value = json!({
+                "version": 1,
+                "group": {
+                    "editors": editors,
+                    "activeEditorId": host.state.catalog.active,
+                    "mostRecentlyUsed": host.state.catalog.mru
+                },
+                "layout": host.state.layout,
+                "viewStates": view_states
+            });
             if host.metadata_value.as_ref() != Some(&value) {
                 host.metadata_value = Some(value.clone());
                 host.metadata_due = Some(now + Duration::from_millis(200));

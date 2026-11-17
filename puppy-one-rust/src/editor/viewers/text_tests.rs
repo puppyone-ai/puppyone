@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::editor::{
-    registry::{self, EditorDocument, SurfaceInput},
+    registry::{self, EditorDocument, HostCommand, PaneItemId, SourceKind, SurfaceInput},
     view::style,
 };
 use core::prelude::v1::test;
@@ -34,6 +34,11 @@ fn dialect_surface<'a>(
                 scale: Scale::Medium,
                 workspace,
                 file_mode: false,
+                folder: None,
+                web_source: None,
+                assets: None,
+                references: None,
+                source_kind: crate::editor::registry::SourceKind::Local,
             },
             window,
             cx,
@@ -51,6 +56,8 @@ fn dialect_surface<'a>(
 fn has_dialect_widget(host: &Entity<Host>, cx: &mut VisualTestContext) -> bool {
     host.read_with(cx, |h, cx| {
         h.surface
+            .as_test_probe()
+            .unwrap()
             .editor_view()
             .unwrap()
             .read(cx)
@@ -125,10 +132,19 @@ fn renaming_markdown_rebinds_its_composition_without_replacing_the_editor_or_his
     cx: &mut TestAppContext,
 ) {
     let (host, cx) = dialect_surface(cx, None, "note.md");
-    let editor = host.read_with(cx, |h, _| h.surface.editor_view().unwrap().entity_id());
+    let editor = host.read_with(cx, |h, _| {
+        h.surface
+            .as_test_probe()
+            .unwrap()
+            .editor_view()
+            .unwrap()
+            .entity_id()
+    });
     assert!(!has_dialect_widget(&host, cx));
     host.update_in(cx, |h, window, cx| {
         h.surface
+            .as_test_probe()
+            .unwrap()
             .editor_view()
             .unwrap()
             .update(cx, |view, cx| view.focus(window, cx));
@@ -140,7 +156,15 @@ fn renaming_markdown_rebinds_its_composition_without_replacing_the_editor_or_his
     draw(cx);
     assert!(has_dialect_widget(&host, cx));
     host.read_with(cx, |h, cx| {
-        assert_eq!(h.surface.editor_view().unwrap().entity_id(), editor);
+        assert_eq!(
+            h.surface
+                .as_test_probe()
+                .unwrap()
+                .editor_view()
+                .unwrap()
+                .entity_id(),
+            editor
+        );
         assert_eq!(
             h.surface.text(cx).unwrap(),
             format!("Prelude\n\n{DIALECT_TEXT}")
@@ -190,6 +214,11 @@ fn setup<'a>(
                 scale: Scale::Medium,
                 workspace: None,
                 file_mode: true,
+                folder: None,
+                web_source: None,
+                assets: None,
+                references: None,
+                source_kind: SourceKind::Local,
             },
             w,
             cx,
@@ -204,7 +233,7 @@ fn setup<'a>(
                 cx,
             )
             .unwrap();
-        surface.command("source", w, cx);
+        surface.command(HostCommand::Source, w, cx);
         Host {
             surface,
             _subscription: subscription,
@@ -222,8 +251,8 @@ fn draw(cx: &mut VisualTestContext) {
 fn assert_text(host: &Entity<Host>, text: &str, cx: &mut VisualTestContext) {
     host.read_with(cx, |h, cx| {
         assert_eq!(h.surface.text(cx).as_deref(), Some(text));
-        let source = h.surface.code_editor().unwrap();
-        assert_eq!(source.read(cx).field.read(cx).value().to_string(), text);
+        let source = h.surface.as_test_probe().unwrap().code_editor().unwrap();
+        assert_eq!(source.read(cx).text(cx), text);
     });
 }
 
@@ -236,6 +265,8 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     let (host, count, cx) = setup(cx, "");
     host.update_in(cx, |h, w, cx| {
         h.surface
+            .as_test_probe()
+            .unwrap()
             .code_editor()
             .unwrap()
             .update(cx, |v, cx| v.replace_text_in_range(None, "source", w, cx));
@@ -250,8 +281,10 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     draw(cx);
     assert_text(&host, "source", cx);
     host.update_in(cx, |h, w, cx| {
-        h.surface.pane_item(DOCUMENT_EDITING_TOGGLE_ID, w, cx);
+        h.surface.pane_item(PaneItemId::DocumentEditing, w, cx);
         h.surface
+            .as_test_probe()
+            .unwrap()
             .editor_view()
             .unwrap()
             .update(cx, |v, cx| v.focus(w, cx));
@@ -264,13 +297,13 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     cx.simulate_keystrokes("cmd-shift-z");
     draw(cx);
     assert_text(&host, "source", cx);
-    host.update_in(cx, |h, w, cx| h.surface.command("undo", w, cx));
+    host.update_in(cx, |h, w, cx| h.surface.command(HostCommand::Undo, w, cx));
     draw(cx);
     assert_text(&host, "", cx);
     // A new edit in either view retires the one shared redo branch.
     cx.simulate_input("page");
     draw(cx);
-    host.update_in(cx, |h, w, cx| h.surface.command("redo", w, cx));
+    host.update_in(cx, |h, w, cx| h.surface.command(HostCommand::Redo, w, cx));
     draw(cx);
     assert_text(&host, "page", cx);
 }
@@ -281,7 +314,7 @@ fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
 ) {
     let (host, count, cx) = setup(cx, "");
     host.update_in(cx, |h, w, cx| {
-        h.surface.pane_item(DOCUMENT_EDITING_TOGGLE_ID, w, cx)
+        h.surface.pane_item(PaneItemId::DocumentEditing, w, cx)
     });
     let mut expected = String::new();
     for index in 0..50 {
@@ -289,13 +322,23 @@ fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
         host.update_in(cx, |h, w, cx| {
             let at = expected.encode_utf16().count();
             if index % 2 == 0 {
-                h.surface.code_editor().unwrap().update(cx, |v, cx| {
-                    v.replace_text_in_range(Some(at..at), &insert, w, cx)
-                });
+                h.surface
+                    .as_test_probe()
+                    .unwrap()
+                    .code_editor()
+                    .unwrap()
+                    .update(cx, |v, cx| {
+                        v.replace_text_in_range(Some(at..at), &insert, w, cx)
+                    });
             } else {
-                h.surface.editor_view().unwrap().update(cx, |v, cx| {
-                    v.replace_text_in_range(Some(at..at), &insert, w, cx)
-                });
+                h.surface
+                    .as_test_probe()
+                    .unwrap()
+                    .editor_view()
+                    .unwrap()
+                    .update(cx, |v, cx| {
+                        v.replace_text_in_range(Some(at..at), &insert, w, cx)
+                    });
             }
         });
         expected.push_str(&insert);
@@ -310,6 +353,8 @@ fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
     host.update_in(cx, |h, w, cx| {
         h.surface.apply(true, true, Scale::Medium, w, cx);
         h.surface
+            .as_test_probe()
+            .unwrap()
             .code_editor()
             .unwrap()
             .update(cx, |v, cx| v.replace_text_in_range(None, "blocked", w, cx));
@@ -318,11 +363,77 @@ fn source_pair_preserves_interleaved_edits_and_respects_storage_and_input_gates(
     draw(cx);
     assert_text(&host, &expected, cx);
     assert_eq!(count.get(), 50);
+    // DP-03: external storage replacement records a sealed undoable step
+    // rather than wiping history, so `undo` restores pre-adoption content and
+    // `redo` re-applies the external content!
     host.update_in(cx, |h, w, cx| {
         h.surface.apply(false, true, Scale::Medium, w, cx);
         h.surface.replace_text("from storage", w, cx);
-        h.surface.undo(false, w, cx);
     });
     draw(cx);
     assert_text(&host, "from storage", cx);
+    host.update_in(cx, |h, w, cx| {
+        h.surface.undo(false, w, cx);
+    });
+    draw(cx);
+    assert_text(&host, &expected, cx);
+    host.update_in(cx, |h, w, cx| {
+        h.surface.undo(true, w, cx);
+    });
+    draw(cx);
+    assert_text(&host, "from storage", cx);
+}
+
+#[gpui::test]
+fn companion_sync_preserves_read_only_maps_cursor_and_records_minimal_delta_weight(
+    cx: &mut TestAppContext,
+) {
+    let body = "alpha\n".repeat(400);
+    let initial = format!("{body}target line\n{body}");
+    let (host, _count, cx) = setup(cx, &initial);
+    // Page starts read-only in file_mode while source panel is editable.
+    let target_offset = initial.find("target line").unwrap() + "target ".len();
+    host.update_in(cx, |h, _w, cx| {
+        let view = h.surface.as_test_probe().unwrap().editor_view().unwrap();
+        view.update(cx, |v, cx| {
+            assert!(v.read_only());
+            v.set_selection(
+                crate::editor::text::selection::Selection::cursor(target_offset),
+                cx,
+            );
+        });
+    });
+    // Insert "NEW\n" at the very top of the source pane (4 UTF-16 code units).
+    host.update_in(cx, |h, w, cx| {
+        h.surface
+            .as_test_probe()
+            .unwrap()
+            .code_editor()
+            .unwrap()
+            .update(cx, |v, cx| {
+                v.replace_text_in_range(Some(0..0), "NEW\n", w, cx)
+            });
+    });
+    draw(cx);
+    host.read_with(cx, |h, cx| {
+        let view = h
+            .surface
+            .as_test_probe()
+            .unwrap()
+            .editor_view()
+            .unwrap()
+            .read(cx);
+        assert!(view.read_only(), "sync_text must never drop read_only");
+        assert_eq!(
+            view.state().selection.head,
+            target_offset + 4,
+            "cursor must map across minimal-diff ChangeSet"
+        );
+        let weight = view.last_undo_weight().expect("undo step recorded");
+        assert!(
+            weight <= 16,
+            "history weight ({weight}) must be proportional to edit delta, not doc len ({})",
+            initial.len()
+        );
+    });
 }

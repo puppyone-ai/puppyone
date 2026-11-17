@@ -72,9 +72,15 @@ impl Language {
     pub fn tab_size(self) -> usize {
         if self.0 == "python" { 4 } else { 2 }
     }
+    pub fn is_markdown(self) -> bool {
+        self.0 == "markdown"
+    }
+    /// Tree-sitter grammar name when highlighted via tree-sitter. Markdown uses
+    /// the product's own Markdown `Syntax` pipeline (`CE-10`) rather than an
+    /// uncompiled `tree-sitter-markdown` grammar.
     pub fn grammar(self) -> Option<&'static str> {
         Some(match self.0 {
-            "plaintext" => return None,
+            "plaintext" | "markdown" => return None,
             "jsx" => "javascript",
             "shell" => "bash",
             "scss" | "less" => "css",

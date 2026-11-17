@@ -90,7 +90,7 @@ fn office_admission_rejects_oversized_missing_revoked_and_precancelled_inputs_be
         match case {
             "oversized" => std::fs::File::create(&path)
                 .unwrap()
-                .set_len(BUDGET + 1)
+                .set_len(viewer_budget("office-preview") + 1)
                 .unwrap(),
             "missing" => std::fs::remove_file(&path).unwrap(),
             "revoked" => ws.revoke(),
@@ -106,11 +106,10 @@ fn office_admission_rejects_oversized_missing_revoked_and_precancelled_inputs_be
         );
     }
     let provider = Arc::new(crate::workspace::testing::Resources::default());
-    provider
-        .bytes
-        .lock()
-        .unwrap()
-        .insert("report.docx".into(), vec![0; BUDGET as usize + 1]);
+    provider.bytes.lock().unwrap().insert(
+        "report.docx".into(),
+        vec![0; viewer_budget("office-preview") as usize + 1],
+    );
     let ws = crate::workspace::Workspace::from_provider(provider).unwrap();
     assert!(
         input(

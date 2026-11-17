@@ -1,7 +1,10 @@
 //! The table's action menu (`CsvTableMenu` via `CsvTableControls`): its
 //! targets, sections and operations.
 use super::*;
-use crate::editor::table::menu::{self, Extras, Scope, Target};
+use crate::editor::table::{
+    menu::{self, Extras, Scope, Target},
+    operation::MenuAction,
+};
 
 /// `CsvTableMenuTarget.kind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,7 +122,7 @@ impl CsvEditor {
                 let Some((row, column)) = self.menu.as_ref().map(|m| (m.row, m.column)) else {
                     return;
                 };
-                if id == "auto-fit-column" {
+                if id == MenuAction::AutoFitColumn.id() {
                     return self.auto_fit(column, cx);
                 }
                 let Some(operation) = Operation::from_menu_id(id) else {

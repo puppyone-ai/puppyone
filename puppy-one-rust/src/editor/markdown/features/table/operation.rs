@@ -3,7 +3,10 @@
 //! rewritten as a whole — cells sanitised (`|` escaped, line breaks folded),
 //! columns padded to their widest cell, the delimiter row carrying each
 //! column's alignment — so every structure edit is one source replacement.
-use super::model::{Alignment, Table};
+//! Enforces `ROW_LIMIT`, `COLUMN_LIMIT`, `CELL_LIMIT`, and `ROW_BYTE_LIMIT`
+//! (`TODO-32`) before row/column insertions so capacity-exceeding edits refuse
+//! cleanly without corrupting or dropping the table into raw broken source.
+use super::model::{Alignment, CELL_LIMIT, COLUMN_LIMIT, ROW_BYTE_LIMIT, ROW_LIMIT, Table};
 use crate::editor::table::operation::{Focus, Operation};
 use std::ops::Range;
 
@@ -15,6 +18,20 @@ pub struct Edit {
     /// Each row's cell content ranges in `replacement` (the delimiter row
     /// excluded), for placing the caret.
     pub cells: Vec<Vec<Range<usize>>>,
+}
+
+/// Returns `true` when inserting one additional row stays within [`ROW_LIMIT`]
+/// and [`CELL_LIMIT`] (`TODO-32`).
+pub fn can_insert_row(rows: usize, columns: usize) -> bool {
+    let next_rows = rows.saturating_add(1);
+    next_rows <= ROW_LIMIT && next_rows.saturating_mul(columns.max(1)) <= CELL_LIMIT
+}
+
+/// Returns `true` when inserting one additional column stays within
+/// [`COLUMN_LIMIT`] and [`CELL_LIMIT`] (`TODO-32`).
+pub fn can_insert_column(rows: usize, columns: usize) -> bool {
+    let next_cols = columns.saturating_add(1);
+    next_cols <= COLUMN_LIMIT && rows.max(1).saturating_mul(next_cols) <= CELL_LIMIT
 }
 
 /// `sanitizeMarkdownTableCell`.
@@ -122,14 +139,16 @@ fn move_item<T>(items: &mut Vec<T>, from: usize, to: usize) {
     items.insert(to.min(items.len()), item);
 }
 
-/// `applyMarkdownTableOperation` at (`row`, `column`); row 0 is the header.
-pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> Edit {
+/// Applies `operation` at `(row, column)`, returning `None` when the resulting
+/// table would violate `ROW_LIMIT`, `COLUMN_LIMIT`, `CELL_LIMIT`, or
+/// `ROW_BYTE_LIMIT` (`TODO-32`).
+pub fn try_apply(table: &Table, operation: Operation, row: usize, column: usize) -> Option<Edit> {
     if operation == Operation::DeleteTable {
-        return Edit {
+        return Some(Edit {
             replacement: String::new(),
             focus: None,
             cells: Vec::new(),
-        };
+        });
     }
     let width = table
         .alignments
@@ -152,6 +171,26 @@ pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> 
     if rows.is_empty() {
         rows.push(vec![String::new(); width]);
     }
+    if rows.len() > ROW_LIMIT
+        || width > COLUMN_LIMIT
+        || rows.len().saturating_mul(width) > CELL_LIMIT
+    {
+        return None;
+    }
+    match operation {
+        Operation::InsertRowAbove | Operation::InsertRowBelow | Operation::DuplicateRow
+            if !can_insert_row(rows.len(), width) =>
+        {
+            return None;
+        }
+        Operation::InsertColumnLeft | Operation::InsertColumnRight
+            if !can_insert_column(rows.len(), width) =>
+        {
+            return None;
+        }
+        _ => {}
+    }
+
     let mut alignments: Vec<Alignment> = (0..width)
         .map(|c| table.alignments.get(c).copied().unwrap_or_default())
         .collect();
@@ -283,21 +322,78 @@ pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> 
         Operation::DeleteTable | Operation::ExpandToShape { .. } => {}
     }
     let (replacement, cells) = serialize(&rows, &alignments);
-    Edit {
+    if replacement.lines().any(|line| line.len() > ROW_BYTE_LIMIT) {
+        return None;
+    }
+    Some(Edit {
         replacement,
         focus: Some(focus),
         cells,
-    }
+    })
+}
+
+/// Applies `operation` when within capacity limits (`TODO-32`), or returns an
+/// unchanged serialized table when refused.
+#[cfg(test)]
+pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> Edit {
+    try_apply(table, operation, row, column).unwrap_or_else(|| {
+        let width = table.alignments.len().max(1);
+        let rows: Vec<Vec<String>> = table
+            .rows
+            .iter()
+            .map(|r| {
+                (0..width)
+                    .map(|c| {
+                        r.cells
+                            .get(c)
+                            .map_or(String::new(), |cell| cell.text.clone())
+                    })
+                    .collect()
+            })
+            .collect();
+        let (replacement, cells) = serialize(&rows, &table.alignments);
+        Edit {
+            replacement,
+            focus: None,
+            cells,
+        }
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::{markdown::features::table::model::table_block, text::buffer::Buffer};
+    use crate::editor::{
+        markdown::features::table::model::{Cell, Row, table_block},
+        text::buffer::Buffer,
+    };
 
     fn table(source: &str) -> Table {
         let doc = Buffer::new(source);
         table_block(&doc, &(0..doc.len())).unwrap()
+    }
+
+    fn synthetic_table(row_count: usize, col_count: usize, cell_text: &str) -> Table {
+        let rows = (0..row_count)
+            .map(|r| Row {
+                cells: (0..col_count)
+                    .map(|_| Cell {
+                        range: 0..0,
+                        text: cell_text.to_owned(),
+                        editable: true,
+                    })
+                    .collect(),
+                header: r == 0,
+                line: if r == 0 { 0 } else { r + 1 },
+            })
+            .collect();
+        Table {
+            range: 0..10,
+            lines: 0..row_count + 1,
+            alignments: vec![Alignment::None; col_count],
+            rows,
+            refinement_valid: true,
+        }
     }
 
     #[test]
@@ -309,7 +405,6 @@ mod tests {
             "| Name | Value |\n| :--- | :---: |\n| a\\|b | 1     |"
         );
         assert_eq!(&edit.replacement[edit.cells[1][0].clone()], "a\\|b");
-        // Unicode widths count UTF-16 units, as `padEnd`.
         assert_eq!(
             serialize(&[vec!["中文".into()], vec!["x".into()]], &[Alignment::None]).0,
             "| 中文  |\n| --- |\n| x   |"
@@ -319,14 +414,12 @@ mod tests {
     #[test]
     fn rows_and_columns_follow_the_product_rules() {
         let t = table("| h1 | h2 |\n| --- | --- |\n| a | b |\n| c | d |");
-        // Above the header inserts below it.
         let e = apply(&t, Operation::InsertRowAbove, 0, 1);
         assert_eq!(e.replacement.lines().nth(2), Some("|     |     |"));
         assert_eq!(e.focus, Some(Focus { row: 1, column: 0 }));
         let e = apply(&t, Operation::MoveRowTo(1), 2, 0);
         assert_eq!(e.replacement.lines().nth(2), Some("| c   | d   |"));
         assert_eq!(e.focus, Some(Focus { row: 1, column: 0 }));
-        // The header never moves or deletes.
         assert_eq!(
             apply(&t, Operation::DeleteRow, 0, 0)
                 .replacement
@@ -340,5 +433,32 @@ mod tests {
         let e = apply(&t, Operation::MoveColumnTo(0), 1, 1);
         assert_eq!(e.replacement.lines().nth(2), Some("| b   | a   |"));
         assert_eq!(apply(&t, Operation::DeleteTable, 0, 0).replacement, "");
+    }
+
+    #[test]
+    fn capacity_limits_refuse_row_and_column_insertions_cleanly() {
+        // Row limit (`ROW_LIMIT = 2000`).
+        let at_row_cap = synthetic_table(ROW_LIMIT, 2, "x");
+        assert!(try_apply(&at_row_cap, Operation::InsertRowAbove, 1, 0).is_none());
+        assert!(try_apply(&at_row_cap, Operation::InsertRowBelow, 1, 0).is_none());
+        assert!(try_apply(&at_row_cap, Operation::DuplicateRow, 1, 0).is_none());
+        // Deleting a row at capacity is still allowed!
+        assert!(try_apply(&at_row_cap, Operation::DeleteRow, 1, 0).is_some());
+
+        // Column limit (`COLUMN_LIMIT = 64`).
+        let at_col_cap = synthetic_table(3, COLUMN_LIMIT, "x");
+        assert!(try_apply(&at_col_cap, Operation::InsertColumnLeft, 0, 0).is_none());
+        assert!(try_apply(&at_col_cap, Operation::InsertColumnRight, 0, 0).is_none());
+        assert!(try_apply(&at_col_cap, Operation::DeleteColumn, 0, 0).is_some());
+
+        // Cell budget (`CELL_LIMIT = 20_000`): 500 rows * 40 cols = 20_000 cells.
+        let at_cell_cap = synthetic_table(500, 40, "x");
+        assert!(try_apply(&at_cell_cap, Operation::InsertRowBelow, 1, 0).is_none());
+        assert!(try_apply(&at_cell_cap, Operation::InsertColumnRight, 0, 0).is_none());
+
+        // Per-row byte budget (`ROW_BYTE_LIMIT = 64 KiB`): adding a column when near 64 KiB refuses cleanly.
+        let wide_cell = "a".repeat(ROW_BYTE_LIMIT - 4);
+        let near_byte_cap = synthetic_table(2, 1, &wide_cell);
+        assert!(try_apply(&near_byte_cap, Operation::InsertColumnRight, 0, 0).is_none());
     }
 }

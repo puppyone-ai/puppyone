@@ -8,7 +8,7 @@ mod keymap;
 #[cfg(test)]
 mod tests;
 
-pub use keymap::{Cx, intercept};
+pub use keymap::{Cx, FormatCommand, intercept, run_format};
 
 use crate::editor::text::{
     change::{Change, ChangeSet},

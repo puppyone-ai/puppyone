@@ -73,11 +73,15 @@ struct Registry {
     unknown: FileFormat,
     image_unknown: FileFormat,
     text_unknown: FileFormat,
+    by_id: HashMap<String, usize>,
     by_filename: HashMap<String, usize>,
     by_extension: HashMap<String, usize>,
     by_mime: HashMap<String, usize>,
     patterns: Vec<(String, usize)>,
 }
+
+/// Maximum prefix inspected by [`sniff`] (`RG-01`).
+pub const SNIFF_HEAD_BYTES: usize = 4096;
 
 fn registry() -> &'static Registry {
     static REGISTRY: OnceLock<Registry> = OnceLock::new();
@@ -87,6 +91,7 @@ fn registry() -> &'static Registry {
                 .expect("imported format registry");
         // Later entries win, like the product's `Map.set` indexes.
         let mut registry = Registry {
+            by_id: HashMap::new(),
             by_filename: HashMap::new(),
             by_extension: HashMap::new(),
             by_mime: HashMap::new(),
@@ -111,6 +116,7 @@ fn registry() -> &'static Registry {
             formats: table.formats,
         };
         for (index, format) in registry.formats.iter().enumerate() {
+            registry.by_id.insert(format.id.clone(), index);
             for name in &format.filenames {
                 registry.by_filename.insert(name.to_lowercase(), index);
             }
@@ -137,6 +143,10 @@ pub fn all() -> &'static [FileFormat] {
 /// `UNKNOWN_FORMAT`: an opaque binary with the placeholder viewer.
 pub fn unknown() -> &'static FileFormat {
     &registry().unknown
+}
+/// Safe fallback text format for unrecognized UTF-8 text (`plain-text` viewer).
+pub fn text_unknown() -> &'static FileFormat {
+    &registry().text_unknown
 }
 
 fn basename(path: &str) -> &str {
@@ -191,6 +201,98 @@ pub fn resolve(name: Option<&str>, mime: Option<&str>) -> &'static FileFormat {
 /// Shorthand for a file name without a MIME type.
 pub fn of(name: &str) -> &'static FileFormat {
     resolve(Some(name), None)
+}
+
+fn format_by_id(id: &str) -> Option<&'static FileFormat> {
+    let reg = registry();
+    reg.by_id.get(id).map(|&index| &reg.formats[index])
+}
+
+/// Content-based format sniffing (`RG-01`) over at most [`SNIFF_HEAD_BYTES`]
+/// (`4096`) leading bytes.
+///
+/// Security invariant (`RG-01`): sniffing NEVER selects executable content
+/// viewers (`"html"`, `"puppyone-app"`).
+pub fn sniff(head: &[u8]) -> Option<&'static FileFormat> {
+    let slice = &head[..head.len().min(SNIFF_HEAD_BYTES)];
+    if slice.is_empty() {
+        return None;
+    }
+
+    let matched = if slice.starts_with(b"\x89PNG\r\n\x1a\n") {
+        format_by_id("png")
+    } else if slice.starts_with(b"\xff\xd8\xff") {
+        format_by_id("jpeg")
+    } else if slice.starts_with(b"GIF87a") || slice.starts_with(b"GIF89a") {
+        format_by_id("gif")
+    } else if slice.len() >= 12 && &slice[..4] == b"RIFF" && &slice[8..12] == b"WEBP" {
+        format_by_id("webp")
+    } else if slice.len() >= 12 && &slice[..4] == b"RIFF" && &slice[8..12] == b"WAVE" {
+        format_by_id("wav")
+    } else if slice.starts_with(b"%PDF-") {
+        format_by_id("pdf")
+    } else if slice.starts_with(b"SQLite format 3\0") {
+        format_by_id("database-candidate")
+    } else if slice.starts_with(b"PK\x03\x04")
+        || slice.starts_with(b"PK\x05\x06")
+        || slice.starts_with(b"PK\x07\x08")
+    {
+        format_by_id("zip")
+    } else if slice.starts_with(b"\x1f\x8b") {
+        format_by_id("gzip")
+    } else if slice.starts_with(b"ID3")
+        || (slice.len() >= 2
+            && slice[0] == 0xff
+            && (slice[1] & 0xe0) == 0xe0
+            && (slice[1] & 0x18) != 0x08
+            && (slice[1] & 0x06) != 0x00)
+    {
+        format_by_id("mp3")
+    } else if slice.len() >= 8 && &slice[4..8] == b"ftyp" {
+        format_by_id("mp4")
+    } else if slice.starts_with(b"OggS") {
+        format_by_id("ogg-audio")
+    } else if slice.starts_with(b"\0asm") {
+        format_by_id("executable")
+    } else if is_sniffable_utf8_text(slice) {
+        Some(text_unknown())
+    } else {
+        None
+    };
+
+    if let Some(format) = matched {
+        debug_assert!(
+            !matches!(format.id.as_str(), "html" | "puppyone-app"),
+            "sniff must never return an executable viewer format"
+        );
+    }
+    matched
+}
+
+fn is_sniffable_utf8_text(slice: &[u8]) -> bool {
+    if slice.is_empty() || slice.contains(&0) {
+        return false;
+    }
+    match std::str::from_utf8(slice) {
+        Ok(_) => true,
+        // Allow an incomplete 1–3 byte UTF-8 codepoint cut right at the 4096-byte boundary.
+        Err(err) => err.error_len().is_none() && slice.len() == SNIFF_HEAD_BYTES,
+    }
+}
+
+/// Name-first format resolution with content-sniffing fallback (`RG-01`):
+/// invokes [`sniff`] ONLY when [`resolve`] returns [`unknown`], never overriding
+/// a recognized filename, extension or MIME type.
+pub fn resolve_with_sniff(
+    name: Option<&str>,
+    mime: Option<&str>,
+    head: Option<&[u8]>,
+) -> &'static FileFormat {
+    let resolved = resolve(name, mime);
+    if resolved.is_known() {
+        return resolved;
+    }
+    head.and_then(sniff).unwrap_or(resolved)
 }
 
 /// `getMatchedExtension`: compound registered extensions (`.d.ts`) win.
@@ -643,5 +745,103 @@ mod tests {
                 format.id
             );
         }
+    }
+
+    #[test]
+    fn content_sniffing_detects_magic_signatures_utf8_and_respects_security_invariants() {
+        // RG-31: every supported magic signature.
+        let cases: &[(&[u8], &str, &str)] = &[
+            (
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+                "png",
+                "image-preview",
+            ),
+            (b"\xff\xd8\xff\xe0\x00\x10JFIF", "jpeg", "image-preview"),
+            (b"GIF87a\x01\x00\x01\x00", "gif", "image-preview"),
+            (b"GIF89a\x01\x00\x01\x00", "gif", "image-preview"),
+            (b"RIFF\x24\x00\x00\x00WEBPVP8 ", "webp", "image-preview"),
+            (b"%PDF-1.7\n1 0 obj\n", "pdf", "pdf-preview"),
+            (
+                b"SQLite format 3\0\x10\x00\x01\x01",
+                "database-candidate",
+                "database-preview",
+            ),
+            (b"PK\x03\x04\x14\x00\x00\x00", "zip", "binary-placeholder"),
+            (
+                b"\x1f\x8b\x08\x00\x00\x00\x00\x00",
+                "gzip",
+                "binary-placeholder",
+            ),
+            (b"ID3\x04\x00\x00\x00\x00\x00\x00", "mp3", "audio-preview"),
+            (b"\xff\xfb\x90\x64\x00\x00", "mp3", "audio-preview"),
+            (b"\x00\x00\x00\x18ftypisom", "mp4", "video-preview"),
+            (
+                b"OggS\x00\x02\x00\x00\x00\x00",
+                "ogg-audio",
+                "audio-preview",
+            ),
+            (b"RIFF\x2c\x00\x00\x00WAVEfmt ", "wav", "audio-preview"),
+            (b"\0asm\x01\x00\x00\x00", "executable", "binary-placeholder"),
+        ];
+        for (magic, expected_id, expected_viewer) in cases {
+            let fmt = sniff(magic).unwrap_or_else(|| panic!("expected match for {expected_id}"));
+            assert_eq!(fmt.id, *expected_id);
+            assert_eq!(fmt.default_viewer, *expected_viewer);
+            assert!(!matches!(fmt.id.as_str(), "html" | "puppyone-app"));
+        }
+
+        // Plain UTF-8 text (including incomplete multi-byte sequence cut at 4096).
+        let text_fmt = sniff("Hello, 世界!\nfn main() {}\n".as_bytes()).unwrap();
+        assert_eq!(text_fmt.id, "text-unknown");
+        assert_eq!(text_fmt.default_viewer, "plain-text");
+
+        let mut cut = vec![b'a'; SNIFF_HEAD_BYTES - 2];
+        // First 2 bytes of '世' (`E4 B8 96`) cut right at 4096.
+        cut.extend_from_slice(&[0xe4, 0xb8]);
+        assert_eq!(cut.len(), SNIFF_HEAD_BYTES);
+        assert_eq!(sniff(&cut).unwrap().id, "text-unknown");
+
+        // Incomplete UTF-8 BEFORE 4096 (short file) is genuinely invalid UTF-8.
+        assert!(sniff(&[b'a', 0xe4, 0xb8]).is_none());
+        // Empty, non-UTF-8 and NUL-containing binary return None.
+        assert!(sniff(b"").is_none());
+        assert!(sniff(b"\xfe\xff\x80\x90").is_none());
+        assert!(sniff(b"hello\0world").is_none());
+
+        // RG-01 security invariant: HTML / PuppyOne app payloads never sniff into executable viewers.
+        for payload in [
+            b"<!doctype html><html><body><script>alert(1)</script></body></html>".as_slice(),
+            b"<html><head></head></html>".as_slice(),
+            br#"{"name":"app","entry":"index.html","command":"npm run dev"}"#.as_slice(),
+        ] {
+            let fmt = resolve_with_sniff(Some("UNTITLED_BLOB"), None, Some(payload));
+            assert_eq!(fmt.id, "text-unknown");
+            assert_ne!(fmt.id, "html");
+            assert_ne!(fmt.id, "puppyone-app");
+        }
+
+        // Disguised extensions: known extension wins over magic bytes; extensionless uses sniff.
+        let txt_with_pdf =
+            resolve_with_sniff(Some("notes.txt"), None, Some(b"%PDF-1.7\ndisguised"));
+        assert_eq!(txt_with_pdf.id, "plaintext");
+        assert_ne!(txt_with_pdf.id, "pdf");
+
+        let md_with_png = resolve_with_sniff(
+            Some("README.md"),
+            None,
+            Some(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"),
+        );
+        assert_eq!(md_with_png.id, "markdown");
+
+        let extensionless_pdf =
+            resolve_with_sniff(Some("README_BLOB"), None, Some(b"%PDF-1.7\n1 0 obj\n"));
+        assert_eq!(extensionless_pdf.id, "pdf");
+
+        let unknown_ext_png = resolve_with_sniff(
+            Some("artifact.qqqq"),
+            Some("application/octet-stream"),
+            Some(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"),
+        );
+        assert_eq!(unknown_ext_png.id, "png");
     }
 }

@@ -5,7 +5,7 @@
 //! ratio), so they need no measure of their own; what the pointer does over
 //! them is read against the bounds each pane and split was painted at.
 use super::{
-    editor_area::{EditorArea, EditorEvent},
+    editor_area::{EditorArea, EditorEvent, PendingExternalDrop},
     explorer,
 };
 use crate::{
@@ -93,6 +93,59 @@ impl EditorArea {
             .all(|c| matches!(c, std::path::Component::Normal(_)));
         (normal && !relative.as_os_str().is_empty() && !self.explorer.read(cx).is_folder(relative))
             .then(|| relative.to_path_buf())
+    }
+    /// A Finder drop that names one regular file outside this window's local
+    /// workspace (`WB-21`), eligible for "Copy to Workspace" or "Open in File Window".
+    pub(super) fn external_outside_file(&self, paths: &ExternalPaths, cx: &App) -> Option<PathBuf> {
+        if self.file_mode {
+            return None;
+        }
+        let [path] = paths.paths() else {
+            return None;
+        };
+        let root = self
+            .docs
+            .read(cx)
+            .workspace
+            .as_ref()
+            .and_then(|ws| ws.local_root().map(PathBuf::from))?;
+        if path.strip_prefix(&root).is_ok() {
+            return None;
+        }
+        path.is_file().then(|| path.clone())
+    }
+    /// Routes a Finder drop onto `target` pane edge (`WB-21`): in-workspace single
+    /// files open directly; outside single regular files open the delivery prompt.
+    pub(super) fn handle_external_paths_drop(
+        &mut self,
+        paths: &ExternalPaths,
+        target: &str,
+        direction: Direction,
+        placement: Placement,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if self.gate.modal {
+            return false;
+        }
+        if let Some(path) = self.external_document(paths, cx) {
+            self.docs.update(cx, |d, _| {
+                d.open_at_edge(path, target, direction, placement)
+            });
+            cx.emit(EditorEvent::Pump);
+            cx.notify();
+            return true;
+        }
+        if let Some(outside_path) = self.external_outside_file(paths, cx) {
+            self.pending_external_drop = Some(PendingExternalDrop {
+                path: outside_path,
+                pane: target.to_owned(),
+                direction,
+                placement,
+            });
+            cx.notify();
+            return true;
+        }
+        false
     }
     /// A "Saved" status lapses on its own: the area draws again then.
     pub(super) fn schedule_saved_refresh(&mut self, cx: &mut Context<Self>) {
@@ -295,21 +348,27 @@ impl EditorArea {
         for (index, input) in state.catalog.editors.iter().enumerate() {
             let key = input.id.clone();
             let active = state.layout.active_editor() == Some(key.as_str());
-            let slot = docs.slot_for_key(&key).unwrap();
-            let status = docs.slot(slot);
+            let slot = docs.slot_for_key(&key);
+            let status = slot.and_then(|id| docs.slot(id));
             let dirty = status.is_some_and(|f| f.dirty);
             let saving = status.is_some_and(|f| f.saving() || f.busy());
-            let focus = self.tab_focus.get(&slot).cloned();
+            let focus = slot.and_then(|id| self.tab_focus.get(&id).cloned());
             let error = status.is_some_and(|f| f.error.is_some());
+            let tab_suffix = match slot {
+                Some(id) => id.to_string(),
+                None => format!("hib-{index}"),
+            };
             let close = crate::localization::tf(
                 "shell.editorTabs.close",
                 &[("name", input.label.clone().into())],
             );
             let select = key.clone();
             let target = key.clone();
+            let middle_close_key = key.clone();
+            let button_close_key = key.clone();
             let keyboard_ids = ids.clone();
             let tab = div()
-                .id(SharedString::from(format!("editor-tab-{slot}")))
+                .id(SharedString::from(format!("editor-tab-{tab_suffix}")))
                 .flex()
                 .items_center()
                 .group("editor-tab")
@@ -333,7 +392,13 @@ impl EditorArea {
                 .on_mouse_down(
                     MouseButton::Middle,
                     self.listener(move |s, _, _, cx| {
-                        s.docs.update(cx, |d, _| d.close_slot(slot));
+                        s.docs.update(cx, |d, _| match slot {
+                            Some(slot_id) => d.close_slot(slot_id),
+                            None => {
+                                let wake = d.wake().clone();
+                                d.close_editor_key(&middle_close_key, &wake);
+                            }
+                        });
                         cx.emit(EditorEvent::Pump);
                         cx.notify();
                     }),
@@ -359,7 +424,9 @@ impl EditorArea {
                 }))
                 .child(
                     div()
-                        .id(SharedString::from(format!("editor-tab-select-{slot}")))
+                        .id(SharedString::from(format!(
+                            "editor-tab-select-{tab_suffix}"
+                        )))
                         .when_some(focus, |d, focus| d.track_focus(&focus).tab_stop(active))
                         .flex()
                         .items_center()
@@ -372,8 +439,12 @@ impl EditorArea {
                         .cursor(theme::clickable_cursor())
                         .text_size(px(theme::ty().header.content))
                         .on_click(self.listener(move |s, _, w, cx| {
-                            s.docs.update(cx, |d, _| d.activate(&select));
+                            s.docs.update(cx, |d, _| {
+                                let wake = d.wake().clone();
+                                d.activate_with_wake(&select, &wake);
+                            });
                             s.sync(w, cx);
+                            cx.emit(EditorEvent::Pump);
                         }))
                         .on_key_down(self.listener(move |s, e: &KeyDownEvent, w, cx| {
                             let next = match e.keystroke.key.as_str() {
@@ -383,8 +454,12 @@ impl EditorArea {
                                 "end" => keyboard_ids.len() - 1,
                                 _ => return,
                             };
-                            s.docs.update(cx, |d, _| d.activate(&keyboard_ids[next]));
+                            s.docs.update(cx, |d, _| {
+                                let wake = d.wake().clone();
+                                d.activate_with_wake(&keyboard_ids[next], &wake);
+                            });
                             s.sync(w, cx);
+                            cx.emit(EditorEvent::Pump);
                             let active = s.docs.read(cx).active_slot();
                             if let Some(focus) = s.tab_focus.get(&active) {
                                 focus.focus(w, cx);
@@ -418,7 +493,7 @@ impl EditorArea {
                         .group_hover("editor-tab", |s| s.hidden())
                         .when(saving, |d| {
                             d.child(crate::ui::components::Spinner::new(
-                                SharedString::from(format!("tab-saving-{slot}")),
+                                SharedString::from(format!("tab-saving-{tab_suffix}")),
                                 palette.divider,
                                 palette.muted,
                             ))
@@ -432,7 +507,7 @@ impl EditorArea {
                 )
                 .child(
                     div()
-                        .id(SharedString::from(format!("editor-tab-close-{slot}")))
+                        .id(SharedString::from(format!("editor-tab-close-{tab_suffix}")))
                         .size(px(24.))
                         .flex_shrink_0()
                         .mr(px(3.))
@@ -446,7 +521,13 @@ impl EditorArea {
                         .tooltip(tooltip(close))
                         .on_click(self.listener(move |s, _, _, cx| {
                             cx.stop_propagation();
-                            s.docs.update(cx, |d, _| d.close_slot(slot));
+                            s.docs.update(cx, |d, _| match slot {
+                                Some(slot_id) => d.close_slot(slot_id),
+                                None => {
+                                    let wake = d.wake().clone();
+                                    d.close_editor_key(&button_close_key, &wake);
+                                }
+                            });
                             cx.emit(EditorEvent::Pump);
                             cx.notify();
                         }))
@@ -517,9 +598,11 @@ impl EditorArea {
                     ))
                     .on_drag_move(cx.listener(
                         move |s, event: &DragMoveEvent<ExternalPaths>, _, cx| {
+                            let drag = event.drag(cx);
                             let inside = event.bounds.contains(&event.event.position)
                                 && !s.gate.modal
-                                && s.external_document(event.drag(cx), cx).is_some();
+                                && (s.external_document(drag, cx).is_some()
+                                    || s.external_outside_file(drag, cx).is_some());
                             let preview = inside.then(|| {
                                 let (direction, placement) =
                                     drop_edge(event.event.position, event.bounds);
@@ -537,25 +620,19 @@ impl EditorArea {
                         },
                     ))
                     .on_drop(cx.listener(move |s, paths: &ExternalPaths, w, cx| {
-                        // `claimEditorDropDocument`: one file of this local
-                        // workspace opens; anything else is not admitted.
+                        // `claimEditorDropDocument` + `WB-21`: in-workspace files open
+                        // directly; outside regular files prompt "Copy to Workspace" or
+                        // "Open in File Window".
                         s.drop = None;
-                        let Some(path) = s.external_document(paths, cx).filter(|_| !s.gate.modal)
-                        else {
-                            return;
-                        };
                         let Some(bounds) = s.pane_bounds.borrow().get(&external_target).copied()
                         else {
                             return;
                         };
                         let (direction, placement) = drop_edge(w.mouse_position(), bounds);
                         let target = external_target.clone();
-                        s.docs.update(cx, |d, _| {
-                            d.open_at_edge(path, &target, direction, placement)
-                        });
-                        cx.emit(EditorEvent::Pump);
-                        cx.stop_propagation();
-                        cx.notify();
+                        if s.handle_external_paths_drop(paths, &target, direction, placement, cx) {
+                            cx.stop_propagation();
+                        }
                     }))
                     .on_drop(cx.listener(move |s, drag: &explorer::DragNodes, w, cx| {
                         s.drop = None;
@@ -793,5 +870,252 @@ impl EditorArea {
             });
             cx.notify();
         }
+    }
+
+    /// Read-only comparison modal (`DP-05` Exit 1: `Compare`) showing `ours` vs
+    /// `theirs` unified diff rows and all resolution exits.
+    pub(super) fn conflict_comparison_dialog(&self, cx: &App) -> Option<AnyElement> {
+        use crate::{
+            app::Command,
+            documents::reconcile::{DiffRow, unified_diff_rows},
+            localization::t as tr,
+            ui::components::{Button, ButtonVariant, Dialog},
+        };
+        if !self.comparing_conflict {
+            return None;
+        }
+        let docs = self.docs.read(cx);
+        let conflict = docs.conflict_state()?;
+        let path_label = docs
+            .opened()
+            .map(|(_, p)| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let rows = unified_diff_rows(conflict.ours.as_str(), conflict.theirs.as_str());
+        let t = cx.palette();
+
+        let close_area = self.weak.clone();
+        let keep_area = self.weak.clone();
+        let accept_area = self.weak.clone();
+        let copy_area = self.weak.clone();
+
+        let mut diff_list = div()
+            .id("cloud-conflict-diff-view")
+            .w_full()
+            .max_h(px(320.))
+            .overflow_y_scroll()
+            .rounded(px(6.))
+            .border_1()
+            .border_color(t.divider)
+            .bg(t.canvas)
+            .py(px(4.));
+
+        let mut line_counter = 0usize;
+        for (idx, row) in rows.into_iter().take(240).enumerate() {
+            let (prefix, bg, fg, text, show_line) = match row {
+                DiffRow::Context(text) => {
+                    line_counter += 1;
+                    (" ", Rgba::default(), t.muted, text, Some(line_counter))
+                }
+                DiffRow::Ours(text) => ("-", theme::alpha(t.danger, 0.12), t.danger, text, None),
+                DiffRow::Theirs(text) => {
+                    line_counter += 1;
+                    (
+                        "+",
+                        theme::alpha(t.success, 0.12),
+                        t.success,
+                        text,
+                        Some(line_counter),
+                    )
+                }
+            };
+            let line_no = show_line
+                .map(|n| format!("{n:>4}"))
+                .unwrap_or_else(|| "    ".into());
+            diff_list = diff_list.child(
+                div()
+                    .id(ElementId::NamedInteger(
+                        "conflict-diff-row".into(),
+                        idx as u64,
+                    ))
+                    .w_full()
+                    .px(px(10.))
+                    .py(px(1.))
+                    .bg(bg)
+                    .flex()
+                    .items_start()
+                    .gap(px(8.))
+                    .font(crate::ui::fonts::font(
+                        crate::typography::fonts::Role::Code,
+                        cx,
+                    ))
+                    .text_size(px(theme::ty().ui.meta))
+                    .line_height(px(18.))
+                    .child(
+                        div()
+                            .flex_none()
+                            .text_color(t.muted)
+                            .child(format!("{line_no} {prefix}")),
+                    )
+                    .child(div().min_w_0().flex_1().text_color(fg).child(text)),
+            );
+        }
+
+        let legend = h_flex()
+            .w_full()
+            .justify_between()
+            .gap(px(12.))
+            .text_size(px(theme::ty().ui.meta))
+            .child(
+                div()
+                    .text_color(t.danger)
+                    .child(format!("− {}", tr("native.editor.conflictMineHeader"))),
+            )
+            .child(
+                div()
+                    .text_color(t.success)
+                    .child(format!("+ {}", tr("native.editor.conflictRemoteHeader"))),
+            );
+
+        Some(
+            Dialog::new("cloud-conflict-compare-dialog")
+                .width(660.)
+                .title(tr("native.editor.conflictTitle"))
+                .on_close(move |_, cx| {
+                    let _ = close_area.update(cx, |e, cx| e.close_conflict_comparison(cx));
+                })
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(10.))
+                        .when(!path_label.is_empty(), |d| {
+                            d.child(
+                                div()
+                                    .text_size(px(theme::ty().ui.meta))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.text)
+                                    .child(path_label),
+                            )
+                        })
+                        .child(
+                            div()
+                                .text_size(px(theme::ty().ui.meta))
+                                .text_color(t.muted)
+                                .child(tr("native.editor.conflictMessage")),
+                        )
+                        .child(legend)
+                        .child(diff_list),
+                )
+                .footer(
+                    Button::new("conflict-dialog-save-copy")
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("native.editor.conflictSaveCopy"))
+                        .on_click(move |_, _, cx| {
+                            let _ = copy_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::SaveConflictCopy))
+                            });
+                        }),
+                )
+                .footer(
+                    Button::new("conflict-dialog-accept-remote")
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("native.editor.conflictAcceptRemote"))
+                        .on_click(move |_, _, cx| {
+                            let _ = accept_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::ReloadCloudBaseline))
+                            });
+                        }),
+                )
+                .footer(
+                    Button::new("conflict-dialog-keep-mine")
+                        .variant(ButtonVariant::Solid)
+                        .label(tr("native.editor.conflictKeepMine"))
+                        .on_click(move |_, _, cx| {
+                            let _ = keep_area.update(cx, |_, cx| {
+                                cx.emit(EditorEvent::Command(Command::KeepLocalCloudDraft))
+                            });
+                        }),
+                )
+                .into_any_element(),
+        )
+    }
+
+    /// Delivery prompt for a single external Finder file dropped onto an editor
+    /// pane from outside this window's local workspace (`WB-21`).
+    pub(super) fn external_drop_dialog(&self, cx: &App) -> Option<AnyElement> {
+        use crate::ui::components::{Button, ButtonVariant, Dialog};
+        let pending = self.pending_external_drop.as_ref()?;
+        let file_name = pending
+            .path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let t = cx.palette();
+
+        let close_area = self.weak.clone();
+        let cancel_area = self.weak.clone();
+        let file_win_area = self.weak.clone();
+        let copy_area = self.weak.clone();
+
+        Some(
+            Dialog::new("external-file-drop-dialog")
+                .width(460.)
+                .title("Open External File")
+                .on_close(move |_, cx| {
+                    let _ = close_area.update(cx, |e, cx| e.dismiss_external_drop(cx));
+                })
+                .child(
+                    div()
+                        .debug_selector(|| "external-file-drop-body".into())
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(theme::ty().ui.body))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(t.text)
+                                .child(file_name),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(theme::ty().ui.meta))
+                                .text_color(t.muted)
+                                .child(
+                                    "This file is outside the current workspace. Choose how to open it:",
+                                ),
+                        ),
+                )
+                .footer(
+                    Button::new("external-drop-cancel")
+                        .variant(ButtonVariant::Ghost)
+                        .label("Cancel")
+                        .on_click(move |_, _, cx| {
+                            let _ = cancel_area.update(cx, |e, cx| e.dismiss_external_drop(cx));
+                        }),
+                )
+                .footer(
+                    Button::new("external-drop-open-file-window")
+                        .variant(ButtonVariant::Secondary)
+                        .label("Open in File Window")
+                        .on_click(move |_, _, cx| {
+                            let _ = file_win_area.update(cx, |e, cx| {
+                                e.confirm_external_drop_open_file_window(cx)
+                            });
+                        }),
+                )
+                .footer(
+                    Button::new("external-drop-copy-workspace")
+                        .variant(ButtonVariant::Solid)
+                        .label("Copy to Workspace")
+                        .on_click(move |_, w, cx| {
+                            let _ = copy_area.update(cx, |e, cx| {
+                                e.confirm_external_drop_copy_to_workspace(w, cx)
+                            });
+                        }),
+                )
+                .into_any_element(),
+        )
     }
 }

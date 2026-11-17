@@ -2,15 +2,19 @@
 //! tall over a divider — the tab labels 18px apart in muted type, the shown
 //! one in text colour on a 2px rule, and `</>` (Source) at the end, showing
 //! while the block is hovered or focused — over the panel of the shown tab
-//! (`padding: 18px 2px 8px`, at least 54px), its Markdown rendered, with the
-//! block radius and rings. The panel lays itself out; its measured height
-//! is the block's from the next frame on.
+//! (`padding: 18px 2px 8px`, at least 54px), its Markdown rendered through
+//! [`shared::html_surface::Surface`] and [`platform::HtmlPlatformBridge`],
+//! with zero cross-feature imports (`TA-41`, `R5`).
 use super::{Action, ID, TabsBlock};
 use crate::{
     editor::{
         markdown::{
-            features::html::{markdown_nodes, render::Surface},
-            shared::ring,
+            platform::HtmlPlatformBridge,
+            shared::{
+                dom::markdown_nodes,
+                html_surface::{Surface, measured_height, record_measured_height},
+                ring,
+            },
             style::MarkdownTheme,
         },
         registry::DocumentAssets,
@@ -23,9 +27,8 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use std::{
-    cell::RefCell,
-    collections::HashMap,
     hash::{Hash, Hasher},
+    path::Path,
 };
 
 /// `.cm-md-mdx-tabs-toolbar { min-height: 38px }`; a tab's 9px bottom
@@ -41,11 +44,6 @@ const PANEL_X: f32 = 2.;
 const PANEL_BOTTOM: f32 = 8.;
 /// `.cm-md-mdx-source-toggle` while shown.
 const TOGGLE_OPACITY: f32 = 0.72;
-
-thread_local! {
-    /// Measured panel heights, by block, tab and width.
-    static HEIGHTS: RefCell<HashMap<u64, f32>> = RefCell::new(HashMap::new());
-}
 
 pub struct TabsWidget {
     block: TabsBlock,
@@ -80,12 +78,9 @@ impl BlockWidget for TabsWidget {
         let send = cx.sender();
         let tab = &self.block.tabs[self.active];
         let mut h = std::hash::DefaultHasher::new();
-        (at, self.active, &tab.content, width.to_bits()).hash(&mut h);
+        ("mdx-tabs", at, self.active, &tab.content, width.to_bits()).hash(&mut h);
         let key = h.finish();
-        let panel_height = HEIGHTS
-            .with(|m| m.borrow().get(&key).copied())
-            .unwrap_or(PANEL_MIN)
-            .max(PANEL_MIN);
+        let panel_height = measured_height(key).unwrap_or(PANEL_MIN).max(PANEL_MIN);
         let height = TOOLBAR + panel_height;
 
         let text = &self.theme.body.text;
@@ -124,7 +119,6 @@ impl BlockWidget for TabsWidget {
             text.apply(label.style());
             label = label.text_color(if shown { t.text } else { t.muted });
             if shown {
-                // `::after`: a 2px rule over the divider.
                 label = label.child(
                     div()
                         .absolute()
@@ -184,13 +178,17 @@ impl BlockWidget for TabsWidget {
             .unwrap_or_default();
         let nodes = markdown_nodes(tab.content.trim());
         let inner = (width - 2. * PANEL_X).max(0.);
+        let view = cx.render.view.clone();
+        let block_id = at + 1 + self.active;
+        let mut bridge =
+            HtmlPlatformBridge::new(&self.theme, self.assets.as_ref(), view.clone(), block_id);
         let content = Surface::new(
             &self.theme,
-            self.assets.as_ref(),
-            &document,
-            cx.render.view.clone(),
-            at + 1 + self.active,
+            Path::new(&document),
+            view,
+            block_id,
             cx.render,
+            &mut bridge,
         )
         .render(&nodes, inner);
         let measured = div()
@@ -202,11 +200,7 @@ impl BlockWidget for TabsWidget {
             .on_children_prepainted(move |bounds, window, _| {
                 let Some(b) = bounds.first() else { return };
                 let h = f32::from(b.size.height) + PANEL_TOP + PANEL_BOTTOM;
-                let changed = HEIGHTS.with(|m| {
-                    let old = m.borrow_mut().insert(key, h);
-                    old.is_none_or(|o| (o - h).abs() > 0.25)
-                });
-                if changed {
+                if record_measured_height(key, h) {
                     window.refresh();
                 }
             });

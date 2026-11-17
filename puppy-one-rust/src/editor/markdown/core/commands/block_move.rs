@@ -6,7 +6,7 @@
 //! were; an ordered list renumbers from 1. Front matter never moves and
 //! nothing moves into it.
 use crate::editor::{
-    markdown::core::syntax::Syntax,
+    markdown::core::syntax::{Syntax, block_boundaries::BlockBoundaries},
     text::{
         buffer::Buffer,
         change::{Change, ChangeSet},
@@ -29,6 +29,14 @@ pub fn enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
 }
 
+/// Ordered-item metadata needed to renumber an ordered list after a move.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OrderedItem {
+    range_start: usize,
+    marker_from: usize,
+    marker: String,
+}
+
 /// A movable block and the siblings it moves among.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Movable {
@@ -38,17 +46,86 @@ pub struct Movable {
     /// List depth of a list item (0 for a document child).
     pub depth: usize,
     /// The ordered list it belongs to (renumbered after a move).
-    ordered: Option<Vec<usize>>,
+    ordered: Option<Vec<OrderedItem>>,
 }
 
 /// `getMarkdownBodyStart`: after front matter at the very top.
 fn body_start(doc: &Buffer) -> usize {
-    if doc.line_count() < 2 || doc.line(0).trim_end() != "---" {
+    if doc.line_count() < 2 || doc.line_cow(0).trim_end() != "---" {
         return 0;
     }
     (1..doc.line_count().min(256))
-        .find(|&l| doc.line(l).trim_end() == "---")
+        .find(|&l| doc.line_cow(l).trim_end() == "---")
         .map_or(0, |l| doc.line_range(l).end + 1)
+}
+
+/// `getMarkdownMovableBlockAt` over narrow [`BlockBoundaries`] (`TA-60`, `R8`).
+pub fn movable_at_boundaries(
+    doc: &Buffer,
+    boundaries: &BlockBoundaries,
+    offset: usize,
+) -> Option<Movable> {
+    if doc.is_empty() {
+        return None;
+    }
+    let line = doc.line_range(doc.line_index(offset.min(doc.len())));
+    let body = body_start(doc);
+    if line.start < body {
+        return None;
+    }
+    let content_end = line.start + doc.slice_cow(line.clone()).trim_end().len();
+    if content_end == line.start {
+        return None;
+    }
+    let anchor = content_end - 1;
+    let mut items: Vec<usize> = (0..boundaries.items.len())
+        .filter(|&i| boundaries.items[i].range.contains(&anchor))
+        .collect();
+    items.sort_by_key(|&i| std::cmp::Reverse(boundaries.items[i].depth));
+    for i in items {
+        let item = &boundaries.items[i];
+        let list = &boundaries.lists[item.list];
+        if list.items.len() < 2 {
+            continue;
+        }
+        let group: Vec<Range<usize>> = list
+            .items
+            .iter()
+            .map(|&k| boundaries.items[k].range.clone())
+            .collect();
+        return Some(Movable {
+            range: item.range.clone(),
+            index: list.items.iter().position(|&k| k == i)?,
+            group,
+            depth: item.depth + 1,
+            ordered: list.ordered.then(|| {
+                list.items
+                    .iter()
+                    .map(|&k| OrderedItem {
+                        range_start: boundaries.items[k].range.start,
+                        marker_from: boundaries.items[k].marker_from,
+                        marker: boundaries.items[k].marker.clone(),
+                    })
+                    .collect()
+            }),
+        });
+    }
+    let group: Vec<Range<usize>> = boundaries
+        .top_blocks
+        .iter()
+        .filter(|b| b.start >= body && !b.is_empty())
+        .cloned()
+        .collect();
+    let index = group
+        .iter()
+        .position(|b| b.start <= anchor && anchor < b.end)?;
+    (group.len() >= 2).then(|| Movable {
+        range: group[index].clone(),
+        group,
+        index,
+        depth: 0,
+        ordered: None,
+    })
 }
 
 /// `getMarkdownMovableBlockAt`: by line, never by column; a blank line
@@ -62,7 +139,7 @@ pub fn movable_at(doc: &Buffer, syntax: &Syntax, offset: usize) -> Option<Movabl
     if line.start < body {
         return None;
     }
-    let content_end = line.start + doc.slice(line.clone()).trim_end().len();
+    let content_end = line.start + doc.slice_cow(line.clone()).trim_end().len();
     if content_end == line.start {
         return None;
     }
@@ -87,7 +164,16 @@ pub fn movable_at(doc: &Buffer, syntax: &Syntax, offset: usize) -> Option<Movabl
             index: list.items.iter().position(|&k| k == i)?,
             group,
             depth: item.parents.len() + 1,
-            ordered: list.ordered.then(|| list.items.clone()),
+            ordered: list.ordered.then(|| {
+                list.items
+                    .iter()
+                    .map(|&k| OrderedItem {
+                        range_start: syntax.items[k].range.start,
+                        marker_from: syntax.items[k].marker_from,
+                        marker: syntax.items[k].marker.clone(),
+                    })
+                    .collect()
+            }),
         });
     }
     let group: Vec<Range<usize>> = syntax
@@ -113,11 +199,9 @@ pub fn is_noop(index: usize, boundary: usize) -> bool {
     boundary == index || boundary == index + 1
 }
 
-/// `buildMarkdownBlockMoveTransaction`: the block before group position
-/// `boundary` (0 ..= len). The selection inside the block moves with it.
-pub fn move_block(
+/// `buildMarkdownBlockMoveTransaction` without requiring `&Syntax` (`TA-60`, `R8`).
+pub fn move_block_boundaries(
     state: &EditorState,
-    syntax: &Syntax,
     movable: &Movable,
     boundary: usize,
 ) -> Option<Transaction> {
@@ -126,17 +210,20 @@ pub fn move_block(
     if n < 2 || boundary > n || is_noop(s, boundary) {
         return None;
     }
-    let doc = state.doc.as_str();
-    let text = |i: usize| &doc[group[i].clone()];
-    let separator = |i: usize| &doc[group[i].end..group[i + 1].start];
-    // The new order, and the separator after each position.
+    let span = state.doc.clamp_range(group[0].start..group[n - 1].end);
+    if span.start != group[0].start || span.end != group[n - 1].end {
+        return None;
+    }
+    let span_cow = state.doc.slice_cow(span.clone());
+    let span_text = span_cow.as_ref();
+    let base = span.start;
+    let text = |i: usize| &span_text[group[i].start - base..group[i].end - base];
+    let separator = |i: usize| &span_text[group[i].end - base..group[i + 1].start - base];
+
     let mut order: Vec<usize> = (0..n).filter(|&i| i != s).collect();
     let at = if boundary < s { boundary } else { boundary - 1 };
     order.insert(at, s);
-    // The separators stay in their slots except the ones the product's two
-    // edits carry: up, the block takes the separator before it along and its
-    // old slot keeps the one after it; down, the separator after it goes
-    // before it and it takes the one that followed its landing place.
+
     let separators: Vec<&str> = (0..n - 1)
         .map(|k| {
             if boundary < s {
@@ -159,15 +246,15 @@ pub fn move_block(
         })
         .collect();
     let renumber = movable.ordered.as_ref();
-    let mut region = String::new();
+    let mut region = String::with_capacity(span.len());
     let mut moved_at = 0;
     let mut moved_delta: isize = 0;
     for (k, &i) in order.iter().enumerate() {
         let mut block = text(i).to_owned();
         let mut delta: isize = 0;
         if let Some(items) = renumber {
-            let item = &syntax.items[items[i]];
-            let at = item.marker_from - item.range.start;
+            let item = &items[i];
+            let at = item.marker_from - item.range_start;
             let digits = item.marker.trim_end_matches(['.', ')']);
             let number = (k + 1).to_string();
             if digits != number && block.get(at..at + digits.len()) == Some(digits) {
@@ -184,7 +271,6 @@ pub fn move_block(
             region.push_str(separators[k]);
         }
     }
-    let span = group[0].start..group[n - 1].end;
     let source = &group[s];
     let new_from = span.start + moved_at;
     let sel = state.selection;
@@ -218,6 +304,35 @@ pub fn move_block(
     ))
 }
 
+/// `buildMarkdownBlockMoveTransaction`: the block before group position
+/// `boundary` (0 ..= len). The selection inside the block moves with it.
+pub fn move_block(
+    state: &EditorState,
+    _syntax: &Syntax,
+    movable: &Movable,
+    boundary: usize,
+) -> Option<Transaction> {
+    move_block_boundaries(state, movable, boundary)
+}
+
+/// `moveMarkdownBlock` over [`BlockBoundaries`] (`TA-60`, `R8`).
+pub fn move_by_keyboard_boundaries(
+    state: &EditorState,
+    boundaries: &BlockBoundaries,
+    up: bool,
+) -> Option<Transaction> {
+    if !enabled() {
+        return None;
+    }
+    let movable = movable_at_boundaries(&state.doc, boundaries, state.selection.head)?;
+    let boundary = if up {
+        movable.index.checked_sub(1)?
+    } else {
+        movable.index + 2
+    };
+    move_block_boundaries(state, &movable, boundary)
+}
+
 /// `moveMarkdownBlock`: the block holding the caret one place up or down;
 /// `None` where it cannot move (the key keeps its usual meaning).
 pub fn move_by_keyboard(state: &EditorState, syntax: &Syntax, up: bool) -> Option<Transaction> {
@@ -242,13 +357,14 @@ mod tests {
         let mut state = EditorState::new(text);
         state.selection = Selection::cursor(caret);
         let syntax = Syntax::parse(&state.doc);
-        let movable = movable_at(&state.doc, &syntax, caret)?;
+        let boundaries = BlockBoundaries::of(&syntax, state.revision, true);
+        let movable = movable_at_boundaries(&state.doc, &boundaries, caret)?;
         let boundary = if up {
             movable.index.checked_sub(1)?
         } else {
             movable.index + 2
         };
-        let tr = move_block(&state, &syntax, &movable, boundary)?;
+        let tr = move_block_boundaries(&state, &movable, boundary)?;
         state.apply(tr);
         Some(state.doc.as_str().to_owned())
     }

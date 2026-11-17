@@ -3,15 +3,15 @@
 use super::{document_editing_session::DocumentEditingSession, types::*};
 
 fn session(cloud: bool) -> DocumentEditingSession {
-    let mut session = DocumentEditingSession::new("note.md".into(), "base".into(), 0);
+    let mut session = DocumentEditingSession::new("note.md".into(), "base", 0);
     session.cloud = cloud;
     session
 }
 fn edit(session: &mut DocumentEditingSession, revision: u64, text: &str) {
-    session.local_edit(revision, text != session.baseline);
+    session.local_edit(revision, !session.baseline.eq_str(text));
     session.enqueue(Snapshot {
         revision,
-        text: text.into(),
+        text: text.into_buffer(),
     });
 }
 
@@ -25,37 +25,49 @@ fn cloud_converged_old_write_preserves_and_saves_the_newer_draft() {
         if snapshot_already_queued {
             s.enqueue(Snapshot {
                 revision: 2,
-                text: "latest draft".into(),
+                text: "latest draft".into_buffer(),
             });
         }
         // A previous uncertain write landed. This acknowledges only its
         // candidate, not the newer input typed while it was in flight.
         assert_eq!(
-            s.complete(first.sequence, Ok(("first draft".into(), true))),
+            s.complete(
+                first.sequence,
+                Ok(WriteOutcome::Conflict {
+                    remote_text: "first draft".into_buffer(),
+                    remote_revision: None
+                })
+            ),
             Completion::Saved
         );
-        assert_eq!(s.baseline, "first draft");
+        assert_eq!(s.baseline.as_str(), "first draft");
         assert_eq!(s.revision, 2);
         assert!(s.dirty && !s.drained() && !s.conflicted());
         assert_eq!(
             s.take_receipt(),
             Some(Snapshot {
                 revision: 1,
-                text: "first draft".into()
+                text: "first draft".into_buffer()
             })
         );
         if !snapshot_already_queued {
             assert!(s.needs_snapshot);
             s.enqueue(Snapshot {
                 revision: 2,
-                text: "latest draft".into(),
+                text: "latest draft".into_buffer(),
             });
         }
         let next = s.next_commit().expect("newer draft must still be saved");
-        assert_eq!(next.snapshot.text, "latest draft");
+        assert_eq!(next.snapshot.text.as_str(), "latest draft");
         assert!(next.sequence > first.sequence);
         assert_eq!(
-            s.complete(next.sequence, Ok(("latest draft".into(), false))),
+            s.complete(
+                next.sequence,
+                Ok(WriteOutcome::Written {
+                    text: "latest draft".into_buffer(),
+                    revision: None
+                })
+            ),
             Completion::Saved
         );
         assert!(s.drained());
@@ -65,26 +77,41 @@ fn cloud_converged_old_write_preserves_and_saves_the_newer_draft() {
 #[test]
 fn cloud_publication_fences_every_old_write_outcome_until_explicit_reload() {
     for result in [
-        Ok(("old draft".into(), false)),
-        Ok(("old draft".into(), true)),
-        Err("obsolete failure".into()),
+        Ok(WriteOutcome::Written {
+            text: "old draft".into_buffer(),
+            revision: None,
+        }),
+        Ok(WriteOutcome::Conflict {
+            remote_text: "old draft".into_buffer(),
+            remote_revision: None,
+        }),
+        Err(SessionError::new(ErrorKind::Io, "obsolete failure")),
     ] {
         let mut s = session(true);
         edit(&mut s, 1, "old draft");
         let old = s.next_commit().unwrap();
-        assert_eq!(s.observe("agent publication"), StorageObservation::Deferred);
+        assert!(matches!(
+            s.observe("agent publication"),
+            StorageObservation::Deferred(_)
+        ));
         edit(&mut s, 2, "newer human draft");
         assert_eq!(s.complete(old.sequence, result), Completion::Retired);
-        assert_eq!(s.baseline, "base");
+        assert_eq!(s.baseline.as_str(), "base");
         assert_eq!(s.revision, 2);
         assert!(s.dirty && s.conflicted() && !s.drained());
-        assert_eq!(s.error.as_deref(), Some("external-conflict"));
+        assert_eq!(
+            s.conflict.as_ref().unwrap().theirs.as_str(),
+            "agent publication"
+        );
         assert!(s.take_receipt().is_none());
         assert!(s.next_commit().is_none());
         assert!(!s.retry());
-        assert_eq!(s.reload_external().as_deref(), Some("agent publication"));
+        assert_eq!(
+            s.reload_external().as_ref().map(|b| b.as_str()),
+            Some("agent publication")
+        );
         assert!(s.drained());
-        assert_eq!(s.baseline, "agent publication");
+        assert_eq!(s.baseline.as_str(), "agent publication");
         assert!(s.error.is_none());
     }
 }
@@ -101,8 +128,11 @@ fn disk_adoption_is_byte_exact_and_never_queues_writeback() {
     for content in samples {
         let mut s = session(false);
         edit(&mut s, 1, "discarded local input");
-        assert_eq!(s.observe(&content), StorageObservation::Adopted);
-        assert_eq!(s.baseline.as_bytes(), content.as_bytes());
+        assert!(matches!(
+            s.observe(&content),
+            StorageObservation::Adopted { .. }
+        ));
+        assert_eq!(s.baseline.as_str().as_bytes(), content.as_bytes());
         assert!(s.drained());
         assert!(s.next_commit().is_none());
         assert!(s.take_receipt().is_none());
@@ -116,11 +146,17 @@ fn local_rejected_old_write_adopts_the_latest_disk_snapshot_and_settles_pending(
     edit(&mut s, 1, "first");
     let old = s.next_commit().unwrap();
     edit(&mut s, 2, "latest");
-    assert_eq!(
-        s.complete(old.sequence, Ok(("latest".into(), true))),
-        Completion::Adopted
-    );
-    assert_eq!(s.baseline, "latest");
+    assert!(matches!(
+        s.complete(
+            old.sequence,
+            Ok(WriteOutcome::Conflict {
+                remote_text: "latest".into_buffer(),
+                remote_revision: None
+            })
+        ),
+        Completion::Adopted { .. }
+    ));
+    assert_eq!(s.baseline.as_str(), "latest");
     assert!(s.drained());
     assert!(s.next_commit().is_none());
     assert!(s.error.is_none());
@@ -129,9 +165,15 @@ fn local_rejected_old_write_adopts_the_latest_disk_snapshot_and_settles_pending(
 #[test]
 fn new_input_after_disk_adoption_waits_for_old_success_failure_or_conflict() {
     for result in [
-        Ok(("old".into(), false)),
-        Ok(("old disk".into(), true)),
-        Err("old failure".into()),
+        Ok(WriteOutcome::Written {
+            text: "old".into_buffer(),
+            revision: None,
+        }),
+        Ok(WriteOutcome::Conflict {
+            remote_text: "old disk".into_buffer(),
+            remote_revision: None,
+        }),
+        Err(SessionError::new(ErrorKind::Io, "old failure")),
     ] {
         let mut s = session(false);
         edit(&mut s, 1, "old");
@@ -140,12 +182,21 @@ fn new_input_after_disk_adoption_waits_for_old_success_failure_or_conflict() {
         edit(&mut s, 3, "adopted disk plus new typing");
         assert!(s.next_commit().is_none());
         assert_eq!(s.complete(old.sequence, result), Completion::Retired);
-        assert_eq!(s.baseline, "adopted disk");
+        assert_eq!(s.baseline.as_str(), "adopted disk");
         assert!(s.error.is_none());
         assert!(s.take_receipt().is_none());
         let current = s.next_commit().unwrap();
-        assert_eq!(current.snapshot.text, "adopted disk plus new typing");
-        s.complete(current.sequence, Ok((current.snapshot.text, false)));
+        assert_eq!(
+            current.snapshot.text.as_str(),
+            "adopted disk plus new typing"
+        );
+        s.complete(
+            current.sequence,
+            Ok(WriteOutcome::Written {
+                text: current.snapshot.text.into_buffer(),
+                revision: None,
+            }),
+        );
         assert!(s.drained());
     }
 }
@@ -162,11 +213,11 @@ fn persistence_errors_keep_input_retryable_and_do_not_busy_loop() {
         edit(&mut s, 1, "human input");
         let old = s.next_commit().unwrap();
         assert_eq!(
-            s.complete(old.sequence, Err(error.into())),
-            Completion::Failed(error.into())
+            s.complete(old.sequence, Err(SessionError::new(ErrorKind::Io, error))),
+            Completion::Failed(SessionError::new(ErrorKind::Io, error))
         );
-        assert_eq!(s.error.as_deref(), Some(error));
-        assert_eq!(s.baseline, "base");
+        assert_eq!(s.error.as_ref().map(|e| e.message.as_str()), Some(error));
+        assert_eq!(s.baseline.as_str(), "base");
         assert!(s.dirty && !s.drained());
         assert!(!s.needs_snapshot);
         assert!(s.next_commit().is_none());
@@ -174,11 +225,17 @@ fn persistence_errors_keep_input_retryable_and_do_not_busy_loop() {
         assert!(s.needs_snapshot);
         s.enqueue(Snapshot {
             revision: 1,
-            text: "human input".into(),
+            text: "human input".into_buffer(),
         });
         let retried = s.next_commit().unwrap();
-        assert_eq!(retried.snapshot.text, "human input");
-        s.complete(retried.sequence, Ok((retried.snapshot.text, false)));
+        assert_eq!(retried.snapshot.text.as_str(), "human input");
+        s.complete(
+            retried.sequence,
+            Ok(WriteOutcome::Written {
+                text: retried.snapshot.text.into_buffer(),
+                revision: None,
+            }),
+        );
         assert!(s.drained());
     }
 }

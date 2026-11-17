@@ -104,7 +104,7 @@ impl DocLayout {
         point(p.x, p.y + px(scroll_now) - self.scroll)
     }
 
-    pub(super) fn leaf_of(&self, offset: usize) -> Option<&Leaf> {
+    pub fn leaf_of(&self, offset: usize) -> Option<&Leaf> {
         let i = self.leaves.partition_point(|l| l.source().start <= offset);
         let leaf = self.leaves.get(i.checked_sub(1)?)?;
         (offset <= leaf.source().end).then_some(leaf)
@@ -213,8 +213,14 @@ impl DocLayout {
         if range.is_empty() {
             return out;
         }
-        for leaf in &self.leaves {
+        let first = self
+            .leaves
+            .partition_point(|l| l.source().end < range.start);
+        for leaf in &self.leaves[first..] {
             let s = leaf.source();
+            if s.start >= range.end {
+                break;
+            }
             if !leaf.entry.line_break || s.end < range.start || s.end >= range.end {
                 continue;
             }
@@ -229,13 +235,16 @@ impl DocLayout {
 
     /// Boxes covering a source range's visible text, one per row of each
     /// leaf — what an inline mark's background covers (the text's content
-    /// area, not the whole line box).
+    /// area, not the whole line box). Uses `partition_point` (`TA-13`).
     pub fn range_boxes(&self, range: Range<usize>) -> Vec<Bounds<Pixels>> {
         let mut out = Vec::new();
-        for leaf in &self.leaves {
+        let first = self
+            .leaves
+            .partition_point(|l| l.source().end <= range.start);
+        for leaf in &self.leaves[first..] {
             let s = leaf.source();
-            if s.end <= range.start || s.start >= range.end {
-                continue;
+            if s.start >= range.end {
+                break;
             }
             let a = leaf
                 .entry

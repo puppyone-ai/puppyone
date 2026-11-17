@@ -42,7 +42,8 @@ pub fn set_heading(state: &EditorState, level: u8) -> Option<Transaction> {
     let mut changes = Vec::new();
     for line in selected_lines(state) {
         let range = doc.line_range(line);
-        let text = doc.line(line);
+        let text_cow = doc.line_cow(line);
+        let text = text_cow.as_ref();
         let hashes = text.bytes().take_while(|b| *b == b'#').count();
         let existing = if (1..=6).contains(&hashes)
             && text[hashes..]
@@ -90,7 +91,10 @@ pub fn toggle_list(state: &EditorState, syntax: &Syntax, kind: ListKind) -> Opti
     let mut changes = Vec::new();
     for (index, (&line, item)) in lines.iter().zip(&items).enumerate() {
         let range = doc.line_range(line);
-        let from = item.map_or(range.start + leading(doc.line(line)), |i| i.marker_from);
+        let from = item.map_or_else(
+            || range.start + leading(&doc.line_cow(line)),
+            |i| i.marker_from,
+        );
         let to = item.map_or(from, |i| i.content_from);
         let marker = if matching {
             String::new()
@@ -111,11 +115,12 @@ pub fn toggle_quote(state: &EditorState) -> Option<Transaction> {
     let doc = &state.doc;
     let lines: Vec<usize> = selected_lines(state).collect();
     let quoted = |text: &str| text.trim_start().starts_with('>');
-    let all = lines.iter().all(|&l| quoted(doc.line(l)));
+    let all = lines.iter().all(|&l| quoted(&doc.line_cow(l)));
     let mut changes = Vec::new();
     for &line in &lines {
         let range = doc.line_range(line);
-        let text = doc.line(line);
+        let text_cow = doc.line_cow(line);
+        let text = text_cow.as_ref();
         let lead = text.len() - text.trim_start().len();
         if all {
             let rest = &text[lead + 1..];
@@ -152,7 +157,7 @@ pub fn continue_list_item(
     if first
         && caret == line.end
         && doc
-            .slice(item.content_from.min(line.end)..line.end)
+            .slice_cow(item.content_from.min(line.end)..line.end)
             .trim()
             .is_empty()
     {
@@ -185,7 +190,7 @@ pub fn continue_list_item(
     let prefix = if first {
         format!(
             "{}{} {}",
-            doc.slice(line.start..item.marker_from),
+            doc.slice_cow(line.start..item.marker_from),
             marker,
             if item.task.is_some() { "[ ] " } else { "" }
         )
@@ -223,7 +228,8 @@ pub fn continue_quote(state: &EditorState) -> Option<Transaction> {
     let doc = &state.doc;
     let caret = state.selection.head;
     let line = doc.line_range(doc.line_index(caret));
-    let text = doc.line(doc.line_index(caret));
+    let text_cow = doc.line_cow(doc.line_index(caret));
+    let text = text_cow.as_ref();
     let lead = text.len() - text.trim_start().len();
     if !text[lead..].starts_with('>') {
         return None;
@@ -304,7 +310,8 @@ pub fn indent(state: &EditorState, syntax: &Syntax, direction: i32) -> Option<Tr
             continue;
         }
         for line in doc.line_index(item.range.start)..=doc.line_index(item.range.end) {
-            let text = doc.line(line);
+            let text_cow = doc.line_cow(line);
+            let text = text_cow.as_ref();
             if text.trim().is_empty() {
                 continue;
             }

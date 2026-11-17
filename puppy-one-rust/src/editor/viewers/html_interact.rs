@@ -19,10 +19,7 @@ use super::{
 use crate::{
     editor::{
         navigation::{self, Reference, ReferenceContext, Status},
-        registry::{
-            SurfaceEvent, SurfaceEvents, SurfaceRequest, ViewerSurface, document_folder,
-            document_source,
-        },
+        registry::{SurfaceEvent, SurfaceEvents, SurfaceRequest, ViewerSurface, viewer_budget},
     },
     localization::{t, tf},
     platform::{
@@ -43,8 +40,6 @@ use std::{
 };
 
 const INTERACTION_CSS: &str = include_str!("../../../assets/web/html-preview-interaction.css");
-/// `html-artifact` resourcePolicy.maxSourceBytes.
-pub(super) const BUDGET: u64 = 4 * 1024 * 1024;
 /// `projectCloudHtml`: a hosted document's assets come through its
 /// provider, at most 64 references and 4 MiB per projection.
 const MAX_REFERENCES: usize = 64;
@@ -126,6 +121,7 @@ pub(super) struct Inner {
     file_mode: bool,
     /// The window's theme, which the page's tool chrome follows.
     dark: Cell<bool>,
+    scroll_ratio: Rc<Cell<f32>>,
     window: AnyWindowHandle,
     pub notice: Rc<RefCell<Option<SharedString>>>,
     state: RefCell<State>,
@@ -141,12 +137,17 @@ impl Interact {
     pub fn new(
         request: &SurfaceRequest,
         source: Rc<dyn ViewerSurface>,
+        scroll_ratio: Rc<Cell<f32>>,
         window: &Window,
         cx: &mut App,
     ) -> Self {
-        let (folder, assets) = (document_folder(request.id), document_source(request.id));
+        let (folder, assets) = (request.folder.clone(), request.web_source.clone());
         let workspace = request.workspace.clone();
         let (name, dark) = (request.name.to_owned(), request.dark);
+        let state = State {
+            references: request.references.clone(),
+            ..State::default()
+        };
         Self(Rc::new(Inner {
             source,
             frame: cx.new(|_| WebFrame::new(None, dark)),
@@ -159,9 +160,10 @@ impl Interact {
             name: Rc::new(RefCell::new(name)),
             file_mode: request.file_mode,
             dark: Cell::new(dark),
+            scroll_ratio,
             window: window.window_handle(),
             notice: Rc::default(),
-            state: RefCell::default(),
+            state: RefCell::new(state),
         }))
     }
     pub fn folder(&self) -> Option<PathBuf> {
@@ -173,8 +175,39 @@ impl Interact {
     pub fn access(&self) -> Access {
         self.state.borrow().access
     }
-    pub fn rename(&self, name: &str) {
+    /// Updates the bound workspace path and immediately refreshes non-empty
+    /// documents so `link_script` `sourceUrl` and folder-access keys match the
+    /// renamed file (`TODO-94`).
+    pub fn rename(&self, name: &str, cx: &mut App) {
+        if self.name.borrow().as_str() == name {
+            return;
+        }
         *self.name.borrow_mut() = name.to_owned();
+        {
+            let mut st = self.state.borrow_mut();
+            st.digest.clear();
+            st.access = Access::None;
+            st.asking = false;
+        }
+        let text = self.source.text(cx).unwrap_or_default();
+        if !super::html::is_empty_page(&text) {
+            self.refresh(cx);
+        } else {
+            self.is_empty.set(true);
+        }
+    }
+    pub fn query_scroll(&self, cx: &App) {
+        self.frame
+            .read(cx)
+            .evaluate("window.__puppyoneReportScroll&&window.__puppyoneReportScroll()");
+    }
+    #[cfg(test)]
+    pub fn bound_name(&self) -> String {
+        self.name.borrow().clone()
+    }
+    #[cfg(test)]
+    pub fn current_entry_html(&self, cx: &App) -> Option<String> {
+        self.frame.read(cx).entry_html().map(str::to_owned)
     }
     /// The window's theme changed: the next tool the page shows follows it.
     pub fn set_dark(&self, dark: bool) {
@@ -402,6 +435,7 @@ impl Interact {
             scripts.push_str(&html_page::folder_script(&name, storage));
         }
         scripts.push_str(&html_page::link_script(page_url.as_deref()));
+        scripts.push_str(&preview_scroll_script(self.scroll_ratio.get()));
         if self.file_mode {
             let mut st = self.state.borrow_mut();
             st.tool_mode = HtmlToolMode::None;
@@ -419,16 +453,17 @@ impl Interact {
                 html_preview::INTERACTIVE_HEADER,
             )
         };
+        let budget = viewer_budget("html-artifact");
         let (tx, rx) = async_channel::unbounded::<String>();
         let content = Content {
             source: self
                 .assets
                 .clone()
                 .filter(|_| self.folder.is_none())
-                .map(|source| Source(Arc::new(Budgeted::new(source, MAX_REFERENCES, BUDGET)))),
+                .map(|source| Source(Arc::new(Budgeted::new(source, MAX_REFERENCES, budget)))),
             root: self.folder.clone(),
             entry: Entry::Html(preview_html(text, csp, &scripts)),
-            max_bytes: BUDGET,
+            max_bytes: budget,
             assets: vec![],
             ipc: Some(Ipc(tx)),
             policy: Some(policy),
@@ -532,6 +567,12 @@ impl Interact {
                     );
                 }
             }
+        }
+    }
+    pub fn emit_find_result(&self, current: usize, total: usize, cx: &mut App) {
+        let events = self.state.borrow().events.clone();
+        if let Some(events) = events {
+            events(SurfaceEvent::FindResult { current, total }, cx);
         }
     }
     fn emit_tool(&self, event: HtmlToolEvent, cx: &mut App) {
@@ -762,6 +803,11 @@ impl Interact {
         cx: &mut App,
     ) {
         match message["type"].as_str() {
+            Some("poFindResult") => {
+                let current = message["current"].as_u64().unwrap_or(0) as usize;
+                let total = message["total"].as_u64().unwrap_or(0) as usize;
+                self.emit_find_result(current, total, cx);
+            }
             Some("edit") => {
                 if let Some(on_edit) = self.state.borrow().on_edit.clone() {
                     on_edit(cx);
@@ -815,6 +861,21 @@ impl Interact {
                     .detach();
             }
             Some("po-tool") => self.receive_tool(&message, cx),
+            Some("scroll") => {
+                if let Some(ratio) = message["ratio"].as_f64()
+                    && ratio.is_finite()
+                {
+                    let clamped = (ratio as f32).clamp(0.0, 1.0);
+                    self.scroll_ratio.set(clamped);
+                    let restore = format!(
+                        "(()=>{{const el=document.scrollingElement||document.documentElement||document.body;\
+                         if(!el)return;const m=Math.max(0,el.scrollHeight-el.clientHeight);\
+                         if(m>0)window.scrollTo(0,m*{clamped:.6});}})()"
+                    );
+                    self.frame
+                        .update(cx, |f, _| f.set_restore_script(Some(restore)));
+                }
+            }
             _ => {}
         }
     }
@@ -903,6 +964,22 @@ impl Interact {
         }
         let _ = cx.update_window(self.window, |_, window, _| window.refresh());
     }
+}
+
+/// Injected scroll listener & initial scroll restorer for `viewportState` (`VW-23`).
+fn preview_scroll_script(initial_ratio: f32) -> String {
+    let init = initial_ratio.clamp(0.0, 1.0);
+    format!(
+        "<script>(()=>{{const ipc=window.ipc,init={init:.6};\
+const scroller=()=>document.scrollingElement||document.documentElement||document.body;\
+const apply=r=>{{const el=scroller();if(!el)return;const m=Math.max(0,el.scrollHeight-el.clientHeight);if(m>0)window.scrollTo(0,m*r)}};\
+if(init>0){{addEventListener('DOMContentLoaded',()=>apply(init),{{once:true}});addEventListener('load',()=>apply(init),{{once:true}});requestAnimationFrame(()=>apply(init))}}\
+let queued=false;\
+const report=()=>{{if(queued)return;queued=true;requestAnimationFrame(()=>{{queued=false;const el=scroller();if(!el)return;\
+const m=Math.max(0,el.scrollHeight-el.clientHeight);const ratio=m>0?Math.min(1,Math.max(0,el.scrollTop/m)):0;\
+ipc&&ipc.postMessage(JSON.stringify({{type:'scroll',ratio}}))}})}};\
+addEventListener('scroll',report,{{passive:true}});window.__puppyoneReportScroll=report}})();</script>"
+    )
 }
 
 /// Interact's place while the page waits: a loading mark with its words,

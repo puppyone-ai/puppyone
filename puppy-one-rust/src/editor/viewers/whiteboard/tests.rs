@@ -36,6 +36,11 @@ fn surface(cx: &mut VisualTestContext, text: &str, pack: bool, dir: &Path) -> Wh
             scale: Scale::default(),
             workspace: None,
             file_mode: false,
+            folder: None,
+            web_source: None,
+            assets: None,
+            references: None,
+            source_kind: crate::editor::registry::SourceKind::Local,
         };
         // These tests qualify the host protocol and source editor. The separate
         // required real-pack test qualifies the full SDK assets.
@@ -154,14 +159,14 @@ fn source_mode_retires_board_writes_and_returns_the_latest_json(app: &mut TestAp
     let s = surface(cx, BLANK, true, dir.path());
     ready(&s, cx);
     let old = generation(&s, cx);
-    cx.update(|w, cx| s.pane_segment("source", w, cx));
+    cx.update(|w, cx| s.pane_segment(crate::editor::registry::PaneSegmentId::Source, w, cx));
     assert_eq!(s.mode.get(), Mode::Source);
     assert!(!s.board.read_with(cx, |v, _| v.active));
     content(&s, cx, old, "late board");
     let edited = format!("\n{BLANK}\n");
     cx.update(|w, cx| s.source.replace_text(&edited, w, cx));
     assert_eq!(text(&s, cx), edited);
-    cx.update(|w, cx| s.pane_segment("live", w, cx));
+    cx.update(|w, cx| s.pane_segment(crate::editor::registry::PaneSegmentId::Live, w, cx));
     ready(&s, cx);
     content(&s, cx, old, "late after returning");
     assert_eq!(s.mode.get(), Mode::Board);
@@ -184,10 +189,10 @@ fn missing_packs_still_allow_source_repair_and_never_admit_page_messages(app: &m
         let g = generation(&s, cx);
         content(&s, cx, g, BLANK);
         assert_eq!(text(&s, cx), invalid);
-        cx.update(|w, cx| s.pane_segment("source", w, cx));
+        cx.update(|w, cx| s.pane_segment(crate::editor::registry::PaneSegmentId::Source, w, cx));
         assert_eq!(text(&s, cx), invalid);
         cx.update(|w, cx| s.source.replace_text(BLANK, w, cx));
-        cx.update(|w, cx| s.pane_segment("live", w, cx));
+        cx.update(|w, cx| s.pane_segment(crate::editor::registry::PaneSegmentId::Live, w, cx));
         assert_eq!(text(&s, cx), BLANK);
         assert!(!s.board.read_with(cx, |v, _| v.ready));
     }
@@ -283,7 +288,7 @@ fn only_the_current_ready_board_can_open_workspace_links(app: &mut TestAppContex
         *seen.borrow(),
         [SurfaceEvent::OpenPaths(vec!["notes/a.md".into()])]
     );
-    cx.update(|w, cx| s.pane_segment("source", w, cx));
+    cx.update(|w, cx| s.pane_segment(crate::editor::registry::PaneSegmentId::Source, w, cx));
     let inactive = generation(&s, cx);
     ready(&s, cx);
     message(
@@ -380,7 +385,7 @@ fn pack_verification_runs_off_the_ui_thread_and_mounts_the_latest_document(
         ui_thread
     );
     // The worker is deliberately held while the real source editor remains usable.
-    cx.update(|w, cx| s.pane_segment("source", w, cx));
+    cx.update(|w, cx| s.pane_segment(crate::editor::registry::PaneSegmentId::Source, w, cx));
     let edited = format!("\n{BLANK}\n");
     cx.update(|w, cx| {
         s.source.replace_text(&edited, w, cx);
@@ -409,7 +414,7 @@ fn pack_verification_runs_off_the_ui_thread_and_mounts_the_latest_document(
         && !v.enabled
         && !v.active
         && v.dark));
-    cx.update(|w, cx| s.pane_segment("live", w, cx));
+    cx.update(|w, cx| s.pane_segment(crate::editor::registry::PaneSegmentId::Live, w, cx));
     assert_eq!(text(&s, cx), edited);
     assert!(s.board.read_with(cx, |v, _| !v.enabled));
 }
@@ -467,7 +472,7 @@ fn a_missing_pack_finishes_loading_without_changing_source_or_starting_installat
     assert!(s.board.read_with(cx, |v, _| v.pack.is_none()
         && v.frame.is_none()
         && !v.installing));
-    cx.update(|w, cx| s.pane_segment("source", w, cx));
+    cx.update(|w, cx| s.pane_segment(crate::editor::registry::PaneSegmentId::Source, w, cx));
     assert_eq!(text(&s, cx), "{broken");
 }
 

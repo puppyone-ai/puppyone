@@ -156,15 +156,15 @@ fn traversal_absolute_paths_and_directories_are_rejected() {
 }
 #[test]
 fn unsupported_files_fail_without_modifying_bytes() {
-    for bytes in [
-        vec![0xff, 0xfe],
-        b"a\0b".to_vec(),
-        b"one\r\ntwo\n".to_vec(),
-        b"one\rtwo".to_vec(),
-        vec![b'a'; MAX_TEXT_BYTES + 1],
+    for (bytes, expected_kind) in [
+        (b"a\0b".to_vec(), ErrorKind::InvalidData),
+        (vec![0xff, 0xfe, 0x00, 0x00], ErrorKind::InvalidData),
+        (vec![0xfe, 0xff, 0x00, 0x00], ErrorKind::InvalidData),
+        (vec![b'a'; MAX_TEXT_BYTES + 1], ErrorKind::InvalidInput),
     ] {
         let (temp, ws) = setup(&bytes);
-        assert!(ws.read(Path::new("note.md")).is_err());
+        let err = ws.read(Path::new("note.md")).unwrap_err();
+        assert_eq!(err.kind, expected_kind);
         assert_eq!(std::fs::read(temp.path().join("note.md")).unwrap(), bytes);
     }
 }
@@ -215,14 +215,151 @@ fn invalid_save_payload_leaves_original_bytes_untouched() {
 #[cfg(unix)]
 #[test]
 fn saving_a_hard_link_does_not_break_link_semantics() {
-    let (temp, ws) = setup(b"original");
-    std::fs::hard_link(temp.path().join("note.md"), temp.path().join("other.md")).unwrap();
+    use std::os::unix::fs::MetadataExt;
+    let (temp, ws) = setup(b"original content");
+    let primary = temp.path().join("note.md");
+    let peer = temp.path().join("other.md");
+    std::fs::hard_link(&primary, &peer).unwrap();
+    let ino_before = std::fs::metadata(&primary).unwrap().ino();
+    assert_eq!(ino_before, std::fs::metadata(&peer).unwrap().ino());
+
+    // DP-30: hard-linked files save in place via sibling backup, preserving
+    // shared inode identity across all links (both growing and shrinking).
     let document = ws.read(Path::new("note.md")).unwrap();
-    assert!(ws.save(&document, "new").is_err());
+    let saved = ws
+        .save(&document, "expanded hard-link content\nsecond line\n")
+        .unwrap();
+    assert!(!saved.updated);
     assert_eq!(
-        std::fs::read(temp.path().join("other.md")).unwrap(),
-        b"original"
+        std::fs::read_to_string(&peer).unwrap(),
+        "expanded hard-link content\nsecond line\n"
     );
+    assert_eq!(std::fs::metadata(&primary).unwrap().ino(), ino_before);
+    assert_eq!(std::fs::metadata(&peer).unwrap().ino(), ino_before);
+    assert_eq!(std::fs::metadata(&primary).unwrap().nlink(), 2);
+
+    // Shrinking in place must truncate cleanly and leave no backup file behind.
+    let shrunk = ws.save(&saved.document, "tiny").unwrap();
+    assert!(!shrunk.updated);
+    assert_eq!(std::fs::read_to_string(&peer).unwrap(), "tiny");
+    assert_eq!(std::fs::metadata(&primary).unwrap().ino(), ino_before);
+    assert_eq!(
+        std::fs::read_dir(temp.path()).unwrap().count(),
+        2,
+        "only the two hard-linked entries should exist"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn xattrs_and_creation_time_survive_atomic_save() {
+    use std::ffi::CString;
+    let (temp, ws) = setup(b"initial\n");
+    let file_path = temp.path().join("note.md");
+    let c_path = CString::new(file_path.as_os_str().as_encoded_bytes()).unwrap();
+    #[cfg(target_os = "macos")]
+    let attr_name = CString::new("com.puppyone.test-tag").unwrap();
+    #[cfg(not(target_os = "macos"))]
+    let attr_name = CString::new("user.puppyone.test-tag").unwrap();
+    let attr_val = b"finder-tag-payload";
+
+    #[cfg(target_os = "macos")]
+    let set_rc = unsafe {
+        libc::setxattr(
+            c_path.as_ptr(),
+            attr_name.as_ptr(),
+            attr_val.as_ptr().cast(),
+            attr_val.len(),
+            0,
+            0,
+        )
+    };
+    #[cfg(not(target_os = "macos"))]
+    let set_rc = unsafe {
+        libc::setxattr(
+            c_path.as_ptr(),
+            attr_name.as_ptr(),
+            attr_val.as_ptr().cast(),
+            attr_val.len(),
+            0,
+        )
+    };
+    assert_eq!(
+        set_rc,
+        0,
+        "setxattr failed: {}",
+        std::io::Error::last_os_error()
+    );
+
+    #[cfg(target_os = "macos")]
+    let pinned_birthtime: libc::time_t = 1_700_000_123;
+    #[cfg(target_os = "macos")]
+    {
+        let mut attrlist = libc::attrlist {
+            bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+            reserved: 0,
+            commonattr: libc::ATTR_CMN_CRTIME,
+            volattr: 0,
+            dirattr: 0,
+            fileattr: 0,
+            forkattr: 0,
+        };
+        let mut crtime = libc::timespec {
+            tv_sec: pinned_birthtime,
+            tv_nsec: 0,
+        };
+        let rc = unsafe {
+            libc::setattrlist(
+                c_path.as_ptr(),
+                (&raw mut attrlist).cast(),
+                (&raw mut crtime).cast(),
+                std::mem::size_of::<libc::timespec>(),
+                0,
+            )
+        };
+        assert_eq!(
+            rc,
+            0,
+            "setattrlist failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    let doc = ws.read(Path::new("note.md")).unwrap();
+    let saved = ws.save(&doc, "saved with metadata intact\n").unwrap();
+    assert!(!saved.updated);
+
+    let mut got = vec![0u8; 64];
+    #[cfg(target_os = "macos")]
+    let got_len = unsafe {
+        libc::getxattr(
+            c_path.as_ptr(),
+            attr_name.as_ptr(),
+            got.as_mut_ptr().cast(),
+            got.len(),
+            0,
+            0,
+        )
+    };
+    #[cfg(not(target_os = "macos"))]
+    let got_len = unsafe {
+        libc::getxattr(
+            c_path.as_ptr(),
+            attr_name.as_ptr(),
+            got.as_mut_ptr().cast(),
+            got.len(),
+        )
+    };
+    assert_eq!(got_len, attr_val.len() as isize);
+    assert_eq!(&got[..got_len as usize], attr_val);
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut st = std::mem::MaybeUninit::<libc::stat>::zeroed();
+        assert_eq!(unsafe { libc::stat(c_path.as_ptr(), st.as_mut_ptr()) }, 0);
+        let st = unsafe { st.assume_init() };
+        assert_eq!(st.st_birthtime, pinned_birthtime);
+    }
 }
 #[test]
 fn lists_are_relative_and_directories_sort_first() {
@@ -370,27 +507,55 @@ fn rename_move_copy_import_and_delete_stay_inside_the_grant() {
 #[test]
 fn a_file_windows_folder_reads_legacy_text_and_never_writes_it() {
     let temp = tempdir().unwrap();
-    let gb = encoding_rs::GB18030.encode("旧编码\n").0.into_owned();
+    let gb = encoding_rs::GB18030
+        .encode("旧编码\r\n第二行\r\n")
+        .0
+        .into_owned();
     std::fs::write(temp.path().join("gb.md"), &gb).unwrap();
     std::fs::write(temp.path().join("bytes.md"), b"caf\xe9\n").unwrap();
-    // A project refuses text that is not UTF-8.
+
+    // DP-32: both project windows and file windows decode lossless GB18030 and
+    // UTF-16 with BOM identically and save back in their original encoding,
+    // while lossy bytes open read-only (`TextEncoding::Lossy`).
+    for ws in [
+        Workspace::open(temp.path()).unwrap(),
+        Workspace::open_with(temp.path(), true).unwrap(),
+    ] {
+        let gb_doc = ws.read(Path::new("gb.md")).unwrap();
+        assert_eq!(gb_doc.encoding, TextEncoding::Gb18030);
+        assert_eq!(gb_doc.line_ending, LineEnding::Crlf);
+        assert!(!gb_doc.is_lossy_readonly());
+        assert_eq!(gb_doc.readonly_reason(), None);
+
+        let lossy_doc = ws.read(Path::new("bytes.md")).unwrap();
+        assert_eq!(lossy_doc.encoding, TextEncoding::Lossy);
+        assert!(lossy_doc.is_lossy_readonly());
+        assert!(lossy_doc.readonly_reason().is_some());
+        assert!(lossy_doc.text.contains('\u{fffd}'));
+        assert_eq!(
+            ws.save(&lossy_doc, "café\n").unwrap_err().kind,
+            ErrorKind::PermissionDenied
+        );
+        assert_eq!(
+            std::fs::read(temp.path().join("bytes.md")).unwrap(),
+            b"caf\xe9\n"
+        );
+    }
+
+    // Round-trip save in GB18030 preserves GB18030 encoding and CRLF line endings.
     let project = Workspace::open(temp.path()).unwrap();
-    assert!(project.read(Path::new("gb.md")).is_err());
-    // A file window decodes GB18030, else shows replacement characters.
-    let window = Workspace::open_with(temp.path(), true).unwrap();
-    let doc = window.read(Path::new("gb.md")).unwrap();
+    let gb_doc = project.read(Path::new("gb.md")).unwrap();
+    assert_eq!(gb_doc.text, "旧编码\n第二行\n");
+    let saved = project.save(&gb_doc, "新编码保存\n第二行\n").unwrap();
+    assert!(!saved.updated);
+    assert_eq!(saved.document.encoding, TextEncoding::Gb18030);
+    let expected_gb = encoding_rs::GB18030
+        .encode("新编码保存\r\n第二行\r\n")
+        .0
+        .into_owned();
     assert_eq!(
-        (doc.text.as_str(), doc.encoding),
-        ("旧编码\n", TextEncoding::Gb18030)
-    );
-    let doc = window.read(Path::new("bytes.md")).unwrap();
-    assert_eq!(doc.encoding, TextEncoding::Unknown);
-    assert!(doc.text.contains('\u{fffd}'));
-    // Neither is ever written back.
-    assert!(window.save(&doc, "café\n").is_err());
-    assert_eq!(
-        std::fs::read(temp.path().join("bytes.md")).unwrap(),
-        b"caf\xe9\n"
+        std::fs::read(temp.path().join("gb.md")).unwrap(),
+        expected_gb
     );
 }
 
@@ -1066,6 +1231,128 @@ fn whiteboard_text_admission_and_duplicate_names_keep_the_full_registered_suffix
         assert_eq!(
             std::fs::read_to_string(dir.path().join(name)).unwrap(),
             body
+        );
+    }
+}
+
+#[test]
+fn utf16_bom_encodings_and_mixed_line_endings_round_trip_cleanly() {
+    let temp = tempdir().unwrap();
+
+    // UTF-16LE with BOM (`FF FE`) + LF
+    let mut utf16le = vec![0xff, 0xfe];
+    for u in "你好 UTF-16LE\nline 2\n".encode_utf16() {
+        utf16le.extend_from_slice(&u.to_le_bytes());
+    }
+    std::fs::write(temp.path().join("le.txt"), &utf16le).unwrap();
+
+    // UTF-16BE with BOM (`FE FF`) + CRLF
+    let mut utf16be = vec![0xfe, 0xff];
+    for u in "你好 UTF-16BE\r\nline 2\r\n".encode_utf16() {
+        utf16be.extend_from_slice(&u.to_be_bytes());
+    }
+    std::fs::write(temp.path().join("be.txt"), &utf16be).unwrap();
+
+    // Mixed line endings (dominant CRLF) and lone CR
+    std::fs::write(temp.path().join("mixed.txt"), b"a\r\nb\r\nc\n").unwrap();
+    std::fs::write(temp.path().join("cr.txt"), b"first\rsecond\r").unwrap();
+
+    let ws = Workspace::open(temp.path()).unwrap();
+
+    let le_doc = ws.read(Path::new("le.txt")).unwrap();
+    assert_eq!(le_doc.encoding, TextEncoding::Utf16Le);
+    assert_eq!(le_doc.line_ending, LineEnding::Lf);
+    assert_eq!(le_doc.text, "你好 UTF-16LE\nline 2\n");
+    let le_saved = ws.save(&le_doc, "更新 LE 🚀\n").unwrap();
+    assert_eq!(le_saved.document.encoding, TextEncoding::Utf16Le);
+    let le_disk = std::fs::read(temp.path().join("le.txt")).unwrap();
+    assert!(le_disk.starts_with(&[0xff, 0xfe]));
+    assert_eq!(ws.read(Path::new("le.txt")).unwrap().text, "更新 LE 🚀\n");
+
+    let be_doc = ws.read(Path::new("be.txt")).unwrap();
+    assert_eq!(be_doc.encoding, TextEncoding::Utf16Be);
+    assert_eq!(be_doc.line_ending, LineEnding::Crlf);
+    assert_eq!(be_doc.text, "你好 UTF-16BE\nline 2\n");
+    ws.save(&be_doc, "更新 BE\n第二行\n").unwrap();
+    let be_disk = std::fs::read(temp.path().join("be.txt")).unwrap();
+    assert!(be_disk.starts_with(&[0xfe, 0xff]));
+    let be_reopened = ws.read(Path::new("be.txt")).unwrap();
+    assert_eq!(be_reopened.text, "更新 BE\n第二行\n");
+    assert_eq!(be_reopened.line_ending, LineEnding::Crlf);
+
+    // DP-31: Mixed line endings open read-only until normalized explicitly.
+    let mut mixed_doc = ws.read(Path::new("mixed.txt")).unwrap();
+    assert_eq!(mixed_doc.text, "a\nb\nc\n");
+    assert_eq!(
+        mixed_doc.line_ending,
+        LineEnding::Mixed {
+            dominant_crlf: true
+        }
+    );
+    assert!(mixed_doc.line_ending_anomaly());
+    assert!(mixed_doc.readonly_reason().is_some());
+    assert_eq!(
+        ws.save(&mixed_doc, "a\nb\nc\nd\n").unwrap_err().kind,
+        ErrorKind::LineEndingNormalizationRequired
+    );
+    assert_eq!(
+        std::fs::read(temp.path().join("mixed.txt")).unwrap(),
+        b"a\r\nb\r\nc\n",
+        "un-normalized save must never touch disk"
+    );
+
+    mixed_doc.normalize_line_endings();
+    assert_eq!(mixed_doc.line_ending, LineEnding::Crlf);
+    assert!(!mixed_doc.line_ending_anomaly());
+    ws.save(&mixed_doc, "a\nb\nc\nd\n").unwrap();
+    assert_eq!(
+        std::fs::read(temp.path().join("mixed.txt")).unwrap(),
+        b"a\r\nb\r\nc\r\nd\r\n"
+    );
+
+    // Lone CR normalizes to LF on explicit confirmation.
+    let mut cr_doc = ws.read(Path::new("cr.txt")).unwrap();
+    assert_eq!(cr_doc.text, "first\nsecond\n");
+    assert_eq!(cr_doc.line_ending, LineEnding::Cr);
+    assert_eq!(
+        ws.save(&cr_doc, "first\nsecond\n").unwrap_err().kind,
+        ErrorKind::LineEndingNormalizationRequired
+    );
+    cr_doc.normalize_line_endings();
+    assert_eq!(cr_doc.line_ending, LineEnding::Lf);
+    ws.save(&cr_doc, "first\nsecond\n").unwrap();
+    assert_eq!(
+        std::fs::read(temp.path().join("cr.txt")).unwrap(),
+        b"first\nsecond\n"
+    );
+}
+
+#[test]
+fn gb18030_round_trip_fidelity_guard_and_local_version_helpers() {
+    let temp = tempdir().unwrap();
+    let gb_initial = encoding_rs::GB18030.encode("测试往返\n").0.into_owned();
+    std::fs::write(temp.path().join("gb.txt"), &gb_initial).unwrap();
+    std::fs::write(temp.path().join("cr_only.txt"), b"a\rb\r").unwrap();
+
+    let local_ws = local::Workspace::open_with(temp.path(), false).unwrap();
+    let local_cr = local_ws.read(Path::new("cr_only.txt")).unwrap();
+    assert!(local_cr.version.requires_line_ending_normalization());
+    assert_eq!(local_cr.encoding, TextEncoding::Utf8);
+    assert_eq!(local_cr.line_ending, LineEnding::Cr);
+
+    // U+E5E5 is unmappable in WHATWG's gb18030 encoder (`&#58853;` fallback):
+    // DP-32's round-trip fidelity guard must reject the write with
+    // `ErrorKind::EncodingRoundTrip` without modifying disk bytes.
+    let ws = Workspace::open(temp.path()).unwrap();
+    let doc = ws.read(Path::new("gb.txt")).unwrap();
+    let (_, _, unmappable) = encoding_rs::GB18030.encode("\u{e5e5}");
+    if unmappable {
+        let err = ws.save(&doc, "测试\u{e5e5}\n").unwrap_err();
+        assert_eq!(err.kind, ErrorKind::EncodingRoundTrip);
+        assert_eq!(
+            std::fs::read(temp.path().join("gb.txt")).unwrap(),
+            gb_initial,
+            "failed round-trip guard must never touch disk"
         );
     }
 }

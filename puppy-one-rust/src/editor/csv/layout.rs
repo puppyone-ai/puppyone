@@ -17,8 +17,9 @@ pub struct ColumnLayout {
 }
 
 fn estimate(model: &CsvModel) -> Vec<f32> {
-    table::estimate_widths(model.rows(), model.column_count(), |r, c| {
-        r.cells.get(c).map(String::as_str)
+    let rows = model.rows();
+    table::estimate_widths_by_index(rows.len(), model.column_count(), |r, c| {
+        rows.get(r).and_then(|row| row.cell(c))
     })
     .into_iter()
     .map(|w| w.min(COLUMN_INITIAL_MAX_WIDTH))
@@ -91,8 +92,9 @@ impl ColumnLayout {
 
     /// `autoFitColumn`: the uncapped content estimate.
     pub fn auto_fit(&mut self, model: &CsvModel, column: usize) -> bool {
-        let w = table::estimate_widths(model.rows(), model.column_count(), |r, c| {
-            r.cells.get(c).map(String::as_str)
+        let rows = model.rows();
+        let w = table::estimate_widths_by_index(rows.len(), model.column_count(), |r, c| {
+            rows.get(r).and_then(|row| row.cell(c))
         })
         .get(column)
         .copied();

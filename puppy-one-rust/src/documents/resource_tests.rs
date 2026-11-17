@@ -21,10 +21,7 @@ fn settle(d: &mut Documents, wake: &Wake, done: impl Fn(&Documents) -> bool) {
 }
 fn open(provider: Arc<Resources>, name: &str) -> (Documents, Wake) {
     let wake = Wake::default();
-    let mut documents = Documents {
-        workspace: Some(Workspace::from_provider(provider).unwrap()),
-        ..Default::default()
-    };
+    let mut documents = Documents::in_workspace(Workspace::from_provider(provider).unwrap());
     documents.begin(Intent::OpenFile(name.into()), &wake);
     settle(&mut documents, &wake, |d| d.resource.is_some());
     (documents, wake)
@@ -179,8 +176,8 @@ fn a_newer_resource_change_fences_an_inflight_snapshot_and_hidden_previews_resum
     release.send(()).unwrap();
     // Both channels are ready before the foreground wakes. A late read must
     // not be published ahead of the already-arrived change notification.
-    let completion = d.rx.recv_timeout(Duration::from_secs(5)).unwrap();
-    d.tx.send(completion).unwrap();
+    let completion = d.copy_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    d.copy_tx.send(completion).unwrap();
     settle(&mut d, &wake, |d| {
         assert_ne!(bytes(d), [2], "superseded preview must never be published");
         bytes(d) == [3]
@@ -246,8 +243,8 @@ fn a_late_previous_provider_cannot_replace_a_rebound_preview_or_subscription() {
     });
     d.outgoing.clear();
     release.send(()).unwrap();
-    let late = d.rx.recv_timeout(Duration::from_secs(5)).unwrap();
-    d.tx.send(late).unwrap();
+    let late = d.copy_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    d.copy_tx.send(late).unwrap();
     d.poll(&wake);
     assert_eq!(bytes(&d), [3]);
     assert!(d.outgoing.is_empty());

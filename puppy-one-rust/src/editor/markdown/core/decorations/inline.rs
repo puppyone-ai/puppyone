@@ -1,12 +1,17 @@
-//! Inline decorations (inlineDecorations.ts `addInlineMarkdownDecorations`):
-//! the plans of one line become hidden delimiters (or revealed source) and
-//! class spans, by decoration priority.
+//! Inline decorations (`inlineDecorations.ts` `addInlineMarkdownDecorations`):
+//! turns the inline plans of one line into hidden delimiters (or revealed
+//! source), class spans, and first-class [`InlineWidget`]s (`TA-12`, `TA-30`,
+//! `TA-33`, `TA-40`). Contains zero feature-specific math/KaTeX logic.
 use super::builder::{Builder, ClassSpan};
-use crate::editor::markdown::core::{
-    classes::{Class, SourceSyntax},
-    links,
-    plans::{Atom, Plan, Presentation},
-    syntax::{Element, Kind},
+use crate::editor::{
+    markdown::core::{
+        classes::{Class, SourceSyntax},
+        feature::{self, InlineWidgetCx},
+        links,
+        plans::{Atom, Plan, Presentation},
+        syntax::{Element, Kind},
+    },
+    view::decoration::{InlineWidget, Superscript, Underline},
 };
 use gpui::SharedString;
 use std::ops::Range;
@@ -16,10 +21,11 @@ impl Builder<'_> {
     pub fn inline(&mut self, line: usize, plans: &[&Plan], occupied: Vec<Range<usize>>) {
         let cx = self.cx;
         let range = cx.doc.line_range(line);
-        let text = cx.doc.line(line);
+        let text_cow = cx.doc.line_cow(line);
+        let text = text_cow.as_ref();
         let mut entries: Vec<(&Plan, &Element)> = plans
             .iter()
-            .filter_map(|p| Some((*p, &cx.syntax.elements[p.element?])))
+            .filter_map(|p| Some((*p, cx.syntax.elements.get(p.element?)?)))
             .filter(|(_, e)| {
                 e.kind.inline() && e.range.start <= range.end && e.range.end >= range.start
             })
@@ -33,6 +39,14 @@ impl Builder<'_> {
         });
         let link_tokens = links::find_links(text);
         let wiki_tokens = links::find_wiki_links(text);
+        let widget_cx = InlineWidgetCx {
+            doc: cx.doc,
+            theme: cx.theme,
+            assets: cx.assets,
+            references: cx.references,
+            state: &cx.preview.features,
+        };
+
         for (plan, e) in entries {
             if occupied
                 .iter()
@@ -82,8 +96,11 @@ impl Builder<'_> {
                         .clone()
                         .or_else(|| token.map(|t| t.href.clone()))
                         .or_else(|| {
-                            (cx.doc.as_str().as_bytes()[e.range.start] == b'<')
-                                .then(|| cx.doc.slice(content.clone()).trim().to_owned())
+                            let first_byte = cx
+                                .doc
+                                .slice_cow(e.range.start..cx.doc.len().min(e.range.start + 1));
+                            (first_byte.as_bytes().first() == Some(&b'<'))
+                                .then(|| cx.doc.slice_cow(content.clone()).trim().to_owned())
                                 .filter(|h| !h.is_empty())
                         });
                     let Some(href) = href else { continue };
@@ -91,7 +108,6 @@ impl Builder<'_> {
                     if is_external(&href) {
                         classes |= Class::IS_EXTERNAL;
                     }
-                    // `cm-md-document-link-label`: a link to a workspace file.
                     let resolved = cx.references.and_then(|r| r.markdown(&href));
                     if resolved.as_ref().is_some_and(|r| !r.exists) {
                         classes |= Class::IS_MISSING;
@@ -156,41 +172,54 @@ impl Builder<'_> {
                     });
                 }
                 Kind::InlineHtml => self.inline_html(plan, e, reveal),
-                Kind::Emoji
-                | Kind::Entity
-                | Kind::MathInline
-                | Kind::FootnoteReference
-                | Kind::FootnoteDefinition => {
+                Kind::FeatureInline(fid) => {
+                    if !reveal
+                        && let Some(feat) = feature::find(cx.features, fid)
+                        && let Some(Some((mut widget, classes))) =
+                            feature::catch_feature_panic(feat.id(), "inline_widget", || {
+                                feat.inline_widget(e, plan, &widget_cx)
+                            })
+                    {
+                        widget.range = cx.doc.clamp_range(widget.range);
+                        if !widget.range.is_empty() {
+                            if classes != Class::NONE {
+                                self.spans.push(ClassSpan {
+                                    range: widget.range.clone(),
+                                    classes,
+                                    href: None,
+                                });
+                            }
+                            self.inline_widgets.push(widget);
+                        }
+                    }
+                }
+                Kind::Emoji | Kind::Entity | Kind::FootnoteReference | Kind::FootnoteDefinition => {
                     if let Presentation::InlineAtom(Atom::Text(text)) = &plan.presentation
                         && !reveal
                     {
-                        // `.cm-md-footnote-definition`: margin-right 0.5em
-                        // (an en space).
                         let shown = if e.kind == Kind::FootnoteDefinition {
                             format!("{text}\u{2002}")
                         } else {
                             text.clone()
                         };
                         let shown = SharedString::from(shown);
-                        self.replaced.push((e.range.clone(), shown.clone()));
-                        // `.cm-md-footnote-reference`: a `<sup>` at the meta
-                        // size in the link colour.
                         if e.kind == Kind::FootnoteReference {
-                            self.superscripts
-                                .push(crate::editor::view::decoration::Superscript {
+                            self.inline_widgets.push(InlineWidget::superscript(
+                                e.range.clone(),
+                                shown.clone(),
+                                Superscript {
                                     range: e.range.clone(),
                                     text: shown,
                                     size: Some(crate::theme::ty().ui.meta),
                                     color: Some(self.cx.theme.inline.link_color),
                                     lower: false,
-                                });
-                        }
-                        // `MathInlineWidget`: KaTeX's formula once drawn.
-                        if e.kind == Kind::MathInline {
-                            self.inline_math(e.range.clone());
+                                },
+                            ));
+                        } else {
+                            self.inline_widgets
+                                .push(InlineWidget::text(e.range.clone(), shown));
                         }
                         let classes = match e.kind {
-                            Kind::MathInline => Some(Class::MATH),
                             Kind::FootnoteReference => Some(Class::FOOTNOTE_REFERENCE),
                             Kind::FootnoteDefinition => Some(Class::FOOTNOTE),
                             _ => None,
@@ -208,17 +237,12 @@ impl Builder<'_> {
             }
         }
     }
-}
 
-impl Builder<'_> {
-    /// `.is-missing` (dotted) and `.is-ambiguous` (dashed) under a link
-    /// label whose workspace target is missing or names several files.
     fn link_state(
         &mut self,
         label: Range<usize>,
         resolved: Option<&crate::editor::navigation::Resolution>,
     ) {
-        use crate::editor::view::decoration::Underline;
         let Some(resolved) = resolved else { return };
         let inline = &self.cx.theme.inline;
         let size = self.cx.theme.body.text.size;
@@ -238,52 +262,6 @@ impl Builder<'_> {
         });
     }
 
-    /// An inline formula (`$…$`) to be typeset by KaTeX
-    /// (`.cm-md-math-inline-widget .katex`), in the content colour at the
-    /// inline math size.
-    fn inline_math(&mut self, range: std::ops::Range<usize>) {
-        use crate::render_service::{Kind, Request, hex};
-        let source = self.cx.doc.slice(range.clone());
-        let tex = source
-            .strip_prefix('$')
-            .and_then(|s| s.strip_suffix('$'))
-            .unwrap_or(source);
-        let t = crate::editor::tokens::Tokens::get(self.cx.theme.dark, self.cx.theme.scale);
-        let editor = t.color("--po-editor-bg");
-        let request = Request {
-            kind: Kind::Math {
-                display: false,
-                color: hex(t.color("--po-md-content-color")),
-                font_size: t.len("--po-md-math-inline-font-size", 15.),
-            },
-            source: tex.to_owned(),
-            background: hex(editor),
-            scale: 1.,
-        };
-        self.inline_images
-            .push(crate::editor::view::decoration::InlineImage {
-                range,
-                // `.cm-md-math-inline-widget { padding-inline: 0.08em }`.
-                pad: 0.08,
-                radius: 0.,
-                draw: std::rc::Rc::new(move |line, _, _, window, cx| {
-                    let mut request = request.clone();
-                    // On the line's own background (snapshots are opaque).
-                    if let Some(line) = line {
-                        request.background = hex(crate::editor::tokens::over(line, editor));
-                    }
-                    match crate::render_service::get(&request, window, cx) {
-                        crate::render_service::State::Ready(drawn) => Some(drawn),
-                        _ => None,
-                    }
-                }),
-            });
-    }
-
-    /// `applyInlineHtmlPlan`: the tags hide like delimiters (a `q`'s show as
-    /// its quotation marks) and the content takes the element's default
-    /// presentation: weight, slant, rules, monospace, `mark`'s system
-    /// colours, a shifted size, and the colours of its `style`.
     fn inline_html(&mut self, plan: &Plan, e: &Element, reveal: bool) {
         let (Presentation::InlineMark { content, markers }, Some(tag)) =
             (&plan.presentation, e.html.as_deref())
@@ -292,8 +270,8 @@ impl Builder<'_> {
         };
         if tag.name == "q" && !reveal {
             for (marker, quote) in markers.iter().zip(["\u{201c}", "\u{201d}"]) {
-                self.replaced
-                    .push((marker.clone(), SharedString::from(quote)));
+                self.inline_widgets
+                    .push(InlineWidget::text(marker.clone(), quote));
             }
         } else {
             for m in markers {
@@ -307,17 +285,20 @@ impl Builder<'_> {
             "u" | "ins" => Class::HTML_UNDERLINE,
             "code" | "kbd" | "samp" | "tt" => Class::SYNTAX_MONOSPACE,
             "mark" => Class::HTML_MARK,
-            // `.cm-md-inline-html[data-md-href]`: the text's own colour, a
-            // transparent underline; it still follows its link.
             "sup" | "sub" if !reveal => {
-                self.superscripts
-                    .push(crate::editor::view::decoration::Superscript {
+                let content_str =
+                    SharedString::from(self.cx.doc.slice_cow(content.clone()).into_owned());
+                self.inline_widgets.push(InlineWidget::superscript(
+                    content.clone(),
+                    content_str.clone(),
+                    Superscript {
                         range: content.clone(),
-                        text: SharedString::from(self.cx.doc.slice(content.clone()).to_owned()),
+                        text: content_str,
                         size: None,
                         color: None,
                         lower: tag.name == "sub",
-                    });
+                    },
+                ));
                 Class::HTML_SHIFTED
             }
             _ => Class::NONE,
@@ -343,16 +324,15 @@ impl Builder<'_> {
 }
 
 fn is_external(href: &str) -> bool {
-    // `/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i` (and a safe scheme).
     let lower = href.trim().to_ascii_lowercase();
     lower.starts_with("//")
         || lower.split_once(':').is_some_and(|(scheme, _)| {
             scheme
-                .chars()
+                .bytes()
                 .next()
-                .is_some_and(|c| c.is_ascii_alphabetic())
+                .is_some_and(|b| b.is_ascii_alphabetic())
                 && scheme
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'.' | b'-'))
         })
 }

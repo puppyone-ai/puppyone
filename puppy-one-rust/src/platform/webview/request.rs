@@ -247,12 +247,12 @@ fn resource(
                     }),
             );
         }
-        return immediate(match source.read(&relative) {
-            Some(bytes) if bytes.len() as u64 <= content.max_bytes => {
-                ProtocolResponse::bytes(mime, &bytes, false, range)
+        return immediate(match source.0.read_checked(&relative, content.max_bytes) {
+            Ok(bytes) => ProtocolResponse::bytes(mime, &bytes, false, range),
+            Err(super::SourceError::TooLarge) => {
+                ProtocolResponse::error(413, "Resource exceeds its preview budget")
             }
-            Some(_) => ProtocolResponse::error(413, "Resource exceeds its preview budget"),
-            None => ProtocolResponse::error(404, "Not found"),
+            Err(super::SourceError::NotFound) => ProtocolResponse::error(404, "Not found"),
         });
     }
     file(

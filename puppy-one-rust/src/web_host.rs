@@ -1,5 +1,10 @@
 //! Native web content hosts (`wry` child WebViews) for viewers; the
 //! protocol, path policy and MIME table live in `platform::webview`.
+//!
+//! Enforces a per-window live `WKWebView` cap (`MAX_LIVE_WEBVIEWS_PER_WINDOW`,
+//! `VW-20`): when opening a new host exceeds the cap, the least-recently-used
+//! hidden unpinned host in that window is evicted while its `WebFrame` retains
+//! its `Content` and restore state for seamless recreation when shown again.
 #![cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 #[cfg(target_os = "windows")]
 use crate::platform::webview::LOCAL_SCHEME;
@@ -10,6 +15,7 @@ use crate::platform::webview::{
 use std::{
     borrow::Cow,
     cell::{Cell, RefCell},
+    collections::{HashMap, HashSet},
     rc::{Rc, Weak},
 };
 #[cfg(target_os = "macos")]
@@ -19,6 +25,9 @@ mod macos;
 #[path = "web_host/protocol_tests.rs"]
 mod protocol_tests;
 
+/// Maximum live child WebViews kept resident per window (`VW-20`).
+pub const MAX_LIVE_WEBVIEWS_PER_WINDOW: usize = 6;
+
 /// Floating surfaces cut out of a view, in its own coordinates
 /// (`x, y, w, h, radius`), and the size they were cut from.
 #[derive(Default, PartialEq)]
@@ -26,15 +35,19 @@ struct Cut {
     holes: Vec<[f32; 5]>,
     size: (f32, f32),
 }
-/// Shared visibility state of one host (main thread only).
+
+enum HostEngine {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    Native(Box<NativeHost>),
+    #[cfg(any(test, feature = "test-support"))]
+    Headless { scripts: RefCell<Vec<String>> },
+}
+
+/// Shared visibility state of one live native engine (main thread only).
 struct HostState {
-    resources: PreparedContent,
-    #[cfg(target_os = "macos")]
-    protocol: macos::Owner,
     window: u64,
     painted: Cell<bool>,
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    view: wry::WebView,
+    engine: HostEngine,
     visible: Cell<bool>,
     bounds: Cell<(f32, f32, f32, f32)>,
     /// The floating surfaces cut out of the view.
@@ -47,7 +60,94 @@ struct HostState {
     #[cfg(target_os = "macos")]
     shown: Cell<(f32, f32, f32, f32)>,
 }
+
+/// Per-frame LRU handle wrapping an evictable `HostState`.
+struct HostSlot {
+    window: u64,
+    pinned: Cell<bool>,
+    last_used: Cell<u64>,
+    rendered_frame: Cell<u64>,
+    state: RefCell<Option<Rc<HostState>>>,
+}
+
+impl HostSlot {
+    fn is_alive(&self) -> bool {
+        self.state.borrow().is_some()
+    }
+
+    fn is_visible(&self) -> bool {
+        self.state
+            .borrow()
+            .as_ref()
+            .is_some_and(|s| s.visible.get())
+    }
+
+    fn is_painted(&self) -> bool {
+        self.state
+            .borrow()
+            .as_ref()
+            .is_some_and(|s| s.painted.get())
+    }
+
+    fn evict(&self) {
+        let taken = self.state.borrow_mut().take();
+        #[cfg(target_os = "macos")]
+        if let Some(state) = &taken {
+            state.yield_focus_to_window();
+        }
+        drop(taken);
+    }
+}
+
 impl HostState {
+    #[cfg(target_os = "macos")]
+    fn webview_ptr(&self) -> Option<*mut objc2::runtime::AnyObject> {
+        match &self.engine {
+            HostEngine::Native(view) => {
+                use wry::WebViewExtMacOS;
+                let web = view.webview();
+                Some(objc2::rc::Retained::as_ptr(&web).cast_mut().cast())
+            }
+            #[cfg(any(test, feature = "test-support"))]
+            HostEngine::Headless { .. } => None,
+        }
+    }
+
+    /// Before evicting or dropping a live WebView on macOS, return responder
+    /// focus to its parent GPUI view if the WebView held focus (`VW-20`).
+    #[cfg(target_os = "macos")]
+    fn yield_focus_to_window(&self) {
+        use objc2::{class, msg_send, runtime::AnyObject};
+        let Some(web) = self.webview_ptr() else {
+            return;
+        };
+        // SAFETY: `web` is a live `WKWebView` on the main thread.
+        unsafe {
+            let ns_window: *mut AnyObject = msg_send![web, window];
+            if ns_window.is_null() {
+                return;
+            }
+            let responder: *mut AnyObject = msg_send![ns_window, firstResponder];
+            if responder.is_null() {
+                return;
+            }
+            let is_view: bool = msg_send![responder, isKindOfClass: class!(NSView)];
+            if !is_view {
+                return;
+            }
+            let inside: bool = msg_send![responder, isDescendantOf: web];
+            if inside {
+                let target: *mut AnyObject = match self.clip.borrow().as_ref() {
+                    Some(clip) => msg_send![&**clip, superview],
+                    None => msg_send![web, superview],
+                };
+                if !target.is_null() {
+                    let _: bool = msg_send![ns_window, makeFirstResponder: target];
+                }
+            }
+        }
+    }
+
     /// The window rectangle the view shows in: the clipping view's when it
     /// has one.
     fn showing(&self) -> (f32, f32, f32, f32) {
@@ -57,6 +157,7 @@ impl HostState {
         }
         self.bounds.get()
     }
+
     /// Cuts `cutouts` (window coordinates) out of the view where they
     /// cross it: floating surfaces over the page show through. `false`
     /// where the platform cannot cut and one crosses it, or where one covers
@@ -125,11 +226,12 @@ impl HostState {
     #[cfg(target_os = "macos")]
     fn mask(&self, holes: &[[f32; 5]], (w, h): (f32, f32)) {
         use objc2::{class, msg_send, rc::Retained, runtime::AnyObject};
-        use wry::WebViewExtMacOS;
-        let web = self.view.webview();
+        let Some(web) = self.webview_ptr() else {
+            return;
+        };
         let target: *mut AnyObject = match self.clip.borrow().as_ref() {
             Some(clip) => Retained::as_ptr(clip).cast_mut(),
-            None => Retained::as_ptr(&web).cast_mut().cast(),
+            None => web,
         };
         // SAFETY: a live, layer-backed AppKit view on the main thread; the
         // path is released once the shape layer has copied it.
@@ -179,6 +281,7 @@ impl HostState {
             let _: () = msg_send![class!(CATransaction), commit];
         }
     }
+
     fn set_visible(&self, show: bool) {
         #[cfg(target_os = "macos")]
         if let Some(clip) = self.clip.borrow().as_ref() {
@@ -188,10 +291,16 @@ impl HostState {
             }
             return;
         }
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let _ = self.view.set_visible(show);
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        let _ = show;
+        match &self.engine {
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            HostEngine::Native(view) => {
+                let _ = view.set_visible(show);
+            }
+            #[cfg(any(test, feature = "test-support"))]
+            HostEngine::Headless { .. } => {
+                let _ = show;
+            }
+        }
     }
 }
 /// Whether `cutout` lies over the whole of the window rectangle
@@ -205,10 +314,7 @@ fn covers(cutout: &crate::ui::native_cover::Cutout, (x, y, w, h): (f32, f32, f32
 }
 impl Drop for HostState {
     fn drop(&mut self) {
-        self.resources.revoke();
-        #[cfg(target_os = "macos")]
-        self.protocol.retire();
-        #[cfg(target_os = "macos")]
+        self.yield_focus_to_window();
         if let Some(clip) = self.clip.borrow_mut().take() {
             HOLES.with(|all| all.borrow_mut().remove(&clip_key(&clip)));
             // SAFETY: a live NSView on the main thread.
@@ -218,6 +324,7 @@ impl Drop for HostState {
         }
     }
 }
+
 /// Whether `(x, y)` (from the top-left) lies in one of `holes`
 /// (`x, y, w, h`, the same origin).
 #[cfg(any(test, target_os = "macos"))]
@@ -339,161 +446,319 @@ mod cg {
         pub fn CGPathRelease(path: *mut CgPath);
     }
 }
+
 thread_local! {
     static HOSTS: RefCell<Vec<Weak<HostState>>> = const { RefCell::new(Vec::new()) };
-    static OVERLAY: RefCell<std::collections::HashMap<u64, bool>> = RefCell::new(Default::default());
-    static SCHEDULED: RefCell<std::collections::HashSet<u64>> = RefCell::new(Default::default());
+    static SLOTS: RefCell<Vec<Weak<HostSlot>>> = const { RefCell::new(Vec::new()) };
+    static USE_CLOCK: Cell<u64> = const { Cell::new(0) };
+    static WINDOW_SEQ: RefCell<HashMap<u64, u64>> = RefCell::new(Default::default());
+    static PAINTED_IN_SEQ: RefCell<HashSet<u64>> = RefCell::new(Default::default());
+    static OVERLAY: RefCell<HashMap<u64, bool>> = RefCell::new(Default::default());
+    static SCHEDULED: RefCell<HashSet<u64>> = RefCell::new(Default::default());
     /// Where each clipping view lets the pointer through (`x, y, w, h` from
     /// its top-left), by [`clip_key`].
-    static HOLES: RefCell<std::collections::HashMap<usize, Vec<[f32; 4]>>> = RefCell::new(Default::default());
+    #[cfg(target_os = "macos")]
+    static HOLES: RefCell<HashMap<usize, Vec<[f32; 4]>>> = RefCell::new(Default::default());
 }
 
-/// A live WebView. Dropping it destroys the native view.
-pub struct WebHost {
-    state: Rc<HostState>,
+fn next_use_tick() -> u64 {
+    USE_CLOCK.with(|c| {
+        let next = c.get().saturating_add(1);
+        c.set(next);
+        next
+    })
 }
+
+fn begin_render_for_window(key: u64) -> u64 {
+    // If a paint occurred since the last reconcile (e.g. before `on_next_frame`
+    // fired or in headless `TestWindow::draw`), reconcile visibility & advance
+    // the window's frame sequence now so newly hidden frames become eligible.
+    let painted_prev = PAINTED_IN_SEQ.with(|p| p.borrow_mut().remove(&key));
+    if painted_prev {
+        reconcile(key);
+    }
+    current_window_seq(key)
+}
+
+fn current_window_seq(key: u64) -> u64 {
+    WINDOW_SEQ.with(|m| *m.borrow_mut().entry(key).or_insert(1))
+}
+
+fn bump_window_seq(key: u64) {
+    WINDOW_SEQ.with(|m| {
+        let mut map = m.borrow_mut();
+        let entry = map.entry(key).or_insert(1);
+        *entry = entry.saturating_add(1);
+    });
+}
+
 fn window_key(window: &gpui::Window) -> u64 {
     window.window_handle().window_id().as_u64()
 }
+
+/// Number of currently live `WebHost` instances in `window`.
+pub fn live_host_count(window: &gpui::Window) -> usize {
+    live_host_count_for_key(window_key(window))
+}
+
+fn live_host_count_for_key(key: u64) -> usize {
+    SLOTS.with(|slots| {
+        slots.borrow_mut().retain(|w| w.strong_count() > 0);
+        slots
+            .borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .filter(|slot| slot.window == key && slot.is_alive())
+            .count()
+    })
+}
+
+/// Evicts hidden, unpinned `WebHost`s in `key` (oldest `last_used` first)
+/// until live hosts are below `MAX_LIVE_WEBVIEWS_PER_WINDOW` or no eligible
+/// candidate remains (`VW-20`).
+fn enforce_window_cap(key: u64) {
+    let cur_seq = current_window_seq(key);
+    loop {
+        let candidate = SLOTS.with(|slots| {
+            slots.borrow_mut().retain(|w| w.strong_count() > 0);
+            let live: Vec<Rc<HostSlot>> = slots
+                .borrow()
+                .iter()
+                .filter_map(Weak::upgrade)
+                .filter(|s| s.window == key && s.is_alive())
+                .collect();
+            if live.len() < MAX_LIVE_WEBVIEWS_PER_WINDOW {
+                return None;
+            }
+            // Prefer unpinned frames not rendered in this frame and currently hidden.
+            live.iter()
+                .filter(|s| !s.pinned.get() && !s.is_visible() && s.rendered_frame.get() < cur_seq)
+                .min_by_key(|s| s.last_used.get())
+                .cloned()
+                .or_else(|| {
+                    // Also consider unpinned frames that were visible in the previous frame
+                    // (`visible == true` until end-of-frame reconcile) when they were NOT
+                    // rendered in the current frame (`rendered_frame < cur_seq`).
+                    live.iter()
+                        .filter(|s| !s.pinned.get() && s.rendered_frame.get() < cur_seq)
+                        .min_by_key(|s| s.last_used.get())
+                        .cloned()
+                })
+                .or_else(|| {
+                    // Fallback for synchronous construction before reconcile: unpinned & unpainted.
+                    live.iter()
+                        .filter(|s| !s.pinned.get() && !s.is_visible() && !s.is_painted())
+                        .min_by_key(|s| s.last_used.get())
+                        .cloned()
+                })
+        });
+        match candidate {
+            Some(victim) => victim.evict(),
+            None => break,
+        }
+    }
+}
+
+/// A WebView handle managed by the per-window LRU cap. Dropping it destroys
+/// the native view if still resident.
+pub struct WebHost {
+    slot: Rc<HostSlot>,
+}
+
+impl Drop for WebHost {
+    fn drop(&mut self) {
+        self.slot.evict();
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+struct NativeHost {
+    view: wry::WebView,
+    resources: PreparedContent,
+    #[cfg(target_os = "macos")]
+    protocol: macos::Owner,
+}
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+impl std::ops::Deref for NativeHost {
+    type Target = wry::WebView;
+    fn deref(&self) -> &Self::Target {
+        &self.view
+    }
+}
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+impl Drop for NativeHost {
+    fn drop(&mut self) {
+        self.resources.revoke();
+        #[cfg(target_os = "macos")]
+        self.protocol.retire();
+    }
+}
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn build_native_webview(
+    window: &impl wry::raw_window_handle::HasWindowHandle,
+    content: Content,
+    dark: bool,
+) -> Result<NativeHost, String> {
+    let served = content.clone().prepare();
+    #[cfg(target_os = "windows")]
+    let local = served.clone();
+    let resources = served.clone();
+    #[cfg(target_os = "macos")]
+    let _ = dark;
+    let frames = content.frames.clone();
+    let locked = content.locked;
+    let mut builder = wry::WebViewBuilder::new();
+    if let Some(ipc) = content.ipc.clone() {
+        builder = builder.with_ipc_handler(move |request: wry::http::Request<String>| {
+            let url = request.uri().to_string();
+            ipc.accept(&url, request.into_body());
+        });
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let background = if dark {
+            (24, 24, 27, 255)
+        } else {
+            (255, 255, 255, 255)
+        };
+        builder = builder.with_background_color(background);
+    }
+    #[cfg(target_os = "macos")]
+    let (configuration, protocol) = macos::configuration(served)?;
+    #[cfg(target_os = "macos")]
+    {
+        use wry::WebViewBuilderExtMacos;
+        builder = builder.with_webview_configuration(configuration);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // WebView2's Wry adapter still requires a complete response.
+        builder = builder
+            .with_asynchronous_custom_protocol(SCHEME.into(), move |_, request, responder| {
+                let served = served.clone();
+                std::thread::spawn(move || {
+                    responder.respond(protocol_response(&served, false, &request))
+                });
+            })
+            .with_asynchronous_custom_protocol(
+                LOCAL_SCHEME.into(),
+                move |_, request, responder| {
+                    let served = local.clone();
+                    std::thread::spawn(move || {
+                        responder.respond(protocol_response(&served, true, &request))
+                    });
+                },
+            );
+    }
+    let view = builder
+        .with_url(entry_url())
+        .with_incognito(true)
+        .with_devtools(false)
+        .with_clipboard(true)
+        .with_visible(false)
+        // OS file drags over web content never load the file into the
+        // page (`acquireNativeSurfaceOcclusionLease` keeps them for the
+        // pane in the product): the view takes no drags (below), and
+        // swallows any it is still handed.
+        .with_drag_drop_handler(|_| true)
+        .with_navigation_handler(move |url| {
+            // A locked page stays its entry document (its fragments
+            // only move within it) or its frames' origins, and hands
+            // nothing to the browser.
+            if locked {
+                let entry = entry_url();
+                return url == entry
+                    || url.strip_prefix(&entry).is_some_and(|r| r.starts_with('#'))
+                    || url == "about:blank"
+                    || frames.as_ref().is_some_and(|frames| frames.allows(&url));
+            }
+            // `about:srcdoc` is inline content the page already holds
+            // (the HTML visual editor's sandboxed projection frame).
+            if url.starts_with(SCHEME) || url == "about:blank" || url == "about:srcdoc" {
+                return true;
+            }
+            if frames.as_ref().is_some_and(|frames| frames.allows(&url)) {
+                return true;
+            }
+            if url.starts_with("https://") || url.starts_with("http://") {
+                let _ = crate::platform::desktop::open_url(&url);
+            }
+            false
+        })
+        .with_new_window_req_handler(|url, _| {
+            if url.starts_with("https://") || url.starts_with("http://") {
+                let _ = crate::platform::desktop::open_url(&url);
+            }
+            wry::NewWindowResponse::Deny
+        })
+        .build_as_child(window)
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::{msg_send, rc::Retained, runtime::AnyObject};
+        use wry::WebViewExtMacOS;
+        let web = view.webview();
+        let web: *mut AnyObject = Retained::as_ptr(&web).cast_mut().cast();
+        // SAFETY: the live WebView, on the main thread. Unregistered, it
+        // is no drag destination: AppKit hands a drag over it to the
+        // window's own view, whose panes take it.
+        unsafe {
+            let _: () = msg_send![web, unregisterDraggedTypes];
+        }
+        // Dev captures run behind every other window: WebKit would stop
+        // drawing an occluded page, and the screenshot would show none.
+        #[cfg(feature = "dev-capture")]
+        // SAFETY: as above; the private setter is called only where
+        // WebKit answers to it.
+        unsafe {
+            let selector = objc2::sel!(_setWindowOcclusionDetectionEnabled:);
+            let answers: bool = msg_send![web, respondsToSelector: selector];
+            if answers {
+                let _: () = msg_send![web, _setWindowOcclusionDetectionEnabled: false];
+            }
+        }
+    }
+    Ok(NativeHost {
+        view,
+        resources,
+        #[cfg(target_os = "macos")]
+        protocol,
+    })
+}
+
 impl WebHost {
-    /// Creates the WebView hidden; it shows once its element paints.
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[cfg(all(target_os = "macos", feature = "dev-capture"))]
+    fn native(&self) -> std::cell::Ref<'_, NativeHost> {
+        std::cell::Ref::map(self.slot.state.borrow(), |state| {
+            match &state.as_ref().expect("resident native probe").engine {
+                HostEngine::Native(native) => native.as_ref(),
+                #[cfg(any(test, feature = "test-support"))]
+                HostEngine::Headless { .. } => panic!("native probe cannot use a headless engine"),
+            }
+        })
+    }
+    /// Creates a standalone WebView hidden (e.g. `render_service`, inline embeds);
+    /// it shows once its element paints and is not part of `WebFrame`'s LRU pool.
     pub fn new(window: &gpui::Window, content: Content, dark: bool) -> Result<Self, String> {
         Self::new_child(window, window_key(window), content, dark)
     }
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
     fn new_child(
         window: &impl wry::raw_window_handle::HasWindowHandle,
-        window_id: u64,
+        key: u64,
         content: Content,
         dark: bool,
     ) -> Result<Self, String> {
-        let served = content.clone().prepare();
-        #[cfg(target_os = "windows")]
-        let local = served.clone();
-        let resources = served.clone();
-        #[cfg(target_os = "macos")]
-        let _ = dark;
-        let frames = content.frames.clone();
-        let locked = content.locked;
-        let mut builder = wry::WebViewBuilder::new();
-        if let Some(ipc) = content.ipc.clone() {
-            builder = builder.with_ipc_handler(move |request: wry::http::Request<String>| {
-                let url = request.uri().to_string();
-                ipc.accept(&url, request.into_body());
-            });
-        }
-        #[cfg(target_os = "windows")]
-        {
-            let background = if dark {
-                (24, 24, 27, 255)
-            } else {
-                (255, 255, 255, 255)
-            };
-            builder = builder.with_background_color(background);
-        }
-        #[cfg(target_os = "macos")]
-        let (configuration, protocol) = macos::configuration(served)?;
-        #[cfg(target_os = "macos")]
-        {
-            use wry::WebViewBuilderExtMacos;
-            builder = builder.with_webview_configuration(configuration);
-        }
-        #[cfg(target_os = "windows")]
-        {
-            // WebView2's Wry adapter still requires a complete response.
-            builder = builder
-                .with_asynchronous_custom_protocol(SCHEME.into(), move |_, request, responder| {
-                    let served = served.clone();
-                    std::thread::spawn(move || {
-                        responder.respond(protocol_response(&served, false, &request))
-                    });
-                })
-                .with_asynchronous_custom_protocol(
-                    LOCAL_SCHEME.into(),
-                    move |_, request, responder| {
-                        let served = local.clone();
-                        std::thread::spawn(move || {
-                            responder.respond(protocol_response(&served, true, &request))
-                        });
-                    },
-                );
-        }
-        let view = builder
-            .with_url(entry_url())
-            .with_incognito(true)
-            .with_devtools(false)
-            .with_clipboard(true)
-            .with_visible(false)
-            // OS file drags over web content never load the file into the
-            // page (`acquireNativeSurfaceOcclusionLease` keeps them for the
-            // pane in the product): the view takes no drags (below), and
-            // swallows any it is still handed.
-            .with_drag_drop_handler(|_| true)
-            .with_navigation_handler(move |url| {
-                // A locked page stays its entry document (its fragments
-                // only move within it) or its frames' origins, and hands
-                // nothing to the browser.
-                if locked {
-                    let entry = entry_url();
-                    return url == entry
-                        || url.strip_prefix(&entry).is_some_and(|r| r.starts_with('#'))
-                        || url == "about:blank"
-                        || frames.as_ref().is_some_and(|frames| frames.allows(&url));
-                }
-                // `about:srcdoc` is inline content the page already holds
-                // (the HTML visual editor's sandboxed projection frame).
-                if url.starts_with(SCHEME) || url == "about:blank" || url == "about:srcdoc" {
-                    return true;
-                }
-                if frames.as_ref().is_some_and(|frames| frames.allows(&url)) {
-                    return true;
-                }
-                if url.starts_with("https://") || url.starts_with("http://") {
-                    let _ = crate::platform::desktop::open_url(&url);
-                }
-                false
-            })
-            .with_new_window_req_handler(|url, _| {
-                if url.starts_with("https://") || url.starts_with("http://") {
-                    let _ = crate::platform::desktop::open_url(&url);
-                }
-                wry::NewWindowResponse::Deny
-            })
-            .build_as_child(window)
-            .map_err(|e| e.to_string())?;
-        #[cfg(target_os = "macos")]
-        {
-            use objc2::{msg_send, rc::Retained, runtime::AnyObject};
-            use wry::WebViewExtMacOS;
-            let web = view.webview();
-            let web: *mut AnyObject = Retained::as_ptr(&web).cast_mut().cast();
-            // SAFETY: the live WebView, on the main thread. Unregistered, it
-            // is no drag destination: AppKit hands a drag over it to the
-            // window's own view, whose panes take it.
-            unsafe {
-                let _: () = msg_send![web, unregisterDraggedTypes];
-            }
-            // Dev captures run behind every other window: WebKit would stop
-            // drawing an occluded page, and the screenshot would show none.
-            #[cfg(feature = "dev-capture")]
-            // SAFETY: as above; the private setter is called only where
-            // WebKit answers to it.
-            unsafe {
-                let selector = objc2::sel!(_setWindowOcclusionDetectionEnabled:);
-                let answers: bool = msg_send![web, respondsToSelector: selector];
-                if answers {
-                    let _: () = msg_send![web, _setWindowOcclusionDetectionEnabled: false];
-                }
-            }
-        }
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        let engine = HostEngine::Native(Box::new(build_native_webview(window, content, dark)?));
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let engine = {
+            let _ = (content, dark);
+            return Err("Web content is not available on this platform yet.".into());
+        };
         let state = Rc::new(HostState {
-            resources,
-            #[cfg(target_os = "macos")]
-            protocol,
-            window: window_id,
+            window: key,
             painted: Cell::new(false),
-            view,
+            engine,
             visible: Cell::new(false),
             bounds: Cell::new((0., 0., 0., 0.)),
             cutouts: RefCell::new(Cut::default()),
@@ -503,38 +768,150 @@ impl WebHost {
             shown: Cell::new((0., 0., 0., 0.)),
         });
         HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
-        Ok(Self { state })
+        let slot = Rc::new(HostSlot {
+            window: key,
+            pinned: Cell::new(true),
+            last_used: Cell::new(next_use_tick()),
+            rendered_frame: Cell::new(current_window_seq(key)),
+            state: RefCell::new(Some(state)),
+        });
+        Ok(Self { slot })
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    pub fn new(_window: &gpui::Window, _content: Content, _dark: bool) -> Result<Self, String> {
-        Err("Web content is not available on this platform yet.".into())
+
+    /// Creates a `WebFrame`-managed WebView subject to the per-window LRU cap
+    /// (`MAX_LIVE_WEBVIEWS_PER_WINDOW`, `VW-20`).
+    pub fn new_managed(
+        window: &gpui::Window,
+        content: Content,
+        dark: bool,
+        pinned: bool,
+    ) -> Result<Self, String> {
+        let key = window_key(window);
+        let seq = begin_render_for_window(key);
+        enforce_window_cap(key);
+
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        let engine = match build_native_webview(window, content, dark) {
+            Ok(view) => HostEngine::Native(Box::new(view)),
+            #[cfg(any(test, feature = "test-support"))]
+            Err(_) => HostEngine::Headless {
+                scripts: RefCell::new(Vec::new()),
+            },
+            #[cfg(not(any(test, feature = "test-support")))]
+            Err(error) => return Err(error),
+        };
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let engine = {
+            let _ = (content, dark);
+            #[cfg(any(test, feature = "test-support"))]
+            {
+                HostEngine::Headless {
+                    scripts: RefCell::new(Vec::new()),
+                }
+            }
+            #[cfg(not(any(test, feature = "test-support")))]
+            {
+                return Err("Web content is not available on this platform yet.".into());
+            }
+        };
+
+        let state = Rc::new(HostState {
+            window: key,
+            painted: Cell::new(false),
+            engine,
+            visible: Cell::new(false),
+            bounds: Cell::new((0., 0., 0., 0.)),
+            cutouts: RefCell::new(Cut::default()),
+            #[cfg(target_os = "macos")]
+            clip: RefCell::new(None),
+            #[cfg(target_os = "macos")]
+            shown: Cell::new((0., 0., 0., 0.)),
+        });
+        HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
+        let slot = Rc::new(HostSlot {
+            window: key,
+            pinned: Cell::new(pinned),
+            last_used: Cell::new(next_use_tick()),
+            rendered_frame: Cell::new(seq),
+            state: RefCell::new(Some(state)),
+        });
+        SLOTS.with(|s| s.borrow_mut().push(Rc::downgrade(&slot)));
+        Ok(Self { slot })
     }
+
+    pub fn is_alive(&self) -> bool {
+        self.slot.is_alive()
+    }
+
+    pub fn set_pinned(&self, pinned: bool) {
+        self.slot.pinned.set(pinned);
+    }
+
+    pub fn is_pinned(&self) -> bool {
+        self.slot.pinned.get()
+    }
+
+    /// Marks this host as actively rendered during `window`'s current frame.
+    pub fn mark_rendered(&self, window: &gpui::Window) {
+        if self.slot.is_alive() {
+            let seq = begin_render_for_window(window_key(window));
+            self.slot.rendered_frame.set(seq);
+            self.slot.last_used.set(next_use_tick());
+        }
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn evaluated_scripts(&self) -> Vec<String> {
+        let borrow = self.slot.state.borrow();
+        let Some(state) = borrow.as_ref() else {
+            return Vec::new();
+        };
+        match &state.engine {
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            HostEngine::Native(_) => Vec::new(),
+            HostEngine::Headless { scripts } => scripts.borrow().clone(),
+        }
+    }
+
     /// Called from the element's paint: place the view over `bounds`.
     pub fn place(&self, bounds: gpui::Bounds<gpui::Pixels>) {
+        let Some(state) = self.slot.state.borrow().clone() else {
+            return;
+        };
+        self.slot.last_used.set(next_use_tick());
         let rect = (
             f32::from(bounds.origin.x),
             f32::from(bounds.origin.y),
             f32::from(bounds.size.width).max(1.),
             f32::from(bounds.size.height).max(1.),
         );
-        self.state.painted.set(true);
-        // In its clipping view, which lets the pointer through where a
-        // floating surface is cut out of the page.
+        state.painted.set(true);
+        PAINTED_IN_SEQ.with(|p| {
+            p.borrow_mut().insert(state.window);
+        });
+        // In its clipping view on macOS, which lets the pointer through where
+        // a floating surface is cut out of the page.
         #[cfg(target_os = "macos")]
-        self.clip_to(rect, rect, 0.);
-        #[cfg(target_os = "windows")]
-        if self.state.bounds.get() != rect {
-            self.state.bounds.set(rect);
-            let _ = self.state.view.set_bounds(wry::Rect {
-                position: wry::dpi::LogicalPosition::new(rect.0, rect.1).into(),
-                size: wry::dpi::LogicalSize::new(rect.2, rect.3).into(),
-            });
+        self.clip_to(&state, rect, rect, 0.);
+        #[cfg(not(target_os = "macos"))]
+        if state.bounds.get() != rect {
+            state.bounds.set(rect);
+            match &state.engine {
+                #[cfg(target_os = "windows")]
+                HostEngine::Native(view) => {
+                    let _ = view.set_bounds(wry::Rect {
+                        position: wry::dpi::LogicalPosition::new(rect.0, rect.1).into(),
+                        size: wry::dpi::LogicalSize::new(rect.2, rect.3).into(),
+                    });
+                }
+                #[cfg(any(test, feature = "test-support"))]
+                HostEngine::Headless { .. } => {}
+            }
         }
     }
-    /// Called from the element's paint inside scrolling content: place the
-    /// view over `bounds`, showing only its part within `clip` (the
-    /// content mask), with `radius` corners while it shows whole. Nothing
-    /// within `clip`, and the view hides.
+
+    /// Called from the element's paint inside scrolling content.
     pub fn place_clipped(
         &self,
         bounds: gpui::Bounds<gpui::Pixels>,
@@ -545,7 +922,14 @@ impl WebHost {
         if f32::from(visible.size.width) < 1. || f32::from(visible.size.height) < 1. {
             return;
         }
-        self.state.painted.set(true);
+        let Some(state) = self.slot.state.borrow().clone() else {
+            return;
+        };
+        self.slot.last_used.set(next_use_tick());
+        state.painted.set(true);
+        PAINTED_IN_SEQ.with(|p| {
+            p.borrow_mut().insert(state.window);
+        });
         let rect = |b: gpui::Bounds<gpui::Pixels>| {
             (
                 f32::from(b.origin.x),
@@ -556,6 +940,7 @@ impl WebHost {
         };
         #[cfg(target_os = "macos")]
         self.clip_to(
+            &state,
             rect(bounds),
             rect(visible),
             if visible == bounds { radius } else { 0. },
@@ -563,20 +948,28 @@ impl WebHost {
         #[cfg(not(target_os = "macos"))]
         {
             let _ = (rect, radius);
+            drop(state);
             self.place(bounds);
         }
     }
+
     #[cfg(target_os = "macos")]
-    fn clip_to(&self, view: (f32, f32, f32, f32), shown: (f32, f32, f32, f32), radius: f32) {
+    fn clip_to(
+        &self,
+        state: &HostState,
+        view: (f32, f32, f32, f32),
+        shown: (f32, f32, f32, f32),
+        radius: f32,
+    ) {
         use objc2::{msg_send, rc::Retained, runtime::AnyObject};
-        use wry::WebViewExtMacOS;
-        self.state.bounds.set(view);
-        self.state.shown.set(shown);
-        let web = self.state.view.webview();
-        let web: *mut AnyObject = Retained::as_ptr(&web).cast_mut().cast();
-        let mut slot = self.state.clip.borrow_mut();
+        state.bounds.set(view);
+        state.shown.set(shown);
+        let Some(web) = state.webview_ptr() else {
+            return;
+        };
+        let mut slot = state.clip.borrow_mut();
         // SAFETY: live AppKit views on the main thread; the WebView moves
-        // into a plain layer-backed NSView that clips its subviews.
+        // into a layer-backed PuppyOneWebContentClip view that clips its subviews.
         unsafe {
             if slot.is_none() {
                 let parent: *mut AnyObject = msg_send![web, superview];
@@ -587,7 +980,7 @@ impl WebHost {
                 let _: () = msg_send![&*clip, setWantsLayer: true];
                 let layer: *mut AnyObject = msg_send![&*clip, layer];
                 let _: () = msg_send![layer, setMasksToBounds: true];
-                let _: () = msg_send![&*clip, setHidden: !self.state.visible.get()];
+                let _: () = msg_send![&*clip, setHidden: !state.visible.get()];
                 let _: () = msg_send![parent, addSubview: &*clip];
                 let _: () = msg_send![&*clip, addSubview: web];
                 let _: () = msg_send![web, setHidden: false];
@@ -612,7 +1005,6 @@ impl WebHost {
                 width: w as f64,
                 height: h as f64,
             }];
-            // The clip view is not flipped: its origin is bottom-left.
             let (vx, vy, vw, vh) = view;
             let _: () = msg_send![web, setFrame: CgRect {
                 x: (vx - x) as f64,
@@ -624,29 +1016,41 @@ impl WebHost {
             let _: () = msg_send![layer, setCornerRadius: radius as f64];
         }
     }
+
     /// Whether the view showed after the window's last drawn frame.
     pub fn is_visible(&self) -> bool {
-        self.state.visible.get()
+        self.slot.is_visible()
     }
+
     pub fn reload(&self) {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let _ = self.state.view.load_url(&entry_url());
+        if let Some(state) = self.slot.state.borrow().as_ref() {
+            match &state.engine {
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                HostEngine::Native(view) => {
+                    let _ = view.load_url(&entry_url());
+                }
+                #[cfg(any(test, feature = "test-support"))]
+                HostEngine::Headless { .. } => {}
+            }
+        }
     }
-    /// Runs trusted host script in the entry document (a message to the
-    /// page's own receiver; never document content).
-    /// A host that never paints (the render service's page) laid out at
-    /// `width` × `height` logical pixels; it stays hidden.
+
     #[cfg(target_os = "macos")]
     pub fn resize_hidden(&self, width: f32, height: f32) {
-        let _ = self.state.view.set_bounds(wry::Rect {
-            position: wry::dpi::LogicalPosition::new(0., 0.).into(),
-            size: wry::dpi::LogicalSize::new(width.max(1.), height.max(1.)).into(),
-        });
+        if let Some(state) = self.slot.state.borrow().as_ref() {
+            match &state.engine {
+                HostEngine::Native(view) => {
+                    let _ = view.set_bounds(wry::Rect {
+                        position: wry::dpi::LogicalPosition::new(0., 0.).into(),
+                        size: wry::dpi::LogicalSize::new(width.max(1.), height.max(1.)).into(),
+                    });
+                }
+                #[cfg(any(test, feature = "test-support"))]
+                HostEngine::Headless { .. } => {}
+            }
+        }
     }
-    /// `takeSnapshotWithConfiguration`: the page's `rect` (logical pixels)
-    /// drawn `width` logical pixels wide at the window's backing scale, as
-    /// PNG. WebKit draws a hidden view's snapshot as well, after its next
-    /// layout. `done` runs on the main thread.
+
     #[cfg(target_os = "macos")]
     pub fn snapshot(
         &self,
@@ -655,40 +1059,22 @@ impl WebHost {
         done: impl FnOnce(Option<Vec<u8>>) + 'static,
     ) {
         use objc2::{class, msg_send, runtime::AnyObject};
-        use wry::WebViewExtMacOS;
+        let Some(state) = self.slot.state.borrow().clone() else {
+            done(None);
+            return;
+        };
+        let Some(view) = state.webview_ptr() else {
+            done(None);
+            return;
+        };
+        let view: *const AnyObject = view.cast();
         let done = RefCell::new(Some(done));
         let handler = block2::RcBlock::new(move |image: *mut AnyObject, _error: *mut AnyObject| {
-            // SAFETY: WebKit hands back an NSImage (or nil) on the main
-            // thread; every object is used only inside this call.
-            let png = unsafe {
-                (!image.is_null())
-                    .then(|| {
-                        let tiff: *mut AnyObject = msg_send![image, TIFFRepresentation];
-                        let rep: *mut AnyObject =
-                            msg_send![class!(NSBitmapImageRep), imageRepWithData: tiff];
-                        if rep.is_null() {
-                            return None;
-                        }
-                        let properties: *mut AnyObject =
-                            msg_send![class!(NSDictionary), dictionary];
-                        // NSBitmapImageFileTypePNG
-                        let data: *mut AnyObject =
-                            msg_send![rep, representationUsingType: 4usize, properties: properties];
-                        if data.is_null() {
-                            return None;
-                        }
-                        let length: usize = msg_send![data, length];
-                        let bytes: *const u8 = msg_send![data, bytes];
-                        Some(std::slice::from_raw_parts(bytes, length).to_vec())
-                    })
-                    .flatten()
-            };
+            let png = unsafe { nsimage_to_png(image) };
             if let Some(done) = done.borrow_mut().take() {
                 done(png);
             }
         });
-        let view = self.state.view.webview();
-        let view: *const AnyObject = objc2::rc::Retained::as_ptr(&view).cast();
         let (x, y, w, h) = rect;
         // SAFETY: a live WKWebView and a fresh configuration on the main thread.
         unsafe {
@@ -707,8 +1093,10 @@ impl WebHost {
             let _: () = msg_send![configuration, release];
         }
     }
+
     #[cfg(not(target_os = "macos"))]
     pub fn resize_hidden(&self, _width: f32, _height: f32) {}
+
     #[cfg(not(target_os = "macos"))]
     pub fn snapshot(
         &self,
@@ -718,15 +1106,41 @@ impl WebHost {
     ) {
         done(None);
     }
+
     pub fn evaluate(&self, script: &str) {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let _ = self.state.view.evaluate_script(script);
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        let _ = script;
+        let borrow = self.slot.state.borrow();
+        let Some(state) = borrow.as_ref() else {
+            return;
+        };
+        match &state.engine {
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            HostEngine::Native(view) => {
+                let _ = view.evaluate_script(script);
+            }
+            #[cfg(any(test, feature = "test-support"))]
+            HostEngine::Headless { scripts } => {
+                scripts.borrow_mut().push(script.to_owned());
+            }
+        }
     }
-    /// Captures the live WebView viewport as Retina PNG bytes on the main
-    /// thread, optionally cropping to `crop` (`(x, y, w, h)` in CSS viewport
-    /// pixels over `viewport` `(vw, vh)`).
+
+    pub fn has_native_capture(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            self.slot
+                .state
+                .borrow()
+                .as_ref()
+                .and_then(|s| s.webview_ptr())
+                .is_some()
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            false
+        }
+    }
+
+    /// Captures the live WebView viewport as Retina PNG bytes on the main thread.
     pub fn capture_png(
         &self,
         crop: Option<(f32, f32, f32, f32)>,
@@ -736,8 +1150,16 @@ impl WebHost {
         #[cfg(target_os = "macos")]
         {
             use objc2::{msg_send, runtime::AnyObject};
-            use wry::WebViewExtMacOS;
-            let (_, _, bw, bh) = self.state.bounds.get();
+            let Some(state) = self.slot.state.borrow().clone() else {
+                done(None);
+                return;
+            };
+            let Some(view) = state.webview_ptr() else {
+                done(None);
+                return;
+            };
+            let view: *const AnyObject = view.cast();
+            let (_, _, bw, bh) = state.bounds.get();
             let vp = viewport.unwrap_or((bw.max(1.), bh.max(1.)));
             type SnapshotCallback = Box<dyn FnOnce(Option<Vec<u8>>)>;
             let callback: Rc<RefCell<Option<SnapshotCallback>>> =
@@ -753,10 +1175,7 @@ impl WebHost {
                         cb(bytes);
                     }
                 });
-            let view = self.state.view.webview();
-            let view: *const AnyObject = objc2::rc::Retained::as_ptr(&view).cast();
-            // SAFETY: a live WKWebView on the main thread; nil configuration
-            // snapshots its visible bounds at backing-store scale.
+            // SAFETY: a live WKWebView on the main thread.
             unsafe {
                 let _: () = msg_send![
                     view,
@@ -777,8 +1196,9 @@ impl WebHost {
 pub fn set_overlay(window: &gpui::Window, open: bool) {
     OVERLAY.with(|o| o.borrow_mut().insert(window_key(window), open));
 }
+
 /// Called once per drawn frame by the window's shell: after the frame,
-/// hosts that painted show, the rest hide.
+/// hosts that painted show, the rest hide, and the frame sequence advances.
 pub fn frame_drawn(window: &mut gpui::Window) {
     let key = window_key(window);
     let any = HOSTS.with(|h| {
@@ -793,7 +1213,6 @@ pub fn frame_drawn(window: &mut gpui::Window) {
     }
     let first = SCHEDULED.with(|s| s.borrow_mut().insert(key));
     if first {
-        // A new frame: its floating surfaces report afresh.
         crate::ui::native_cover::take(key);
         window.on_next_frame(move |_, _| {
             SCHEDULED.with(|s| s.borrow_mut().remove(&key));
@@ -801,7 +1220,11 @@ pub fn frame_drawn(window: &mut gpui::Window) {
         });
     }
 }
+
 fn reconcile(key: u64) {
+    PAINTED_IN_SEQ.with(|p| {
+        p.borrow_mut().remove(&key);
+    });
     let overlay = OVERLAY.with(|o| o.borrow().get(&key).copied().unwrap_or(false));
     let cutouts = crate::ui::native_cover::take(key);
     HOSTS.with(|h| {
@@ -816,6 +1239,7 @@ fn reconcile(key: u64) {
             }
         }
     });
+    bump_window_seq(key);
 }
 
 /// Shared by the two Wry handlers, so method/origin/range checks cannot drift.
@@ -1002,19 +1426,15 @@ pub fn stitch_png_slices(
     Some(out.into_inner())
 }
 
-/// A snapshot of one host's web content and where it sits in the window
-/// (logical pixels), filled in on the main thread when WebKit answers.
 #[cfg(all(target_os = "macos", feature = "dev-capture"))]
 pub struct Snapshot {
     pub bounds: (f32, f32, f32, f32),
     pub png: Rc<RefCell<Option<Option<Vec<u8>>>>>,
 }
-/// Dev-capture: snapshots of this window's visible web content, so an
-/// offscreen capture (GPUI's frame alone) can show it in place.
+
 #[cfg(all(target_os = "macos", feature = "dev-capture"))]
 pub fn snapshots(window: &gpui::Window) -> Vec<Snapshot> {
     use objc2::{msg_send, runtime::AnyObject};
-    use wry::WebViewExtMacOS;
     let key = window_key(window);
     let states: Vec<Rc<HostState>> = HOSTS.with(|h| {
         h.borrow()
@@ -1025,24 +1445,24 @@ pub fn snapshots(window: &gpui::Window) -> Vec<Snapshot> {
     });
     states
         .into_iter()
-        .map(|state| {
+        .filter_map(|state| {
+            let view = state.webview_ptr()?;
+            let view: *const AnyObject = view.cast();
             let png: Rc<RefCell<Option<Option<Vec<u8>>>>> = Rc::default();
             let slot = png.clone();
-            let handler = block2::RcBlock::new(move |image: *mut AnyObject, _error: *mut AnyObject| {
-                let bytes = unsafe { nsimage_to_png(image) };
-                *slot.borrow_mut() = Some(bytes);
-            });
-            let view = state.view.webview();
-            let view: *const AnyObject = objc2::rc::Retained::as_ptr(&view).cast();
-            // SAFETY: a live WKWebView on the main thread; a nil
-            // configuration snapshots its visible bounds.
+            let handler =
+                block2::RcBlock::new(move |image: *mut AnyObject, _error: *mut AnyObject| {
+                    let bytes = unsafe { nsimage_to_png(image) };
+                    *slot.borrow_mut() = Some(bytes);
+                });
+            // SAFETY: a live WKWebView on the main thread.
             unsafe {
                 let _: () = msg_send![view, takeSnapshotWithConfiguration: std::ptr::null::<AnyObject>(), completionHandler: &*handler];
             }
-            Snapshot {
+            Some(Snapshot {
                 bounds: state.bounds.get(),
                 png,
-            }
+            })
         })
         .collect()
 }

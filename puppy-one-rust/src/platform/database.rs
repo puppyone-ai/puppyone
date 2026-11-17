@@ -29,8 +29,6 @@ use std::{
 /// acceptance advance absolute deadlines without sleeping for five minutes.
 pub type Clock = Arc<dyn Fn() -> std::time::Instant + Send + Sync>;
 
-/// `DATABASE_BUDGET`.
-pub const MAX_SOURCE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 pub const MAX_OBJECTS: usize = 512;
 pub const MAX_COLUMNS: usize = 128;
 pub const PAGE_ROWS: usize = 50;

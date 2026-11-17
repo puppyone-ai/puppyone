@@ -31,6 +31,13 @@ pub const SCHEME: &str = "puppyone-preview";
 pub const LOCAL_SCHEME: &str = "puppyone-local";
 const ENTRY: &str = "__entry__";
 
+/// Why a [`ResourceSource`] could not serve a relative asset (`VW-24`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SourceError {
+    NotFound,
+    TooLarge,
+}
+
 /// Relative resources that do not live in a local folder (a Cloud
 /// document's assets): `relative` is decoded and has only normal components.
 pub trait ResourceSource: Send + Sync {
@@ -50,10 +57,79 @@ pub trait ResourceSource: Send + Sync {
     fn size(&self, _relative: &Path) -> Option<u64> {
         None
     }
+    /// Reads `relative` bounded by `max_bytes`, distinguishing [`SourceError::TooLarge`]
+    /// (`413`) from [`SourceError::NotFound`] (`404`).
+    fn read_checked(&self, relative: &Path, max_bytes: u64) -> Result<Vec<u8>, SourceError> {
+        if let Some(size) = self.size(relative)
+            && size > max_bytes
+        {
+            return Err(SourceError::TooLarge);
+        }
+        match self.read(relative) {
+            Some(bytes) if bytes.len() as u64 <= max_bytes => Ok(bytes),
+            Some(_) => Err(SourceError::TooLarge),
+            None => Err(SourceError::NotFound),
+        }
+    }
 }
+
+/// Size-aware callback adapter for [`Source`] / [`Budgeted`] (`VW-24`).
+pub struct SourceReader<SizeFn, ReadFn> {
+    size: SizeFn,
+    read: ReadFn,
+}
+
+impl<SizeFn, ReadFn> SourceReader<SizeFn, ReadFn>
+where
+    SizeFn: Fn(&Path) -> Option<u64> + Send + Sync,
+    ReadFn: Fn(&Path) -> Result<Vec<u8>, SourceError> + Send + Sync,
+{
+    pub fn new(size: SizeFn, read: ReadFn) -> Self {
+        Self { size, read }
+    }
+}
+
+impl<SizeFn, ReadFn> ResourceSource for SourceReader<SizeFn, ReadFn>
+where
+    SizeFn: Fn(&Path) -> Option<u64> + Send + Sync,
+    ReadFn: Fn(&Path) -> Result<Vec<u8>, SourceError> + Send + Sync,
+{
+    fn read(&self, relative: &Path) -> Option<Vec<u8>> {
+        (self.read)(relative).ok()
+    }
+
+    fn size(&self, relative: &Path) -> Option<u64> {
+        (self.size)(relative)
+    }
+
+    fn read_checked(&self, relative: &Path, max_bytes: u64) -> Result<Vec<u8>, SourceError> {
+        if let Some(size) = (self.size)(relative)
+            && size > max_bytes
+        {
+            return Err(SourceError::TooLarge);
+        }
+        let bytes = (self.read)(relative)?;
+        if bytes.len() as u64 > max_bytes {
+            Err(SourceError::TooLarge)
+        } else {
+            Ok(bytes)
+        }
+    }
+}
+
 /// A shared source, for [`Content`].
 #[derive(Clone)]
 pub struct Source(pub std::sync::Arc<dyn ResourceSource>);
+impl Source {
+    /// Constructs a [`Source`] backed by a size-aware [`SourceReader`] (`VW-24`).
+    pub fn with_size<SizeFn, ReadFn>(size: SizeFn, read: ReadFn) -> Self
+    where
+        SizeFn: Fn(&Path) -> Option<u64> + Send + Sync + 'static,
+        ReadFn: Fn(&Path) -> Result<Vec<u8>, SourceError> + Send + Sync + 'static,
+    {
+        Self(std::sync::Arc::new(SourceReader::new(size, read)))
+    }
+}
 impl ResourceSource for Source {
     fn mime(&self, relative: &Path) -> Option<&'static str> {
         self.0.mime(relative)
@@ -67,8 +143,13 @@ impl ResourceSource for Source {
     fn read(&self, relative: &Path) -> Option<Vec<u8>> {
         self.0.read(relative)
     }
+
     fn size(&self, relative: &Path) -> Option<u64> {
         self.0.size(relative)
+    }
+
+    fn read_checked(&self, relative: &Path, max_bytes: u64) -> Result<Vec<u8>, SourceError> {
+        self.0.read_checked(relative, max_bytes)
     }
 }
 impl std::fmt::Debug for Source {
@@ -76,10 +157,13 @@ impl std::fmt::Debug for Source {
         f.write_str("Source")
     }
 }
+type SizeProbe = Box<dyn Fn(&Path) -> Option<u64> + Send + Sync>;
+
 /// `projectCloudHtml`'s budgets for one projection: at most
 /// `max_references` distinct resources and `max_bytes` in total.
 pub struct Budgeted<S> {
     inner: S,
+    size_probe: Option<SizeProbe>,
     max_references: usize,
     max_bytes: u64,
     used: std::sync::Arc<std::sync::Mutex<(std::collections::HashSet<PathBuf>, u64)>>,
@@ -88,10 +172,31 @@ impl<S> Budgeted<S> {
     pub fn new(inner: S, max_references: usize, max_bytes: u64) -> Self {
         Self {
             inner,
+            size_probe: None,
             max_references,
             max_bytes,
             used: Default::default(),
         }
+    }
+
+    /// Attaches an explicit pre-read byte-size probe so oversized resources
+    /// fail with [`SourceError::TooLarge`] (`413`) before buffering (`VW-24`).
+    pub fn with_size_probe(
+        mut self,
+        probe: impl Fn(&Path) -> Option<u64> + Send + Sync + 'static,
+    ) -> Self {
+        self.size_probe = Some(Box::new(probe));
+        self
+    }
+
+    fn declared_size(&self, relative: &Path) -> Option<u64>
+    where
+        S: ResourceSource,
+    {
+        self.size_probe
+            .as_ref()
+            .and_then(|probe| probe(relative))
+            .or_else(|| self.inner.size(relative))
     }
 }
 impl<S: ResourceSource> ResourceSource for Budgeted<S> {
@@ -130,19 +235,45 @@ impl<S: ResourceSource> ResourceSource for Budgeted<S> {
         self.inner.is_live()
     }
     fn read(&self, relative: &Path) -> Option<Vec<u8>> {
+        self.read_checked(relative, self.max_bytes).ok()
+    }
+
+    fn size(&self, relative: &Path) -> Option<u64> {
+        self.declared_size(relative)
+    }
+
+    fn read_checked(&self, relative: &Path, per_resource_max: u64) -> Result<Vec<u8>, SourceError> {
+        let single_limit = per_resource_max.min(self.max_bytes);
+        if let Some(declared) = self.declared_size(relative)
+            && declared > single_limit
         {
-            let mut used = self.used.lock().ok()?;
+            return Err(SourceError::TooLarge);
+        }
+        {
+            let mut used = self.used.lock().map_err(|_| SourceError::NotFound)?;
             if !used.0.contains(relative) {
                 if used.0.len() >= self.max_references {
-                    return None;
+                    return Err(SourceError::NotFound);
                 }
                 used.0.insert(relative.to_path_buf());
             }
+            if let Some(declared) = self.declared_size(relative)
+                && used.1.saturating_add(declared) > self.max_bytes
+            {
+                return Err(SourceError::NotFound);
+            }
         }
-        let bytes = self.inner.read(relative)?;
-        let mut used = self.used.lock().ok()?;
-        used.1 += bytes.len() as u64;
-        (used.1 <= self.max_bytes).then_some(bytes)
+        let bytes = self.inner.read_checked(relative, single_limit)?;
+        if bytes.len() as u64 > single_limit {
+            return Err(SourceError::TooLarge);
+        }
+        let mut used = self.used.lock().map_err(|_| SourceError::NotFound)?;
+        used.1 = used.1.saturating_add(bytes.len() as u64);
+        if used.1 <= self.max_bytes {
+            Ok(bytes)
+        } else {
+            Err(SourceError::NotFound)
+        }
     }
 }
 /// What a host serves.
@@ -652,5 +783,66 @@ mod tests {
         // total crosses 15 bytes; a third is past the reference budget.
         assert_eq!(respond(&content, "/img/a.png").0, 404);
         assert_eq!(respond(&content, "/img/b.png").0, 404);
+    }
+
+    #[test]
+    fn oversized_provider_resource_checks_size_before_read_and_returns_413() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        let reads = Arc::new(AtomicUsize::new(0));
+        let reads_in_cb = reads.clone();
+        let reader = Source::with_size(
+            |relative| match relative.to_str()? {
+                "huge.mp4" => Some(128),
+                "fit.css" => Some(6),
+                "unprobed_big.bin" => None,
+                _ => None,
+            },
+            move |relative| match relative.to_str() {
+                Some("huge.mp4") => {
+                    reads_in_cb.fetch_add(1, Ordering::SeqCst);
+                    Ok(vec![0u8; 128])
+                }
+                Some("fit.css") => {
+                    reads_in_cb.fetch_add(1, Ordering::SeqCst);
+                    Ok(b"body{}".to_vec())
+                }
+                Some("unprobed_big.bin") => {
+                    reads_in_cb.fetch_add(1, Ordering::SeqCst);
+                    Ok(vec![1u8; 64])
+                }
+                _ => Err(SourceError::NotFound),
+            },
+        );
+        let content = Content {
+            root: None,
+            source: Some(Source(Arc::new(Budgeted::new(reader, 8, 32)))),
+            entry: Entry::Html("<p>hi</p>".into()),
+            max_bytes: 32,
+            assets: vec![],
+            ipc: None,
+            policy: None,
+            frames: None,
+            disk_assets: None,
+            locked: false,
+        };
+        // Pre-read size check rejects `huge.mp4` with HTTP 413 without reading bytes into memory.
+        assert_eq!(respond(&content.clone().prepare(), "/huge.mp4").0, 413);
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            0,
+            "oversized resource with known size must not be read into memory"
+        );
+        // Unprobed oversized single resource also returns HTTP 413 (not 404).
+        assert_eq!(
+            respond(&content.clone().prepare(), "/unprobed_big.bin").0,
+            413
+        );
+        assert_eq!(reads.load(Ordering::SeqCst), 1);
+        // Normal in-budget resource still succeeds with 200, and missing resource returns 404.
+        assert_eq!(respond(&content.clone().prepare(), "/fit.css").0, 200);
+        assert_eq!(respond(&content.clone().prepare(), "/missing.png").0, 404);
     }
 }

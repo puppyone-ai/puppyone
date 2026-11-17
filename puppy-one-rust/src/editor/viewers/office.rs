@@ -10,9 +10,18 @@
 //! product's loader sends first), converts .doc / .rtf to DOCX with `textutil`
 //! (`convertOfficeDocumentToDocx`) and owns what leaves the page: opening the
 //! file in its default application, opening links, and Retry.
-use super::{html_visual::script_json, web::WebFrame};
+use super::{
+    html_visual::script_json,
+    web::{WebFrame, parse_find_result},
+};
 use crate::{
-    editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
+    editor::{
+        registry::{
+            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
+            viewer_budget,
+        },
+        workbench::find::FindEvent,
+    },
     platform::webview::{Content, Entry, Ipc, ResourceSource, Source, local_url_for, url_for},
     workspace::{PreviewData, PreviewResource},
 };
@@ -26,8 +35,6 @@ use std::{
     },
 };
 
-/// `office-preview` resourcePolicy.maxSourceBytes.
-pub const BUDGET: u64 = 25 * 1024 * 1024;
 const SCRIPT: &[u8] = include_bytes!("../../../assets/web/office-viewer.js");
 const STYLE: &[u8] = include_bytes!("../../../assets/web/office-viewer.css");
 const VALIDATION: &[u8] = include_bytes!("../../../assets/web/office-validation.worker.js");
@@ -101,6 +108,7 @@ impl ViewerSurface for OfficeSurface {
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
+
     fn rebind_resource(&self, resource: &PreviewResource, cx: &mut App) {
         let resource = resource.clone();
         self.view.update(cx, |view, cx| {
@@ -119,8 +127,19 @@ impl ViewerSurface for OfficeSurface {
     ) {
         self.view.update(cx, |view, cx| view.set_dark(dark, cx));
     }
+    fn pane(&self, _: &App) -> PaneEntries {
+        PaneEntries {
+            find: true,
+            ..Default::default()
+        }
+    }
+    fn find(&self, event: FindEvent, _: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
+        let frame = self.view.read(cx).frame.clone()?;
+        frame.read(cx).find(event, cx)
+    }
 }
 impl EventEmitter<SurfaceEvent> for OfficeView {}
+
 struct OfficeView {
     name: String,
     extension: String,
@@ -173,7 +192,7 @@ impl OfficeInput {
             .ok_or("The Office document is unavailable.")?;
         resource.data().map_err(|e| e.to_string())?;
         let bytes = resource
-            .bytes(BUDGET)
+            .bytes(viewer_budget("office-preview"))
             .ok_or("The Office document is unavailable or exceeds its preview budget.")?;
         if cancel.load(Ordering::Acquire) {
             return Err("Office preparation was cancelled.".into());
@@ -339,7 +358,7 @@ impl OfficeView {
                 .clone()
                 .map(|r| Source(Arc::new(OfficeLease(r)))),
             entry: Entry::Html(page(&self.boot, self.dark)),
-            max_bytes: BUDGET,
+            max_bytes: viewer_budget("office-preview"),
             assets: vec![
                 ("office-viewer.js", SCRIPT),
                 ("office-viewer.css", STYLE),
@@ -368,6 +387,15 @@ impl OfficeView {
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
+                if let Some(found) = parse_find_result(&body) {
+                    let _ = this.update(cx, |_, cx| {
+                        cx.emit(SurfaceEvent::FindResult {
+                            current: found.0,
+                            total: found.1,
+                        })
+                    });
+                    continue;
+                }
                 let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
                     continue;
                 };

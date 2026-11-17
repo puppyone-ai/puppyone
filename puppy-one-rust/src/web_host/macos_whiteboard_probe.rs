@@ -124,17 +124,17 @@ impl Fixture {
         let (tx, received) = async_channel::unbounded();
         let content = crate::editor::viewers::whiteboard::probe_content(pack, text.into(), Ipc(tx));
         let host = super::super::WebHost::new_child(&window, 0, content, false).unwrap();
-        host.state
+        host.native()
             .view
             .set_bounds(wry::Rect {
                 position: wry::dpi::LogicalPosition::new(0., 0.).into(),
                 size: wry::dpi::LogicalSize::new(1100., 800.).into(),
             })
             .unwrap();
-        host.state.view.set_visible(true).unwrap();
+        host.native().view.set_visible(true).unwrap();
         let resources = Rc::new(RefCell::new(Vec::new()));
         let requests = resources.clone();
-        host.state.protocol.observe_requests(Rc::new(move |url| {
+        host.native().protocol.observe_requests(Rc::new(move |url| {
             let mut requests = requests.borrow_mut();
             assert!(requests.len() < 1024, "unbounded native resource requests");
             requests.push(url.to_string());
@@ -157,7 +157,7 @@ impl Fixture {
         fixture
     }
     fn js(&self, source: &str) -> String {
-        eval(&self.host.state.view.webview(), source)
+        eval(&self.host.native().view.webview(), source)
     }
     fn until(&mut self, label: &str, mut predicate: impl FnMut(&mut Self) -> bool) {
         wait(label, || predicate(self));
@@ -212,7 +212,7 @@ impl Fixture {
             let _: () = msg_send![&*self.window.window, setContentSize: NSSize::new(width, 800.)];
         }
         self.host
-            .state
+            .native()
             .view
             .set_bounds(wry::Rect {
                 position: wry::dpi::LogicalPosition::new(0., 0.).into(),
@@ -255,7 +255,7 @@ pub(super) fn run(root: &Path) {
     assert!(!unsafe {
         fixture
             .host
-            .state
+            .native()
             .view
             .webview()
             .configuration()

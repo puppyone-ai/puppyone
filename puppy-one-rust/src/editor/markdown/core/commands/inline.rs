@@ -55,7 +55,8 @@ impl Spec {
 fn word_at(state: &EditorState, pos: usize) -> Option<Range<usize>> {
     let doc = &state.doc;
     let line = doc.line_range(doc.line_index(pos));
-    let text = doc.slice(line.clone());
+    let text_cow = doc.slice_cow(line.clone());
+    let text = text_cow.as_ref();
     let word = |c: char| c.is_alphanumeric() || c == '_' || c == '-';
     let offset = pos - line.start;
     let from = text[..offset]
@@ -82,10 +83,14 @@ fn flanking(state: &EditorState, range: Range<usize>) -> Option<Range<usize>> {
     if range.is_empty() {
         return Some(range);
     }
-    let text = state.doc.as_str();
+    let doc = &state.doc;
+    let win_start = doc.line_range(doc.line_index(range.start)).start;
+    let win_end = doc.line_range(doc.line_index(range.end)).end;
+    let win = doc.slice_cow(win_start..win_end);
+    let text = win.as_ref();
     let (mut from, mut to) = (range.start, range.end);
-    let before = |i: usize| text[..i].chars().next_back();
-    let after = |i: usize| text[i..].chars().next();
+    let before = |i: usize| text[..i - win_start].chars().next_back();
+    let after = |i: usize| text[i - win_start..].chars().next();
     while from < to {
         let (prev, first) = (before(from), after(from));
         let left = first.is_some_and(|f| {
@@ -204,13 +209,13 @@ fn wrap(state: &EditorState, spec: Spec) -> Option<Transaction> {
 /// is directly surrounded by the delimiters.
 fn unwrap_delimited(state: &EditorState, spec: Spec) -> Option<Transaction> {
     let s = state.selection;
-    let doc = state.doc.as_str();
+    let doc = &state.doc;
     let range = if s.is_empty() {
         word_at(state, s.head).unwrap_or(s.head..s.head)
     } else {
         s.as_range()
     };
-    let text = &doc[range.clone()];
+    let text = doc.slice_cow(range.clone());
     let (open, close) = (spec.open.len(), spec.close.len());
     if text.len() >= open + close && text.starts_with(spec.open) && text.ends_with(spec.close) {
         let selection = if range.start + open == range.end - close {
@@ -230,8 +235,10 @@ fn unwrap_delimited(state: &EditorState, spec: Spec) -> Option<Transaction> {
     let before = range.start.checked_sub(open)?;
     let after = range.end + close;
     if after > doc.len()
-        || &doc[before..range.start] != spec.open
-        || &doc[range.end..after] != spec.close
+        || doc.clamp(before) != before
+        || doc.clamp(after) != after
+        || doc.slice_cow(before..range.start) != spec.open
+        || doc.slice_cow(range.end..after) != spec.close
     {
         return None;
     }
@@ -333,7 +340,7 @@ pub fn wrap_link(state: &EditorState) -> Option<Transaction> {
     } else {
         s.as_range()
     };
-    let text = state.doc.slice(range.clone()).to_owned();
+    let text = state.doc.slice_cow(range.clone()).into_owned();
     let caret = range.start + text.len() + 3;
     edit(
         vec![change(range, format!("[{text}]()"))],

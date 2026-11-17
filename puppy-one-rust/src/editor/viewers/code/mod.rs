@@ -1,58 +1,72 @@
-//! Native source-code surface. Kit owns the rope, history, selections,
-//! indentation, parser, folds and scrolling; this adapter owns the product
-//! language/appearance and the retained document snapshot/IME contract.
-pub mod conflicts;
-mod decorate;
-mod find;
-mod input;
-mod style;
+//! Unified native source-code & plain-text surface (`CE-01`–`CE-04`, `CE-10`–`CE-12`,
+//! `CE-20`, `CE-21`):
+//! - Runs on the shared rope [`Buffer`] + [`EditorView`] kernel via
+//!   [`CodeExtension`] (`CE-01`), with native IME composition events and zero
+//!   transparent input-intercept canvas (`CE-04`).
+//! - Change notifications carry no full-document `String` copies (`CE-02`), and
+//!   host snapshots borrow an `O(1)` rope [`Buffer`] handle (`DP-44`).
+//! - Derived conflict blocks, syntax highlights, fold regions, and passive
+//!   decorations are cached by document revision (`CE-03`).
 #[cfg(test)]
 mod tests;
 
+pub use crate::editor::{code::decorate, view::plugins::conflicts};
+
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+use crate::editor::registry::SurfaceTestProbe;
 use crate::{
     editor::{
-        code::language::Language,
-        registry::{
-            PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceHistory, SurfaceInput, SurfaceRequest,
-            ViewerSurface,
+        code::{
+            extension::{
+                CodeExtension, SetCodeLanguage, SetFoldedLines, SetVisualHighlight, UnfoldOffset,
+            },
+            language::Language,
         },
-        workbench::find::FindEvent,
+        registry::{
+            CompanionHistory, HostCommand, PaneEntries, SurfaceEvent, SurfaceEvents,
+            SurfaceHistory, SurfaceInput, SurfaceRequest, ViewerSurface,
+        },
+        text::{
+            buffer::Buffer,
+            change::{Change, ChangeSet},
+            history::{MAX_BYTES, MAX_STEPS},
+            selection::Selection,
+            state::{Transaction, UserEvent},
+        },
+        view::{EditorView, editor::EditorEvent, extension::config_transaction},
+        workbench::{find::FindEvent, view_state::SurfaceViewState},
     },
     typography::Scale,
+    ui::input::{Redo as InputRedo, Undo as InputUndo},
 };
 use gpui::{prelude::*, *};
-use gpui_kit::component::input::{Editor, EditorState, InputEvent, TabSize};
+use std::ops::Range;
 
 /// `DOCUMENT_HISTORY_POLICY.maxEntries` / `maxBytes` (UTF-16 bytes).
-pub const HISTORY_ENTRIES: usize = 200;
-pub const HISTORY_BYTES: usize = 8 * 1024 * 1024;
+pub const HISTORY_ENTRIES: usize = MAX_STEPS;
+pub const HISTORY_BYTES: usize = MAX_BYTES;
 
 pub struct CodeView {
-    pub(super) field: Entity<EditorState>,
+    pub editor: Entity<EditorView>,
     language: Language,
     language_override: Option<String>,
-    committed: String,
-    composing: bool,
     read_only: bool,
     history_owner: Option<SurfaceHistory>,
-    find: find::CodeFind,
     dark: bool,
     scale: Scale,
-    /// `ConflictMarkerBanner`: the block list is expanded.
-    conflicts_expanded: bool,
-    /// Bracket, selection-match and trailing-space decorations.
-    passive: gpui_kit::component::input::RangeDecorationCollection,
-    passive_key: Option<(usize, std::ops::Range<usize>, usize)>,
-    /// Visual-editor active element highlight in the split source panel.
-    visual_highlight: gpui_kit::component::input::RangeDecorationCollection,
-    _subscriptions: Vec<Subscription>,
+    restored_scroll_y: Option<f32>,
+    _subscription: Subscription,
 }
 
 impl EventEmitter<SurfaceEvent> for CodeView {}
 
 impl CodeView {
     #[cfg(test)]
-    fn new(request: &SurfaceRequest, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(
+        request: &SurfaceRequest,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         Self::new_with(request, None, false, window, cx)
     }
 
@@ -60,7 +74,7 @@ impl CodeView {
         request: &SurfaceRequest,
         language_override: Option<&str>,
         soft_wrap: bool,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
@@ -72,353 +86,90 @@ impl CodeView {
             SurfaceInput::Text(text) => text,
             _ => "",
         };
-        let field = cx.new(|cx| {
-            EditorState::new(window, cx)
-                .language(language.grammar().unwrap_or("puppyone-plaintext"))
-                .tab_size(TabSize {
-                    tab_size: language.tab_size(),
-                    hard_tabs: false,
-                })
-                .searchable(false)
-                .soft_wrap(soft_wrap)
-                .default_value(text)
+        let dark = request.dark;
+        let scale = request.scale;
+        let ext = CodeExtension::new(language, soft_wrap, dark, scale);
+        let editor = cx.new(|cx| {
+            let mut view = EditorView::new(text, Box::new(ext), cx);
+            view.set_appearance(dark, scale, cx);
+            view
         });
-        let changed = cx.subscribe_in(&field, window, |this, _, event: &InputEvent, w, cx| {
-            if matches!(event, InputEvent::Blur) {
-                this.finish_composition(w, cx);
-            }
-            this.sync(w, cx);
-            this.refresh_passive(cx);
-        });
-        // Kit marks provisional IME edits with notify, not Change. Track them
-        // before the host can ask for a snapshot, without publishing drafts.
-        let observed = cx.observe_in(&field, window, |this, _, w, cx| {
-            this.sync(w, cx);
-            this.refresh_passive(cx);
-        });
-        field.update(cx, |s, _| {
-            s.set_gutter_metrics(Some(style::gutter(request.dark, request.scale)));
-            // `DOCUMENT_HISTORY_POLICY`: 200 entries, 8 MiB of UTF-16 text.
-            s.set_history_retention(HISTORY_ENTRIES, HISTORY_BYTES);
-        });
-        let find = find::CodeFind::new(&field, cx);
-        let passive = field.update(cx, |s, cx| {
-            s.create_range_decorations_collection(Vec::new(), cx)
-        });
-        let visual_highlight = field.update(cx, |s, cx| {
-            s.create_range_decorations_collection(Vec::new(), cx)
-        });
-        style::project(request.dark, request.scale, cx);
-        Self {
-            field,
-            language,
-            language_override: language_override.map(str::to_owned),
-            committed: text.into(),
-            composing: false,
-            read_only: false,
-            history_owner: None,
-            find,
-            dark: request.dark,
-            scale: request.scale,
-            conflicts_expanded: false,
-            passive,
-            passive_key: None,
-            visual_highlight,
-            _subscriptions: vec![changed, observed],
-        }
-    }
-    fn sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (composing, value) = self.field.update(cx, |s, cx| {
-            let composing = s.marked_text_range(window, cx).is_some();
-            (composing, (!composing).then(|| s.value().to_string()))
-        });
-        let ended = self.composing && !composing;
-        self.composing = composing;
-        if let Some(value) = value {
-            let changed = self.committed != value;
-            self.committed = value;
-            if changed && self.find.active() {
-                self.refresh_find(false, cx);
-            }
-            if changed || ended {
+        let subscription = cx.subscribe(&editor, |_this, _, event: &EditorEvent, cx| match event {
+            EditorEvent::Changed(_) | EditorEvent::CompositionEnded => {
                 cx.emit(SurfaceEvent::Changed);
             }
-        }
-    }
-    fn finish_composition(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.composing {
-            self.field.update(cx, |s, cx| s.unmark_text(window, cx));
-            self.sync(window, cx);
-            crate::ui::ime::discard_marked_text();
-        }
-    }
-    fn replace(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
-        // External source replacement resets history and abandons provisional
-        // input, without reporting it back as a local edit.
-        let was_composing = self.composing;
-        self.composing = false;
-        self.committed = text.into();
-        self.field.update(cx, |s, cx| {
-            s.unmark_text(window, cx);
-            s.set_value(text, window, cx);
+            EditorEvent::FindResult { current, total } => {
+                cx.emit(SurfaceEvent::FindResult {
+                    current: *current,
+                    total: *total,
+                });
+            }
+            EditorEvent::OpenPaths(paths) => {
+                cx.emit(SurfaceEvent::OpenPaths(paths.clone()));
+            }
         });
-        if was_composing {
-            crate::ui::ime::discard_marked_text();
+        Self {
+            editor,
+            language,
+            language_override: language_override.map(str::to_owned),
+            read_only: false,
+            history_owner: None,
+            dark,
+            scale,
+            restored_scroll_y: None,
+            _subscription: subscription,
         }
-        if self.find.active() {
-            self.refresh_find(false, cx);
-        }
-        cx.notify();
     }
-    /// `bracketMatching`, `highlightSelectionMatches`, `highlightTrailingWhitespace`.
-    fn refresh_passive(&mut self, cx: &mut Context<Self>) {
-        use gpui_kit::component::input::{RangeDecoration, RangeDecorationStyle};
-        let (cursor, selection, len) = {
-            let s = self.field.read(cx);
-            (s.cursor(), s.selected_range(), s.text().len())
-        };
-        let key = (cursor, selection.clone(), len);
-        if self.passive_key.as_ref() == Some(&key) {
+
+    /// `O(1)` committed rope [`Buffer`] snapshot (`CE-02`, `DP-44`).
+    pub fn committed_buffer(&self, cx: &App) -> Buffer {
+        let doc = self.editor.read(cx).committed_doc();
+        Buffer::from_rope(doc.rope().clone())
+    }
+
+    /// Materialise committed text only when explicitly queried (`CE-02`).
+    pub fn text(&self, cx: &App) -> String {
+        let doc = self.editor.read(cx).committed_doc();
+        doc.slice_cow(0..doc.len()).into_owned()
+    }
+
+    pub fn composing(&self, cx: &App) -> bool {
+        self.editor.read(cx).composing()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn language(&self) -> Language {
+        self.language
+    }
+
+    pub fn set_chrome_inset(&mut self, top: f32, cx: &mut Context<Self>) {
+        self.editor.update(cx, |e, cx| e.set_chrome_inset(top, cx));
+    }
+
+    pub fn scroll_top(&self, cx: &App) -> f32 {
+        self.editor.read(cx).scroll_top()
+    }
+
+    pub(crate) fn replace(&mut self, text: &str, _window: &mut Window, cx: &mut Context<Self>) {
+        self.editor.update(cx, |e, cx| e.replace_text(text, cx));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn resolve_conflicts(
+        &mut self,
+        resolved: String,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.read_only {
             return;
         }
-        self.passive_key = Some(key);
-        let text = self.committed.clone();
-        let p = crate::theme::Theme::new(self.dark);
-        let fill = |r: std::ops::Range<usize>, c: Rgba, a: f32| {
-            RangeDecoration::new(r)
-                .with_style(RangeDecorationStyle::Fill)
-                .with_color(crate::theme::alpha(c, a).into())
-        };
-        let frame = |r: std::ops::Range<usize>, c: Rgba, a: f32| {
-            RangeDecoration::new(r).with_color(crate::theme::alpha(c, a).into())
-        };
-        let mut marks = vec![];
-        for r in decorate::trailing_whitespace(&text) {
-            marks.push(fill(r, p.danger, 0.20));
-        }
-        for r in decorate::selection_matches(&text, selection.clone()) {
-            marks.push(fill(r, p.accent, 0.10));
-        }
-        if selection.is_empty() {
-            match decorate::brackets(&text, cursor) {
-                Some(decorate::Brackets::Matched(a, b)) => {
-                    for r in [a, b] {
-                        marks.push(fill(r.clone(), p.accent, 0.18));
-                        marks.push(frame(r, p.accent, 0.38));
-                    }
-                }
-                Some(decorate::Brackets::Unmatched(r)) => {
-                    marks.push(fill(r.clone(), p.danger, 0.16));
-                    marks.push(frame(r, p.danger, 0.40));
-                }
-                None => {}
-            }
-        }
-        self.passive.set(marks, cx);
-    }
-    /// A conflict resolution is an ordinary local edit (undoable, saved).
-    fn resolve_conflicts(&mut self, resolved: String, window: &mut Window, cx: &mut Context<Self>) {
-        if self.read_only || resolved == self.committed {
-            return;
-        }
-        let whole = 0..self.committed.encode_utf16().count();
-        self.field.update(cx, |s, cx| {
-            s.replace_text_in_range(Some(whole), &resolved, window, cx)
+        self.editor.update(cx, |e, cx| {
+            crate::editor::view::plugins::conflicts::apply_conflict_resolution(e, &resolved, cx)
         });
-        self.sync(window, cx);
-        cx.notify();
     }
-    fn conflict_banner(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        use crate::localization::{t, tf};
-        use crate::ui::appearance::ActiveAppearance;
-        let blocks = conflicts::parse(&self.committed);
-        if blocks.is_empty() {
-            return None;
-        }
-        let p = cx.palette();
-        let ty = crate::theme::ty();
-        let button = |id: ElementId, label: String| {
-            div()
-                .id(id)
-                .px(px(8.))
-                .py(px(4.))
-                .rounded(px(5.))
-                .bg(p.control)
-                .text_color(p.text)
-                .text_size(px(ty.ui.meta))
-                .hover(move |d| d.bg(p.control_hover))
-                .cursor(crate::theme::clickable_cursor())
-                .child(label)
-        };
-        let mut row = div()
-            .flex()
-            .flex_wrap()
-            .items_center()
-            .gap(px(12.))
-            .child(
-                div()
-                    .px(px(8.))
-                    .py(px(2.))
-                    .rounded(px(4.))
-                    .bg(p.warning)
-                    .text_color(p.text_inverse)
-                    .text_size(px(ty.ui.caption))
-                    .child(t("editor.conflict.badge")),
-            )
-            .child(tf(
-                "editor.conflict.summary",
-                &[("count", (blocks.len() as i64).into())],
-            ));
-        if !self.read_only {
-            row = row
-                .child(
-                    button(
-                        "conflict-keep-ours".into(),
-                        t("editor.conflict.keepServer").into(),
-                    )
-                    .on_click(cx.listener(|v, _, w, cx| {
-                        let resolved = conflicts::resolve_all(&v.committed, conflicts::Side::Ours);
-                        v.resolve_conflicts(resolved, w, cx);
-                    })),
-                )
-                .child(
-                    button(
-                        "conflict-keep-theirs".into(),
-                        t("editor.conflict.keepIncoming").into(),
-                    )
-                    .on_click(cx.listener(|v, _, w, cx| {
-                        let resolved =
-                            conflicts::resolve_all(&v.committed, conflicts::Side::Theirs);
-                        v.resolve_conflicts(resolved, w, cx);
-                    })),
-                );
-        }
-        row = row.child(
-            button(
-                "conflict-toggle".into(),
-                t(if self.conflicts_expanded {
-                    "editor.conflict.hideBlocks"
-                } else {
-                    "editor.conflict.showBlocks"
-                })
-                .into(),
-            )
-            .on_click(cx.listener(|v, _, _, cx| {
-                v.conflicts_expanded = !v.conflicts_expanded;
-                cx.notify();
-            })),
-        );
-        let mut banner = div()
-            .flex_none()
-            .mx(px(12.))
-            .my(px(8.))
-            .px(px(14.))
-            .py(px(10.))
-            .flex()
-            .flex_col()
-            .gap(px(10.))
-            .border_1()
-            .border_color(crate::theme::alpha(p.warning, 0.32))
-            .rounded(px(8.))
-            .bg(crate::theme::alpha(p.warning, 0.12))
-            .text_color(p.text)
-            .text_size(px(ty.ui.body))
-            .child(row);
-        if self.conflicts_expanded {
-            let total = blocks.len();
-            for (index, block) in blocks.iter().enumerate() {
-                let side = |side: conflicts::Side,
-                            label: &str,
-                            content: &str,
-                            cx: &mut Context<Self>| {
-                    let mut title = div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .text_size(px(ty.ui.meta))
-                        .text_color(p.muted)
-                        .child(label.to_owned());
-                    if !self.read_only {
-                        title = title.child(
-                            button(
-                                ElementId::Name(format!("conflict-pick-{index}-{side:?}").into()),
-                                t("editor.conflict.pick").into(),
-                            )
-                            .on_click(cx.listener(
-                                move |v, _, w, cx| {
-                                    let resolved =
-                                        conflicts::resolve_one(&v.committed, index, side);
-                                    v.resolve_conflicts(resolved, w, cx);
-                                },
-                            )),
-                        );
-                    }
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .flex_col()
-                        .gap(px(6.))
-                        .child(title)
-                        .child(
-                            div()
-                                .p(px(8.))
-                                .rounded(px(5.))
-                                .bg(p.inset)
-                                .font(crate::ui::fonts::font(
-                                    crate::typography::fonts::Role::Code,
-                                    cx,
-                                ))
-                                .text_size(px(ty.ui.meta))
-                                .child(content.to_owned()),
-                        )
-                };
-                let ours_label = if block.ours_label.is_empty() {
-                    t("editor.conflict.current").to_owned()
-                } else {
-                    block.ours_label.clone()
-                };
-                let theirs_label = if block.theirs_label.is_empty() {
-                    t("editor.conflict.incoming").to_owned()
-                } else {
-                    block.theirs_label.clone()
-                };
-                banner = banner.child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(6.))
-                        .child(
-                            div()
-                                .text_size(px(ty.ui.meta))
-                                .text_color(p.subtle)
-                                .child(tf(
-                                    "editor.conflict.blockPosition",
-                                    &[
-                                        ("index", ((index + 1) as i64).into()),
-                                        ("total", (total as i64).into()),
-                                        ("line", ((block.start + 1) as i64).into()),
-                                    ],
-                                )),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .gap(px(10.))
-                                .child(side(conflicts::Side::Ours, &ours_label, &block.ours, cx))
-                                .child(side(
-                                    conflicts::Side::Theirs,
-                                    &theirs_label,
-                                    &block.theirs,
-                                    cx,
-                                )),
-                        ),
-                );
-            }
-        }
-        Some(banner.into_any_element())
-    }
-    fn rebind(&mut self, name: &str, cx: &mut Context<Self>) {
+
+    pub(crate) fn rebind(&mut self, name: &str, cx: &mut Context<Self>) {
         let format =
             crate::editor::registry::resolve(&crate::editor::registry::EditorDocument::local(name))
                 .format;
@@ -429,144 +180,238 @@ impl CodeView {
         let language = Language::resolve(explicit, name);
         if self.language != language {
             self.language = language;
-            self.field.update(cx, |s, cx| {
-                s.set_highlighter(language.grammar().unwrap_or("puppyone-plaintext"), cx);
-                s.set_tab_size(
-                    TabSize {
-                        tab_size: language.tab_size(),
-                        hard_tabs: false,
-                    },
-                    cx,
-                );
+            self.editor.update(cx, |e, cx| {
+                e.dispatch(config_transaction(SetCodeLanguage(language)), cx);
             });
         }
     }
-    /// Another view's local edit (the HTML visual editor): applied through
-    /// the input handler so it joins this editor's undo history.
-    fn edit_utf16(
+
+    /// Another view's local edit (HTML visual editor / companion pane): applied
+    /// as one undoable command step on `self.editor` (`CE-01`, `CE-02`).
+    pub(crate) fn edit_utf16(
         &mut self,
-        edits: &[(std::ops::Range<usize>, String)],
-        window: &mut Window,
+        edits: &[(Range<usize>, String)],
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        if self.read_only || self.composing {
+        if self.read_only || self.composing(cx) {
             return false;
         }
-        self.field.update(cx, |s, cx| {
-            for (range, text) in edits.iter().rev() {
-                EntityInputHandler::replace_text_in_range(s, Some(range.clone()), text, window, cx);
+        if edits.is_empty() {
+            return true;
+        }
+        self.editor.update(cx, |e, cx| {
+            let doc = &e.state().doc;
+            let mut changes = Vec::with_capacity(edits.len());
+            let mut last_end = 0usize;
+            let mut delta: isize = 0;
+            for (r16, insert) in edits {
+                let a = doc.utf16_to_byte(r16.start);
+                let b = doc.utf16_to_byte(r16.end);
+                let range = a.min(b)..a.max(b);
+                last_end = (range.start as isize + delta + insert.len() as isize).max(0) as usize;
+                delta += insert.len() as isize - range.len() as isize;
+                changes.push(Change {
+                    range,
+                    insert: insert.clone(),
+                });
             }
+            e.dispatch(
+                Transaction::edit(
+                    ChangeSet::new(changes),
+                    Some(Selection::cursor(last_end)),
+                    UserEvent::Command,
+                )
+                .with_scroll_into_view(false),
+                cx,
+            );
         });
-        self.sync(window, cx);
         true
     }
+
     fn reveal_range(
         &mut self,
-        range: Option<std::ops::Range<usize>>,
+        range: Option<Range<usize>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use gpui_kit::base::input::RopeExt as _;
-        use gpui_kit::component::input::{RangeDecoration, RangeDecorationStyle};
-        let len = self.committed.len();
-        let Some(range) = range.filter(|r| r.start <= r.end && r.end <= len) else {
-            self.visual_highlight.clear(cx);
-            return;
-        };
-        let p = crate::theme::Theme::new(self.dark);
-        let marks = vec![
-            RangeDecoration::new(range.clone())
-                .with_style(RangeDecorationStyle::Fill)
-                .with_color(crate::theme::alpha(p.accent, 0.16).into()),
-            RangeDecoration::new(range.clone())
-                .with_color(crate::theme::alpha(p.accent, 0.45).into()),
-        ];
-        self.visual_highlight.set(marks, cx);
-        if !self.field.focus_handle(cx).is_focused(window) {
-            self.field.update(cx, |s, cx| {
-                s.unfold_at(s.text().offset_to_position(range.start), cx);
-                s.set_selected_range(range.start..range.start, cx);
-            });
-        }
+        let len = self.editor.read(cx).committed_doc().len();
+        let valid = range.filter(|r| r.start <= r.end && r.end <= len);
+        let focused = self.editor.read(cx).focus_handle(cx).is_focused(window);
+        self.editor.update(cx, |e, cx| {
+            e.dispatch(config_transaction(SetVisualHighlight(valid.clone())), cx);
+            if let Some(ref r) = valid
+                && !focused
+            {
+                e.dispatch(config_transaction(UnfoldOffset(r.start)), cx);
+                e.set_selection(Selection::cursor(r.start), cx);
+            }
+        });
     }
-    /// Undo or redo while another view (the HTML visual editor) is shown:
-    /// the same history, without taking focus.
-    fn replay(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
-        if self.read_only || self.composing {
+
+    pub(crate) fn replay(&mut self, redo: bool, _window: &mut Window, cx: &mut Context<Self>) {
+        if self.read_only || self.composing(cx) {
             return;
         }
-        self.field
-            .update(cx, |s, cx| s.replay_undo(redo, window, cx));
-        self.sync(window, cx);
+        self.editor.update(cx, |e, cx| e.replay_history(redo, cx));
     }
-    fn history(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
+
+    pub(crate) fn history(&mut self, redo: bool, _window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only {
             return;
         }
         if let Some(history) = &self.history_owner {
-            if !self.composing {
+            if !self.composing(cx) {
                 history(redo, cx);
             }
             return;
         }
-        self.finish_composition(window, cx);
-        self.field.focus_handle(cx).focus(window, cx);
-        let action: Box<dyn Action> = if redo {
-            Box::new(gpui_kit::base::input::Redo)
-        } else {
-            Box::new(gpui_kit::base::input::Undo)
-        };
-        window.dispatch_action(action, cx);
+        self.editor.update(cx, |e, cx| {
+            e.commit_composition(cx);
+            e.undo(redo, cx);
+        });
+    }
+
+    pub(crate) fn find(
+        &mut self,
+        event: FindEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<(usize, usize)> {
+        match event {
+            FindEvent::Close => {
+                self.editor.update(cx, |e, cx| e.find_clear(cx));
+                let handle = self.editor.read(cx).focus_handle(cx);
+                handle.focus(window, cx);
+                None
+            }
+            FindEvent::Query(query) => {
+                let res = self.editor.update(cx, |e, cx| e.find_query(&query, cx));
+                cx.emit(SurfaceEvent::FindResult {
+                    current: res.0,
+                    total: res.1,
+                });
+                Some(res)
+            }
+            FindEvent::Move { forward } => {
+                let res = self.editor.update(cx, |e, cx| e.find_move(forward, cx));
+                cx.emit(SurfaceEvent::FindResult {
+                    current: res.0,
+                    total: res.1,
+                });
+                Some(res)
+            }
+        }
+    }
+}
+
+impl EntityInputHandler for CodeView {
+    fn text_for_range(
+        &mut self,
+        range: Range<usize>,
+        actual: &mut Option<Range<usize>>,
+        w: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<String> {
+        self.editor
+            .update(cx, |e, cx| e.text_for_range(range, actual, w, cx))
+    }
+
+    fn selected_text_range(
+        &mut self,
+        ignore: bool,
+        w: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<UTF16Selection> {
+        self.editor
+            .update(cx, |e, cx| e.selected_text_range(ignore, w, cx))
+    }
+
+    fn marked_text_range(&self, w: &mut Window, cx: &mut Context<Self>) -> Option<Range<usize>> {
+        self.editor.update(cx, |e, cx| e.marked_text_range(w, cx))
+    }
+
+    fn unmark_text(&mut self, w: &mut Window, cx: &mut Context<Self>) {
+        self.editor.update(cx, |e, cx| e.unmark_text(w, cx));
+    }
+
+    fn replace_text_in_range(
+        &mut self,
+        range: Option<Range<usize>>,
+        text: &str,
+        w: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.editor
+            .update(cx, |e, cx| e.replace_text_in_range(range, text, w, cx));
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        range: Option<Range<usize>>,
+        text: &str,
+        selected: Option<Range<usize>>,
+        w: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.editor.update(cx, |e, cx| {
+            e.replace_and_mark_text_in_range(range, text, selected, w, cx)
+        });
+    }
+
+    fn bounds_for_range(
+        &mut self,
+        range: Range<usize>,
+        bounds: Bounds<Pixels>,
+        w: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        self.editor
+            .update(cx, |e, cx| e.bounds_for_range(range, bounds, w, cx))
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        point: Point<Pixels>,
+        w: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        self.editor
+            .update(cx, |e, cx| e.character_index_for_point(point, w, cx))
+    }
+
+    fn set_selected_text_range(
+        &mut self,
+        range: Range<usize>,
+        w: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.editor
+            .update(cx, |e, cx| e.set_selected_text_range(range, w, cx));
+    }
+
+    fn accepts_text_input(&self, w: &mut Window, cx: &mut Context<Self>) -> bool {
+        self.editor.update(cx, |e, cx| e.accepts_text_input(w, cx))
     }
 }
 
 impl Render for CodeView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let view = cx.entity();
-        let focus = self.field.focus_handle(cx);
-        // The final handler preserves Kit's input geometry and adds the missing
-        // composition-end notification (unmark itself emits no Kit event).
-        let input = canvas(
-            |_, _, _| (),
-            move |bounds, _, w, cx| {
-                w.handle_input(&focus, ElementInputHandler::new(bounds, view.clone()), cx);
-            },
-        )
-        .absolute()
-        .size_full();
-        let banner = self.conflict_banner(cx);
         div()
-            .relative()
-            .capture_action(cx.listener(|v, _: &gpui_kit::base::input::Undo, w, cx| {
+            .size_full()
+            .capture_action(cx.listener(|v, _: &InputUndo, w, cx| {
                 if v.history_owner.is_some() {
                     v.history(false, w, cx);
                     cx.stop_propagation();
                 }
             }))
-            .capture_action(cx.listener(|v, _: &gpui_kit::base::input::Redo, w, cx| {
+            .capture_action(cx.listener(|v, _: &InputRedo, w, cx| {
                 if v.history_owner.is_some() {
                     v.history(true, w, cx);
                     cx.stop_propagation();
                 }
             }))
-            .size_full()
-            .flex()
-            .flex_col()
-            .children(banner)
-            .child(
-                Editor::new(&self.field)
-                    .appearance(false)
-                    .bordered(false)
-                    .readonly(self.read_only)
-                    .h_full()
-                    .font(crate::ui::fonts::font(
-                        crate::typography::fonts::Role::Code,
-                        cx,
-                    ))
-                    .text_size(px(self.scale.metrics().editor.code))
-                    .line_height(px(20.)),
-            )
-            .child(input)
+            .child(self.editor.clone())
     }
 }
 
@@ -581,100 +426,188 @@ pub fn open_with(
     window: &mut Window,
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
+    let view = cx.new(|cx| CodeView::new_with(request, language, soft_wrap, window, cx));
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    let editor = view.read(cx).editor.clone();
     Box::new(CodeSurface {
-        view: cx.new(|cx| CodeView::new_with(request, language, soft_wrap, window, cx)),
+        view,
+        #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+        editor,
     })
 }
-struct CodeSurface {
-    view: Entity<CodeView>,
+
+pub(crate) struct CodeSurface {
+    pub(crate) view: Entity<CodeView>,
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    pub(crate) editor: Entity<EditorView>,
 }
+
 impl ViewerSurface for CodeSurface {
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
+
     fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
         Some(cx.subscribe(&self.view, move |_, e: &SurfaceEvent, cx| {
             events(e.clone(), cx)
         }))
     }
+
     fn text(&self, cx: &App) -> Option<String> {
-        Some(self.view.read(cx).committed.clone())
+        Some(self.view.read(cx).text(cx))
     }
+
+    fn buffer(&self, cx: &App) -> Option<Buffer> {
+        Some(self.view.read(cx).committed_buffer(cx))
+    }
+
     fn composing(&self, cx: &App) -> bool {
-        self.view.read(cx).composing
+        self.view.read(cx).composing(cx)
     }
+
     fn replace_text(&self, text: &str, window: &mut Window, cx: &mut App) {
         self.view.update(cx, |v, cx| v.replace(text, window, cx));
     }
+
     fn edit_utf16(
         &self,
-        edits: &[(std::ops::Range<usize>, String)],
+        edits: &[(Range<usize>, String)],
         window: &mut Window,
         cx: &mut App,
     ) -> bool {
         self.view
             .update(cx, |v, cx| v.edit_utf16(edits, window, cx))
     }
-    fn reveal_range(
-        &self,
-        range: Option<std::ops::Range<usize>>,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
+
+    fn reveal_range(&self, range: Option<Range<usize>>, window: &mut Window, cx: &mut App) {
         self.view
             .update(cx, |v, cx| v.reveal_range(range, window, cx));
     }
+
     fn rebind_name(&self, name: &str, cx: &mut App) {
         self.view.update(cx, |v, cx| v.rebind(name, cx));
     }
+
     fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
         self.view.update(cx, |v, cx| v.history(redo, window, cx));
     }
-    fn set_history_owner(&self, history: SurfaceHistory, cx: &mut App) {
-        self.view.update(cx, |v, _| v.history_owner = Some(history));
+
+    fn set_chrome_inset(&self, top: f32, cx: &mut App) {
+        self.view.update(cx, |v, cx| v.set_chrome_inset(top, cx));
     }
-    fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
-        match name {
-            "undo" | "redo" => self.undo(name == "redo", window, cx),
-            "replay-undo" | "replay-redo" => self
-                .view
-                .update(cx, |v, cx| v.replay(name == "replay-redo", window, cx)),
+
+    fn scroll_state(&self, cx: &App) -> (f32, bool) {
+        (self.view.read(cx).scroll_top(cx), false)
+    }
+
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let v = self.view.read(cx);
+        let ed = v.editor.read(cx);
+        let sel = ed.state().selection;
+        let scroll_y = if ed.scroll_top() > 0.0 || ed.layout().is_some() {
+            ed.scroll_top()
+        } else {
+            v.restored_scroll_y.unwrap_or(0.0)
+        };
+        let folds = ed
+            .extension::<CodeExtension>()
+            .map(|ext| {
+                ext.folded_lines(ed.committed_doc())
+                    .into_iter()
+                    .map(|l| (l, true))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Some(SurfaceViewState {
+            selection: Some((sel.anchor, sel.head)),
+            scroll_y,
+            scroll_x: 0.0,
+            mode: None,
+            zoom: None,
+            folds,
+        })
+    }
+
+    fn restore_view_state(&self, state: &SurfaceViewState, _: &mut Window, cx: &mut App) {
+        self.view.update(cx, |v, cx| {
+            let (_, sy) = state.clamped_scroll(None, None);
+            v.restored_scroll_y = Some(sy);
+            v.editor.update(cx, |e, cx| {
+                let doc = e.committed_doc();
+                let clamped_sel = state.clamped_selection_in_buffer(doc);
+                let folded_lines: Vec<usize> = state
+                    .clamped_folds(doc.line_count())
+                    .into_iter()
+                    .filter_map(|(line, folded)| folded.then_some(line))
+                    .collect();
+                e.dispatch(config_transaction(SetFoldedLines(folded_lines)), cx);
+                if let Some((anchor, head)) = clamped_sel {
+                    e.set_selection(Selection::range(anchor, head), cx);
+                }
+                e.set_scroll_top(sy, cx);
+            });
+        });
+    }
+
+    fn command(&self, cmd: HostCommand, window: &mut Window, cx: &mut App) {
+        match cmd {
+            HostCommand::Undo => self.undo(false, window, cx),
+            HostCommand::Redo => self.undo(true, window, cx),
+            HostCommand::ReplayUndo => self.view.update(cx, |v, cx| v.replay(false, window, cx)),
+            HostCommand::ReplayRedo => self.view.update(cx, |v, cx| v.replay(true, window, cx)),
             _ => {}
         }
     }
-    fn apply(&self, read_only: bool, dark: bool, scale: Scale, window: &mut Window, cx: &mut App) {
+
+    fn apply(&self, read_only: bool, dark: bool, scale: Scale, _window: &mut Window, cx: &mut App) {
         self.view.update(cx, |v, cx| {
-            if read_only {
-                v.finish_composition(window, cx);
-            }
-            let changed = (v.read_only, v.dark, v.scale) != (read_only, dark, scale);
             v.read_only = read_only;
-            v.field.update(cx, |s, cx| s.set_readonly(read_only, cx));
-            if (v.dark, v.scale) != (dark, scale) {
-                style::project(dark, scale, cx);
-                v.field.update(cx, |s, _| {
-                    s.set_gutter_metrics(Some(style::gutter(dark, scale)))
-                });
-            }
             v.dark = dark;
             v.scale = scale;
-            if changed {
-                cx.notify();
-            }
+            v.editor.update(cx, |e, cx| {
+                e.set_read_only(read_only, cx);
+                e.set_appearance(dark, scale, cx);
+            });
         });
     }
+
     fn focus_handle(&self, cx: &App) -> Option<FocusHandle> {
-        Some(self.view.read(cx).field.focus_handle(cx))
+        Some(self.view.read(cx).editor.read(cx).focus_handle(cx))
     }
+
     fn pane(&self, _: &App) -> PaneEntries {
         PaneEntries {
             find: true,
             ..Default::default()
         }
     }
+
     fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
         self.view.update(cx, |v, cx| v.find(event, window, cx))
     }
+
+    fn as_companion_history(&self) -> Option<&dyn CompanionHistory> {
+        Some(self)
+    }
+
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
+    }
+}
+
+impl CompanionHistory for CodeSurface {
+    fn set_history_owner(&self, history: SurfaceHistory, cx: &mut App) {
+        self.view.update(cx, |v, _| v.history_owner = Some(history));
+    }
+}
+
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for CodeSurface {
+    fn editor_view(&self) -> Option<Entity<EditorView>> {
+        Some(self.editor.clone())
+    }
+
     #[cfg(test)]
     fn code_editor(&self) -> Option<Entity<CodeView>> {
         Some(self.view.clone())

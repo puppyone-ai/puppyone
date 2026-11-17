@@ -51,12 +51,14 @@ impl CsvEditor {
                 self.row_numbers = !self.row_numbers;
                 let show = self.row_numbers;
                 preferences::update(&self.document_id, |e| e.show_row_numbers = Some(show));
+                self.clamp_scroll();
                 cx.notify();
             }
             "csv-fit-columns-to-viewport" => self.fit_columns_to_viewport(cx),
             "csv-reset-column-widths" => {
                 self.layout.reset(&self.model);
                 self.commit_widths();
+                self.clamp_scroll();
                 cx.notify();
             }
             _ => {}
@@ -71,6 +73,9 @@ impl CsvEditor {
             return;
         }
         self.header = header;
+        if header && self.gestures.structural == Some((Axis::Row, 0)) {
+            self.gestures.structural = None;
+        }
         preferences::update(&self.document_id, |e| {
             e.first_record_as_header = Some(header)
         });
@@ -94,6 +99,7 @@ impl CsvEditor {
         .max(0.);
         self.layout.fit(available);
         self.commit_widths();
+        self.clamp_scroll();
         cx.notify();
     }
 

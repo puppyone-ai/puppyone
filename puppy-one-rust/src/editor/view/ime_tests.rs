@@ -149,7 +149,7 @@ impl Ime<'_> {
         self.view.update(self.cx, |v, _| v.composing())
     }
     fn discards(&mut self) -> usize {
-        self.view.update(self.cx, |v, _| v.discard_requests)
+        self.view.update(self.cx, |v, _| v.ime.discard_requests)
     }
     fn changes(&self) -> usize {
         self.events
@@ -521,7 +521,11 @@ fn replacing_the_document_abandons_the_composition(cx: &mut TestAppContext) {
             0,
             "{format:?}: nothing reported for the abandoned text"
         );
-        assert!(!ime.view.update(ime.cx, |v, _| v.can_undo()), "{format:?}");
+        // DP-03: external adoption is undoable, and undoing recovers the
+        // pre-composition "draft" rather than uncommitted "draftni" preedit!
+        assert!(ime.view.update(ime.cx, |v, _| v.can_undo()), "{format:?}");
+        assert_eq!(ime.undo(false), "draft", "{format:?}");
+        assert_eq!(ime.undo(true), "from disk", "{format:?}");
     });
 }
 
@@ -675,5 +679,61 @@ fn a_function_key_the_platform_delivers_is_not_replayed(cx: &mut TestAppContext)
             ("abcd", 3..3),
             "{format:?}"
         );
+    });
+}
+
+#[gpui::test]
+fn character_index_for_point_and_ime_queries_clamp_stale_multibyte_offsets_without_flattening(
+    cx: &mut TestAppContext,
+) {
+    let initial = "ab third fourth fifth sixth seventh eighth";
+    let ime = open(cx, Format::Plain, initial, 0);
+
+    let (byte_two_pt, far_right_pt) = ime.view.read_with(ime.cx, |v, _| {
+        let layout = v.caches.layout.as_ref().unwrap();
+        (
+            layout.range_boxes(1..2)[0].right_center(),
+            layout.range_boxes(30..35)[0].center(),
+        )
+    });
+
+    // Shrink to emoji + CJK ("😀中文", 10 bytes, 4 UTF-16 units) WITHOUT
+    // redrawing so `layout` is stale: `byte_two_pt` lands at byte ~2
+    // (mid-emoji '😀' = 0..4) and `far_right_pt` lands past EOF (> 30)!
+    ime.view.update_in(ime.cx, |v, w, cx| {
+        v.replace_text("😀中文", cx);
+        assert_ne!(v.caches.layout.as_ref().unwrap().revision, v.state.revision);
+
+        let idx_mid = v.character_index_for_point(byte_two_pt, w, cx).unwrap();
+        assert!(idx_mid <= 4);
+
+        let idx_eof = v.character_index_for_point(far_right_pt, w, cx).unwrap();
+        assert_eq!(idx_eof, 4);
+
+        // Also test mid-CJK ('中' = 0..3) with stale byte ~2.
+        v.replace_text("中文😀", cx);
+        let idx_cjk = v.character_index_for_point(byte_two_pt, w, cx).unwrap();
+        assert!(idx_cjk <= 4);
+    });
+
+    // Verify multi-leaf (> 100 KB) IME operations never materialise `flat`.
+    let large = "Line 中文 😀 content\n".repeat(5500);
+    assert!(large.len() > 100_000);
+    ime.view.update_in(ime.cx, |v, w, cx| {
+        v.replace_text(&large, cx);
+        assert!(!v.state.doc.has_materialized_flat());
+
+        let sel = v.selected_text_range(false, w, cx).unwrap();
+        assert!(sel.range.end <= v.state.doc.len_utf16());
+
+        let mut actual = None;
+        let sample = v.text_for_range(0..10, &mut actual, w, cx).unwrap();
+        assert!(!sample.is_empty());
+        assert!(!v.state.doc.has_materialized_flat());
+
+        v.replace_and_mark_text_in_range(Some(0..0), "nihao", Some(5..5), w, cx);
+        assert_eq!(v.marked_text_range(w, cx), Some(0..5));
+        v.replace_text_in_range(None, "你好", w, cx);
+        assert!(!v.state.doc.has_materialized_flat());
     });
 }

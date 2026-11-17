@@ -161,3 +161,56 @@ pub fn report_edit(
         })
     );
 }
+
+/// One CSV table benchmark line (`CS-30`: `tools/bench-editor.py` `csv` surface).
+#[allow(dead_code)]
+pub fn report_csv(
+    sections: usize,
+    rows: usize,
+    cols: usize,
+    open_ms: f64,
+    scroll: &Samples,
+    cell_type: &Samples,
+    structural: &Samples,
+) {
+    println!(
+        "BENCH {}",
+        serde_json::json!({
+            "surface": "csv",
+            "sections": sections,
+            "lines": rows,
+            "cols": cols,
+            "firstMs": open_ms,
+            "scrollMeanMs": scroll.mean(),
+            "scrollP95Ms": scroll.p95(),
+            "cellTypeMeanMs": cell_type.mean(),
+            "cellTypeP95Ms": cell_type.p95(),
+            "structuralMeanMs": structural.mean(),
+            "structuralP95Ms": structural.p95(),
+        })
+    );
+}
+
+/// One code/text adapter & frame benchmark line (`CE-30`: `code_edit` surface).
+#[allow(dead_code)]
+pub fn report_code_edit(
+    sections: usize,
+    lines: usize,
+    bytes: usize,
+    adapter: &Samples,
+    frame: &Samples,
+) {
+    println!(
+        "BENCH {}",
+        serde_json::json!({
+            "surface": "code_edit",
+            "sections": sections,
+            "lines": lines,
+            "bytes": bytes,
+            "keystrokeAdapterMeanMs": adapter.mean(),
+            "keystrokeAdapterP95Ms": adapter.p95(),
+            "keystrokeFrameMeanMs": frame.mean(),
+            "keystrokeFrameP95Ms": frame.p95(),
+        })
+    );
+}

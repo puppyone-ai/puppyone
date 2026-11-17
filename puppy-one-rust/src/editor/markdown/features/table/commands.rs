@@ -2,7 +2,8 @@
 //! a structure operation rewrites the table's source in one transaction.
 //! Operations that create or target a cell put the caret at the end of its
 //! text; moves keep the (mapped) selection — the moved row / column stays
-//! structurally selected in the widget instead.
+//! structurally selected in the widget instead. Operations exceeding table
+//! capacity limits (`TODO-32`) return `None` without mutating the document.
 use super::{ID, model::Table, operation};
 use crate::editor::{
     markdown::core::feature::CommandCx,
@@ -45,7 +46,7 @@ pub fn transaction(command: &Command, cx: &CommandCx) -> Option<Transaction> {
         .filter(|e| e.feature == ID)
         .filter_map(|e| e.model::<Table>())
         .find(|t| t.range.start == s.table)?;
-    let edit = operation::apply(table, s.operation, s.row, s.column);
+    let edit = operation::try_apply(table, s.operation, s.row, s.column)?;
     if edit.replacement == cx.state.doc.slice(table.range.clone()) {
         return None;
     }

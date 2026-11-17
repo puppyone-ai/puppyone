@@ -11,6 +11,7 @@ pub mod database;
 pub mod desktop;
 pub mod diagnostics;
 pub mod docx_redline;
+pub mod draft_journal;
 pub mod drag_out;
 pub mod editor_state_storage;
 pub mod electron_import;

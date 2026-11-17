@@ -1,4 +1,5 @@
 #![cfg(test)]
+const MAX_SOURCE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 use super::*;
 use std::{
     io::{self, Cursor, Read, Seek, SeekFrom},

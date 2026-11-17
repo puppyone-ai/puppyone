@@ -3,14 +3,24 @@
 #[path = "text_tests.rs"]
 mod tests;
 use super::source_split::SourceSplit;
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+use crate::editor::registry::SurfaceTestProbe;
 use crate::{
     editor::{
-        markdown::MarkdownExtension,
-        registry::{PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceRequest, ViewerSurface},
-        view::{EditorView, editor::EditorEvent, extension::EditIntent},
+        markdown::{
+            FormatCommand, MarkdownExtension, SetAssets, SetDialect, SetLivePreview, SetReferences,
+            ToggleLivePreview, format_command,
+        },
+        registry::{
+            HostCommand, MarkdownCommand, PaneEntries, PaneItemId, PaneSegmentId, SurfaceEvent,
+            SurfaceEvents, SurfaceRequest, ViewerSurface,
+        },
+        text::{buffer::Buffer, history::minimal_diff_buffers_utf16, selection::Selection},
+        view::{EditorView, editor::EditorEvent, extension::config_transaction},
         workbench::{
             find::FindEvent,
             pane::{Segment, Segmented, Switch},
+            view_state::SurfaceViewState,
         },
     },
     formats::markdown::MarkdownDialect,
@@ -39,19 +49,27 @@ pub fn open_markdown(
         .as_ref()
         .and_then(|workspace| workspace.markdown_dialect());
     markdown.set_dialect(MarkdownDialect::resolve(request.name, explicit_dialect).dialect);
-    markdown.assets = crate::editor::registry::document_assets(request.id);
     if request.file_mode {
         markdown.read_only = true;
     }
+    let initial_assets = request.assets.clone();
+    let initial_references = request.references.clone();
     let text = match request.input {
         crate::editor::registry::SurfaceInput::Text(text) => text,
         _ => "",
     };
     let dark = request.dark;
+    let scale = request.scale;
     let file_mode = request.file_mode;
     let editor = cx.new(|cx| {
         let mut view = EditorView::new(text, Box::new(markdown), cx);
-        view.dark = dark;
+        view.set_appearance(dark, scale, cx);
+        if initial_assets.is_some() {
+            view.dispatch(config_transaction(SetAssets(initial_assets)), cx);
+        }
+        if initial_references.is_some() {
+            view.dispatch(config_transaction(SetReferences(initial_references)), cx);
+        }
         if file_mode {
             view.set_read_only(true, cx);
         }
@@ -75,14 +93,18 @@ pub fn open_markdown(
         ));
         let history_editor = editor.clone();
         let history_gate = host_read_only.clone();
-        source.set_history_owner(
-            Rc::new(move |redo, cx| {
-                if !history_gate.get() {
-                    history_editor.update(cx, |e, cx| e.replay_history(redo, cx));
-                }
-            }),
-            cx,
-        );
+        if let Some(companion) = source.as_companion_history() {
+            companion.set_history_owner(
+                Rc::new(move |redo, cx| {
+                    if !history_gate.get() {
+                        history_editor.update(cx, |e, cx| e.replay_history(redo, cx));
+                    }
+                }),
+                cx,
+            );
+        }
+        let pending_source_echo = Rc::new(Cell::new(false));
+        let echo_for_editor = pending_source_echo.clone();
         let source_for_editor = source.clone();
         let syncing_for_editor = syncing.clone();
         subscriptions.push(window.subscribe(
@@ -93,16 +115,23 @@ pub fn open_markdown(
                     return;
                 }
                 syncing_for_editor.set(true);
-                let text = editor.read(cx).text().to_owned();
-                if let Some(prev) = source_for_editor.text(cx)
-                    && prev != text
+                let next_doc = editor.read(cx).committed_doc().clone();
+                if let Some(prev) = source_for_editor.buffer(cx)
+                    && prev != next_doc
+                    && let Some((range16, insert)) = minimal_diff_buffers_utf16(&prev, &next_doc)
                 {
-                    source_for_editor.replace_text(&text, window, cx);
+                    if source_for_editor.edit_utf16(&[(range16, insert)], window, cx) {
+                        echo_for_editor.set(true);
+                    } else {
+                        let full = next_doc.slice_cow(0..next_doc.len());
+                        source_for_editor.replace_text(&full, window, cx);
+                    }
                 }
                 syncing_for_editor.set(false);
             },
         ));
 
+        let echo_for_source = pending_source_echo;
         let editor_for_source = editor.clone();
         let source_for_source = source.clone();
         let syncing_for_source = syncing.clone();
@@ -110,20 +139,24 @@ pub fn open_markdown(
         if let Some(sub) = source.subscribe(
             Rc::new(move |event, cx| {
                 if !matches!(event, SurfaceEvent::Changed) || syncing_for_source.get() {
+                    echo_for_source.set(false);
                     return;
                 }
-                let Some(text) = source_for_source.text(cx) else {
+                let Some(next_buf) = source_for_source.buffer(cx) else {
                     return;
                 };
-                let same = editor_for_source.read(cx).text() == text;
+                let same = *editor_for_source.read(cx).committed_doc() == next_buf;
                 if same {
-                    if let Some(cb) = events_for_source.borrow().as_ref() {
+                    if !echo_for_source.replace(false)
+                        && let Some(cb) = events_for_source.borrow().as_ref()
+                    {
                         cb(SurfaceEvent::Changed, cx);
                     }
                     return;
                 }
+                echo_for_source.set(false);
                 syncing_for_source.set(true);
-                editor_for_source.update(cx, |e, cx| e.sync_text(&text, cx));
+                editor_for_source.update(cx, |e, cx| e.sync_buffer(&next_buf, cx));
                 syncing_for_source.set(false);
             }),
             cx,
@@ -153,6 +186,7 @@ pub fn open_markdown(
         editing,
         host_read_only,
         source_panel,
+        restored_scroll_y: Cell::new(None),
         syncing,
         events: events_slot,
         source,
@@ -168,6 +202,7 @@ pub struct TextSurface {
     editing: Rc<Cell<bool>>,
     host_read_only: Rc<Cell<bool>>,
     source_panel: Rc<Cell<bool>>,
+    restored_scroll_y: Cell<Option<f32>>,
     syncing: Rc<Cell<bool>>,
     events: Rc<RefCell<Option<SurfaceEvents>>>,
     source: Option<Rc<dyn ViewerSurface>>,
@@ -182,29 +217,19 @@ impl TextSurface {
             .extension::<MarkdownExtension>()
             .map(|m| m.live)
     }
+
     fn toggle_live(&self, cx: &mut App) {
         self.editor.update(cx, |e, cx| {
-            if let Some(md) = e.extension_mut::<MarkdownExtension>() {
-                md.live = !md.live;
-                e.appearance += 1;
-                cx.notify();
-            }
+            e.dispatch(config_transaction(ToggleLivePreview), cx)
         });
     }
+
     fn sync_editor_read_only(&self, cx: &mut App) {
         let effective = self.host_read_only.get() || (self.file_mode && !self.editing.get());
-        self.editor.update(cx, |e, cx| {
-            let changed = e.read_only() != effective;
-            e.set_read_only(effective, cx);
-            if let Some(md) = e.extension_mut::<MarkdownExtension>() {
-                md.read_only = effective;
-            }
-            if changed {
-                e.appearance += 1;
-                cx.notify();
-            }
-        });
+        self.editor
+            .update(cx, |e, cx| e.set_read_only(effective, cx));
     }
+
     fn toggle_editing(&self, window: &mut Window, cx: &mut App) {
         if !self.file_mode || self.host_read_only.get() {
             return;
@@ -217,6 +242,7 @@ impl TextSurface {
             handle.focus(window, cx);
         }
     }
+
     fn toggle_source_panel(&self, window: &mut Window, cx: &mut App) {
         if !self.file_mode {
             return;
@@ -236,12 +262,7 @@ impl ViewerSurface for TextSurface {
     fn rebind_name(&self, name: &str, cx: &mut App) {
         let dialect = MarkdownDialect::resolve(name, self.explicit_dialect).dialect;
         self.editor.update(cx, |view, cx| {
-            if let Some(markdown) = view.extension_mut::<MarkdownExtension>()
-                && markdown.set_dialect(dialect)
-            {
-                view.appearance += 1;
-                cx.notify();
-            }
+            view.dispatch(config_transaction(SetDialect(dialect)), cx);
         });
         if let Some(source) = &self.source {
             source.rebind_name(name, cx);
@@ -253,19 +274,17 @@ impl ViewerSurface for TextSurface {
         cx: &mut App,
     ) {
         self.editor.update(cx, |e, cx| {
-            if let Some(md) = e.extension_mut::<MarkdownExtension>() {
-                md.references = context;
-                e.appearance += 1;
-                cx.notify();
-            }
+            e.dispatch(config_transaction(SetReferences(context)), cx);
         });
     }
+
     fn element(&self) -> AnyElement {
         if let Some(split) = &self.split {
             return split.clone().into_any_element();
         }
         self.editor.clone().into_any_element()
     }
+
     fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
         *self.events.borrow_mut() = Some(events.clone());
         Some(cx.subscribe(
@@ -276,16 +295,32 @@ impl ViewerSurface for TextSurface {
                 EditorEvent::Changed(_) | EditorEvent::CompositionEnded => {
                     events(SurfaceEvent::Changed, cx)
                 }
+                EditorEvent::FindResult { current, total } => events(
+                    SurfaceEvent::FindResult {
+                        current: *current,
+                        total: *total,
+                    },
+                    cx,
+                ),
                 EditorEvent::OpenPaths(paths) => events(SurfaceEvent::OpenPaths(paths.clone()), cx),
             },
         ))
     }
+
     fn text(&self, cx: &App) -> Option<String> {
-        Some(self.editor.read(cx).text().to_owned())
+        let doc = self.editor.read(cx).committed_doc();
+        Some(doc.slice_cow(0..doc.len()).into_owned())
     }
+
+    fn buffer(&self, cx: &App) -> Option<Buffer> {
+        let doc = self.editor.read(cx).committed_doc();
+        Some(Buffer::from_rope(doc.rope().clone()))
+    }
+
     fn composing(&self, cx: &App) -> bool {
         self.editor.read(cx).composing() || self.source.as_ref().is_some_and(|s| s.composing(cx))
     }
+
     fn replace_text(&self, text: &str, window: &mut Window, cx: &mut App) {
         self.syncing.set(true);
         self.editor.update(cx, |e, cx| e.replace_text(text, cx));
@@ -294,6 +329,7 @@ impl ViewerSurface for TextSurface {
         }
         self.syncing.set(false);
     }
+
     fn undo(&self, redo: bool, _window: &mut Window, cx: &mut App) {
         if self.host_read_only.get() || self.composing(cx) {
             return;
@@ -306,12 +342,15 @@ impl ViewerSurface for TextSurface {
             }
         });
     }
+
     fn set_chrome_inset(&self, top: f32, cx: &mut App) {
         self.editor.update(cx, |e, cx| e.set_chrome_inset(top, cx));
     }
+
     fn scroll_state(&self, cx: &App) -> (f32, bool) {
         (self.editor.read(cx).scroll_top(), false)
     }
+
     fn apply(&self, read_only: bool, dark: bool, scale: Scale, window: &mut Window, cx: &mut App) {
         self.host_read_only.set(read_only);
         if read_only && self.file_mode {
@@ -319,50 +358,89 @@ impl ViewerSurface for TextSurface {
         }
         let effective = read_only || (self.file_mode && !self.editing.get());
         self.editor.update(cx, |e, cx| {
-            let mut changed = e.read_only() != effective || e.dark != dark;
             e.set_read_only(effective, cx);
-            e.dark = dark;
-            if let Some(md) = e.extension_mut::<MarkdownExtension>() {
-                md.read_only = effective;
-                if md.set_appearance(dark, scale) {
-                    changed = true;
-                }
-            }
-            if changed {
-                e.appearance += 1;
-                cx.notify();
-            }
+            e.set_appearance(dark, scale, cx);
         });
         if let Some(source) = &self.source {
             source.apply(read_only, dark, scale, window, cx);
         }
     }
-    fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
-        match name {
-            "source" => {
+
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let ed = self.editor.read(cx);
+        let sel = ed.state().selection;
+        let scroll_y = if ed.scroll_top() > 0.0 {
+            self.restored_scroll_y.set(None);
+            ed.scroll_top()
+        } else {
+            self.restored_scroll_y.get().unwrap_or(0.0)
+        };
+        let mode = self
+            .markdown_live(cx)
+            .map(|live| if live { "live".into() } else { "source".into() });
+        Some(SurfaceViewState {
+            selection: Some((sel.anchor, sel.head)),
+            scroll_y,
+            scroll_x: 0.0,
+            mode,
+            zoom: None,
+            folds: Vec::new(),
+        })
+    }
+
+    fn restore_view_state(&self, state: &SurfaceViewState, window: &mut Window, cx: &mut App) {
+        if let Some(mode) = state.mode.as_deref()
+            && !self.file_mode
+            && let Some(live) = self.markdown_live(cx)
+            && live != (mode != "source")
+        {
+            self.toggle_live(cx);
+        }
+        let (_, scroll_y) = state.clamped_scroll(None, None);
+        self.restored_scroll_y.set(Some(scroll_y));
+        self.editor.update(cx, |e, cx| {
+            let doc = e.committed_doc();
+            if let Some((anchor, head)) = state.clamped_selection_in_buffer(doc) {
+                e.set_selection(Selection::range(anchor, head), cx);
+            }
+            e.set_scroll_top(scroll_y, cx);
+        });
+        if let Some(source) = &self.source {
+            source.restore_view_state(state, window, cx);
+        }
+    }
+
+    fn command(&self, cmd: HostCommand, window: &mut Window, cx: &mut App) {
+        match cmd {
+            HostCommand::Source => {
                 if self.file_mode {
                     self.toggle_source_panel(window, cx);
                 } else {
                     self.toggle_live(cx);
                 }
             }
-            "undo" => self.undo(false, window, cx),
-            "redo" => self.undo(true, window, cx),
-            "bold" => self
-                .editor
-                .update(cx, |e, cx| e.edit_intent(EditIntent::Bold, cx)),
-            "italic" => self
-                .editor
-                .update(cx, |e, cx| e.edit_intent(EditIntent::Italic, cx)),
+            HostCommand::Undo => self.undo(false, window, cx),
+            HostCommand::Redo => self.undo(true, window, cx),
+            HostCommand::Format(MarkdownCommand::Bold) => self.editor.update(cx, |e, cx| {
+                e.run_command(&format_command(FormatCommand::Bold), window, cx)
+            }),
+            HostCommand::Format(MarkdownCommand::Italic) => self.editor.update(cx, |e, cx| {
+                e.run_command(&format_command(FormatCommand::Italic), window, cx)
+            }),
+            HostCommand::Format(MarkdownCommand::Underline) => self.editor.update(cx, |e, cx| {
+                e.run_command(&format_command(FormatCommand::Underline), window, cx)
+            }),
             _ => {}
         }
     }
+
     fn focus_handle(&self, cx: &App) -> Option<FocusHandle> {
         if self.file_mode && !self.editing.get() && self.source_panel.get() {
             return self.source.as_ref().and_then(|s| s.focus_handle(cx));
         }
         Some(self.editor.read(cx).focus_handle(cx))
     }
+
     /// Markdown contributes its live / source segments to the workbench pane
     /// menu, or its Edit + Source switches in standalone File Mode.
     fn pane(&self, cx: &App) -> PaneEntries {
@@ -412,29 +490,29 @@ impl ViewerSurface for TextSurface {
             find: true,
         }
     }
-    fn pane_segment(&self, id: &'static str, _: &mut Window, cx: &mut App) {
-        if self
-            .markdown_live(cx)
-            .is_some_and(|live| live != (id == "live"))
-        {
-            self.toggle_live(cx);
+
+    fn pane_segment(&self, segment: PaneSegmentId, _: &mut Window, cx: &mut App) {
+        let want_live = segment == PaneSegmentId::Live;
+        if self.markdown_live(cx).is_some_and(|live| live != want_live) {
+            self.editor.update(cx, |e, cx| {
+                e.dispatch(config_transaction(SetLivePreview(want_live)), cx);
+            });
         }
     }
-    fn pane_item(&self, id: &'static str, window: &mut Window, cx: &mut App) {
-        match id {
-            DOCUMENT_EDITING_TOGGLE_ID => self.toggle_editing(window, cx),
-            DOCUMENT_SOURCE_PANEL_TOGGLE_ID => self.toggle_source_panel(window, cx),
+
+    fn pane_item(&self, item: PaneItemId, window: &mut Window, cx: &mut App) {
+        match item {
+            PaneItemId::DocumentEditing => self.toggle_editing(window, cx),
+            PaneItemId::DocumentSourcePanel => self.toggle_source_panel(window, cx),
             _ => {}
         }
     }
+
     #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
-    fn editor_view(&self) -> Option<Entity<EditorView>> {
-        Some(self.editor.clone())
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
     }
-    #[cfg(test)]
-    fn code_editor(&self) -> Option<Entity<super::code::CodeView>> {
-        self.source.as_ref().and_then(|s| s.code_editor())
-    }
+
     /// The CodeMirror adapter: the view searches and marks.
     fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
         match event {
@@ -451,5 +529,16 @@ impl ViewerSurface for TextSurface {
                 None
             }
         }
+    }
+}
+
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for TextSurface {
+    fn editor_view(&self) -> Option<Entity<EditorView>> {
+        Some(self.editor.clone())
+    }
+    #[cfg(test)]
+    fn code_editor(&self) -> Option<Entity<super::code::CodeView>> {
+        self.source.as_ref()?.as_test_probe()?.code_editor()
     }
 }

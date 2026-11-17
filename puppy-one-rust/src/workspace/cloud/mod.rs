@@ -397,9 +397,15 @@ impl DocumentStoragePort for Cloud {
         let bytes = version.encode(text)?;
         match self.shared.raw_write(path, &bytes, Some(&version.revision)) {
             Ok(revision) => {
+                let line_ending = if version.crlf {
+                    LineEnding::Crlf
+                } else {
+                    LineEnding::Lf
+                };
                 version.revision = revision;
                 Ok(WriteResult::Saved(TextSnapshot {
                     encoding: Default::default(),
+                    line_ending,
                     text: text.into(),
                     revision: version.revision()?,
                 }))
@@ -439,6 +445,19 @@ impl ResourcePort for Cloud {
                 .into(),
             bytes: file.bytes,
         })
+    }
+    fn stat_entry(&self, path: &RelativePath) -> Result<EntryStat> {
+        let file = self.shared.file(path)?;
+        Ok(EntryStat {
+            size: file.bytes.len() as u64,
+            is_file: true,
+            readonly: !self.shared.descriptor.capabilities.write,
+        })
+    }
+    fn read_head(&self, path: &RelativePath, max_bytes: usize) -> Result<Vec<u8>> {
+        let file = self.shared.file(path)?;
+        let len = file.bytes.len().min(max_bytes);
+        Ok(file.bytes[..len].to_vec())
     }
 }
 /// `database-candidate` extensions (`file-formats.json`).

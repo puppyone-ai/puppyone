@@ -9,13 +9,13 @@
 //! session starts over from the first page and says so.
 use crate::{
     editor::{
-        registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
+        registry::{
+            SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface, viewer_budget,
+        },
         tokens::Tokens,
     },
     localization::t,
-    platform::database::{
-        CellKind, Failure, IDLE, MAX_SOURCE_BYTES, Object, PAGE_COLUMNS, Page, Session,
-    },
+    platform::database::{CellKind, Failure, IDLE, Object, PAGE_COLUMNS, Page, Session},
     theme,
     typography::Scale,
     ui::{appearance::ActiveAppearance, components::Icon, loading::LoadingMark},
@@ -152,7 +152,7 @@ fn open_session(
             reader: Box::new(input.source.reader),
             validate: Arc::new(move || validate().map_err(session_failure)),
         },
-        MAX_SOURCE_BYTES,
+        viewer_budget("database-preview"),
         cancel,
         clock,
         started,

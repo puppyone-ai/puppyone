@@ -8,7 +8,9 @@ use crate::{
     editor::view::{bind_keys, style},
     typography::Scale,
 };
-use gpui::{Entity, EntityInputHandler, TestAppContext, VisualTestContext, point, px, size};
+use gpui::{
+    AppContext as _, Entity, EntityInputHandler, TestAppContext, VisualTestContext, point, px, size,
+};
 use std::{cell::RefCell, rc::Rc};
 
 fn setup<'a>(
@@ -64,17 +66,28 @@ fn typing_replaces_the_selected_value_and_history_belongs_to_the_table(cx: &mut 
     cx.simulate_input("bob");
     assert_eq!(text(&view, cx), "id,name\n1,bob\n");
     assert_eq!(*changes.borrow(), 3);
-    // Enter and Escape leave an `<input>` alone.
-    cx.simulate_keystrokes("enter escape");
-    assert_eq!(active(&view, cx), Some((1, 1, "bob".into())));
-    // ⌘Z in the cell undoes through the model (one step per edit).
-    cx.simulate_keystrokes("cmd-z cmd-z cmd-z");
+    // Edits stay in the cell session until committed (`CS-03`).
+    view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 0));
+    // `Enter` commits the session as one table-level undo step and returns focus to the table.
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(active(&view, cx), None);
+    view.update_in(cx, |v, w, _| {
+        assert_eq!(v.model.undo_len(), 1);
+        assert!(v.focus.is_focused(w));
+    });
+    // ⌘Z on the table undoes the entire cell session in one step!
+    cx.simulate_keystrokes("cmd-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,alice\n");
-    assert_eq!(active(&view, cx), Some((1, 1, "alice".into())));
     cx.simulate_keystrokes("cmd-shift-z");
     cx.run_until_parked();
-    assert_eq!(text(&view, cx), "id,name\n1,b\n");
+    assert_eq!(text(&view, cx), "id,name\n1,bob\n");
+    // ⌘Z inside an untouched active cell also delegates to the table history.
+    view.update_in(cx, |v, w, cx| v.activate(1, 0, None, w, cx));
+    cx.simulate_keystrokes("cmd-z");
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), "id,name\n1,alice\n");
 }
 
 #[gpui::test]
@@ -96,12 +109,44 @@ fn tab_walks_cells_in_reading_order_and_stops_at_the_ends(cx: &mut TestAppContex
 }
 
 #[gpui::test]
-fn pasted_line_breaks_are_dropped(cx: &mut TestAppContext) {
-    let (view, _, cx) = setup(cx, "a,b\n");
-    view.update_in(cx, |v, w, cx| v.activate(0, 0, Some(1), w, cx));
-    cx.simulate_input("x\ny");
-    assert_eq!(active(&view, cx), Some((0, 0, "axy".into())));
-    assert_eq!(text(&view, cx), "axy,b\n");
+fn multiline_cells_preserve_newlines_support_alt_enter_and_render_badge(cx: &mut TestAppContext) {
+    let original = "note,tag\n\"line1\nline2\",ok\n";
+    let (view, changes, cx) = setup(cx, original);
+    // Clicking into a multi-line cell and leaving without typing MUST NOT dirty or alter the model (`CS-06`)!
+    view.update_in(cx, |v, w, cx| v.activate(1, 0, Some(2), w, cx));
+    assert_eq!(active(&view, cx), Some((1, 0, "line1\nline2".into())));
+    view.update_in(cx, |v, w, cx| v.activate(1, 1, None, w, cx));
+    cx.run_until_parked();
+    assert_eq!(*changes.borrow(), 0);
+    view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 0));
+    assert_eq!(text(&view, cx), original);
+
+    // Static grid draw renders first line plus the `↵` multi-line badge.
+    view.update_in(cx, |v, w, _| {
+        let mut out = Vec::new();
+        v.draw_cell(1, 0, gpui::Rgba::default(), w, &mut out);
+        let texts: Vec<&str> = out
+            .iter()
+            .filter_map(|d| match d {
+                crate::editor::table::paint::Draw::Text { text, .. } => Some(text.as_ref()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(texts, vec!["line1", "↵"]);
+    });
+
+    // `alt-enter` (`⌥Enter`) inserts `\n`, while plain `enter` commits the cell session.
+    cx.simulate_input("first");
+    cx.simulate_keystrokes("alt-enter");
+    cx.simulate_input("second");
+    assert_eq!(active(&view, cx), Some((1, 1, "first\nsecond".into())));
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(active(&view, cx), None);
+    assert_eq!(
+        text(&view, cx),
+        "note,tag\n\"line1\nline2\",\"first\nsecond\"\n"
+    );
 }
 
 #[gpui::test]
@@ -666,4 +711,351 @@ fn a_structure_change_keeps_pending_input_in_its_own_cell(cx: &mut TestAppContex
     });
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "a,b\n,\nx,\n1ni,2\n3,4\n");
+}
+
+#[gpui::test]
+fn cell_session_undo_granularity_across_enter_tab_click_and_blur(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "h1,h2\na,b\nc,d\n");
+
+    // 1. Multi-step edits inside one cell session use EditorView's local history, then commit as 1 step on Tab.
+    view.update_in(cx, |v, w, cx| v.activate(1, 0, None, w, cx));
+    cx.simulate_input("hello");
+    // Paste creates a separate local step in EditorView history.
+    view.update(cx, |v, cx| {
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string(" world".into()));
+        let editor = v.cell.as_ref().unwrap().editor.clone();
+        editor.update(cx, |e, cx| {
+            e.insert(" world", crate::editor::text::state::UserEvent::Paste, cx)
+        });
+    });
+    assert_eq!(active(&view, cx), Some((1, 0, "hello world".into())));
+    view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 0));
+    // Local ⌘Z undoes only the paste inside the cell!
+    cx.simulate_keystrokes("cmd-z");
+    cx.run_until_parked();
+    assert_eq!(active(&view, cx), Some((1, 0, "hello".into())));
+    cx.simulate_keystrokes("cmd-shift-z");
+    cx.run_until_parked();
+    assert_eq!(active(&view, cx), Some((1, 0, "hello world".into())));
+    // Tab commits 1 table-level undo step and moves to (1, 1).
+    cx.simulate_keystrokes("tab");
+    cx.run_until_parked();
+    view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 1));
+
+    // 2. Typing in (1, 1) and pressing Enter commits 1 table-level undo step.
+    cx.simulate_input("there");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(active(&view, cx), None);
+    view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 2));
+
+    // 3. Typing in (2, 0) and clicking another cell commits 1 table-level undo step.
+    view.update_in(cx, |v, w, cx| v.activate(2, 0, None, w, cx));
+    cx.simulate_input("clicked");
+    view.update_in(cx, |v, w, cx| v.activate(2, 1, None, w, cx));
+    cx.run_until_parked();
+    view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 3));
+
+    // 4. Typing in (2, 1) and blurring focus commits 1 table-level undo step.
+    // GPUI dispatches focus/blur listeners on the active window.
+    cx.update(|w, _| w.activate_window());
+    cx.run_until_parked();
+    cx.simulate_input("blurred");
+    cx.update(|w, cx| w.blur(cx));
+    cx.run_until_parked();
+    view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 4));
+
+    // Stepping ⌘Z four times undoes each session as a whole!
+    view.update_in(cx, |v, w, cx| v.undo(false, w, cx));
+    assert_eq!(text(&view, cx), "h1,h2\nhello world,there\nclicked,d\n");
+    view.update_in(cx, |v, w, cx| v.undo(false, w, cx));
+    assert_eq!(text(&view, cx), "h1,h2\nhello world,there\nc,d\n");
+    view.update_in(cx, |v, w, cx| v.undo(false, w, cx));
+    assert_eq!(text(&view, cx), "h1,h2\nhello world,b\nc,d\n");
+    view.update_in(cx, |v, w, cx| v.undo(false, w, cx));
+    assert_eq!(text(&view, cx), "h1,h2\na,b\nc,d\n");
+}
+
+#[gpui::test]
+fn unclosed_quote_locks_grid_highlights_offending_row_and_repairs_in_source(
+    cx: &mut TestAppContext,
+) {
+    let broken = "id,name\n1,\"alice\n2,bob\n";
+    let (view, _, cx) = setup(cx, broken);
+    view.update_in(cx, |v, w, cx| {
+        assert_eq!(v.has_unclosed_quote(), Some(1));
+        assert!(v.grid_read_only());
+        assert!(v.notice_banner(cx).is_some());
+        // Offending row 1 paints warning highlight layers.
+        let mut normal_draws = Vec::new();
+        v.draw_cell(0, 0, gpui::Rgba::default(), w, &mut normal_draws);
+        let mut offending_draws = Vec::new();
+        v.draw_cell(1, 0, gpui::Rgba::default(), w, &mut offending_draws);
+        assert!(offending_draws.len() > normal_draws.len());
+        v.activate(0, 0, None, w, cx);
+    });
+    // Grid is read-only: typing does not alter or auto-close quotes!
+    cx.simulate_input("blocked");
+    assert_eq!(text(&view, cx), broken);
+
+    // Switch to Source mode (as the banner button does) and repair the quote.
+    view.update_in(cx, |v, w, cx| v.set_live(false, w, cx));
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        let src = v.source_editor_entity().unwrap();
+        src.update(cx, |e, cx| e.sync_text("id,name\n1,\"alice\"\n2,bob\n", cx));
+    });
+    view.update_in(cx, |v, w, cx| v.set_live(true, w, cx));
+    view.update(cx, |v, _| {
+        assert_eq!(v.has_unclosed_quote(), None);
+        assert!(!v.grid_read_only());
+        assert_eq!(v.rows(), 3);
+    });
+    assert_eq!(text(&view, cx), "id,name\n1,\"alice\"\n2,bob\n");
+}
+
+#[gpui::test]
+fn source_return_and_external_reload_diff_preserve_ids_widths_selection_and_undo(
+    cx: &mut TestAppContext,
+) {
+    let (view, _, cx) = setup(cx, "id,name\n1,alice\n2,bob\n");
+    let (col_ids, row2_id) = view.update_in(cx, |v, w, cx| {
+        v.source_view = true;
+        v.layout.set_width(1, 240.);
+        v.gestures.structural = Some((Axis::Row, 2));
+        let cols = v.model.content().columns.clone();
+        let r2 = v.model.rows()[2].id;
+        v.activate(1, 1, None, w, cx);
+        (cols, r2)
+    });
+    cx.simulate_input("alicia");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+
+    // Edit in Source mode and return to live table (`CS-10`).
+    view.update_in(cx, |v, w, cx| v.toggle_mode(w, cx));
+    view.update(cx, |v, cx| {
+        let src = v.source_editor_entity().unwrap();
+        src.update(cx, |e, cx| {
+            e.sync_text("id,name\n1,alicia\n9,inserted\n2,bob\n", cx)
+        });
+    });
+    view.update_in(cx, |v, w, cx| v.toggle_mode(w, cx));
+    view.update(cx, |v, _| {
+        assert_eq!(v.model.content().columns, col_ids);
+        assert_eq!(v.layout.widths[1], 240., "custom column width preserved");
+        assert_eq!(v.model.rows()[3].id, row2_id, "unchanged row ID preserved");
+        assert_eq!(
+            v.gestures.structural,
+            Some((Axis::Row, 3)),
+            "structural selection followed moved row ID"
+        );
+        assert_eq!(v.model.undo_len(), 2);
+    });
+
+    // External reload mid-edit when target row is deleted keeps uncommitted text (`DP-04`).
+    view.update_in(cx, |v, w, cx| v.activate(2, 1, None, w, cx));
+    cx.simulate_input("unsaved_draft");
+    view.update(cx, |v, cx| v.replace_text("id,name\n1,alicia\n2,bob\n", cx));
+    assert!(text(&view, cx).contains("unsaved_draft"));
+    view.update_in(cx, |v, w, cx| v.undo(false, w, cx));
+    view.update_in(cx, |v, w, cx| v.undo(false, w, cx));
+    assert_eq!(text(&view, cx), "id,name\n1,alicia\n9,inserted\n2,bob\n");
+}
+
+#[gpui::test]
+fn transient_gestures_cancel_header_clears_row0_selection_and_scroll_clamps(
+    cx: &mut TestAppContext,
+) {
+    let rows: String = (0..30).map(|i| format!("{i},val{i}\n")).collect();
+    let (view, _, cx) = setup(cx, &format!("id,name\n{rows}"));
+    view.update_in(cx, |v, w, cx| {
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(300., 200.);
+        v.port.scroll = point(50., 500.);
+        let start_w = v.layout.widths[0];
+        v.start_resize(0, 100., cx);
+        v.drag_resize(180., cx);
+        let at = press_point(v, v.column_x(0) + 5., v.row_y(1) + 5.);
+        v.context_menu(at, w, cx);
+        v.start_expand(point(px(200.), px(150.)), w, cx);
+        assert!(v.menu.is_some() || v.expansion.drag.is_some());
+
+        // `replace_text` cancels transient gestures, restores resize width and clamps scroll!
+        v.replace_text("id,name\n1,short\n", cx);
+        assert!(v.menu.is_none());
+        assert!(v.gestures.resizing.is_none());
+        assert!(v.expansion.drag.is_none());
+        assert!(v.expansion.picker.is_none());
+        assert_eq!(v.layout.widths[0], start_w);
+        let max_x = (v.content_size().0 - 300.).max(0.);
+        assert_eq!(v.port.scroll, point(max_x, 0.));
+        // Widening viewport clamps remaining horizontal scroll to 0.
+        v.port.size = size(400., 200.);
+        v.clamp_scroll();
+        assert_eq!(v.port.scroll, point(0., 0.));
+
+        // `set_appearance` and `set_live` also cancel transient gestures (`CS-11`).
+        v.start_resize(0, 100., cx);
+        v.drag_resize(160., cx);
+        v.set_appearance(false, Scale::Medium, cx);
+        assert!(v.gestures.resizing.is_none());
+        assert_eq!(v.layout.widths[0], start_w);
+
+        // `set_header(true)` clears structural selection on row 0 (`TODO-93`).
+        v.set_header(false, w, cx);
+        v.gestures.structural = Some((Axis::Row, 0));
+        v.set_header(true, w, cx);
+        assert_eq!(v.gestures.structural, None);
+    });
+}
+
+#[gpui::test]
+fn large_table_find_scans_in_background_cancels_stale_queries_and_routes_source_find(
+    cx: &mut TestAppContext,
+) {
+    // 2,600 × 20 = 52,000 cells (> 50,000 threshold for background scan, `CS-12`).
+    let mut csv = String::with_capacity(600_000);
+    for r in 0..2_600 {
+        for c in 0..20 {
+            if c > 0 {
+                csv.push(',');
+            }
+            if r == 2_500 && c == 15 {
+                csv.push_str("needle_final");
+            } else if r == 100 && c == 3 {
+                csv.push_str("needle_stale");
+            } else {
+                csv.push_str("cell");
+            }
+        }
+        csv.push('\n');
+    }
+    let (view, _, cx) = setup(cx, &csv);
+    view.update(cx, |v, cx| {
+        let _ = v.find_query("needle_stale", cx);
+        assert!(v.find.task.is_some(), "initial scan spawned in background");
+        // Immediately supersede with a new query before background task settles!
+        let _ = v.find_query("needle_final", cx);
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        assert_eq!(v.find.matches, vec![(2_500, 15)]);
+        assert_eq!(v.find.index.len(), 1);
+        // Incremental cell update adds a second match in O(1) without background rescan.
+        v.find_cell_changed(10, 2, "another needle_final here", cx);
+        assert!(v.find.task.is_none());
+        assert_eq!(v.find.matches, vec![(10, 2), (2_500, 15)]);
+    });
+
+    // Source mode find routing in `CsvSurface` (`src/editor/viewers/csv.rs`, `CS-12`).
+    let surface = crate::editor::viewers::csv::CsvSurface {
+        editor: view.clone(),
+    };
+    view.update_in(cx, |v, w, cx| {
+        v.source_view = true;
+        v.set_live(false, w, cx);
+    });
+    let res = cx.update(|w, cx| {
+        use crate::editor::registry::ViewerSurface;
+        surface.find(
+            crate::editor::workbench::find::FindEvent::Query("needle_stale".into()),
+            w,
+            cx,
+        )
+    });
+    assert_eq!(res, Some((1, 1)));
+}
+
+#[gpui::test]
+fn large_csv_parses_in_background_while_showing_readonly_preview_and_respects_replace_text(
+    cx: &mut TestAppContext,
+) {
+    // > 256 KiB CSV (~320 KiB, 6,000 rows).
+    let mut big = String::from("id,title,notes\n");
+    for i in 0..6_000 {
+        big.push_str(&format!(
+            "{i},item_{i},some_longer_description_payload_for_row_{i:05}\n"
+        ));
+    }
+    assert!(big.len() > super::BACKGROUND_PARSE_BYTES);
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        cx.text_system().add_fonts(style::font_bytes()).unwrap();
+        bind_keys(cx);
+        super::bind_keys(cx);
+    });
+    let full_copy = big.clone();
+    let view = cx.update(|cx| {
+        cx.new(|cx| CsvEditor::new("", "big.csv", &full_copy, true, Scale::Medium, cx))
+    });
+    // Immediately after construction (before background executor parks):
+    view.read_with(cx, |v, cx| {
+        assert!(v.is_loading());
+        assert!(v.grid_read_only());
+        assert_eq!(
+            v.rows(),
+            100,
+            "first screen (~100 lines) shown synchronously"
+        );
+        assert_eq!(v.text(cx).len(), big.len(), "snapshot keeps full file text");
+    });
+    cx.executor().run_until_parked();
+    view.read_with(cx, |v, _| {
+        assert!(!v.is_loading());
+        assert!(!v.grid_read_only());
+        assert_eq!(v.rows(), 6_001);
+    });
+
+    // If `replace_text` arrives while loading, stale background parse is discarded!
+    let big2 = big.clone();
+    let view2 =
+        cx.update(|cx| cx.new(|cx| CsvEditor::new("", "big2.csv", &big2, true, Scale::Medium, cx)));
+    view2.update(cx, |v, cx| {
+        assert!(v.is_loading());
+        v.replace_text("id,title\n1,fresh\n", cx);
+        assert!(!v.is_loading());
+    });
+    cx.executor().run_until_parked();
+    view2.read_with(cx, |v, cx| {
+        assert_eq!(v.text(cx), "id,title\n1,fresh\n");
+    });
+}
+
+#[gpui::test]
+fn escape_exits_cell_to_table_and_focusable_grips_open_menu_from_keyboard(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "h1,h2\na,b\nc,d\n");
+    view.update_in(cx, |v, w, cx| {
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(800., 600.);
+        v.activate(1, 0, None, w, cx);
+    });
+    cx.simulate_input("edited");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert_eq!(active(&view, cx), None);
+    assert_eq!(text(&view, cx), "h1,h2\nedited,b\nc,d\n");
+    view.update_in(cx, |v, w, _| assert!(v.focus.is_focused(w)));
+
+    // Focus column grip and press Enter -> opens Column menu (`CS-14`).
+    view.update_in(cx, |v, w, cx| v.focus_grip(Axis::Column, 1, w, cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    view.update_in(cx, |v, w, cx| {
+        assert_eq!(
+            v.menu.as_ref().and_then(|m| m.source),
+            Some((Axis::Column, 1))
+        );
+        v.close_menu(false, w, cx);
+        v.focus_grip(Axis::Row, 2, w, cx);
+    });
+    cx.run_until_parked();
+    cx.simulate_keystrokes("space");
+    cx.run_until_parked();
+    view.update(cx, |v, _| {
+        assert_eq!(v.menu.as_ref().and_then(|m| m.source), Some((Axis::Row, 2)));
+    });
 }

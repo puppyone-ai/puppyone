@@ -5,6 +5,8 @@
 //! `ℝ`. What has no plain-text form (matrices, stacked limits) keeps its
 //! source words, so nothing a formula says is lost.
 
+use crate::editor::markdown::platform::policy::MAX_TEX_DEPTH;
+
 fn symbol(name: &str) -> Option<&'static str> {
     Some(match name {
         "alpha" => "α",
@@ -279,11 +281,12 @@ fn blackboard(c: char) -> char {
     }
 }
 
-struct Reader {
-    chars: Vec<char>,
+struct Reader<'a> {
+    chars: &'a [char],
     at: usize,
+    depth: usize,
 }
-impl Reader {
+impl Reader<'_> {
     fn peek(&self) -> Option<char> {
         self.chars.get(self.at).copied()
     }
@@ -292,7 +295,7 @@ impl Reader {
         self.at += 1;
         Some(c)
     }
-    /// `{…}` or one token, converted.
+    /// `{…}` or one token, converted up to [`MAX_TEX_DEPTH`].
     fn group(&mut self) -> String {
         while self.peek() == Some(' ') {
             self.at += 1;
@@ -300,14 +303,14 @@ impl Reader {
         match self.peek() {
             Some('{') => {
                 self.at += 1;
-                let mut depth = 1;
+                let mut brace_depth = 1usize;
                 let start = self.at;
                 while let Some(c) = self.next() {
                     match c {
-                        '{' => depth += 1,
+                        '{' => brace_depth += 1,
                         '}' => {
-                            depth -= 1;
-                            if depth == 0 {
+                            brace_depth -= 1;
+                            if brace_depth == 0 {
                                 break;
                             }
                         }
@@ -319,19 +322,29 @@ impl Reader {
                 }
                 let len = self.chars.len();
                 let start = start.min(len);
-                let end = if depth == 0 {
+                let end = if brace_depth == 0 {
                     self.at.saturating_sub(1)
                 } else {
                     self.at
                 }
                 .clamp(start, len);
-                let inner: String = self.chars[start..end].iter().collect();
-                convert(&inner)
+                if self.depth >= MAX_TEX_DEPTH {
+                    return self.chars[start..end].iter().collect();
+                }
+                convert_slice(&self.chars[start..end], self.depth + 1)
             }
             Some('\\') => {
                 self.at += 1;
                 let name = self.command();
-                command_text(&name, self)
+                if self.depth >= MAX_TEX_DEPTH {
+                    return symbol(&name)
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| format!("\\{name}"));
+                }
+                self.depth += 1;
+                let rendered = command_text(&name, self);
+                self.depth -= 1;
+                rendered
             }
             Some(c) => {
                 self.at += 1;
@@ -366,7 +379,7 @@ fn script(text: &str, map: fn(char) -> Option<char>, marker: char) -> String {
         None => format!("{marker}({text})"),
     }
 }
-fn command_text(name: &str, reader: &mut Reader) -> String {
+fn command_text(name: &str, reader: &mut Reader<'_>) -> String {
     match name {
         "frac" | "dfrac" | "tfrac" => {
             let (a, b) = (reader.group(), reader.group());
@@ -387,11 +400,16 @@ fn command_text(name: &str, reader: &mut Reader) -> String {
                     reader.at += 1;
                 }
                 let end = reader.at.min(reader.chars.len());
-                let index: String = reader.chars[start.min(end)..end].iter().collect();
+                let slice = &reader.chars[start.min(end)..end];
                 if reader.peek() == Some(']') {
                     reader.at += 1;
                 }
-                script(&convert(&index), superscript, '^')
+                let converted = if reader.depth >= MAX_TEX_DEPTH {
+                    slice.iter().collect()
+                } else {
+                    convert_slice(slice, reader.depth + 1)
+                };
+                script(&converted, superscript, '^')
             } else {
                 String::new()
             };
@@ -430,9 +448,15 @@ fn command_text(name: &str, reader: &mut Reader) -> String {
 
 /// `source` as text.
 pub fn convert(source: &str) -> String {
+    let chars: Vec<char> = source.chars().collect();
+    convert_slice(&chars, 0)
+}
+
+fn convert_slice(chars: &[char], depth: usize) -> String {
     let mut reader = Reader {
-        chars: source.chars().collect(),
+        chars,
         at: 0,
+        depth,
     };
     let mut out = String::new();
     while let Some(c) = reader.next() {
@@ -516,5 +540,32 @@ mod tests {
                 "formula {formula:?} should produce displayable fallback text"
             );
         }
+    }
+
+    #[test]
+    fn deeply_nested_tex_groups_and_fractions_never_stack_overflow() {
+        let mut nested_frac = "x".to_owned();
+        let mut nested_braces = "x".to_owned();
+        let mut braceless_frac = String::new();
+        for _ in 0..200 {
+            nested_frac = format!(r"{{\frac{{{nested_frac}}}{{2}}}}");
+            nested_braces = format!("{{{nested_braces}}}");
+            braceless_frac.push_str(r"\frac ");
+        }
+        braceless_frac.push_str("a b");
+
+        // Run inside a constrained stack thread to prove recursion stays bounded at `MAX_TEX_DEPTH`.
+        let handle = std::thread::Builder::new()
+            .stack_size(512 * 1024)
+            .spawn(move || {
+                let a = convert(&nested_frac);
+                let b = convert(&nested_braces);
+                let c = convert(&braceless_frac);
+                assert!(!a.is_empty() && a.contains('x'));
+                assert_eq!(b, "x");
+                assert!(!c.is_empty());
+            })
+            .unwrap();
+        handle.join().unwrap();
     }
 }

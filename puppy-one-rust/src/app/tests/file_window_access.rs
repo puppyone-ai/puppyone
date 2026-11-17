@@ -90,7 +90,9 @@ fn bound_file_markdown_assets_allow_only_media_and_the_bound_document(cx: &mut T
     let (view, cx) = setup(cx);
     let _ws = workspace(&view, cx, &root);
     let assets = view.read_with(cx, |s, cx| {
-        crate::editor::registry::document_assets(&s.files(cx).document.as_ref().unwrap().id)
+        s.files(cx)
+            .build_context(&s.files(cx).document.as_ref().unwrap().relative)
+            .assets
             .unwrap()
     });
     for name in ["note.md", "image.png", "clip.mp3", "clip.mp4"] {

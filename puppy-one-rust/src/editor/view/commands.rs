@@ -1,15 +1,16 @@
 //! Default commands (CodeMirror `@codemirror/commands` standard keymap):
 //! cursor motion by character, group, visual line, page and document; deletion;
-//! line breaks; clipboard. A format extension may intercept editing intents.
+//! line breaks; clipboard. A format extension may intercept generic editing
+//! intents.
 //!
 //! While a composition is open, keys go to the input method first; a key it
 //! hands back (`doCommandBySelector:`) commits the marked text and then runs
-//! as usual, as in AppKit text views.
+//! as usual, as in AppKit text views (`TA-16`).
 use super::{editor::EditorView, extension::EditIntent};
 use crate::editor::text::{
     change::ChangeSet,
     selection::Selection,
-    state::{Transaction, UserEvent},
+    state::{Annotation, Transaction, UserEvent},
     words,
 };
 use gpui::{ClipboardItem, Context, Window, point, px};
@@ -33,7 +34,7 @@ pub enum Motion {
 impl EditorView {
     fn target(&self, motion: Motion, extend: bool) -> Selection {
         let s = self.state.selection;
-        let text = self.state.doc.as_str();
+        let doc = &self.state.doc;
         let head = s.head;
         // A collapsing horizontal move lands on the selection edge.
         if !extend && !s.is_empty() {
@@ -45,27 +46,27 @@ impl EditorView {
         }
         let (pos, goal, upstream) = match motion {
             Motion::CharLeft => (
-                self.skip_atomic(words::previous_grapheme(text, head), false),
+                self.skip_atomic(words::previous_grapheme_in(doc, head), false),
                 None,
                 false,
             ),
             Motion::CharRight => (
-                self.skip_atomic(words::next_grapheme(text, head), true),
+                self.skip_atomic(words::next_grapheme_in(doc, head), true),
                 None,
                 false,
             ),
             Motion::GroupLeft => (
-                self.skip_atomic(words::previous_group(text, head), false),
+                self.skip_atomic(words::previous_group_in(doc, head), false),
                 None,
                 false,
             ),
             Motion::GroupRight => (
-                self.skip_atomic(words::next_group(text, head), true),
+                self.skip_atomic(words::next_group_in(doc, head), true),
                 None,
                 false,
             ),
             Motion::DocStart => (0, None, false),
-            Motion::DocEnd => (text.len(), None, false),
+            Motion::DocEnd => (doc.len(), None, false),
             Motion::LineStart | Motion::LineEnd => {
                 let (pos, upstream) = self.visual_line_edge(s, motion == Motion::LineEnd);
                 (pos, None, upstream)
@@ -84,14 +85,9 @@ impl EditorView {
     }
 
     /// Positions strictly inside an atomic range jump to its edge in the
-    /// direction of motion (CodeMirror atomicRanges).
+    /// direction of motion in `O(log N)` (CodeMirror `atomicRanges`, `TA-13`).
     pub(super) fn skip_atomic(&self, pos: usize, forward: bool) -> usize {
-        match self
-            .decorations
-            .atomic
-            .iter()
-            .find(|r| r.start < pos && pos < r.end)
-        {
+        match self.caches.decorations.atomic_containing(pos) {
             Some(r) if forward => r.end,
             Some(r) => r.start,
             None => pos,
@@ -105,21 +101,21 @@ impl EditorView {
             let r = doc.line_range(doc.line_index(s.head));
             (if end { r.end } else { r.start }, false)
         };
-        self.layout
+        self.caches
+            .layout
             .as_ref()
             .and_then(|l| l.row_edge(s.head, s.upstream, end))
             .unwrap_or_else(fallback)
     }
 
     /// Up / down by source lines, for a caret or target outside the
-    /// laid-out blocks (the caret was scrolled away): the layout has no rows
-    /// there. The reveal that follows brings the caret into view.
+    /// laid-out blocks (the caret was scrolled away).
     fn vertical_by_lines(&self, motion: Motion, s: Selection) -> (usize, Option<f32>, bool) {
         let doc = &self.state.doc;
         let line = doc.line_index(s.head);
         let column = s.head - doc.line_range(line).start;
         let last = doc.line_count().saturating_sub(1);
-        let page = self.layout.as_ref().map_or(20, |l| {
+        let page = self.caches.layout.as_ref().map_or(20, |l| {
             (f32::from(l.bounds.size.height) / 24.).max(1.) as usize
         });
         let target = match motion {
@@ -133,16 +129,13 @@ impl EditorView {
             return (if up { 0 } else { doc.len() }, s.goal_x, false);
         };
         let r = doc.line_range(target);
-        let mut pos = (r.start + column).min(r.end);
-        while !doc.as_str().is_char_boundary(pos) {
-            pos -= 1;
-        }
+        let pos = doc.clamp((r.start + column).min(r.end));
         (pos, s.goal_x, false)
     }
 
     fn vertical(&self, motion: Motion, s: Selection) -> (usize, Option<f32>, bool) {
         let doc = &self.state.doc;
-        let Some(layout) = &self.layout else {
+        let Some(layout) = &self.caches.layout else {
             return (s.head, None, false);
         };
         if !layout.covers(s.head) {
@@ -192,7 +185,6 @@ impl EditorView {
             if moved {
                 return (pos, Some(goal), upstream);
             }
-            // Landed in the padding of the same box: step past the box.
             match layout
                 .blocks
                 .iter()
@@ -221,24 +213,11 @@ impl EditorView {
     /// marker); otherwise the motion runs.
     pub fn intent_or_motion(&mut self, intent: EditIntent, motion: Motion, cx: &mut Context<Self>) {
         self.commit_composition(cx);
-        if let Some(tr) = self.extension.intercept(intent, &self.state) {
+        if let Some(tr) = self.extensions.intercept(intent, &self.state) {
             self.dispatch(tr, cx);
             return;
         }
         self.motion(motion, false, cx);
-    }
-
-    /// `intent_or_motion` for a selecting motion; read-only editors only
-    /// select.
-    pub fn intent_or_select(&mut self, intent: EditIntent, motion: Motion, cx: &mut Context<Self>) {
-        self.commit_composition(cx);
-        if !self.read_only
-            && let Some(tr) = self.extension.intercept(intent, &self.state)
-        {
-            self.dispatch(tr, cx);
-            return;
-        }
-        self.motion(motion, true, cx);
     }
 
     pub fn select_all(&mut self, cx: &mut Context<Self>) {
@@ -248,10 +227,25 @@ impl EditorView {
 
     fn try_intercept(&mut self, intent: EditIntent, cx: &mut Context<Self>) -> bool {
         self.commit_composition(cx);
-        if self.read_only {
+        if intent == EditIntent::Escape {
+            if !self.secondary.is_empty() {
+                self.secondary.clear();
+                cx.notify();
+                return true;
+            }
+            let mut consumed = false;
+            for plugin in &mut self.extensions.plugins {
+                consumed |= plugin.on_escape(&self.state);
+            }
+            if consumed {
+                cx.notify();
+                return true;
+            }
+        }
+        if self.read_only && intent != EditIntent::Escape {
             return true;
         }
-        if let Some(tr) = self.extension.intercept(intent, &self.state) {
+        if let Some(tr) = self.extensions.intercept(intent, &self.state) {
             self.dispatch(tr, cx);
             return true;
         }
@@ -277,6 +271,58 @@ impl EditorView {
         if self.read_only {
             return;
         }
+        if !self.secondary.is_empty() {
+            let tag = if backward {
+                Annotation::DELETE_BACKWARD
+            } else {
+                Annotation::DELETE_FORWARD
+            };
+            let mut items: Vec<(usize, std::ops::Range<usize>)> =
+                Vec::with_capacity(1 + self.secondary.len());
+            let range_for = |sel: Selection| {
+                if !sel.is_empty() {
+                    sel.as_range()
+                } else if backward {
+                    words::previous_grapheme_in(&self.state.doc, sel.head)..sel.head
+                } else {
+                    sel.head..words::next_grapheme_in(&self.state.doc, sel.head)
+                }
+            };
+            items.push((0, range_for(self.state.selection)));
+            for (i, &sec) in self.secondary.iter().enumerate() {
+                items.push((i + 1, range_for(sec)));
+            }
+            items.sort_by_key(|(_, r)| (r.start, r.end));
+            let mut changes = Vec::with_capacity(items.len());
+            let mut carets = vec![0usize; items.len()];
+            let mut delta: isize = 0;
+            for (owner, r) in items {
+                let pos = (r.start as isize + delta).max(0) as usize;
+                carets[owner] = pos;
+                delta -= r.len() as isize;
+                if !r.is_empty() {
+                    changes.push(crate::editor::text::change::Change {
+                        range: r,
+                        insert: String::new(),
+                    });
+                }
+            }
+            if changes.is_empty() {
+                return;
+            }
+            let primary = Selection::cursor(carets[0]);
+            self.secondary = carets[1..]
+                .iter()
+                .copied()
+                .filter(|&p| p != primary.head)
+                .map(Selection::cursor)
+                .collect();
+            let tr = Transaction::edit(ChangeSet::new(changes), Some(primary), UserEvent::Delete)
+                .with_annotation(tag)
+                .with_annotation(super::editor::MULTICURSOR_ANNOTATION);
+            self.dispatch(tr, cx);
+            return;
+        }
         let s = self.state.selection;
         let range = if s.is_empty() {
             let mut moved = s;
@@ -288,11 +334,17 @@ impl EditorView {
         if range.is_empty() {
             return;
         }
+        let tag = if backward {
+            Annotation::DELETE_BACKWARD
+        } else {
+            Annotation::DELETE_FORWARD
+        };
         let tr = Transaction::edit(
             ChangeSet::replace(range.clone(), ""),
             Some(Selection::cursor(range.start)),
             UserEvent::Delete,
-        );
+        )
+        .with_annotation(tag);
         self.dispatch(tr, cx);
     }
 
@@ -314,7 +366,7 @@ impl EditorView {
             return;
         }
         cx.write_to_clipboard(ClipboardItem::new_string(
-            self.state.doc.slice(range.clone()).to_owned(),
+            self.state.doc.slice_cow(range.clone()).into_owned(),
         ));
         if cut && !self.read_only {
             self.dispatch(

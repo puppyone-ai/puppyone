@@ -1,9 +1,15 @@
 //! Line-level syntax the product recognises with expressions rather than the
-//! parser tree: heading / quote / rule line shapes (blockDecorations.ts),
-//! fenced code blocks (features/code-block/codeBlockModel.ts), wiki links and
-//! `~~strike~~` (markdownElements.ts addExtendedLineElements).
+//! parser tree: heading / quote / rule line shapes (`blockDecorations.ts`),
+//! fenced code blocks (`codeBlockModel.ts`), wiki links, `~~strike~~`, and
+//! feature-registered line recognizers (`TA-30`, `TA-33`, `TA-40`).
 use super::{Element, Kind, Span};
-use crate::editor::{markdown::core::links, text::buffer::Buffer};
+use crate::editor::{
+    markdown::core::{
+        feature::{self, Features},
+        links,
+    },
+    text::buffer::Buffer,
+};
 use std::ops::Range;
 
 /// `^(#{1,6})(\s|$)`: (level, marker length including the space).
@@ -83,13 +89,14 @@ impl Fence {
     }
 }
 
-/// getMarkdownCodeBlock applied line by line, skipping covered lines.
-pub fn fences(doc: &Buffer) -> Vec<Fence> {
+/// Scan fenced code blocks across `line_window` of `doc` without materialising
+/// `doc.flat` (`TA-01`, `TA-31`).
+pub fn fences_in_lines(doc: &Buffer, line_window: Range<usize>) -> Vec<Fence> {
     let mut out = Vec::new();
-    let mut line = 0;
-    let count = doc.line_count();
-    while line < count {
-        let text = doc.line(line);
+    let mut line = line_window.start;
+    let end_limit = line_window.end.min(doc.line_count());
+    while line < end_limit {
+        let text = doc.line_cow(line);
         let indent = text.len() - text.trim_start().len();
         let rest = &text[indent..];
         let (fc, run) = match rest.as_bytes().first() {
@@ -104,8 +111,9 @@ pub fn fences(doc: &Buffer) -> Vec<Fence> {
         let language = info.split_whitespace().next().unwrap_or("").to_owned();
         let mut end = line + 1;
         let mut closed = false;
-        while end < count {
-            let t = doc.line(end).trim();
+        while end < end_limit {
+            let line_cow = doc.line_cow(end);
+            let t = line_cow.trim();
             let n = t.bytes().take_while(|&b| b == fc).count();
             end += 1;
             if n >= run && n == t.len() {
@@ -116,7 +124,8 @@ pub fn fences(doc: &Buffer) -> Vec<Fence> {
         let range = doc.line_range(line).start..doc.line_range(end - 1).end;
         let body = line + 1..if closed { end - 1 } else { end };
         let code = if body.is_empty() {
-            doc.line_range(line).end..doc.line_range(line).end
+            let e = doc.line_range(line).end;
+            e..e
         } else {
             doc.line_range(body.start).start..doc.line_range(body.end - 1).end
         };
@@ -134,11 +143,34 @@ pub fn fences(doc: &Buffer) -> Vec<Fence> {
     out
 }
 
-/// Wiki links and `~~strike~~` per source line outside block features
-/// (`blocks`: sorted line ranges of fenced code and tables).
-pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut Vec<Element>) {
+#[cfg(test)]
+pub fn fences(doc: &Buffer) -> Vec<Fence> {
+    fences_in_lines(doc, 0..doc.line_count())
+}
+
+fn clamp_element(doc: &Buffer, mut e: Element) -> Option<Element> {
+    e.range = doc.clamp_range(e.range);
+    if e.range.is_empty() {
+        return None;
+    }
+    e.markers = e.markers.into_iter().map(|m| doc.clamp_range(m)).collect();
+    e.content = e.content.map(|c| doc.clamp_range(c));
+    e.line = e.line.map(|l| doc.clamp_range(l));
+    Some(e)
+}
+
+/// Wiki links, `~~strike~~`, `==highlight==`, `%%comment%%`, and feature
+/// `recognize_inline` hooks across `line_window` outside `blocks`.
+pub fn add_line_elements_in_lines(
+    doc: &Buffer,
+    line_window: Range<usize>,
+    blocks: &[Range<usize>],
+    features: Features,
+    elements: &mut Vec<Element>,
+) {
     let mut block = blocks.iter().peekable();
-    for line in 0..doc.line_count() {
+    let end_limit = line_window.end.min(doc.line_count());
+    for line in line_window.start..end_limit {
         while block.peek().is_some_and(|b| b.end <= line) {
             block.next();
         }
@@ -146,12 +178,10 @@ pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut V
             continue;
         }
         let range = doc.line_range(line);
-        let text = doc.line(line);
+        let text_cow = doc.line_cow(line);
+        let text = text_cow.as_ref();
         let bytes = text.as_bytes();
         for token in links::find_wiki_links(text) {
-            // `![[…]]` is an embed envelope, not a wiki link label; an
-            // image's embeds it (`obsidianMediaEmbed.ts`), its alias the
-            // alt text or size.
             if token.range.start > 0
                 && bytes[token.range.start - 1] == b'!'
                 && !links::is_escaped(bytes, token.range.start - 1)
@@ -197,19 +227,6 @@ pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut V
                 Some(from + 2..to - 2),
             ));
         }
-        for (open, close) in super::inline_syntax::inline_math(text) {
-            let (from, to) = (range.start + open, range.start + close + 1);
-            let mut e = Element::new(
-                Kind::MathInline,
-                from..to,
-                vec![from..from + 1, to - 1..to],
-                Some(from + 1..to - 1),
-            );
-            e.text = Some(crate::editor::markdown::features::math::tex::convert(
-                &text[open + 1..close],
-            ));
-            elements.push(e);
-        }
         for comment in super::inline_syntax::percent_comments(text) {
             let r = range.start + comment.start..range.start + comment.end;
             elements.push(Element::new(Kind::Comment, r.clone(), vec![], Some(r)));
@@ -222,6 +239,22 @@ pub fn add_line_elements(doc: &Buffer, blocks: &[Range<usize>], elements: &mut V
                 vec![from..from + 2, to - 2..to],
                 Some(from + 2..to - 2),
             ));
+        }
+        // TA-30, TA-33, TA-40: feature-contributed inline recognizers, isolated
+        // against panics and clamped to valid document UTF-8 boundaries.
+        for f in features {
+            let mut stage = Vec::new();
+            if feature::catch_feature_panic(f.id(), "recognize_inline", || {
+                f.recognize_inline(range.start, text, &mut stage);
+            })
+            .is_some()
+            {
+                for elem in stage {
+                    if let Some(clamped) = clamp_element(doc, elem) {
+                        elements.push(clamped);
+                    }
+                }
+            }
         }
     }
 }
@@ -262,7 +295,6 @@ fn strikes(text: &str) -> Vec<(usize, usize)> {
             k += 1;
             continue;
         }
-        // Lazy: the first `~~` after ≥1 content char that follows a non-space.
         let found = (k + 3..chars.len().saturating_sub(1))
             .find(|&j| tilde(j) && !chars[j - 1].1.is_whitespace());
         match found {

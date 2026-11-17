@@ -42,10 +42,165 @@ fn data() -> &'static Value {
 fn native() -> &'static Value {
     static DATA: OnceLock<Value> = OnceLock::new();
     DATA.get_or_init(|| {
-        serde_json::from_str(include_str!("../assets/native-locales.json"))
-            .expect("native catalogs")
+        let mut data: Value = serde_json::from_str(include_str!("../assets/native-locales.json"))
+            .expect("native catalogs");
+        let extra: Value = serde_json::from_str(DOCUMENT_RECONCILE_MESSAGES)
+            .expect("document reconciliation catalogs");
+        for (locale, messages) in extra.as_object().unwrap() {
+            if let Some(target) = data["catalogs"][locale].as_object_mut() {
+                target.extend(messages.as_object().unwrap().clone());
+            }
+        }
+        data
     })
 }
+
+const DOCUMENT_RECONCILE_MESSAGES: &str = r#"{
+  "en": {
+    "native.editor.updatedFromDiskUndo": "Updated from disk — press ⌘Z to undo",
+    "native.editor.undo": "Undo",
+    "native.editor.conflictCompare": "Compare",
+    "native.editor.conflictKeepMine": "Keep Mine",
+    "native.editor.conflictAcceptRemote": "Accept Remote",
+    "native.editor.conflictSaveCopy": "Save As Copy",
+    "native.editor.conflictTitle": "Cloud Conflict Comparison",
+    "native.editor.conflictMessage": "The Cloud file changed in overlapping sections. Choose how to resolve:",
+    "native.editor.conflictMineHeader": "My Draft (Unsaved)",
+    "native.editor.conflictRemoteHeader": "Remote Version (Cloud)",
+    "native.editor.lineEndingsReadOnly": "Opened read-only because this file contains mixed or CR-only line endings.",
+    "native.editor.normalizeLineEndingsAndEdit": "Normalize line endings and edit",
+    "native.editor.draftRecovered": "Recovered unsaved draft from local journal",
+    "native.editor.saveStaleLease": "Workspace access expired before saving. Reopen the project to continue.",
+    "native.editor.saveOutcomeUnknown": "Workspace state changed while saving; verify the file before retrying.",
+    "native.editor.saveTargetMissing": "The file no longer exists at its path. Your draft is preserved locally."
+  },
+  "zh-Hans": {
+    "native.editor.updatedFromDiskUndo": "已从磁盘更新 — 按 ⌘Z 可撤销",
+    "native.editor.undo": "撤销",
+    "native.editor.conflictCompare": "比较",
+    "native.editor.conflictKeepMine": "保留我的",
+    "native.editor.conflictAcceptRemote": "采纳远端",
+    "native.editor.conflictSaveCopy": "另存为副本",
+    "native.editor.conflictTitle": "云端冲突对比",
+    "native.editor.conflictMessage": "云端文件在重叠区段发生了变化，请选择处理方式：",
+    "native.editor.conflictMineHeader": "我的草稿（未保存）",
+    "native.editor.conflictRemoteHeader": "远端版本（云端）",
+    "native.editor.lineEndingsReadOnly": "此文件包含混合换行或仅 CR 换行，已按只读方式打开。",
+    "native.editor.normalizeLineEndingsAndEdit": "统一换行后编辑",
+    "native.editor.draftRecovered": "已从本地草稿日志恢复未保存的草稿",
+    "native.editor.saveStaleLease": "工作区授权在保存前已过期，请重新打开项目后继续。",
+    "native.editor.saveOutcomeUnknown": "保存期间工作区状态发生变化，请核对文件后再重试。",
+    "native.editor.saveTargetMissing": "原路径下的文件已不存在，你的草稿已在本地保留。"
+  },
+  "ja": {
+    "native.editor.updatedFromDiskUndo": "ディスクから更新されました — ⌘Z で元に戻せます",
+    "native.editor.undo": "元に戻す",
+    "native.editor.conflictCompare": "比較",
+    "native.editor.conflictKeepMine": "自分の変更を保持",
+    "native.editor.conflictAcceptRemote": "リモートを採用",
+    "native.editor.conflictSaveCopy": "コピーとして保存",
+    "native.editor.conflictTitle": "クラウド競合の比較",
+    "native.editor.conflictMessage": "クラウド上のファイルが重複する箇所で変更されました。解決方法を選択してください：",
+    "native.editor.conflictMineHeader": "自分の下書き（未保存）",
+    "native.editor.conflictRemoteHeader": "リモート版（クラウド）",
+    "native.editor.lineEndingsReadOnly": "混在または CR のみの改行が含まれているため、読み取り専用で開いています。",
+    "native.editor.normalizeLineEndingsAndEdit": "改行コードを統一して編集",
+    "native.editor.draftRecovered": "ローカルジャーナルから未保存の下書きを復元しました",
+    "native.editor.saveStaleLease": "保存前にワークスペースの権限が失効しました。プロジェクトを開き直してください。",
+    "native.editor.saveOutcomeUnknown": "保存中にワークスペースの状態が変化しました。再試行する前にファイルを確認してください。",
+    "native.editor.saveTargetMissing": "元のパスにファイルが存在しません。下書きはローカルに保持されています。"
+  },
+  "ko": {
+    "native.editor.updatedFromDiskUndo": "디스크에서 업데이트됨 — 실행 취소하려면 ⌘Z를 누르세요",
+    "native.editor.undo": "실행 취소",
+    "native.editor.conflictCompare": "비교",
+    "native.editor.conflictKeepMine": "내 변경 유지",
+    "native.editor.conflictAcceptRemote": "원격 적용",
+    "native.editor.conflictSaveCopy": "사본으로 저장",
+    "native.editor.conflictTitle": "클라우드 충돌 비교",
+    "native.editor.conflictMessage": "클라우드 파일의 겹치는 구간이 변경되었습니다. 해결 방법을 선택하세요:",
+    "native.editor.conflictMineHeader": "내 초안(저장 안 됨)",
+    "native.editor.conflictRemoteHeader": "원격 버전(클라우드)",
+    "native.editor.lineEndingsReadOnly": "혼합 또는 CR 전용 줄바꿈이 포함되어 읽기 전용으로 열렸습니다.",
+    "native.editor.normalizeLineEndingsAndEdit": "줄바꿈 통일 후 편집",
+    "native.editor.draftRecovered": "로컬 저널에서 저장되지 않은 초안을 복구했습니다",
+    "native.editor.saveStaleLease": "저장 전에 작업 공간 권한이 만료되었습니다. 프로젝트를 다시 열어 계속하세요.",
+    "native.editor.saveOutcomeUnknown": "저장 중 작업 공간 상태가 변경되었습니다. 다시 시도하기 전에 파일을 확인하세요.",
+    "native.editor.saveTargetMissing": "경로에 파일이 더 이상 존재하지 않습니다. 초안은 로컬에 보존되어 있습니다."
+  },
+  "es": {
+    "native.editor.updatedFromDiskUndo": "Actualizado desde el disco — pulsa ⌘Z para deshacer",
+    "native.editor.undo": "Deshacer",
+    "native.editor.conflictCompare": "Comparar",
+    "native.editor.conflictKeepMine": "Conservar lo mío",
+    "native.editor.conflictAcceptRemote": "Aceptar remoto",
+    "native.editor.conflictSaveCopy": "Guardar como copia",
+    "native.editor.conflictTitle": "Comparación de conflicto en la nube",
+    "native.editor.conflictMessage": "El archivo en la nube cambió en secciones superpuestas. Elige cómo resolverlo:",
+    "native.editor.conflictMineHeader": "Mi borrador (sin guardar)",
+    "native.editor.conflictRemoteHeader": "Versión remota (nube)",
+    "native.editor.lineEndingsReadOnly": "Abierto en solo lectura porque este archivo contiene saltos de línea mixtos o solo CR.",
+    "native.editor.normalizeLineEndingsAndEdit": "Normalizar saltos de línea y editar",
+    "native.editor.draftRecovered": "Se recuperó el borrador sin guardar del registro local",
+    "native.editor.saveStaleLease": "El acceso al espacio de trabajo caducó antes de guardar. Vuelve a abrir el proyecto.",
+    "native.editor.saveOutcomeUnknown": "El estado del espacio de trabajo cambió al guardar; verifica el archivo antes de reintentar.",
+    "native.editor.saveTargetMissing": "El archivo ya no existe en su ruta. Tu borrador se conserva localmente."
+  },
+  "pt-BR": {
+    "native.editor.updatedFromDiskUndo": "Atualizado do disco — pressione ⌘Z para desfazer",
+    "native.editor.undo": "Desfazer",
+    "native.editor.conflictCompare": "Comparar",
+    "native.editor.conflictKeepMine": "Manter o meu",
+    "native.editor.conflictAcceptRemote": "Aceitar remoto",
+    "native.editor.conflictSaveCopy": "Salvar como cópia",
+    "native.editor.conflictTitle": "Comparação de conflito na nuvem",
+    "native.editor.conflictMessage": "O arquivo na nuvem mudou em trechos sobrepostos. Escolha como resolver:",
+    "native.editor.conflictMineHeader": "Meu rascunho (não salvo)",
+    "native.editor.conflictRemoteHeader": "Versão remota (nuvem)",
+    "native.editor.lineEndingsReadOnly": "Aberto somente leitura porque este arquivo contém quebras de linha mistas ou apenas CR.",
+    "native.editor.normalizeLineEndingsAndEdit": "Normalizar quebras de linha e editar",
+    "native.editor.draftRecovered": "Rascunho não salvo recuperado do diário local",
+    "native.editor.saveStaleLease": "O acesso ao espaço de trabalho expirou antes de salvar. Reabra o projeto para continuar.",
+    "native.editor.saveOutcomeUnknown": "O estado do espaço de trabalho mudou durante o salvamento; verifique o arquivo antes de tentar novamente.",
+    "native.editor.saveTargetMissing": "O arquivo não existe mais no caminho original. Seu rascunho está preservado localmente."
+  },
+  "fr": {
+    "native.editor.updatedFromDiskUndo": "Mis à jour depuis le disque — appuyez sur ⌘Z pour annuler",
+    "native.editor.undo": "Annuler",
+    "native.editor.conflictCompare": "Comparer",
+    "native.editor.conflictKeepMine": "Garder le mien",
+    "native.editor.conflictAcceptRemote": "Accepter le distant",
+    "native.editor.conflictSaveCopy": "Enregistrer une copie",
+    "native.editor.conflictTitle": "Comparaison du conflit Cloud",
+    "native.editor.conflictMessage": "Le fichier Cloud a été modifié sur des sections qui se chevauchent. Choisissez comment résoudre :",
+    "native.editor.conflictMineHeader": "Mon brouillon (non enregistré)",
+    "native.editor.conflictRemoteHeader": "Version distante (Cloud)",
+    "native.editor.lineEndingsReadOnly": "Ouvert en lecture seule car ce fichier contient des fins de ligne mixtes ou CR seul.",
+    "native.editor.normalizeLineEndingsAndEdit": "Normaliser les fins de ligne et modifier",
+    "native.editor.draftRecovered": "Brouillon non enregistré récupéré depuis le journal local",
+    "native.editor.saveStaleLease": "L’accès à l’espace de travail a expiré avant l’enregistrement. Rouvrez le projet pour continuer.",
+    "native.editor.saveOutcomeUnknown": "L’état de l’espace de travail a changé pendant l’enregistrement ; vérifiez le fichier avant de réessayer.",
+    "native.editor.saveTargetMissing": "Le fichier n’existe plus à son emplacement. Votre brouillon est conservé localement."
+  },
+  "de": {
+    "native.editor.updatedFromDiskUndo": "Von der Festplatte aktualisiert — ⌘Z zum Rückgängigmachen",
+    "native.editor.undo": "Rückgängig",
+    "native.editor.conflictCompare": "Vergleichen",
+    "native.editor.conflictKeepMine": "Meins behalten",
+    "native.editor.conflictAcceptRemote": "Remote übernehmen",
+    "native.editor.conflictSaveCopy": "Als Kopie speichern",
+    "native.editor.conflictTitle": "Cloud-Konfliktvergleich",
+    "native.editor.conflictMessage": "Die Cloud-Datei wurde in überlappenden Abschnitten geändert. Wählen Sie eine Lösung:",
+    "native.editor.conflictMineHeader": "Mein Entwurf (ungespeichert)",
+    "native.editor.conflictRemoteHeader": "Remote-Version (Cloud)",
+    "native.editor.lineEndingsReadOnly": "Schreibgeschützt geöffnet, da diese Datei gemischte oder reine CR-Zeilenenden enthält.",
+    "native.editor.normalizeLineEndingsAndEdit": "Zeilenenden vereinheitlichen und bearbeiten",
+    "native.editor.draftRecovered": "Ungespeicherter Entwurf aus lokalem Journal wiederhergestellt",
+    "native.editor.saveStaleLease": "Der Arbeitsbereichszugriff ist vor dem Speichern abgelaufen. Öffnen Sie das Projekt erneut.",
+    "native.editor.saveOutcomeUnknown": "Der Arbeitsbereichsstatus hat sich beim Speichern geändert; prüfen Sie die Datei vor einem erneuten Versuch.",
+    "native.editor.saveTargetMissing": "Die Datei existiert nicht mehr am ursprünglichen Pfad. Ihr Entwurf bleibt lokal erhalten."
+  }
+}"#;
 
 thread_local! {
     static CURRENT: std::cell::RefCell<String> = std::cell::RefCell::new(initial_code());

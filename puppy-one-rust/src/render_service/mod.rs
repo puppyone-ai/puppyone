@@ -8,9 +8,9 @@
 //! at the scale it will be shown, becomes the image. Results are cached app
 //! wide by what was drawn (source, settings, background and scale), so a
 //! diagram is drawn once however many panes show it, and the windows redraw
-//! when an image arrives. Requests run one at a time per page; a page that
-//! does not answer within the product's render timeout is closed and a new
-//! one takes the next request.
+//! when an image arrives. Identical in-flight keys share one queued job,
+//! superseded slot requests are cancelled before drawing, and `Unavailable`
+//! is never permanently cached so subsequent retries succeed (`TA-50`).
 use crate::platform::webview::{Content, Entry, Ipc};
 use crate::web_host::WebHost;
 use gpui::{App, ImageFormat, RenderImage, SharedString, Window, WindowId};
@@ -19,7 +19,7 @@ use std::{
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const SCRIPT: &[u8] = include_bytes!("../../assets/web/render-service.js");
@@ -29,6 +29,9 @@ const GEIST: &[u8] = include_bytes!("../../assets/web/html-visual-geist.woff2");
 pub const MAX_SOURCE_BYTES: usize = 128 * 1024;
 /// `MERMAID_RENDER_TIMEOUT_MS`.
 const RENDER_TIMEOUT: Duration = Duration::from_secs(15);
+/// Transient backoff preventing a tight redraw spin loop after a host snapshot
+/// failure while ensuring `Unavailable` is never permanently cached.
+const UNAVAILABLE_COOLDOWN: Duration = Duration::from_secs(2);
 /// The cache's bounds: entries, and the images' decoded bytes.
 const MAX_ENTRIES: usize = 96;
 const MAX_BYTES: usize = 96 * 1024 * 1024;
@@ -38,6 +41,10 @@ const MAX_EDGE: f32 = 4096.;
 const POLICY: &str = "default-src 'none'; script-src puppyone-preview:; \
      style-src puppyone-preview: 'unsafe-inline'; font-src puppyone-preview: data:; \
      img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
+
+/// Logical caller slot `(owner_id, block_offset)` used to cancel superseded
+/// render requests when a block's source or zoom advances.
+pub type RenderSlot = (u64, usize);
 
 /// What is drawn.
 #[derive(Clone, Debug, PartialEq)]
@@ -75,7 +82,7 @@ pub enum State {
     /// Mermaid or KaTeX refused the source, saying why.
     Failed(SharedString),
     /// No drawing could be made (no page, no answer, no snapshot); the
-    /// caller keeps its own rendering.
+    /// caller keeps its own rendering and may retry later.
     Unavailable,
 }
 
@@ -210,26 +217,173 @@ struct Job {
     key: u64,
     payload: String,
     scale: f32,
+    cancelled: bool,
 }
+
+struct HostQueue {
+    queue: VecDeque<Job>,
+    busy: Option<Job>,
+}
+
+impl HostQueue {
+    fn new() -> Self {
+        Self {
+            queue: VecDeque::new(),
+            busy: None,
+        }
+    }
+
+    fn has_active_key(&self, key: u64) -> bool {
+        self.busy
+            .as_ref()
+            .is_some_and(|j| !j.cancelled && j.key == key)
+            || self.queue.iter().any(|j| !j.cancelled && j.key == key)
+    }
+
+    fn cancel_queued_key(&mut self, key: u64) -> bool {
+        let mut any = false;
+        for job in &mut self.queue {
+            if job.key == key && !job.cancelled {
+                job.cancelled = true;
+                any = true;
+            }
+        }
+        any
+    }
+
+    fn pop_next_valid(&mut self, cache: &HashMap<u64, Cached>) -> Option<Job> {
+        while let Some(job) = self.queue.pop_front() {
+            if job.cancelled {
+                continue;
+            }
+            // Skip jobs whose key was cancelled or already settled by another host.
+            if !matches!(cache.get(&job.key).map(|c| &c.state), Some(State::Pending)) {
+                continue;
+            }
+            return Some(job);
+        }
+        None
+    }
+}
+
 struct Host {
     view: WebHost,
     /// The page has loaded its script (it says so once).
     ready: bool,
-    queue: VecDeque<Job>,
-    busy: Option<Job>,
+    jobs: HostQueue,
 }
+
 struct Cached {
     state: State,
     used: u64,
     bytes: usize,
 }
+
 #[derive(Default)]
 struct Service {
     cache: HashMap<u64, Cached>,
     clock: u64,
     next_id: u64,
     hosts: HashMap<WindowId, Host>,
+    /// Active key awaited by each logical slot `(owner, block_offset)`.
+    slots: HashMap<RenderSlot, u64>,
+    /// Short-lived cooldown per `(window, key)` after an async host timeout or
+    /// snapshot failure; never stored in `cache` so retries succeed.
+    cooldowns: HashMap<(WindowId, u64), Instant>,
 }
+
+impl Service {
+    fn lookup_cached(&mut self, key: u64) -> Option<State> {
+        self.clock += 1;
+        let clock = self.clock;
+        let entry = self.cache.get_mut(&key)?;
+        if !matches!(entry.state, State::Pending) {
+            entry.used = clock;
+        }
+        Some(entry.state.clone())
+    }
+
+    fn in_cooldown(&mut self, window_id: WindowId, key: u64) -> bool {
+        self.cooldowns
+            .retain(|_, until| until.saturating_duration_since(Instant::now()) > Duration::ZERO);
+        self.cooldowns.contains_key(&(window_id, key))
+    }
+
+    fn has_in_flight(&self, key: u64) -> bool {
+        self.hosts.values().any(|h| h.jobs.has_active_key(key))
+    }
+
+    fn bind_slot(&mut self, slot: RenderSlot, key: u64) {
+        if let Some(previous) = self.slots.insert(slot, key)
+            && previous != key
+        {
+            self.cancel_unreferenced_key(previous);
+        }
+    }
+
+    fn release_slot(&mut self, slot: RenderSlot) {
+        if let Some(previous) = self.slots.remove(&slot) {
+            self.cancel_unreferenced_key(previous);
+        }
+    }
+
+    fn cancel_unreferenced_key(&mut self, key: u64) {
+        if self.slots.values().any(|&k| k == key) {
+            return;
+        }
+        let busy_somewhere = self
+            .hosts
+            .values()
+            .any(|h| h.jobs.busy.as_ref().is_some_and(|b| b.key == key));
+        for host in self.hosts.values_mut() {
+            host.jobs.cancel_queued_key(key);
+        }
+        if !busy_somewhere && matches!(self.cache.get(&key).map(|c| &c.state), Some(State::Pending))
+        {
+            self.cache.remove(&key);
+        }
+    }
+
+    fn invalidate_key(&mut self, key: u64) {
+        self.cache.remove(&key);
+        self.cooldowns.retain(|&(_, k), _| k != key);
+        for host in self.hosts.values_mut() {
+            host.jobs.cancel_queued_key(key);
+            if let Some(busy) = &mut host.jobs.busy
+                && busy.key == key
+            {
+                busy.cancelled = true;
+            }
+        }
+    }
+
+    fn settle_key(&mut self, key: u64, state: State, bytes: usize) {
+        // Never permanently cache `Unavailable` (`TA-50`, `TODO-34`).
+        if matches!(state, State::Unavailable) {
+            self.cache.remove(&key);
+            return;
+        }
+        self.clock += 1;
+        let used = self.clock;
+        self.cache.insert(key, Cached { state, used, bytes });
+        // Evict least-recently-used settled entries, never one still drawing.
+        while self.cache.len() > MAX_ENTRIES
+            || self.cache.values().map(|c| c.bytes).sum::<usize>() > MAX_BYTES
+        {
+            let Some(oldest) = self
+                .cache
+                .iter()
+                .filter(|(_, c)| !matches!(c.state, State::Pending))
+                .min_by_key(|(_, c)| c.used)
+                .map(|(k, _)| *k)
+            else {
+                break;
+            };
+            self.cache.remove(&oldest);
+        }
+    }
+}
+
 thread_local! {
     static SERVICE: RefCell<Service> = RefCell::new(Service::default());
 }
@@ -250,6 +404,11 @@ struct Reply {
     baseline: f32,
     #[serde(default)]
     error: String,
+}
+
+/// Stable cache key of `request` across panes and windows.
+pub fn cache_key(request: &Request) -> u64 {
+    key(request)
 }
 
 fn key(request: &Request) -> u64 {
@@ -288,17 +447,48 @@ fn payload(id: u64, request: &Request) -> String {
     job.to_string()
 }
 
+/// Cancels any pending queued request previously bound to `slot`.
+pub fn cancel_slot(slot: RenderSlot) {
+    SERVICE.with(|s| s.borrow_mut().release_slot(slot));
+}
+
+/// Clears any cached `Failed` state or transient cooldown for `request` so the
+/// next call re-renders afresh.
+pub fn invalidate(request: &Request) {
+    let k = key(request);
+    SERVICE.with(|s| s.borrow_mut().invalidate_key(k));
+}
+
+/// Slot-aware entry point: cancels any superseded queued job from `slot` before
+/// requesting `request`.
+pub fn get_for_slot(
+    slot: RenderSlot,
+    request: &Request,
+    window: &mut Window,
+    cx: &mut App,
+) -> State {
+    let k = key(request);
+    SERVICE.with(|s| s.borrow_mut().bind_slot(slot, k));
+    get(request, window, cx)
+}
+
 /// The drawing for `request`, starting it the first time it is asked for.
 pub fn get(request: &Request, window: &mut Window, cx: &mut App) -> State {
     let key = key(request);
+    let window_id = window.window_handle().window_id();
     let cached = SERVICE.with(|s| {
         let mut s = s.borrow_mut();
-        s.clock += 1;
-        let clock = s.clock;
-        s.cache.get_mut(&key).map(|c| {
-            c.used = clock;
-            c.state.clone()
-        })
+        if let Some(state) = s.lookup_cached(key) {
+            if matches!(state, State::Pending) && !s.has_in_flight(key) {
+                s.cache.remove(&key);
+            } else {
+                return Some(state);
+            }
+        }
+        if s.in_cooldown(window_id, key) {
+            return Some(State::Unavailable);
+        }
+        None
     });
     if let Some(state) = cached {
         return state;
@@ -308,31 +498,32 @@ pub fn get(request: &Request, window: &mut Window, cx: &mut App) -> State {
         settle(key, failed.clone(), 0);
         return failed;
     }
-    let window_id = window.window_handle().window_id();
     let needs_host = SERVICE.with(|s| !s.borrow().hosts.contains_key(&window_id));
     if needs_host && !open_host(window, cx) {
-        settle(key, State::Unavailable, 0);
+        // Never cache `Unavailable` when a render host is not yet available.
         return State::Unavailable;
     }
     SERVICE.with(|s| {
         let mut s = s.borrow_mut();
-        s.next_id += 1;
-        let id = s.next_id;
-        s.cache.insert(
-            key,
-            Cached {
-                state: State::Pending,
-                used: u64::MAX,
-                bytes: 0,
-            },
-        );
-        if let Some(host) = s.hosts.get_mut(&window_id) {
-            host.queue.push_back(Job {
-                id,
-                key,
-                payload: payload(id, request),
-                scale: request.scale,
-            });
+        // Deduplicate by `key`: if another caller already enqueued `key`, share it.
+        let already_queued = s.has_in_flight(key);
+        s.cache.entry(key).or_insert(Cached {
+            state: State::Pending,
+            used: u64::MAX,
+            bytes: 0,
+        });
+        if !already_queued {
+            s.next_id += 1;
+            let id = s.next_id;
+            if let Some(host) = s.hosts.get_mut(&window_id) {
+                host.jobs.queue.push_back(Job {
+                    id,
+                    key,
+                    payload: payload(id, request),
+                    scale: request.scale,
+                    cancelled: false,
+                });
+            }
         }
     });
     pump(window_id, cx);
@@ -370,7 +561,6 @@ fn open_host(window: &mut Window, cx: &mut App) -> bool {
         return false;
     };
     let window_id = window.window_handle().window_id();
-    // Hosts of windows that have closed go with them.
     let live: Vec<WindowId> = cx.windows().iter().map(|w| w.window_id()).collect();
     SERVICE.with(|s| {
         let mut s = s.borrow_mut();
@@ -380,8 +570,7 @@ fn open_host(window: &mut Window, cx: &mut App) -> bool {
             Host {
                 view,
                 ready: false,
-                queue: VecDeque::new(),
-                busy: None,
+                jobs: HostQueue::new(),
             },
         );
     });
@@ -398,44 +587,25 @@ fn open_host(window: &mut Window, cx: &mut App) -> bool {
 }
 
 fn settle(key: u64, state: State, bytes: usize) {
-    SERVICE.with(|s| {
-        let mut s = s.borrow_mut();
-        s.clock += 1;
-        let used = s.clock;
-        s.cache.insert(key, Cached { state, used, bytes });
-        // Least recently used first, never one still being drawn.
-        while s.cache.len() > MAX_ENTRIES
-            || s.cache.values().map(|c| c.bytes).sum::<usize>() > MAX_BYTES
-        {
-            let Some(oldest) = s
-                .cache
-                .iter()
-                .filter(|(_, c)| !matches!(c.state, State::Pending))
-                .min_by_key(|(_, c)| c.used)
-                .map(|(k, _)| *k)
-            else {
-                break;
-            };
-            s.cache.remove(&oldest);
-        }
-    });
+    SERVICE.with(|s| s.borrow_mut().settle_key(key, state, bytes));
 }
 
-/// The page's next request, when it is free.
+/// Runs the page's next non-cancelled request when it is free.
 fn pump(window_id: WindowId, cx: &mut App) {
     let started = SERVICE.with(|s| {
         let mut s = s.borrow_mut();
-        let host = s.hosts.get_mut(&window_id)?;
-        if host.busy.is_some() || !host.ready {
+        let Service { cache, hosts, .. } = &mut *s;
+        let host = hosts.get_mut(&window_id)?;
+        if host.jobs.busy.is_some() || !host.ready {
             return None;
         }
-        let job = host.queue.pop_front()?;
+        let job = host.jobs.pop_next_valid(cache)?;
         host.view.evaluate(&format!(
             "window.__puppyoneRender&&window.__puppyoneRender({})",
             job.payload
         ));
         let id = job.id;
-        host.busy = Some(job);
+        host.jobs.busy = Some(job);
         Some(id)
     });
     let Some(id) = started else {
@@ -448,24 +618,28 @@ fn pump(window_id: WindowId, cx: &mut App) {
     .detach();
 }
 
-/// The page never answered: it is closed with what it was asked, and its
-/// requests are asked again of a new page.
+/// The page never answered: close it, clear `Pending` entries without caching
+/// `Unavailable` permanently, and apply a brief cooldown before re-queuing.
 fn timed_out(window_id: WindowId, id: u64, cx: &mut App) {
     let stale = SERVICE.with(|s| {
         let mut s = s.borrow_mut();
-        let busy = s.hosts.get(&window_id)?.busy.as_ref()?.id;
+        let busy = s.hosts.get(&window_id)?.jobs.busy.as_ref()?.id;
         (busy == id).then(|| s.hosts.remove(&window_id)).flatten()
     });
     let Some(host) = stale else {
         return;
     };
-    if let Some(job) = &host.busy {
-        settle(job.key, State::Unavailable, 0);
-    }
     SERVICE.with(|s| {
         let mut s = s.borrow_mut();
-        for job in &host.queue {
-            s.cache.remove(&job.key);
+        if let Some(job) = &host.jobs.busy {
+            s.settle_key(job.key, State::Unavailable, 0);
+            s.cooldowns
+                .insert((window_id, job.key), Instant::now() + UNAVAILABLE_COOLDOWN);
+        }
+        for job in &host.jobs.queue {
+            if !s.has_in_flight(job.key) {
+                s.cache.remove(&job.key);
+            }
         }
     });
     drop(host);
@@ -485,12 +659,27 @@ fn answered(window_id: WindowId, reply: Reply, cx: &mut App) {
     let busy = SERVICE.with(|s| {
         let mut s = s.borrow_mut();
         let host = s.hosts.get_mut(&window_id)?;
-        let job = host.busy.as_ref()?;
-        (job.id == reply.id).then_some((job.key, job.scale))
+        let job = host.jobs.busy.as_ref()?;
+        (job.id == reply.id).then_some((job.key, job.scale, job.cancelled))
     });
-    let Some((key, scale)) = busy else {
+    let Some((key, scale, cancelled)) = busy else {
         return;
     };
+    if cancelled {
+        SERVICE.with(|s| {
+            let mut s = s.borrow_mut();
+            if let Some(host) = s.hosts.get_mut(&window_id) {
+                host.jobs.busy = None;
+            }
+            if !s.has_in_flight(key)
+                && matches!(s.cache.get(&key).map(|c| &c.state), Some(State::Pending))
+            {
+                s.cache.remove(&key);
+            }
+        });
+        pump(window_id, cx);
+        return;
+    }
     if !reply.ok || reply.width <= 0. || reply.height <= 0. {
         let error = if reply.error.is_empty() {
             "Unable to render.".to_owned()
@@ -541,6 +730,11 @@ fn answered(window_id: WindowId, reply: Reply, cx: &mut App) {
                 }
                 None => State::Unavailable,
             };
+            SERVICE.with(|s| {
+                s.borrow_mut()
+                    .cooldowns
+                    .insert((window_id, key), Instant::now() + UNAVAILABLE_COOLDOWN);
+            });
             finish(window_id, key, state, 0, cx);
         });
     })
@@ -551,7 +745,7 @@ fn finish(window_id: WindowId, key: u64, state: State, bytes: usize, cx: &mut Ap
     settle(key, state, bytes);
     SERVICE.with(|s| {
         if let Some(host) = s.borrow_mut().hosts.get_mut(&window_id) {
-            host.busy = None;
+            host.jobs.busy = None;
         }
     });
     cx.refresh_windows();
@@ -574,7 +768,6 @@ mod tests {
         }
     }
 
-    /// The Markdown profile's roles, light or dark.
     fn theme(dark: bool) -> MermaidTheme<'static> {
         let t = crate::editor::tokens::Tokens::get(dark, Default::default());
         MermaidTheme {
@@ -607,7 +800,6 @@ mod tests {
         assert_eq!(variables["primaryBorderColor"], hex(light.border));
         assert_eq!(variables["fontSize"], "15px");
         assert_eq!(variables["pie2"], hex(light.success));
-        // A translucent colour keeps its RGB (`resolveMermaidColor`).
         assert!(light.border.a < 1.);
         let border = hex(light.border);
         assert_eq!(
@@ -642,14 +834,57 @@ mod tests {
 
     #[test]
     fn the_cache_forgets_the_least_recently_used_drawing() {
+        let mut service = Service::default();
         for n in 0..(MAX_ENTRIES as u64 + 5) {
-            settle(n, State::Failed("x".into()), 0);
+            service.settle_key(n, State::Failed("x".into()), 0);
         }
-        SERVICE.with(|s| {
-            let s = s.borrow();
-            assert_eq!(s.cache.len(), MAX_ENTRIES);
-            assert!(!s.cache.contains_key(&0));
-            assert!(s.cache.contains_key(&(MAX_ENTRIES as u64 + 4)));
-        });
+        assert_eq!(service.cache.len(), MAX_ENTRIES);
+        assert!(!service.cache.contains_key(&0));
+        assert!(service.cache.contains_key(&(MAX_ENTRIES as u64 + 4)));
+    }
+
+    #[test]
+    fn unavailable_is_never_permanently_cached_and_superseded_jobs_skip() {
+        let mut service = Service::default();
+        service.cache.insert(
+            42,
+            Cached {
+                state: State::Pending,
+                used: u64::MAX,
+                bytes: 0,
+            },
+        );
+        service.settle_key(42, State::Unavailable, 0);
+        assert!(
+            !service.cache.contains_key(&42),
+            "Unavailable must never remain cached"
+        );
+
+        let mut host_q = HostQueue::new();
+        for (id, k) in [(1, 100u64), (2, 200u64)] {
+            service.cache.insert(
+                k,
+                Cached {
+                    state: State::Pending,
+                    used: u64::MAX,
+                    bytes: 0,
+                },
+            );
+            host_q.queue.push_back(Job {
+                id,
+                key: k,
+                payload: String::new(),
+                scale: 1.,
+                cancelled: false,
+            });
+        }
+        assert!(host_q.has_active_key(100));
+        assert!(host_q.cancel_queued_key(100));
+        assert!(!host_q.has_active_key(100));
+        let next = host_q.pop_next_valid(&service.cache).expect("job 200");
+        assert_eq!(
+            next.key, 200,
+            "cancelled job 100 skipped when queue advances"
+        );
     }
 }

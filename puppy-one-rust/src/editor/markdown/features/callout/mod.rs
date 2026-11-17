@@ -1,18 +1,20 @@
-//! Callouts (product features/callout): a blockquote opening with
-//! `[!type]` is a tinted box in its type's colour — no quote rule, rounded
-//! top and bottom, 8px above the title — whose first line is its title in that
-//! colour at weight 600 behind the type's glyph. Without a title the type
-//! word stands in. While the caret is on the title line, the marker shows
-//! as source. A foldable callout (`[!type]-` folded, `[!type]+` open) has
-//! a chevron after its title that folds it to its title alone in this pane.
+//! Callouts (product `features/callout`, `TA-40`): fold state lives in a
+//! feature-owned [`CalloutFoldState`] slot inside `FeatureStateStore` mapped via
+//! [`Anchor`] across document edits and undo/redo (`TA-06`).
 use crate::editor::{
     markdown::core::{
         decorations::{BlockDecoration, LineDecoration},
         feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
         plans::{BlockEmbed, Plan, Presentation},
-        state::PreviewState,
+        state::{FeatureStateValue, PreviewState},
+        syntax::Callout,
     },
-    text::state::{EditorState, Transaction},
+    text::{
+        anchor::Anchor,
+        buffer::Buffer,
+        change::ChangeSet,
+        state::{EditorState, Transaction},
+    },
     view::{
         command::Command,
         style::{Paint, Rect, Trailing},
@@ -26,18 +28,10 @@ pub struct CalloutFeature;
 pub static FEATURE: CalloutFeature = CalloutFeature;
 pub const ID: &str = "callout";
 
-/// `.cm-md-callout-icon`: 18px, 8px before the title.
 const ICON: f32 = 18.;
 const ICON_GAP: f32 = 8.;
-/// `.is-title { padding-top: 8px }`. (`.is-last`'s 8px bottom padding
-/// loses to the line rhythm's, so the last line keeps its own.)
 const TITLE_PADDING: f32 = 8.;
-/// The type word's header (`inline-flex`, 1lh, `vertical-align:
-/// text-bottom`) deepens its line by a quarter em below the text (measured
-/// in the product: 41.75px against 38px for a titled callout at 15px).
 const HEADER_DEPTH: f32 = 0.25;
-/// `.cm-md-callout-fold`: 6px after the title (and the header's 8px margin
-/// before it when the type word stands in).
 const FOLD_GAP: f32 = 6.;
 
 /// Fold (or open) the callout whose marker starts at `at`.
@@ -47,6 +41,46 @@ pub struct Fold {
     pub folded: bool,
 }
 
+/// Per-feature callout fold state (`TA-40`), tracked via [`Anchor::after`] so
+/// edits at or above a callout (including undo/redo) preserve its fold toggle.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CalloutFoldState(Vec<(Anchor, bool)>);
+
+impl FeatureStateValue for CalloutFoldState {
+    fn map_changes(&mut self, changes: &ChangeSet, _doc: &Buffer, new_revision: u64) {
+        for (anchor, _) in &mut self.0 {
+            anchor.map(changes, new_revision);
+        }
+    }
+}
+
+impl CalloutFoldState {
+    pub fn get(&self, at: usize) -> Option<bool> {
+        self.0.iter().find(|(a, _)| a.offset == at).map(|(_, f)| *f)
+    }
+
+    pub fn folded(&self, callout: &Callout) -> bool {
+        callout.fold.is_some()
+            && self
+                .0
+                .iter()
+                .find(|(a, _)| a.offset == callout.marker.start)
+                .map_or(callout.fold == Some(true), |(_, folded)| *folded)
+    }
+
+    pub fn set(&mut self, at: usize, folded: bool, revision: u64) {
+        self.0.retain(|(a, _)| a.offset != at);
+        self.0.push((Anchor::after(at, revision), folded));
+    }
+}
+
+fn is_folded(callout: &Callout, state: Option<&CalloutFoldState>) -> bool {
+    match state {
+        Some(s) => s.folded(callout),
+        None => callout.fold == Some(true),
+    }
+}
+
 use crate::editor::tokens::callout_color as color;
 
 /// The body of a folded callout, out of the flow.
@@ -54,10 +88,19 @@ use crate::editor::tokens::callout_color as color;
 pub struct FoldedBody {
     pub range: Range<usize>,
 }
+
 struct FoldedWidget;
 impl BlockWidget for FoldedWidget {
     fn render(&self, cx: &mut WidgetCx) -> (gpui::AnyElement, f32) {
         (cx.block_box(0.).into_any_element(), 0.)
+    }
+
+    fn eq_widget(&self, other: &dyn BlockWidget) -> bool {
+        (other as &dyn std::any::Any).is::<Self>()
+    }
+
+    fn estimate_height(&self, _lines: Range<usize>, _width: f32) -> f32 {
+        0.
     }
 }
 
@@ -67,8 +110,9 @@ impl MarkdownFeature for CalloutFeature {
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
+        let state = cx.state::<CalloutFoldState>(ID);
         for callout in &cx.syntax.callouts {
-            if cx.folds.folded(callout) && callout.last_line > callout.first_line {
+            if is_folded(callout, state) && callout.last_line > callout.first_line {
                 let range = cx.doc.line_range(callout.first_line + 1).start
                     ..cx.doc.line_range(callout.last_line).end;
                 out.push(Plan {
@@ -89,7 +133,6 @@ impl MarkdownFeature for CalloutFeature {
         Some(Rc::new(FoldedWidget))
     }
 
-    /// The folded lines are no caret position.
     fn decorate_block(&self, embed: &BlockEmbed, cx: &mut BlockDecoration) {
         if let Some(body) = embed.model::<FoldedBody>() {
             cx.atomic(body.range.clone());
@@ -103,7 +146,9 @@ impl MarkdownFeature for CalloutFeature {
         state: &EditorState,
     ) -> Option<Transaction> {
         let fold = command.payload::<Fold>()?;
-        preview.callout_folds.set(fold.at, fold.folded);
+        preview
+            .state_mut::<CalloutFoldState>(ID)
+            .set(fold.at, fold.folded, state.revision);
         Some(Transaction::select(state.selection))
     }
 
@@ -111,7 +156,7 @@ impl MarkdownFeature for CalloutFeature {
         let Some(callout) = cx.syntax.callout_at(cx.line) else {
             return;
         };
-        let folded = cx.preview.callout_folds.folded(callout);
+        let folded = is_folded(callout, cx.preview.state::<CalloutFoldState>(ID));
         let last = if folded {
             callout.first_line
         } else {
@@ -139,7 +184,6 @@ impl MarkdownFeature for CalloutFeature {
             style.background_radii[2] = radius;
             style.background_radii[3] = radius;
         }
-        // The header stands in for the marker, unless the caret is there.
         if title && cx.preview.callout_title != Some(cx.line) {
             let icon = Paint::Icon {
                 rect: Rect::new(
@@ -161,7 +205,6 @@ impl MarkdownFeature for CalloutFeature {
                     size: ICON,
                     icon: SharedString::from("icons/callout-chevron.svg"),
                     color: tint,
-                    // `rotate(90deg)` while open.
                     rotation: if folded { 0. } else { 90. },
                     command: Command::new(
                         ID,

@@ -1,7 +1,14 @@
 //! Pointer selection (click, shift-click, double/triple click, drag by
-//! granularity) and wheel scrolling. Hotspots handle their own presses.
-use super::editor::{Drag, EditorView, Granularity};
-use crate::editor::text::{selection::Selection, state::Transaction, words};
+//! granularity), plugin pointer hooks, and wheel scrolling.
+use super::{
+    editor::{Drag, EditorView, Granularity},
+    plugins::{PluginDropOutcome, PluginPointerCx, PluginPointerOutcome},
+};
+use crate::editor::text::{
+    selection::Selection,
+    state::{Annotation, Transaction},
+    words,
+};
 use gpui::*;
 
 pub(super) struct LinkPress {
@@ -17,16 +24,14 @@ impl EditorView {
         position: Point<Pixels>,
         release: bool,
     ) -> Option<super::extension::LinkActivation> {
-        let layout = self.layout.as_ref()?;
+        let layout = self.caches.layout.as_ref()?;
         if layout.revision != self.state.revision || !layout.bounds.contains(&position) {
             return None;
         }
         let point = layout.to_layout(position, self.scroll_y);
         let (offset, _) = layout.offset_at(point);
-        // Nearest-caret hit testing can return the label's end or clamp empty
-        // margin to its start. Require an actual label box under the pointer.
         for offset in [offset, self.state.doc.clamp(offset.saturating_sub(1))] {
-            if let Some(link) = self.extension.link_at(&self.state, offset, release)
+            if let Some(link) = self.extensions.link_at(&self.state, offset, release)
                 && layout
                     .range_boxes(link.label.clone())
                     .iter()
@@ -37,11 +42,10 @@ impl EditorView {
         }
         None
     }
+
     fn offset_for(&self, position: Point<Pixels>) -> Option<(usize, bool)> {
-        let layout = self.layout.as_ref()?;
+        let layout = self.caches.layout.as_ref()?;
         let (offset, upstream) = layout.offset_at(layout.to_layout(position, self.scroll_y));
-        // If `self.state` advanced before the next frame rebuilt `self.layout`,
-        // clamp the stale layout offset onto a valid boundary of `self.state.doc`.
         Some((self.state.doc.clamp(offset), upstream))
     }
 
@@ -58,25 +62,36 @@ impl EditorView {
         let Some((offset, upstream)) = self.offset_for(event.position) else {
             return;
         };
-        self.link_press = None;
+        if event.modifiers.alt && event.click_count == 1 && !event.modifiers.shift {
+            self.pointer.drag = None;
+            self.add_selection(
+                Selection {
+                    upstream,
+                    ..Selection::cursor(offset)
+                },
+                cx,
+            );
+            return;
+        }
+        self.secondary.clear();
+        self.pointer.link_press = None;
         if event.click_count == 1
             && self.state.selection.is_empty()
             && !self.composing()
             && !self.read_only()
         {
-            self.link_press = self
-                .link_for(event.position, false)
-                .map(|activation| LinkPress {
-                    activation,
-                    position: event.position,
-                    revision: self.state.revision,
-                    anchor: self.state.selection.anchor,
-                });
+            self.pointer.link_press =
+                self.link_for(event.position, false)
+                    .map(|activation| LinkPress {
+                        activation,
+                        position: event.position,
+                        revision: self.state.revision,
+                        anchor: self.state.selection.anchor,
+                    });
         }
-        let text = self.state.doc.as_str();
         let granularity = match event.click_count {
             2 => {
-                let r = words::group_at(text, offset);
+                let r = words::group_at_in(&self.state.doc, offset);
                 Granularity::Word(r.start, r.end)
             }
             n if n >= 3 => {
@@ -106,34 +121,60 @@ impl EditorView {
         } else {
             selection.anchor
         };
-        self.drag = Some(Drag {
+        self.pointer.drag = Some(Drag {
             anchor,
             granularity,
         });
-        self.dispatch(Transaction::select(selection), cx);
+        self.dispatch(
+            Transaction::select(selection).with_annotation(Annotation::SELECT_POINTER),
+            cx,
+        );
     }
 
     pub(super) fn mouse_move(
         &mut self,
         event: &MouseMoveEvent,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.link_press.as_ref().is_some_and(|press| {
+        if self.pointer.link_press.as_ref().is_some_and(|press| {
             (press.position.x - event.position.x).abs() > px(4.)
                 || (press.position.y - event.position.y).abs() > px(4.)
                 || event.pressed_button != Some(MouseButton::Left)
         }) {
-            self.link_press = None;
+            self.pointer.link_press = None;
         }
-        if self.block_drag.dragging.is_some() {
-            self.block_drag_move(event.position, cx);
+
+        let max_scroll = self.max_scroll();
+        let mut pctx = PluginPointerCx {
+            state: &self.state,
+            layout: self.caches.layout.as_deref(),
+            scroll_y: self.scroll_y,
+            max_scroll,
+            read_only: self.read_only,
+            scroll_delta: 0.,
+            notify: false,
+        };
+        let mut consumed = false;
+        for plugin in &mut self.extensions.plugins {
+            if plugin.on_mouse_move(event, &mut pctx) == PluginPointerOutcome::Consumed {
+                consumed = true;
+                break;
+            }
+        }
+        let (scroll_delta, notify) = (pctx.scroll_delta, pctx.notify);
+        if scroll_delta != 0. {
+            self.scroll_by(scroll_delta, window, cx);
+        } else if notify {
+            cx.notify();
+        }
+        if consumed {
             return;
         }
-        if event.pressed_button.is_none() {
-            self.block_drag_hover(event.position, cx);
-        }
-        let Some(drag) = self.drag else { return };
+
+        let Some(drag) = self.pointer.drag else {
+            return;
+        };
         if event.pressed_button != Some(MouseButton::Left) {
             return;
         }
@@ -147,9 +188,8 @@ impl EditorView {
             },
             Granularity::Word(a, b) | Granularity::Line(a, b) => {
                 let (a, b) = (self.state.doc.clamp(a), self.state.doc.clamp(b));
-                let text = self.state.doc.as_str();
                 let unit = match drag.granularity {
-                    Granularity::Word(..) => words::group_at(text, offset),
+                    Granularity::Word(..) => words::group_at_in(&self.state.doc, offset),
                     _ => {
                         let line = self.state.doc.line_index(offset);
                         let r = self.state.doc.line_range(line);
@@ -169,8 +209,9 @@ impl EditorView {
             }
         };
         if selection != self.state.selection {
-            let mut tr = Transaction::select(selection);
-            tr.scroll_into_view = true;
+            let tr = Transaction::select(selection)
+                .with_annotation(Annotation::SELECT_POINTER)
+                .with_scroll_into_view(true);
             self.dispatch(tr, cx);
         }
     }
@@ -178,16 +219,44 @@ impl EditorView {
     pub(super) fn mouse_up(
         &mut self,
         event: &MouseUpEvent,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if event.button != MouseButton::Left {
             return;
         }
-        if self.block_drag_drop(cx) {
+
+        let max_scroll = self.max_scroll();
+        let mut pctx = PluginPointerCx {
+            state: &self.state,
+            layout: self.caches.layout.as_deref(),
+            scroll_y: self.scroll_y,
+            max_scroll,
+            read_only: self.read_only,
+            scroll_delta: 0.,
+            notify: false,
+        };
+        let mut drop_outcome = None;
+        for plugin in &mut self.extensions.plugins {
+            if let Some(outcome) = plugin.on_mouse_up(event, &mut pctx) {
+                drop_outcome = Some(outcome);
+                break;
+            }
+        }
+        let (scroll_delta, notify) = (pctx.scroll_delta, pctx.notify);
+        if scroll_delta != 0. {
+            self.scroll_by(scroll_delta, window, cx);
+        }
+        if let Some(PluginDropOutcome::Consumed(maybe_tr)) = drop_outcome {
+            if let Some(tr) = maybe_tr {
+                self.dispatch(tr, cx);
+            } else if notify {
+                cx.notify();
+            }
             return;
         }
-        if let Some(press) = self.link_press.take()
+
+        if let Some(press) = self.pointer.link_press.take()
             && press.revision == self.state.revision
             && self.state.selection.is_empty()
             && !self.composing()
@@ -199,10 +268,9 @@ impl EditorView {
         {
             self.follow(release.action, press.anchor, cx);
         }
-        if self.drag.take().is_some() {
-            // Releasing the pointer lets formats reconcile reveal state.
+        if self.pointer.drag.take().is_some() {
             let (state, focused) = (&self.state, true);
-            self.extension.selection_changed(state, focused, false);
+            self.extensions.selection_changed(state, focused, false);
             cx.notify();
         }
     }
@@ -216,7 +284,6 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         use super::extension::LinkAction;
-        // Navigation is a selection-only action: no dirty event/history entry.
         let position = if let LinkAction::Position(position) = action {
             position
         } else {
@@ -234,7 +301,7 @@ impl EditorView {
 
     /// Follow a link a widget carries (a linked image).
     pub fn follow_href(&mut self, href: &str, cx: &mut Context<Self>) {
-        if let Some(action) = self.extension.link_target(&self.state, href) {
+        if let Some(action) = self.extensions.link_target(&self.state, href) {
             let anchor = self.state.selection.anchor;
             self.follow(action, anchor, cx);
         }
@@ -247,6 +314,7 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         let line = self
+            .caches
             .layout
             .as_ref()
             .and_then(|l| l.leaves.first())
@@ -255,7 +323,7 @@ impl EditorView {
         self.scroll_by(-f32::from(delta.y), window, cx);
     }
 
-    pub(super) fn scroll_by(&mut self, dy: f32, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn scroll_by(&mut self, dy: f32, _: &mut Window, cx: &mut Context<Self>) {
         let max = self.max_scroll();
         let next = (self.scroll_y + dy).clamp(0., max);
         if next != self.scroll_y {
@@ -264,7 +332,7 @@ impl EditorView {
         }
     }
 
-    pub(super) fn max_scroll(&self) -> f32 {
-        self.layout.as_ref().map_or(0., |l| l.max_scroll())
+    pub(crate) fn max_scroll(&self) -> f32 {
+        self.caches.layout.as_ref().map_or(0., |l| l.max_scroll())
     }
 }

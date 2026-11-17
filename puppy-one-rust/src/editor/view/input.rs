@@ -1,7 +1,8 @@
 //! Platform text input (`NSTextInputClient` through GPUI's
 //! `EntityInputHandler`): GPUI speaks UTF-16 ranges, the document uses UTF-8
-//! byte offsets. The composition lifecycle and its rules live in
-//! `composition.rs`; this file only translates the protocol.
+//! byte offsets (`TA-01`, `TA-04`). The composition lifecycle and its rules
+//! live in `composition.rs`; this file translates the protocol in `O(log n)`
+//! over the `Buffer` rope without materialising a flat string.
 //!
 //! - `replace_and_mark_text_in_range` (`setMarkedText:selectedRange:
 //!   replacementRange:`): the new text becomes the composition; the selected
@@ -15,11 +16,17 @@
 //!   is not text: dropped, the key replayed (`ui::ime`).
 use super::editor::EditorView;
 use crate::{editor::text::selection::Selection, ui::ime};
-use gpui::*;
+use gpui::{Bounds, Context, EntityInputHandler, Pixels, Point, UTF16Selection, Window, point, px};
 use std::ops::Range;
 
+/// Total UTF-8 byte -> UTF-16 code-unit offset helper on a `&str` slice,
+/// clamping out-of-bounds or mid-codepoint offsets backward first (`TA-04`).
 pub(super) fn to_utf16(text: &str, offset: usize) -> usize {
-    text[..offset.min(text.len())].encode_utf16().count()
+    let mut end = offset.min(text.len());
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text[..end].encode_utf16().count()
 }
 
 /// The byte offset of a UTF-16 offset; an offset inside a surrogate pair
@@ -37,21 +44,25 @@ pub(super) fn from_utf16(text: &str, offset: usize) -> usize {
 
 impl EditorView {
     fn range_from_utf16(&self, range: &Range<usize>) -> Range<usize> {
-        let t = self.state.doc.as_str();
-        let (a, b) = (from_utf16(t, range.start), from_utf16(t, range.end));
+        let a = self.state.doc.utf16_to_byte(range.start);
+        let b = self.state.doc.utf16_to_byte(range.end);
         a.min(b)..a.max(b)
     }
+
     fn range_to_utf16(&self, range: &Range<usize>) -> Range<usize> {
-        let t = self.state.doc.as_str();
-        to_utf16(t, range.start)..to_utf16(t, range.end)
+        let a = self.state.doc.byte_to_utf16(range.start);
+        let b = self.state.doc.byte_to_utf16(range.end);
+        a.min(b)..a.max(b)
     }
+
     /// The source range an input-method edit replaces: its explicit
-    /// replacement range, else the marked text, else the selection.
+    /// replacement range, else the marked text, else the selection (clamped).
     fn input_target(&self, range: Option<Range<usize>>) -> Range<usize> {
-        range
+        let raw = range
             .map(|r| self.range_from_utf16(&r))
             .or_else(|| self.composition_range())
-            .unwrap_or_else(|| self.state.selection.as_range())
+            .unwrap_or_else(|| self.state.selection.as_range());
+        self.state.doc.clamp_range(raw)
     }
 }
 
@@ -65,7 +76,7 @@ impl EntityInputHandler for EditorView {
     ) -> Option<String> {
         let r = self.range_from_utf16(&range);
         *actual = Some(self.range_to_utf16(&r));
-        Some(self.state.doc.slice(r).to_owned())
+        Some(self.state.doc.slice_cow(r).into_owned())
     }
 
     fn selected_text_range(
@@ -108,6 +119,15 @@ impl EntityInputHandler for EditorView {
             // delete the selection).
             return;
         }
+        if range.is_none() && !self.composing() && !self.secondary.is_empty() {
+            self.apply_multicursor_replace(
+                text,
+                crate::editor::text::state::UserEvent::Input,
+                None,
+                cx,
+            );
+            return;
+        }
         let target = self.input_target(range);
         self.apply_input(target, text, text.len()..text.len(), false, cx);
     }
@@ -124,7 +144,7 @@ impl EntityInputHandler for EditorView {
             return;
         }
         let target = self.input_target(range);
-        let units = text.encode_utf16().count();
+        let units = to_utf16(text, text.len());
         let selected = selected.map_or(text.len()..text.len(), |s| {
             let (a, b) = (
                 from_utf16(text, s.start.min(units)),
@@ -142,7 +162,7 @@ impl EntityInputHandler for EditorView {
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
-        let layout = self.layout.as_ref()?;
+        let layout = self.caches.layout.as_ref()?;
         let r = self.range_from_utf16(&range);
         // The input method asks right after an edit, before the next frame:
         // an older layout is only exact before the edit, so anchor at the
@@ -165,9 +185,9 @@ impl EntityInputHandler for EditorView {
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<usize> {
-        let layout = self.layout.as_ref()?;
+        let layout = self.caches.layout.as_ref()?;
         let (offset, _) = layout.offset_at(layout.to_layout(p, self.scroll_y));
-        Some(to_utf16(self.state.doc.as_str(), offset))
+        Some(self.state.doc.byte_to_utf16(offset))
     }
 
     fn set_selected_text_range(
@@ -185,5 +205,31 @@ impl EntityInputHandler for EditorView {
 
     fn accepts_text_input(&self, _: &mut Window, _: &mut Context<Self>) -> bool {
         !self.read_only
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_utf16_and_from_utf16_clamp_mid_codepoint_and_out_of_bounds_safely() {
+        let s = "a中文😀b";
+        // 'a' = 0..1 (u16 0..1), '中' = 1..4 (u16 1..2), '文' = 4..7 (u16 2..3),
+        // '😀' = 7..11 (u16 3..5), 'b' = 11..12 (u16 5..6).
+        assert_eq!(to_utf16(s, 0), 0);
+        assert_eq!(to_utf16(s, 1), 1);
+        assert_eq!(to_utf16(s, 2), 1); // mid-'中' clamps back to byte 1 -> u16 1
+        assert_eq!(to_utf16(s, 3), 1); // mid-'中'
+        assert_eq!(to_utf16(s, 4), 2);
+        assert_eq!(to_utf16(s, 8), 3); // mid-'😀' clamps back to byte 7 -> u16 3
+        assert_eq!(to_utf16(s, 9), 3);
+        assert_eq!(to_utf16(s, 10), 3);
+        assert_eq!(to_utf16(s, 11), 5);
+        assert_eq!(to_utf16(s, 999), 6);
+
+        assert_eq!(from_utf16(s, 3), 7);
+        assert_eq!(from_utf16(s, 4), 11); // mid-surrogate resolves to end of '😀'
+        assert_eq!(from_utf16(s, 999), s.len());
     }
 }

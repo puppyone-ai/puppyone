@@ -5,7 +5,11 @@
 //! tracks set by the resize rail (`tableColumnLayoutController.ts`: view
 //! state, outside the source and its history). Every edit it requests is a
 //! table `Structure` command through the editor.
-use super::{commands, layout};
+use super::{
+    commands, layout,
+    model::COLUMN_LIMIT,
+    operation::{can_insert_column, can_insert_row},
+};
 use crate::editor::{
     table::{
         interaction::{Gestures, Hover, Resizing, StructureDrag, Tracks},
@@ -197,11 +201,20 @@ impl TableUi {
         cx.notify();
     }
 
-    /// `commitWidths`: one column's explicit track, the others as shown.
+    /// `commitWidths`: one column's explicit track, the others as shown,
+    /// bounded by `COLUMN_LIMIT` (`TODO-31`).
     pub fn set_width(&mut self, column: usize, width: f32, widths: &[f32]) {
-        let mut next: Vec<f32> = widths.iter().copied().map(layout::clamp).collect();
+        let mut next: Vec<f32> = widths
+            .iter()
+            .take(COLUMN_LIMIT)
+            .copied()
+            .map(layout::clamp)
+            .collect();
         if let Some(track) = next.get_mut(column) {
             *track = layout::clamp(width);
+            if let Some(frame) = &self.frame {
+                record_bounded_widths(frame.table, next.clone());
+            }
             self.widths = Some(next);
         }
     }
@@ -319,7 +332,28 @@ impl TableUi {
             delete_table: true,
             ..Default::default()
         };
-        let sections = menu::sections(target, extras);
+        let mut sections = menu::sections(target, extras);
+        let row_insert_ok = can_insert_row(g.rows.len(), g.columns.len());
+        let col_insert_ok = can_insert_column(g.rows.len(), g.columns.len());
+        for section in &mut sections {
+            for item in section {
+                match Operation::from_menu_id(item.id) {
+                    Some(
+                        Operation::InsertRowAbove
+                        | Operation::InsertRowBelow
+                        | Operation::DuplicateRow,
+                    ) if !row_insert_ok => {
+                        item.disabled = true;
+                    }
+                    Some(Operation::InsertColumnLeft | Operation::InsertColumnRight)
+                        if !col_insert_ok =>
+                    {
+                        item.disabled = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
         let dark = frame.dark;
         let menu = cx.new(|cx| TableMenu::new(sections, dark, cx));
         let subscription = cx.subscribe_in(
@@ -390,4 +424,38 @@ fn moved(operation: Operation, row: usize, column: usize, g: &Geometry) -> Optio
         Operation::MoveColumnRight if column + 1 < columns => Some((Axis::Column, column + 1)),
         _ => None,
     }
+}
+
+const MAX_BOUNDED_TABLE_STATES: usize = 64;
+
+thread_local! {
+    static BOUNDED_WIDTHS: std::cell::RefCell<std::collections::VecDeque<(usize, Vec<f32>)>> =
+        const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+}
+
+pub fn bounded_widths(table_start: usize, expected_cols: usize) -> Option<Vec<f32>> {
+    BOUNDED_WIDTHS.with(|store| {
+        let mut q = store.borrow_mut();
+        let pos = q
+            .iter()
+            .position(|(k, w)| *k == table_start && w.len() == expected_cols)?;
+        let entry = q.remove(pos)?;
+        let widths = entry.1.clone();
+        q.push_back(entry);
+        Some(widths)
+    })
+}
+
+pub fn record_bounded_widths(table_start: usize, mut widths: Vec<f32>) {
+    widths.truncate(COLUMN_LIMIT);
+    BOUNDED_WIDTHS.with(|store| {
+        let mut q = store.borrow_mut();
+        if let Some(pos) = q.iter().position(|(k, _)| *k == table_start) {
+            q.remove(pos);
+        }
+        while q.len() >= MAX_BOUNDED_TABLE_STATES {
+            q.pop_front();
+        }
+        q.push_back((table_start, widths));
+    });
 }

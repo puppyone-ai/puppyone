@@ -7,17 +7,31 @@
 //! document presents a native card offering one-click pack installation or
 //! immediate JSON source editing; once installed, the board mounts in place
 //! without reopening the tab.
-use super::{code, html_visual::script_json, web::WebFrame};
+//!
+//! This side owns the document text the host saves: the page sends the
+//! serialized board after every local edit (the SDK's first normalized
+//! scene is only the model's baseline, so opening a board never rewrites
+//! it); a disk reload or external edit resets the page, which remounts the
+//! board; read-only input is the board's view mode; the menu's Undo / Redo
+//! reach the board's own history. A link on an element is resolved here
+//! (`documentNavigation`): a workspace document opens in the workbench, an
+//! address in the browser.
+use super::{
+    code,
+    html_visual::script_json,
+    web::{WebFrame, parse_find_result},
+};
 use crate::{
     editor::{
         navigation::{self, Reference, ReferenceContext},
         registry::{
-            AssetReader, DocumentAssets, PaneEntries, SurfaceEvent, SurfaceEvents, SurfaceInput,
-            SurfaceRequest, ViewerSurface,
+            AssetReader, DocumentAssets, HostCommand, PaneEntries, PaneItemId, PaneSegmentId,
+            SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
         },
         workbench::{
             find::FindEvent,
             pane::{Segment, Segmented},
+            view_state::SurfaceViewState,
         },
     },
     localization::t,
@@ -56,6 +70,7 @@ enum Inbound {
     Link { generation: u64, link: String },
 }
 
+/// Workspace files by workspace-relative path, for embedded pages.
 struct Workspace(AssetReader);
 impl ResourceSource for Workspace {
     fn read(&self, relative: &Path) -> Option<Vec<u8>> {
@@ -66,6 +81,7 @@ impl ResourceSource for Workspace {
 enum Asked {
     Changed,
     Open(Vec<String>),
+    FindResult { current: usize, total: usize },
     ViewSource,
 }
 
@@ -95,11 +111,13 @@ fn open_with_pack(
         .as_ref()
         .and_then(|w| w.local_root())
         .map(|r| r.to_string_lossy().into_owned());
-    let assets = crate::editor::registry::document_assets(request.id);
+    let assets = request.assets.clone();
+    let references = request.references.clone();
     let mode = Rc::new(Cell::new(Mode::Board));
     let board = cx.new(|cx| {
         let mut view = WhiteboardView::new(request.name.to_owned(), root, text, request.dark);
         view.assets = assets;
+        view.references = references;
         view.pack = pack;
         view.show(cx);
         view
@@ -221,6 +239,10 @@ impl WhiteboardView {
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
+                if let Some((current, total)) = parse_find_result(&body) {
+                    let _ = this.update(cx, |_, cx| cx.emit(Asked::FindResult { current, total }));
+                    continue;
+                }
                 let Ok(message) = serde_json::from_str::<Inbound>(&body) else {
                     continue;
                 };
@@ -513,6 +535,16 @@ impl ViewerSurface for WhiteboardSurface {
                 events_board(SurfaceEvent::Changed, cx);
             }
             Asked::Open(paths) => events_board(SurfaceEvent::OpenPaths(paths.clone()), cx),
+            Asked::FindResult { current, total } if mode_board.get() == Mode::Board => {
+                events_board(
+                    SurfaceEvent::FindResult {
+                        current: *current,
+                        total: *total,
+                    },
+                    cx,
+                );
+            }
+            Asked::ViewSource => events_board(SurfaceEvent::Redraw, cx),
             _ => {}
         });
         let mode_source = self.mode.clone();
@@ -533,6 +565,14 @@ impl ViewerSurface for WhiteboardSurface {
         match self.mode.get() {
             Mode::Board => Some(self.board.read(cx).text.clone()),
             Mode::Source => self.source.text(cx),
+        }
+    }
+    fn buffer(&self, cx: &App) -> Option<crate::editor::text::buffer::Buffer> {
+        match self.mode.get() {
+            Mode::Board => Some(crate::editor::text::buffer::Buffer::new(
+                self.board.read(cx).text.clone(),
+            )),
+            Mode::Source => self.source.buffer(cx),
         }
     }
     fn composing(&self, cx: &App) -> bool {
@@ -559,19 +599,60 @@ impl ViewerSurface for WhiteboardSurface {
         self.board
             .update(cx, |view, cx| view.apply(read_only, dark, cx));
     }
+    fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
+        let mut state = self.source.view_state(cx).unwrap_or_default();
+        state.mode = Some(match self.mode.get() {
+            Mode::Board => "live".into(),
+            Mode::Source => "source".into(),
+        });
+        Some(state)
+    }
+    fn restore_view_state(&self, state: &SurfaceViewState, window: &mut Window, cx: &mut App) {
+        self.source.restore_view_state(state, window, cx);
+        if let Some(mode) = state.mode.as_deref() {
+            let segment = if mode == "source" {
+                PaneSegmentId::Source
+            } else {
+                PaneSegmentId::Live
+            };
+            self.pane_segment(segment, window, cx);
+        }
+    }
+    fn command(&self, cmd: HostCommand, window: &mut Window, cx: &mut App) {
+        match cmd {
+            HostCommand::Undo => self.undo(false, window, cx),
+            HostCommand::Redo => self.undo(true, window, cx),
+            HostCommand::Source => {
+                let next = match self.mode.get() {
+                    Mode::Board => PaneSegmentId::Source,
+                    Mode::Source => PaneSegmentId::Live,
+                };
+                self.pane_segment(next, window, cx);
+            }
+            other if self.mode.get() == Mode::Source => self.source.command(other, window, cx),
+            _ => {}
+        }
+    }
     fn focus_handle(&self, cx: &App) -> Option<FocusHandle> {
         (self.mode.get() == Mode::Source)
             .then(|| self.source.focus_handle(cx))
             .flatten()
     }
     fn find(&self, event: FindEvent, window: &mut Window, cx: &mut App) -> Option<(usize, usize)> {
-        (self.mode.get() == Mode::Source)
-            .then(|| self.source.find(event, window, cx))
-            .flatten()
+        match self.mode.get() {
+            Mode::Board => {
+                let frame = self.board.read(cx).frame.clone()?;
+                frame.read(cx).find(event, cx)
+            }
+            Mode::Source => self.source.find(event, window, cx),
+        }
     }
     fn pane(&self, cx: &App) -> PaneEntries {
         let mut entries = match self.mode.get() {
-            Mode::Board => PaneEntries::default(),
+            Mode::Board => PaneEntries {
+                find: self.board.read(cx).frame.is_some(),
+                ..Default::default()
+            },
             Mode::Source => self.source.pane(cx),
         };
         entries.segmented = Some(Segmented {
@@ -595,8 +676,8 @@ impl ViewerSurface for WhiteboardSurface {
         });
         entries
     }
-    fn pane_segment(&self, id: &'static str, window: &mut Window, cx: &mut App) {
-        let next = if id == "source" {
+    fn pane_segment(&self, segment: PaneSegmentId, window: &mut Window, cx: &mut App) {
+        let next = if matches!(segment, PaneSegmentId::Source) {
             Mode::Source
         } else {
             Mode::Board
@@ -626,9 +707,9 @@ impl ViewerSurface for WhiteboardSurface {
         }
         self.host.update(cx, |_, cx| cx.notify());
     }
-    fn pane_item(&self, id: &'static str, window: &mut Window, cx: &mut App) {
+    fn pane_item(&self, item: PaneItemId, window: &mut Window, cx: &mut App) {
         if self.mode.get() == Mode::Source {
-            self.source.pane_item(id, window, cx);
+            self.source.pane_item(item, window, cx);
         }
     }
 }

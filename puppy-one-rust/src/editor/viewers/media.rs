@@ -8,7 +8,7 @@
 //! product manifest (audio 512 MiB, video 2 GiB). A media element that
 //! cannot load reports it, and the surface shows the product's failure with
 //! Retry (`onRetryInput`), which reads the resource again.
-use super::{image::resource_failure, web::WebFrame};
+use super::{html_visual::script_json, image::resource_failure, web::WebFrame};
 use crate::{
     editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
     localization::{t, tf},
@@ -16,6 +16,7 @@ use crate::{
         Content, Entry, Ipc, ResourceSource, ResourceStream, Source as WebSource, url_for,
     },
     theme,
+    typography::Scale,
     ui::{appearance::ActiveAppearance, components::FileIcon},
     workspace::{PreviewData, PreviewResource},
 };
@@ -35,10 +36,10 @@ pub enum Kind {
 }
 impl Kind {
     fn budget(self) -> u64 {
-        match self {
-            Self::Audio => 512 * 1024 * 1024,
-            Self::Video => 2 * 1024 * 1024 * 1024,
-        }
+        crate::editor::registry::viewer_budget(match self {
+            Self::Audio => "audio-preview",
+            Self::Video => "video-preview",
+        })
     }
     fn label_key(self) -> &'static str {
         match self {
@@ -79,6 +80,39 @@ pub fn media_page(
     inset: &str,
     unsupported: &str,
 ) -> String {
+    media_page_themed(kind, src, background, inset, unsupported, true)
+}
+
+fn media_theme_css(background: &str, inset: &str, dark: bool) -> String {
+    let scheme = if dark { "dark" } else { "light" };
+    format!(
+        "html{{color-scheme:{scheme}}}html,body{{background:{background}}}video{{background:{inset}}}"
+    )
+}
+
+fn media_theme_script(background: &str, inset: &str, dark: bool) -> String {
+    let payload = serde_json::json!({
+        "dark": dark,
+        "scheme": if dark { "dark" } else { "light" },
+        "css": media_theme_css(background, inset, dark),
+    });
+    format!(
+        "(()=>{{const t={};const s=document.getElementById('po-theme');if(s)s.textContent=t.css;\
+         document.documentElement.classList.toggle('dark',t.dark);\
+         document.documentElement.dataset.initialTheme=t.scheme;\
+         document.documentElement.style.colorScheme=t.scheme;}})()",
+        script_json(&payload)
+    )
+}
+
+fn media_page_themed(
+    kind: Kind,
+    src: &str,
+    background: &str,
+    inset: &str,
+    unsupported: &str,
+    dark: bool,
+) -> String {
     let unsupported = escape(unsupported);
     let element = match kind {
         Kind::Audio => {
@@ -88,14 +122,22 @@ pub fn media_page(
             r#"<video controls preload="auto" playsinline src="{src}">{unsupported}</video>"#
         ),
     };
+    let class = if dark { "dark" } else { "" };
+    let scheme = if dark { "dark" } else { "light" };
+    let theme_block = media_theme_css(background, inset, dark);
     format!(
-        r#"<!doctype html><html><head><meta charset="utf-8"><style>
-html,body{{margin:0;height:100%;background:{background};overflow:hidden}}
+        r#"<!doctype html><html class="{class}" data-initial-theme="{scheme}"><head><meta charset="utf-8"><style id="po-theme">{theme_block}</style><style>
+html,body{{margin:0;height:100%;overflow:hidden}}
 body{{display:flex;align-items:center;justify-content:center}}
 audio{{width:100%}}
-video{{max-width:100%;max-height:100%;border-radius:6px;background:{inset}}}
+video{{max-width:100%;max-height:100%;border-radius:6px}}
 </style></head><body>{element}<script>
-document.querySelector("audio,video").addEventListener("error",()=>window.ipc&&window.ipc.postMessage("failed"));
+(()=>{{const el=document.querySelector("audio,video");if(!el)return;
+el.addEventListener("error",()=>window.ipc&&window.ipc.postMessage("failed"));
+el.addEventListener("play",()=>window.ipc&&window.ipc.postMessage("playing"));
+el.addEventListener("pause",()=>window.ipc&&window.ipc.postMessage("paused"));
+el.addEventListener("ended",()=>window.ipc&&window.ipc.postMessage("paused"));
+}})();
 </script></body></html>"#
     )
 }
@@ -228,6 +270,9 @@ impl ViewerSurface for MediaSurface {
             view.load(cx);
         });
     }
+    fn apply(&self, _: bool, dark: bool, _: Scale, _: &mut Window, cx: &mut App) {
+        self.view.update(cx, |view, cx| view.set_dark(dark, cx));
+    }
 }
 impl EventEmitter<SurfaceEvent> for MediaView {}
 struct MediaView {
@@ -263,12 +308,13 @@ impl MediaView {
         Content {
             root: None,
             source: Some(source.protocol.clone()),
-            entry: Entry::Html(media_page(
+            entry: Entry::Html(media_page_themed(
                 self.kind,
                 &url_for(&source.file),
                 &theme::css_hex(palette.canvas),
                 &theme::css_hex(palette.inset),
                 t(self.kind.unsupported_key()),
+                self.dark,
             )),
             max_bytes: self.kind.budget(),
             assets: vec![],
@@ -296,6 +342,44 @@ impl MediaView {
         self.retire();
         cx.notify();
     }
+    fn html_for_source(&self, s: &Source, dark: bool) -> (String, String, String) {
+        let palette = theme::pack_theme(&theme::pack_id(), dark);
+        let bg = theme::css_hex(palette.canvas);
+        let inset = theme::css_hex(palette.inset);
+        let html = media_page_themed(
+            self.kind,
+            &url_for(&s.file),
+            &bg,
+            &inset,
+            t(self.kind.unsupported_key()),
+            dark,
+        );
+        (html, bg, inset)
+    }
+
+    /// Updates theme in-place without destroying the `<audio>`/`<video>` element
+    /// or interrupting playback (`VW-21`).
+    fn set_dark(&mut self, dark: bool, cx: &mut Context<Self>) {
+        if self.dark == dark {
+            return;
+        }
+        self.dark = dark;
+        let palette = theme::pack_theme(&theme::pack_id(), dark);
+        let bg = theme::css_hex(palette.canvas);
+        let inset = theme::css_hex(palette.inset);
+        let script = media_theme_script(&bg, &inset, dark);
+        let updated_html = self
+            ._source
+            .as_ref()
+            .map(|s| self.html_for_source(s, dark).0);
+        if let Some(frame) = &self.frame {
+            frame.update(cx, |f, _| {
+                f.apply_theme_in_place(dark, &script, updated_html);
+            });
+        }
+        cx.notify();
+    }
+
     /// A fresh engine over the resource (opening, a new input or Retry).
     fn load(&mut self, cx: &mut Context<Self>) {
         self.generation += 1;
@@ -316,9 +400,30 @@ impl MediaView {
         self._source = resolved;
         self._failures = Some(cx.spawn(async move |this, cx| {
             while let Ok(message) = rx.recv().await {
-                if message == "failed" {
-                    let _ = this.update(cx, |view, cx| view.receive_failure(generation, cx));
-                }
+                let _ = this.update(cx, |view, cx| {
+                    if generation != view.generation {
+                        return;
+                    }
+                    match message.as_str() {
+                        "failed" => {
+                            if let Some(frame) = &view.frame {
+                                frame.update(cx, |f, _| f.set_pinned(false));
+                            }
+                            view.receive_failure(generation, cx);
+                        }
+                        "playing" => {
+                            if let Some(frame) = &view.frame {
+                                frame.update(cx, |f, _| f.set_pinned(true));
+                            }
+                        }
+                        "paused" => {
+                            if let Some(frame) = &view.frame {
+                                frame.update(cx, |f, _| f.set_pinned(false));
+                            }
+                        }
+                        _ => {}
+                    }
+                });
             }
         }));
         cx.notify();
