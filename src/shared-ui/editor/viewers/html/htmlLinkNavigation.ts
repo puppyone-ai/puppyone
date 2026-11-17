@@ -34,7 +34,7 @@ export function resolveHtmlNavigationHref(href: string, sourceBase: string | nul
 
 /** Only the active iframe can submit an intent, during real user activation.
  * The existing host port owns file resolution and Main owns external opening. */
-export function useHtmlLinkNavigation({ frame, channel, generation, path, sourceBase, navigation, offline, onFailure }: {
+export function useHtmlLinkNavigation({ frame, channel, generation, path, sourceBase, navigation, offline, onFailure, onEditRequest }: {
   frame: RefObject<HTMLIFrameElement | null>;
   channel: string;
   generation: string;
@@ -43,12 +43,17 @@ export function useHtmlLinkNavigation({ frame, channel, generation, path, source
   navigation?: DocumentNavigationPort | null;
   offline: boolean;
   onFailure?: (reason: HtmlLinkFailure) => void;
+  onEditRequest?: () => void;
 }) {
   useEffect(() => {
     let active = true;
     const receive = (event: MessageEvent) => {
-      if (!frame.current?.contentWindow || event.source !== frame.current.contentWindow
-        || event.data?.type !== "puppyone-html-link" || event.data.channel !== channel
+      if (!frame.current?.contentWindow || event.source !== frame.current.contentWindow || event.data?.channel !== channel) return;
+      if (event.data?.type === "puppyone-html-edit") {
+        onEditRequest?.();
+        return;
+      }
+      if (event.data?.type !== "puppyone-html-link"
         || typeof event.data.href !== "string" || !navigator.userActivation?.isActive) return;
       if (offline) { onFailure?.("offline"); return; }
       try {
@@ -65,7 +70,7 @@ export function useHtmlLinkNavigation({ frame, channel, generation, path, source
     };
     window.addEventListener("message", receive);
     return () => { active = false; window.removeEventListener("message", receive); };
-  }, [frame, channel, generation, path, sourceBase, navigation, offline, onFailure]);
+  }, [frame, channel, generation, path, sourceBase, navigation, offline, onFailure, onEditRequest]);
 }
 
 /** Fixed preview-only code: links do not replace the document being edited.
@@ -84,7 +89,11 @@ const target=document.getElementById(id)||document.getElementsByName(id)[0];
 if(!id)scrollTo(0,0);else target?.scrollIntoView();
 try{location.hash=fragment}catch{}return}
 parent.postMessage({type:'puppyone-html-link',channel,href},'*')};
-addEventListener('click',follow);addEventListener('auxclick',follow)})();</script>`;
+const edit=event=>{if(!event.isTrusted||event.defaultPrevented)return;
+const el=event.target instanceof Element?event.target:null;
+if(!el||el.closest('a,button,input,textarea,select,summary,[contenteditable]'))return;
+parent.postMessage({type:'puppyone-html-edit',channel},'*')};
+addEventListener('click',follow);addEventListener('auxclick',follow);addEventListener('dblclick',edit)})();</script>`;
 }
 
 /** Author CSP remains effective; authorize only our fixed UI script when its

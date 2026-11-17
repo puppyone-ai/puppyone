@@ -6,6 +6,8 @@ export const HTML_VISUAL_MAX_CHARS = 512 * 1024;
 export const HTML_VISUAL_MAX_NODES = 12000;
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 const TEXT_TAGS = new Set("h1 h2 h3 h4 h5 h6 p span a button label li dt dd td th caption figcaption strong em b i u s small mark sub sup pre code blockquote div section header footer main article aside nav".split(" "));
+const INLINE_CHILD_TAGS = new Set("br a strong em b i u s small mark sub sup code span".split(" "));
+const BLOCK_MOVABLE_TAGS = new Set("p h1 h2 h3 h4 h5 h6 li dt dd blockquote pre div section article aside header footer tr figure figcaption".split(" "));
 const EXCLUDED = new Set("template script style noscript select textarea svg math head iframe object applet".split(" "));
 
 export type HtmlTarget = Readonly<{
@@ -14,8 +16,14 @@ export type HtmlTarget = Readonly<{
   start: number;
   openEnd: number;
   textEnd: number | null;
+  end: number;
   textEditable: boolean;
+  inlineChildren: boolean;
   image: boolean;
+  link: boolean;
+  blockMovable: boolean;
+  prevSiblingId: string | null;
+  nextSiblingId: string | null;
 }>;
 export type HtmlSourceIndex = {
   tree: Tree.Document;
@@ -64,22 +72,57 @@ export function parseHtmlSource(source: string, path: string): HtmlSourceIndex {
   const editable = /\.html?$/i.test(path) && source.length <= HTML_VISUAL_MAX_CHARS
     && count <= HTML_VISUAL_MAX_NODES && supportedEncoding && supportedDepth && !/(?:<%|<\?|\{\{|\{%|\{#)/.test(source)
     && issues.every((code) => code === "missing-doctype");
-  if (editable) for (const node of elements) {
-    const location = node.sourceCodeLocation;
-    if (!location?.startTag || starts.get(location.startTag.startOffset)?.length !== 1
-      || location.startTag.endOffset - location.startTag.startOffset > 32768
-      || !TEXT_TAGS.has(node.tagName) && node.tagName !== "img") continue;
-    const id = `t${targets.size.toString(36)}`;
-    const text = TEXT_TAGS.has(node.tagName) && !!location.endTag
-      && location.endTag.startOffset - location.startTag.endOffset <= 65536 && node.childNodes.every((child) => (
-      child.nodeName === "#text" || isHtmlElement(child) && child.tagName === "br"
-    ));
-    targets.set(id, { id, tag: node.tagName, start: location.startTag.startOffset,
-      openEnd: location.startTag.endOffset, textEnd: location.endTag?.startOffset ?? null, textEditable: text,
-      image: node.tagName === "img" && !attribute(node, "srcset") && !attribute(node, "sizes")
-        && !responsiveImages.has(node),
-    });
-    nodes.set(node, id);
+  if (editable) {
+    const rawTargets = new Map<string, Omit<HtmlTarget, "prevSiblingId" | "nextSiblingId">>();
+    for (const node of elements) {
+      const location = node.sourceCodeLocation;
+      if (!location?.startTag || starts.get(location.startTag.startOffset)?.length !== 1
+        || location.startTag.endOffset - location.startTag.startOffset > 32768
+        || !TEXT_TAGS.has(node.tagName) && node.tagName !== "img") continue;
+      const id = `t${rawTargets.size.toString(36)}`;
+      const boundedContent = TEXT_TAGS.has(node.tagName) && !!location.endTag
+        && location.endTag.startOffset - location.startTag.endOffset <= 65536;
+      const pureText = boundedContent && node.childNodes.every((child) => (
+        child.nodeName === "#text" || isHtmlElement(child) && child.tagName === "br"
+      ));
+      const inlineRich = boundedContent && !pureText && node.childNodes.every((child) => (
+        child.nodeName === "#text"
+        || isHtmlElement(child) && INLINE_CHILD_TAGS.has(child.tagName)
+          && (child.tagName === "br" || !!child.sourceCodeLocation?.startTag && !!child.sourceCodeLocation?.endTag
+            && child.childNodes.every((grand) => grand.nodeName === "#text" || isHtmlElement(grand) && grand.tagName === "br"))
+      ));
+      rawTargets.set(id, {
+        id,
+        tag: node.tagName,
+        start: location.startTag.startOffset,
+        openEnd: location.startTag.endOffset,
+        textEnd: location.endTag?.startOffset ?? null,
+        end: location.endTag?.endOffset ?? location.startTag.endOffset,
+        textEditable: pureText || inlineRich,
+        inlineChildren: inlineRich,
+        image: node.tagName === "img" && !attribute(node, "srcset") && !attribute(node, "sizes")
+          && !responsiveImages.has(node),
+        link: node.tagName === "a",
+        blockMovable: BLOCK_MOVABLE_TAGS.has(node.tagName) && !!location.endTag,
+      });
+      nodes.set(node, id);
+    }
+    for (const [node, id] of nodes) {
+      const raw = rawTargets.get(id)!;
+      let prevSiblingId: string | null = null;
+      let nextSiblingId: string | null = null;
+      if (raw.blockMovable && node.parentNode && "childNodes" in node.parentNode) {
+        const elementSiblings = node.parentNode.childNodes.filter(isHtmlElement);
+        const idx = elementSiblings.indexOf(node);
+        const prev = idx > 0 ? elementSiblings[idx - 1] : undefined;
+        const next = idx >= 0 && idx + 1 < elementSiblings.length ? elementSiblings[idx + 1] : undefined;
+        const prevId = prev ? nodes.get(prev) ?? null : null;
+        const nextId = next ? nodes.get(next) ?? null : null;
+        if (prevId && rawTargets.get(prevId)?.blockMovable) prevSiblingId = prevId;
+        if (nextId && rawTargets.get(nextId)?.blockMovable) nextSiblingId = nextId;
+      }
+      targets.set(id, { ...raw, prevSiblingId, nextSiblingId });
+    }
   }
   return { tree, targets, nodes, baseHref, editable };
 }
@@ -89,10 +132,11 @@ export function currentTarget(target: HtmlTarget, changes: ChangeDesc | null, st
   const start = map(target.start, -1);
   const openEnd = map(target.openEnd, -1);
   const textEnd = target.textEnd === null ? null : map(target.textEnd, 1);
+  const end = map(target.end, 1);
   const opening = state.doc.sliceString(start, openEnd);
   // Parse a bounded opening tag to obtain current attributes without parsing the document on input.
   if (opening.length > 32768) throw new Error("unsupported");
-  return { ...target, start, openEnd, textEnd, opening };
+  return { ...target, start, openEnd, textEnd, end, opening };
 }
 
 export function isHtmlElement(node: Tree.Node): node is Tree.Element {

@@ -192,7 +192,8 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
       <Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}>
         <HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode}
           interactive viewportState={viewport} folderAccess={folderAccess.state === "allowed" ? folderAccess.session : null}
-          documentNavigation={documentNavigation} onLinkFailure={onLinkFailure} />
+          documentNavigation={documentNavigation} onLinkFailure={onLinkFailure}
+          onEditRequest={canVisualEdit ? () => { void switchMode("edit"); } : undefined} />
       </Suspense>
     </div>;
   };

@@ -8,6 +8,8 @@ export type HtmlBridgeMessage = { type: "viewport"; x: number; y: number } | Htm
   | { type: "pointer"; x: number; y: number }
   | { type: "hover"; x: number; y: number } | { type: "hover-end" }
   | { type: "style-check"; request: string; supported: boolean }
+  | { type: "input"; id: string; value: string }
+  | { type: "composition"; value: boolean }
   | { type: "clear" } | { type: "history"; direction: "undo" | "redo" };
 
 /** Bounds every field before frame data can affect host layout or command routing. */
@@ -16,6 +18,9 @@ export function decodeHtmlBridgeMessage(value: unknown): HtmlBridgeMessage | nul
   const message = value as Record<string, unknown>;
   if (message.type === "style-check" && typeof message.request === "string" && message.request.length < 80
     && typeof message.supported === "boolean") return { type: "style-check", request: message.request, supported: message.supported };
+  if (message.type === "input" && typeof message.id === "string" && /^t[a-z0-9]{1,8}$/.test(message.id)
+    && typeof message.value === "string" && message.value.length <= 65536) return { type: "input", id: message.id, value: message.value };
+  if (message.type === "composition" && typeof message.value === "boolean") return { type: "composition", value: message.value };
   if ((message.type === "viewport" || message.type === "pointer" || message.type === "hover") && [message.x, message.y].every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= 1e7)) return { type: message.type, x: message.x as number, y: message.y as number };
   if (message.type === "hover-end") return { type: "hover-end" };
   if (message.type === "clear") return { type: "clear" };
