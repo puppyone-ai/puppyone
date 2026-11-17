@@ -516,7 +516,18 @@ impl Syntax {
         lines::add_inline_elements(doc, &inline_ranges, features, &mut syntax.elements);
         footnotes::add_in_ranges(doc, &inline_ranges, &mut syntax);
         let html = inline_html::elements_in_buffer(doc, &syntax.inline_tags);
-        syntax.elements.extend(html);
+        syntax.elements.extend(html.into_iter().filter(|element| {
+            // Inline HTML may span soft line breaks in a paragraph, but a
+            // table cell is its own inline context. Any tag pair touching a
+            // cell must fit wholly inside that one cell.
+            let index = syntax
+                .table_cells
+                .partition_point(|cell| cell.end <= element.range.start);
+            syntax.table_cells.get(index).is_none_or(|cell| {
+                cell.start >= element.range.end
+                    || (cell.start <= element.range.start && cell.end >= element.range.end)
+            })
+        }));
         syntax.elements.sort_by(|a, b| {
             a.range
                 .start

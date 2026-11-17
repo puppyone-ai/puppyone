@@ -16511,7 +16511,7 @@
     },
     {
       "id": "native-markdown-table-shared-inline-policy",
-      "acceptance": "Actual drawn native table cells preserve nested bold/italic roles, wiki links within prose, bare URL links and decoded entities without changing source or revision. A 20,000-unmatched-bracket cell parses, mounts and draws within the TS two-second budget. Supplemental regressions forbid custom inline delimiters spanning neighboring cells, preserve code literals in cells and prose, include table footnotes in document-wide first-reference numbering, and verify edited wiki-link display across real input/undo/redo and cell range splicing against a full parse. The randomized incremental syntax and plans equivalence test guards shared parser changes. These native presentation checks do not claim browser pixel identity.",
+      "acceptance": "Actual drawn native table cells preserve nested bold/italic roles, wiki links within prose, bare URL links and decoded entities without changing source or revision. A 20,000-unmatched-bracket cell parses, mounts and draws within the TS two-second budget. Supplemental regressions forbid custom inline delimiters and HTML tag pairs spanning neighboring cells or rows, keep valid links independent of unmatched neighboring markers, preserve code literals in cells and prose, include table footnotes in document-wide first-reference numbering, and verify edited wiki-link display across real input/undo/redo and cell range splicing against a full parse. The randomized incremental syntax and plans equivalence test guards shared parser changes. These native presentation checks do not claim browser pixel identity.",
       "typescript": [
         {
           "path": "tests/component/editor/formats/markdown/rendering/markdownBlockSyntax.test.ts",
@@ -16568,6 +16568,10 @@
         {
           "package": "po-editor",
           "test": "editor::markdown::tests::incremental_syntax_and_plans_match_full_parse_across_random_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_inline_acceptance::table_html_tags_cannot_pair_across_neighboring_cells_or_rows"
         }
       ],
       "environment": "local"

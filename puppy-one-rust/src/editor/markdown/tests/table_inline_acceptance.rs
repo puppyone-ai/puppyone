@@ -4,12 +4,43 @@ use crate::editor::view::decoration::Block;
 use gpui::TestAppContext;
 
 #[gpui::test]
+fn table_html_tags_cannot_pair_across_neighboring_cells_or_rows(cx: &mut TestAppContext) {
+    let source = "| Left | Right |\n| --- | --- |\n| <b>left | right</b> |\n| <i>open | <b>valid</b> |\n| end | </i>tail |\n\nafter";
+    let (view, visual) = setup_with_focus(cx, source, false);
+    visual.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.read_with(visual, |v, _| {
+        let leaves = &v.layout().unwrap().leaves;
+        for literal in ["<b>left", "right</b>", "<i>open", "</i>tail"] {
+            assert!(
+                leaves.iter().any(|leaf| leaf.entry.text.text == literal),
+                "HTML cannot acquire an adjacent cell's closing tag: {literal:?}"
+            );
+        }
+        assert!(
+            leaves.iter().any(|leaf| leaf.entry.text.text == "valid"
+                && leaf
+                    .entry
+                    .text
+                    .marks
+                    .iter()
+                    .any(|(_, style)| style.bold && !style.italic)),
+            "valid HTML inside one cell must remain styled independently"
+        );
+        assert_eq!(v.text(), source);
+        assert_eq!(v.state().revision, 0);
+    });
+}
+
+#[gpui::test]
 fn table_inline_delimiters_cannot_cross_cells_and_code_stays_literal(cx: &mut TestAppContext) {
     let source = concat!(
         "| Left | Right |\n| --- | --- |\n",
         "| [[Left | Right]] |\n",
         "| ==left | right== |\n",
         "| ~~left | right~~ |\n",
+        "| [[broken | [[Note]] |\n",
         "| `[[Note]] ~~x~~ ==x== ![[image.png]]` | plain |\n\n",
         "`[[Note]] ~~x~~ ==x== ![[image.png]]`"
     );
@@ -20,13 +51,25 @@ fn table_inline_delimiters_cannot_cross_cells_and_code_stays_literal(cx: &mut Te
     view.read_with(visual, |v, _| {
         let leaves = &v.layout().unwrap().leaves;
         for expected in [
-            "[[Left", "Right]]", "==left", "right==", "~~left", "right~~",
+            "[[Left", "Right]]", "==left", "right==", "~~left", "right~~", "[[broken",
         ] {
             assert!(
                 leaves.iter().any(|leaf| leaf.entry.text.text == expected),
                 "cell boundaries must preserve unmatched source: {expected}"
             );
         }
+        assert!(
+            leaves.iter().any(|leaf| {
+                leaf.entry.text.text == "Note"
+                    && leaf
+                        .entry
+                        .text
+                        .marks
+                        .iter()
+                        .any(|(_, style)| style.link.as_deref() == Some("Note"))
+            }),
+            "an unmatched marker in the preceding cell must not swallow a valid link"
+        );
         let code: Vec<_> = leaves
             .iter()
             .filter(|leaf| leaf.entry.text.text == "[[Note]] ~~x~~ ==x== ![[image.png]]")
