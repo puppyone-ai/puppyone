@@ -16768,6 +16768,101 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-table-model-and-structural-rewrites",
+      "acceptance": "Native models originate from real parser-owned Table ranges, accept one-hyphen delimiters without rewriting source until an edit, distinguish broad GFM ranges from interactive pipe-delimited rows, and leave adjacent Unicode prose, unframed prose and escaped prose pipes outside. Without parser ownership no table plan is created. Exact pinned TS serialization and focus expectations cover alignments, escaped pipes, insertion, deletion, ragged-row normalization, body-row and arbitrary row/column moves and single-column delete preservation; returned cell offsets match a reparse. Existing native command integration verifies a whole-table operation forms one undoable source transaction, and supplemental capacity guards reject oversized insertions. These model/command checks do not credit pointer-menu or resize interaction cases.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/tables/markdownTableModel.test.ts",
+          "sha256": "52b12398580e6b91e9123e72804a948aadfea588ba2f9386e1d848a718e6f0ac",
+          "cases": [
+            {
+              "index": 0,
+              "name": "markdown table model > keeps broad parser rows separate from conservative source-line styling"
+            },
+            {
+              "index": 1,
+              "name": "markdown table model > parses alignments and escaped pipes without splitting cells"
+            },
+            {
+              "index": 2,
+              "name": "markdown table model > accepts a parser-owned one-hyphen delimiter and canonicalizes only on edit"
+            },
+            {
+              "index": 3,
+              "name": "markdown table model > derives a one-hyphen table range from the real incremental parser"
+            },
+            {
+              "index": 4,
+              "name": "markdown table model > keeps adjacent prose outside the interactive table range"
+            },
+            {
+              "index": 5,
+              "name": "markdown table model > keeps an explicit unframed body row but stops before pipe-less prose"
+            },
+            {
+              "index": 6,
+              "name": "markdown table model > does not mistake escaped prose pipes for an editable table row"
+            },
+            {
+              "index": 7,
+              "name": "markdown table model > refuses text-only table refinement without a parser-owned Table node"
+            },
+            {
+              "index": 8,
+              "name": "markdown table model > inserts rows through a whole-table padded rewrite"
+            },
+            {
+              "index": 9,
+              "name": "markdown table model > deletes columns while preserving remaining alignment and escaped pipes"
+            },
+            {
+              "index": 10,
+              "name": "markdown table model > normalizes ragged rows before structural edits"
+            },
+            {
+              "index": 11,
+              "name": "markdown table model > moves body rows without moving the header row"
+            },
+            {
+              "index": 12,
+              "name": "markdown table model > moves rows to an arbitrary target as one rewrite"
+            },
+            {
+              "index": 13,
+              "name": "markdown table model > moves columns to an arbitrary target with alignment"
+            },
+            {
+              "index": 14,
+              "name": "markdown table model > keeps single-column delete-column as a no-op"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::tests::model_acceptance::parser_owned_table_ranges_keep_adjacent_prose_and_escaped_pipes_outside"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::tests::model_acceptance::table_alignment_escape_and_one_hyphen_delimiters_canonicalize_only_on_edit"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::tests::model_acceptance::table_structure_operations_match_pinned_source_and_focus_results"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::tests::the_rails_and_menu_operations_rewrite_the_table"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::operation::tests::capacity_limits_refuse_row_and_column_insertions_cleanly"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

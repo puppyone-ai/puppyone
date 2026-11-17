@@ -10,6 +10,8 @@ use crate::editor::{
 use crate::typography::Scale;
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
+mod model_acceptance;
+
 const TABLE: &str = "| Name | Qty |\n| --- | --: |\n| apple | 3 |\n| pear | 5 |\n";
 
 fn setup(cx: &mut TestAppContext) -> (Entity<EditorView>, &mut VisualTestContext) {
