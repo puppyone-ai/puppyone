@@ -130,7 +130,7 @@ impl LazyBlockWidget {
             .filter(|p| {
                 p.element.is_none()
                     && ((p.source.start == source.start && p.embed().is_some())
-                        || p.presentation == Presentation::VisibleSource)
+                        || p.is_visible_source())
             })
             .fold(None::<&Plan>, |best, p| match best {
                 Some(best) if best.source.end >= p.source.end => Some(best),
@@ -337,10 +337,25 @@ fn decorate_window(
         state: &cx.preview.features,
     };
 
+    // A diagnosed source fallback owns its authored text even if the base
+    // parser also produced nested Markdown elements. Keep these ranges across
+    // viewport/reveal windows, including windows starting inside the block.
+    let source_fallbacks: Vec<_> = cx
+        .plans
+        .iter()
+        .filter(|p| matches!(p.presentation, Presentation::SourceFallback { .. }))
+        .collect();
     let mut line = start_line;
     while line < end_line {
         let local = line - start_line;
         let range = doc.line_range(line);
+        if source_fallbacks.iter().any(|p| {
+            p.element.is_none() && p.source.start <= range.start && range.start < p.source.end
+        }) {
+            b.source_line(line);
+            line += 1;
+            continue;
+        }
         if cx.preview.composing == Some(range.start) || cx.preview.revealed_line(&range) {
             b.source_line(line);
             line += 1;
@@ -351,7 +366,7 @@ fn decorate_window(
             .filter(|p| {
                 p.element.is_none()
                     && ((p.source.start == range.start && p.embed().is_some())
-                        || p.presentation == Presentation::VisibleSource)
+                        || p.is_visible_source())
             })
             .fold(None::<&&Plan>, |best, p| match best {
                 Some(best) if best.source.end >= p.source.end => Some(best),
@@ -435,6 +450,25 @@ fn decorate_window(
         line += 1;
     }
 
+    // Inline fallback can share a line with valid Markdown. Suppress only
+    // projections touching its range, preserving neighboring decorations.
+    // Drop media callbacks before the view can execute resource loads.
+    if !source_fallbacks.is_empty() {
+        let literal = |range: &Range<usize>| {
+            source_fallbacks
+                .iter()
+                .any(|p| p.source.start < range.end && range.start < p.source.end)
+        };
+        b.hidden.retain(|r| !literal(r));
+        b.atomic.retain(|r| !literal(r));
+        b.replaced.retain(|(r, _)| !literal(r));
+        b.superscripts.retain(|s| !literal(&s.range));
+        b.inline_images.retain(|i| !literal(&i.range));
+        b.inline_widgets.retain(|w| !literal(&w.range));
+        b.underlines.retain(|u| !literal(&u.range));
+        b.colors.retain(|(r, _, _)| !literal(r));
+        b.spans.retain(|s| !literal(&s.range));
+    }
     let marks = b.marks();
     let hidden = merge(std::mem::take(&mut b.hidden));
     let mut inline_widgets = fold_legacy_inline_widgets(

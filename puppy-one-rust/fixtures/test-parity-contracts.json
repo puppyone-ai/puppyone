@@ -17114,6 +17114,101 @@
         }
       ],
       "environment": "local"
+    },
+    {
+      "id": "native-markdown-math-plans-and-source-budget",
+      "acceptance": "Display and inline formulas preserve exact source/content ranges and register production native block/inline widgets. Code spans, escaped dollars, currency, cross-code delimiters and unclosed display blocks are excluded; adjacent code/HTML/digits and separated formulas retain distinct TeX sources. The rich-preview limit is exactly 32768 UTF-16 units, including emoji boundary cases. Oversized inline/display/math-fence formulas retain authored source with the same math.source-too-large diagnostic, no formula/code widget and no hidden delimiters. Native supplementary acceptance keeps nested Markdown/media/text atoms literal in fallback while preserving neighboring valid marks; empty recognized inline math reports math.empty-source. Rendering-only paths preserve bytes/revision. This verifies syntax/plans/widget registration and source fallback, not KaTeX pixel identity.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/markdownMath.test.ts",
+          "sha256": "bee78671587123a9d15f6f1245475eb80dda03b145a7a81cf37bb15a39732316",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown math > compiles a display-math block into a registered block widget plan"
+            },
+            {
+              "index": 1,
+              "name": "Markdown math > compiles delimited inline math into a registered inline widget plan"
+            },
+            {
+              "index": 2,
+              "name": "Markdown math > does not treat code spans, escaped dollars, or currency text as math"
+            },
+            {
+              "index": 3,
+              "name": "Markdown math > does not treat a compact currency range as math"
+            },
+            {
+              "index": 4,
+              "name": "Markdown math > keeps math before code when suppressed syntax is only adjacent"
+            },
+            {
+              "index": 5,
+              "name": "Markdown math > keeps math after code when suppressed syntax is only adjacent"
+            },
+            {
+              "index": 6,
+              "name": "Markdown math > keeps math before HTML when suppressed syntax is only adjacent"
+            },
+            {
+              "index": 7,
+              "name": "Markdown math > keeps math after HTML when suppressed syntax is only adjacent"
+            },
+            {
+              "index": 8,
+              "name": "Markdown math > allows a valid formula to be followed by a digit"
+            },
+            {
+              "index": 9,
+              "name": "Markdown math > keeps separate formulas separate when the first is followed by a digit"
+            },
+            {
+              "index": 10,
+              "name": "Markdown math > does not let a compact currency range consume a later formula"
+            },
+            {
+              "index": 11,
+              "name": "Markdown math > does not let inline math cross into an inline-code span"
+            },
+            {
+              "index": 12,
+              "name": "Markdown math > does not close a display formula with a delimiter inside a code fence"
+            },
+            {
+              "index": 13,
+              "name": "Markdown math > leaves an unclosed display-math block as visible source"
+            },
+            {
+              "index": 14,
+              "name": "Markdown math > falls back to visible source for an oversized formula"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::math_acceptance::display_and_inline_math_preserve_exact_source_ranges_and_register_native_widgets"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::math_acceptance::code_escapes_currency_and_unclosed_display_delimiters_do_not_become_math"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::math_acceptance::adjacent_code_html_and_digits_preserve_each_separate_formula"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::math_acceptance::oversized_formulas_remain_source_with_utf16_limits_in_inline_display_and_fence_forms"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::math_acceptance::source_fallback_keeps_internal_markers_and_media_literal_but_preserves_neighbor_marks"
+        }
+      ],
+      "environment": "local"
     }
   ],
   "openAcceptance": [

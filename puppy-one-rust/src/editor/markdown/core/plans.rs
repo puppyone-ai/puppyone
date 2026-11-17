@@ -75,6 +75,11 @@ impl fmt::Debug for BlockEmbed {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Presentation {
     VisibleSource,
+    /// A recognized feature intentionally keeps its source, with a stable
+    /// diagnostic code for inspection and acceptance (not a UI message).
+    SourceFallback {
+        code: &'static str,
+    },
     InlineMark {
         content: Range<usize>,
         markers: Vec<Range<usize>>,
@@ -94,6 +99,13 @@ pub struct Plan {
 }
 
 impl Plan {
+    pub fn is_visible_source(&self) -> bool {
+        matches!(
+            self.presentation,
+            Presentation::VisibleSource | Presentation::SourceFallback { .. }
+        )
+    }
+
     /// The block embed, if this plan is a feature block.
     pub fn embed(&self) -> Option<&BlockEmbed> {
         match &self.presentation {
@@ -346,12 +358,14 @@ pub fn compile(
     plans
 }
 
-/// Composition order decides which feature owns an identical block range.
-/// Stable source sorting preserves that order. Inline plans remain independent.
+/// Composition order decides which feature owns an identical block range,
+/// including a feature's explicit source fallback. Stable source sorting
+/// preserves that order. Inline plans remain independent.
 fn retain_first_block_owner(plans: &mut Vec<Plan>) {
     let mut claimed = std::collections::HashSet::new();
     plans.retain(|plan| {
-        plan.embed().is_none() || claimed.insert((plan.source.start, plan.source.end))
+        let block = plan.embed().is_some() || (plan.element.is_none() && plan.is_visible_source());
+        !block || claimed.insert((plan.source.start, plan.source.end))
     });
 }
 

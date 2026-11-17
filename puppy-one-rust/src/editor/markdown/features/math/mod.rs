@@ -26,6 +26,24 @@ pub struct MathFeature;
 pub static FEATURE: MathFeature = MathFeature;
 pub const ID: &str = "math";
 const KINDS: &[Kind] = &[Kind::FeatureInline(ID)];
+// The product's rich-preview budget is measured in JS UTF-16 code units,
+// independently of the raster service's byte and image-size limits.
+const MAX_RICH_SOURCE_UNITS: usize = 32 * 1024;
+
+fn source_diagnostic(source: &str) -> Option<&'static str> {
+    if source.trim().is_empty() {
+        Some("math.empty-source")
+    } else if source
+        .encode_utf16()
+        .take(MAX_RICH_SOURCE_UNITS + 1)
+        .count()
+        > MAX_RICH_SOURCE_UNITS
+    {
+        Some("math.source-too-large")
+    } else {
+        None
+    }
+}
 
 /// A display formula (`MarkdownMathBlock`).
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -220,12 +238,16 @@ impl MarkdownFeature for MathFeature {
         KINDS
     }
 
-    fn compile_element(&self, index: usize, element: &Element, _cx: &CompileCx) -> Option<Plan> {
-        let text = element.text.clone()?;
+    fn compile_element(&self, index: usize, element: &Element, cx: &CompileCx) -> Option<Plan> {
+        let source = cx.doc.slice_cow(element.content.clone()?);
+        let presentation = match source_diagnostic(&source) {
+            Some(code) => Presentation::SourceFallback { code },
+            None => Presentation::InlineAtom(Atom::Text(element.text.clone()?)),
+        };
         Some(Plan {
             element: Some(index),
             source: element.range.clone(),
-            presentation: Presentation::InlineAtom(Atom::Text(text)),
+            presentation,
             delete_units: Vec::new(),
         })
     }
@@ -304,7 +326,10 @@ impl MarkdownFeature for MathFeature {
             out.push(Plan {
                 element: None,
                 source: block.range.clone(),
-                presentation: Presentation::BlockAtom(BlockEmbed::new(ID, block)),
+                presentation: match source_diagnostic(&block.source) {
+                    Some(code) => Presentation::SourceFallback { code },
+                    None => Presentation::BlockAtom(BlockEmbed::new(ID, block)),
+                },
                 delete_units: Vec::new(),
             });
         }

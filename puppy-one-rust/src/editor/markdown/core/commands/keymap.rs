@@ -5,11 +5,7 @@
 //!   `editor::markdown` rather than `editor::view`).
 use super::{block, change, edit, handled, inline};
 use crate::editor::{
-    markdown::core::{
-        plans::{Plan, Presentation},
-        state::PreviewState,
-        syntax::Syntax,
-    },
+    markdown::core::{plans::Plan, state::PreviewState, syntax::Syntax},
     text::{
         selection::Selection,
         state::{EditorState, Transaction, UserEvent},
@@ -137,7 +133,7 @@ fn delete_marker(cx: &Cx, backward: bool) -> Option<Transaction> {
             .max(p_first);
         cx.plans[p_first..p_last]
             .iter()
-            .filter(|p| !p.delete_units.is_empty() && p.presentation != Presentation::VisibleSource)
+            .filter(|p| !p.delete_units.is_empty() && !p.is_visible_source())
             .filter(|p| p.source.start >= line.start && p.source.end <= line.end)
             .find_map(|p| {
                 if backward && caret == p.source.end {
