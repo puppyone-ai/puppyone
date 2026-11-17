@@ -693,10 +693,11 @@ impl Runtime {
     /// changes that could not be saved left unsaved (after persisting any
     /// unflushable drafts to the local recovery journal, `DP-10`).
     pub fn abandon_unsaved(&mut self) {
-        self.scratch.flush_unflushable_draft();
+        self.scratch.abandon_unsaved();
         for host in self.hosts.values_mut() {
+            host.empty.abandon_unsaved();
             for slot in host.slots.values_mut() {
-                slot.files.flush_unflushable_draft();
+                slot.files.abandon_unsaved();
             }
         }
         self.close_refused = false;
@@ -705,8 +706,10 @@ impl Runtime {
         self.allow_quit = true;
     }
     pub fn cancel_quit(&mut self, wake: &Wake) {
+        if self.abandoned {
+            return;
+        }
         self.quitting = false;
-        self.abandoned = false;
         self.allow_quit = false;
         for id in self.retained_slots() {
             if let Some(files) = self.slot_mut(id) {
@@ -715,6 +718,11 @@ impl Runtime {
         }
     }
     pub fn poll(&mut self, wake: &Wake) {
+        if self.abandoned {
+            self.poll_metadata(wake);
+            self.persist_metadata(wake, true);
+            return;
+        }
         if std::mem::take(&mut self.resume_cloud) {
             self.resume_visible_cloud(wake);
         }
@@ -927,7 +935,7 @@ impl Runtime {
             self.error = Some(error);
             quit_failed |= self.quitting;
         }
-        if quit_failed && !self.abandoned {
+        if quit_failed {
             self.cancel_quit(wake);
             self.close_refused = true;
         }
@@ -939,9 +947,7 @@ impl Runtime {
             self.enforce_background_host_limit(wake);
         }
         self.persist_metadata(wake, self.quitting);
-        if self.abandoned {
-            self.allow_quit = true;
-        } else if self.quitting {
+        if self.quitting {
             self.allow_quit = self.metadata_inflight == 0
                 && self.hosts.values().all(|h| h.metadata_due.is_none())
                 && self

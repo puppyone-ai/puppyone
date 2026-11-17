@@ -451,6 +451,7 @@ impl Render for DialogLayer {
                     .simple_modal(
                         tr("native.quit.title"),
                         tr("native.quit.detail"),
+                        Command::CancelProcessQuit,
                         vec![
                             (
                                 tr("native.quit.cancel"),
@@ -470,6 +471,7 @@ impl Render for DialogLayer {
                     .simple_modal(
                         tr("native.documentClose.message"),
                         tr("native.documentClose.detail"),
+                        Command::KeepWindowOpen,
                         vec![
                             (
                                 tr("native.documentClose.closeAnyway"),

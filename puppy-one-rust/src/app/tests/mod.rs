@@ -9,6 +9,7 @@ mod autosave;
 mod cloud_opening;
 mod cloud_screen;
 mod cloud_share;
+mod close_lifecycle;
 mod computer_mode;
 mod dialog_layer;
 mod editing;

@@ -4,6 +4,8 @@ use crate::{
     platform::{draft_journal::DraftJournal, editor_state_storage::Storage},
 };
 use std::time::{Duration, Instant};
+#[path = "lifecycle_tests.rs"]
+mod lifecycle;
 fn wait(r: &mut Runtime, done: impl Fn(&Runtime) -> bool) {
     let wake = Wake::default();
     let deadline = Instant::now() + Duration::from_secs(5);

@@ -59,7 +59,9 @@ impl Drop for HeldCall {
     }
 }
 
-fn hosted(cx: &mut TestAppContext) -> (Entity<Shell>, Arc<Memory>, &mut VisualTestContext) {
+pub(super) fn hosted(
+    cx: &mut TestAppContext,
+) -> (Entity<Shell>, Arc<Memory>, &mut VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(|cx| {
         bind_keys(cx);
@@ -103,7 +105,7 @@ fn hosted(cx: &mut TestAppContext) -> (Entity<Shell>, Arc<Memory>, &mut VisualTe
     (shell, memory, cx)
 }
 
-fn type_text(view: &Entity<Shell>, cx: &mut VisualTestContext, text: &str) {
+pub(super) fn type_text(view: &Entity<Shell>, cx: &mut VisualTestContext, text: &str) {
     let editor = view.read_with(cx, |s, cx| s.editor.read(cx).front.clone());
     let before = editor.read_with(cx, |e, cx| e.text(cx).unwrap());
     editor.update_in(cx, |e, window, cx| e.lab_type(text, window, cx));
@@ -121,7 +123,7 @@ fn poll(view: &Entity<Shell>, cx: &mut VisualTestContext) {
     draw(cx);
 }
 
-fn until(
+pub(super) fn until(
     view: &Entity<Shell>,
     cx: &mut VisualTestContext,
     done: impl Fn(&mut VisualTestContext) -> bool,

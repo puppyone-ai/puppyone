@@ -35,6 +35,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc,
+        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
     },
     time::{Duration, Instant},
@@ -134,6 +135,8 @@ pub struct WorkingCopy {
     owner_id: String,
     /// Replaced provider leases must not queue behind an old provider's blocked read.
     provider_epoch: u64,
+    /// Terminal close fence shared with saves waiting in the bounded pool.
+    abandoned: Arc<AtomicBool>,
     pub workspace: Option<Arc<Workspace>>,
     pub document: Option<Document>,
     /// Open non-text preview resource (mutually exclusive with `document`).
@@ -192,6 +195,7 @@ impl Default for WorkingCopy {
             task_scope: format!("documents-{id}"),
             owner_id: id.to_string(),
             provider_epoch: 0,
+            abandoned: Arc::new(AtomicBool::new(false)),
             workspace: None,
             document: None,
             resource: None,
@@ -317,6 +321,9 @@ impl WorkingCopy {
 
     /// The Save failed chip: write the current input again.
     pub fn retry_save(&mut self, ctx: &Wake) {
+        if self.abandoned.load(Ordering::Acquire) {
+            return;
+        }
         if self.session.as_mut().is_some_and(|s| s.retry()) {
             self.save_error = None;
             self.save_error_kind = None;
@@ -347,6 +354,23 @@ impl WorkingCopy {
         {
             let _ = journal.write_entry(&entry);
         }
+    }
+
+    /// Terminal "Close Anyway": journal any unflushable draft, then prevent
+    /// queued saves and late host messages from starting another storage write.
+    /// A provider call that already started may still commit; it is not undone.
+    pub fn abandon_unsaved(&mut self) {
+        self.flush_unflushable_draft();
+        self.abandoned.store(true, Ordering::Release);
+        self.auto_save.cancel();
+        self.autosave_request = None;
+        self.session = None;
+        self.watch = None;
+        self.clear_observation_retry();
+        self.phase = Phase::Idle;
+        self.dirty = false;
+        self.allow_quit = true;
+        self.outgoing.clear();
     }
 
     pub fn saving(&self) -> bool {
@@ -818,6 +842,9 @@ impl WorkingCopy {
     }
 
     pub fn cancel_quit(&mut self, ctx: &Wake) {
+        if self.abandoned.load(Ordering::Acquire) {
+            return;
+        }
         let pending_quit = matches!(
             &self.phase,
             Phase::Snapshot {
@@ -852,7 +879,7 @@ impl WorkingCopy {
     where
         F: FnOnce(&mut Self, Intent, &Wake),
     {
-        if !matches!(self.phase, Phase::Idle) {
+        if self.abandoned.load(Ordering::Acquire) || !matches!(self.phase, Phase::Idle) {
             return;
         }
         self.ensure_session(ctx);
@@ -1042,6 +1069,9 @@ impl WorkingCopy {
     where
         F: FnOnce(&mut Self, Intent, &Wake),
     {
+        if self.abandoned.load(Ordering::Acquire) {
+            return;
+        }
         self.ensure_session(ctx);
         let now = Instant::now();
         match message {
@@ -1245,6 +1275,7 @@ impl WorkingCopy {
                 let (ws, doc, tx, wake) =
                     (ws.clone(), doc.clone(), self.copy_tx.clone(), ctx.clone());
                 let snapshot_buf = commit.snapshot.text.clone();
+                let abandoned = self.abandoned.clone();
                 let sequence = commit.sequence;
                 let doc_id = doc.id.clone();
                 let owner = Owner::new(
@@ -1298,7 +1329,7 @@ impl WorkingCopy {
                                 return;
                             }
                         };
-                        if lease.cancelled() {
+                        if lease.cancelled() || abandoned.load(Ordering::Acquire) {
                             let err = workspace::Error::new(
                                 workspace::ErrorKind::Io,
                                 crate::platform::tasks::Rejection::Cancelled.to_string(),
@@ -2005,6 +2036,9 @@ impl WorkingCopy {
     where
         F: FnMut(&mut Self, Intent, &Wake),
     {
+        if self.abandoned.load(Ordering::Acquire) {
+            return;
+        }
         if self
             .saving_since
             .is_some_and(|at| now.saturating_duration_since(at) >= auto_save::SLOW_SAVE)

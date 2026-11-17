@@ -20,30 +20,30 @@ impl DialogLayer {
         cx.listener(move |_, _, _, cx| cx.emit(DialogEvent::Command(command)))
     }
     /// A notice or confirmation: title, message and footer actions. Escape
-    /// and the close button run the first action (the cancel or dismiss).
+    /// and the close button run the explicit dismiss action, independent of
+    /// footer order (a destructive choice can be displayed first).
     pub(super) fn simple_modal(
         &self,
         title: &str,
         message: &str,
+        dismiss: Command,
         actions: Vec<(&'static str, Command, ButtonVariant)>,
         cx: &mut Context<Self>,
     ) -> Dialog {
-        let cancel = actions.first().map(|(_, command, _)| *command);
         let mut dialog = Dialog::new("simple-modal")
             .width(440.)
             .title(title.to_owned())
             .focus_handle(self.focus.clone())
             .keep_on_backdrop()
             .child(message.to_owned());
-        if let Some(command) = cancel {
-            let layer = cx.weak_entity();
-            dialog = dialog.on_close(move |_, cx| {
-                let _ = layer.update(cx, |_, cx| cx.emit(DialogEvent::Command(command)));
-            });
-        }
+        let layer = cx.weak_entity();
+        dialog = dialog.on_close(move |_, cx| {
+            let _ = layer.update(cx, |_, cx| cx.emit(DialogEvent::Command(dismiss)));
+        });
         for (label, command, variant) in actions {
             dialog = dialog.footer(
                 Button::new(label)
+                    .debug_selector(move || format!("dialog-command:{command:?}"))
                     .variant(variant)
                     .label(label)
                     .on_click(Self::on_command(command, cx)),
@@ -66,7 +66,13 @@ impl DialogLayer {
                 ButtonVariant::Solid,
             ));
         }
-        self.simple_modal(tr("native.error.title"), message, actions, cx)
+        self.simple_modal(
+            tr("native.error.title"),
+            message,
+            Command::ClearError,
+            actions,
+            cx,
+        )
     }
     /// Manage Running Sessions: this window's Agent and terminal hosts from
     /// the host budget, so they stay manageable after their tabs close.

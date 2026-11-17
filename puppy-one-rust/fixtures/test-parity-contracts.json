@@ -16065,6 +16065,117 @@
         }
       ],
       "environment": "Owned temporary files and controlled in-memory storage, real WorkingCopy coordinator and bounded I/O pool."
+    },
+    {
+      "id": "retained-document-retirement",
+      "acceptance": "Stable storage identity plus resource path retains a Working Copy across a recreated adapter; a completed close/reopen creates a new editing instance. Real temporary roots with spaces and Unicode keep equal paths and writes isolated, closing one leaves the other alive. A window quit waits for every retained document and omits already-closed slots. Explicit abandonment first preserves any unflushable recovery journal, then permanently fences pending snapshots, late input, retries and writes queued behind a resource observation; an already-entered provider call may finish but cannot trigger a follow-up save. Native GPUI tests enter real text and hold or fail actual storage: a normal close waits for acknowledgement; the rendered dialog close button, Keep Window Open and Escape all preserve the draft and cancel global app quit, and later editing and closing saves successfully. Only the explicit Close Anyway button discards without retry. Dialog dismissal is an explicit command independent of footer button order. Same-Workbench multi-folder routing, manual save-mode settings, StrictMode probes and aggregate reporting of all simultaneous failures are not credited by these tests.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/activeDocumentSessions.test.ts",
+          "sha256": "6766e0bff8ded52f83e7645f4a4a710e31a046e510b0bf0dae35603c6417ee55",
+          "cases": [
+            {
+              "index": 1,
+              "name": "unsaved documents in a window > writes nothing after a host gives up its edits"
+            },
+            {
+              "index": 2,
+              "name": "unsaved documents in a window > still flushes edits when a host does not give them up"
+            },
+            {
+              "index": 3,
+              "name": "active Document Session registry > drains every registered session and forgets unmounted sessions"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/document-session/documentWorkingCopies.test.ts",
+          "sha256": "ed305507cbd3408c37c3f5e5be27507d2e6c50cc29f230be7c8f4c94f1c1ecfb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document Working Copy registry > keeps one session per stable storage identity and document across adapter recreation"
+            },
+            {
+              "index": 1,
+              "name": "document Working Copy registry > keeps equal resource paths isolated across storage identities"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/document-session/electron.document-session-close.test.mjs",
+          "sha256": "4775f53aeef397bba85707aa2819c032f2185a370262f11a5764870ff09e39e2",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Electron document close coordination > keeps the window alive until the renderer drains all Document Sessions"
+            },
+            {
+              "index": 4,
+              "name": "Electron document close coordination > keeps the window open when persistence fails and the user declines data loss"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::lifecycle::abandoning_edits_retires_pending_snapshots_and_rejects_late_input_or_flushes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::lifecycle::equal_paths_in_distinct_storages_keep_independent_writes_and_close_lifetimes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::lifecycle::quit_waits_for_every_retained_document_and_ignores_closed_slots"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::close_lifecycle::dismissing_failed_close_keeps_the_draft_and_a_later_close_can_save",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::close_lifecycle::close_anyway_click_closes_without_retrying_the_failed_draft",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::close_lifecycle::native_close_waits_for_the_actual_storage_acknowledgement",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::abandonment_cancels_a_queued_write_before_the_provider_is_entered"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::abandonment_does_not_replay_newer_input_after_an_already_started_write"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::recreated_storage_adapter_preserves_identity_until_close_and_reopen"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::abandon_unsaved_persists_unflushable_draft_to_journal_and_reopen_recovers_it"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::a_close_a_document_cannot_save_for_is_refused_until_abandoned"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::cancelling_a_window_close_thaws_all_retained_pending_snapshot_barriers"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::a_refused_close_asks_to_keep_the_window_or_close_anyway"
+        }
+      ],
+      "environment": "Controlled provider and owned temporary files; native GPUI rendering, real click/keyboard events, bounded worker pool, no live Cloud or real OS window smoke claim."
     }
   ],
   "openAcceptance": [
