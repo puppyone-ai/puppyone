@@ -18464,6 +18464,269 @@
         }
       ],
       "environment": "GPUI test platform with the production DocumentEditor host and accessibility observation"
+    },
+    {
+      "id": "app-preview-runtime",
+      "acceptance": "App Preview starts what the manifest declares and nothing else: an unconfigured app fails without a prompt; a static HTML file and an existing URL run without a command or a prompt; an unchanged running app is joined, a changed manifest replaces only its own process (the old one reports it stopped for restart), and separate manifests run side by side with stop affecting only one. Trust is per manifest and package script: a changed script behind an unchanged manifest asks again. The process inherits only the development-tool environment allowlist.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/formats/app-preview/appPreviewRuntime.test.mjs",
+          "sha256": "345a3074e01d7c7a98e19975c4e568ba4812e2c48ee24345fc1e55482e26be40",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App Preview process runtime > rejects an unconfigured App without prompting or spawning"
+            },
+            {
+              "index": 1,
+              "name": "App Preview process runtime > serves a configured HTML file without executing a command"
+            },
+            {
+              "index": 2,
+              "name": "App Preview process runtime > connects to an existing URL without executing a command"
+            },
+            {
+              "index": 3,
+              "name": "App Preview process runtime > reuses an unchanged workspace app and replaces it when the manifest changes"
+            },
+            {
+              "index": 4,
+              "name": "App Preview process runtime > runs two app manifests in the same workspace without replacing either process"
+            },
+            {
+              "index": 5,
+              "name": "App Preview process runtime > requires fresh trust when the package-manager script changes behind an unchanged manifest"
+            },
+            {
+              "index": 6,
+              "name": "App Preview process runtime > inherits only the explicit development-tool environment allowlist"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::app_preview::runtime::tests::static_files_and_local_servers_run_once_trusted"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_preview::runtime::tests::an_existing_url_connects_without_a_command_or_a_prompt"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_preview::runtime::tests::apps_run_side_by_side_and_a_changed_manifest_replaces_only_its_own"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_preview::runtime::tests::a_changed_package_script_needs_fresh_trust_behind_an_unchanged_manifest"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_preview::runtime::tests::a_preview_inherits_only_the_development_tool_environment"
+        }
+      ],
+      "environment": "local temporary workspaces; real python3 http.server child processes and the in-process static server on loopback"
+    },
+    {
+      "id": "database-preview-sqlite-sessions",
+      "acceptance": "SQLite previews admit only a full 100-byte signature and report payload-free failure kinds (no native path or SQL text); refuse traversal, directories, atomic replacement and oversized sources before any read; bound long values (256 characters), blobs and typed values, mark views and generated columns unreadable and address objects only by admitted index; release a revoked or closed session and drop a pending admission without publishing it; continue pages on their snapshot and restart on a new one without changing the source; distinguish idle expiry from changed input; and keep the absolute five-minute lifetime through pending queries. Rust runs SQLite in-process behind a read-only provider VFS, so owner isolation is structural (a session is reachable only from the viewer that opened it).",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/formats/databasePreview.test.mjs",
+          "sha256": "16c898a23893bb79a160d158fdcd04de44221e3df0cda8e5f208f75eeb135c67",
+          "cases": [
+            {
+              "index": 0,
+              "name": "real isolated database engines > uses bounded signatures and redacts native paths/SQL from errors"
+            },
+            {
+              "index": 4,
+              "name": "real isolated database engines > sqlite: bounds values, admits supported objects and refuses arbitrary SQL"
+            },
+            {
+              "index": 6,
+              "name": "real isolated database engines > rejects traversal, directories, atomic replacement and oversized sources before delivery"
+            },
+            {
+              "index": 7,
+              "name": "real isolated database engines > isolates owners, rejects consumed cursors, and closes a revoked owner"
+            },
+            {
+              "index": 8,
+              "name": "real isolated database engines > keeps a pending allocation registered through close and never starts its engine"
+            },
+            {
+              "index": 9,
+              "name": "real isolated database engines > sqlite: reopens with a new snapshot and rejects the retired cursor without changing the source"
+            },
+            {
+              "index": 11,
+              "name": "real isolated database engines > reclaims idle sessions with an expiry reason distinct from changed input"
+            },
+            {
+              "index": 12,
+              "name": "real isolated database engines > keeps the absolute five-minute budget and reports expiry during a pending query"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::database::tests::signatures_sidecars_and_budgets_are_checked"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::object_limits_and_typed_values_are_enforced_by_the_real_sqlite_engine"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::tests::long_values_wide_tables_and_generated_columns_follow_the_budget"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::tests::sqlite_tables_page_read_only_and_expire_on_change"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::sqlite_cannot_write_attach_an_ambient_file_or_create_output_through_the_provider_vfs"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::session_readers_refuse_traversal_and_directories_before_any_read"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::session_readers_reject_atomic_replacement_even_when_length_and_mtime_match"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::database_admission_checks_budget_cancel_and_header_before_opening_an_engine"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::revoked_pending_and_cached_database_sessions_clear_rows_and_drop_the_reader",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::a_pending_database_page_ignores_duplicate_next_clicks_and_the_previous_idle_deadline",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::closing_a_database_preview_cancels_pending_work_and_releases_open_cached_sessions",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::cancellation_during_provider_admission_drops_the_reader_without_publishing_a_session"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::tests::next_pages_continue_on_their_snapshot_and_restart_on_a_new_one",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::sqlite_lossless_pages_and_quoted_column_windows_leave_source_and_directory_unchanged"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::database_idle_expiry_keeps_the_page_and_schema_then_reacquires_on_user_intent",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::an_absolutely_expired_sqlite_session_cannot_serve_even_a_cached_page"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::database::vfs_tests::the_real_sqlite_vm_cannot_run_past_its_absolute_session_deadline"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::database_session_expiry_during_a_query_recovers_once_and_never_replays_the_old_cursor",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::the_database_idle_timer_is_capped_by_the_absolute_session_lifetime",
+          "features": [
+            "dev-capture"
+          ]
+        }
+      ],
+      "environment": "local temporary files; bundled SQLite through the provider VFS; GPUI test platform for the viewer"
+    },
+    {
+      "id": "pdf-resource-reads-and-fail-closed",
+      "acceptance": "A PDF is read lazily through one admitted descriptor with a fixed end: reads at any offset return exactly the admitted bytes, nothing past the end, and the whole file is never buffered; revoked authority, a retired root and a missing file fail closed before anything renders. Rust renders PDFs natively, so there is no HTTP endpoint whose methods or Range headers could be exercised: offsets on the admitted reader replace byte ranges.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/formats/pdf/pdf-resource.test.mjs",
+          "sha256": "914bed0b66c6f866ca1d1c529bc833b0af95944c104cb264fa1df89a0adc4c81",
+          "cases": [
+            {
+              "index": 0,
+              "name": "PDF resource admission and streaming > serves HEAD, complete GET, bounded and suffix ranges consistently"
+            },
+            {
+              "index": 6,
+              "name": "PDF resource admission and streaming > fails closed on revocation, retired roots, missing files and unsupported methods"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::resource_tests::pdf_admission_and_later_reads_use_one_descriptor_with_a_fixed_end"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::local_reader_is_lazy_and_cannot_seek_or_read_past_the_admitted_extent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::provider_reader_is_not_buffered_closes_on_drop_and_fences_late_read_results"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::pdf_input_failures_never_reach_ready_and_keep_the_retry_control",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::pdf_workspace_source_uses_retained_authority_and_rechecks_revocation_before_opening",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::revoked_pdf_inputs_discard_late_open_and_page_replies_and_clear_cached_pages",
+          "features": [
+            "dev-capture"
+          ]
+        }
+      ],
+      "environment": "local temporary files; bundled PDFium; GPUI test platform for the viewer"
     }
   ],
   "openAcceptance": [
@@ -18535,6 +18798,66 @@
             {
               "index": 1,
               "name": "multi-root document persistence > persists and reopens same-named documents in two real Workspace roots without crossing providers"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "duckdb-preview-removed",
+      "kind": "out-of-scope",
+      "reason": "DuckDB previews were removed from the Rust product baseline (puppyone@f1d6ef53b removed the DuckDB library and its packaging); .duckdb and .ddb route to the binary placeholder and DuckDB content in a .db file is not recognised. The frozen TS cases for the second engine are not claimed.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/database.md",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/formats/databasePreview.test.mjs",
+          "sha256": "16c898a23893bb79a160d158fdcd04de44221e3df0cda8e5f208f75eeb135c67",
+          "cases": [
+            {
+              "index": 2,
+              "name": "real isolated database engines > duckdb: detects .db content, pages losslessly and leaves source unchanged"
+            },
+            {
+              "index": 5,
+              "name": "real isolated database engines > duckdb: bounds values, admits supported objects and refuses arbitrary SQL"
+            },
+            {
+              "index": 10,
+              "name": "real isolated database engines > duckdb: reopens with a new snapshot and rejects the retired cursor without changing the source"
+            },
+            {
+              "index": 17,
+              "name": "real isolated database engines > refuses DuckDB while another process owns a write connection"
+            },
+            {
+              "index": 19,
+              "name": "real isolated database engines > duckdb: projects wide tables in bounded column windows"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "database-preview-host-supervision",
+      "kind": "gap",
+      "reason": "TS runs each database engine in a supervised UtilityProcess: quota is released only after the host exit is confirmed, probe and query timeouts and memory are enforced independently of an unresponsive host, and file locks are released after a host crash. Rust runs SQLite on a worker thread with cooperative deadlines and a process-wide SQLite heap limit; there is no separate process to supervise, force-stop or confirm.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/database.md",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/formats/databasePreview.test.mjs",
+          "sha256": "16c898a23893bb79a160d158fdcd04de44221e3df0cda8e5f208f75eeb135c67",
+          "cases": [
+            {
+              "index": 13,
+              "name": "real isolated database engines > does not release quota until the host exit is confirmed"
+            },
+            {
+              "index": 14,
+              "name": "real isolated database engines > supervises probe/query timeouts and memory independently of an unresponsive host"
+            },
+            {
+              "index": 15,
+              "name": "real isolated database engines > releases actual file locks after native host crash"
             }
           ]
         }
