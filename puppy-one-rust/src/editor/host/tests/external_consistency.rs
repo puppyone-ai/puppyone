@@ -1,5 +1,7 @@
 //! External-consistency acceptance across real storage, working copies and
-//! native editor surfaces. WebKit-owned formats need their separate live probes.
+//! the actual editor surfaces. For the formats a web page edits (whiteboard,
+//! Context Map, PuppyFlow) the page is stood in for by its protocol messages;
+//! what the real page does with them is the WebKit probes' acceptance.
 use super::*;
 use crate::{
     documents::{Documents, Intent},
@@ -48,9 +50,60 @@ const NATIVE: [Fixture; 7] = [
         viewer: "html-artifact",
     },
 ];
+/// Formats whose editor is a web page holding its own model.
+const PAGES: [Fixture; 3] = [
+    Fixture {
+        path: "matrix-board.excalidraw",
+        viewer: "excalidraw",
+    },
+    Fixture {
+        path: "matrix-map.contextmap",
+        viewer: "context-map",
+    },
+    Fixture {
+        path: "matrix-workflow.puppyflow",
+        viewer: "puppyflow",
+    },
+];
+fn every_fixture() -> impl Iterator<Item = Fixture> {
+    NATIVE.into_iter().chain(PAGES)
+}
 impl Fixture {
+    fn page(self) -> bool {
+        PAGES.iter().any(|page| page.path == self.path)
+    }
+    /// The product matrix's documents for each format.
     fn text(self, marker: &str) -> String {
         match self.path.rsplit('.').next().unwrap() {
+            "excalidraw" => {
+                let version = match marker {
+                    "alpha" => 1,
+                    "human" => 2,
+                    _ => 3,
+                };
+                format!(
+                    "{}\n",
+                    serde_json::json!({"type": "excalidraw", "version": 2, "elements": [{
+                        "id": "matrix-shape", "type": "rectangle", "x": 0, "y": 0, "width": 20, "height": 20,
+                        "version": version, "customData": {"marker": marker},
+                    }], "appState": {"viewBackgroundColor": "#ffffff"}, "files": {}})
+                )
+            }
+            "contextmap" => format!(
+                "{}\n",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "version": 1, "scope": ".", "layout": {"expanded": [marker], "offsets": {}},
+                }))
+                .unwrap()
+            ),
+            "puppyflow" => format!(
+                "{}\n",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "kind": "puppyflow", "version": 1, "title": "Matrix", "description": "",
+                    "steps": [{"id": "step_matrix", "agent": "codex", "prompt": marker, "enabled": true}],
+                }))
+                .unwrap()
+            ),
             "md" => format!("# {marker}"),
             "py" => format!("value = '{marker}'"),
             "json" => format!("{{\n  \"value\": \"{marker}\"\n}}"),
@@ -130,6 +183,7 @@ impl<'a> Matrix<'a> {
             assert_eq!(h.session.as_ref().unwrap().viewer.id, fixture.viewer);
             assert!(h.session.as_ref().unwrap().editable);
         });
+        this.page_ready();
         assert!(this.docs.watching());
         assert_eq!(*this.storage.reads.lock().unwrap(), [fixture.path]);
         this
@@ -142,10 +196,16 @@ impl<'a> Matrix<'a> {
     }
     fn new_host(&mut self) -> (Entity<DocumentEditor>, Events) {
         let workspace = self.docs.workspace.clone();
+        let board = self.fixture.viewer == "excalidraw";
         let host = self.cx.update(|_, cx| {
             cx.new(|cx| {
                 let mut h = DocumentEditor::new(cx);
                 h.set_workspace(workspace);
+                if board {
+                    h.set_test_surface_factory(Some(
+                        crate::editor::viewers::whiteboard::open_with_fixture_pack,
+                    ));
+                }
                 h
             })
         });
@@ -189,7 +249,8 @@ impl<'a> Matrix<'a> {
             let editor = probe.editor_view().map(|e| e.downgrade().into());
             let code = probe.code_editor().map(|e| e.downgrade().into());
             let table = probe.csv_editor().map(|e| e.downgrade().into());
-            [editor, code, table]
+            let page = probe.page_view().map(|e| e.downgrade());
+            [editor, code, table, page]
                 .into_iter()
                 .flatten()
                 .collect::<Vec<gpui::AnyWeakEntity>>()
@@ -219,6 +280,61 @@ impl<'a> Matrix<'a> {
         self.mount_host();
         self.docs.show_document();
         self.tick();
+        self.page_ready();
+    }
+    /// The page reports ready under the generation it booted with.
+    fn page_ready(&mut self) {
+        if !self.fixture.page() {
+            return;
+        }
+        let host = self.host.as_ref().unwrap().clone();
+        let delivered = host.update(self.cx, |h, cx| {
+            let probe = h.surface.as_ref().unwrap().as_test_probe().unwrap();
+            let generation = probe.page_generation(cx).unwrap();
+            let ready = serde_json::json!({"type": "ready", "generation": generation});
+            probe.page_deliver(&ready.to_string(), cx)
+        });
+        assert!(delivered);
+        self.tick();
+    }
+    /// What the HTML preview shows (Interact's page document).
+    fn assert_preview_shows(&self, marker: &str) {
+        if self.fixture.viewer != "html-artifact" {
+            return;
+        }
+        let entry = self.page_entry();
+        assert!(
+            entry.contains(&format!("<h1>{marker}</h1>")),
+            "the preview would not show {marker}"
+        );
+    }
+    fn page_entry(&self) -> String {
+        self.host.as_ref().unwrap().read_with(self.cx, |h, cx| {
+            let probe = h.surface.as_ref().unwrap().as_test_probe().unwrap();
+            probe.page_entry(cx).unwrap()
+        })
+    }
+    /// What a page created now for this document would boot with.
+    fn assert_page_shows(&self, marker: &str) {
+        if !self.fixture.page() {
+            return;
+        }
+        let entry = self.page_entry();
+        let boot = [
+            "window.__PUPPYONE_STRUCTURED=",
+            "window.__PUPPYONE_WHITEBOARD=",
+        ]
+        .iter()
+        .find_map(|key| entry.split_once(key))
+        .and_then(|(_, rest)| rest.split_once("</script>"))
+        .map(|(boot, _)| serde_json::from_str::<serde_json::Value>(boot).unwrap())
+        .expect("the page's boot document");
+        assert_eq!(
+            boot["text"],
+            self.fixture.text(marker),
+            "{:?}: the page would not show {marker}",
+            self.fixture
+        );
     }
     fn tick(&mut self) {
         self.docs.poll_at(&self.wake, self.now);
@@ -303,7 +419,20 @@ impl<'a> Matrix<'a> {
     }
     fn edit(&mut self, previous: &str) {
         let host = self.host.as_ref().unwrap();
-        if self.fixture.viewer == "csv-table" {
+        if self.fixture.page() {
+            let _ = previous;
+            self.page_ready();
+            let text = self.fixture.text("human");
+            let host = self.host.as_ref().unwrap().clone();
+            let delivered = host.update(self.cx, |h, cx| {
+                let probe = h.surface.as_ref().unwrap().as_test_probe().unwrap();
+                let generation = probe.page_generation(cx).unwrap();
+                let edit =
+                    serde_json::json!({"type": "content", "generation": generation, "text": text});
+                probe.page_deliver(&edit.to_string(), cx)
+            });
+            assert!(delivered);
+        } else if self.fixture.viewer == "csv-table" {
             let csv = host.read_with(self.cx, |h, _| {
                 h.surface
                     .as_ref()
@@ -395,11 +524,31 @@ impl<'a> Matrix<'a> {
     }
 }
 
+/// The product matrix's completeness rule: every editable preset viewer has
+/// a consistency fixture.
+#[test]
+fn every_editable_preset_viewer_has_a_consistency_fixture() {
+    use crate::editor::registry::{Capability, manifest};
+    let mut editable: Vec<&str> = manifest()
+        .viewers
+        .iter()
+        .filter(|viewer| viewer.capability == Capability::Edit)
+        .map(|viewer| viewer.id.as_str())
+        .collect();
+    editable.sort_unstable();
+    let mut covered: Vec<&str> = every_fixture().map(|fixture| fixture.viewer).collect();
+    covered.sort_unstable();
+    covered.dedup();
+    assert_eq!(covered, editable);
+}
+
 #[gpui::test]
-fn clean_external_updates_reach_each_native_surface_without_writes(cx: &mut TestAppContext) {
-    for fixture in NATIVE {
+fn clean_external_updates_reach_each_editable_surface_without_writes(cx: &mut TestAppContext) {
+    for fixture in every_fixture() {
         let mut m = Matrix::new(cx, fixture);
         m.adopt();
+        m.assert_page_shows("agent");
+        m.assert_preview_shows("agent");
         assert_eq!(
             *m.storage.reads.lock().unwrap(),
             [fixture.path, fixture.path]
@@ -417,13 +566,12 @@ fn clean_external_updates_reach_each_native_surface_without_writes(cx: &mut Test
 }
 
 #[gpui::test]
-fn dirty_native_edits_yield_to_external_updates_without_conflict_or_writeback(
-    cx: &mut TestAppContext,
-) {
-    for fixture in NATIVE {
+fn dirty_edits_yield_to_external_updates_without_conflict_or_writeback(cx: &mut TestAppContext) {
+    for fixture in every_fixture() {
         let mut m = Matrix::new(cx, fixture);
         m.edit("alpha");
         m.adopt();
+        m.assert_page_shows("agent");
         assert!(!m.docs.cloud_conflict());
         m.assert_no_writes();
     }
@@ -431,13 +579,14 @@ fn dirty_native_edits_yield_to_external_updates_without_conflict_or_writeback(
 
 #[gpui::test]
 fn manual_save_after_external_adoption_uses_the_new_storage_revision(cx: &mut TestAppContext) {
-    for fixture in NATIVE {
+    for fixture in every_fixture() {
         let mut m = Matrix::new(cx, fixture);
         m.edit("alpha");
         m.adopt();
         m.edit("agent");
         m.save();
         m.assert_shown("human");
+        m.assert_page_shows("human");
         assert_eq!(
             *m.storage.writes.lock().unwrap(),
             [(
@@ -450,8 +599,8 @@ fn manual_save_after_external_adoption_uses_the_new_storage_revision(cx: &mut Te
 }
 
 #[gpui::test]
-fn destroyed_native_views_reopen_the_latest_external_text_without_saving(cx: &mut TestAppContext) {
-    for fixture in NATIVE {
+fn destroyed_views_reopen_the_latest_external_text_without_saving(cx: &mut TestAppContext) {
+    for fixture in every_fixture() {
         let mut m = Matrix::new(cx, fixture);
         m.unmount();
         m.publish("agent", "v2");
@@ -459,21 +608,23 @@ fn destroyed_native_views_reopen_the_latest_external_text_without_saving(cx: &mu
         m.until(|m| m.docs.document.as_ref().is_some_and(|d| d.text == latest));
         m.remount();
         m.assert_shown("agent");
+        m.assert_page_shows("agent");
+        m.assert_preview_shows("agent");
         m.assert_no_writes();
     }
 }
 
 #[gpui::test]
-fn saved_local_edits_survive_destroyed_native_views_without_duplicate_saves(
-    cx: &mut TestAppContext,
-) {
-    for fixture in NATIVE {
+fn saved_local_edits_survive_destroyed_views_without_duplicate_saves(cx: &mut TestAppContext) {
+    for fixture in every_fixture() {
         let mut m = Matrix::new(cx, fixture);
         m.edit("alpha");
         m.save();
         m.unmount();
         m.remount();
         m.assert_shown("human");
+        m.assert_page_shows("human");
+        m.assert_preview_shows("human");
         m.now += Duration::from_secs(5);
         m.tick();
         assert_eq!(m.storage.writes.lock().unwrap().len(), 1);

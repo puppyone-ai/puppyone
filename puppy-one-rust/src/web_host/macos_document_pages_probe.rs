@@ -1,8 +1,10 @@
-//! The bundled Context Map and PuppyFlow pages in an actual WKWebView over
-//! the production Wry IPC and host protocol: what the page shows after a
-//! reset, what it reports for a local edit, its generation tags, undo and
-//! redo, read-only input and a page that leaves the screen and comes back.
-//! DOM edits use the same element events as the product's matrix fixtures.
+//! The pages documents are edited and previewed in, in an actual WKWebView
+//! over the production Wry IPC and host protocol. For the bundled Context Map
+//! and PuppyFlow viewers: what the page shows after a reset, what it reports
+//! for a local edit, its generation tags, undo and redo, read-only input and
+//! a page that leaves the screen and comes back. For the HTML preview: the
+//! document Interact shows, before and after storage replaced it. DOM edits
+//! use the same element events as the product's matrix fixtures.
 use super::{
     probe::{eval, tick, wait},
     whiteboard_probe::NativeWindow,
@@ -301,12 +303,53 @@ fn run_kind(kind: Kind) -> Value {
         "undoRedo": true, "hiddenAndShown": true, "readOnly": true, "resetClearsHistory": true, "recreated": true})
 }
 
+/// The preview Interact loads for a lone document (`html_interact::show`):
+/// a replaced document is a new page load, as `Interact::refresh` makes it.
+fn run_html_preview() -> Value {
+    let heading = |marker: &str| {
+        let window = NativeWindow::new();
+        let (tx, received) = async_channel::unbounded::<String>();
+        let text = format!("<!doctype html><h1>{marker}</h1>");
+        let content = crate::editor::viewers::html_interact::probe_content(&text, Ipc(tx));
+        let host = super::super::WebHost::new_child(&window, 0, content, false).unwrap();
+        host.native()
+            .view
+            .set_bounds(wry::Rect {
+                position: wry::dpi::LogicalPosition::new(0., 0.).into(),
+                size: wry::dpi::LogicalSize::new(1100., 800.).into(),
+            })
+            .unwrap();
+        host.native().view.set_visible(true).unwrap();
+        let view = host.native().view.webview();
+        let shown = |script: &str| eval(&view, script);
+        wait("the preview shows the document", || {
+            shown("document.querySelector('h1')?.textContent ?? 'none'") == marker
+        });
+        assert_eq!(
+            shown("!!document.getElementById('puppyone-html-preview-interaction')"),
+            "1",
+            "the preview lost its interaction stylesheet"
+        );
+        while let Ok(body) = received.try_recv() {
+            let message: Value = serde_json::from_str(&body).unwrap();
+            assert_ne!(message["type"], "link", "loading followed a link");
+        }
+        drop(view);
+        drop(host);
+        drop(window);
+    };
+    heading("alpha");
+    heading("agent");
+    json!({"shows": true, "replaced": true})
+}
+
 pub(super) fn run() {
-    let _mtm = MainThreadMarker::new().expect("main-thread structured probe");
+    let _mtm = MainThreadMarker::new().expect("main-thread document pages probe");
     let context_map = run_kind(Kind::ContextMap);
     let puppyflow = run_kind(Kind::PuppyFlow);
+    let html_preview = run_html_preview();
     println!(
         "{}",
-        json!({"passed": true, "contextMap": context_map, "puppyflow": puppyflow})
+        json!({"passed": true, "contextMap": context_map, "puppyflow": puppyflow, "htmlPreview": html_preview})
     );
 }

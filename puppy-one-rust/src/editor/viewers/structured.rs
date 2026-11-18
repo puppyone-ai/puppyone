@@ -679,6 +679,10 @@ impl crate::editor::registry::SurfaceTestProbe for StructuredSurface {
         let frame = self.view.read(cx).frame.clone()?;
         frame.read(cx).entry_html().map(str::to_owned)
     }
+    #[cfg(test)]
+    fn page_view(&self) -> Option<AnyEntity> {
+        Some(self.view.clone().into())
+    }
 }
 
 impl ViewerSurface for StructuredSurface {

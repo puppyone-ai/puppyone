@@ -1,11 +1,11 @@
 #![cfg(all(target_os = "macos", feature = "dev-capture"))]
 
 #[test]
-#[ignore = "requires the macOS WebKit processes; run the structured viewer acceptance gate"]
-fn real_webkit_structured_viewers_follow_resets_edits_and_history() {
+#[ignore = "requires the macOS WebKit processes; run the document pages acceptance gate"]
+fn real_webkit_document_pages_follow_resets_edits_and_history() {
     let profile = tempfile::tempdir().unwrap();
     let output = po_platform::platform::process::run_output(
-        std::path::Path::new(env!("CARGO_BIN_EXE_webview-structured-probe")),
+        std::path::Path::new(env!("CARGO_BIN_EXE_webview-document-pages-probe")),
         &[],
         profile.path(),
         None,
@@ -38,5 +38,11 @@ fn real_webkit_structured_viewers_follow_resets_edits_and_history() {
                 "missing native acceptance: {kind}.{key}: {receipt}"
             );
         }
+    }
+    for key in ["shows", "replaced"] {
+        assert_eq!(
+            receipt["htmlPreview"][key], true,
+            "missing native acceptance: htmlPreview.{key}: {receipt}"
+        );
     }
 }

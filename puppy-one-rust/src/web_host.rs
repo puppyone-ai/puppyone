@@ -1479,11 +1479,12 @@ pub fn run_whiteboard_probe(root: &std::path::Path) {
     macos::run_whiteboard_probe(root);
 }
 
-/// Runs the bundled Context Map and PuppyFlow pages in the production native
-/// host and IPC channel.
+/// Runs the pages documents are edited and previewed in (the bundled Context
+/// Map and PuppyFlow viewers, the HTML preview) in the production native host
+/// and IPC channel.
 #[cfg(all(target_os = "macos", feature = "dev-capture"))]
-pub fn run_structured_probe() {
-    macos::run_structured_probe();
+pub fn run_document_pages_probe() {
+    macos::run_document_pages_probe();
 }
 
 #[cfg(test)]

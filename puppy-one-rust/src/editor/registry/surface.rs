@@ -133,6 +133,11 @@ pub trait SurfaceTestProbe {
     fn page_entry(&self, _cx: &App) -> Option<String> {
         None
     }
+    /// The view that owns the page.
+    #[cfg(test)]
+    fn page_view(&self) -> Option<gpui::AnyEntity> {
+        None
+    }
 }
 
 pub trait ViewerSurface {

@@ -17754,12 +17754,24 @@
     },
     {
       "id": "native-external-consistency-matrix",
-      "acceptance": "Real Documents coordinators, a controllable text storage provider and the actual native DocumentEditor surfaces for Markdown, plain text, Python, JSON, CSV, TSV and HTML source. Clean storage updates reach the open view with exactly one reread and no write, and unrelated paths never reread. Dirty local text yields to storage without a conflict or writeback, and a later manual save writes once against the adopted revision (the native port has no TS persistence 'reason' field; the explicit save intent is the trigger). Destroying the whole host and recreating it shows the latest storage or saved text without saving again, and the view is asserted released. Undo/redo history belongs to the open document instance, not the view: the working copy owns DocumentModels, the destroyed view leaves its text history (or CSV table model) behind, and the next view of the same text continues it. Closing the document, another document with identical text, an unseen external update and an open IME composition each isolate or discard that history; a superseded view cannot install it late. A hidden clean tab released by WB-01 hibernation keeps the history for its next view. HTML history is read in its source view selected through the pane menu, as in the product matrix. One watcher batch updates two panes with one own-path reread each; an obsolete read (serialized per path natively) never reaches the view; a failed refresh keeps the stable text and recovers on retry; a pathless notification rereads. Not credited: the editable-viewer completeness case, Whiteboard, Context Map and PuppyFlow WebKit pages, and the HTML live preview iframe update (Rust verifies the native source text only). Closing an HTML surface releases its Interact page, Edit page and source view; the earlier callbacks leaked all three.",
+      "acceptance": "Real Documents coordinators, a controllable text storage provider and the actual DocumentEditor surfaces for every editable preset viewer: Markdown, plain text, Python, JSON, CSV, TSV, HTML (source and preview), whiteboard, Context Map and PuppyFlow; the completeness case asserts the fixture viewers equal the manifest's edit-capable viewers. Clean storage updates reach the view with exactly one reread and no write, and unrelated paths never reread. Dirty local text yields to storage without a conflict or writeback, and a later manual save writes once against the adopted revision (the native port has no TS persistence 'reason' field; the explicit save intent is the trigger). Destroying the whole host and recreating it shows the latest storage or saved text without saving again, and every view is asserted released. For web-page formats the GPUI matrix stands in for the page with its protocol messages and checks the boot document a (re)created page would show; real WKWebView probes over the production Wry IPC prove the page side: the shipped Context Map and PuppyFlow bundles apply resets, report edits tagged with the adopted generation, undo/redo, keep history while hidden and shown, refuse read-only edits and lose history only to a reset; the installed Excalidraw pack replaces scenes on reset and tags later drawings; the HTML preview loads the replaced document. Undo/redo after a view is destroyed: native text and CSV models belong to the open document instance (DocumentModels), the next view of the same text continues them, and closing, another document, an unseen storage update and an open IME composition each isolate them; WB-01 hibernation carries them. A web page's model history cannot be detached, so instead a page that edited is never destroyed while its document is open: it is pinned against WebView eviction and its slot against hibernation until a reset clears the history (platform substitution for the product's model-owner remount). Edits a structured page posted before a reset can no longer overwrite the new text, an evicted whiteboard returns with the current text and generation, and a closed HTML surface releases its pages and source view. One watcher batch updates two panes with one own-path reread each; an obsolete read (serialized per path natively) never reaches the view; a failed refresh keeps the stable text and recovers on retry; a pathless notification rereads.",
       "typescript": [
         {
           "path": "tests/integration/editor/document-session/editorExternalConsistencyMatrix.integration.test.tsx",
           "sha256": "d25a82d99c815e38f1c9826c510c398c50d5aaff371c25224e0bc87ca6cdd54d",
           "cases": [
+            {
+              "index": 0,
+              "name": "P0 editor external-consistency matrix > requires every editable preset Viewer family to have a P0 consistency fixture"
+            },
+            {
+              "index": 1,
+              "name": "P0 editor external-consistency matrix > 'Whiteboard': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 2,
+              "name": "P0 editor external-consistency matrix > 'Context Map': adopts a clean Agent update in the open Pane with zero writeback"
+            },
             {
               "index": 3,
               "name": "P0 editor external-consistency matrix > 'Markdown': adopts a clean Agent update in the open Pane with zero writeback"
@@ -17785,6 +17797,22 @@
               "name": "P0 editor external-consistency matrix > 'TSV': adopts a clean Agent update in the open Pane with zero writeback"
             },
             {
+              "index": 9,
+              "name": "P0 editor external-consistency matrix > 'HTML': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 10,
+              "name": "P0 editor external-consistency matrix > 'PuppyFlow': adopts a clean Agent update in the open Pane with zero writeback"
+            },
+            {
+              "index": 11,
+              "name": "P0 editor external-consistency matrix > 'Whiteboard': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 12,
+              "name": "P0 editor external-consistency matrix > 'Context Map': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
               "index": 13,
               "name": "P0 editor external-consistency matrix > 'Markdown': restores the Agent version after the complete Pane tree remounts without saving"
             },
@@ -17807,6 +17835,22 @@
             {
               "index": 18,
               "name": "P0 editor external-consistency matrix > 'TSV': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 19,
+              "name": "P0 editor external-consistency matrix > 'HTML': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 20,
+              "name": "P0 editor external-consistency matrix > 'PuppyFlow': restores the Agent version after the complete Pane tree remounts without saving"
+            },
+            {
+              "index": 21,
+              "name": "P0 editor external-consistency matrix > 'Whiteboard': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 22,
+              "name": "P0 editor external-consistency matrix > 'Context Map': retains saved edits after destroying and recreating its view"
             },
             {
               "index": 23,
@@ -17837,6 +17881,14 @@
               "name": "P0 editor external-consistency matrix > 'HTML': retains saved edits after destroying and recreating its view"
             },
             {
+              "index": 30,
+              "name": "P0 editor external-consistency matrix > 'PuppyFlow': retains saved edits after destroying and recreating its view"
+            },
+            {
+              "index": 31,
+              "name": "P0 editor external-consistency matrix > 'Context Map': retains undo/redo after destroying and recreating its view"
+            },
+            {
               "index": 32,
               "name": "P0 editor external-consistency matrix > 'Markdown': retains undo/redo after destroying and recreating its view"
             },
@@ -17863,6 +17915,18 @@
             {
               "index": 38,
               "name": "P0 editor external-consistency matrix > 'HTML': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 39,
+              "name": "P0 editor external-consistency matrix > 'PuppyFlow': retains undo/redo after destroying and recreating its view"
+            },
+            {
+              "index": 40,
+              "name": "P0 editor external-consistency matrix > 'Whiteboard': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 41,
+              "name": "P0 editor external-consistency matrix > 'Context Map': adopts disk updates over dirty local content without a conflict prompt"
             },
             {
               "index": 42,
@@ -17893,6 +17957,18 @@
               "name": "P0 editor external-consistency matrix > 'HTML': adopts disk updates over dirty local content without a conflict prompt"
             },
             {
+              "index": 49,
+              "name": "P0 editor external-consistency matrix > 'PuppyFlow': adopts disk updates over dirty local content without a conflict prompt"
+            },
+            {
+              "index": 50,
+              "name": "P0 editor external-consistency matrix > 'Whiteboard': saves subsequent edits against the adopted disk version"
+            },
+            {
+              "index": 51,
+              "name": "P0 editor external-consistency matrix > 'Context Map': saves subsequent edits against the adopted disk version"
+            },
+            {
               "index": 52,
               "name": "P0 editor external-consistency matrix > 'Markdown': saves subsequent edits against the adopted disk version"
             },
@@ -17921,6 +17997,10 @@
               "name": "P0 editor external-consistency matrix > 'HTML': saves subsequent edits against the adopted disk version"
             },
             {
+              "index": 59,
+              "name": "P0 editor external-consistency matrix > 'PuppyFlow': saves subsequent edits against the adopted disk version"
+            },
+            {
               "index": 60,
               "name": "P0 editor external-consistency matrix > updates different format Panes from one watcher batch without cross-reading or writeback"
             },
@@ -17942,15 +18022,19 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_native_surface_without_writes"
+          "test": "editor::host::tests::external_consistency::every_editable_preset_viewer_has_a_consistency_fixture"
         },
         {
           "package": "po-editor",
-          "test": "editor::host::tests::external_consistency::destroyed_native_views_reopen_the_latest_external_text_without_saving"
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
         },
         {
           "package": "po-editor",
-          "test": "editor::host::tests::external_consistency::saved_local_edits_survive_destroyed_native_views_without_duplicate_saves"
+          "test": "editor::host::tests::external_consistency::destroyed_views_reopen_the_latest_external_text_without_saving"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::saved_local_edits_survive_destroyed_views_without_duplicate_saves"
         },
         {
           "package": "po-editor",
@@ -17958,7 +18042,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::host::tests::external_consistency::dirty_native_edits_yield_to_external_updates_without_conflict_or_writeback"
+          "test": "editor::host::tests::external_consistency::dirty_edits_yield_to_external_updates_without_conflict_or_writeback"
         },
         {
           "package": "po-editor",
@@ -18017,12 +18101,59 @@
           "test": "editor::viewers::html::tests::a_dropped_surface_releases_its_pages_and_source_view"
         },
         {
+          "package": "po-editor",
+          "test": "editor::viewers::structured::tests::an_edit_posted_before_a_reset_cannot_overwrite_the_new_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::structured::tests::an_edited_page_holds_its_history_until_a_reset"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::an_evicted_board_returns_with_the_current_text_and_generation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::a_board_that_drew_holds_its_page_until_a_reset"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::whiteboard::tests::an_external_replacement_rejects_content_already_queued_by_the_previous_scene"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::retention::tests::a_page_holding_the_only_undo_history_is_never_hibernated"
+        },
+        {
           "package": "po-app",
           "target": "puppy-one-rust",
           "test": "app::tests::editing::a_hibernated_tab_keeps_its_undo_history_when_it_comes_back"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::a_hidden_page_holding_its_undo_history_is_not_hibernated"
+        },
+        {
+          "package": "po-editor",
+          "target": "webview_document_pages_native",
+          "features": [
+            "dev-capture"
+          ],
+          "timeout": 180,
+          "test": "real_webkit_document_pages_follow_resets_edits_and_history"
+        },
+        {
+          "package": "po-editor",
+          "target": "webview_whiteboard_native",
+          "features": [
+            "dev-capture"
+          ],
+          "timeout": 120,
+          "test": "real_webkit_whiteboard_draws_and_preserves_document_boundaries"
         }
       ],
-      "environment": "Native GPUI test platform with a controllable in-memory text provider; no OS file watcher, real WebKit page or live Cloud claim."
+      "environment": "GPUI test platform with a controllable in-memory text provider, plus macOS WKWebView probe processes for the bundled pages and installed whiteboard pack; no OS file watcher or live Cloud claim."
     }
   ],
   "openAcceptance": [

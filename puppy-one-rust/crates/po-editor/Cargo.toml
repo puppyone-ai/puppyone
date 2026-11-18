@@ -79,8 +79,8 @@ required-features = ["dev-capture"]
 test = false
 
 [[bin]]
-name = "webview-structured-probe"
-path = "bin/webview-structured-probe.rs"
+name = "webview-document-pages-probe"
+path = "bin/webview-document-pages-probe.rs"
 required-features = ["dev-capture"]
 test = false
 bench = false

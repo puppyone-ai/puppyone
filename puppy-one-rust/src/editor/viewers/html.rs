@@ -876,6 +876,11 @@ impl SurfaceTestProbe for HtmlSurface {
     fn code_editor(&self) -> Option<Entity<code::CodeView>> {
         self.source.as_test_probe()?.code_editor()
     }
+
+    #[cfg(test)]
+    fn page_entry(&self, cx: &App) -> Option<String> {
+        self.interact.current_entry_html(cx)
+    }
 }
 
 /// `HtmlDocumentEmpty`: an actionable empty page instead of a blank frame.

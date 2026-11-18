@@ -28,7 +28,7 @@ pub use contribution::{
     EditorDocument, Presentation, PresetViewer, SourceKind, SurfaceFactory, ViewerImplementation,
     ViewerMatch,
 };
-pub use manifest::{Source, ViewerManifest, manifest};
+pub use manifest::{Capability, Source, ViewerManifest, manifest};
 pub use request::{AssetReader, DocumentAssets, DocumentContext, SurfaceInput, SurfaceRequest};
 #[cfg(test)]
 pub use surface::SpecialSurfaceProbe;

@@ -94,6 +94,22 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
     Box::new(surface)
 }
 
+/// The board over a stand-in pack: the host protocol without the SDK.
+#[cfg(test)]
+pub(crate) fn open_with_fixture_pack(
+    request: &SurfaceRequest,
+    window: &mut Window,
+    cx: &mut App,
+) -> Box<dyn ViewerSurface> {
+    let pack = ExcalidrawPack {
+        version: "fixture".into(),
+        script: Arc::from([]),
+        style: Arc::from([]),
+        dir: std::env::temp_dir(),
+    };
+    Box::new(open_with_pack(request, Some(pack), window, cx))
+}
+
 fn open_with_pack(
     request: &SurfaceRequest,
     pack: Option<ExcalidrawPack>,
@@ -584,6 +600,10 @@ impl crate::editor::registry::SurfaceTestProbe for WhiteboardSurface {
     fn page_entry(&self, cx: &App) -> Option<String> {
         let frame = self.board.read(cx).frame.clone()?;
         frame.read(cx).entry_html().map(str::to_owned)
+    }
+    #[cfg(test)]
+    fn page_view(&self) -> Option<AnyEntity> {
+        Some(self.board.clone().into())
     }
 }
 

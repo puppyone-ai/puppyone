@@ -450,32 +450,21 @@ impl Interact {
             drop(st);
             scripts.push_str(&super::html_tools::injected_head_bundle());
         }
-        let (csp, policy) = if offline {
-            (html_page::OFFLINE_CSP, html_page::OFFLINE_HEADER)
-        } else {
-            (
-                html_preview::INTERACTIVE_CSP,
-                html_preview::INTERACTIVE_HEADER,
-            )
-        };
         let budget = viewer_budget("html-artifact");
         let (tx, rx) = async_channel::unbounded::<String>();
-        let content = Content {
-            source: self
-                .assets
-                .clone()
-                .filter(|_| self.folder.is_none())
-                .map(|source| Source(Arc::new(Budgeted::new(source, MAX_REFERENCES, budget)))),
-            root: self.folder.clone(),
-            entry: Entry::Html(preview_html(text, csp, &scripts)),
-            max_bytes: budget,
-            assets: vec![],
-            ipc: Some(Ipc(tx)),
-            policy: Some(policy),
-            frames: None,
-            disk_assets: None,
-            locked: offline,
-        };
+        let source = self
+            .assets
+            .clone()
+            .filter(|_| self.folder.is_none())
+            .map(|source| Source(Arc::new(Budgeted::new(source, MAX_REFERENCES, budget))));
+        let content = preview_content(
+            text,
+            &scripts,
+            offline,
+            source,
+            self.folder.clone(),
+            Ipc(tx),
+        );
         self.frame
             .update(cx, |f, cx| f.set_content(Some(content), cx));
         let folder = self.bridge().filter(|_| offline);
@@ -972,6 +961,46 @@ impl Interact {
 }
 
 /// Injected scroll listener & initial scroll restorer for `viewportState` (`VW-23`).
+/// The preview page for `text`: the document with `scripts`, under the
+/// interactive policy or, with folder access, the offline one.
+fn preview_content(
+    text: &str,
+    scripts: &str,
+    offline: bool,
+    source: Option<Source>,
+    root: Option<PathBuf>,
+    ipc: Ipc,
+) -> Content {
+    let (csp, policy) = if offline {
+        (html_page::OFFLINE_CSP, html_page::OFFLINE_HEADER)
+    } else {
+        (
+            html_preview::INTERACTIVE_CSP,
+            html_preview::INTERACTIVE_HEADER,
+        )
+    };
+    Content {
+        source,
+        root,
+        entry: Entry::Html(preview_html(text, csp, scripts)),
+        max_bytes: viewer_budget("html-artifact"),
+        assets: vec![],
+        ipc: Some(ipc),
+        policy: Some(policy),
+        frames: None,
+        disk_assets: None,
+        locked: offline,
+    }
+}
+
+/// The native acceptance process loads the preview a lone document shows.
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub(crate) fn probe_content(text: &str, ipc: Ipc) -> Content {
+    let mut scripts = html_page::link_script(None);
+    scripts.push_str(&preview_scroll_script(0.));
+    preview_content(text, &scripts, false, None, None, ipc)
+}
+
 fn preview_scroll_script(initial_ratio: f32) -> String {
     let init = initial_ratio.clamp(0.0, 1.0);
     format!(
