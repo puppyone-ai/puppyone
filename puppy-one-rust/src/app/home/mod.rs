@@ -683,7 +683,7 @@ impl Homepage {
             .into_any_element()
     }
 
-    fn drop_on_homepage(&mut self, paths: &[PathBuf], cx: &mut Context<Self>) {
+    pub(in crate::app) fn drop_on_homepage(&mut self, paths: &[PathBuf], cx: &mut Context<Self>) {
         match paths.iter().find(|p| p.is_dir()) {
             Some(folder) if paths.len() == 1 => {
                 self.error = None;

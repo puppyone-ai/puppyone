@@ -20902,6 +20902,130 @@
         }
       ],
       "environment": "temporary workspaces through the Agent reference authorization"
+    },
+    {
+      "id": "homepage-folder-drop",
+      "acceptance": "A folder dropped on the Homepage opens in this window; a dropped file or several items open nothing and ask for one local folder. GPUI hands the window the dropped paths themselves, so there is no File grant to resolve.",
+      "typescript": [
+        {
+          "path": "tests/integration/platform/drag-drop/workspaceFolderDropPreload.test.mjs",
+          "sha256": "109c76c9208f8bb3f40807042b2c943dd8f2ccbbacc3fa60f1e5312faab7a8f5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace folder drop preload boundary > derives the path from the native File grant before invoking main"
+            },
+            {
+              "index": 1,
+              "name": "workspace folder drop preload boundary > fails closed when Electron cannot resolve the dropped File"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::a_folder_dropped_on_the_homepage_opens_here"
+        }
+      ],
+      "environment": "GPUI Homepage test with temporary folders"
+    },
+    {
+      "id": "model-connection-network-boundaries",
+      "acceptance": "A provider that echoes the connection's key gets [redacted] in its place before the stream is parsed, shown or kept, also when the echo is split one byte per network chunk, with Unicode intact (Rust now redacts). A model catalog that echoes the key, or answers with a redirect, is refused, and the redirect's target is never contacted (Rust now reports both). The native kernel sends model requests only to the connection's own chat-completions path, from canonical endpoints; a session is bound to one connection and its text-and-tool models, keys are write-only and never reach a shell the model can call. Verification runs the real tool round trip against a local HTTP service and fails a model that answers without calling the check tool. A write waits for approval and reports its change, a saved session reopens with its history without a connection, and the approval, resume, stop and binding run over real HTTP. Rust's kernel is native, so there is no SDK worker, private pipe or fetch interceptor to bound.",
+      "typescript": [
+        {
+          "path": "tests/integration/model-connections/runtime/connectionRuntime.test.mjs",
+          "sha256": "25593e8edb9ceed72ba5d509d474b8435f61e4ca45f9446548e68c73613bd558",
+          "cases": [
+            {
+              "index": 0,
+              "name": "model network boundaries > redacts split provider echoes before native persistence, preserving Unicode"
+            },
+            {
+              "index": 2,
+              "name": "model network boundaries > rejects metadata that echoes a credential"
+            },
+            {
+              "index": 3,
+              "name": "model network boundaries > does not follow a metadata redirect with credentials"
+            },
+            {
+              "index": 4,
+              "name": "model network boundaries > rejects runtime requests outside the bound origin and API prefix"
+            },
+            {
+              "index": 5,
+              "name": "model network boundaries > creates the pinned SDK runtime using only memory credentials and explicit models"
+            },
+            {
+              "index": 6,
+              "name": "model network boundaries > runs the actual SDK verification worker over a private pipe against a synthetic HTTP service"
+            },
+            {
+              "index": 7,
+              "name": "runs an actual bound Agent tool approval, persists safe history and reopens it without a connection"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::model_client::tests::an_echoed_key_is_redacted_even_one_byte_at_a_time"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::infrastructure::catalog_tests::a_catalog_echoing_the_key_or_redirecting_is_refused"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::configuration::tests::base_urls_are_canonical_and_unsafe_endpoints_are_rejected"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::configuration::tests::saving_checks_the_configuration_and_keeps_keys_write_only"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::configuration::tests::a_connection_serves_its_named_models_when_the_agent_may_use_them"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::binds_one_connection_per_session_and_rejects_a_different_connection_or_image_model"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::lists_only_current_text_and_tool_models_from_model_connections"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::removes_provider_credentials_from_model_callable_shell_subprocesses"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::verify_tests::a_model_passes_after_calling_the_check_tool_and_replying"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::verify_tests::a_model_that_answers_without_the_tool_fails_verification"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::native_kernel::tests::a_write_waits_for_approval_and_reports_its_change"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::native_kernel::tests::a_saved_session_reopens_with_its_history_and_a_missing_one_is_unavailable"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::native_kernel::tests::native_puppyone_http_approval_resume_stop_and_binding"
+        }
+      ],
+      "environment": "loopback HTTP services; the native PuppyOne Agent kernel with temporary profiles"
     }
   ],
   "openAcceptance": [
@@ -21757,6 +21881,16 @@
               "name": "workspace file IPC authorization > does not let another renderer cancel an Office conversion"
             }
           ]
+        },
+        {
+          "path": "tests/integration/platform/drag-drop/workspaceFolderDropPreload.test.mjs",
+          "sha256": "109c76c9208f8bb3f40807042b2c943dd8f2ccbbacc3fa60f1e5312faab7a8f5",
+          "cases": [
+            {
+              "index": 2,
+              "name": "workspace folder drop preload boundary > exposes location grants and narrow create/import requests without accepting a renderer path"
+            }
+          ]
         }
       ]
     },
@@ -21897,6 +22031,16 @@
             {
               "index": 6,
               "name": "resource delivery ownership > round-trips cross-repo Agent identities through IPC and every native input adapter"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/platform/drag-drop/workspaceFolderDropPreload.test.mjs",
+          "sha256": "109c76c9208f8bb3f40807042b2c943dd8f2ccbbacc3fa60f1e5312faab7a8f5",
+          "cases": [
+            {
+              "index": 3,
+              "name": "workspace folder drop preload boundary > exposes a gesture-bound attach picker without accepting a renderer path"
             }
           ]
         }
@@ -22571,6 +22715,24 @@
             {
               "index": 4,
               "name": "project-owned Terminal IPC and native shutdown > retains a timed-out close and retries without losing the native handle"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "model-metadata-request-bounds",
+      "kind": "gap",
+      "reason": "Rust reads the catalog of the connection Settings shows on a thread of its own. A superseded read's answer is discarded, but its request is not cancelled (it ends at its 15-second timeout), and reads are not limited to two at once.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/model-connections/runtime/connectionRuntime.test.mjs",
+          "sha256": "25593e8edb9ceed72ba5d509d474b8435f61e4ca45f9446548e68c73613bd558",
+          "cases": [
+            {
+              "index": 1,
+              "name": "model network boundaries > bounds parallel metadata requests and cancels queued work"
             }
           ]
         }

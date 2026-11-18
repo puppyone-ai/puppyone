@@ -1175,3 +1175,50 @@ fn the_homepage_takes_the_pointer_from_the_project_beneath_it(cx: &mut TestAppCo
         "the document under the Homepage stays where it was"
     );
 }
+
+/// `openDroppedWorkspaceInCurrentWindow`: one folder dropped on the
+/// Homepage opens here; a file or several items open nothing and ask for
+/// one local folder.
+#[gpui::test]
+fn a_folder_dropped_on_the_homepage_opens_here(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let parent = temp.path().canonicalize().unwrap();
+    let notes = parent.join("Notes");
+    let other = parent.join("Other");
+    for folder in [&notes, &other] {
+        std::fs::create_dir(folder).unwrap();
+    }
+    std::fs::write(parent.join("loose.md"), "# Loose\n").unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false)
+    });
+    command(&view, cx, Command::Home);
+    let before = view.read_with(cx, |s, cx| s.workspace_root(cx));
+    for dropped in [
+        vec![parent.join("loose.md")],
+        vec![notes.clone(), other.clone()],
+    ] {
+        view.update(cx, |s, cx| {
+            s.home.update(cx, |h, cx| {
+                h.error = None;
+                h.drop_on_homepage(&dropped, cx);
+            })
+        });
+        view.read_with(cx, |s, cx| {
+            assert!(s.home.read(cx).error.is_some(), "{dropped:?}");
+            assert_eq!(s.workspace_root(cx), before, "{dropped:?}");
+        });
+    }
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            h.drop_on_homepage(std::slice::from_ref(&notes), cx)
+        })
+    });
+    settle_cloud(&view, cx, "the dropped folder", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(notes.as_path())
+    });
+    view.read_with(cx, |s, cx| assert!(s.home.read(cx).error.is_none()));
+}
