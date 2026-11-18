@@ -116,9 +116,17 @@ impl World {
         prepared
     }
 
+    /// The app's process, owned by the test. It runs a copy of the bundle's
+    /// executable from outside the bundle: the updater acts on the process
+    /// id alone, and macOS App Management would otherwise refuse the
+    /// relaunch's `touch` on a bundle whose own executable ran.
     fn running(&self) -> OwnedChild {
+        let executable = self.root.path().join("prepared-test-process");
+        if !executable.exists() {
+            std::fs::copy(self.app.join("Contents/MacOS/prepared-test"), &executable).unwrap();
+        }
         OwnedChild(
-            Command::new(self.app.join("Contents/MacOS/prepared-test"))
+            Command::new(executable)
                 .arg("60")
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
