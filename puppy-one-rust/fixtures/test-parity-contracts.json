@@ -20104,6 +20104,420 @@
         }
       ],
       "environment": "local temporary folders; GPUI terminal drop handling"
+    },
+    {
+      "id": "git-workspace-operations",
+      "acceptance": "Working-tree, untracked, staged deletion and rename diffs come from real Git with exact identities; small binary revisions are read as bounded exact bytes; a targeted fetch refreshes only the effective hosting remote and reports what is incoming; PuppyOne remotes are recognised only in their canonical root, scoped or bounded legacy shapes, and a remote with credentials, a query, another host, a non-HTTPS scheme or a non-/git/<name>.git path is refused (Rust always names the remote puppyone, so no remote name is taken from input); first publication configures that remote without credentials in the URL and pushes exactly its captured commit to puppyone/main without touching local changes, refusing a competing main and a detached or missing branch; when HEAD moves during publication Rust still sends only the captured commit (where TS refuses), so no other commit is ever pushed; an ordinary push keeps the branch's upstream (puppyone/main) as the target even when origin exists; status reads carry no history and the timeline loads commits on its own; the metadata watch notices HEAD and index changes.",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/status/workspace.git.integration.test.mjs",
+          "sha256": "24341b907c1dd60fa4a954d096232822ca3b4799cb6bef074a1fd1d20ec2b64d",
+          "cases": [
+            {
+              "index": 7,
+              "name": "diffs > produces a working-tree diff for a modified tracked file"
+            },
+            {
+              "index": 8,
+              "name": "diffs > produces an untracked-file diff"
+            },
+            {
+              "index": 9,
+              "name": "diffs > models staged deletions and renames with immutable Git identities"
+            },
+            {
+              "index": 11,
+              "name": "diffs > materializes a small binary revision as bounded internal resource bytes"
+            },
+            {
+              "index": 17,
+              "name": "targeted remote fetch > refreshes only the selected hosting remote and reports its incoming files"
+            },
+            {
+              "index": 18,
+              "name": "cloud remote configuration (端 → 云 link) > recognizes exact canonical root/scoped locators and bounded legacy locators"
+            },
+            {
+              "index": 19,
+              "name": "cloud remote configuration (端 → 云 link) > configures a PuppyOne-shaped git remote"
+            },
+            {
+              "index": 20,
+              "name": "cloud remote configuration (端 → 云 link) > configures a canonical scoped remote without credentials in the URL"
+            },
+            {
+              "index": 22,
+              "name": "cloud remote configuration (端 → 云 link) > rejects a URL whose path is not a /git/<name>.git endpoint"
+            },
+            {
+              "index": 23,
+              "name": "cloud remote configuration (端 → 云 link) > rejects non-http(s) remote URLs"
+            },
+            {
+              "index": 24,
+              "name": "cloud remote configuration (端 → 云 link) > rejects URL credentials, query tokens, and legacy key-in-path remotes"
+            },
+            {
+              "index": 25,
+              "name": "cloud remote configuration (端 → 云 link) > rejects an invalid remote name (leading dash)"
+            },
+            {
+              "index": 26,
+              "name": "explicit immutable Cloud initialization push > pushes exactly the expected commit to puppyone/main and leaves local changes untouched"
+            },
+            {
+              "index": 27,
+              "name": "explicit immutable Cloud initialization push > rejects when HEAD changes and does not create the destination ref"
+            },
+            {
+              "index": 28,
+              "name": "explicit immutable Cloud initialization push > rejects a detached or missing HEAD before invoking push"
+            },
+            {
+              "index": 29,
+              "name": "ordinary Push after PuppyOne initialization > keeps feature -> puppyone/main as source of truth even when origin also exists"
+            },
+            {
+              "index": 30,
+              "name": "fast status vs lazy history > keeps frequent status free of history while branch graph still loads commits"
+            },
+            {
+              "index": 34,
+              "name": "fast status vs lazy history > changes the consistency fingerprint when HEAD or the index changes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::working_tree_diffs_cover_each_scope"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::tests::real_word_revision_scopes_distinguish_head_index_worktree_rename_and_deletion"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::nul_paths_renames_and_counts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_diff::working::tests::git_reads_require_exact_names_and_preserve_binary_bytes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_state::tests::real_fetch_updates_only_the_effective_hosting_remote_and_preserves_publication_target"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::repository_settings::tests::puppyone_remotes_follow_the_product_parser"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::repository_settings::tests::the_puppyone_remote_is_one_target_or_none"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::issued_remotes_must_be_canonical_and_trusted"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::the_managed_helper_round_trips_the_secret_and_restores_the_previous_config"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::a_first_publication_walks_every_checkpoint_and_leaves_nothing_behind"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_sends_the_pinned_commit_and_reconciles_an_identical_retry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_refuses_a_competing_main_even_when_the_server_allows_forcing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::an_upload_finishes_its_pinned_commit_while_the_checkout_drifts"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::diagnostics_never_carry_secrets"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::hosted_push_honors_every_upstream_name_without_changing_either_main"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::lifecycle_tests::real_status_bounds_entries_overrides_hidden_untracked_config_and_honors_cancellation"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::tests::a_repository_reads_its_history_and_head"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::cold_external_commits_index_changes_and_refs_converge_without_native_events"
+        }
+      ],
+      "environment": "real temporary Git repositories, bare remotes and the git CLI; loopback Cloud fixtures for publication"
+    },
+    {
+      "id": "template-marketplace-packages-and-links",
+      "acceptance": "Every package the store's own publisher produced (both templates, en and zh; the TypeScript fixture copied byte-for-byte) verifies and materializes as one project folder whose first document is the README; a traversing path, an extra root entry or a link entry is refused even when the bundle digest matches, as are a corrupted bundle, a wrong content digest, file count or release, and an expired descriptor. A public template needs no account and its package comes only from the store's route for that template; without an account a template the store keeps for accounts fails with Sign in, and any other package address (another template, another store path, credentials in the URL, plain HTTP, a look-alike host, any other host) is refused after one store request and before any download. The store's network sends no credential and follows no redirect; a second Get a copy while one is under way creates nothing (Rust has one process and no IPC retries, so there is no operation id to replay), and a copy never writes into an existing folder. A template handed out through the account is not published if the account changed while its files were written. The card shows file count and icon only when the store states them, needs an account unless delivered from GitHub, and pins a link's release and the store's language. Links: only the official store and the current channel's app link name a template; pasted text is recognised without being judged; copied text yields a store link only when it is one alone. A packaged app ignores a store override; a development build takes only the store or a loopback one and otherwise falls back to the store (where TS throws for an invalid development override).",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/template-marketplace.test.mjs",
+          "sha256": "6280faaf35d34cac87bd779654545369446833d2954359c608b2884ab8fc59df",
+          "cases": [
+            {
+              "index": 0,
+              "name": "published template interoperability > imports the website publisher's 'en' 'b91aaade-bc9e-4dfd-8f23-11f06ec00301' package"
+            },
+            {
+              "index": 1,
+              "name": "published template interoperability > imports the website publisher's 'zh' 'b91aaade-bc9e-4dfd-8f23-11f06ec00301' package"
+            },
+            {
+              "index": 2,
+              "name": "published template interoperability > imports the website publisher's 'en' 'b91aaade-bc9e-4dfd-8f23-11f06ec00302' package"
+            },
+            {
+              "index": 3,
+              "name": "published template interoperability > imports the website publisher's 'zh' 'b91aaade-bc9e-4dfd-8f23-11f06ec00302' package"
+            },
+            {
+              "index": 4,
+              "name": "published template interoperability > rejects traversing paths, extra root entries and symlink entries even with a matching ZIP digest"
+            },
+            {
+              "index": 5,
+              "name": "published template interoperability > rejects corruption, wrong release identity, expired descriptors and incorrect file hashes"
+            },
+            {
+              "index": 6,
+              "name": "Main-owned downloads and publication > downloads without forwarding the session token and creates exactly once"
+            },
+            {
+              "index": 7,
+              "name": "Main-owned downloads and publication > rejects unauthenticated downloads and arbitrary download hosts before any writes"
+            },
+            {
+              "index": 8,
+              "name": "Main-owned downloads and publication > creates a public template with no account and survives a change of account"
+            },
+            {
+              "index": 9,
+              "name": "Main-owned downloads and publication > accepts the store's package address only for this template"
+            },
+            {
+              "index": 10,
+              "name": "Main-owned downloads and publication > describes a template for the card and says when it needs an account"
+            },
+            {
+              "index": 11,
+              "name": "Main-owned downloads and publication > recognizes pasted template links without judging them"
+            },
+            {
+              "index": 12,
+              "name": "Main-owned downloads and publication > cancels publication when the user changes account during materialization"
+            },
+            {
+              "index": 13,
+              "name": "Main-owned downloads and publication > pins the preview's selected release when the latest version changes"
+            },
+            {
+              "index": 14,
+              "name": "template links > accepts official pinned links and the current channel only"
+            },
+            {
+              "index": 15,
+              "name": "template links > finds a store link that was copied, and nothing in anyone else's text"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::templates::package::tests::every_published_package_is_verified_and_written"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::package::tests::a_matching_bundle_digest_admits_no_traversal_extra_entry_or_link"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::package::tests::corruption_identity_expiry_and_digests_are_refused"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::package::tests::a_package_is_verified_end_to_end"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::store::tests::a_link_resolves_to_its_details_and_verified_files"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::store::tests::a_public_template_needs_no_account_and_comes_from_its_own_route"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::store::tests::only_this_templates_package_address_is_downloaded"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::store::tests::the_card_describes_the_pinned_release_and_whether_it_needs_an_account"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::store::tests::store_requests_carry_no_credentials_and_follow_no_redirects"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::a_refused_publication_leaves_nothing_behind"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::a_project_appears_whole_and_never_merges"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::link::tests::store_and_app_links_name_a_template"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::link::tests::pasted_text_looks_like_a_link_or_not"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::link::tests::only_a_whole_store_link_is_taken_from_the_clipboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::a_template_link_gets_a_copy"
+        }
+      ],
+      "environment": "pure verification over the published fixture; temporary folders; a loopback HTTP server for the store's network"
+    },
+    {
+      "id": "project-initialization-materializer-and-guide",
+      "acceptance": "A template's files are refused as invalid before anything is written when a path traverses, is absolute, uses a backslash or an empty segment, a drive colon, a reserved device name, a trailing period or space, or a NUL; plans with case-folded or canonically equivalent names, a file where a folder must be, an opening document it does not write, more than 256 files or more than 32 MiB are refused with the reason. The project is staged beside its target and published in one exclusive rename: a folder another process makes just before publication, even an empty one, is never replaced; a failure after staging and a publisher that cannot refuse to replace remove only the staging and publish nothing. A new project gets Getting started in every supported language (de, en, es, fr, ja, ko, pt-BR, zh-Hans; each translated, its board flat, its table of nine lines, its page with nothing remote to fetch), only an unsupported language falls back to English, another version is refused, and the copied assets match the product's (tools/import-templates.py --check in verify.py, and each language's manifest digest). The Agent start creates a truly blank folder instead. Rust has no other built-in template ids or sources to ask for, so there is nothing to refuse there.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/project-initialization.test.mjs",
+          "sha256": "c73fd82a529e26adc5509926c0af6ad7f9b1a73152c4d511bc35cd224728d789",
+          "cases": [
+            {
+              "index": 0,
+              "name": "shared template materializer > rejects unsafe output ../outside"
+            },
+            {
+              "index": 1,
+              "name": "shared template materializer > rejects unsafe output /absolute"
+            },
+            {
+              "index": 2,
+              "name": "shared template materializer > rejects unsafe output a\\b"
+            },
+            {
+              "index": 3,
+              "name": "shared template materializer > rejects unsafe output a/../b"
+            },
+            {
+              "index": 4,
+              "name": "shared template materializer > rejects unsafe output a//b"
+            },
+            {
+              "index": 5,
+              "name": "shared template materializer > rejects unsafe output a:"
+            },
+            {
+              "index": 6,
+              "name": "shared template materializer > rejects unsafe output NUL.txt"
+            },
+            {
+              "index": 7,
+              "name": "shared template materializer > rejects unsafe output a. "
+            },
+            {
+              "index": 8,
+              "name": "shared template materializer > rejects unsafe output a/CON"
+            },
+            {
+              "index": 9,
+              "name": "shared template materializer > rejects unsafe output a\u0000b"
+            },
+            {
+              "index": 10,
+              "name": "shared template materializer > rejects collisions, invalid entrypoints and over-budget plans before writes"
+            },
+            {
+              "index": 11,
+              "name": "shared template materializer > does not replace even an empty directory created by another process before publication"
+            },
+            {
+              "index": 12,
+              "name": "shared template materializer > cleans only its staging after a write failure and never publishes a partial project"
+            },
+            {
+              "index": 13,
+              "name": "shared template materializer > fails closed when the publisher cannot provide no-replace semantics"
+            },
+            {
+              "index": 14,
+              "name": "project initialization receipts > creates an ordinary localized guide and a separately selectable true blank folder"
+            },
+            {
+              "index": 15,
+              "name": "project initialization receipts > resolves every renderer locale and falls back only for unsupported locales"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::a_plan_holds_portable_paths_without_conflicts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::a_folder_made_just_before_publication_is_never_replaced"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::exclusive_publication_has_one_winner_even_for_two_empty_directories"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::a_failure_cleans_only_its_staging_and_never_publishes_part_of_a_project"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::publication_rejects_linked_staging_and_preserves_files_and_dangling_targets"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::builtin::tests::getting_started_is_its_manifest_in_every_language"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::a_new_project_opens_on_its_getting_started_guide"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::projects_home_toolbar_and_agent_start_create_blank_project_with_seeded_chat"
+        }
+      ],
+      "environment": "temporary folders; the app's Homepage flows in GPUI tests"
     }
   ],
   "openAcceptance": [
@@ -21263,6 +21677,300 @@
             {
               "index": 4,
               "name": "resource delivery ownership > exports a registered Project root through the external-only drag channel"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "git-auto-commit-experiment",
+      "kind": "out-of-scope",
+      "reason": "Git Auto Commit is an experiment that TS v0.4.4 forces off (enableGitAutoCommit) and shows only when the platform exposes it; the native frontend does not expose it (recorded in Source Control, Differences from TS).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/source-control/README.md",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/auto-commit/gitAutoCommitOperationLease.test.mjs",
+          "sha256": "a7a36902fe3f6f631018238b5d558872a3ebd99950ef03dc823e00a0089b0d38",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit cross-process lease > elects one owner through the shared Git common directory"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit cross-process lease > uses token fencing so an old owner cannot remove a replacement lease"
+            },
+            {
+              "index": 2,
+              "name": "Git Auto Commit cross-process lease > takes over a stale lease only when its recorded process is no longer alive"
+            },
+            {
+              "index": 3,
+              "name": "Git Auto Commit cross-process lease > rejects a symlinked lease directory"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/source-control/auto-commit/gitAutoCommitPreferenceStore.test.mjs",
+          "sha256": "c67ad8211398652f36b43a4ebf65d5a14f967e3fb13a0a23e704a70319e7800a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit preference store > defaults every consent layer to off and persists only hashed workspace identity"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit preference store > fails closed for an unsupported schema"
+            },
+            {
+              "index": 2,
+              "name": "Git Auto Commit preference store > serializes concurrent preference changes and clamps intervals to product bounds"
+            },
+            {
+              "index": 3,
+              "name": "Git Auto Commit preference store > fails closed for malformed, oversized, and symlinked preference files"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/source-control/auto-commit/gitAutoCommitPreload.test.mjs",
+          "sha256": "5d7c7766906ae5f34978b5abb2cd754175cedfea46235e42fb6518d09eee1b5a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit release capability > omits the preload bridge unless Main issues the capability argument"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/source-control/auto-commit/gitAutoCommitTransactionJournal.test.mjs",
+          "sha256": "591ffefea975e2e1247512078395f7622683a5a134219364f759cecbc67231f2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit transaction journal > persists private monotonic phases with compare-and-swap updates"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit transaction journal > rejects path traversal, incomplete phases, and unsupported schemas"
+            },
+            {
+              "index": 2,
+              "name": "Git Auto Commit transaction journal > fails closed when a journal file is permissive or malformed"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/source-control/auto-commit/workspace.git-auto-commit.integration.test.mjs",
+          "sha256": "8b8b9b0411b40e1213e3d3005718ec8ed9a76d991132dec41ffe8e841d5cf172",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace Git Auto Commit transaction > commits only untracked paths and preserves tracked modifications"
+            },
+            {
+              "index": 1,
+              "name": "workspace Git Auto Commit transaction > preserves tracked deletions while treating an unstaged rename as one exact new path"
+            },
+            {
+              "index": 2,
+              "name": "workspace Git Auto Commit transaction > skips when the user already has staged work"
+            },
+            {
+              "index": 3,
+              "name": "workspace Git Auto Commit transaction > preserves unrelated staging that races after preflight"
+            },
+            {
+              "index": 4,
+              "name": "workspace Git Auto Commit transaction > preserves unrelated staging that races immediately after journal preparation"
+            },
+            {
+              "index": 5,
+              "name": "workspace Git Auto Commit transaction > fails closed for sensitive candidates and required signing"
+            },
+            {
+              "index": 6,
+              "name": "workspace Git Auto Commit transaction > respects ignores and fails closed for nested repositories, symlinks, and size budgets"
+            },
+            {
+              "index": 7,
+              "name": "workspace Git Auto Commit transaction > fails closed when the repository has unresolved conflicts"
+            },
+            {
+              "index": 8,
+              "name": "workspace Git Auto Commit transaction > requires a named idle branch and a configured author"
+            },
+            {
+              "index": 9,
+              "name": "workspace Git Auto Commit transaction > supports unborn branches and literal Unicode, space, and leading-dash paths"
+            },
+            {
+              "index": 10,
+              "name": "workspace Git Auto Commit transaction > runs repository hooks and clean filters against the isolated transaction index"
+            },
+            {
+              "index": 11,
+              "name": "workspace Git Auto Commit transaction > reports a fresh preflight candidate set without exposing ignored paths"
+            },
+            {
+              "index": 12,
+              "name": "workspace Git Auto Commit transaction > fails closed when the bounded Git status result exceeds its product limit"
+            },
+            {
+              "index": 13,
+              "name": "workspace Git Auto Commit transaction > does not move HEAD when content changes after isolated staging"
+            },
+            {
+              "index": 14,
+              "name": "workspace Git Auto Commit transaction > cancels before ref mutation when consent is disabled during a run"
+            },
+            {
+              "index": 15,
+              "name": "workspace Git Auto Commit transaction > abandons safely when another Git client moves HEAD after staging"
+            },
+            {
+              "index": 16,
+              "name": "workspace Git Auto Commit transaction > abandons safely when another Git client switches the current branch after staging"
+            },
+            {
+              "index": 17,
+              "name": "workspace Git Auto Commit transaction > preserves an externally staged candidate when index ownership becomes ambiguous"
+            },
+            {
+              "index": 18,
+              "name": "workspace Git Auto Commit transaction > cleans a prepared journal when a candidate disappears before staging"
+            },
+            {
+              "index": 19,
+              "name": "workspace Git Auto Commit transaction > cleans up after a rejecting hook without touching the real index"
+            },
+            {
+              "index": 20,
+              "name": "workspace Git Auto Commit transaction > times out a hanging hook without touching the real index"
+            },
+            {
+              "index": 21,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the prepared journal phase"
+            },
+            {
+              "index": 22,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the staged journal phase"
+            },
+            {
+              "index": 23,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the committed journal phase"
+            },
+            {
+              "index": 24,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the journal-prepared checkpoint"
+            },
+            {
+              "index": 25,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the isolated-index-prepared checkpoint"
+            },
+            {
+              "index": 26,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the journal-staged checkpoint"
+            },
+            {
+              "index": 27,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the commit-created checkpoint"
+            },
+            {
+              "index": 28,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the journal-committed checkpoint"
+            },
+            {
+              "index": 29,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the commit-verified checkpoint"
+            },
+            {
+              "index": 30,
+              "name": "workspace Git Auto Commit transaction > recovers idempotently after the index-reconciled checkpoint"
+            },
+            {
+              "index": 31,
+              "name": "workspace Git Auto Commit transaction > preserves an ambiguous journal when workspace identity or branch ownership changes"
+            },
+            {
+              "index": 32,
+              "name": "workspace Git Auto Commit transaction > recovers a commit that landed before the committed journal write"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "git-sidebar-missing-actions",
+      "kind": "gap",
+      "reason": "Not in the native Changes sidebar: stashing tracked and untracked changes; creating and checking out a branch (with branch-name validation) and the branch graph (recorded gap: branch switching and graph); incoming and outgoing revision pairs opened as diffs (only the incoming count and Pull are shown); creating an empty first snapshot for one-click publishing (publication refuses a repository without commits); updating an existing PuppyOne remote's URL (publication refuses an existing puppyone remote); and while History is open, every working-tree refresh reloads history although HEAD did not move.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/source-control/README.md",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/status/workspace.git.integration.test.mjs",
+          "sha256": "24341b907c1dd60fa4a954d096232822ca3b4799cb6bef074a1fd1d20ec2b64d",
+          "cases": [
+            {
+              "index": 2,
+              "name": "stage → commit lifecycle > can create an empty first snapshot for one-click Cloud publishing"
+            },
+            {
+              "index": 6,
+              "name": "stage → commit lifecycle > stashes tracked and untracked working changes from the Changes sidebar"
+            },
+            {
+              "index": 13,
+              "name": "diffs > derives committed and remote revision pairs from trusted refs"
+            },
+            {
+              "index": 14,
+              "name": "diffs > keeps incoming and outgoing sidebar status aligned with aggregate opened diffs"
+            },
+            {
+              "index": 15,
+              "name": "branches > creates and checks out a branch"
+            },
+            {
+              "index": 16,
+              "name": "branches > rejects an invalid branch name (leading dash / bad ref)"
+            },
+            {
+              "index": 21,
+              "name": "cloud remote configuration (端 → 云 link) > updates the URL when the remote already exists (set-url)"
+            },
+            {
+              "index": 31,
+              "name": "fast status vs lazy history > keeps working-tree refreshes free of history while HEAD stays stable"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "project-initialization-receipts",
+      "kind": "gap",
+      "reason": "Rust keeps no initialization journal or receipts. Creating a project is one in-process call: no acknowledgement can be lost between processes, and a second Create or Get a copy while one runs is ignored. But a crash between staging and publication leaves a hidden .puppyone-template-* folder beside the project; the next launch neither recovers nor removes it. A crash after publication does not reopen the project. There is no operation id to coalesce a retry by, to refuse a different request under, or to recover a published or staged project by identity.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/project-initialization.test.mjs",
+          "sha256": "c73fd82a529e26adc5509926c0af6ad7f9b1a73152c4d511bc35cd224728d789",
+          "cases": [
+            {
+              "index": 16,
+              "name": "project initialization receipts > coalesces retries and never rewrites an edited or deleted guide, including after restart"
+            },
+            {
+              "index": 17,
+              "name": "project initialization receipts > recovers a published directory with a lost acknowledgement by identity"
+            },
+            {
+              "index": 18,
+              "name": "project initialization receipts > recovers a staged directory with a lost acknowledgement by identity"
+            },
+            {
+              "index": 19,
+              "name": "project initialization receipts > fails safely on ambiguous recovery without modifying the replacement directory"
             }
           ]
         }

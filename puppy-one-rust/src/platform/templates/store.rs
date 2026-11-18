@@ -351,6 +351,11 @@ mod tests {
         descriptor: Value,
         asked: Mutex<Vec<String>>,
     }
+    fn detail() -> Value {
+        json!({"id": ID, "release_id": RELEASE, "name": "Weekly plan",
+        "description": "Plan a week.", "version": "1.0.0", "author": "Puppyone",
+        "locale": "zh", "file_count": 2, "icon": "🗓️", "delivery": "github"})
+    }
     impl Fetch for std::sync::Arc<Fake> {
         fn get(&self, url: &str, _: Duration, max: usize) -> Result<Response, String> {
             self.asked.lock().unwrap().push(format!("GET {url}"));
@@ -358,15 +363,15 @@ mod tests {
                 assert!(max >= self.bytes.len());
                 return Ok((200, self.bytes.clone()));
             }
-            Ok((
-                200,
-                serde_json::to_vec(
-                    &json!({"id": ID, "release_id": RELEASE, "name": "Weekly plan",
-                    "description": "Plan a week.", "version": "1.0.0", "author": "Puppyone",
-                    "locale": "zh", "file_count": 2, "icon": "🗓️", "delivery": "github"}),
-                )
-                .unwrap(),
-            ))
+            // The card's details: the descriptor's fields stand in for any
+            // the test changes.
+            let mut detail = detail();
+            if let Some(changes) = self.descriptor["detail"].as_object() {
+                for (key, value) in changes {
+                    detail[key] = value.clone();
+                }
+            }
+            Ok((200, serde_json::to_vec(&detail).unwrap()))
         }
         fn post_json(
             &self,
@@ -445,5 +450,183 @@ mod tests {
                 .unwrap_err()
                 .contains("destination")
         );
+    }
+
+    fn fake(public: bool, descriptor: Value) -> std::sync::Arc<Fake> {
+        let (bytes, _) = package(&[("Plan.md", "# Week"), ("a/b.md", "b")]);
+        std::sync::Arc::new(Fake {
+            public,
+            bytes,
+            descriptor,
+            asked: Default::default(),
+        })
+    }
+    fn store_of(fake: &std::sync::Arc<Fake>) -> Store {
+        Store::new(
+            link::STORE_ORIGIN.into(),
+            Channel::Stable,
+            Box::new(fake.clone()),
+        )
+    }
+    fn asked(fake: &std::sync::Arc<Fake>) -> Vec<String> {
+        fake.asked.lock().unwrap().clone()
+    }
+    const DOWNLOAD: &str =
+        "https://www.puppyone.ai/api/templates/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab/download";
+
+    /// `creates a public template with no account`: the store answers
+    /// anonymously, the account is never asked, and the package comes from
+    /// the store's own route for this template.
+    #[test]
+    fn a_public_template_needs_no_account_and_comes_from_its_own_route() {
+        let (_, mut descriptor) = package(&[("Plan.md", "# Week"), ("a/b.md", "b")]);
+        let route = format!("/api/templates/{ID}/package?release={RELEASE}");
+        descriptor["download_url"] = json!(route);
+        let fake = fake(true, descriptor);
+        let plan = store_of(&fake)
+            .download(ID, RELEASE, |_| unreachable!("no account"), 0)
+            .unwrap();
+        assert_eq!(plan.files.len(), 2);
+        assert_eq!(
+            asked(&fake),
+            [
+                format!("POST {DOWNLOAD} {}", json!({ "release_id": RELEASE })),
+                format!("GET https://www.puppyone.ai{route}"),
+            ]
+        );
+    }
+
+    /// `rejects unauthenticated downloads and arbitrary download hosts`,
+    /// `accepts the store's package address only for this template`: the
+    /// store was asked once and nothing was downloaded.
+    #[test]
+    fn only_this_templates_package_address_is_downloaded() {
+        let (_, descriptor) = package(&[("Plan.md", "# Week"), ("a/b.md", "b")]);
+        let signed_out = fake(false, descriptor.clone());
+        assert_eq!(
+            store_of(&signed_out).download(ID, RELEASE, |_| Err(SIGNED_OUT.into()), 0),
+            Err(SIGNED_OUT.into())
+        );
+        assert_eq!(asked(&signed_out).len(), 1);
+        let route = format!("/api/templates/{ID}/package?release={RELEASE}");
+        for destination in [
+            "https://example.com/stolen".to_owned(),
+            format!(
+                "/api/templates/6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b/package?release={RELEASE}"
+            ),
+            "/api/template-packages?key=packages/x".into(),
+            "/somewhere-else".into(),
+            format!("https://user:secret@www.puppyone.ai{route}"),
+            format!("http://www.puppyone.ai{route}"),
+            format!("https://www.puppyone.ai.example.com{route}"),
+        ] {
+            let mut elsewhere = descriptor.clone();
+            elsewhere["download_url"] = json!(destination);
+            for public in [true, false] {
+                let fake = fake(public, elsewhere.clone());
+                let error = store_of(&fake)
+                    .download(ID, RELEASE, |_| Ok(elsewhere.clone()), 0)
+                    .unwrap_err();
+                assert!(error.contains("destination"), "{destination}: {error}");
+                assert_eq!(asked(&fake).len(), 1, "{destination}");
+            }
+        }
+    }
+
+    /// `describes a template for the card and says when it needs an
+    /// account`, `pins the preview's selected release`.
+    #[test]
+    fn the_card_describes_the_pinned_release_and_whether_it_needs_an_account() {
+        let link = format!("https://www.puppyone.ai/t/{ID}?release={RELEASE}");
+        let github = fake(true, json!({"detail": {"file_count": 12, "icon": "🤝"}}));
+        let detail = store_of(&github).resolve(&link, "zh-Hans").unwrap();
+        assert_eq!(
+            (
+                detail.file_count,
+                detail.icon.as_deref(),
+                detail.requires_sign_in
+            ),
+            (Some(12), Some("🤝"), false)
+        );
+        assert_eq!(detail.release_id, RELEASE);
+        assert_eq!(
+            asked(&github),
+            [format!(
+                "GET https://www.puppyone.ai/api/templates/{ID}?locale=zh&release={RELEASE}"
+            )]
+        );
+        let managed = fake(
+            true,
+            json!({"detail": {"delivery": "managed", "file_count": "12", "icon": null}}),
+        );
+        let detail = store_of(&managed).resolve(&link, "en").unwrap();
+        assert_eq!(
+            (detail.file_count, detail.icon, detail.requires_sign_in),
+            (None, None, true)
+        );
+        // Another release than the one the link pins is not this template.
+        let moved = fake(
+            true,
+            json!({"detail": {"release_id": "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"}}),
+        );
+        assert!(store_of(&moved).resolve(&link, "en").is_err());
+    }
+
+    /// `downloads without forwarding the session token`: the network the
+    /// store uses sends no credential and follows no redirect.
+    #[test]
+    fn store_requests_carry_no_credentials_and_follow_no_redirects() {
+        use std::io::{BufRead as _, BufReader, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let mut requests = Vec::new();
+            for stream in listener.incoming().take(2) {
+                let mut stream = stream.unwrap();
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut head = Vec::new();
+                loop {
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    if line == "\r\n" || line.is_empty() {
+                        break;
+                    }
+                    head.push(line.trim_end().to_ascii_lowercase());
+                }
+                stream
+                    .write_all(b"HTTP/1.1 302 Found\r\nLocation: /elsewhere\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+                    .unwrap();
+                requests.push(head);
+            }
+            requests
+        });
+        let post = Http
+            .post_json(
+                &format!("{origin}/api/templates/{ID}/download"),
+                &json!({ "release_id": RELEASE }),
+                Duration::from_secs(10),
+                JSON_MAX,
+            )
+            .unwrap();
+        let get = Http
+            .get(
+                &format!("{origin}/api/templates/{ID}/package"),
+                Duration::from_secs(10),
+                JSON_MAX,
+            )
+            .unwrap();
+        assert_eq!((post.0, get.0), (302, 302));
+        let requests = server.join().unwrap();
+        assert!(requests[0][0].starts_with("post /api/templates/"));
+        assert!(requests[1][0].starts_with("get /api/templates/"));
+        for head in &requests {
+            assert!(
+                !head
+                    .iter()
+                    .any(|h| h.starts_with("authorization:") || h.starts_with("cookie:")),
+                "{head:?}"
+            );
+            assert!(!head.iter().any(|h| h.contains("/elsewhere")));
+        }
     }
 }

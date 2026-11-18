@@ -650,8 +650,12 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
         // A display name becomes a folder name.
         assert_eq!(import.destination.name.read(cx).text(), "Weekly plan");
     });
+    // A second "Get a copy" while the first is on its way creates nothing.
     view.update_in(cx, |s, w, cx| {
-        s.home.update(cx, |h, cx| h.submit_template(w, cx))
+        s.home.update(cx, |h, cx| {
+            h.submit_template(w, cx);
+            h.submit_template(w, cx);
+        })
     });
     settle_cloud(&view, cx, "the copy", &|s, cx| {
         s.files(cx)
@@ -667,6 +671,7 @@ fn a_template_link_gets_a_copy(cx: &mut TestAppContext) {
         std::fs::read_to_string(parent.join("Weekly plan 2/Plan.md")).unwrap(),
         "# Week\n"
     );
+    assert!(!parent.join("Weekly plan 3").exists());
     // With a project open here, the next copy opens in a window of its own.
     let link = format!(
         "https://www.puppyone.ai/t/{}",
