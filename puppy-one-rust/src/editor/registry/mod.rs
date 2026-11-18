@@ -455,6 +455,98 @@ mod tests {
         }
     }
 
+    /// The product's pane fixture matrix (`EDITOR_PANE_CASES`): each fixture
+    /// resolves to its declared viewer, and together they cover every
+    /// registered viewer and the fallback.
+    #[test]
+    fn every_pane_fixture_selects_its_declared_viewer_and_all_viewers_are_covered() {
+        const CASES: [(&str, &str, &str, &str, Option<&str>); 20] = [
+            (
+                "context-map",
+                "context-map",
+                "map.contextmap",
+                "context-map",
+                None,
+            ),
+            ("app", "app-preview", "demo.puppyoneapp", "app", None),
+            ("markdown", "markdown", "note.md", "markdown", None),
+            ("puppyflow", "puppyflow", "flow.puppyflow", "workflow", None),
+            ("json", "json", "settings.json", "json", None),
+            (
+                "whiteboard",
+                "excalidraw",
+                "board.excalidraw",
+                "whiteboard",
+                None,
+            ),
+            (
+                "csv",
+                "csv-table",
+                "table.csv",
+                "spreadsheet",
+                Some("text/csv"),
+            ),
+            (
+                "tsv",
+                "csv-table",
+                "table.tsv",
+                "spreadsheet",
+                Some("text/tab-separated-values"),
+            ),
+            ("html", "html-artifact", "page.html", "html", None),
+            ("image", "image-preview", "image.png", "image", None),
+            ("pdf", "pdf-preview", "document.pdf", "pdf", None),
+            ("database", "database-preview", "sample.db", "file", None),
+            ("word", "office-preview", "document.docx", "document", None),
+            (
+                "spreadsheet",
+                "office-preview",
+                "workbook.xlsx",
+                "spreadsheet",
+                None,
+            ),
+            (
+                "presentation",
+                "office-preview",
+                "slides.pptx",
+                "presentation",
+                None,
+            ),
+            ("audio", "audio-preview", "tone.wav", "audio", None),
+            ("video", "video-preview", "clip.webm", "video", None),
+            ("text", "text", "plain.txt", "text", None),
+            ("code", "text", "worker.py", "code", None),
+            (
+                "fallback",
+                "document-placeholder",
+                "unknown.pane-binary",
+                "file",
+                None,
+            ),
+        ];
+        for (id, expected, name, kind, mime) in CASES {
+            let mut document = EditorDocument::local(name);
+            document.kind = kind.into();
+            document.mime = mime.map(str::to_owned);
+            assert_eq!(resolve(&document).viewer.id, expected, "{id}");
+        }
+        let mut covered: Vec<&str> = CASES.iter().map(|case| case.1).collect();
+        covered.sort_unstable();
+        covered.dedup();
+        let mut registered: Vec<&str> = registry()
+            .contributions
+            .iter()
+            .map(|viewer| viewer.id)
+            .chain([registry().fallback().id])
+            .collect();
+        registered.sort_unstable();
+        assert_eq!(covered, registered);
+        let mut ids: Vec<&str> = CASES.iter().map(|case| case.0).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), CASES.len());
+    }
+
     #[test]
     fn registries_breaking_the_contract_are_refused() {
         let all = builtin::contributions();

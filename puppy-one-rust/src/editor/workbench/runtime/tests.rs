@@ -570,14 +570,44 @@ fn cancelling_a_window_close_thaws_all_retained_pending_snapshot_barriers() {
             .flat_map(|h| h.slots.values())
             .all(|s| !s.files.busy() && !s.files.allow_quit)
     );
+    let resumed = r.take_outgoing();
     assert_eq!(
-        r.take_outgoing()
+        resumed
             .iter()
             .filter(|(_, m)| matches!(m, HostMessage::Thaw))
             .count(),
         3
     );
+    // Thawed in place: nothing is shown again, so no editor remounts.
+    assert!(
+        resumed.iter().all(|(_, m)| matches!(m, HostMessage::Thaw)),
+        "{resumed:?}"
+    );
     assert!(!r.allow_quit);
+    // The documents' observers run again: a change on disk reaches the
+    // retained copy as an external update.
+    assert!(
+        r.hosts
+            .values()
+            .flat_map(|h| h.slots.values())
+            .all(|s| s.files.watching())
+    );
+    std::fs::write(
+        root.path().join("a.md"),
+        "changed after the cancelled close",
+    )
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        r.poll(&Wake::default());
+        if r.take_outgoing().iter().any(|(_, m)| {
+            matches!(m, HostMessage::Open { text, external: true, .. } if text == "changed after the cancelled close")
+        }) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the observer did not resume");
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 #[test]
 fn file_operations_queue_by_resource_scope() {

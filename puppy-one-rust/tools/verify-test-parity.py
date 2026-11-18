@@ -50,6 +50,8 @@ def main():
         'auxiliaryTestFiles': auxiliary, 'referencedTestFiles': sorted(referenced),
         'unreviewedTestFiles': sorted(set(runtime + auxiliary) - referenced),
         'qualification': manifest['qualification'], 'openAcceptance': manifest['openAcceptance'],
+        'knownDifferences': [{key: item[key] for key in ('id', 'kind', 'reason', 'owner')}
+                             for item in manifest.get('knownDifferences', [])],
         'wholeProductParityVerified': False,
     }
     collected = json.loads((out / 'typescript-cases.json').read_text())
@@ -59,6 +61,7 @@ def main():
     print(f"{len(runtime)} TS runtime files; {len(auxiliary)} auxiliary entries; {len(manifest['contracts'])} reviewed criteria; {len(tests)} required Rust tests.")
     print(f"{len(inventory['unreviewedTestFiles'])} files are not fully reviewed at case level. Whole-product parity is not verified.")
     print(f"{inventory['reviewedCaseCount']} of {inventory['runtimeCaseCount']} individual cases reviewed; {len(inventory['skippedCases'])} cases skipped by TS environment.")
+    print(f"{len(inventory['knownGapCases'])} reviewed cases are known gaps Rust does not meet yet; {len(inventory['outOfScopeCases'])} are out of scope by a recorded decision.")
     passed = True
     if not args.inventory_only:
         report = run_gate('test-parity', list(tests.values()), metadata={
@@ -66,7 +69,8 @@ def main():
             'wholeProductParityVerified': False,
         })
         passed = report['passed']
-    if args.require_complete and (inventory['unreviewedCases'] or inventory['unreviewedAuxiliaryFiles'] or inventory['openAcceptance']):
+    if args.require_complete and (inventory['unreviewedCases'] or inventory['knownGapCases']
+                                  or inventory['unreviewedAuxiliaryFiles'] or inventory['openAcceptance']):
         passed = False
     return 0 if passed else 1
 

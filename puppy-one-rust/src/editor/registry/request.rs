@@ -120,6 +120,7 @@ impl PartialEq for DocumentContext {
 }
 
 /// What the host hands a viewer to open (`PresetViewerRenderContext`, `RG-10`).
+#[derive(Clone)]
 pub struct SurfaceRequest<'a> {
     /// The document session id.
     pub id: &'a str,

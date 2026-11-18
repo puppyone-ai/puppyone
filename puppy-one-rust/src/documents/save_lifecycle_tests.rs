@@ -96,7 +96,13 @@ fn late_revision_during_drain(intent: Intent, latest: &str, dirty: bool) {
         if latest == "first" { 1 } else { 2 }
     );
     match intent {
-        Intent::CloseFile => assert!(d.document.is_none()),
+        Intent::CloseFile => {
+            assert!(d.document.is_none());
+            // Reopening reads the drained revision.
+            d.begin(Intent::OpenFile("note.md".into()), &wake);
+            wait(&mut d, &wake);
+            assert_eq!(d.document.as_ref().unwrap().text, latest);
+        }
         Intent::Quit => assert!(d.allow_quit),
         Intent::Save => {
             assert!(d.outgoing.contains(&HostMessage::Thaw));

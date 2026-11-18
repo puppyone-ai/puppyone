@@ -257,7 +257,7 @@ impl CsvEditor {
         }
     }
 
-    fn expand_to(
+    pub(super) fn expand_to(
         &mut self,
         data_rows: usize,
         columns: usize,

@@ -18154,11 +18154,391 @@
         }
       ],
       "environment": "GPUI test platform with a controllable in-memory text provider, plus macOS WKWebView probe processes for the bundled pages and installed whiteboard pack; no OS file watcher or live Cloud claim."
+    },
+    {
+      "id": "editor-document-lifetime",
+      "acceptance": "A cancelled window close thaws every retained copy in place: no editor is shown again (only Thaw reaches the hosts), observers stay live, and a later disk change still reaches the copy (the native runtime owners are the working copy's watch and I/O owners, not React task contexts). A document's history keeps its newest 200 steps and a pending redo when its view is destroyed and the next view of the same text attaches. For Markdown, plain text and Python, a saved edit survives destroying the whole host; reattaching writes nothing, and undo/redo on the new view each autosave once (alpha, then the edit). When storage changes a document whose view is gone, the next view shows the storage text, writes nothing more and has nothing to undo. Decided difference (ADR-013, DP-03): an external adoption while the view is alive is an undoable sealed step instead of a fresh history, so overwritten input can be recovered; the TS fresh-history behaviour holds only when no view saw the change.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/document-session/editorDocumentLifetime.integration.test.tsx",
+          "sha256": "26eb6b7d5ca68b67b8fbcf1cee840ec534e81abda54ad96887e76ec6aee55c08",
+          "cases": [
+            {
+              "index": 0,
+              "name": "restarts visible runtime owners after a cancelled window close without remounting the document"
+            },
+            {
+              "index": 1,
+              "name": "bounds active history while preserving the newest edits and retained redo"
+            },
+            {
+              "index": 2,
+              "name": "code document lifetime > retains undo/redo across view destruction without writing on reattach"
+            },
+            {
+              "index": 3,
+              "name": "code document lifetime > adopts Agent writes while hidden and starts a fresh undo history"
+            },
+            {
+              "index": 4,
+              "name": "markdown document lifetime > retains undo/redo across view destruction without writing on reattach"
+            },
+            {
+              "index": 5,
+              "name": "markdown document lifetime > adopts Agent writes while hidden and starts a fresh undo history"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::cancelling_a_window_close_thaws_all_retained_pending_snapshot_barriers"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::view::tests::a_bounded_history_keeps_its_newest_steps_and_redo_through_a_new_view"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::saved_local_history_survives_destroying_and_recreating_native_views"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::history_recorded_before_an_unseen_external_update_is_discarded"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::text::history::tests::external_adoption_is_its_own_sealed_undoable_step_and_preserves_prior_history"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_minimal_diff_reconcile_is_undoable_to_prior_draft"
+        }
+      ],
+      "environment": "Native GPUI test platform, a controllable in-memory text provider and the local workspace runtime with real files."
+    },
+    {
+      "id": "local-document-persistence",
+      "acceptance": "Local folders persist through the real document session and the local provider's conditional writes. A Markdown keyboard edit autosaves once to the real file after the typing pause, as does an HTML edit made in the source view chosen from the pane menu (source edit appended after the original bytes). In a CSV, a cell edit, an added field, an added record and a 2x2 size-picker growth each autosave the exact serialized table, and the grid shows 4 records of 5 fields. A newer revision typed while the first write is still in flight is captured and drained before close, and reopening reads it. A local edit whose save keeps failing (the folder refuses writes) keeps its text, dirty state and failure while the person opens another file and comes back; the file on disk is untouched. A Terminal or Agent change to an open Markdown file is adopted with one reread and no write, and unrelated paths do not reread. The native port has no TS expectedVersion field: the local provider's conditional write against the read revision is the counterpart, and its success is the observable.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/document-session/editorPaneExternalChange.integration.test.tsx",
+          "sha256": "652465524cc12dddcc254fb25f3c27fbac830cd3770c6a546cc7d937b4bc8246",
+          "cases": [
+            {
+              "index": 0,
+              "name": "split-pane external document change > adopts a Terminal or Agent filesystem edit while the Markdown pane stays open"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/editor/document-session/localCsvEditorPersistence.test.tsx",
+          "sha256": "57bd31ed45d64284365e65292d3aea7edaced890f47ef82664c2b9c562ccdffd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local CSV editor persistence > edits a spreadsheet-classified CSV and persists its serialized snapshot"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/editor/document-session/localHtmlEditorPersistence.test.tsx",
+          "sha256": "a4e0d587f02cfc984cbc7dd2b295839cb5ebeb297b80421a335dff23f73af6ff",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local HTML editor persistence > persists a CodeMirror source edit through DataWorkspace and the desktop bridge"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/editor/document-session/localMarkdownEditorPersistence.test.tsx",
+          "sha256": "b9e9ed61c3c925eb01c1363272b2130c0eb5f6a2ac558bc64d4b269fcdddb10a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local Markdown editor persistence > persists a real CodeMirror edit through DataWorkspace and the local desktop bridge"
+            },
+            {
+              "index": 1,
+              "name": "local Markdown editor persistence > drains the latest in-flight revision to disk before close and reloads it"
+            },
+            {
+              "index": 2,
+              "name": "local Markdown editor persistence > keeps failed local edits in their Working Copy across editor navigation"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::observed_disk_change_replaces_model_without_a_write_or_conflict_error"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::local_edit_waits_for_the_pause_then_snapshots_without_freezing_and_writes_real_file"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::drains_the_latest_revision_arriving_during_save_close_or_quit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::a_local_csv_persists_each_cell_and_structure_change"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::a_local_html_source_edit_persists_to_the_file"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::a_failing_save_keeps_its_edit_and_failure_across_switching_files"
+        }
+      ],
+      "environment": "Real temporary local folders in GPUI windows and the document coordinator, plus the in-memory text provider for watcher scoping."
+    },
+    {
+      "id": "editor-pane-registry",
+      "acceptance": "The product pane fixture matrix (EDITOR_PANE_CASES) resolves each fixture to its declared preset viewer, the fixtures cover every registered viewer plus the fallback exactly, and fixture ids are unique.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/runtime/editorPaneRegistry.integration.test.ts",
+          "sha256": "dd7f1537aaa31d9c88be7e0dbdeee2309ee1ff7a92816424880026fc05cee30c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Editor pane interaction fixture contract > requires every registered Viewer, including the fallback, in the Chromium matrix"
+            },
+            {
+              "index": 1,
+              "name": "Editor pane interaction fixture contract > 'context-map' selects its declared production Viewer"
+            },
+            {
+              "index": 2,
+              "name": "Editor pane interaction fixture contract > 'app' selects its declared production Viewer"
+            },
+            {
+              "index": 3,
+              "name": "Editor pane interaction fixture contract > 'markdown' selects its declared production Viewer"
+            },
+            {
+              "index": 4,
+              "name": "Editor pane interaction fixture contract > 'puppyflow' selects its declared production Viewer"
+            },
+            {
+              "index": 5,
+              "name": "Editor pane interaction fixture contract > 'json' selects its declared production Viewer"
+            },
+            {
+              "index": 6,
+              "name": "Editor pane interaction fixture contract > 'whiteboard' selects its declared production Viewer"
+            },
+            {
+              "index": 7,
+              "name": "Editor pane interaction fixture contract > 'csv' selects its declared production Viewer"
+            },
+            {
+              "index": 8,
+              "name": "Editor pane interaction fixture contract > 'tsv' selects its declared production Viewer"
+            },
+            {
+              "index": 9,
+              "name": "Editor pane interaction fixture contract > 'html' selects its declared production Viewer"
+            },
+            {
+              "index": 10,
+              "name": "Editor pane interaction fixture contract > 'image' selects its declared production Viewer"
+            },
+            {
+              "index": 11,
+              "name": "Editor pane interaction fixture contract > 'pdf' selects its declared production Viewer"
+            },
+            {
+              "index": 12,
+              "name": "Editor pane interaction fixture contract > 'database' selects its declared production Viewer"
+            },
+            {
+              "index": 13,
+              "name": "Editor pane interaction fixture contract > 'word' selects its declared production Viewer"
+            },
+            {
+              "index": 14,
+              "name": "Editor pane interaction fixture contract > 'spreadsheet' selects its declared production Viewer"
+            },
+            {
+              "index": 15,
+              "name": "Editor pane interaction fixture contract > 'presentation' selects its declared production Viewer"
+            },
+            {
+              "index": 16,
+              "name": "Editor pane interaction fixture contract > 'audio' selects its declared production Viewer"
+            },
+            {
+              "index": 17,
+              "name": "Editor pane interaction fixture contract > 'video' selects its declared production Viewer"
+            },
+            {
+              "index": 18,
+              "name": "Editor pane interaction fixture contract > 'text' selects its declared production Viewer"
+            },
+            {
+              "index": 19,
+              "name": "Editor pane interaction fixture contract > 'code' selects its declared production Viewer"
+            },
+            {
+              "index": 20,
+              "name": "Editor pane interaction fixture contract > 'fallback' selects its declared production Viewer"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::every_pane_fixture_selects_its_declared_viewer_and_all_viewers_are_covered",
+          "features": [
+            "dev-capture"
+          ]
+        }
+      ],
+      "environment": "local"
+    },
+    {
+      "id": "viewer-host-composition",
+      "acceptance": "A document no viewer renders stays on the preset placeholder: it names its kind (Binary file · GLB), keeps the file name out of the drawn summary and reads it out through a status role, and offers nothing to install. Cloud documents never route to a Viewer Pack and stay on the placeholder. A Viewer Pack surface receives only the document and its contribution: the document's model owner (undo history) is withheld from it and nothing is persisted.",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/runtime/viewerHost.integration.test.ts",
+          "sha256": "f61024608ae5425d4762b9bbe467025c2304a382d07258e9d7430ef7659fd989",
+          "cases": [
+            {
+              "index": 0,
+              "name": "preset viewer host composition > keeps an unknown document on the honest preset placeholder by default"
+            },
+            {
+              "index": 3,
+              "name": "preset viewer host composition > never offers local extension installation for cloud documents"
+            },
+            {
+              "index": 4,
+              "name": "preset viewer host composition > keeps the Document Session and persistence adapter outside Viewer Pack surfaces"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::an_unknown_document_stays_on_the_honest_placeholder",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::rg10_rg11_instance_context_drops_on_close_and_cloud_source_blocks_external_packs",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::installed_packs_render_placeholder_documents_through_the_host_port",
+          "features": [
+            "dev-capture"
+          ]
+        }
+      ],
+      "environment": "GPUI test platform with the production DocumentEditor host and accessibility observation"
     }
   ],
   "openAcceptance": [
     "Full assertion-level review of the remaining TS inventory",
     "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
     "Real Cloud and cross-device deployment acceptance"
+  ],
+  "knownDifferences": [
+    {
+      "id": "viewer-host-read-failure-card",
+      "kind": "gap",
+      "reason": "TS shows a failed read in the pane (Cannot open in editor, the read error, Open in default app) and announces loading as a status. Rust removes the unadmitted slot and reports the error in the window error dialog (Close, Retry when retryable); no content viewer mounts and loading draws no text, but neither the dialog nor the file window's Cannot open in editor state offers Open in default app, and neither loading state is announced to assistive technology.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/retained-runtime.md",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/runtime/viewerHost.integration.test.ts",
+          "sha256": "f61024608ae5425d4762b9bbe467025c2304a382d07258e9d7430ef7659fd989",
+          "cases": [
+            {
+              "index": 1,
+              "name": "preset viewer host composition > keeps loading non-visual and renders recoverable errors before mounting a content viewer"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "viewer-plugins-experimental",
+      "kind": "out-of-scope",
+      "reason": "The install fallback belongs to the Viewer Plugins experiment (enableViewerPlugins, default off in TS v0.4.4). Experiments that are off by default are out of scope; Rust ports the pack manifest and routing rules only.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/runtime/viewerHost.integration.test.ts",
+          "sha256": "f61024608ae5425d4762b9bbe467025c2304a382d07258e9d7430ef7659fd989",
+          "cases": [
+            {
+              "index": 2,
+              "name": "preset viewer host composition > invokes the external extension port only when the host explicitly provides it"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "multi-root-workspaces-experimental",
+      "kind": "out-of-scope",
+      "reason": "Multi-root workbenches belong to the multi-root workspaces experiment (enableMultiRootWorkspaces, default off in TS v0.4.4). Experiments that are off by default are out of scope; a Rust window binds one root.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/document-session/editorPaneMultiRootMutation.integration.test.tsx",
+          "sha256": "7e3f0152b302c4e994600d7c4addfd0aabed4b360a79bb7c8f266dbd25077341",
+          "cases": [
+            {
+              "index": 0,
+              "name": "P0 multi-root open-editor mutation delivery > reloads both same-name open files when two root events are React-batched into one render"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/editor/document-session/multiRootDocumentPersistence.integration.test.ts",
+          "sha256": "48750a022f63805952fb241a848449b6645f0307c8c0f556f02aff6b3ffc1720",
+          "cases": [
+            {
+              "index": 0,
+              "name": "multi-root document persistence > retains one dirty Working Copy when the primary Folder is detached"
+            },
+            {
+              "index": 1,
+              "name": "multi-root document persistence > persists and reopens same-named documents in two real Workspace roots without crossing providers"
+            }
+          ]
+        }
+      ]
+    }
   ]
 }

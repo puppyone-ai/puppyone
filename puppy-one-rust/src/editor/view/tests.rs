@@ -629,3 +629,60 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
         assert_eq!((s.from(), s.to()), (0, "中文 word".len()));
     });
 }
+
+/// The document's history stays within its step budget through a destroyed
+/// view: the newest 200 steps and a pending redo reach the next view.
+#[gpui::test]
+fn a_bounded_history_keeps_its_newest_steps_and_redo_through_a_new_view(cx: &mut TestAppContext) {
+    use crate::editor::{
+        document_session::models::DocumentModels,
+        text::{
+            change::ChangeSet,
+            history::MAX_STEPS,
+            state::{Transaction, UserEvent},
+        },
+    };
+    let models = DocumentModels::default();
+    let handle = models.handle();
+    let first = cx.update(|cx| {
+        cx.new(|cx| {
+            let mut view = EditorView::new("", plain(), cx);
+            view.attach_model(&handle);
+            view
+        })
+    });
+    first.update(cx, |view, cx| {
+        for _ in 0..220 {
+            let end = view.text().len();
+            view.dispatch(
+                Transaction::edit(ChangeSet::replace(end..end, "x"), None, UserEvent::Command),
+                cx,
+            );
+        }
+        view.undo(false, cx);
+        assert_eq!(view.text().len(), 219);
+    });
+    let released = first.downgrade();
+    drop(first);
+    // Dropped entities are released when the effect cycle ends.
+    cx.update(|_| {});
+    assert!(released.upgrade().is_none());
+    let second = cx.update(|cx| {
+        cx.new(|cx| {
+            let mut view = EditorView::new(&"x".repeat(219), plain(), cx);
+            view.attach_model(&handle);
+            view
+        })
+    });
+    second.update(cx, |view, cx| {
+        view.undo(true, cx);
+        assert_eq!(view.text().len(), 220, "the pending redo survived");
+        let mut undone = 0;
+        while view.history.can_undo() {
+            view.undo(false, cx);
+            undone += 1;
+        }
+        assert_eq!(undone, MAX_STEPS);
+        assert_eq!(view.text().len(), 220 - MAX_STEPS);
+    });
+}

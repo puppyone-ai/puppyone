@@ -982,6 +982,28 @@ impl CsvEditor {
         self.after_structure(change, window, cx);
     }
 
+    /// Window tests press the table's growth controls: the add-record and
+    /// add-field rails, and a size picker choice adding `rows` and `columns`.
+    #[cfg(feature = "test-support")]
+    pub fn press_add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.add_row(window, cx);
+    }
+    #[cfg(feature = "test-support")]
+    pub fn press_add_column(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.add_column(window, cx);
+    }
+    #[cfg(feature = "test-support")]
+    pub fn press_expand(
+        &mut self,
+        rows: usize,
+        columns: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (data_rows, all_columns) = (self.data_rows(), self.columns());
+        self.expand_to(data_rows + rows, all_columns + columns, window, cx);
+    }
+
     fn after_structure(&mut self, change: Change, window: &mut Window, cx: &mut Context<Self>) {
         if change.changed {
             self.sync_layout();

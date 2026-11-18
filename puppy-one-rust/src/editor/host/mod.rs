@@ -612,6 +612,7 @@ impl DocumentEditor {
 
     /// A placeholder-grade local document an installed pack renders, when
     /// the host can render packs (`EditorDocumentHost`'s plugin routes).
+    /// Pack surfaces see the document, never its working copy's models.
     fn extension_surface(
         &self,
         document: &EditorDocument,
@@ -621,6 +622,10 @@ impl DocumentEditor {
     ) -> Option<Box<dyn ViewerSurface>> {
         let host = self.extensions.as_ref()?;
         let render = host.surface?;
+        let request = &SurfaceRequest {
+            models: Default::default(),
+            ..request.clone()
+        };
         match route::route_for_document(document, &host.snapshot) {
             Route::Plugin(pack) => Some(render(request, pack, window, cx)),
             Route::Chooser(candidates) => Some(external::chooser(

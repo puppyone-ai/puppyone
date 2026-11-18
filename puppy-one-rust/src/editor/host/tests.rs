@@ -460,11 +460,21 @@ impl crate::editor::registry::ViewerSurface for PackProbe {
     }
 }
 fn pack_surface(
-    _: &crate::editor::registry::SurfaceRequest,
+    request: &crate::editor::registry::SurfaceRequest,
     pack: &crate::editor::registry::packs::PackContribution,
     _: &mut gpui::Window,
     _: &mut gpui::App,
 ) -> Box<dyn crate::editor::registry::ViewerSurface> {
+    // A pack never reaches the working copy: no models to attach to.
+    assert!(
+        request
+            .models
+            .attach::<()>(
+                crate::editor::document_session::models::ModelKind::Text,
+                |_| true
+            )
+            .is_none()
+    );
     PACK_SURFACES.with(|s| s.borrow_mut().push(pack.plugin_id.clone()));
     Box::new(PackProbe)
 }
@@ -506,6 +516,23 @@ fn installed_packs_render_placeholder_documents_through_the_host_port(cx: &mut T
             },
             surface: Some(pack_surface),
         }))
+    });
+    // The working copy hands the host its document models; the pack still
+    // never receives them (`pack_surface` asserts).
+    let models = crate::editor::document_session::models::DocumentModels::default();
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Context {
+                id: "2".into(),
+                context: crate::editor::registry::DocumentContext {
+                    source_kind: crate::editor::registry::SourceKind::Local,
+                    models: models.handle(),
+                    ..Default::default()
+                },
+            },
+            w,
+            cx,
+        )
     });
     open(&view, cx, "2", "scene/model.glb");
     assert_eq!(rendered(), vec!["a.glb"]);
@@ -1159,6 +1186,69 @@ fn rg02_rg03_oversized_opens_in_pane_card_and_large_text_locks_readonly_banner(
     });
 }
 
+/// `viewerHost` #0: a document no viewer renders stays on the honest preset
+/// placeholder. It names its kind ("Binary file · GLB"), shows the name only
+/// beside a preview image and gives it to assistive technology as a status;
+/// with no Viewer Pack installed there is nothing to install or route to.
+#[gpui::test]
+fn an_unknown_document_stays_on_the_honest_placeholder(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "notes.md", "# hi\n");
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Context {
+                id: "glb".into(),
+                context: crate::editor::registry::DocumentContext {
+                    source_kind: crate::editor::registry::SourceKind::Local,
+                    ..Default::default()
+                },
+            },
+            w,
+            cx,
+        );
+        v.receive(
+            &HostMessage::OpenResource {
+                id: "glb".into(),
+                name: "assets/scene.glb".into(),
+                path: crate::workspace::testing::preview("scene.glb"),
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |v, cx| {
+        assert_eq!(
+            v.session.as_ref().unwrap().viewer.id,
+            "document-placeholder"
+        );
+        let probe = v
+            .surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .special_surface(cx)
+            .unwrap();
+        assert_eq!(probe.kind, "placeholder");
+        assert!(
+            probe.detail.starts_with("Binary file · GLB"),
+            "{}",
+            probe.detail
+        );
+        assert!(!probe.detail.contains("scene.glb"), "{}", probe.detail);
+    });
+    // The name is read out, not drawn.
+    cx.update(|w, _| {
+        use gpui_kit::test::TestQueryExt;
+        let status: Vec<_> = w
+            .find_all_by_role(gpui::Role::Status)
+            .into_iter()
+            .filter_map(|element| element.label().map(str::to_owned))
+            .collect();
+        assert_eq!(status, ["scene.glb: preview unavailable"]);
+    });
+}
+
 #[gpui::test]
 fn rg10_rg11_instance_context_drops_on_close_and_cloud_source_blocks_external_packs(
     cx: &mut TestAppContext,
@@ -1257,6 +1347,13 @@ fn rg10_rg11_instance_context_drops_on_close_and_cloud_source_blocks_external_pa
             s.borrow().is_empty(),
             "RG-11: Cloud document must NOT activate external Viewer Pack"
         );
+    });
+    // It stays on the honest preset placeholder instead.
+    view.update(cx, |v, _| {
+        assert_eq!(
+            v.session.as_ref().unwrap().viewer.id,
+            "document-placeholder"
+        )
     });
 }
 

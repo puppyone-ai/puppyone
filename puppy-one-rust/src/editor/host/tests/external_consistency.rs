@@ -508,6 +508,14 @@ impl<'a> Matrix<'a> {
         host.update_in(self.cx, |h, w, cx| h.command(command, w, cx));
         self.tick();
     }
+    /// Lets the typing pause pass so autosave writes `text`.
+    fn autosave(&mut self, text: String) {
+        assert!(self.docs.dirty);
+        self.now += Duration::from_secs(5);
+        self.until(|m| !m.docs.dirty && !m.docs.saving() && !m.docs.busy());
+        let path = self.fixture.path;
+        assert_eq!(self.storage.files.lock().unwrap()[path].text, text);
+    }
     fn save(&mut self) {
         self.docs.begin(Intent::Save, &self.wake);
         self.until(|m| !m.docs.dirty && !m.docs.saving() && !m.docs.busy());
@@ -644,11 +652,18 @@ fn saved_local_history_survives_destroying_and_recreating_native_views(cx: &mut 
             // As in the product's matrix, the page's history is its source's.
             m.show_html_source();
         }
+        assert_eq!(
+            m.storage.writes.lock().unwrap().len(),
+            1,
+            "reattaching wrote"
+        );
         m.history(false);
         m.assert_shown("alpha");
+        m.autosave(fixture.text("alpha"));
         m.history(true);
         m.assert_shown("human");
-        assert_eq!(m.storage.writes.lock().unwrap().len(), 1);
+        m.autosave(fixture.text("human"));
+        assert_eq!(m.storage.writes.lock().unwrap().len(), 3);
     }
 }
 
