@@ -21273,6 +21273,505 @@
         }
       ],
       "environment": "the shipped theme sources; the pinned product checkout for the copy check"
+    },
+    {
+      "id": "agent-activity-hooks",
+      "acceptance": "Activity names only workspace-relative paths: reads resolve inside the canonicalized workspace (whatever form its root was given in), a missing target is public only as a write, and traversal and links out are dropped; frames with unsafe input are rejected. A tool call claims its files until it ends, and closing the terminal, ending the session or expiry cancel its claims, while foreign providers and unknown sessions claim nothing. The local socket accepts one verified frame per connection and a token belongs to one session and provider; a real Hook process turns a provider event into one authenticated frame, and a terminal Agent's reads reach its window. Every Hook stays off until the person enables it; enabling adds only Puppyone-owned entries (Codex, Claude, Cursor CLI schema) and disabling restores the file; invalid or user-changed entries and unknown config versions are never overwritten but reported for repair, and a moved bridge needs repair until refreshed. The bridge is the app's own hook executable named directly, with no shell interpolation.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/activity/electron.agent-activity-contract.test.mjs",
+          "sha256": "2ba6046599e058e60249c28a4687bd1742de8edc7f67b996559fd811e6fa1c85",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent activity public contract > accepts relative metadata and rejects absolute path leakage"
+            },
+            {
+              "index": 1,
+              "name": "Agent activity path policy > canonicalizes reads and nonexistent write targets inside the workspace"
+            },
+            {
+              "index": 2,
+              "name": "Agent activity path policy > canonicalizes the workspace root before enforcing the containment boundary"
+            },
+            {
+              "index": 3,
+              "name": "Agent activity path policy > rejects traversal and symlink escape"
+            },
+            {
+              "index": 4,
+              "name": "Agent activity broker > publishes sanitized starts and correlates terminal events to their owner"
+            },
+            {
+              "index": 5,
+              "name": "Agent activity broker > clears outstanding claims when the terminal closes"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/agent/activity/electron.agent-activity-ingest.test.mjs",
+          "sha256": "0fbf76454d66fb6aa70e5fb52ec34792f13e87bb04085ea4a12375c74a5beaad",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent activity local ingest > accepts one authenticated local frame and rejects a stale token"
+            },
+            {
+              "index": 1,
+              "name": "Agent activity local ingest > carries versioned Codex read and write Hooks through the real socket into editor-safe activity"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/agent/activity/electron.agent-activity-registration.test.mjs",
+          "sha256": "e603d45db163a40c45f2173c218dc66f70ab5385bd475d33bf2494f6f20a5488",
+          "cases": [
+            {
+              "index": 0,
+              "name": "owned Agent activity Hook registration > keeps every Hook off in a fresh profile until the user explicitly enables one"
+            },
+            {
+              "index": 1,
+              "name": "owned Agent activity Hook registration > merges and removes only Puppyone-owned Codex handlers"
+            },
+            {
+              "index": 2,
+              "name": "owned Agent activity Hook registration > preserves a user-edited owned entry and reports repair"
+            },
+            {
+              "index": 3,
+              "name": "owned Agent activity Hook registration > merges idempotent Cursor CLI handlers without changing user Hooks"
+            },
+            {
+              "index": 4,
+              "name": "owned Agent activity Hook registration > refuses to overwrite a modified Cursor CLI handler or unknown config version"
+            },
+            {
+              "index": 5,
+              "name": "owned Agent activity Hook registration > exposes Cursor CLI as configurable through the batch registration service"
+            },
+            {
+              "index": 6,
+              "name": "owned Agent activity Hook registration > repairs an outdated installed bridge before an enrolled Agent session starts"
+            },
+            {
+              "index": 7,
+              "name": "owned Agent activity Hook registration > creates an Electron-as-Node bridge command without shell interpolation"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::path_policy::tests::only_paths_inside_the_workspace_become_public"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::projector::tests::frames_with_unsafe_input_are_rejected"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::projector::tests::a_claude_tool_event_keeps_only_paths_and_identity"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::projector::tests::patches_shell_reads_and_nested_fields_project_paths"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::service::tests::a_tool_call_claims_its_files_until_it_finishes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::service::tests::closing_ending_and_expiry_cancel_claims"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::service::tests::foreign_providers_unknown_sessions_and_empty_targets_claim_nothing"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::transport::tests::the_socket_accepts_one_verified_frame_per_connection"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::transport::tests::tokens_belong_to_one_session_and_provider"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::hook::tests::a_hook_event_becomes_one_authenticated_frame"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::hook::tests::outside_a_prepared_terminal_or_with_bad_input_nothing_is_sent"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::host::tests::an_enabled_hook_reports_a_terminal_agents_file_reads_to_its_window"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::registration::tests::enabling_adds_only_owned_entries_and_disabling_restores_the_file"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::registration::tests::a_missing_config_is_created_and_a_moved_bridge_needs_repair"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::registration::tests::invalid_or_changed_entries_are_never_overwritten"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::registration::tests::cursor_hooks_use_the_cli_schema"
+        }
+      ],
+      "environment": "temporary workspaces, real Unix sockets, real Hook processes and temporary home directories"
+    },
+    {
+      "id": "agent-reference-delivery-authority",
+      "acceptance": "A pathless image is delivered through the Agent service's authorization to every native image encoder; a granted file becomes an owner-bound, one-use snapshot; grants from another window and raw external workspace paths are refused; staged grants stay with the workspace that staged them when a window owns several; a portable workspace identity resolves against the session's assigned root at send time; a failed turn releases its lease so the unchanged draft can retry. Image bytes are bounded before they are read, inline sources and budgets are enforced by the service and shared across staging calls, pathless images get the same private snapshot and owner-bound lease. A project that is not open fails with a structured operation failure and the draft is kept; an image removed, reset or disposed during staging is not resurrected and a late staged grant is released; a late resolution after reset is discarded. Rust has no preload or renderer memory: GPUI hands images to the service directly, and there are no project generations, only windows and their roots.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/references/electron.agent-reference-ipc.test.mjs",
+          "sha256": "a23cca30be9f0636c5ff92de25e53ddb3e70c8d2c26f542700597664620b3e13",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent reference IPC authorization > delivers a pathless image through Main authorization to every native image encoder"
+            },
+            {
+              "index": 1,
+              "name": "Agent reference IPC authorization > turns a preload file grant into an owner-bound, one-use snapshot"
+            },
+            {
+              "index": 2,
+              "name": "Agent reference IPC authorization > rejects cross-window grants and raw external workspace paths"
+            },
+            {
+              "index": 3,
+              "name": "Agent reference IPC authorization > keeps staged grants isolated when one window owns multiple workspaces"
+            },
+            {
+              "index": 4,
+              "name": "Agent reference IPC authorization > resolves one portable workspace identity against the assigned Session/worktree root at send time"
+            },
+            {
+              "index": 5,
+              "name": "Agent reference IPC authorization > releases a failed turn lease so the unchanged draft can retry"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/agent/references/electron.agent-attachment-preload.test.mjs",
+          "sha256": "6501851c6526ca14e558cf48a39aaa062788b94509478be10c8c0f42dbdcff25",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent attachment preload acquisition > stages a pathless clipboard image as bytes instead of rejecting a missing path"
+            },
+            {
+              "index": 1,
+              "name": "Agent attachment preload acquisition > keeps the native path route and never reads an OS file into renderer memory"
+            },
+            {
+              "index": 2,
+              "name": "Agent attachment preload acquisition > preserves source order when native and virtual files are mixed"
+            },
+            {
+              "index": 3,
+              "name": "Agent attachment preload acquisition > bounds pathless bytes before reading them and rejects non-File inputs"
+            },
+            {
+              "index": 4,
+              "name": "Agent attachment preload acquisition > shares the in-flight byte budget across calls and releases it after a read failure"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/agent/references/desktop-agent.project-reference-ingestion.test.ts",
+          "sha256": "00c3ad81694aa9dd00744135067a27bd129ce29418981a309286af2c5a05cdb2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project-scoped production attachment chain > stages and submits a native image through the project client, preload and Main"
+            },
+            {
+              "index": 1,
+              "name": "project-scoped production attachment chain > stages and submits a pathless image through the project client, preload and Main"
+            },
+            {
+              "index": 2,
+              "name": "project-scoped production attachment chain > retains a structured missing project failure and never dispatches the draft"
+            },
+            {
+              "index": 3,
+              "name": "project-scoped production attachment chain > retains a structured stale project failure and never dispatches the draft"
+            },
+            {
+              "index": 4,
+              "name": "project-scoped production attachment chain > retains a structured other-window project failure and never dispatches the draft"
+            },
+            {
+              "index": 5,
+              "name": "project-scoped production attachment chain > retains a structured wrong-root project failure and never dispatches the draft"
+            },
+            {
+              "index": 6,
+              "name": "project-scoped production attachment chain > retains a structured closed project failure and never dispatches the draft"
+            },
+            {
+              "index": 7,
+              "name": "project-scoped production attachment chain > does not acquire a new project generation when a pathless read finishes after close/reopen"
+            },
+            {
+              "index": 8,
+              "name": "project-scoped production attachment chain > releases a late staged grant after its pending image was removed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::delivers_a_pathless_image_through_main_authorization_to_every_native_image_encoder"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::turns_a_preload_file_grant_into_an_owner_bound_one_use_snapshot"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::rejects_cross_window_grants_and_raw_external_workspace_paths"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::keeps_staged_grants_isolated_when_one_window_owns_multiple_workspaces"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::resolves_one_portable_workspace_identity_against_the_assigned_session_root_at_send_time"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::releases_a_failed_turn_lease_so_the_unchanged_draft_can_retry"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::structured_operation_failures_survive_transport_without_private_native_state"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::gives_pathless_images_the_same_private_snapshot_deduplication_and_owner_bound_lease"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::validates_inline_sources_and_enforces_their_byte_budget_in_main"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::enforces_aggregate_count_and_byte_budgets_across_separate_staging_calls"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::shares_one_byte_and_file_count_budget_across_attachments_and_context"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::does_not_resurrect_an_image_removed_reset_or_disposed_during_staging",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::discards_a_late_resolution_after_reset_and_releases_its_preview",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::preserves_the_structured_failure_reason",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::publishes_each_completed_image_without_removing_its_pending_sibling",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::infrastructure::host::tests::an_unopened_project_fails_with_the_structured_operation_failure",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::continues_a_degraded_turn_without_consuming_the_draft_or_references",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "the Agent service and attachment store over temporary workspaces; desktop Agent controllers"
+    },
+    {
+      "id": "agent-runtime-integration",
+      "acceptance": "The ACP workspace file delegate reads bounded line windows, writes only regular workspace files, and refuses traversal, link escapes, binary and oversized text. A second runtime (the TypeScript fixture) runs through the Agent service with its own capabilities, unknown ones dropped, and its events stamped with its own id. The built-in Agent discovers only its bundled exact-version kernel, keeps provider credentials while stripping user launch overrides and removing credentials from shells the model can call, streams a prompt through the kernel, blocks paths outside the project, asks before a mutation and decodes only its private approval envelope. Create and resume roots are authorized before the service acts, and the bridge registers every handler with fail-closed steering and questions. Native backends register independently, an explicit selection is never replaced, and a discovery failure stays with its backend. Rust's built-in Agent kernel is native rather than a Pi SDK worker.",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/runtimes/acp/electron.acp-workspace-files.test.mjs",
+          "sha256": "7d3803e676f21b0977a17746cf7afb104b8a52b1c4c0db61342951e2e1dc9b72",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ACP workspace file delegate > reads bounded line windows and writes only regular workspace files"
+            },
+            {
+              "index": 1,
+              "name": "ACP workspace file delegate > rejects traversal and symlink escapes for reads, parents and targets"
+            },
+            {
+              "index": 2,
+              "name": "ACP workspace file delegate > rejects binary and oversized text payloads"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/agent/runtimes/electron.agent-runtime-contract.test.mjs",
+          "sha256": "b9a47ebfcde70758ed441142815906f4c1e924faa393964d18520e3da15c44f8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "provider-neutral AgentRuntimePort contract > runs a second fake harness through AgentService without runtime-name lifecycle branches"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/agent/runtimes/puppyone-agent/electron.puppyone-pi-kernel.test.mjs",
+          "sha256": "be7231cf2844b4ddf5789f8d38cdb49183ea9e78b26ddc7d4bf858411fe538a1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Built-in Agent Pi SDK kernel > discovers only the bundled, exact-version SDK worker"
+            },
+            {
+              "index": 1,
+              "name": "Built-in Agent Pi SDK kernel > keeps provider credentials but strips user Pi and PuppyOne launch overrides"
+            },
+            {
+              "index": 2,
+              "name": "Built-in Agent Pi SDK kernel > removes provider credentials from model-callable shell subprocesses"
+            },
+            {
+              "index": 3,
+              "name": "Built-in Agent Pi SDK kernel > starts a real SDK session runtime with the managed tool configuration"
+            },
+            {
+              "index": 4,
+              "name": "Built-in Agent Pi SDK kernel > blocks paths outside the project and emits an owned approval envelope for mutations"
+            },
+            {
+              "index": 5,
+              "name": "Built-in Agent Pi SDK kernel > maps only the private worker confirm into a correlated shared approval"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/agent/security/electron.agent-ipc-authorization.test.mjs",
+          "sha256": "54ed8fee9d6f5f06a66c55a29a82d6a720c8249997c580418d3fe74dd20b7d37",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent IPC workspace authorization > authorizes create and resume roots before invoking the service"
+            },
+            {
+              "index": 1,
+              "name": "Agent IPC workspace authorization > registers the full bridge list, including fail-closed steer and question handlers"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/agent/sessions/electron.agent-production-composition.test.mjs",
+          "sha256": "b78246dfd985bd80eb74d8cf2a44e75be391e33f43dee2b7829da1347ad46c2f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent production composition > registers independent native backends and never silently replaces an explicit selection"
+            },
+            {
+              "index": 1,
+              "name": "Agent production composition > isolates discovery failure to the backend that failed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::security::tests::reads_bounded_line_windows_and_writes_only_regular_workspace_files"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::security::tests::rejects_traversal_and_symlink_escapes_for_reads_parents_and_targets"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::security::tests::rejects_binary_and_oversized_text_payloads"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::runtime_contract::a_second_runtime_runs_through_the_service_without_name_branches"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::discovers_only_the_bundled_exact_version_sdk_worker"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::keeps_provider_credentials_but_strips_user_pi_and_puppyone_launch_overrides"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::removes_provider_credentials_from_model_callable_shell_subprocesses"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::maps_only_the_private_worker_confirm_into_a_correlated_shared_approval"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::decodes_only_the_versioned_private_approval_envelope"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::native_kernel::tests::a_prompt_streams_through_the_kernel_and_settles"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::native_kernel::tests::a_declined_command_never_runs_and_a_path_outside_the_project_ends_the_prompt"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::native_kernel::tests::a_write_waits_for_approval_and_reports_its_change"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tools::tests::workspace_tool_escape_and_ambiguous_edit_are_rejected"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::authorizes_create_and_resume_roots_before_invoking_the_service"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::registers_the_full_bridge_list_including_fail_closed_steer_and_question_handlers"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::bootstrap::create_agent_runtime_host::tests::registers_independent_native_backends_and_never_silently_replaces_an_explicit_selection"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::bootstrap::create_agent_runtime_host::tests::isolates_discovery_failure_to_the_backend_that_failed"
+        }
+      ],
+      "environment": "temporary workspaces; the native kernel against a scripted loopback model service; fixture runtimes"
     }
   ],
   "openAcceptance": [
@@ -23022,6 +23521,84 @@
             {
               "index": 6,
               "name": "Project appearance IPC > broadcasts committed local changes to every live window"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-native-agent-smoke-harness",
+      "kind": "out-of-scope",
+      "reason": "These test the TS repository's live reference-visibility smoke harness against a scripted session feed: its per-runtime negotiated input sets, content-token checks, fixtures, failure redaction, runtime selection and timeouts. They exercise test tooling, not the product. Rust's live runtime verification is tools/verify-agent-runtimes.py (handshakes and, with --live, real inference turns), and how each runtime delivers references into its native input is covered by the runtime adapters' own tests.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/integration/agent/references/nativeAgentReferenceSmokeRunner.test.mjs",
+          "sha256": "1068c968ba29a3b6c845505cd7c0373b56ca45c69662d9a931fed1ae413a7e74",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native Agent reference visibility smoke > proves only the negotiated codex input set is model-visible"
+            },
+            {
+              "index": 1,
+              "name": "native Agent reference visibility smoke > proves only the negotiated claude input set is model-visible"
+            },
+            {
+              "index": 2,
+              "name": "native Agent reference visibility smoke > proves only the negotiated cursor input set is model-visible"
+            },
+            {
+              "index": 3,
+              "name": "native Agent reference visibility smoke > proves only the negotiated opencode-native input set is model-visible"
+            },
+            {
+              "index": 4,
+              "name": "native Agent reference visibility smoke > proves only the negotiated pi input set is model-visible"
+            },
+            {
+              "index": 5,
+              "name": "native Agent reference visibility smoke > proves only the negotiated workbuddy-china input set is model-visible"
+            },
+            {
+              "index": 6,
+              "name": "native Agent reference visibility smoke > proves only the negotiated workbuddy-international input set is model-visible"
+            },
+            {
+              "index": 7,
+              "name": "native Agent reference visibility smoke > proves only the negotiated hermes input set is model-visible"
+            },
+            {
+              "index": 8,
+              "name": "native Agent reference visibility smoke > degrades to workspace-path verification when optional ACP inputs were not negotiated"
+            },
+            {
+              "index": 9,
+              "name": "native Agent reference visibility smoke > fails when a native turn completes without every submitted content token"
+            },
+            {
+              "index": 10,
+              "name": "native Agent reference visibility smoke > uses another unsupported semantic kind when a runtime accepts binary path mentions"
+            },
+            {
+              "index": 11,
+              "name": "native Agent reference visibility smoke > requires an explicit selected model before claiming service visibility"
+            },
+            {
+              "index": 12,
+              "name": "native Agent reference visibility smoke > does not retain provider diagnostics, fixture paths or content tokens in failures"
+            },
+            {
+              "index": 13,
+              "name": "native Agent reference visibility smoke > creates bounded real PNG, workspace, text and unsupported fixtures outside the prompt"
+            },
+            {
+              "index": 14,
+              "name": "native Agent smoke runtime selection > keeps every shipped Harness in one shared smoke inventory"
+            },
+            {
+              "index": 15,
+              "name": "native Agent smoke runtime selection > bounds live-service timeouts and readiness output"
             }
           ]
         }

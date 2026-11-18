@@ -7,6 +7,8 @@ pub mod harness;
 #[cfg(test)]
 mod requests;
 #[cfg(test)]
+mod runtime_contract;
+#[cfg(test)]
 mod service;
 
 #[cfg(test)]
