@@ -990,3 +990,55 @@ fn finder_drops_open_only_one_file_of_this_workspace(cx: &mut TestAppContext) {
         }
     });
 }
+/// `workspace-files-ipc`: Open in default app on a file that may run code
+/// asks in the window's own dialog first; Cancel opens nothing, Open opens
+/// that file.
+#[gpui::test]
+fn opening_a_script_in_its_default_app_asks_first(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("run.command"), "echo hello\n").unwrap();
+    let opened = crate::platform::desktop::record_opens();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !view.read_with(cx, |s, cx| ready(s, cx)) {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                assert!(std::time::Instant::now() < deadline, "did not settle");
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+            draw(cx);
+        };
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(temp.path().into())))
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFile("run.command".into())))
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).opened().is_some());
+    for (button, opens) in [
+        ("viewer-question-decline", 0),
+        ("viewer-question-accept", 1),
+    ] {
+        command(&view, cx, Command::OpenExternal);
+        view.read_with(cx, |s, cx| {
+            assert!(s.dialogs.read(cx).contains(DialogKey::Question), "{button}")
+        });
+        assert!(
+            opened.borrow().is_empty(),
+            "nothing opens before the answer"
+        );
+        let at = cx.debug_bounds(button).unwrap().center();
+        cx.simulate_click(at, Modifiers::none());
+        cx.run_until_parked();
+        draw(cx);
+        assert_eq!(opened.borrow().len(), opens, "{button}");
+    }
+    assert!(opened.borrow()[0].ends_with("run.command"));
+}

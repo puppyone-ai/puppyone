@@ -425,10 +425,16 @@ impl DatabaseView {
         }
     }
     fn open_external(&mut self, cx: &mut Context<Self>) {
-        if let Some(path) = self.local_path()
-            && crate::platform::desktop::open(&path).is_err()
-        {
-            self.fail(Failure::Unavailable, cx);
+        if let Some(path) = self.local_path() {
+            let view = cx.weak_entity();
+            crate::editor::question::open_external(
+                None,
+                path,
+                move |_, cx| {
+                    let _ = view.update(cx, |v, cx| v.fail(Failure::Unavailable, cx));
+                },
+                cx,
+            );
         }
     }
 }

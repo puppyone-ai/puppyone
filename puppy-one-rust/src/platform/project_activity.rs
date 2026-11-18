@@ -61,8 +61,10 @@ pub fn last_modified(root: &Path) -> Option<SystemTime> {
             continue;
         }
         // A deletion or rename changes its nearest surviving parent.
+        // A deleted entry counts by its nearest remaining folder, the root
+        // itself when nothing of its path is left.
         let mut path = Some(relative);
-        while let Some(candidate) = path.filter(|p| !p.as_os_str().is_empty()) {
+        while let Some(candidate) = path {
             if let Ok(metadata) = fs::symlink_metadata(root.join(candidate)) {
                 latest = latest.max(changed_at(&metadata));
                 break;
@@ -215,5 +217,71 @@ mod tests {
         fs::write(temp.path().join("b.md"), "b").unwrap();
         let edited = last_modified(temp.path()).unwrap();
         assert!(edited > UNIX_EPOCH + Duration::from_secs(1_000_000_000));
+    }
+    /// `workspace.activity`: every kind of working-tree change counts, the
+    /// read never changes what Git reports, and internal folders and links
+    /// are left out of a plain folder's newest time.
+    #[test]
+    fn working_tree_changes_count_without_mutating_git_and_links_are_skipped() {
+        for kind in ["modified", "untracked", "deleted", "renamed"] {
+            let temp = tempfile::tempdir().unwrap();
+            let git = |args: &[&str]| {
+                std::process::Command::new("/usr/bin/git")
+                    .args(["-c", "core.hooksPath=/dev/null"])
+                    .args(args)
+                    .current_dir(temp.path())
+                    .env("GIT_AUTHOR_NAME", "t")
+                    .env("GIT_AUTHOR_EMAIL", "t@example.com")
+                    .env("GIT_COMMITTER_NAME", "t")
+                    .env("GIT_COMMITTER_EMAIL", "t@example.com")
+                    .env("GIT_AUTHOR_DATE", "2001-01-01T00:00:00Z")
+                    .env("GIT_COMMITTER_DATE", "2001-01-01T00:00:00Z")
+                    .output()
+                    .unwrap()
+                    .stdout
+            };
+            git(&["init", "-q"]);
+            fs::create_dir(temp.path().join("docs")).unwrap();
+            fs::write(temp.path().join("docs/note.md"), "initial").unwrap();
+            git(&["add", "."]);
+            git(&["commit", "-qm", "fixture"]);
+            match kind {
+                "modified" => fs::write(temp.path().join("docs/note.md"), "edited").unwrap(),
+                "untracked" => {
+                    fs::write(temp.path().join("a file\nwith newline.md"), "new").unwrap()
+                }
+                "deleted" => fs::remove_dir_all(temp.path().join("docs")).unwrap(),
+                _ => {
+                    git(&["mv", "docs/note.md", "docs/renamed.md"]);
+                }
+            }
+            let before = git(&["status", "--porcelain=v2", "-z"]);
+            let index = fs::read(temp.path().join(".git/index")).ok();
+            let modified = last_modified(temp.path()).expect(kind);
+            assert!(
+                modified > UNIX_EPOCH + Duration::from_secs(1_577_836_800),
+                "{kind}"
+            );
+            assert_eq!(git(&["status", "--porcelain=v2", "-z"]), before, "{kind}");
+            assert_eq!(
+                fs::read(temp.path().join(".git/index")).ok(),
+                index,
+                "{kind}"
+            );
+        }
+        let temp = tempfile::tempdir().unwrap();
+        fs::create_dir(temp.path().join("notes")).unwrap();
+        fs::write(temp.path().join("notes/a.md"), "a").unwrap();
+        let old = UNIX_EPOCH + Duration::from_secs(1_577_836_800);
+        fs::File::options()
+            .write(true)
+            .open(temp.path().join("notes/a.md"))
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        fs::create_dir(temp.path().join(".puppyone")).unwrap();
+        fs::write(temp.path().join(".puppyone/state.json"), "{}").unwrap();
+        std::os::unix::fs::symlink(std::env::temp_dir(), temp.path().join("outside")).unwrap();
+        assert_eq!(last_modified(temp.path()), Some(old));
     }
 }

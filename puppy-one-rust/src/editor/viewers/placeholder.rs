@@ -219,8 +219,13 @@ impl Render for OversizedCard {
                 Button::new("oversized-open-default")
                     .variant(ButtonVariant::Secondary)
                     .label(t("editor.openDefaultApp"))
-                    .on_click(move |_, _, _| {
-                        let _ = crate::platform::desktop::open(&path);
+                    .on_click(move |_, window, cx| {
+                        crate::editor::question::open_external(
+                            Some(window.window_handle()),
+                            path.clone(),
+                            |_, _| {},
+                            cx,
+                        );
                     })
                     .into_any_element(),
             );
@@ -361,8 +366,13 @@ impl Render for FaultedCard {
                 Button::new("faulted-open-default")
                     .variant(ButtonVariant::Secondary)
                     .label(t("editor.openDefaultApp"))
-                    .on_click(move |_, _, _| {
-                        let _ = crate::platform::desktop::open(&path);
+                    .on_click(move |_, window, cx| {
+                        crate::editor::question::open_external(
+                            Some(window.window_handle()),
+                            path.clone(),
+                            |_, _| {},
+                            cx,
+                        );
                     })
                     .into_any_element(),
             );
@@ -614,9 +624,14 @@ impl DocumentPreview {
         cx.notify();
     }
 
-    fn open_in_default_app(&self) {
+    fn open_in_default_app(&self, window: &Window, cx: &mut App) {
         if let Some(path) = &self.local_path {
-            let _ = crate::platform::desktop::open(path);
+            crate::editor::question::open_external(
+                Some(window.window_handle()),
+                path.clone(),
+                |_, _| {},
+                cx,
+            );
         }
     }
 
@@ -657,7 +672,7 @@ impl Render for DocumentPreview {
             Button::new("placeholder-open-default")
                 .variant(ButtonVariant::Secondary)
                 .label(t("editor.openDefaultApp"))
-                .on_click(cx.listener(|v, _, _, _| v.open_in_default_app()))
+                .on_click(cx.listener(|v, _, window, cx| v.open_in_default_app(window, cx)))
         });
 
         let card = if let Some(thumb) = &self.thumbnail {

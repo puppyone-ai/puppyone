@@ -132,3 +132,58 @@ fn same_name_documents_in_two_roots_are_invalidated_only_by_their_own_root() {
     );
     assert!(beta_watch.next().is_none());
 }
+
+/// `directoryTreeWatch`: the root's recursive watch keeps naming a file
+/// through repeated atomic saves and in-place writes, in an existing
+/// folder and in folders created after it started; after it is dropped
+/// nothing more arrives.
+#[test]
+fn the_root_watch_names_files_through_atomic_saves_and_new_nested_folders() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    std::fs::create_dir(root.join("existing")).unwrap();
+    let ws = Workspace::open_with(&root, true).unwrap();
+    let (tx, rx) = mpsc::channel();
+    let watch = ws
+        .watch_root(Arc::new(move || {
+            let _ = tx.send(());
+        }))
+        .unwrap();
+    let names = |path: &str| {
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            rx.recv_timeout(left)
+                .unwrap_or_else(|_| panic!("{path} was never named"));
+            match watch.next() {
+                Some(WatchEvent::Changed(paths))
+                    if paths.iter().any(|p| p.as_path() == Path::new(path)) =>
+                {
+                    return;
+                }
+                Some(WatchEvent::Invalidated) => return,
+                _ => {}
+            }
+        }
+    };
+    for folder in ["existing", "created/nested"] {
+        std::fs::create_dir_all(root.join(folder)).unwrap();
+        let file = format!("{folder}/board.excalidraw");
+        std::fs::write(root.join(&file), "initial").unwrap();
+        names(&file);
+        for index in 0..3 {
+            let temporary = root.join(folder).join(format!("save-{index}.tmp"));
+            std::fs::write(&temporary, format!("saved-{index}")).unwrap();
+            std::fs::rename(&temporary, root.join(&file)).unwrap();
+            names(&file);
+            std::fs::write(root.join(&file), format!("agent-{index}")).unwrap();
+            names(&file);
+        }
+    }
+    drop(watch);
+    // The worker drops its callback with the subscription.
+    assert_eq!(
+        rx.recv_timeout(Duration::from_secs(5)),
+        Err(RecvTimeoutError::Disconnected)
+    );
+}

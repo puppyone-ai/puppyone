@@ -1035,8 +1035,13 @@ impl FileWindow {
         let place = vec![
             MenuItem::new(tr("fileMode.html.openInBrowser"))
                 .icon("globe-2")
-                .on_click(move |_, _| {
-                    let _ = desktop::open(&browser_path);
+                .on_click(move |window, cx| {
+                    crate::editor::question::open_external(
+                        Some(window.window_handle()),
+                        browser_path.clone(),
+                        |_, _| {},
+                        cx,
+                    );
                 }),
             MenuItem::new(tr("fileMode.html.revealInFinder"))
                 .product_icon(ProductIcon::Folder)

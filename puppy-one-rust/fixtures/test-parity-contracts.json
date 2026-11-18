@@ -19695,6 +19695,415 @@
         }
       ],
       "environment": "local temporary telemetry directories"
+    },
+    {
+      "id": "workspace-file-authority",
+      "acceptance": "A window's file actions reach only its own workspace: Office previews get a private snapshot with no sibling access; a save's echo is recognised by content so only the writer ignores it; a conditional save over newer bytes returns the latest text instead of overwriting, and a missing target fails as not found; Markdown asset access belongs to the open document instance and is released with it, and only media and the document itself are readable; the local preview protocol resolves a unique macOS screenshot-space alias while exact names stay authoritative; a hosted workspace offers no local file actions or paths; links and paths outside the workspace are refused before anything is read; rename, move, copy, import and delete stay inside the grant; Open in default app goes through the system and a file that may run code asks first and is checked again after the answer; a conversion is cancelled when its view goes and its private files are removed. Rust has no renderer process, so authority is held by the window's own objects rather than checked against an IPC sender.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
+          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
+          "cases": [
+            {
+              "index": 2,
+              "name": "workspace file IPC authorization > leases bounded projections without writing the file or granting adjacent-resource authority"
+            },
+            {
+              "index": 6,
+              "name": "workspace file IPC authorization > attributes a successful editor write to its originating window"
+            },
+            {
+              "index": 7,
+              "name": "workspace file IPC authorization > returns a structured conflict with the latest bytes instead of throwing Error metadata"
+            },
+            {
+              "index": 8,
+              "name": "workspace file IPC authorization > returns a structured not-found failure and never attributes a failed write"
+            },
+            {
+              "index": 10,
+              "name": "workspace file IPC authorization > issues unique Markdown asset leases and only their sender can revoke them"
+            },
+            {
+              "index": 11,
+              "name": "workspace file IPC authorization > resolves a unique macOS screenshot-space alias only for Markdown assets"
+            },
+            {
+              "index": 12,
+              "name": "workspace file IPC authorization > rejects local file operations when the sender has no local workspace"
+            },
+            {
+              "index": 13,
+              "name": "workspace file IPC authorization > rejects direct symbolic-link access before revealing or reading the target"
+            },
+            {
+              "index": 14,
+              "name": "workspace file IPC authorization > copies only inside the sender-authorized workspace"
+            },
+            {
+              "index": 15,
+              "name": "workspace file IPC authorization > always delegates external file opening to the system default app"
+            },
+            {
+              "index": 16,
+              "name": "workspace file IPC authorization > cannot bypass executable confirmation and revalidates after the dialog"
+            },
+            {
+              "index": 17,
+              "name": "workspace file IPC authorization > cancels an in-flight Office conversion and removes the completed session"
+            },
+            {
+              "index": 20,
+              "name": "workspace file IPC authorization > aborts and cleans up Office conversions when their renderer is destroyed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_admission_grants_a_private_snapshot_without_sibling_file_access",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::only_the_writer_ignores_its_save_echo_and_a_newer_write_is_adopted",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::external_modification_does_not_get_overwritten"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::local_provider_roundtrip_preserves_encoding_conflicts_and_operations"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::rg10_rg11_instance_context_drops_on_close_and_cloud_source_blocks_external_packs",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window_access::bound_file_markdown_assets_allow_only_media_and_the_bound_document"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_display_aliases_are_unique_and_exact_names_remain_authoritative"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::live_files_share_the_facade_without_a_local_root_or_git_fallback"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::resources_outside_the_workspace_or_through_symlinks_are_refused",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::rename_move_copy_import_and_delete_stay_inside_the_grant"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::desktop::tests::scripts_and_executable_files_ask_and_links_are_never_opened"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::question::tests::executables_ask_first_and_are_checked_again_after_the_answer",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::opening_a_script_in_its_default_app_asks_first"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::lifetime_tests::disposing_the_view_cancels_the_same_token_observed_by_its_worker",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::successful_conversion_returns_warnings_and_removes_its_private_snapshot"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::cancellation_keeps_temporary_files_until_the_owned_child_has_exited"
+        }
+      ],
+      "environment": "local temporary folders; GPUI test platform for the app and viewers; the system open is recorded instead of launching apps"
+    },
+    {
+      "id": "workspace-file-operations",
+      "acceptance": "Local file operations: text reads back with its metadata and a conditional save; the workspace config is written atomically as a private regular file inside the workspace and a linked .puppyone is refused for reads and writes; listings are relative with folders first, and the Homepage previews read only visible top-level files; Office families keep their extension-specific MIME types; an entry is classified by stat without reading its content; copies keep exact names, duplicates get the registered suffix, and an import never overwrites or follows a relative source.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
+          "sha256": "558e501f335a47c312f74ff5283ec50f01e60a24539cd82ab24bb8570493c6cb",
+          "cases": [
+            {
+              "index": 15,
+              "name": "read / write round-trips > reads back text content with metadata"
+            },
+            {
+              "index": 32,
+              "name": "workspace config containment > writes config atomically as a regular in-workspace file"
+            },
+            {
+              "index": 34,
+              "name": "workspace config containment > rejects a symlinked config directory instead of reading or writing outside"
+            },
+            {
+              "index": 35,
+              "name": "listFolderChildren > lists entries folders-first then alphabetical, with content preview for small files"
+            },
+            {
+              "index": 36,
+              "name": "listFolderChildren > publishes the concrete MIME for each Office family extension"
+            },
+            {
+              "index": 38,
+              "name": "resolveWorkspaceNode > classifies one file or folder without loading preview content"
+            },
+            {
+              "index": 57,
+              "name": "copyWorkspaceEntry > honors a safe preferred name and an explicit duplicate-name request"
+            },
+            {
+              "index": 61,
+              "name": "importWorkspaceEntries > imports one source under a validated preferred name without overwriting another asset"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::local_provider_roundtrip_preserves_encoding_conflicts_and_operations"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::workspace_config::tests::writes_are_atomic_private_and_round_trip"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::workspace_config::tests::a_linked_config_directory_is_refused_for_reads_and_writes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::lists_are_relative_and_directories_sort_first"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::home::previews::tests::local_previews_read_only_visible_top_level_files"
+        },
+        {
+          "package": "po-contracts",
+          "test": "formats::tests::office_families_keep_extension_specific_mime_types"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::stat_entry_and_read_head_work_on_files_exceeding_text_limit"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::copy_keeps_exact_names_compound_extensions_and_every_recursive_source_byte"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::whiteboard_text_admission_and_duplicate_names_keep_the_full_registered_suffix"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::import_rejects_relative_sources_and_name_collisions_without_touching_either_file"
+        }
+      ],
+      "environment": "local temporary folders"
+    },
+    {
+      "id": "homepage-project-activity",
+      "acceptance": "The Homepage's modification time is read without changing Git: a clean checkout reports its commit time, never the opening time; modified, untracked (even with a newline in its name), deleted and renamed working-tree changes count, a deletion by its nearest remaining folder; a plain folder reports its newest nested file while skipping internal folders and links; past the scan budget the time is unknown; an empty folder has none.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspace.activity.integration.test.mjs",
+          "sha256": "28171549d8319c017a5305ff9f7527e6ac441d57496b03451159554cdf640107",
+          "cases": [
+            {
+              "index": 0,
+              "name": "read-only Homepage local modification metadata > uses the committed content time for a clean checkout, never the current opening time"
+            },
+            {
+              "index": 1,
+              "name": "read-only Homepage local modification metadata > includes modified working-tree changes without mutating Git"
+            },
+            {
+              "index": 2,
+              "name": "read-only Homepage local modification metadata > includes untracked working-tree changes without mutating Git"
+            },
+            {
+              "index": 3,
+              "name": "read-only Homepage local modification metadata > includes deleted working-tree changes without mutating Git"
+            },
+            {
+              "index": 4,
+              "name": "read-only Homepage local modification metadata > includes renamed working-tree changes without mutating Git"
+            },
+            {
+              "index": 5,
+              "name": "read-only Homepage local modification metadata > reads nested ordinary-folder file mtimes while excluding internal folders and symlinks"
+            },
+            {
+              "index": 6,
+              "name": "read-only Homepage local modification metadata > reports unknown rather than a misleading partial date when the scan budget is exceeded"
+            },
+            {
+              "index": 7,
+              "name": "read-only Homepage local modification metadata > does not manufacture an update time for an empty folder"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::project_activity::tests::a_repository_counts_its_commit_and_its_changes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::project_activity::tests::working_tree_changes_count_without_mutating_git_and_links_are_skipped"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::project_activity::tests::a_plain_folder_reports_its_newest_file_and_skips_internal_entries"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::project_activity::tests::too_many_entries_is_unknown"
+        }
+      ],
+      "environment": "real temporary Git repositories and folders"
+    },
+    {
+      "id": "workspace-text-encoding",
+      "acceptance": "UTF-8 text, with or without a byte order mark, reads as UTF-8 (the mark is kept on save); bytes no decoder fits are not guessed: they decode with U+FFFD replacement as lossy and stay read-only, and saving them is refused without touching the file.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspace.text-encoding.test.mjs",
+          "sha256": "1bff7f703acb2eea8856db3a8b8698d524143e07e2c74258786c604b828b9e14",
+          "cases": [
+            {
+              "index": 0,
+              "name": "reading text files of unknown encoding > reports UTF-8, including a byte order mark"
+            },
+            {
+              "index": 3,
+              "name": "reading text files of unknown encoding > does not guess when no decoder fits"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::bom_crlf_and_final_newline_are_preserved"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::local_provider_roundtrip_preserves_encoding_conflicts_and_operations"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::a_file_windows_folder_reads_legacy_text_and_never_writes_it"
+        }
+      ],
+      "environment": "local temporary files"
+    },
+    {
+      "id": "workspace-root-watch-atomic-saves",
+      "acceptance": "The root's recursive watch keeps naming a file through repeated atomic saves (write and rename) and in-place writes, in an existing folder and in folders created after the watch started; dropping it stops every notification.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/directoryTreeWatch.test.mjs",
+          "sha256": "c781f436f04c5362d765f0b6c7d4d18a93f023676fd28274609e467d4fdf3b32",
+          "cases": [
+            {
+              "index": 0,
+              "name": "directory-based recursive file notifications > keeps reporting external edits after repeated atomic saves, including new nested folders"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_watch_parity_tests::the_root_watch_names_files_through_atomic_saves_and_new_nested_folders"
+        }
+      ],
+      "environment": "real temporary folders with the native file watcher"
+    },
+    {
+      "id": "workspace-resource-delivery",
+      "acceptance": "Dragged workspace entries resolve through the workspace they came from, so equal relative paths in different projects stay distinct and the receiving root is never joined; paths outside the workspace and links are refused; a drag without a local source workspace is refused rather than bound to the receiver; native file exports start only for absolute, bounded file lists.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/electron.workspace-resource-delivery.test.mjs",
+          "sha256": "20ac132550e16415208256b68c7624ec40cf971293b4563bca5515448968fe53",
+          "cases": [
+            {
+              "index": 0,
+              "name": "resource delivery ownership > resolves equal relative paths independently of the receiving root"
+            },
+            {
+              "index": 1,
+              "name": "resource delivery ownership > rejects unknown owners, other windows, traversal and symlink escape"
+            },
+            {
+              "index": 3,
+              "name": "resource delivery ownership > exports multiple native files only after source authorization"
+            },
+            {
+              "index": 5,
+              "name": "resource delivery ownership > refuses to bind an ambiguous legacy drag to the receiving terminal root"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::tests::dragged_entries_resolve_through_their_own_workspace"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::resources_outside_the_workspace_or_through_symlinks_are_refused",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::drag_out::tests::only_absolute_bounded_file_lists_start"
+        }
+      ],
+      "environment": "local temporary folders; GPUI terminal drop handling"
     }
   ],
   "openAcceptance": [
@@ -19734,38 +20143,6 @@
             {
               "index": 2,
               "name": "preset viewer host composition > invokes the external extension port only when the host explicitly provides it"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "multi-root-workspaces-experimental",
-      "kind": "out-of-scope",
-      "reason": "Multi-root workbenches belong to the multi-root workspaces experiment (enableMultiRootWorkspaces, default off in TS v0.4.4). Experiments that are off by default are out of scope; a Rust window binds one root.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/editor/document-session/editorPaneMultiRootMutation.integration.test.tsx",
-          "sha256": "7e3f0152b302c4e994600d7c4addfd0aabed4b360a79bb7c8f266dbd25077341",
-          "cases": [
-            {
-              "index": 0,
-              "name": "P0 multi-root open-editor mutation delivery > reloads both same-name open files when two root events are React-batched into one render"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/editor/document-session/multiRootDocumentPersistence.integration.test.ts",
-          "sha256": "48750a022f63805952fb241a848449b6645f0307c8c0f556f02aff6b3ffc1720",
-          "cases": [
-            {
-              "index": 0,
-              "name": "multi-root document persistence > retains one dirty Working Copy when the primary Folder is detached"
-            },
-            {
-              "index": 1,
-              "name": "multi-root document persistence > persists and reopens same-named documents in two real Workspace roots without crossing providers"
             }
           ]
         }
@@ -20516,6 +20893,376 @@
             {
               "index": 0,
               "name": "Cloud initialization telemetry > emits only the structured allowlist and truncates commit identifiers"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-ipc-sender-authorization",
+      "kind": "out-of-scope",
+      "reason": "These check the Electron main process against its renderers: roots and session ids a renderer supplies, sender-owned capabilities and cancellations, and recent paths a renderer asks to open. The native app is one process with no renderer; each window's workspace, terminals and viewers hold their own authority, so there is no sender to spoof (process model recorded as an intentional difference).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/access/electron.workspace-authorization.test.mjs",
+          "sha256": "bcd2c974ffc6d1ec42b7d2da2a6c84a58aa25b53c10cacd4a9e9d577f884db40",
+          "cases": [
+            {
+              "index": 8,
+              "name": "sender-bound workspace authorization > canonicalizes the assigned root, accepts only an alias of that root, and rejects no-workspace senders"
+            },
+            {
+              "index": 9,
+              "name": "sender-bound workspace authorization > realpaths working directories and rejects a symlink escaping the workspace"
+            },
+            {
+              "index": 10,
+              "name": "sender-bound workspace authorization > blocks an arbitrary root across Git, watch, AI review, App Preview, and terminal create"
+            },
+            {
+              "index": 11,
+              "name": "sender-bound workspace authorization > passes the canonical root to App Preview and the sender to terminal mutations"
+            },
+            {
+              "index": 12,
+              "name": "recent workspace authorization > allows open-current/open-new only for main-persisted recent paths"
+            },
+            {
+              "index": 18,
+              "name": "terminal session ownership > requires a workspace and prevents another sender from input, resize, close, or id replacement"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
+          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
+          "cases": [
+            {
+              "index": 1,
+              "name": "workspace file IPC authorization > rejects a spoofed renderer root for every workspace file handler"
+            },
+            {
+              "index": 3,
+              "name": "workspace file IPC authorization > issues a matching immutable HTML snapshot and rejects a stale text version"
+            },
+            {
+              "index": 4,
+              "name": "workspace file IPC authorization > uses the sender workspace and accepts a renderer root that resolves to the same directory"
+            },
+            {
+              "index": 9,
+              "name": "workspace file IPC authorization > issues a sender-owned URL capability scoped to the exact file"
+            },
+            {
+              "index": 18,
+              "name": "workspace file IPC authorization > does not let another renderer cancel an Office conversion"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "multi-root-workspaces-experimental",
+      "kind": "out-of-scope",
+      "reason": "Multi-root workbenches belong to the multi-root workspaces experiment (enableMultiRootWorkspaces, default off in TS v0.4.4). Experiments that are off by default are out of scope; a Rust window binds one root.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/editor/document-session/editorPaneMultiRootMutation.integration.test.tsx",
+          "sha256": "7e3f0152b302c4e994600d7c4addfd0aabed4b360a79bb7c8f266dbd25077341",
+          "cases": [
+            {
+              "index": 0,
+              "name": "P0 multi-root open-editor mutation delivery > reloads both same-name open files when two root events are React-batched into one render"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/editor/document-session/multiRootDocumentPersistence.integration.test.ts",
+          "sha256": "48750a022f63805952fb241a848449b6645f0307c8c0f556f02aff6b3ffc1720",
+          "cases": [
+            {
+              "index": 0,
+              "name": "multi-root document persistence > retains one dirty Working Copy when the primary Folder is detached"
+            },
+            {
+              "index": 1,
+              "name": "multi-root document persistence > persists and reopens same-named documents in two real Workspace roots without crossing providers"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/access/electron.workspace-authorization.test.mjs",
+          "sha256": "bcd2c974ffc6d1ec42b7d2da2a6c84a58aa25b53c10cacd4a9e9d577f884db40",
+          "cases": [
+            {
+              "index": 0,
+              "name": "sender-bound workspace authorization > authorizes any explicitly requested Root in a sender capability set"
+            },
+            {
+              "index": 1,
+              "name": "sender-bound workspace authorization > starts 2 Terminals against their explicit Folders when several Roots are attached"
+            },
+            {
+              "index": 2,
+              "name": "sender-bound workspace authorization > starts 3 Terminals against their explicit Folders when several Roots are attached"
+            },
+            {
+              "index": 3,
+              "name": "sender-bound workspace authorization > rejects an ambiguous Terminal request before process creation with 2 attached Roots"
+            },
+            {
+              "index": 4,
+              "name": "sender-bound workspace authorization > rejects an ambiguous Terminal request before process creation with 3 attached Roots"
+            },
+            {
+              "index": 5,
+              "name": "sender-bound workspace authorization > rejects an unassigned explicit Folder before process creation with 2 attached Roots"
+            },
+            {
+              "index": 6,
+              "name": "sender-bound workspace authorization > rejects an unassigned explicit Folder before process creation with 3 attached Roots"
+            },
+            {
+              "index": 7,
+              "name": "sender-bound workspace authorization > keeps a window's folders usable when another of its folders is gone, and never authorizes the gone one"
+            },
+            {
+              "index": 13,
+              "name": "terminal session ownership > rejects a Terminal cwd from a sibling Folder with 2 attached Roots before PTY spawn"
+            },
+            {
+              "index": 14,
+              "name": "terminal session ownership > rejects a Terminal cwd from a sibling Folder with 3 attached Roots before PTY spawn"
+            },
+            {
+              "index": 15,
+              "name": "terminal session ownership > keeps 2 concurrent Terminal sessions independently addressable for one window"
+            },
+            {
+              "index": 16,
+              "name": "terminal session ownership > keeps 3 concurrent Terminal sessions independently addressable for one window"
+            },
+            {
+              "index": 17,
+              "name": "terminal session ownership > closes two sessions for one Workspace Folder without touching a third in a sibling Root"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
+          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
+          "cases": [
+            {
+              "index": 5,
+              "name": "workspace file IPC authorization > authorizes both ends of a cross-root copy"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
+          "sha256": "558e501f335a47c312f74ff5283ec50f01e60a24539cd82ab24bb8570493c6cb",
+          "cases": [
+            {
+              "index": 49,
+              "name": "copyWorkspaceEntry > copies a file between two authorized workspace roots"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lossless-legacy-encodings-dp32",
+      "kind": "out-of-scope",
+      "reason": "Decision DP-32: project and file windows treat lossless encodings alike, so GB18030 and UTF-16 with a BOM are read and saved in their own encoding in every window. TS keeps project reads as unknown text, decodes legacy Chinese only for a read-only host, and treats UTF-16 as binary; those cases are superseded.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/target-architecture.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspace.text-encoding.test.mjs",
+          "sha256": "1bff7f703acb2eea8856db3a8b8698d524143e07e2c74258786c604b828b9e14",
+          "cases": [
+            {
+              "index": 1,
+              "name": "reading text files of unknown encoding > keeps project reads unchanged while flagging text it cannot round-trip"
+            },
+            {
+              "index": 2,
+              "name": "reading text files of unknown encoding > decodes legacy Chinese text for a read-only host"
+            },
+            {
+              "index": 4,
+              "name": "reading text files of unknown encoding > leaves binary content unread"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "office-binary-writer-unused",
+      "kind": "out-of-scope",
+      "reason": "The binary Office writer is a local-API helper no product path calls in TS v0.4.4; Office documents are read-only previews in both products.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/office.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
+          "sha256": "558e501f335a47c312f74ff5283ec50f01e60a24539cd82ab24bb8570493c6cb",
+          "cases": [
+            {
+              "index": 19,
+              "name": "read / write round-trips > uses the same conditional atomic writer for binary Office bytes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "workspace-instance-identity",
+      "kind": "gap",
+      "reason": "TS gives each checkout a local workspace instance id that survives renaming the folder and differs between clones, without writing .puppyone into an uninitialized folder, and keeps project identity out of the shared config. Rust keys a project by its canonical path, so a renamed folder is a new project and there is no per-checkout instance id.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspace.fs.integration.test.mjs",
+          "sha256": "558e501f335a47c312f74ff5283ec50f01e60a24539cd82ab24bb8570493c6cb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspaceFromPath > returns identity for a real folder"
+            },
+            {
+              "index": 6,
+              "name": "workspaceFromPath > does not mutate an uninitialized folder and preserves instance identity across a rename"
+            },
+            {
+              "index": 33,
+              "name": "workspace config containment > keeps shared config free of Project identity while assigning each checkout a local instance"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai-edit-review",
+      "kind": "gap",
+      "reason": "TS keeps an edit-review baseline of the workspace and shows the AI response changes card (created, modified and deleted files with diffs, absorbed edits, ignored VCS and dependency folders, no traversal or links), and a save or rename succeeds even if that bookkeeping fails. Rust has no edit-review baseline or changes card.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/source-control/diff/edit-review.integration.test.mjs",
+          "sha256": "17086ce6e391c650380f135ac1a6102b1e7280c3eb0ecbb4a7eb384276fe0bc6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "baseline + no-op > returns null when nothing has changed since the baseline"
+            },
+            {
+              "index": 1,
+              "name": "change detection > captures a modified file as a review request with a diff"
+            },
+            {
+              "index": 2,
+              "name": "change detection > captures a newly created file as status 'created'"
+            },
+            {
+              "index": 3,
+              "name": "change detection > captures a deleted file as status 'deleted'"
+            },
+            {
+              "index": 4,
+              "name": "change detection > advances the baseline: a second flush with no new edits returns null"
+            },
+            {
+              "index": 5,
+              "name": "change detection > full-scan (empty note path) reports every changed file"
+            },
+            {
+              "index": 6,
+              "name": "absorb (accept into baseline) > absorbed edits are not re-reported"
+            },
+            {
+              "index": 7,
+              "name": "latest request + ignored paths > exposes the latest request and ignores VCS/dependency dirs"
+            },
+            {
+              "index": 8,
+              "name": "path-traversal containment > rejects noting a path outside the workspace root"
+            },
+            {
+              "index": 9,
+              "name": "path-traversal containment > never snapshots or reports a symbolic link to an external file"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
+          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace file IPC authorization > acknowledges a committed save and rename even if review bookkeeping fails"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "office-conversion-concurrency",
+      "kind": "gap",
+      "reason": "TS caps concurrent Office conversions per window and cleans up each finished session. Rust cleans each conversion's private files (covered by workspace-file-authority) but has no per-window limit on concurrent textutil conversions.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/office.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
+          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
+          "cases": [
+            {
+              "index": 19,
+              "name": "workspace file IPC authorization > cleans up successful conversions and enforces the per-window concurrency limit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "slides-workspace-template",
+      "kind": "gap",
+      "reason": "Creating a Slides App bundle from the built-in workspace template (atomic, collision-safe, validated ids) is not in Rust: Create offers Context Map only (recorded gap: new Slides, App and PuppyFlow).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/workspaceTemplates.test.mjs",
+          "sha256": "cb486678c33da6a387a768c01cd86deeed2f76e7c63b1966be71c75a7a9d025f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "built-in Slides workspace template > atomically creates a portable, configured PuppyOne App bundle"
+            },
+            {
+              "index": 1,
+              "name": "built-in Slides workspace template > keeps both bundles on name collision and leaves no partial output on validation failure"
+            },
+            {
+              "index": 2,
+              "name": "built-in Slides workspace template > rejects traversal and unknown template ids before writing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "homepage-project-drag-out",
+      "kind": "gap",
+      "reason": "TS exports a project root through the external-only drag channel only after checking it is a registered project. Rust's Homepage row drag-out has no test that an unregistered path is refused.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer/drag-and-drop.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/electron.workspace-resource-delivery.test.mjs",
+          "sha256": "20ac132550e16415208256b68c7624ec40cf971293b4563bca5515448968fe53",
+          "cases": [
+            {
+              "index": 4,
+              "name": "resource delivery ownership > exports a registered Project root through the external-only drag channel"
             }
           ]
         }

@@ -416,6 +416,34 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o777, 0o600);
         }
+        let saved_meta = fs::symlink_metadata(root.join(DIR).join(FILE)).unwrap();
+        assert!(
+            saved_meta.file_type().is_file(),
+            "a regular file in the workspace"
+        );
         let _ = fs::remove_dir_all(root);
+    }
+
+    /// `workspace config containment`: a `.puppyone` that is a link is
+    /// neither read nor written through.
+    #[cfg(unix)]
+    #[test]
+    fn a_linked_config_directory_is_refused_for_reads_and_writes() {
+        let root = tempfile::tempdir().unwrap();
+        let external = tempfile::tempdir().unwrap();
+        let target = external.path().join("config-target");
+        fs::create_dir(&target).unwrap();
+        fs::write(target.join(FILE), r#"{"project":{"name":"secret"}}"#).unwrap();
+        std::os::unix::fs::symlink(&target, root.path().join(DIR)).unwrap();
+        assert!(read(root.path()).unwrap_err().contains("real directory"));
+        assert!(
+            write(root.path(), &WorkspaceConfig::default())
+                .unwrap_err()
+                .contains("real directory")
+        );
+        assert_eq!(
+            fs::read_to_string(target.join(FILE)).unwrap(),
+            r#"{"project":{"name":"secret"}}"#
+        );
     }
 }

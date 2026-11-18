@@ -212,7 +212,9 @@ mod lifetime_tests {
         input
     }
     fn wait_ready(path: &Path) -> String {
-        let deadline = Instant::now() + Duration::from_secs(4);
+        // Readiness only: macOS checks a new script on its first run, which
+        // can take seconds on a loaded machine.
+        let deadline = Instant::now() + Duration::from_secs(15);
         loop {
             if let Ok(s) = std::fs::read_to_string(path)
                 && !s.trim().is_empty()

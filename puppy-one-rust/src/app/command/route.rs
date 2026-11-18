@@ -206,9 +206,16 @@ impl Shell {
                 {
                     match ws.absolute(relative) {
                         Ok(path) => {
-                            if let Err(e) = crate::platform::desktop::open(&path) {
-                                self.show_error(e, cx);
-                            }
+                            let shell = cx.weak_entity();
+                            let failed = move |e: String, cx: &mut App| {
+                                let _ = shell.update(cx, |s, cx| s.show_error(e, cx));
+                            };
+                            crate::editor::question::open_external(
+                                Some(window.window_handle()),
+                                path,
+                                failed,
+                                cx,
+                            );
                         }
                         Err(e) => self.show_error(e.to_string(), cx),
                     }

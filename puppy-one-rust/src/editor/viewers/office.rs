@@ -438,7 +438,7 @@ impl OfficeView {
         match message {
             Inbound::OpenExternal => {
                 if let Some(path) = self.local_path() {
-                    let _ = crate::platform::desktop::open(&path);
+                    crate::editor::question::open_external(None, path, |_, _| {}, cx);
                 }
             }
             Inbound::OpenUrl { url } => {
