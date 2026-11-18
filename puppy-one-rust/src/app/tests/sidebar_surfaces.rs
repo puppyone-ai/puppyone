@@ -257,3 +257,39 @@ fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
         assert!(!s.sidebar.read(cx).cloud_history.read(cx).is_open());
     });
 }
+
+/// `AuxiliaryPanelHost.contentVisible`: the workbench presents its items
+/// only while the open sidebar shows it; closing the sidebar or switching
+/// it to Changes withdraws them, reopening restores them.
+#[gpui::test]
+fn the_workbench_is_visible_only_while_the_open_sidebar_shows_it(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let visible = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        view.read_with(cx, |s, cx| {
+            let shows = s.right_shows(Surface::Agent, cx);
+            let visible = s.sidebar.read(cx).workbench.read(cx).content_visible();
+            assert_eq!(visible, shows);
+            visible
+        })
+    };
+    let initially = visible(&view, cx);
+    command(&view, cx, Command::ToggleRightSidebar);
+    assert_ne!(visible(&view, cx), initially);
+    if !visible(&view, cx) {
+        command(&view, cx, Command::ToggleRightSidebar);
+    }
+    assert!(visible(&view, cx), "open on the workbench");
+    let dir = tempfile::tempdir().unwrap();
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
+        });
+    });
+    command(&view, cx, Command::Changes);
+    assert!(!visible(&view, cx), "Changes replaces the workbench");
+    command(&view, cx, Command::ToggleRightSidebar);
+    assert!(visible(&view, cx), "back on the workbench");
+    command(&view, cx, Command::ToggleRightSidebar);
+    assert!(!visible(&view, cx), "closed");
+}

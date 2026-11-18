@@ -22,6 +22,7 @@ mod folder_availability;
 mod home_groups;
 mod homepage;
 mod other_computers;
+mod pane_actions;
 mod pane_layout;
 mod project_lifecycle;
 mod save_status;

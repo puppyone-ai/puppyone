@@ -717,11 +717,7 @@ impl EditorArea {
                             IconButton::new(SharedString::from(format!("close-empty-{id}")), "x")
                                 .label(crate::localization::t("editor.panes.closePane"))
                                 .on_click(cx.listener(move |s, _, w, cx| {
-                                    s.docs.update(cx, |d, _| {
-                                        if let Some(mut state) = d.state_mut() {
-                                            state.close_pane(&close);
-                                        }
-                                    });
+                                    s.docs.update(cx, |d, _| d.close_pane(&close));
                                     s.sync(w, cx);
                                 })),
                         ),

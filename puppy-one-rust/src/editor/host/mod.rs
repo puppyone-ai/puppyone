@@ -1408,6 +1408,18 @@ impl DocumentEditor {
         }
     }
 
+    /// Tests: whether the pane menu is open, and whether keyboard focus is
+    /// in the document.
+    #[cfg(any(feature = "dev-capture", feature = "test-support"))]
+    pub fn lab_focus(&self, window: &Window, cx: &App) -> (bool, bool) {
+        let document = self
+            .surface
+            .as_ref()
+            .and_then(|s| s.focus_handle(cx))
+            .is_some_and(|handle| handle.contains_focused(window, cx));
+        (self.chrome.open, document)
+    }
+
     #[cfg(any(test, feature = "test-support"))]
     pub fn lab_deliver_html_ipc(&self, body: &str, cx: &mut App) {
         if let Some(probe) = self.surface.as_ref().and_then(|s| s.as_test_probe()) {

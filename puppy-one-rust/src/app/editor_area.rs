@@ -96,6 +96,13 @@ pub(super) struct EditorArea {
 impl EventEmitter<EditorEvent> for EditorArea {}
 
 impl EditorArea {
+    /// The editor whose pane menu is open, if any.
+    pub fn open_pane_menu(&self, cx: &App) -> Option<Entity<DocumentEditor>> {
+        self.hosts
+            .values()
+            .find(|editor| editor.read(cx).pane_menu_open())
+            .cloned()
+    }
     pub fn new(
         docs: Entity<DocumentSession>,
         explorer: Entity<ExplorerSession>,
@@ -457,17 +464,23 @@ impl EditorArea {
                 if let ClientMessage::Action { action } = event {
                     if s.docs.read(cx).visible_slots().contains(&slot) && !s.gate.modal {
                         s.focus_slot(slot, cx);
-                        if action == "close-file" {
+                        let close = action == "close-file";
+                        if close {
                             s.docs.update(cx, |d, _| {
-                                if let Some(mut state) = d.state_mut() {
-                                    let active = state.layout.active.clone();
-                                    state.close_pane(&active);
+                                if let Some(active) = d.state().map(|s| s.layout.active.clone()) {
+                                    d.close_pane(&active);
                                 }
                             });
                         } else if let Some(command) = Command::from_protocol(action) {
                             cx.emit(EditorEvent::Command(command));
                         }
                         s.sync(window, cx);
+                        // The closed pane held the focus (its menu): the
+                        // pane that becomes active takes it.
+                        if close && s.docs.read(cx).active_slot() != 0 {
+                            s.front
+                                .update(cx, |editor, cx| editor.focus_document(window, cx));
+                        }
                     }
                 } else {
                     let normalized = matches!(event, ClientMessage::NormalizeLineEndings { .. });

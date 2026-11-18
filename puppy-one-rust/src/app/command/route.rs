@@ -270,6 +270,11 @@ impl Shell {
                 });
             }
             // With no dialog open, Escape closes a menu, external drop prompt, or Cloud conflict comparison.
+            Command::Escape if self.editor.read(cx).open_pane_menu(cx).is_some() => {
+                if let Some(editor) = self.editor.read(cx).open_pane_menu(cx) {
+                    editor.update(cx, |e, cx| e.dismiss_pane_menu(window, cx));
+                }
+            }
             Command::Escape if self.editor.read(cx).pending_external_drop.is_some() => {
                 self.editor.update(cx, |e, cx| e.dismiss_external_drop(cx));
             }

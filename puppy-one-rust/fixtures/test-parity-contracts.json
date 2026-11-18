@@ -18727,6 +18727,141 @@
         }
       ],
       "environment": "local temporary files; bundled PDFium; GPUI test platform for the viewer"
+    },
+    {
+      "id": "workbench-pane-menu-actions",
+      "acceptance": "In horizontal and vertical splits, closing either pane from its own pane menu, whichever pane was active, leaves one pane: the survivor becomes active, keeps the same DocumentEditor, takes the keyboard focus, and keeps its edit with working undo and redo; closing the last pane leaves an empty pane. Escape closes the pane menu without changing the layout and returns focus to the pane's document (the GPUI pane handle is a hover control, not a tab stop, so the document takes the focus TS gives the trigger). A document whose read lands after its loading pane closed never fills or replaces a pane; it stays open as a tab, as closing a pane does not close documents in Rust.",
+      "typescript": [
+        {
+          "path": "tests/integration/workbench/layout/editorPaneActions.integration.test.tsx",
+          "sha256": "79ba591215d4fff7be3c3a39761a09fc3c2732c94c6ea4ae917d92d79eb4924b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "horizontal pane menu to controller integration > closes pane +0 while pane +0 was active and retains the survivor's model/history"
+            },
+            {
+              "index": 1,
+              "name": "horizontal pane menu to controller integration > closes pane +0 while pane 1 was active and retains the survivor's model/history"
+            },
+            {
+              "index": 2,
+              "name": "horizontal pane menu to controller integration > closes pane 1 while pane +0 was active and retains the survivor's model/history"
+            },
+            {
+              "index": 3,
+              "name": "horizontal pane menu to controller integration > closes pane 1 while pane 1 was active and retains the survivor's model/history"
+            },
+            {
+              "index": 4,
+              "name": "horizontal pane menu to controller integration > dismisses the menu with Escape, restores its trigger focus and leaves both panes intact"
+            },
+            {
+              "index": 5,
+              "name": "horizontal pane menu to controller integration > ignores a late read after its loading pane is closed through the menu"
+            },
+            {
+              "index": 6,
+              "name": "vertical pane menu to controller integration > closes pane +0 while pane +0 was active and retains the survivor's model/history"
+            },
+            {
+              "index": 7,
+              "name": "vertical pane menu to controller integration > closes pane +0 while pane 1 was active and retains the survivor's model/history"
+            },
+            {
+              "index": 8,
+              "name": "vertical pane menu to controller integration > closes pane 1 while pane +0 was active and retains the survivor's model/history"
+            },
+            {
+              "index": 9,
+              "name": "vertical pane menu to controller integration > closes pane 1 while pane 1 was active and retains the survivor's model/history"
+            },
+            {
+              "index": 10,
+              "name": "vertical pane menu to controller integration > dismisses the menu with Escape, restores its trigger focus and leaves both panes intact"
+            },
+            {
+              "index": 11,
+              "name": "vertical pane menu to controller integration > ignores a late read after its loading pane is closed through the menu"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::tests::pane_actions::closing_either_pane_from_its_menu_keeps_the_survivor_and_its_history",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::pane_actions::escape_dismisses_the_pane_menu_and_leaves_both_panes",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::pane_actions::a_read_landing_after_its_pane_closed_cannot_fill_a_pane",
+          "target": "puppy-one-rust"
+        }
+      ],
+      "environment": "GPUI test platform with the production Shell, real temporary folders and keyboard dispatch through the window's bindings"
+    },
+    {
+      "id": "workbench-sidebar-visibility",
+      "acceptance": "For Terminal and Agent items alike, the right sidebar presents the workbench only while it is open on the workbench: closing it, or switching it to Changes, withdraws presentation and command target from every item in every split pane; status changes while hidden cannot present an item; an item created while hidden stays hidden; repeated hide/show cycles neither close, recreate nor rearrange anything and keep each item's content state; showing it again restores the shown tab of every group. A closed sidebar is not drawn at all, so its content takes no focus or input (TS marks it inert).",
+      "typescript": [
+        {
+          "path": "tests/integration/workbench/layout/sidebarVisibility.integration.test.tsx",
+          "sha256": "1b2e7660b19a0d0a32e5e65ee1149bb9f6273677048547c5090f6a2ad68f5423",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal sidebar visibility chain > hides retained content and ignores late status/focus updates until reopened"
+            },
+            {
+              "index": 1,
+              "name": "Terminal sidebar visibility chain > keeps delayed preparation hidden when its result arrives after collapse"
+            },
+            {
+              "index": 2,
+              "name": "Terminal sidebar visibility chain > survives repeated transitions and unmount/remount without closing project resources"
+            },
+            {
+              "index": 3,
+              "name": "Terminal sidebar visibility chain > withdraws presentation from every split pane and restores their ownership"
+            },
+            {
+              "index": 4,
+              "name": "Agent sidebar visibility chain > hides retained content and ignores late status/focus updates until reopened"
+            },
+            {
+              "index": 5,
+              "name": "Agent sidebar visibility chain > keeps delayed preparation hidden when its result arrives after collapse"
+            },
+            {
+              "index": 6,
+              "name": "Agent sidebar visibility chain > survives repeated transitions and unmount/remount without closing project resources"
+            },
+            {
+              "index": 7,
+              "name": "Agent sidebar visibility chain > withdraws presentation from every split pane and restores their ownership"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_hidden_workbench_withdraws_presentation_and_keeps_its_items"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_workbench_is_visible_only_while_the_open_sidebar_shows_it"
+        }
+      ],
+      "environment": "GPUI test platform; production Workbench with recording items and the production Shell sidebar"
     }
   ],
   "openAcceptance": [

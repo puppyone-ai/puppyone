@@ -562,6 +562,18 @@ impl Runtime {
         }
         self.generation += 1;
     }
+    /// Closing a pane is a navigation: a document still loading into it
+    /// stays open as a tab but no longer takes a pane when its read lands.
+    pub fn close_pane(&mut self, pane: &str) {
+        if self.quitting {
+            return;
+        }
+        self.navigation += 1;
+        if let Some(mut state) = self.state_mut() {
+            state.close_pane(pane);
+        }
+        self.generation += 1;
+    }
     pub fn close_editor_key(&mut self, key: &str, wake: &Wake) {
         if self.quitting {
             return;

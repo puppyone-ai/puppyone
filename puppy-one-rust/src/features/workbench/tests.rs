@@ -1,5 +1,6 @@
 use super::*;
 use core::prelude::v1::test;
+use std::cell::{Cell, RefCell};
 /// `{ kind: "blocked" }` and "closing never stops": an unconfirmed
 /// submission keeps its tab; a confirmed running one closes unasked.
 #[gpui::test]
@@ -376,4 +377,147 @@ fn a_new_launcher_cancels_pending_layout_restore_and_keeps_late_results_from_rep
         );
         assert_eq!(count, 1);
     });
+}
+
+/// A contribution's item that records what the Workbench tells it.
+struct Probe {
+    kind: ItemKind,
+    view: Entity<ProbeView>,
+    presentation: Rc<RefCell<(bool, bool)>>,
+    closes: Rc<Cell<usize>>,
+}
+/// The item's retained content: a draft the person typed.
+struct ProbeView {
+    draft: String,
+}
+impl Render for ProbeView {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().child(self.draft.clone())
+    }
+}
+impl WorkbenchItem for Probe {
+    fn kind(&self) -> ItemKind {
+        self.kind
+    }
+    fn snapshot(&self, _: &App) -> ItemSnapshot {
+        ItemSnapshot {
+            title: "probe".into(),
+            accessible_label: "probe".into(),
+            detail: None,
+            icon_key: None,
+            status: ItemStatus::Idle,
+            running: false,
+            resource_id: None,
+        }
+    }
+    fn view(&self) -> AnyView {
+        self.view.clone().into()
+    }
+    fn retained(&self, _: &App) -> RetainedItem {
+        RetainedItem::Terminal {
+            title: "probe".into(),
+            runtime: None,
+        }
+    }
+    fn close_decision(&self, _: &App) -> CloseDecision {
+        CloseDecision::Close
+    }
+    fn close_copy(&self, blocked: bool, title: String) -> CloseCopy {
+        CloseCopy {
+            title,
+            detail: "",
+            action: "",
+            blocked,
+        }
+    }
+    fn commit_close(&self) -> Option<futures_util::future::LocalBoxFuture<'static, bool>> {
+        self.closes.set(self.closes.get() + 1);
+        None
+    }
+    fn set_presentation(&self, presented: bool, command_target: bool, _: &mut Window, _: &mut App) {
+        *self.presentation.borrow_mut() = (presented, command_target);
+    }
+    fn watch(&self, cx: &mut Context<Workbench>) -> Subscription {
+        cx.observe(&self.view, |_, _, cx| cx.notify())
+    }
+}
+
+/// `AuxiliaryPanelHost` → `AuxiliaryWorkbenchPanel active`: hiding the
+/// workbench withdraws every item's presentation and command target
+/// without closing, recreating or rearranging anything; showing it again
+/// restores the shown tab of every group, split panes included.
+#[gpui::test]
+fn a_hidden_workbench_withdraws_presentation_and_keeps_its_items(cx: &mut TestAppContext) {
+    // Saving the layout runs the real storage worker.
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    for kind in [ItemKind::Terminal, ItemKind::Chat] {
+        let (view, cx) = cx.add_window_view(Workbench::new);
+        let closes = Rc::new(Cell::new(0));
+        let probe = |s: &mut Workbench, cx: &mut Context<Workbench>| {
+            let presentation = Rc::new(RefCell::new((false, false)));
+            let item = Probe {
+                kind,
+                view: cx.new(|_| ProbeView {
+                    draft: "retained draft".into(),
+                }),
+                presentation: presentation.clone(),
+                closes: closes.clone(),
+            };
+            let draft = item.view.clone();
+            let content = s.content(Rc::new(item), cx);
+            let p = s.project_mut().unwrap();
+            let id = p.layout.add(0);
+            p.content.insert(id, content);
+            p.layout.groups.get_mut(&0).unwrap().active = Some(id);
+            (id, presentation, draft)
+        };
+        let (first, second, draft) = view.update(cx, |s, cx| {
+            s.show(PathBuf::from(format!("/visibility-{kind:?}")), cx);
+            let (_, first, draft) = probe(s, cx);
+            let (tab, second, _) = probe(s, cx);
+            // The second item in its own split pane.
+            let p = s.project_mut().unwrap();
+            p.layout.split(0, Axis::Vertical, true, Some(tab));
+            cx.notify();
+            (first, second, draft)
+        });
+        cx.run_until_parked();
+        let shown = |cx: &mut VisualTestContext| {
+            cx.run_until_parked();
+            (*first.borrow(), *second.borrow())
+        };
+        let (a, b) = shown(cx);
+        assert!(a.0 && b.0, "{kind:?}: both split panes are presented");
+        assert!(a.1 != b.1, "{kind:?}: one of them is the command target");
+        let topology = view.read_with(cx, |s, _| {
+            serde_json::to_value(&s.project().unwrap().layout).unwrap()
+        });
+        draft.update(cx, |d, _| d.draft = "edited draft".into());
+        for _ in 0..8 {
+            view.update(cx, |s, cx| s.set_content_visible(false, cx));
+            assert_eq!(shown(cx), ((false, false), (false, false)), "{kind:?}");
+            // A late status change cannot present a hidden item.
+            draft.update(cx, |_, cx| cx.notify());
+            assert_eq!(shown(cx), ((false, false), (false, false)), "{kind:?}");
+            view.update(cx, |s, cx| s.set_content_visible(true, cx));
+            let (a, b) = shown(cx);
+            assert!(a.0 && b.0 && a.1 != b.1, "{kind:?} {a:?} {b:?}");
+        }
+        // An item that arrives while hidden stays hidden until shown.
+        view.update(cx, |s, cx| s.set_content_visible(false, cx));
+        let late = view.update(cx, |s, cx| probe(s, cx).1);
+        cx.run_until_parked();
+        assert_eq!(*late.borrow(), (false, false), "{kind:?}");
+        view.update(cx, |s, cx| s.set_content_visible(true, cx));
+        cx.run_until_parked();
+        assert!(late.borrow().0, "{kind:?}");
+        view.read_with(cx, |s, _| {
+            let layout = serde_json::to_value(&s.project().unwrap().layout).unwrap();
+            assert_ne!(layout, topology, "the late item joined the layout");
+            assert_eq!(s.project().unwrap().content.len(), 3);
+        });
+        assert_eq!(closes.get(), 0, "{kind:?}: nothing was closed");
+        assert_eq!(draft.read_with(cx, |d, _| d.draft.clone()), "edited draft");
+    }
 }
