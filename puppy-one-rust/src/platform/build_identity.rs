@@ -201,6 +201,9 @@ mod tests {
     fn channels_and_node_names_follow_the_product() {
         assert_eq!(Channel::parse("stable"), Some(Channel::Stable));
         assert_eq!(Channel::parse("qubits"), None);
+        for unsupported in ["beta", "preview", "rc", "archive", "production"] {
+            assert_eq!(Channel::parse(unsupported), None, "{unsupported}");
+        }
         for channel in [Channel::Dev, Channel::Internal, Channel::Stable] {
             assert_eq!(Channel::parse(channel.key()), Some(channel));
         }

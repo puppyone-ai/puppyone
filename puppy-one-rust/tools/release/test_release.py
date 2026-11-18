@@ -31,14 +31,23 @@ class ReleaseIdentityTest(unittest.TestCase):
         self.assertEqual(stable['runtime'], 'gpui')
 
     def test_published_builds_refuse_what_cannot_be_released(self):
-        for args in [('0.4', 'stable', COMMIT, '1'), ('0.4.4', 'stable', 'abc', '1'),
+        for args in [('0.4', 'stable', COMMIT, '1'), ('0.4.4-beta.1', 'dev', COMMIT),
+                     ('0.4.4', 'stable', 'abc', '1'), ('0.4.4', 'dev', COMMIT.upper()),
                      ('0.4.4', 'stable', COMMIT, None), ('0.4.4', 'internal', COMMIT, '0'),
                      ('0.4.4', 'qubits', COMMIT, '1'),
-                     ('0.4.4', 'stable', COMMIT, '1', '2026-11-15')]:
+                     ('0.4.4', 'stable', COMMIT, '1', '2026-11-15'),
+                     ('0.4.4', 'dev', COMMIT, None, '2026-11-15 10:00:00Z')]:
             with self.assertRaises(ValueError, msg=args):
                 identity.release_identity(*args)
         with self.assertRaises(ValueError):
             identity.release_identity('0.4.4', 'stable', COMMIT, '1', dirty=True)
+        with self.assertRaises(ValueError):
+            identity.release_identity('0.4.4', 'internal', COMMIT, '1', dirty=True)
+
+    def test_only_dev_internal_and_stable_are_channels(self):
+        for channel in ('beta', 'preview', 'rc', 'archive', 'production'):
+            with self.assertRaisesRegex(ValueError, 'Unsupported PuppyOne Desktop build channel', msg=channel):
+                identity.release_identity('0.4.4', channel, COMMIT, '1')
 
     def test_stamps_name_every_coordinate_and_default_production_feeds(self):
         release = identity.release_identity('0.4.4', 'internal', COMMIT, '3', built_at='2026-11-14T00:00:00.000Z')
@@ -85,6 +94,8 @@ class InfoPlistTest(unittest.TestCase):
         self.assertEqual(info['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['puppyone-internal'])
         self.assertEqual(info['LSMinimumSystemVersion'], '12.0')
         self.assertEqual(info['CFBundleIconFile'], 'icon.icns')
+        # One icon source: no asset-catalog name or App Image file competes.
+        self.assertNotIn('CFBundleIconName', info)
         self.assertEqual(info['PuppyOneCliUserDataName'], 'PuppyOne GPUI')
         self.assertIn('md', info['CFBundleDocumentTypes'][0]['CFBundleTypeExtensions'])
         stable = identity.info_plist(identity.release_identity('0.4.4', 'stable', COMMIT, '9'),
@@ -158,6 +169,42 @@ class FeedTest(unittest.TestCase):
 
 
 class IconTest(unittest.TestCase):
+    """`macosAppIcon.test.mjs`: input validation and the ten representations."""
+
+    def test_a_png_header_without_valid_pixels_is_refused(self):
+        source = bundle.ROOT / 'assets/release' / identity.policy('stable')['icon']
+        header = source.read_bytes()[:33]
+        with tempfile.TemporaryDirectory() as out:
+            for name, data in [('empty.png', header), ('corrupt.png', header + b'\0' * 64 + b'IEND')]:
+                bad = Path(out) / name
+                bad.write_bytes(data)
+                with self.assertRaises(Exception, msg=name):
+                    icon.build(bad, Path(out) / 'icon.icns')
+                self.assertFalse((Path(out) / 'icon.icns').exists())
+
+    def test_wrong_retina_sizes_and_another_channels_artwork_are_refused(self):
+        import shutil
+        import subprocess
+        stable = (bundle.ROOT / 'assets/release' / identity.policy('stable')['icon']).read_bytes()
+        dev = (bundle.ROOT / 'assets/release' / identity.policy('dev')['icon']).read_bytes()
+        self.assertNotEqual(stable, dev)
+        with tempfile.TemporaryDirectory() as out:
+            built = Path(out) / 'icon.icns'
+            source = Path(out) / 'stable.png'
+            source.write_bytes(stable)
+            icon.build(source, built)
+            icon.verify(built, stable)
+            with self.assertRaisesRegex(ValueError, "App Image"):
+                icon.verify(built, dev)
+            # The former converter wrote 1x pixels into the @2x slots.
+            iconset = Path(out) / 'wrong.iconset'
+            subprocess.run(['/usr/bin/iconutil', '-c', 'iconset', str(built), '-o', str(iconset)], check=True)
+            shutil.copyfile(iconset / 'icon_16x16.png', iconset / 'icon_16x16@2x.png')
+            wrong = Path(out) / 'wrong.icns'
+            subprocess.run(['/usr/bin/iconutil', '-c', 'icns', str(iconset), '-o', str(wrong)], check=True)
+            with self.assertRaisesRegex(ValueError, r'icon_16x16@2x\.png is (missing|not 32 px)'):
+                icon.verify(wrong, stable)
+
     def test_every_channel_icon_builds_a_complete_icns(self):
         for channel in identity.CHANNELS:
             source = bundle.ROOT / 'assets/release' / identity.policy(channel)['icon']

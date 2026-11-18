@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, Mock
 import signal
 import subprocess
-from test_runner import validate_result, execute, isolated_test_environment
+from test_runner import validate_result, validate_python_result, execute, isolated_test_environment
 from pathlib import Path
 import os
 import sys
@@ -123,3 +123,25 @@ class NativeFixtureEvidence(unittest.TestCase):
             self.assertEqual(receipt['features'], ['dev-capture'])
             self.assertEqual(receipt['supportBinaryHashes'], {'native-probe': hashlib.sha256(probe.read_bytes()).hexdigest()})
             self.assertEqual(len(calls), 3)
+
+class UnittestEvidence(unittest.TestCase):
+    def test_requires_exactly_the_named_python_test_to_pass(self):
+        good = 'test_a (test_x.Case.test_a) ... ok\n\n----\nRan 1 test in 0.001s\n\nOK\n'
+        self.assertIsNone(validate_python_result('Case.test_a', 0, good))
+        self.assertIsNotNone(validate_python_result('Case.test_b', 0, good))
+        self.assertIsNotNone(validate_python_result('Case.test_a', 1, good))
+        self.assertIsNotNone(validate_python_result('Case.test_a', 0, good.replace('... ok', '... skipped "x"')))
+        self.assertIsNotNone(validate_python_result('Case.test_a', 0, good.replace('Ran 1 test', 'Ran 0 tests')))
+        self.assertIsNotNone(validate_python_result('Case.test_a', 0,
+            'test_a (test_x.Case.test_a) ... ok\n' + good))
+
+    def test_a_real_unittest_run_is_recognised(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, 'test_probe.py').write_text(
+                'import unittest\nclass Case(unittest.TestCase):\n    def test_a(self):\n        pass\n'
+                '    def test_b(self):\n        self.fail()\n')
+            for name, passes in [('Case.test_a', True), ('Case.test_b', False)]:
+                code, output = execute([sys.executable, '-B', '-m', 'unittest', '-v', f'test_probe.{name}'],
+                                       env=dict(os.environ, PYTHONPATH=directory), cwd=directory)
+                self.assertEqual(validate_python_result(name, code, output) is None, passes, output)
+

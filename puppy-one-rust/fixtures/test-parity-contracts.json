@@ -19361,6 +19361,340 @@
         }
       ],
       "environment": "local; GPUI test platform with the production DocumentEditor host"
+    },
+    {
+      "id": "release-signing-and-feed-metadata",
+      "acceptance": "A stable release needs a Developer ID signer and one complete notarization credential set (dev and internal are always ad hoc); written update metadata names its ZIP with size and SHA-512 and reads back through the verifier; broken metadata (non-canonical release dates, versions, digests) is refused; only HTTPS feeds without credentials are stamped.",
+      "typescript": [
+        {
+          "path": "tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs",
+          "sha256": "1157fa6a4ffde8aa50e37598dbddb0eb47ecee211b42f0f478b953410f26cede",
+          "cases": [
+            {
+              "index": 1,
+              "name": "desktop release metadata > requires signed, notarized updater-ready artifacts for stable releases"
+            },
+            {
+              "index": 7,
+              "name": "desktop release metadata > rejects non-canonical timestamps and credential-bearing release URLs"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "SigningPlanTest.test_stable_needs_a_signer_and_one_complete_notarization_set"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "SigningPlanTest.test_dev_and_internal_are_always_ad_hoc"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "FeedTest.test_written_metadata_passes_the_verifier"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "FeedTest.test_broken_metadata_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "FeedTest.test_only_https_feeds_are_stamped_and_never_for_dev"
+        }
+      ],
+      "environment": "local; release tooling unittests"
+    },
+    {
+      "id": "release-macos-app-icon",
+      "acceptance": "The channel's App Image becomes icon.icns through Apple's iconset tools: a PNG header without valid pixels is refused before anything is written; all ten representations (16 to 1024 px, 1x and 2x) are decoded and checked for size, so a 1x image in a Retina slot is refused; the 1024 px representation must show the channel's own artwork pixel for pixel, so another channel's or stale artwork is refused; every channel's icon builds, and the bundle declares only icon.icns (no competing CFBundleIconName).",
+      "typescript": [
+        {
+          "path": "tests/integration/release/packaging/macosAppIcon.test.mjs",
+          "sha256": "05428210e2132d8e94e0f22a75d2db5b1775f4123cc0d57e88905ee5e6e5b2be",
+          "cases": [
+            {
+              "index": 0,
+              "name": "app icon input validation > rejects a PNG signature without actual image data"
+            },
+            {
+              "index": 1,
+              "name": "app icon input validation > rejects corrupt pixels even when the dimensions are valid"
+            },
+            {
+              "index": 4,
+              "name": "native macOS icon packaging > verifies all ten stable icon representations without rewriting bundle files"
+            },
+            {
+              "index": 5,
+              "name": "native macOS icon packaging > verifies all ten dev icon representations without rewriting bundle files"
+            },
+            {
+              "index": 6,
+              "name": "native macOS icon packaging > rejects conflicting bundle icon metadata {\"CFBundleIconFile\":\"puppy-app-image.png\"}"
+            },
+            {
+              "index": 7,
+              "name": "native macOS icon packaging > rejects conflicting bundle icon metadata {\"CFBundleIconName\":\"AppIcon\"}"
+            },
+            {
+              "index": 10,
+              "name": "native macOS icon packaging > rejects stale or substituted channel artwork"
+            },
+            {
+              "index": 11,
+              "name": "native macOS icon packaging > rejects the incorrect Retina dimensions produced by the former converter"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconTest.test_a_png_header_without_valid_pixels_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconTest.test_wrong_retina_sizes_and_another_channels_artwork_are_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconTest.test_every_channel_icon_builds_a_complete_icns"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "InfoPlistTest.test_the_bundle_declares_its_channel"
+        }
+      ],
+      "environment": "macOS sips and iconutil; release tooling unittests"
+    },
+    {
+      "id": "update-feed-routing-macos",
+      "acceptance": "A packaged macOS build discovers its channel's update from the published metadata contract: release stamps pin the stable and internal feeds (runtime overrides ignored), the metadata is read as electron-updater writes it and its ZIP payload chosen under the feed, and only a strictly newer same-channel version is offered.",
+      "typescript": [
+        {
+          "path": "tests/integration/updates/installation/desktopUpdateFeedRouting.test.mjs",
+          "sha256": "bdaccc2d3c1e0630d463cbd7b133b4147476ec76fc8bb2cca44b13b9b13e9ce1",
+          "cases": [
+            {
+              "index": 1,
+              "name": "packaged Desktop update feed routing > discovers a 'stable' update on 'darwin' using the published metadata contract"
+            },
+            {
+              "index": 3,
+              "name": "packaged Desktop update feed routing > discovers a 'internal' update on 'darwin' using the published metadata contract"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::configuration_tests::actual_release_stamps_pin_both_macos_channels_and_ignore_runtime_overrides"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::feed::tests::electron_updater_metadata_is_read_and_its_payload_chosen"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::feed::tests::a_payload_stays_under_its_feed"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::state::tests::only_a_newer_same_channel_version_is_ever_offered"
+        }
+      ],
+      "environment": "local; deterministic metadata and feed configuration"
+    },
+    {
+      "id": "release-build-identity",
+      "acceptance": "Build identity resolves only the dev, internal and stable channels deterministically (beta, preview, rc, archive and production are refused); a dirty tree is marked on development builds and refused for published ones; non-canonical versions, commits, build numbers and timestamps are refused; application identifiers, URL schemes and update feeds differ per channel and dev has no feed; the bundle's Info.plist comes from the same identity; only development builds use the badged App Image; the runtime reads the compiled-in identity and treats only an application bundle as packaged. Rust compiles the identity into the binary instead of reading a persisted build-info file, and all channels share the PuppyOne GPUI data directory (recorded in Release and Data Directories); a Windows application identity is outside the macOS-only scope.",
+      "typescript": [
+        {
+          "path": "tests/integration/release/build-identity/desktopBuildIdentity.test.mjs",
+          "sha256": "e043ab04680fd0a614d41bd986cb5bfb6f24c10570edd49d07d16630562eda61",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop build identity > resolves the three supported channels deterministically"
+            },
+            {
+              "index": 1,
+              "name": "desktop build identity > marks dirty development builds and rejects dirty published builds"
+            },
+            {
+              "index": 2,
+              "name": "desktop build identity > rejects the unsupported beta channel"
+            },
+            {
+              "index": 3,
+              "name": "desktop build identity > rejects the unsupported preview channel"
+            },
+            {
+              "index": 4,
+              "name": "desktop build identity > rejects the unsupported rc channel"
+            },
+            {
+              "index": 5,
+              "name": "desktop build identity > rejects the unsupported archive channel"
+            },
+            {
+              "index": 6,
+              "name": "desktop build identity > rejects the unsupported production channel"
+            },
+            {
+              "index": 7,
+              "name": "desktop build identity > rejects non-canonical versions, commits, and build numbers"
+            },
+            {
+              "index": 8,
+              "name": "desktop build identity > rejects non-canonical persisted timestamps and unknown schema fields"
+            },
+            {
+              "index": 9,
+              "name": "desktop build identity > keeps application, data, and updater identities isolated by channel"
+            },
+            {
+              "index": 10,
+              "name": "desktop build identity > derives electron-builder configuration from the same immutable identity"
+            },
+            {
+              "index": 11,
+              "name": "desktop build identity > uses the badged App Image only for Development builds"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/build-identity/electron.build-info-service.test.mjs",
+          "sha256": "446aedbcb16bc48a15eb29a9c38fb1c4b6dcec04f37bdb82fee12d22d336d7b0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Electron Build Identity service > loads and verifies the identity embedded in a packaged application"
+            },
+            {
+              "index": 1,
+              "name": "Electron Build Identity service > fails closed when packaged metadata is absent or disagrees with Electron"
+            },
+            {
+              "index": 2,
+              "name": "Electron Build Identity service > uses a prepared development identity without accepting a published channel"
+            },
+            {
+              "index": 3,
+              "name": "Electron Build Identity service > configures name, user data, and Windows application identity before startup"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "ReleaseIdentityTest.test_versions_follow_the_channel"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "ReleaseIdentityTest.test_published_builds_refuse_what_cannot_be_released"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "ReleaseIdentityTest.test_only_dev_internal_and_stable_are_channels"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "ReleaseIdentityTest.test_stamps_name_every_coordinate_and_default_production_feeds"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "InfoPlistTest.test_the_bundle_declares_its_channel"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "FeedTest.test_only_https_feeds_are_stamped_and_never_for_dev"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::build_identity::tests::channels_and_node_names_follow_the_product"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::build_identity::tests::only_an_application_bundle_counts_as_packaged"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::build_identity::tests::diagnostics_name_every_coordinate"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_icon::tests::channel_icon_sources_match_release_policy"
+        }
+      ],
+      "environment": "local; release tooling unittests and the runtime identity"
+    },
+    {
+      "id": "telemetry-identity-and-lifecycle",
+      "acceptance": "The anonymous telemetry identity is stable within a UTC calendar month and unlinkable across months; turning analytics off (and the test-only reset) deletes the local secret and queue; the first-run cohort is its own document, persisted without creating an identity, and neutralizing it keeps no first-observed day ({version 1, baseline, null, enqueued}).",
+      "typescript": [
+        {
+          "path": "tests/integration/telemetry/transport/electron.desktop-telemetry-identity.test.mjs",
+          "sha256": "2b8297ff705bae7c5200c57c1ffeeab3faeb10cb0d345afbf8d0d6f87435ec08",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop telemetry rotating identity > is stable within a calendar month and unlinkable across months"
+            },
+            {
+              "index": 1,
+              "name": "Desktop telemetry rotating identity > deletes the local secret when telemetry identity is reset"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/telemetry/transport/electron.desktop-telemetry-lifecycle.test.mjs",
+          "sha256": "0e69135ae33cf76ddb8b298a0358fc2105d16210bc8083e4552e510279b341a2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop telemetry lifecycle store > persists a fresh first-run cohort independently from its anonymous identity"
+            },
+            {
+              "index": 1,
+              "name": "Desktop telemetry lifecycle store > neutralizes a cohort without retaining its first-observed day"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::store::tests::the_rotating_identity_is_stable_within_a_month_and_unlinkable_across_months"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::switching_off_clears_the_queue_and_the_local_identity_immediately"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::store::tests::a_fresh_cohort_persists_on_its_own_and_neutralizing_forgets_its_day"
+        }
+      ],
+      "environment": "local temporary telemetry directories"
     }
   ],
   "openAcceptance": [
@@ -19606,6 +19940,582 @@
             {
               "index": 6,
               "name": "external Viewer Pack product capability > skips signer enforcement by default and fails closed for an enabled release"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "windows-and-cross-platform-release",
+      "kind": "out-of-scope",
+      "reason": "Only macOS is in scope for the native frontend: Windows NSIS releases and updater delivery, Windows identity and Authenticode checks, combined macOS+Windows release sets, Windows CLI resolution and non-macOS icon tooling are not built or verified.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs",
+          "sha256": "1157fa6a4ffde8aa50e37598dbddb0eb47ecee211b42f0f478b953410f26cede",
+          "cases": [
+            {
+              "index": 2,
+              "name": "desktop release metadata > creates an independently addressable signed Windows NSIS release"
+            },
+            {
+              "index": 3,
+              "name": "desktop release metadata > records an explicitly unsigned Stable Windows NSIS release without publisher claims"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/build-identity/desktopReleaseSetBundle.test.mjs",
+          "sha256": "5e15d197098e40efab9a515b306c33583ed4620495486122c5ded0e690d08d66",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Stable Release Set bundle aggregation > accepts only the matching macOS and Windows bundles as one required-target set"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/ci/releaseChecks.test.mjs",
+          "sha256": "7b0f545a72d0cf4936b7057db72f5bc35239b292b0a1fc7db5d10fc9c340ea39",
+          "cases": [
+            {
+              "index": 2,
+              "name": "pre-release check definitions > uses the active npm CLI without a shell on Windows"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs",
+          "sha256": "c832dc4c8b87d49c2e9e0547495bb297f0449ff6a3410b8c59862cfcdcf4786a",
+          "cases": [
+            {
+              "index": 3,
+              "name": "packaged Desktop Build Identity verification > verifies Windows identity, updater coordinates, and NSIS artifacts"
+            },
+            {
+              "index": 4,
+              "name": "packaged Desktop Build Identity verification > rejects Windows updater metadata that does not reference its NSIS installer"
+            },
+            {
+              "index": 5,
+              "name": "packaged Desktop Build Identity verification > rejects a Stable Windows app that does not pin the Authenticode publisher"
+            },
+            {
+              "index": 6,
+              "name": "packaged Desktop Build Identity verification > accepts an explicitly unsigned Stable Windows app without a publisher claim"
+            },
+            {
+              "index": 7,
+              "name": "packaged Desktop Build Identity verification > rejects a publisher claim in explicitly unsigned Stable Windows metadata"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/packaging/macosAppIcon.test.mjs",
+          "sha256": "05428210e2132d8e94e0f22a75d2db5b1775f4123cc0d57e88905ee5e6e5b2be",
+          "cases": [
+            {
+              "index": 3,
+              "name": "app icon input validation > does not run native tools for other platforms"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/updates/installation/desktopUpdateFeedRouting.test.mjs",
+          "sha256": "bdaccc2d3c1e0630d463cbd7b133b4147476ec76fc8bb2cca44b13b9b13e9ce1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "packaged Desktop update feed routing > discovers a 'stable' update on 'win32' using the published metadata contract"
+            },
+            {
+              "index": 2,
+              "name": "packaged Desktop update feed routing > discovers a 'internal' update on 'win32' using the published metadata contract"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/updates/installation/windowsUpdaterDelivery.test.mjs",
+          "sha256": "a9ff6cf574fc9502ebda95b4fe58bf7edecccb52aa302fc8698292aff8ed7978",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > downloads and verifies a newer release before handing it to the install action"
+            },
+            {
+              "index": 1,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > honors download opt-out until the user explicitly downloads"
+            },
+            {
+              "index": 2,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > keeps metadata 404 failures retryable without making an invalid installer actionable"
+            },
+            {
+              "index": 3,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > keeps invalid metadata failures retryable without making an invalid installer actionable"
+            },
+            {
+              "index": 4,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > keeps installer 503 failures retryable without making an invalid installer actionable"
+            },
+            {
+              "index": 5,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > keeps interrupted download failures retryable without making an invalid installer actionable"
+            },
+            {
+              "index": 6,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > keeps checksum mismatch failures retryable without making an invalid installer actionable"
+            },
+            {
+              "index": 7,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > validates persisted download cache after relaunch (corrupted: false)"
+            },
+            {
+              "index": 8,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > validates persisted download cache after relaunch (corrupted: true)"
+            },
+            {
+              "index": 9,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > never downloads or installs rejected Stable candidate 1.3.9"
+            },
+            {
+              "index": 10,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > never downloads or installs rejected Stable candidate 1.4.0"
+            },
+            {
+              "index": 11,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > never downloads or installs rejected Stable candidate 1.4.1-internal.1"
+            },
+            {
+              "index": 12,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > does not auto-install on abnormal exit, and installs the verified file once on normal exit"
+            },
+            {
+              "index": 13,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > falls back to a verified full installer when differential block maps are unavailable"
+            },
+            {
+              "index": 14,
+              "name": "Windows updater delivery with real HTTP and NSIS download handling > rejects an installer rejected by the signature verifier and allows a corrected retry"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/platform/processes/electron.local-executable-resolver.test.mjs",
+          "sha256": "b4d53997a7f6adb4d4e8ca70522f2e9c500779231eaa6955f728c61dced64dbc",
+          "cases": [
+            {
+              "index": 24,
+              "name": "ordered installation discovery > resolves a registered Windows WorkBuddy app as an atomic Electron-hosted CLI recipe"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "online-release-pipeline",
+      "kind": "out-of-scope",
+      "reason": "The native frontend has no approved online release channel: no CI release workflow, release manifests, checksums or latest pointers, GitHub or R2 uploads, remote release verification, immutable release history or npm terminal preview package. Packaging is local (tools/release/package-macos.py).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/release/packaging.md",
+      "typescript": [
+        {
+          "path": "tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs",
+          "sha256": "1157fa6a4ffde8aa50e37598dbddb0eb47ecee211b42f0f478b953410f26cede",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop release metadata > creates a deterministic internal manifest, checksums file, and latest pointer"
+            },
+            {
+              "index": 4,
+              "name": "desktop release metadata > allows a GitHub-backed internal release to be backfilled without a modern Terminal launcher"
+            },
+            {
+              "index": 5,
+              "name": "desktop release metadata > merges immutable releases and rejects a conflicting tag"
+            },
+            {
+              "index": 6,
+              "name": "desktop release metadata > enforces channel-specific catalogs and removes legacy channel pollution"
+            },
+            {
+              "index": 8,
+              "name": "desktop release metadata > represents a pre-pipeline DMG honestly as an archive release"
+            },
+            {
+              "index": 9,
+              "name": "desktop release metadata > verifies every bundled file and detects asset tampering"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/delivery/desktopReleaseRemoteTargets.test.mjs",
+          "sha256": "f604a45375c396df21313b8b996922a83e3053b6c21f8214e2137ecff7802bd7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "complete remote release target queue > interleaves both platforms and origins while retaining every filename, alias and metadata digest"
+            },
+            {
+              "index": 1,
+              "name": "complete remote release target queue > keeps legacy immutable verification limited to manifest assets by default"
+            },
+            {
+              "index": 2,
+              "name": "complete remote release target queue > rejects conflicting payloads for one URL before a download queue can be returned"
+            },
+            {
+              "index": 3,
+              "name": "complete remote release target queue > rejects a damaged second platform before returning any remote verification work"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/delivery/desktopReleaseRemoteVerifier.test.mjs",
+          "sha256": "5beacdd91e010dc69c81573c59a9341c2fa911ebdec27fe8930efd21519d629e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "bounded release verification over real HTTP > shares one concurrency limit across platforms and origins"
+            },
+            {
+              "index": 1,
+              "name": "bounded release verification over real HTTP > retries temporary HTTP errors and records attempts, progress and final digests"
+            },
+            {
+              "index": 2,
+              "name": "bounded release verification over real HTTP > restarts hashing from zero after a broken connection"
+            },
+            {
+              "index": 3,
+              "name": "bounded release verification over real HTTP > bounds the wait for response headers"
+            },
+            {
+              "index": 4,
+              "name": "bounded release verification over real HTTP > bounds a body that stops delivering data after its first chunk"
+            },
+            {
+              "index": 5,
+              "name": "bounded release verification over real HTTP > bounds a continuously trickling body even though it never hits the idle timeout"
+            },
+            {
+              "index": 6,
+              "name": "bounded release verification over real HTTP > applies a single time budget across retries, rather than restarting it each attempt"
+            },
+            {
+              "index": 7,
+              "name": "bounded release verification over real HTTP > rejects HTTP 403 without retrying or accepting a partial response"
+            },
+            {
+              "index": 8,
+              "name": "bounded release verification over real HTTP > rejects HTTP 206 without retrying or accepting a partial response"
+            },
+            {
+              "index": 9,
+              "name": "bounded release verification over real HTTP > never follows redirects or prints access credentials"
+            },
+            {
+              "index": 10,
+              "name": "bounded release verification over real HTTP > rejects different bytes with identical size and does not retry integrity failures"
+            },
+            {
+              "index": 11,
+              "name": "bounded release verification over real HTTP > rejects truncated payload and does not retry integrity failures"
+            },
+            {
+              "index": 12,
+              "name": "bounded release verification over real HTTP > rejects oversized payload and does not retry integrity failures"
+            },
+            {
+              "index": 13,
+              "name": "bounded release verification over real HTTP > waits for the remaining workers before reporting failure"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/delivery/parallelReleaseUploads.test.mjs",
+          "sha256": "5c67f358412ffbb0c56187b100eccdfd52c77c533da360d36552bc12161779a3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "actual Stable workflow parallel upload stage > runs both targets concurrently in Upload both target asset sets to the draft"
+            },
+            {
+              "index": 1,
+              "name": "actual Stable workflow parallel upload stage > runs both targets concurrently in Stage non-pointer latest payloads for both platforms"
+            },
+            {
+              "index": 2,
+              "name": "actual Stable workflow parallel upload stage > drains the sibling and blocks publication on failure in Upload both target asset sets to the draft"
+            },
+            {
+              "index": 3,
+              "name": "actual Stable workflow parallel upload stage > drains the sibling and blocks publication on failure in Stage non-pointer latest payloads for both platforms"
+            },
+            {
+              "index": 4,
+              "name": "actual Stable workflow parallel upload stage > refuses to add missing assets to an already-public release"
+            },
+            {
+              "index": 5,
+              "name": "actual Stable workflow parallel upload stage > starts both target uploads before either completes, then writes each commit marker last"
+            },
+            {
+              "index": 6,
+              "name": "actual Stable workflow parallel upload stage > blocks publication when mac fails and drains the other writer first"
+            },
+            {
+              "index": 7,
+              "name": "actual Stable workflow parallel upload stage > blocks publication when windows fails and drains the other writer first"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/terminal/startup/terminalPreviewLauncher.test.mjs",
+          "sha256": "036f7f402ee039d1cfba1cac7f0d0f56713f99102f7f199a63911a399c13f3ed",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal preview launcher > extracts a verified app archive and reuses the prepared cache"
+            },
+            {
+              "index": 1,
+              "name": "Terminal preview launcher > rejects archives whose digest does not match the package metadata"
+            },
+            {
+              "index": 2,
+              "name": "Terminal preview launcher > accepts an HTTPS response without a Content-Length header"
+            },
+            {
+              "index": 3,
+              "name": "Terminal preview launcher > renders live terminal progress and bounded milestone output"
+            },
+            {
+              "index": 4,
+              "name": "Terminal preview launcher > rejects insecure URLs and paths that escape the app bundle"
+            },
+            {
+              "index": 5,
+              "name": "Terminal preview launcher > normalizes release tags into npm-compatible versions"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-repository-ci-infrastructure",
+      "kind": "out-of-scope",
+      "reason": "These test the TS repository's own CI runner, Vitest discovery and evidence files, and the Vite renderer output lease. The native frontend has no renderer build, and its verification runs through tools/verify.py and tools/test_runner.py with their own tests (exact test discovery, per-test isolation, source-unchanged receipts).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/integration/release/ci/releaseChecks.test.mjs",
+          "sha256": "7b0f545a72d0cf4936b7057db72f5bc35239b292b0a1fc7db5d10fc9c340ea39",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pre-release check definitions > retains every existing CI gate and builds UI dependencies once"
+            },
+            {
+              "index": 1,
+              "name": "pre-release check definitions > rejects malformed configuration instead of silently omitting checks"
+            },
+            {
+              "index": 3,
+              "name": "pre-release execution and evidence > blocks failed dependencies, continues independent checks, and persists failure results"
+            },
+            {
+              "index": 4,
+              "name": "pre-release execution and evidence > retries only declared checks once, keeps every attempt, and reports a pass on retry"
+            },
+            {
+              "index": 5,
+              "name": "pre-release execution and evidence > marks unsupported platforms explicitly and rejects a selected unsupported group"
+            },
+            {
+              "index": 6,
+              "name": "pre-release execution and evidence > rejects results if the source changes during verification"
+            },
+            {
+              "index": 7,
+              "name": "pre-release execution and evidence > requires declared evidence even when a command exits successfully"
+            },
+            {
+              "index": 8,
+              "name": "pre-release execution and evidence > archives repository reports and directories before a later command overwrites them"
+            },
+            {
+              "index": 9,
+              "name": "pre-release execution and evidence > fails a successful command that only leaves a previous run's report in place"
+            },
+            {
+              "index": 10,
+              "name": "pre-release execution and evidence > does not overwrite or adopt another invocation's lock"
+            },
+            {
+              "index": 11,
+              "name": "pre-release execution and evidence > captures real child output and nonzero exit status"
+            },
+            {
+              "index": 12,
+              "name": "pre-release execution and evidence > terminates a timed-out real child"
+            },
+            {
+              "index": 13,
+              "name": "pre-release execution and evidence > records cancellation and prevents remaining checks from starting"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/ci/testArtifacts.test.mjs",
+          "sha256": "42a347cde705f04f2d2db86ff9ffb4a442531fabc6123c45d68ff6913b57389c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "test invocation evidence > isolates concurrent and focused runs and retains their source and selection"
+            },
+            {
+              "index": 1,
+              "name": "test invocation evidence > writes into the release check's owned directory and rejects reuse"
+            },
+            {
+              "index": 2,
+              "name": "test invocation evidence > records whether source changed during the run: false"
+            },
+            {
+              "index": 3,
+              "name": "test invocation evidence > records whether source changed during the run: true"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/ci/testDiscovery.test.mjs",
+          "sha256": "c314cbc25274365d992ebe7ab428b68d8cee86fb9d2356ff54d413a6c00a7e51",
+          "cases": [
+            {
+              "index": 0,
+              "name": "discovers every supported test extension in every layer through the actual Vitest engine"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/ci/testWatchEvidence.test.mjs",
+          "sha256": "a80029a798691b4b44417ed9f6ea64b5a49045956c49c4c4e0ca736222983265",
+          "cases": [
+            {
+              "index": 0,
+              "name": "preserves each watch cycle's actual JSON result and completed source receipt"
+            },
+            {
+              "index": 1,
+              "name": "preserves actual benchmark output and source receipts across watch cycles"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/build-identity/rendererOutputLease.test.mjs",
+          "sha256": "91cc0970bb2366c834838abc0c03ea9d06a357fd6a6be83658969c8c927ff6fd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer output lifetime > allows multiple preview windows but excludes a build until every reader closes"
+            },
+            {
+              "index": 1,
+              "name": "renderer output lifetime > blocks preview startup and other builders while the output is being replaced"
+            },
+            {
+              "index": 2,
+              "name": "renderer output lifetime > isolates worktrees and resolves symlinks in the project path"
+            },
+            {
+              "index": 3,
+              "name": "renderer output lifetime > reclaims a crashed process without deleting a living process's claim"
+            },
+            {
+              "index": 4,
+              "name": "renderer output lifetime > protects outputs reached through a direct directory symlink"
+            },
+            {
+              "index": 5,
+              "name": "renderer output lifetime > stops a real Vite rebuild before deleting a running window's lazy chunks"
+            },
+            {
+              "index": 6,
+              "name": "renderer output lifetime > releases the build lease after a compile failure"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packaged-artifact-verification",
+      "kind": "gap",
+      "reason": "tools/release/verify-macos-release.py checks that the app, DMG, ZIP and feed metadata exist and the signatures, but not the packaged app's embedded identity against its feed (an Internal app with a Stable feed passes), its icon representations and metadata, or the release tag; the icon tool also accepts any output path and does not check the requested channel against its artwork input.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/release/release-verification.md",
+      "typescript": [
+        {
+          "path": "tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs",
+          "sha256": "c832dc4c8b87d49c2e9e0547495bb297f0449ff6a3410b8c59862cfcdcf4786a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "packaged Desktop Build Identity verification > verifies app metadata, embedded identity, update feed, and artifact names"
+            },
+            {
+              "index": 1,
+              "name": "packaged Desktop Build Identity verification > fails when a packaged Internal app embeds a Stable update feed"
+            },
+            {
+              "index": 2,
+              "name": "packaged Desktop Build Identity verification > fails release verification when native icon verification fails"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/packaging/macosAppIcon.test.mjs",
+          "sha256": "05428210e2132d8e94e0f22a75d2db5b1775f4123cc0d57e88905ee5e6e5b2be",
+          "cases": [
+            {
+              "index": 2,
+              "name": "app icon input validation > rejects a mismatched channel or unapproved output path"
+            },
+            {
+              "index": 8,
+              "name": "native macOS icon packaging > rejects a missing icon.icns"
+            },
+            {
+              "index": 9,
+              "name": "native macOS icon packaging > rejects a missing puppy-app-image.png"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/build-identity/desktopBuildIdentity.test.mjs",
+          "sha256": "e043ab04680fd0a614d41bd986cb5bfb6f24c10570edd49d07d16630562eda61",
+          "cases": [
+            {
+              "index": 12,
+              "name": "desktop build identity > writes one build-info file and validates the release tag"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-initialization-telemetry",
+      "kind": "gap",
+      "reason": "TS writes an allowlisted puppyone.cloud_initialization log record per publication step (identifiers, error code, attempt count, commit truncated to 12 characters; never secrets, remote URLs or local paths). Rust publication redacts secrets from its errors but emits no such structured record.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform-services/telemetry.md",
+      "typescript": [
+        {
+          "path": "tests/integration/telemetry/transport/electron.cloud-initialization-telemetry.test.mjs",
+          "sha256": "c342eba732d58df23d713c0fa71f57c2271c3219dc46faac40de99bfc21fb660",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud initialization telemetry > emits only the structured allowlist and truncates commit identifiers"
             }
           ]
         }

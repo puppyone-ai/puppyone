@@ -42,7 +42,7 @@ def main():
             assert pinned == data, f'TS acceptance is not the pinned version: {path}'
             referenced.add(path)
         for test in row['rust']:
-            tests[(test['package'], test['test'])] = test
+            tests[(test['package'], test.get('python'), test['test'])] = test
     out = ROOT / 'artifacts/test-parity'
     out.mkdir(parents=True, exist_ok=True)
     inventory = {
