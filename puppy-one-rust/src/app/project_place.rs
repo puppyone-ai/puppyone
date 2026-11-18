@@ -694,10 +694,15 @@ impl WindowCloud {
             _ => None,
         };
         self.show_popover(None, cx);
+        let remotes = self
+            .root()
+            .map(|root| crate::cloud::publication::git::reviewed_remotes(&root))
+            .unwrap_or_default();
         self.disconnect = Some(Disconnect {
             project_name,
             unsent: self.unsent(cx),
             url,
+            remotes,
             busy: false,
             failed: false,
         });
@@ -713,9 +718,12 @@ impl WindowCloud {
     /// remote is still the one reviewed. The Cloud project and the files
     /// stay; the folder is then an ordinary local project.
     pub(super) fn confirm_disconnect(&mut self, cx: &mut Context<Self>) {
-        let (Some(root), Some(url)) =
-            (self.root(), self.disconnect.as_ref().map(|d| d.url.clone()))
-        else {
+        let (Some(root), Some((url, remotes))) = (
+            self.root(),
+            self.disconnect
+                .as_ref()
+                .map(|d| (d.url.clone(), d.remotes.clone())),
+        ) else {
             return;
         };
         if let Some(d) = self.disconnect.as_mut() {
@@ -728,7 +736,7 @@ impl WindowCloud {
         cx.notify();
         let task = cx
             .background_executor()
-            .spawn(async move { crate::cloud::publication::git::detach(&root, &url) });
+            .spawn(async move { crate::cloud::publication::git::detach(&root, &url, &remotes) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |s, cx| {
@@ -830,6 +838,8 @@ pub(super) struct Disconnect {
     pub unsent: u32,
     /// The `puppyone` remote's URL, compared again under the lock.
     pub url: String,
+    /// Every remote as reviewed; the link ends only while they are unchanged.
+    pub remotes: crate::cloud::publication::git::Reviewed,
     pub busy: bool,
     pub failed: bool,
 }

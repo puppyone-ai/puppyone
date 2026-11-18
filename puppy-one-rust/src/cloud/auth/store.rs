@@ -31,57 +31,77 @@ pub(super) fn profile_account(profile: Option<&std::ffi::OsStr>) -> String {
         ),
     }
 }
+/// The generic-password items of one keychain service, by account.
+pub(super) trait Items {
+    fn get(&self, account: &str) -> Result<Option<Vec<u8>>>;
+    fn set(&self, account: &str, bytes: &[u8]) -> Result<()>;
+    fn delete(&self, account: &str) -> Result<()>;
+}
+/// `readCredential`: the saved sign-in, or `None`. An unreadable record is
+/// set aside as `<account>.corrupt.<time>` (`quarantineCorruptFile`) and
+/// the account reads as signed out — never as a silent, valid logout.
+pub(super) fn load(items: &dyn Items, account: &str) -> Result<Option<Credential>> {
+    let Some(mut bytes) = items.get(account)? else {
+        return Ok(None);
+    };
+    let credential = (bytes.len() <= 24 * 1024)
+        .then(|| serde_json::from_slice::<Credential>(&bytes).ok())
+        .flatten()
+        .filter(Credential::valid);
+    if credential.is_none() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or_default();
+        let moved = items
+            .set(&format!("{account}.corrupt.{stamp}"), &bytes)
+            .and_then(|()| items.delete(account));
+        bytes.zeroize();
+        return moved.map(|()| None);
+    }
+    bytes.zeroize();
+    Ok(credential)
+}
+/// `writeCredential`: only the refresh credential and who it belongs to;
+/// an access token is never part of the record.
+pub(super) fn save(items: &dyn Items, account: &str, credential: &Credential) -> Result<()> {
+    let mut bytes = serde_json::to_vec(credential).map_err(|_| Error::SecureStorage)?;
+    let result = items.set(account, &bytes);
+    bytes.zeroize();
+    result
+}
 #[cfg(target_os = "macos")]
-impl Store for Keychain {
-    fn load(&self) -> Result<Option<Credential>> {
-        let mut bytes =
-            match security_framework::passwords::get_generic_password(SERVICE, &self.account) {
-                Ok(bytes) => bytes,
-                Err(e) if e.code() == -25300 => return Ok(None), // errSecItemNotFound only
-                Err(_) => return Err(Error::SecureStorage),
-            };
-        let credential = (bytes.len() <= 24 * 1024)
-            .then(|| serde_json::from_slice::<Credential>(&bytes).ok())
-            .flatten()
-            .filter(Credential::valid);
-        if credential.is_none() {
-            // `quarantineCorruptFile`: an unreadable record is set aside, not
-            // fatal, and the account reads as signed out.
-            let stamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or_default();
-            let aside = format!("{}.corrupt.{stamp}", self.account);
-            let moved =
-                security_framework::passwords::set_generic_password(SERVICE, &aside, &bytes)
-                    .and_then(|_| {
-                        security_framework::passwords::delete_generic_password(
-                            SERVICE,
-                            &self.account,
-                        )
-                    });
-            bytes.zeroize();
-            return match moved {
-                Ok(()) => Ok(None),
-                Err(_) => Err(Error::SecureStorage),
-            };
+struct Service;
+#[cfg(target_os = "macos")]
+impl Items for Service {
+    fn get(&self, account: &str) -> Result<Option<Vec<u8>>> {
+        match security_framework::passwords::get_generic_password(SERVICE, account) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(e) if e.code() == -25300 => Ok(None), // errSecItemNotFound only
+            Err(_) => Err(Error::SecureStorage),
         }
-        bytes.zeroize();
-        Ok(credential)
     }
-    fn save(&self, credential: &Credential) -> Result<()> {
-        let mut bytes = serde_json::to_vec(credential).map_err(|_| Error::SecureStorage)?;
-        let result =
-            security_framework::passwords::set_generic_password(SERVICE, &self.account, &bytes)
-                .map_err(|_| Error::SecureStorage);
-        bytes.zeroize();
-        result
+    fn set(&self, account: &str, bytes: &[u8]) -> Result<()> {
+        security_framework::passwords::set_generic_password(SERVICE, account, bytes)
+            .map_err(|_| Error::SecureStorage)
     }
-    fn clear(&self) -> Result<()> {
-        match security_framework::passwords::delete_generic_password(SERVICE, &self.account) {
+    fn delete(&self, account: &str) -> Result<()> {
+        match security_framework::passwords::delete_generic_password(SERVICE, account) {
             Ok(()) => Ok(()),
             Err(e) if e.code() == -25300 => Ok(()),
             Err(_) => Err(Error::SecureStorage),
         }
+    }
+}
+#[cfg(target_os = "macos")]
+impl Store for Keychain {
+    fn load(&self) -> Result<Option<Credential>> {
+        load(&Service, &self.account)
+    }
+    fn save(&self, credential: &Credential) -> Result<()> {
+        save(&Service, &self.account, credential)
+    }
+    fn clear(&self) -> Result<()> {
+        Service.delete(&self.account)
     }
 }

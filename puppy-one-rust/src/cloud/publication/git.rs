@@ -168,7 +168,7 @@ fn encode(config: &CredentialConfig) -> String {
 }
 /// `secureCredentialCommandArgs`: command-line config outranks the local
 /// file, and the empty helper resets the inherited chain for this URL.
-fn secure_args(
+pub(super) fn secure_args(
     url: &str,
     config: &CredentialConfig,
     args: &[&str],
@@ -224,15 +224,73 @@ fn read_scoped(root: &Path, scope: &Scope) -> Scoped {
     }
 }
 fn replace(root: &Path, key: &str, new: &[String]) -> Result<(), PublishError> {
-    let _ = local(root, &["config", "--local", "--unset-all", key]);
+    if local(root, &["config", "--local", "--unset-all", key]).is_ok() {
+        wrote();
+    }
     for value in new {
         local(root, &["config", "--local", "--add", key, value])
             .map_err(|_| config_conflict("unable to write the local config"))?;
+        wrote();
+    }
+    Ok(())
+}
+#[cfg(test)]
+thread_local! {
+    /// Tests: the process stops after this many more successful config writes.
+    pub(super) static CRASH_AFTER_WRITES: std::cell::Cell<Option<usize>> =
+        const { std::cell::Cell::new(None) };
+}
+/// A config write landed: a crash boundary.
+fn wrote() {
+    #[cfg(test)]
+    CRASH_AFTER_WRITES.with(|left| match left.get() {
+        Some(1) => {
+            left.set(None);
+            std::panic::panic_any(ConfigCrash);
+        }
+        Some(n) => left.set(Some(n - 1)),
+        None => {}
+    });
+}
+#[cfg(test)]
+pub(super) struct ConfigCrash;
+/// `MAX_CONFIG_VALUES`, `MAX_CONFIG_VALUE_BYTES`, `MAX_ENCODED_SNAPSHOT_LENGTH`:
+/// the scope a snapshot preserves must fit the durable metadata.
+fn bounded(config: &CredentialConfig) -> Result<(), PublishError> {
+    let fits = |values: &[String]| values.len() <= 64 && values.iter().all(|v| v.len() <= 4096);
+    if !fits(&config.previous_helpers)
+        || !fits(&config.previous_use_http_path)
+        || encode(config).len() > 64 * 1024
+    {
+        return Err(config_conflict(
+            "the existing scoped credential config is too large to preserve",
+        ));
+    }
+    Ok(())
+}
+/// `assertManaged`: the URL scope is still exactly what this operation
+/// installed; a concurrent local change fails closed.
+pub(super) fn assert_managed(
+    root: &Path,
+    config: &CredentialConfig,
+    operation: &str,
+) -> Result<(), PublishError> {
+    let scope = scope(&config.scope_url)?;
+    let expected = Scoped {
+        helpers: vec![String::new(), config.helper.clone()],
+        use_http_path: vec!["true".into()],
+        markers: vec![operation.to_owned()],
+        snapshots: vec![encode(config)],
+    };
+    if read_scoped(root, &scope) != expected {
+        return Err(config_conflict(
+            "managed credential configuration changed during the Git operation",
+        ));
     }
     Ok(())
 }
 impl Cli {
-    fn install(
+    pub(super) fn install(
         &self,
         root: &Path,
         config: &CredentialConfig,
@@ -245,7 +303,11 @@ impl Cli {
         replace(root, &scope.use_http_path, &["true".to_owned()])?;
         replace(root, &scope.helper, &[String::new(), config.helper.clone()])
     }
-    fn restore(&self, root: &Path, config: &CredentialConfig) -> Result<(), PublishError> {
+    pub(super) fn restore(
+        &self,
+        root: &Path,
+        config: &CredentialConfig,
+    ) -> Result<(), PublishError> {
         let scope = scope(&config.scope_url)?;
         replace(root, &scope.helper, &config.previous_helpers)?;
         replace(root, &scope.use_http_path, &config.previous_use_http_path)?;
@@ -253,7 +315,12 @@ impl Cli {
         replace(root, &scope.snapshot, &[])
     }
     /// `approve`: store, then read back the same secret (`credential fill`).
-    fn approve(&self, root: &Path, record: &Record, secret: &str) -> Result<(), PublishError> {
+    pub(super) fn approve(
+        &self,
+        root: &Path,
+        record: &Record,
+        secret: &str,
+    ) -> Result<(), PublishError> {
         let (url, config, user) = complete(record)?;
         self.install(root, config, &record.operation_id)?;
         let args = secure_args(url, config, &["credential", "approve"])?;
@@ -632,7 +699,7 @@ impl GitOps for Cli {
                     })?
             }
         };
-        Ok(CredentialConfig {
+        let config = CredentialConfig {
             version: 1,
             scope_url: url::Url::parse(url)
                 .map(|u| u.to_string())
@@ -640,7 +707,9 @@ impl GitOps for Cli {
             helper,
             previous_helpers: current.helpers,
             previous_use_http_path: current.use_http_path,
-        })
+        };
+        bounded(&config)?;
+        Ok(config)
     }
     fn configure_remote(
         &self,
@@ -678,6 +747,8 @@ impl GitOps for Cli {
                 false,
             ));
         }
+        let (_, config, _) = complete(record)?;
+        assert_managed(root, config, &record.operation_id)?;
         Ok(created)
     }
     fn push(&self, root: &Path, record: &Record, secret: &str) -> Result<(), PublishError> {
@@ -701,13 +772,14 @@ impl GitOps for Cli {
             &["-c", &header, "push", "--porcelain", &lease, url, &refspec],
         )?;
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let (_, config, _) = complete(record)?;
         match git(root, &args, None, PUSH_TIMEOUT) {
-            Ok(_) => Ok(()),
+            Ok(_) => assert_managed(root, config, &record.operation_id),
             Err(stderr) => {
                 // One bounded check of what Cloud main now is.
                 let head = self.remote_main(root, record, secret).ok().flatten();
                 if head.as_deref() == Some(record.attempt.commit_oid.as_str()) {
-                    return Ok(());
+                    return assert_managed(root, config, &record.operation_id);
                 }
                 if head.is_some() {
                     return Err(PublishError::new(
@@ -786,6 +858,9 @@ impl GitOps for Cli {
     /// `finalizeUpstreamAndStatus`: the tracking ref and upstream of the
     /// source branch.
     fn finalize(&self, root: &Path, record: &Record) -> Result<(), PublishError> {
+        if let Ok((_, config, _)) = complete(record) {
+            assert_managed(root, config, &record.operation_id)?;
+        }
         let failed = || {
             PublishError::new(
                 Code::LocalFinalizeFailed,
@@ -874,18 +949,50 @@ pub(super) fn repository_ownership(
         .map_err(failure)
 }
 
+/// The remotes as a person reviewed them: each name with its fetch and
+/// push URLs, in order.
+pub type Reviewed = Vec<(String, String, String)>;
+pub fn reviewed_remotes(root: &Path) -> Reviewed {
+    let mut remotes: Reviewed = Vec::new();
+    for line in local(root, &["remote", "-v"]).unwrap_or_default().lines() {
+        let mut parts = line.split_whitespace();
+        let (Some(name), Some(url), Some(kind)) = (parts.next(), parts.next(), parts.next()) else {
+            continue;
+        };
+        let index = match remotes.iter().position(|(n, _, _)| n == name) {
+            Some(index) => index,
+            None => {
+                remotes.push((name.to_owned(), String::new(), String::new()));
+                remotes.len() - 1
+            }
+        };
+        if kind == "(push)" {
+            remotes[index].2 = url.to_owned();
+        } else {
+            remotes[index].1 = url.to_owned();
+        }
+    }
+    remotes
+}
 /// `detachManaged` + removing the remote: the local half of replacing a
 /// Cloud association whose Project no longer exists. Nothing happens unless
-/// `puppyone` still points exactly at the reviewed URL.
-pub fn detach(root: &Path, reviewed_url: &str) -> Result<(), PublishError> {
+/// every remote is still as it was reviewed — `puppyone` at the reviewed
+/// URL, the same push URLs, no other remote changed — checked again after
+/// the credential is forgotten, before the remote goes.
+pub fn detach(root: &Path, reviewed_url: &str, reviewed: &Reviewed) -> Result<(), PublishError> {
     let cli = Cli { helper: None };
     let _ownership = repository_ownership(&cli.identity(root)?.common_dir)?;
-    if cli.remote(root)? != Remote::Exact(reviewed_url.to_owned()) {
-        return Err(PublishError::new(
+    let changed = || {
+        PublishError::new(
             Code::RemoteConflict,
-            "The Cloud remote changed after it was reviewed.",
+            "Git remotes changed after they were reviewed.",
             false,
-        ));
+        )
+    };
+    if cli.remote(root)? != Remote::Exact(reviewed_url.to_owned())
+        || reviewed_remotes(root) != *reviewed
+    {
+        return Err(changed());
     }
     let scope = scope(reviewed_url)?;
     let current = read_scoped(root, &scope);
@@ -908,6 +1015,9 @@ pub fn detach(root: &Path, reviewed_url: &str) -> Result<(), PublishError> {
             );
         }
         cli.restore(root, &config)?;
+    }
+    if reviewed_remotes(root) != *reviewed {
+        return Err(changed());
     }
     local(root, &["remote", "remove", REMOTE]).map_err(|_| {
         PublishError::new(

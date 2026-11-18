@@ -20,6 +20,8 @@
 //! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `app::tests::cloud_opening::a_vanished_cloud_projects_link_is_ended_from_its_notice` |
 #[path = "coordinator_tests.rs"]
 mod coordinator_tests;
+#[path = "credential_tests.rs"]
+mod credential_tests;
 #[path = "git_push_tests.rs"]
 mod git_push_tests;
 
@@ -526,16 +528,20 @@ fn detaching_a_missing_project_removes_only_the_reviewed_remote() {
         .unwrap();
     // Someone changed it after review: nothing is touched.
     assert_eq!(
-        git::detach(root, "https://api.puppyone.ai/git/other.git")
-            .unwrap_err()
-            .code,
+        git::detach(
+            root,
+            "https://api.puppyone.ai/git/other.git",
+            &git::reviewed_remotes(root)
+        )
+        .unwrap_err()
+        .code,
         Code::RemoteConflict
     );
     assert_eq!(
         Cli { helper: None }.remote(root).unwrap(),
         Remote::Exact(URL.into())
     );
-    git::detach(root, URL).unwrap();
+    git::detach(root, URL, &git::reviewed_remotes(root)).unwrap();
     assert_eq!(Cli { helper: None }.remote(root).unwrap(), Remote::Missing);
 }
 
@@ -928,4 +934,123 @@ fn version_1_journals_migrate_and_persist_on_their_first_read() {
     assert!(first.migrated_from.as_ref().unwrap().persisted);
     assert_eq!(persisted, serde_json::to_value(&first).unwrap());
     assert_eq!(second, first);
+}
+
+/// `missingCloudProjectDetach`: ending a vanished Cloud project's link
+/// removes only the reviewed remote, and only while every remote is as it
+/// was reviewed, checked again after the credential is forgotten.
+#[test]
+fn a_reviewed_detach_keeps_history_content_and_unrelated_remotes() {
+    const OLD: &str = "http://api.puppyone.ai/git/project-1.git";
+    const GITHUB: &str = "https://github.com/fixture/project.git";
+    let sh = |root: &Path, args: &[&str]| {
+        let out = std::process::Command::new("/usr/bin/git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        (
+            out.status.success(),
+            String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+        )
+    };
+    let fixture = || {
+        let temp = repository();
+        sh(temp.path(), &["remote", "add", "puppyone", OLD]);
+        sh(temp.path(), &["remote", "add", "origin", GITHUB]);
+        temp
+    };
+    let temp = fixture();
+    let root = temp.path();
+    let head = sh(root, &["rev-parse", "HEAD"]).1;
+    git::detach(root, OLD, &git::reviewed_remotes(root)).unwrap();
+    assert_eq!(
+        git::reviewed_remotes(root),
+        [("origin".to_owned(), GITHUB.to_owned(), GITHUB.to_owned())]
+    );
+    assert_eq!(sh(root, &["rev-parse", "HEAD"]).1, head);
+    assert_eq!(std::fs::read_to_string(root.join("a.md")).unwrap(), "# A\n");
+
+    // A link to another environment ends with the branch tracking it.
+    let temp = fixture();
+    let root = temp.path();
+    let other = "http://localhost:9090/git/01a0e7da-6575-7771-af76-48b47dde4ba6.git";
+    sh(root, &["remote", "set-url", "puppyone", other]);
+    sh(root, &["config", "branch.main.remote", "puppyone"]);
+    sh(root, &["config", "branch.main.merge", "refs/heads/main"]);
+    git::detach(root, other, &git::reviewed_remotes(root)).unwrap();
+    assert!(!sh(root, &["config", "--get", "branch.main.remote"]).0);
+    assert_eq!(git::reviewed_remotes(root).len(), 1);
+
+    // A changed fetch, push or other remote: nothing is touched.
+    for change in ["fetch", "push", "another"] {
+        let temp = fixture();
+        let root = temp.path();
+        let reviewed = git::reviewed_remotes(root);
+        match change {
+            "fetch" => sh(
+                root,
+                &[
+                    "remote",
+                    "set-url",
+                    "puppyone",
+                    "https://api.puppyone.ai/git/new-project.git",
+                ],
+            ),
+            "push" => sh(
+                root,
+                &[
+                    "remote",
+                    "set-url",
+                    "--push",
+                    "puppyone",
+                    "https://api.puppyone.ai/git/new-project.git",
+                ],
+            ),
+            _ => sh(
+                root,
+                &["remote", "add", "another", "https://example.com/new.git"],
+            ),
+        };
+        let config = std::fs::read_to_string(root.join(".git/config")).unwrap();
+        let url = if change == "fetch" {
+            "https://api.puppyone.ai/git/new-project.git"
+        } else {
+            OLD
+        };
+        let error = git::detach(root, url, &reviewed).unwrap_err();
+        assert_eq!(error.code, Code::RemoteConflict, "{change}");
+        assert_eq!(
+            std::fs::read_to_string(root.join(".git/config")).unwrap(),
+            config,
+            "{change}"
+        );
+    }
+
+    // A change while the credential is forgotten is caught before the
+    // remote goes: the forgetting helper itself repoints it here.
+    let temp = fixture();
+    let root = temp.path();
+    let repoint = format!(
+        "!f() {{ cd {} && /usr/bin/git remote set-url puppyone https://api.puppyone.ai/git/new-project.git; }}; f",
+        root.display()
+    );
+    let config = journal::CredentialConfig {
+        version: 1,
+        scope_url: OLD.into(),
+        helper: repoint,
+        previous_helpers: vec![],
+        previous_use_http_path: vec![],
+    };
+    Cli { helper: None }
+        .install(root, &config, "11111111-1111-4111-8111-111111111111")
+        .unwrap();
+    let reviewed = git::reviewed_remotes(root);
+    let error = git::detach(root, OLD, &reviewed).unwrap_err();
+    assert_eq!(error.code, Code::RemoteConflict);
+    assert_eq!(
+        sh(root, &["remote", "get-url", "puppyone"]).1,
+        "https://api.puppyone.ai/git/new-project.git"
+    );
+    assert_eq!(sh(root, &["remote", "get-url", "origin"]).1, GITHUB);
 }

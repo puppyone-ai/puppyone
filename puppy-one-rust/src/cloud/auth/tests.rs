@@ -706,3 +706,66 @@ fn workbench_open_posts_preserve_structured_failures_while_file_writes_stay_unkn
     }
     broker.shutdown();
 }
+
+/// `desktop credential store`: what the keychain item holds and how an
+/// unreadable one is set aside, over an in-memory item store.
+#[test]
+fn the_saved_sign_in_holds_only_the_refresh_credential_and_bad_records_are_set_aside() {
+    use super::store::{Items, load, save};
+    use std::collections::BTreeMap;
+    use std::sync::Mutex;
+    #[derive(Default)]
+    struct Memory(Mutex<BTreeMap<String, Vec<u8>>>);
+    impl Items for Memory {
+        fn get(&self, account: &str) -> super::model::Result<Option<Vec<u8>>> {
+            Ok(self.0.lock().unwrap().get(account).cloned())
+        }
+        fn set(&self, account: &str, bytes: &[u8]) -> super::model::Result<()> {
+            self.0
+                .lock()
+                .unwrap()
+                .insert(account.into(), bytes.to_vec());
+            Ok(())
+        }
+        fn delete(&self, account: &str) -> super::model::Result<()> {
+            self.0.lock().unwrap().remove(account);
+            Ok(())
+        }
+    }
+    let items = Memory::default();
+    let credential = Credential {
+        version: 1,
+        environment: Environment::new("https://api.puppyone.ai/api/v1", "https://www.puppyone.ai")
+            .unwrap(),
+        user: "user-1".into(),
+        email: "person@example.com".into(),
+        refresh: Secret("refresh-credential".into()),
+    };
+    save(&items, "session-v1/default", &credential).unwrap();
+    let stored: serde_json::Value =
+        serde_json::from_slice(&items.0.lock().unwrap()["session-v1/default"]).unwrap();
+    let mut keys: Vec<&str> = stored
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort();
+    assert_eq!(keys, ["email", "environment", "refresh", "user", "version"]);
+    let restored = load(&items, "session-v1/default").unwrap().unwrap();
+    assert_eq!(
+        (restored.user.as_str(), restored.refresh.0.as_str()),
+        ("user-1", "refresh-credential")
+    );
+    // An unreadable record is set aside, and reads as signed out.
+    items.set("session-v1/default", b"{not-json").unwrap();
+    assert!(load(&items, "session-v1/default").unwrap().is_none());
+    let accounts: Vec<String> = items.0.lock().unwrap().keys().cloned().collect();
+    assert_eq!(accounts.len(), 1);
+    assert!(
+        accounts[0].starts_with("session-v1/default.corrupt."),
+        "{accounts:?}"
+    );
+    assert_eq!(items.0.lock().unwrap()[&accounts[0]], b"{not-json");
+    assert!(load(&items, "session-v1/default").unwrap().is_none());
+}

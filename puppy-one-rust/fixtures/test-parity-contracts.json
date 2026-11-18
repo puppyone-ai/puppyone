@@ -22215,6 +22215,310 @@
         }
       ],
       "environment": "real git CLI, a loopback smart-HTTP git-http-backend, temporary repositories and a scripted Cloud API; crashes simulated by unwinding"
+    },
+    {
+      "id": "cloud-git-credential-scope",
+      "acceptance": "Cloud Git credentials are scoped to the canonical URL. The managed helper resets only that URL's chain and is pinned on every command, and the secret goes to it on standard input, never argv. Only an allowlisted helper is chosen; on macOS that is the keychain, so failing closed with none is the Linux path. Shell and path helpers never receive the secret. Abandon and Detach restore the values that were there before, and an oversized snapshot is refused before the config changes (Rust now bounds snapshots: 64 values of 4 KiB each, 64 KiB encoded). A helper that cannot read the credential back fails closed and restores the config, with no secret in the error (Rust's message does not quote the helper's stderr). A concurrent local change to the managed scope is detected (Rust now asserts the scope after configuring the remote, after a push and before finalizing). A restore cut short resumes, and every config-write crash point of install and restore recovers. The system keychain is never written in tests: a private store file stands in.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/auth/electron.cloud-publish-git-credentials.test.mjs",
+          "sha256": "1bb101a46e7f44c06b08c168adf27ce5088b47ee6a54b276501fcbf71f5ec981",
+          "cases": [
+            {
+              "index": 0,
+              "name": "URL-scoped Cloud Git credentials > resets an unknown helper only for the canonical URL and restores it exactly on Abandon"
+            },
+            {
+              "index": 1,
+              "name": "URL-scoped Cloud Git credentials > persists enough scoped metadata for Detach to restore preexisting values"
+            },
+            {
+              "index": 2,
+              "name": "URL-scoped Cloud Git credentials > never sends a secret to shell/path helpers and fails closed without an allowlisted helper"
+            },
+            {
+              "index": 3,
+              "name": "URL-scoped Cloud Git credentials > rejects an oversized durable snapshot before mutating scoped config"
+            },
+            {
+              "index": 4,
+              "name": "URL-scoped Cloud Git credentials > fails closed and restores config when a helper cannot read back an approved credential"
+            },
+            {
+              "index": 5,
+              "name": "URL-scoped Cloud Git credentials > keeps saga commands pinned to the safe helper and detects a concurrent local mutation"
+            },
+            {
+              "index": 6,
+              "name": "URL-scoped Cloud Git credentials > resumes owned partial multi-value config writes after a crash"
+            },
+            {
+              "index": 7,
+              "name": "URL-scoped Cloud Git credentials > recovers every successful config-write crash point during install and restore"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::an_unknown_helper_is_reset_only_for_the_canonical_url_and_restored_on_abandon"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::detach_restores_the_values_that_were_there_before"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::shell_and_path_helpers_never_receive_the_secret"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::an_oversized_snapshot_is_refused_before_the_config_changes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::a_helper_that_cannot_read_the_credential_back_fails_closed_and_restores"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::commands_stay_pinned_and_a_concurrent_local_change_is_detected"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::a_restore_cut_short_resumes_its_multi_value_writes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::every_config_write_crash_point_recovers"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::the_managed_helper_round_trips_the_secret_and_restores_the_previous_config"
+        }
+      ],
+      "environment": "real git config in temporary repositories; a private credential store file in place of the keychain"
+    },
+    {
+      "id": "cloud-saved-sign-in",
+      "acceptance": "The saved sign-in holds only the refresh credential and who it belongs to: no access token. It reads back intact, and an unreadable record is set aside as <account>.corrupt.<time> and reads as signed out, never as a silent logout. The logic is tested over an in-memory item store; the keychain adapter is three item calls.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/auth/electron.cloud-credential-store.test.mjs",
+          "sha256": "24dae500a33be957e4a072fd995d0d50a8cb46ef47dbfb346e502831f72a892c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop credential store > atomically persists only the v2 refresh credential and reads it back"
+            },
+            {
+              "index": 2,
+              "name": "desktop credential store > quarantines malformed storage instead of silently treating it as a valid logout"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::the_saved_sign_in_holds_only_the_refresh_credential_and_bad_records_are_set_aside"
+        }
+      ],
+      "environment": "an in-memory generic-password item store"
+    },
+    {
+      "id": "cloud-native-sign-in",
+      "acceptance": "Native sign-in exchanges a PKCE code over real HTTP with no Cloud handoff request, and the login page's form session is verified directly with Supabase. A wrong state, another origin, a replay, a duplicate or framed request and a wrong Host are refused; an oversized form gets 413, and the page never echoes a credential. An invalid code or refresh credential is never adopted, so the attempt ends signed out with its reason, and a rejected handoff ends the attempt at once with its listener closed. A credential that cannot be stored does not publish a signed-in account. Privileged or oversized configuration keys are refused before any provider is contacted. A logout or account change wins over a credential write already in progress. Logout revokes remotely, then clears the saved sign-in.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/auth/electron.supabase-native-auth.test.mjs",
+          "sha256": "9ebb5a7fa8e055447989f09c90d050bea150f30c04c2a80224e76a07d447375a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "completes actual HTTP OAuth code exchange with zero cloud handoff requests"
+            },
+            {
+              "index": 1,
+              "name": "accepts the original Web form session and verifies it directly with Supabase"
+            },
+            {
+              "index": 2,
+              "name": "does not adopt an invalid Supabase refresh credential"
+            },
+            {
+              "index": 3,
+              "name": "fails visibly when the login page's own handoff is rejected"
+            },
+            {
+              "index": 4,
+              "name": "fails visibly when the credential cannot be stored after a valid handoff"
+            },
+            {
+              "index": 5,
+              "name": "Supabase rejects a code with the wrong verifier or a replay"
+            },
+            {
+              "index": 6,
+              "name": "rejects privileged configuration keys before contacting a provider"
+            },
+            {
+              "index": 7,
+              "name": "logout wins over a credential write already in progress"
+            },
+            {
+              "index": 8,
+              "name": "rejects oversized forms and wrong Host before contacting Supabase"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::native_pkce_and_email_handoffs_use_the_real_http_adapter_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::the_login_pages_rejected_handoff_fails_the_sign_in_at_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::disabled_providers_and_rejected_pkce_never_publish_or_persist_a_session"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::transport_rejects_redirects_and_privileged_or_oversized_configurations"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::concurrent_callbacks_dispatch_only_one_exchange"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::callback_parser_rejects_host_origin_duplicates_framing_and_token_urls"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::vault_failure_does_not_publish_authenticated_or_hide_failed_logout"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::a_late_keychain_write_is_rolled_back_before_new_account_commit"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::sign_out_revokes_remotely_before_clearing_the_saved_sign_in"
+        }
+      ],
+      "environment": "loopback HTTP auth and Supabase fixtures; in-memory credential stores"
+    },
+    {
+      "id": "cloud-local-collaboration",
+      "acceptance": "Changes go both ways through the shared remote, and ahead and behind are counted. A diverged branch is rebased, never merged. A pull keeps staged, unstaged and untracked work that does not overlap. A rebase conflict stops sending and pulling until it is resolved and continued (or aborted), then pushes with no merge commit. An autostash conflict keeps the uncommitted edit beside the remote text and refuses to push until it is resolved and committed.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/repositories/cloud-local.collaboration.test.mjs",
+          "sha256": "1bc390a6f9ed200e4bfefeb881476bfa4d88c6e164fa210e5ff726566dcb9add",
+          "cases": [
+            {
+              "index": 0,
+              "name": "云端协同 (cloud <-> local collaboration) > propagates edits bidirectionally through the shared cloud remote"
+            },
+            {
+              "index": 1,
+              "name": "云端协同 (cloud <-> local collaboration) > surfaces ahead/behind sync status"
+            },
+            {
+              "index": 2,
+              "name": "云端协同 (cloud <-> local collaboration) > rebases local commits before pushing a diverged branch"
+            },
+            {
+              "index": 3,
+              "name": "云端协同 (cloud <-> local collaboration) > preserves uncommitted files while pulling a non-overlapping remote commit"
+            },
+            {
+              "index": 4,
+              "name": "云端协同 (cloud <-> local collaboration) > surfaces and completes a rebase conflict before allowing Push"
+            },
+            {
+              "index": 5,
+              "name": "云端协同 (cloud <-> local collaboration) > surfaces an autostash conflict without losing an uncommitted edit"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::collaboration_runs_both_ways_and_keeps_work_that_does_not_overlap"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::default_pull_rebases_and_restores_dirty_and_untracked_files"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::a_rebase_conflict_is_surfaced_and_finished_before_push"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::an_autostash_conflict_keeps_the_uncommitted_edit_and_blocks_push"
+        }
+      ],
+      "environment": "real git CLI with a bare remote and a peer clone, isolated from the developer's Git configuration"
+    },
+    {
+      "id": "missing-cloud-project-detach",
+      "acceptance": "Ending a vanished Cloud project's link removes only the reviewed puppyone remote, and the branch tracking that went with it, even for another environment. Local history, content and unrelated remotes stay. Every remote is compared with the person's review: a changed fetch URL, a changed push URL or another remote touches nothing, and a change made while the credential is being forgotten is caught before the remote goes (Rust now reviews every remote and checks again).",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/repositories/missingCloudProjectDetach.test.mjs",
+          "sha256": "15cdec7e89abd4ad04193da637070d28b1ecb82b9ebba5dd79889e5e65dc4624",
+          "cases": [
+            {
+              "index": 0,
+              "name": "reviewed missing-Cloud connection detach > detaches the reviewed old remote while retaining local history, content and unrelated remotes"
+            },
+            {
+              "index": 1,
+              "name": "reviewed missing-Cloud connection detach > ends a link to another environment, and the branch tracking that went with it"
+            },
+            {
+              "index": 2,
+              "name": "reviewed missing-Cloud connection detach > rejects a changed fetch before touching credentials or Git config"
+            },
+            {
+              "index": 3,
+              "name": "reviewed missing-Cloud connection detach > rejects a changed push before touching credentials or Git config"
+            },
+            {
+              "index": 4,
+              "name": "reviewed missing-Cloud connection detach > rejects a changed another remote before touching credentials or Git config"
+            },
+            {
+              "index": 5,
+              "name": "reviewed missing-Cloud connection detach > rechecks the reviewed snapshot after credential detach"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::a_reviewed_detach_keeps_history_content_and_unrelated_remotes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::detaching_a_missing_project_removes_only_the_reviewed_remote"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_vanished_cloud_projects_link_is_ended_from_its_notice"
+        }
+      ],
+      "environment": "real git repositories; a helper that repoints the remote during the credential detach"
     }
   ],
   "openAcceptance": [
@@ -22436,7 +22740,7 @@
     {
       "id": "windows-and-cross-platform-release",
       "kind": "out-of-scope",
-      "reason": "Only macOS is in scope for the native frontend: Windows NSIS releases and updater delivery, Windows identity and Authenticode checks, combined macOS+Windows release sets, Windows CLI resolution and non-macOS icon tooling are not built or verified.",
+      "reason": "Only macOS is in scope for the native frontend: Windows NSIS releases and updater delivery, Windows identity and Authenticode checks, combined macOS+Windows release sets, Windows CLI resolution and non-macOS icon tooling are not built or verified, and Linux secure-storage backends (Electron safeStorage's basic_text fallback) do not apply.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
       "typescript": [
         {
@@ -22596,6 +22900,16 @@
             {
               "index": 24,
               "name": "ordered installation discovery > resolves a registered Windows WorkBuddy app as an atomic Electron-hosted CLI recipe"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/auth/electron.cloud-credential-store.test.mjs",
+          "sha256": "24dae500a33be957e4a072fd995d0d50a8cb46ef47dbfb346e502831f72a892c",
+          "cases": [
+            {
+              "index": 3,
+              "name": "desktop credential store > fails closed when Linux safeStorage selected basic_text"
             }
           ]
         }
@@ -24162,6 +24476,42 @@
             {
               "index": 0,
               "name": "Cloud Git operation journal CAS > enforces 0600 durability, revision CAS, and monotonic phases across instances"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-credential-envelopes",
+      "kind": "out-of-scope",
+      "reason": "ADR-009 separates the native app's identity from Electron's: the native app keeps its own keychain sign-in and never reads the Electron product's credential files (safeStorage envelopes, legacy full-session records).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/decisions/ADR-009-separate-identity-from-electron.md",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/auth/electron.cloud-credential-store.test.mjs",
+          "sha256": "24dae500a33be957e4a072fd995d0d50a8cb46ef47dbfb346e502831f72a892c",
+          "cases": [
+            {
+              "index": 1,
+              "name": "desktop credential store > reads a legacy full-session envelope without returning its access token"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-local-cloud-dev-script",
+      "kind": "out-of-scope",
+      "reason": "This exercises the TS repository's local Cloud development script (scripts/local-cloud-dev.mjs), which starts a preview standalone frontend and API for developers; it is skipped unless PUPPYONE_TEST_CLOUD_FRONTEND is set. It is developer tooling, not product behaviour; the native app's development Cloud runs through tools/dev-local-cloud.py.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/environment/localCloudRuntime.test.mjs",
+          "sha256": "5a4687693f987f25e1ef4d42d4954e1cb4e40b7094b844bd8818eeedb20bd83f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "starts the actual standalone server, checks login once, and tears down only owned services"
             }
           ]
         }
