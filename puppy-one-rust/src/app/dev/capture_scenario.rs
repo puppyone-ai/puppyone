@@ -19,9 +19,12 @@
 //! `home-actions:<index>` (its actions menu), `pin:<path>` (a file pinned
 //! above the tree), `template` (a template
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
-//! `agents-fixture:<roster|empty>` (the Cloud Header with fixture Agents,
-//! nobody asking to join, or nobody yet), `agents:<more|invite|agent id>` (their dialog), `agent-card:<id>`
+//! `agents-fixture:<roster|empty|invite>` (the Cloud Header with fixture Agents,
+//! nobody asking to join, or nobody yet; `invite`: nobody until the message
+//! goes out, then Claude Code asks to join), `agents:<more|invite|agent id>` (their dialog), `agent-card:<id>`
 //! (the card under a Header face), `agents-copy` (the invite copied),
+//! `agents-allow` (the first asking Agent let in), `agents-lapse` (the
+//! message lapsed),
 //! `agent-chat:<runtime id>` (a new chat on a detected
 //! Agent), `agent-settled` (its session prepared or failed),
 //! `agent-prompt:<text>` (the chat sends it), `agent-idle` (no turn
@@ -103,8 +106,12 @@ enum Step {
     Agents(String),
     /// `agent-card:<id>`: the card under a Header face.
     AgentCard(String),
-    /// `agents-copy`: the invite copied, on to its second step.
+    /// `agents-copy`: the message copied; the invite waits for the Agent.
     AgentsCopy,
+    /// `agents-allow`: the first Agent asking to join is let in.
+    AgentsAllow,
+    /// `agents-lapse`: the invite's message has lapsed.
+    AgentsLapse,
     FileMenu(crate::app::file_mode::FileMenu),
     FileEdit,
     Blur,
@@ -189,6 +196,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "agents" => Step::Agents(arg.to_string()),
                 "agent-card" => Step::AgentCard(arg.to_string()),
                 "agents-copy" => Step::AgentsCopy,
+                "agents-allow" => Step::AgentsAllow,
+                "agents-lapse" => Step::AgentsLapse,
                 "file-menu" => Step::FileMenu(match arg {
                     "settings" => crate::app::file_mode::FileMenu::Settings,
                     _ => crate::app::file_mode::FileMenu::View,
@@ -775,6 +784,17 @@ impl Shell {
             Step::AgentsCopy => {
                 let agents = self.cloud.read(cx).agents.clone();
                 agents.update(cx, |a, cx| a.copy_invite(cx));
+            }
+            Step::AgentsAllow => {
+                let agents = self.cloud.read(cx).agents.clone();
+                let Some(id) = agents.read(cx).requests.first().map(|r| r.id.clone()) else {
+                    return false;
+                };
+                agents.update(cx, |a, cx| a.decide(&id, true, cx));
+            }
+            Step::AgentsLapse => {
+                let agents = self.cloud.read(cx).agents.clone();
+                agents.update(cx, |a, cx| a.capture_lapse(cx));
             }
             Step::FileMenu(menu) => {
                 if let Some(file) = &self.file {

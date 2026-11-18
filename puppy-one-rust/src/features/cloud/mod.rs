@@ -39,4 +39,4 @@ pub use spaces::{
 };
 #[cfg(feature = "dev-capture")]
 pub use workspace_agents::lab_client as lab_agents_client;
-pub use workspace_agents::{CloudAgents, CopyStatus, Opener, status as agent_status};
+pub use workspace_agents::{CloudAgents, CopyStatus, InvitePhase, Opener, status as agent_status};
