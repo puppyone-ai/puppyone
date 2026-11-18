@@ -438,7 +438,7 @@
       "rust": [
         {
           "package": "po-workspace",
-          "test": "workspace::cloud::tests::creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight"
+          "test": "workspace::cloud::tests::creating_an_unrelated_folder_and_file_finishes_while_a_slow_save_is_in_flight"
         },
         {
           "package": "po-workspace",
@@ -18862,6 +18862,350 @@
         }
       ],
       "environment": "GPUI test platform; production Workbench with recording items and the production Shell sidebar"
+    },
+    {
+      "id": "terminal-resource-drop",
+      "acceptance": "Dropped paths reach the shell prompt as literal, space-separated arguments with no Enter: spaces, Chinese, quotes and shell metacharacters round-trip through a real POSIX shell without executing anything; C0/C1 terminal controls and shells whose quoting is unknown are refused; PowerShell quoting doubles single quotes. Workspace entries dragged in the app resolve through the workspace they came from, never by joining the receiving terminal's root, and a source without local files refuses the drop instead of falling back to a raw path.",
+      "typescript": [
+        {
+          "path": "tests/integration/terminal/input/terminalResourceDrop.test.ts",
+          "sha256": "1133c35df7d9d8a835d473163c02cea0799337399889355cf6e78ef08da595d3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal resource path delivery > round-trips literal spaces, Chinese, quotes and shell metacharacters without executing them"
+            },
+            {
+              "index": 1,
+              "name": "Terminal resource path delivery > rejects terminal controls and unknown shell semantics"
+            },
+            {
+              "index": 2,
+              "name": "Terminal resource path delivery > resolves identities through Main instead of concatenating the receiving root"
+            },
+            {
+              "index": 3,
+              "name": "Terminal resource path delivery > claims native workbench files as references and does not bypass a rejected session"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::interaction::tests::dropped_paths_round_trip_through_a_real_shell_without_executing"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::interaction::tests::dropped_paths_are_quoted_for_the_shell_or_refused"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::tests::dragged_entries_resolve_through_their_own_workspace"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::tests::native_pointer_selection_copy_and_shift_override"
+        }
+      ],
+      "environment": "local; /bin/sh executes the quoted arguments; GPUI terminal view for the refused-drop notice"
+    },
+    {
+      "id": "cloud-live-workspace-editing",
+      "acceptance": "Editing a Cloud document: a typing burst is written once after the pause and the stored bytes match, without rereading listings; the save's change event names its file and rereading the stored bytes acknowledges the save without another write; unsaved typing survives an Agent write to the same file as a deferred conflict that never writes over the Agent until the person reloads, which adopts the Agent's text; a clean document adopts an Agent write without writing it back; a second window's conditional write is rejected with the remote bytes and keeps its draft instead of overwriting the first window's save; and creating a folder or file finishes while a slow save of another file is in flight. Rust's document session and Cloud HTTP provider cover these at their own layers; the HTTP side runs over a loopback fixture server.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/repositories/live-workspace-editing.test.ts",
+          "sha256": "f195800269d848c82d39dd054edae686ad5818e7c82b8ba84c6758f28a688dd9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud editing over a live workspace > writes a typing burst once after the pause, and the bytes land in the workspace"
+            },
+            {
+              "index": 1,
+              "name": "Cloud editing over a live workspace > names the saved file in its echo; re-reading it acknowledges the save without another write"
+            },
+            {
+              "index": 2,
+              "name": "Cloud editing over a live workspace > keeps unsaved typing when an Agent writes the same file, and never writes over the Agent"
+            },
+            {
+              "index": 3,
+              "name": "Cloud editing over a live workspace > adopts an Agent write into a clean document without writing it back"
+            },
+            {
+              "index": 4,
+              "name": "Cloud editing over a live workspace > lets a second window keep its draft instead of overwriting the first window's save"
+            },
+            {
+              "index": 5,
+              "name": "Cloud editing over a live workspace > creates another file while a slow save is still in flight"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "documents::auto_save::tests::continuous_typing_saves_within_two_seconds_and_the_next_burst_restarts",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_status::quick_hosted_save_stays_unsaved_and_quiet_until_storage_acknowledges",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::saving_keeps_live_listings_and_creating_invalidates_only_its_parent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::scoped_events_drop_the_named_subtree_and_unknown_events_drop_every_listing"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::own_echo_and_duplicate_baseline_preserve_newer_typing",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::cloud_observations_defer_under_unsaved_input_and_converged_writes_acknowledge",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::cloud_conflicts_preserve_the_draft_until_discard_and_reload",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::cloud_matching_external_bytes_before_autosave_adopt_without_writeback",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::mutations_are_no_clobber_and_cas_returns_remote_bytes_without_replaying"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::creating_an_unrelated_folder_and_file_finishes_while_a_slow_save_is_in_flight"
+        }
+      ],
+      "environment": "loopback TCP Cloud fixture server for the HTTP provider; document session and Documents models with a hosted provider"
+    },
+    {
+      "id": "cloud-live-workspace-files",
+      "acceptance": "A live Cloud workspace's files round-trip through the HTTP provider with no local root or Git fallback: a change announced by the workspace's event stream is reread, a stale conditional save is refused with the remote bytes, a current save lands, an unavailable stream fails the watch and the opening resumes the workbench once before reads continue on the new lease. The sandbox-side shell write is the fixture's; Rust's part is the client.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/repositories/live-workspace-files.test.ts",
+          "sha256": "722e64c821130e9fc0ec0380d961820aaad2dc1e11c75a7f0531c73290da8284",
+          "cases": [
+            {
+              "index": 0,
+              "name": "round-trips real Bash changes through HTTP, Main IPC, file events and the desktop DataPort before Git publication"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::live_files_share_the_facade_without_a_local_root_or_git_fallback"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::subscription_revalidates_a_change_between_read_and_registration"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::mutations_are_no_clobber_and_cas_returns_remote_bytes_without_replaying"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_wakes_once_and_only_observes_pending_operation"
+        }
+      ],
+      "environment": "loopback TCP Cloud fixture server with an SSE event stream"
+    },
+    {
+      "id": "workspace-mutation-pipeline",
+      "acceptance": "Every writer (another window's save, a shell or CLI in Terminal, an Agent, an external editor) reaches an open document the same way: its root's watch observes the file's bytes, identity and metadata, so creation, overwrite, deletion and a move or atomic rename onto the path all invalidate it, and unrelated files do not. A burst coalesces into one deduplicated batch that keeps every path and drops PuppyOne's own staging files; past 256 paths or with any unknown path it becomes a full refresh of that root only, and another root with the same file name is untouched. A save's echo is recognised by content: only the writer ignores it, another window adopts it, and a newer write after the save is adopted rather than mistaken for the echo.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/watch/workspaceMutationPipeline.integration.test.ts",
+          "sha256": "8060c8910ac18850ab6f1e88414777b3e796b69c0a23e6b19eee3d44751d5a66",
+          "cases": [
+            {
+              "index": 0,
+              "name": "P0 source-neutral Workspace mutation pipeline > frontend editor save observed by another window reaches the same canonical open-resource invalidation"
+            },
+            {
+              "index": 1,
+              "name": "P0 source-neutral Workspace mutation pipeline > plain shell command in Terminal reaches the same canonical open-resource invalidation"
+            },
+            {
+              "index": 2,
+              "name": "P0 source-neutral Workspace mutation pipeline > Codex or Cursor CLI hosted in Terminal reaches the same canonical open-resource invalidation"
+            },
+            {
+              "index": 3,
+              "name": "P0 source-neutral Workspace mutation pipeline > Native Agent Chat in the right sidebar reaches the same canonical open-resource invalidation"
+            },
+            {
+              "index": 4,
+              "name": "P0 source-neutral Workspace mutation pipeline > external desktop editor reaches the same canonical open-resource invalidation"
+            },
+            {
+              "index": 5,
+              "name": "P0 source-neutral Workspace mutation pipeline > 'creates a new file' remains observable through native 'rename' events"
+            },
+            {
+              "index": 6,
+              "name": "P0 source-neutral Workspace mutation pipeline > 'overwrites an existing file' remains observable through native 'change' events"
+            },
+            {
+              "index": 7,
+              "name": "P0 source-neutral Workspace mutation pipeline > 'deletes an open file' remains observable through native 'rename' events"
+            },
+            {
+              "index": 8,
+              "name": "P0 source-neutral Workspace mutation pipeline > 'moves a file into a watched folder' remains observable through native 'rename' events"
+            },
+            {
+              "index": 9,
+              "name": "P0 source-neutral Workspace mutation pipeline > coalesces a large multi-file edit into one lossless, deduplicated batch"
+            },
+            {
+              "index": 10,
+              "name": "P0 source-neutral Workspace mutation pipeline > degrades an extreme generated-file storm to a bounded scoped refresh without losing correctness"
+            },
+            {
+              "index": 11,
+              "name": "P0 source-neutral Workspace mutation pipeline > preserves simultaneous same-name edits from multiple Workspace Folders"
+            },
+            {
+              "index": 12,
+              "name": "P0 source-neutral Workspace mutation pipeline > keeps an unknown native path bulk refresh scoped to only its originating root"
+            },
+            {
+              "index": 13,
+              "name": "P0 source-neutral Workspace mutation pipeline > treats a known path plus an unknown path as a scoped bulk refresh"
+            },
+            {
+              "index": 14,
+              "name": "P0 source-neutral Workspace mutation pipeline > deduplicates atomic-save rename/change bursts and ignores PuppyOne temp files"
+            },
+            {
+              "index": 15,
+              "name": "P0 source-neutral Workspace mutation pipeline > suppresses an in-app save echo only for its writer while every other window refreshes"
+            },
+            {
+              "index": 16,
+              "name": "P0 source-neutral Workspace mutation pipeline > does not suppress a newer Terminal or Agent write to a path after an in-app save"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_watch_parity_tests::single_file_watch_tracks_metadata_content_identity_and_recovery_then_releases_its_worker"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_watch_parity_tests::same_name_documents_in_two_roots_are_invalidated_only_by_their_own_root"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local::adapter::tests::bursts_coalesce_losslessly_and_degrade_to_a_scoped_refresh"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local::adapter::tests::overflow_unknown_and_outside_root_changes_force_revalidation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::only_the_writer_ignores_its_save_echo_and_a_newer_write_is_adopted",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::own_echo_and_duplicate_baseline_preserve_newer_typing",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes",
+          "features": [
+            "dev-capture"
+          ]
+        }
+      ],
+      "environment": "real temporary folders with the native file watcher; deterministic notify events for burst coalescing; document session unit model"
+    },
+    {
+      "id": "appearance-first-paint",
+      "acceptance": "A window paints from the same appearance install the running app uses: once preferences have loaded, a new window's first frame shows the persisted theme mode and Sub Theme and never resets the shared appearance to the start-up default; the legacy light and dark preset keys migrate to their Sub Themes (warm, graphite, otherwise neutral). Rust ships only the Default interface style (the hidden experimental styles are an intentional difference), so its single style's profile is the contract.",
+      "typescript": [
+        {
+          "path": "tests/integration/appearance/themes/interfaceStyleFirstPaint.test.ts",
+          "sha256": "31b4435655fa5d9bb7543670605f0b9e841f33882d4898e193d070963eb2412d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Interface style registry > uses the same generated manifest for first paint and the React runtime"
+            },
+            {
+              "index": 2,
+              "name": "Interface style registry > honors the legacy light-preset key during first-paint migration"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::a_new_window_keeps_the_persisted_appearance"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::appearance::tests::one_writer_installs_the_palette_and_the_type_scale"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::legacy_keys_flags_and_unknown_values_follow_the_product_parsers"
+        }
+      ],
+      "environment": "GPUI test platform with the production Shell and shared preferences in an isolated data directory"
     }
   ],
   "openAcceptance": [
@@ -18993,6 +19337,24 @@
             {
               "index": 15,
               "name": "real isolated database engines > releases actual file locks after native host crash"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "launch-window-first-paint",
+      "kind": "gap",
+      "reason": "TS paints the persisted palette before React from synchronously read storage. Rust reads preferences on a worker; the launch window applies the start-up default (dark Neutral) until they load, so a light or custom-palette user can see one frame of the default if the read lands after the first frame. Windows opened after loading are covered by appearance-first-paint.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/appearance/appearance-authority.md",
+      "typescript": [
+        {
+          "path": "tests/integration/appearance/themes/interfaceStyleFirstPaint.test.ts",
+          "sha256": "31b4435655fa5d9bb7543670605f0b9e841f33882d4898e193d070963eb2412d",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Interface style registry > paints the persisted editor palette before React instead of flashing the warm fallback"
             }
           ]
         }

@@ -83,6 +83,29 @@ fn own_echo_and_duplicate_baseline_preserve_newer_typing() {
     assert_eq!(s.next_commit().unwrap().snapshot.text.as_str(), "newer");
 }
 
+/// `workspaceMutationPipeline`: a window recognises the echo of its own
+/// save by content, so only the writer ignores it (another window has a
+/// different baseline and adopts it), and a newer write by a terminal or an
+/// Agent after that save is never mistaken for the echo.
+#[test]
+fn only_the_writer_ignores_its_save_echo_and_a_newer_write_is_adopted() {
+    let mut writer = session();
+    let mut other = session();
+    edit(&mut writer, 1, "after");
+    let save = writer.next_commit().unwrap();
+    writer.complete(save.sequence, written("after"));
+    assert_eq!(writer.observe("after"), StorageObservation::Baseline);
+    assert!(matches!(
+        other.observe("after"),
+        StorageObservation::Adopted { .. }
+    ));
+    assert!(matches!(
+        writer.observe("terminal wrote this"),
+        StorageObservation::Adopted { .. }
+    ));
+    assert_eq!(writer.baseline.as_str(), "terminal wrote this");
+}
+
 #[test]
 fn undo_to_old_baseline_during_write_is_saved_after_that_write() {
     let mut s = session();

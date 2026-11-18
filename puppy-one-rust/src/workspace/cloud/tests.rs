@@ -304,6 +304,8 @@ struct State {
     stream_count: AtomicUsize,
     read: Gate,
     write: Gate,
+    /// Only writes of this path wait at `write` (`live.hold(path)`).
+    write_only: Mutex<Option<String>>,
     stop: AtomicBool,
     readonly: AtomicBool,
     denied: AtomicBool,
@@ -331,6 +333,7 @@ impl State {
             stream_count: AtomicUsize::new(0),
             read: Gate::new(),
             write: Gate::new(),
+            write_only: Mutex::new(None),
             stop: AtomicBool::new(false),
             readonly: AtomicBool::new(false),
             denied: AtomicBool::new(false),
@@ -657,8 +660,16 @@ fn connection(mut stream: TcpStream, state: Arc<State>, origin: &str) {
         return;
     }
     if method == "PUT" && path.ends_with("/file") {
-        state.write.block(&state.stop);
         let name = body["path"].as_str().unwrap();
+        if state
+            .write_only
+            .lock()
+            .unwrap()
+            .as_deref()
+            .is_none_or(|only| only == name)
+        {
+            state.write.block(&state.stop);
+        }
         let bytes = STANDARD
             .decode(body["content_base64"].as_str().unwrap())
             .unwrap();
@@ -1291,10 +1302,11 @@ fn database_previews_refuse_active_sidecars_and_keep_one_snapshot() {
     assert!(ws.resource(p("image.png")).is_ok());
 }
 #[test]
-fn creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight() {
+fn creating_an_unrelated_folder_and_file_finishes_while_a_slow_save_is_in_flight() {
     let f = Fixture::new();
     let ws = Arc::new(f.open());
     let old = ws.read(p("live.md")).unwrap();
+    *f.state.write_only.lock().unwrap() = Some("live.md".into());
     f.state.write.held.store(true, Ordering::SeqCst);
     let saving = {
         let ws = ws.clone();
@@ -1305,7 +1317,10 @@ fn creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight() {
     let creating = {
         let ws = ws.clone();
         thread::spawn(move || {
-            let result = ws.create_entry(p(""), "folder", true, "").map(|_| ());
+            let result = ws
+                .create_entry(p(""), "folder", true, "")
+                .and_then(|_| ws.create_entry(p(""), "fresh.md", false, "created while saving"))
+                .map(|_| ());
             let _ = created.send(result);
         })
     };
@@ -1320,6 +1335,10 @@ fn creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight() {
         .unwrap();
     assert_eq!(unchanged.as_deref(), Some(b"live before Git\n".as_slice()));
     assert_eq!(f.state.count("POST", "/files"), 1);
+    assert_eq!(
+        f.state.files.lock().unwrap()["fresh.md"].as_deref(),
+        Some(b"created while saving".as_slice())
+    );
     assert_eq!(ws.read(p("live.md")).unwrap().text, "first\n");
 }
 

@@ -459,6 +459,8 @@ mod tests {
     fn legacy_keys_flags_and_unknown_values_follow_the_product_parsers() {
         let p = import(&data(&[
             (keys::THEME, "light"),
+            (keys::LIGHT_PRESET, "warm"),
+            (keys::DARK_PRESET, "graphite"),
             (
                 keys::TYPOGRAPHY,
                 r#"{"version":8,"scales":{"editor":"small"}}"#,
@@ -484,6 +486,15 @@ mod tests {
             (keys::EXPLORER_WIDTH, "wide"),
         ]));
         assert_eq!(p.theme_mode, ThemeMode::Light);
+        // `createLegacyRequestedSubThemeIds`: the legacy presets choose the
+        // Sub Themes the first window paints.
+        assert_eq!(
+            (
+                p.sub_theme_ids.light.as_str(),
+                p.sub_theme_ids.dark.as_str()
+            ),
+            ("default.warm", "default.graphite")
+        );
         assert_eq!(p.text_scale, crate::typography::Scale::Small);
         assert!(p.pointer_cursors);
         assert!(

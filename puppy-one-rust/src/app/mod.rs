@@ -360,8 +360,7 @@ impl Shell {
             }
         })
         .detach();
-        // Until preferences load: the default Sub Theme in the start-up mode.
-        s.prefs.apply_default(window, cx);
+        s.prefs.apply_initial(window, cx);
         s.constrain_window(window, cx);
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.

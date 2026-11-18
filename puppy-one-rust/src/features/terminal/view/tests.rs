@@ -149,3 +149,37 @@ fn native_pointer_selection_copy_and_shift_override(cx: &mut TestAppContext) {
         );
     });
 }
+
+/// `resolveResourceReferences`: entries resolve through the workspace
+/// they were dragged from, never by joining the receiver's root; a
+/// workspace without local files refuses rather than guessing a path.
+#[test]
+fn dragged_entries_resolve_through_their_own_workspace() {
+    let source = tempfile::tempdir().unwrap();
+    let receiver = tempfile::tempdir().unwrap();
+    std::fs::write(source.path().join("README.md"), "b").unwrap();
+    let drag = |workspace| crate::ui::resource_drag::ResourceDrag {
+        single_file: true,
+        paths: vec![std::path::PathBuf::from("README.md")],
+        label: "README.md".into(),
+        workspace,
+        native: std::rc::Rc::new(std::cell::Cell::new(false)),
+    };
+    let local = drag(Some(
+        crate::workspace::Workspace::open(source.path()).unwrap(),
+    ));
+    let resolved = local.local_paths().unwrap();
+    assert_eq!(
+        resolved,
+        [source.path().canonicalize().unwrap().join("README.md")]
+    );
+    assert!(!resolved[0].starts_with(receiver.path()));
+    let hosted = drag(Some(
+        crate::workspace::Workspace::from_provider(std::sync::Arc::new(
+            crate::workspace::testing::Memory::new("memory://cloud/project/"),
+        ))
+        .unwrap(),
+    ));
+    assert_eq!(hosted.local_paths(), None);
+    assert_eq!(drag(None).local_paths(), None);
+}
