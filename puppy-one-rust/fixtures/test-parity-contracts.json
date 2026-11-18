@@ -19206,6 +19206,161 @@
         }
       ],
       "environment": "GPUI test platform with the production Shell and shared preferences in an isolated data directory"
+    },
+    {
+      "id": "host-ssh-openssh-client",
+      "acceptance": "The host's SSH server against the real OpenSSH client with this computer's folder sandbox: a command whose input closes right after the exec request runs binary safe with its exit status and the host keeps serving; piped input arrives and the command runs in the folder; writes outside the folder fail and the App's data stays unreadable; only a certificate for this folder signs in (another folder's user gets Permission denied); port forwarding and SFTP are refused.",
+      "typescript": [
+        {
+          "path": "tests/integration/hosts/ssh/openssh.test.mjs",
+          "sha256": "c9086f09feb26ea2cf8c14a60e0839b74fd0d6033639272a22c8727aac61f50e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host SSH server with the OpenSSH client > runs a command whose input is already closed, binary safe, with its exit status"
+            },
+            {
+              "index": 1,
+              "name": "host SSH server with the OpenSSH client > passes piped input through and runs in the folder"
+            },
+            {
+              "index": 2,
+              "name": "host SSH server with the OpenSSH client > the sandbox keeps writes inside the folder and hides the App's data"
+            },
+            {
+              "index": 3,
+              "name": "host SSH server with the OpenSSH client > logs in only with a certificate for this folder"
+            },
+            {
+              "index": 4,
+              "name": "host SSH server with the OpenSSH client > opens no port forwarding and no SFTP"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::ssh::tests::the_openssh_client_reaches_only_the_sandboxed_folder"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::exec::tests::a_command_in_the_seatbelt_stays_in_its_folder"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::ssh::tests::a_folder_is_reached_only_with_the_clouds_certificate_for_this_device"
+        }
+      ],
+      "environment": "macOS /usr/bin/ssh and ssh-keygen against the host on loopback TCP, seatbelt folder sandbox; the test fails on macOS if either is missing"
+    },
+    {
+      "id": "desktop-locale-service",
+      "acceptance": "The language follows the system's first supported language (regional tags fall back to their language) only while the preference is System; an explicit preference sticks through OS changes; an unsupported preference is refused and keeps the previous locale; native menu and Dock strings come from the active catalog; the preference persists in the preferences document and a change reaches every window's catalog; an unreadable preferences file loads the defaults (System) and reports it; a locale whose release flag is off is neither offered nor resolved for the system.",
+      "typescript": [
+        {
+          "path": "tests/integration/localization/catalogs/electron.localization.test.mjs",
+          "sha256": "132477b51e607688e805771de5352185ce51df96d4ea669b7b048cf73072240d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopLocaleService > loads system state, localizes native UI, persists, and broadcasts atomically"
+            },
+            {
+              "index": 1,
+              "name": "DesktopLocaleService > follows OS changes only while the preference is System"
+            },
+            {
+              "index": 2,
+              "name": "locale preference persistence > recovers from a malformed preference file"
+            },
+            {
+              "index": 3,
+              "name": "locale production readiness > does not expose or system-resolve a locale whose release flag is disabled"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "localization::tests::the_system_language_is_followed_only_while_the_preference_is_system"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::languages_come_from_product_and_invalid_updates_keep_previous_state"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::preferences_roundtrip_preserves_menu_placement_and_defaults_new_fields"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::a_malformed_preferences_file_loads_the_defaults_and_reports_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::locale_changes_catalog_without_document_work"
+        }
+      ],
+      "environment": "local; GPUI test platform for windows and the preferences store in an isolated data directory"
+    },
+    {
+      "id": "viewer-pack-routing-and-default-profile",
+      "acceptance": "Viewer Pack routing keeps core viewers' ownership and matches only local placeholder documents by exact extension (the longest wins, ties ask); the shipped product is preset-viewers-only: with no extension host a document no preset viewer renders stays on the placeholder and no pack runtime is registered.",
+      "typescript": [
+        {
+          "path": "tests/integration/extensions/viewer-packs/activation-authority.test.mjs",
+          "sha256": "892cfe959ae58a4ca6fd6c4d97bd06b91d8ae1aebd4b2ae6250fab70938213db",
+          "cases": [
+            {
+              "index": 0,
+              "name": "viewer pack activation authority > re-routes in main, preserving core ownership and exact local-file matching"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/extensions/viewer-packs/viewerPackFeatureGate.test.mjs",
+          "sha256": "9d90d3f41d0cd382751fbfdcce8a025f964d53b2edc22702034ef92ebd193708",
+          "cases": [
+            {
+              "index": 0,
+              "name": "external Viewer Pack product capability > keeps the signed default product on the preset-viewers-only profile"
+            },
+            {
+              "index": 4,
+              "name": "external Viewer Pack product capability > does not import or register the dormant runtime in the preset-only profile"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::registry::packs::route::tests::only_local_placeholder_documents_reach_packs",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::packs::route::tests::the_longest_extension_wins_and_ties_ask_the_user",
+          "features": [
+            "dev-capture"
+          ]
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::an_unknown_document_stays_on_the_honest_placeholder",
+          "features": [
+            "dev-capture"
+          ]
+        }
+      ],
+      "environment": "local; GPUI test platform with the production DocumentEditor host"
     }
   ],
   "openAcceptance": [
@@ -19355,6 +19510,102 @@
             {
               "index": 1,
               "name": "Interface style registry > paints the persisted editor palette before React instead of flashing the warm fallback"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "viewer-pack-runtime-experimental",
+      "kind": "out-of-scope",
+      "reason": "Signed package installation, the plugin IPC bridge, the resource broker and the release-profile switches belong to the Viewer Plugins experiment (enableViewerPlugins, default off in TS v0.4.4). Experiments that are off by default are out of scope; Rust ports the pack manifest and routing rules only.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/extensions/viewer-packs/package-install.test.mjs",
+          "sha256": "00530c1fdec26a5957b27bdb573eed967ae0c0534fc6b76e226a29a7d7698a1e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "viewer pack package install > installs the checked-in first-party fixture through the bounded file path"
+            },
+            {
+              "index": 1,
+              "name": "viewer pack package install > rejects unsigned packages"
+            },
+            {
+              "index": 4,
+              "name": "viewer pack package install > installs into an immutable content-addressed directory and publishes a snapshot"
+            },
+            {
+              "index": 5,
+              "name": "viewer pack package install > preserves the previous enabled version when the registry commit fails"
+            },
+            {
+              "index": 6,
+              "name": "viewer pack package install > rejects tampered installed assets and traversal-shaped uninstall ids"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/extensions/viewer-packs/plugin-ipc.test.mjs",
+          "sha256": "1960eff9b3654c62067a78344af01664ec9ab0902bc79f417cd40740df976d37",
+          "cases": [
+            {
+              "index": 0,
+              "name": "viewer pack ipc separation > registers app channels separately from plugin channels"
+            },
+            {
+              "index": 1,
+              "name": "viewer pack ipc separation > authorizes the workspace in main and ignores renderer-supplied package coordinates"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/extensions/viewer-packs/resource-broker.test.mjs",
+          "sha256": "cc739fcf3a9a468903a72c26f43e5c7613d66b57df12691a025b19119b1de067",
+          "cases": [
+            {
+              "index": 0,
+              "name": "viewer pack resource broker > serves bounded ranges and rejects oversized / unsatisfiable ranges"
+            },
+            {
+              "index": 1,
+              "name": "viewer pack resource broker > pins the opened file revision and invalidates the handle after a change"
+            },
+            {
+              "index": 2,
+              "name": "viewer pack resource broker > answers HEAD from handle metadata without reading file bytes"
+            },
+            {
+              "index": 3,
+              "name": "viewer pack resource broker > allows metadata + bounded range for files larger than 100 MiB"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/extensions/viewer-packs/viewerPackFeatureGate.test.mjs",
+          "sha256": "9d90d3f41d0cd382751fbfdcce8a025f964d53b2edc22702034ef92ebd193708",
+          "cases": [
+            {
+              "index": 1,
+              "name": "external Viewer Pack product capability > permits an explicit unpackaged override but ignores it in installed builds"
+            },
+            {
+              "index": 2,
+              "name": "external Viewer Pack product capability > allows signed package metadata to opt a future release profile in"
+            },
+            {
+              "index": 3,
+              "name": "external Viewer Pack product capability > omits the preload bridge by default and exposes it only for the main-issued profile"
+            },
+            {
+              "index": 5,
+              "name": "external Viewer Pack product capability > forbids builder metadata from changing the preflighted release profile"
+            },
+            {
+              "index": 6,
+              "name": "external Viewer Pack product capability > skips signer enforcement by default and fails closed for an enabled release"
             }
           ]
         }

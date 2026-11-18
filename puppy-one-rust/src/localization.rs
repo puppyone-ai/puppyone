@@ -221,6 +221,9 @@ pub fn set_current(code: &str) {
 /// exact tag, script (`zh-Hans`), region-less language, else English.
 pub fn resolve_system(languages: &[String]) -> &'static str {
     let choices: Vec<&'static str> = Locale::choices().map(|(id, _)| id).collect();
+    resolve_among(&choices, languages)
+}
+fn resolve_among<'a>(choices: &[&'a str], languages: &[String]) -> &'a str {
     for tag in languages {
         let tag = tag.replace('_', "-");
         if let Some(found) = choices.iter().find(|c| c.eq_ignore_ascii_case(&tag)) {
@@ -246,6 +249,16 @@ pub fn resolve_system(languages: &[String]) -> &'static str {
         }
     }
     "en"
+}
+/// The manifest's `productionReady` locales: a locale whose release flag
+/// is off is neither offered nor chosen for the system.
+fn ready(manifest: &Value) -> impl Iterator<Item = (&str, &str)> {
+    manifest["locales"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|v| v["productionReady"].as_bool() == Some(true))
+        .map(|v| (v["locale"].as_str().unwrap(), v["label"].as_str().unwrap()))
 }
 /// Catalog id the OS language resolves to.
 pub fn system_locale() -> &'static str {
@@ -495,11 +508,7 @@ impl Default for Locale {
 }
 impl Locale {
     pub fn choices() -> impl Iterator<Item = (&'static str, &'static str)> {
-        data()["locales"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| (v["locale"].as_str().unwrap(), v["label"].as_str().unwrap()))
+        ready(data())
     }
     pub fn set(&mut self, code: &str) -> bool {
         if Self::choices().any(|(id, _)| id == code) && self.code != code {
@@ -918,6 +927,35 @@ mod tests {
         assert_eq!(relative_past_in("ja", 5, Day), "5 日前");
     }
     use super::*;
+    /// `DesktopLocaleService`: the system's first supported language is
+    /// chosen (regional tags fall back to their language), the OS is
+    /// followed only while the preference is System, an unsupported
+    /// preference is not kept, and a locale whose release flag is off is
+    /// neither offered nor resolved for the system.
+    #[test]
+    fn the_system_language_is_followed_only_while_the_preference_is_system() {
+        let langs = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(resolve_system(&langs(&["fr-CA", "en-US"])), "fr");
+        assert_eq!(
+            resolve_preference("system", &langs(&["zh-TW", "es-MX"])),
+            "es"
+        );
+        assert_eq!(resolve_preference("system", &langs(&["ja-JP"])), "ja");
+        assert_eq!(resolve_preference("ko", &langs(&["fr-FR"])), "ko");
+        assert_eq!(resolve_preference("it", &langs(&["de-DE"])), "de");
+        let fr = Locale { code: "fr".into() };
+        assert_eq!(fr.text("native.dock.newWindow"), "Nouvelle fenêtre");
+        assert_eq!(fr.text("native.menu.file"), "Fichier");
+        let mut manifest = data().clone();
+        for entry in manifest["locales"].as_array_mut().unwrap() {
+            if entry["locale"] == "es" {
+                entry["productionReady"] = false.into();
+            }
+        }
+        let choices: Vec<&str> = ready(&manifest).map(|(id, _)| id).collect();
+        assert!(!choices.contains(&"es") && choices.contains(&"fr"));
+        assert_eq!(resolve_among(&choices, &langs(&["es-MX", "en-US"])), "en");
+    }
     #[test]
     fn languages_come_from_product_and_invalid_updates_keep_previous_state() {
         let mut locale = Locale { code: "en".into() };

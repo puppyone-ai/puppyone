@@ -452,6 +452,9 @@ fn a_hidden_workbench_withdraws_presentation_and_keeps_its_items(cx: &mut TestAp
     cx.executor().allow_parking();
     cx.update(gpui_kit::init);
     for kind in [ItemKind::Terminal, ItemKind::Chat] {
+        // A project nothing was saved for: its stored layout cannot replace
+        // the items under test.
+        let root = tempfile::tempdir().unwrap();
         let (view, cx) = cx.add_window_view(Workbench::new);
         let closes = Rc::new(Cell::new(0));
         let probe = |s: &mut Workbench, cx: &mut Context<Workbench>| {
@@ -473,7 +476,7 @@ fn a_hidden_workbench_withdraws_presentation_and_keeps_its_items(cx: &mut TestAp
             (id, presentation, draft)
         };
         let (first, second, draft) = view.update(cx, |s, cx| {
-            s.show(PathBuf::from(format!("/visibility-{kind:?}")), cx);
+            s.show(root.path().to_path_buf(), cx);
             let (_, first, draft) = probe(s, cx);
             let (tab, second, _) = probe(s, cx);
             // The second item in its own split pane.

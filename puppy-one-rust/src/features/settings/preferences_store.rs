@@ -442,6 +442,26 @@ mod tests {
         change(|p| p.sidebar_collapsed = false, cx);
         owner.read_with(cx, |o, _| assert_eq!(o.heard, vec![true, false]));
     }
+    /// `locale preference persistence`: an unreadable preferences file
+    /// loads the defaults (the language follows the system) and says so.
+    #[gpui::test]
+    fn a_malformed_preferences_file_loads_the_defaults_and_reports_it(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("preferences.json"), "{broken").unwrap();
+        let store = cx.new(|cx| PreferencesStore::isolated(dir.path().to_path_buf(), cx));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !store.read_with(cx, |s, _| s.loaded) {
+            assert!(std::time::Instant::now() < deadline, "preferences load");
+            cx.run_until_parked();
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        store.read_with(cx, |s, _| {
+            assert_eq!(s.state, Preferences::default());
+            assert_eq!(s.state.locale, "system");
+            assert!(s.error.is_some());
+        });
+    }
     #[test]
     fn preferences_roundtrip_preserves_menu_placement_and_defaults_new_fields() {
         let mut p: Preferences =
