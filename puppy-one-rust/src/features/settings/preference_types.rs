@@ -555,11 +555,16 @@ impl Preferences {
         };
         let record = &mut self.recent_projects[index];
         let was_shared = record.host_folder.take().is_some();
+        // A name given with Rename is the project's, not the folder's.
+        let folder_name = |path: &std::path::Path| {
+            path.file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.display().to_string())
+        };
+        if record.name == folder_name(from) {
+            record.name = folder_name(to);
+        }
         record.path = to.to_path_buf();
-        record.name = to
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| to.display().to_string());
         record.fs_identity = None;
         let mut position = 0;
         self.recent_projects.retain(|p| {
@@ -568,6 +573,32 @@ impl Preferences {
             keep
         });
         was_shared
+    }
+    /// `rememberRecentWorkspacePath` for a folder with its file-system
+    /// identity: a remembered project whose folder is `gone` and had that
+    /// identity has moved here, so it follows instead of being listed twice.
+    pub fn remember_found_project(
+        &mut self,
+        path: &std::path::Path,
+        identity: Option<String>,
+        now: u64,
+        gone: impl Fn(&std::path::Path) -> bool,
+    ) {
+        if let Some(identity) = &identity
+            && let Some(from) = self
+                .recent_projects
+                .iter()
+                .find(|p| {
+                    p.path != path && p.fs_identity.as_ref() == Some(identity) && gone(&p.path)
+                })
+                .map(|p| p.path.clone())
+        {
+            self.relocate_project(&from, path);
+        }
+        self.remember_project(path, now);
+        if identity.is_some() {
+            self.recent_projects[0].fs_identity = identity;
+        }
     }
     pub fn remember_project(&mut self, path: &std::path::Path, now: u64) {
         let name = self
@@ -611,11 +642,12 @@ impl Preferences {
             project.host_folder = folder;
         }
     }
-    /// `renameRecentWorkspacePath`: the shown name only.
+    /// `renameRecentWorkspacePath`: the shown name only; an empty name or
+    /// one with control characters is refused.
     pub fn rename_project(&mut self, path: &std::path::Path, name: &str) {
         let name = name.trim();
         if let Some(project) = self.recent_projects.iter_mut().find(|p| p.path == path)
-            && !name.is_empty()
+            && supported_project_name(name)
         {
             project.name = name.chars().take(120).collect();
         }
@@ -634,6 +666,12 @@ impl Preferences {
     pub fn agent_visible(&self, id: &str) -> bool {
         !self.local_agents.hidden_agent_ids.iter().any(|h| h == id)
     }
+}
+
+/// `normalizeWorkspaceDisplayName`: something besides spaces, and no
+/// control characters.
+pub fn supported_project_name(name: &str) -> bool {
+    !name.trim().is_empty() && !name.chars().any(char::is_control)
 }
 
 fn stored_width(width: f32, minimum: f32, default: f32) -> f32 {
@@ -678,6 +716,84 @@ mod tests {
         assert_eq!(p.recent_projects[0].opened_at, 2);
         p.rename_project(path, "   ");
         assert_eq!(p.recent_projects[0].name, "Field notes");
+        p.rename_project(path, "bad\u{0}name");
+        p.rename_project(path, "tab\tname");
+        assert_eq!(p.recent_projects[0].name, "Field notes");
+    }
+
+    /// `workspace registry lifecycle`: interleaved remembering and
+    /// forgetting, a folder that is gone, and folders that moved.
+    #[test]
+    fn the_project_list_follows_moved_folders_and_never_resurrects_a_removed_one() {
+        let path = |name: &str| std::path::PathBuf::from(format!("/p/{name}"));
+        let mut p = Preferences::default();
+        for i in 0..8 {
+            p.remember_project(&path(&format!("original-{i}")), i);
+        }
+        for i in 0..8 {
+            if i < 4 {
+                p.forget_project(&path(&format!("original-{i}")));
+            }
+            p.remember_project(&path(&format!("added-{i}")), 10 + i);
+        }
+        let listed: std::collections::HashSet<_> =
+            p.recent_projects.iter().map(|r| r.path.clone()).collect();
+        assert_eq!(listed.len(), 12);
+        assert!((0..4).all(|i| !listed.contains(&path(&format!("original-{i}")))));
+        assert!((4..8).all(|i| listed.contains(&path(&format!("original-{i}")))));
+        // A project whose folder is gone is still removed by its path.
+        p.forget_project(&path("original-4"));
+        assert_eq!(p.recent_projects.len(), 11);
+
+        // Moved: who it is stays (its name and when it was opened), its
+        // sharing does not; a folder's own name follows the folder.
+        let mut p = Preferences::default();
+        p.remember_project(&path("kept"), 1);
+        p.remember_project(&path("moved"), 2);
+        p.rename_project(&path("moved"), "Ambassadors");
+        p.mark_shared(
+            &path("moved"),
+            Some("11111111-1111-4111-8111-111111111111".into()),
+        );
+        assert!(p.relocate_project(&path("moved"), &path("moved-here")));
+        let moved = &p.recent_projects[0];
+        assert_eq!(
+            (
+                moved.path.clone(),
+                moved.name.as_str(),
+                moved.opened_at,
+                moved.host_folder.clone()
+            ),
+            (path("moved-here"), "Ambassadors", 2, None)
+        );
+        assert!(
+            !p.relocate_project(&path("kept"), &path("kept-2")),
+            "it was not shared"
+        );
+        assert_eq!(p.recent_projects[1].name, "kept-2");
+        // The new place already listed: one entry, never two.
+        p.remember_project(&path("existing"), 3);
+        p.relocate_project(&path("moved-here"), &path("existing"));
+        assert_eq!(
+            p.recent_projects
+                .iter()
+                .filter(|r| r.path == path("existing"))
+                .count(),
+            1
+        );
+
+        // Opened again at its new place, a folder is known by its identity.
+        let mut p = Preferences::default();
+        p.remember_found_project(&path("before"), Some("fs:1:99".into()), 1, |_| false);
+        p.remember_found_project(&path("after"), Some("fs:1:99".into()), 2, |p| {
+            p.ends_with("before")
+        });
+        assert_eq!(p.recent_projects.len(), 1);
+        assert_eq!(p.recent_projects[0].path, path("after"));
+        assert_eq!(p.recent_projects[0].fs_identity.as_deref(), Some("fs:1:99"));
+        // The same identity at a folder that is still there is another copy.
+        p.remember_found_project(&path("copy"), Some("fs:1:99".into()), 3, |_| false);
+        assert_eq!(p.recent_projects.len(), 2);
     }
     #[test]
     fn legacy_theme_flag_becomes_an_explicit_mode_and_new_fields_default() {

@@ -42,6 +42,10 @@ fn spawn(directory: Option<PathBuf>) -> (mpsc::Sender<Write>, async_channel::Rec
                 .flatten()
                 .and_then(|dir| super::electron_import::read(&dir)),
             ),
+            Err(error) => {
+                quarantine(&path);
+                Event::Loaded(Err(error))
+            }
             other => Event::Loaded(other),
         };
         if events.send_blocking(loaded).is_err() {
@@ -58,4 +62,18 @@ fn spawn(directory: Option<PathBuf>) -> (mpsc::Sender<Write>, async_channel::Rec
         }
     });
     (tx, out)
+}
+/// `quarantineCorruptRegistry`: preferences that cannot be read are kept
+/// beside the file, as `preferences.json.corrupt.<time>`, so the next save
+/// cannot destroy them.
+fn quarantine(path: &std::path::Path) {
+    if !std::fs::symlink_metadata(path).is_ok_and(|m| m.is_file()) {
+        return;
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
+    let mut kept = path.as_os_str().to_owned();
+    kept.push(format!(".corrupt.{stamp}"));
+    let _ = std::fs::rename(path, kept);
 }

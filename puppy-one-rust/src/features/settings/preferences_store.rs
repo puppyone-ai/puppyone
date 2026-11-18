@@ -461,6 +461,35 @@ mod tests {
             assert_eq!(s.state.locale, "system");
             assert!(s.error.is_some());
         });
+        // The unreadable file is kept aside, and a later save cannot
+        // destroy it.
+        let kept = || {
+            std::fs::read_dir(dir.path())
+                .unwrap()
+                .map(|e| e.unwrap().path())
+                .filter(|p| {
+                    p.file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .starts_with("preferences.json.corrupt.")
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(kept().len(), 1);
+        store.update(cx, |s, cx| s.change(|p| p.locale = "ja".into(), cx));
+        let saved = store.update(cx, |s, cx| s.flush(cx));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !store.read_with(cx, |s, _| s.drained()) {
+            assert!(std::time::Instant::now() < deadline, "preferences save");
+            cx.run_until_parked();
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        drop(saved);
+        assert_eq!(std::fs::read_to_string(&kept()[0]).unwrap(), "{broken");
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("preferences.json")).unwrap())
+                .unwrap();
+        assert_eq!(written["locale"], "ja");
     }
     #[test]
     fn preferences_roundtrip_preserves_menu_placement_and_defaults_new_fields() {

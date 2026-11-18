@@ -20518,6 +20518,390 @@
         }
       ],
       "environment": "temporary folders; the app's Homepage flows in GPUI tests"
+    },
+    {
+      "id": "project-entry-blank-and-sources",
+      "acceptance": "Only the registration manifest's operational sources open a step (GitHub and GitLab; app folders only with their experiment); Notion and the other remote sources are never routed anywhere, and no folder prompt opens. A blank project is one empty folder under a trimmed name; an existing name is refused unless numbering is asked for, as the Agent start does, and then the next free name is taken past folders and files alike without touching the first project, within the 120-character name limit.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
+          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project entry service > loads every operational source from its registered module"
+            },
+            {
+              "index": 1,
+              "name": "project entry service > creates one empty child directory under the selected parent"
+            },
+            {
+              "index": 2,
+              "name": "project entry service > numbers a taken name only when asked, and never reuses a folder"
+            },
+            {
+              "index": 4,
+              "name": "project entry service > keeps a numbered name within the project name limit"
+            },
+            {
+              "index": 18,
+              "name": "project entry service > does not route an unimplemented remote provider through local folder copying"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::home::import_sources::tests::source_buttons_start_focused_activate_by_keyboard_and_reject_unavailable_sources"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::tests::a_blank_project_is_one_empty_folder_numbered_past_taken_names"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::projects_home_toolbar_and_agent_start_create_blank_project_with_seeded_chat"
+        }
+      ],
+      "environment": "temporary folders; the Homepage import dialog in GPUI tests"
+    },
+    {
+      "id": "project-list-registry",
+      "acceptance": "The project list keeps every project it was told about, most recent first, without duplicates; it lives in one preferences store shared by every window, whose writes coalesce, so concurrent windows cannot lose records. Interleaved remembering and forgetting never resurrects a removed project, and a project whose folder is gone is removed by its path. A moved folder keeps the project's given name and when it was opened, drops its sharing, and a folder's own name follows the folder; moving onto a place already listed leaves one entry. Opening a folder at its new place follows the remembered project by file-system identity when the old folder is gone (Rust now does this when a project opens); a folder opened through a link is its physical folder. A display name is the project's, not the folder's, survives reopening and the Electron import (displayName), and an empty name or one with control characters is refused. The Cloud remote hint is derived from the folder's remotes on each read, canonical and secret-free, so it disappears with the remote; an old registry's obsolete local project id is not imported. Unreadable preferences load the defaults, report it, and are kept as preferences.json.corrupt.<time> so a later save cannot destroy them (Rust now quarantines them). The list shows from memory at once and is enriched by one background pass that reads folders one at a time.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/electron.workspace-registry-lifecycle.test.mjs",
+          "sha256": "d8b7feb9566ed8a7f724340f01f79447163a7356f128982f3fbc2fd2a970234c",
+          "cases": [
+            {
+              "index": 1,
+              "name": "workspace registry lifecycle > serializes concurrent multi-window mutations without losing records"
+            },
+            {
+              "index": 6,
+              "name": "workspace registry lifecycle > keeps every project it has been told about"
+            },
+            {
+              "index": 7,
+              "name": "workspace registry lifecycle > serializes interleaved remember and remove mutations without resurrecting removed records"
+            },
+            {
+              "index": 8,
+              "name": "workspace registry lifecycle > removes a stale registration after its local folder no longer exists"
+            },
+            {
+              "index": 9,
+              "name": "workspace registry lifecycle > points a project at its folder's new place, keeping who it is but not its sharing"
+            },
+            {
+              "index": 10,
+              "name": "workspace registry lifecycle > never lists one folder twice when the new place is already a recent project"
+            },
+            {
+              "index": 11,
+              "name": "workspace registry lifecycle > persists a Project display name without renaming its local folder"
+            },
+            {
+              "index": 12,
+              "name": "workspace registry lifecycle > rejects empty and unsupported Project display names"
+            },
+            {
+              "index": 13,
+              "name": "workspace registry lifecycle > deduplicates a symlink alias of the same physical workspace"
+            },
+            {
+              "index": 14,
+              "name": "workspace registry lifecycle > reconciles a moved path by fs identity instead of duplicating the workspace"
+            },
+            {
+              "index": 15,
+              "name": "workspace registry lifecycle > persists and clears only a secret-free canonical Git remote hint"
+            },
+            {
+              "index": 16,
+              "name": "workspace registry lifecycle > drops the obsolete local Project identity when migrating the registry"
+            },
+            {
+              "index": 17,
+              "name": "workspace registry lifecycle > quarantines corrupt JSON and reports a recoverable registry error"
+            },
+            {
+              "index": 18,
+              "name": "workspace registry lifecycle > returns metadata immediately and hydrates at most four repositories concurrently"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preference_types::tests::project_history_is_most_recent_first_and_keeps_every_project"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preference_types::tests::the_project_list_follows_moved_folders_and_never_resurrects_a_removed_one"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preference_types::tests::a_renamed_project_keeps_its_name_when_opened_again"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::preference_changes_coalesce_while_write_is_in_flight_and_quit_waits"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::a_malformed_preferences_file_loads_the_defaults_and_reports_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::windows_share_preferences_and_a_project_opens_where_it_was_chosen"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::the_rail_offers_rename_and_unlink_for_a_remembered_project"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::projects_home_toolbar_and_agent_start_create_blank_project_with_seeded_chat"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::folder_availability::a_window_whose_folder_moved_says_so_and_follows_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::folder_availability::a_renamed_folder_is_found_again_from_the_homepage"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::a_folder_opened_through_a_link_is_its_physical_folder"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::remotes_parse_projects_scopes_and_ignore_access_points"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::exactly_one_canonical_identity_or_none"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::electron_import::tests::the_product_data_directory_is_read_without_its_lock"
+        }
+      ],
+      "environment": "pure preference state; temporary preference directories and folders; GPUI Homepage tests"
+    },
+    {
+      "id": "project-agent-ownership",
+      "acceptance": "Agent sessions belong to the window that created them: another window cannot close or drive them, and closing a window disposes only its own sessions while another window's chat of the same folder keeps running; selecting a project never starts a runtime. Background output keeps arriving without a visible chat, and closing one root's sessions leaves a sibling root's untouched. Commands from another window, with a stale session generation or instance, or for a root the window was not given are refused before the service acts (Rust has no project generations: a window holds its roots). A pending approval and a provider failure stay in their own session. A chat whose session resolves after its project's controllers were released is closed instead of adopted, and released controllers cannot be revived. Duplicate closes share one native close, a failed close stays available for retry, and an old close cannot end a resumed conversation's replacement. A History scan superseded or past its deadline cannot write a late catalog entry or create an adapter. In Rust a project's Agent work ends with its window: projects switched within a window are retained, as in TS, and TS's per-root close serves multi-root detach, which is out of scope.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/electron.project-agent-integration.test.mjs",
+          "sha256": "dc8775157f1c0eaab7ceef356bb7ac93ea04d7cabad950b86f2430decc7e715f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project authority through Agent IPC, service and feed > isolates Chat sessions for the same project displayed in two windows"
+            },
+            {
+              "index": 1,
+              "name": "project authority through Agent IPC, service and feed > keeps background output in A and closes A without stopping B"
+            },
+            {
+              "index": 2,
+              "name": "project authority through Agent IPC, service and feed > rejects forged roots, generations, windows and runtime instances"
+            },
+            {
+              "index": 3,
+              "name": "project authority through Agent IPC, service and feed > keeps a background approval and provider failure out of B's control state"
+            },
+            {
+              "index": 4,
+              "name": "project authority through Agent IPC, service and feed > fences a pending runtime discovery before it allocates an adapter"
+            },
+            {
+              "index": 5,
+              "name": "project authority through Agent IPC, service and feed > shares duplicate close and protects a resumed conversation from its old close receipt"
+            },
+            {
+              "index": 6,
+              "name": "project authority through Agent IPC, service and feed > retains a failed native close and retries it"
+            },
+            {
+              "index": 7,
+              "name": "project authority through Agent IPC, service and feed > cancels a pending History scan and prevents its late catalog submission"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::binds_sessions_to_one_sender_and_rejects_cross_window_mutations"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::keeps_a_turn_alive_without_renderer_visibility_and_cleans_up_on_window_close"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::closes_one_roots_sessions_without_disposing_sibling_root_agents"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::fails_pending_approvals_closed_without_fabricating_a_terminal_outcome_on_provider_exit"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::accepts_a_command_idempotently_and_rejects_stale_session_generations"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::authorizes_create_and_resume_roots_before_invoking_the_service"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::requests::rejects_cross_window_grants_and_raw_external_workspace_paths"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtime::tests::registry_coalesces_shutdown_and_retains_failed_adapter_cleanup_for_retry"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::resolution_deadline_prevents_late_adapter_creation_and_catalog_writes"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::history::native_conversation_indexer::tests::superseded_scan_cannot_commit_a_late_native_response"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller_registry::coalesces_close_requests_and_keeps_failed_closes_available_for_retry"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller_registry::keeps_a_replacement_when_an_old_close_completes_late"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller_registry::releases_local_replicas_once_and_cannot_resurrect_a_disposed_project"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::closes_a_prepared_native_session_that_resolves_after_disposal"
+        }
+      ],
+      "environment": "the Agent service and host with fixture runtimes; desktop Agent controller registries"
+    },
+    {
+      "id": "application-quit-drain",
+      "acceptance": "Quitting closes every window through its own barrier first (each waits for its documents' storage acknowledgement); the Agent host then drains its sessions and inspected sidecars once, however often quit is asked, and an empty host does not hold the quit up; preferences finish their last write before the app ends.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/electron.project-close-coordination.test.mjs",
+          "sha256": "e43ddcc58e3137e273858688dc8082c0359b5a38c226afaaaffb4cc149d4cff0",
+          "cases": [
+            {
+              "index": 3,
+              "name": "application shutdown after document/window gates > lets windows flush first and awaits the final resource drain only once"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::close_lifecycle::native_close_waits_for_the_actual_storage_acknowledgement"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::host::tests::shutdown_waits_for_active_sessions_or_inspected_sidecars_and_coalesces_duplicate_quits"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::host::tests::an_empty_host_does_not_hold_up_an_updater_quit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::preference_changes_coalesce_while_write_is_in_flight_and_quit_waits"
+        }
+      ],
+      "environment": "GPUI app tests; the Agent host thread with fixture runtimes; temporary preference directories"
+    },
+    {
+      "id": "terminal-preparation-and-close",
+      "acceptance": "A terminal closed while it is still being prepared releases its lease and never starts the late command; a real PTY session takes input and resizes, and once its tab is gone its process group is hung up and the process ends.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/electron.project-terminal-integration.test.mjs",
+          "sha256": "4ae8d52cb2ace370a00ca5e9f53c9099efb233a113b178f9183c5af5dd36161e",
+          "cases": [
+            {
+              "index": 1,
+              "name": "project-owned Terminal IPC and native shutdown > cancels preflight creation and reserves the ID before asynchronous preparation"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::closing_a_terminal_during_preparation_releases_its_lease_without_starting_the_late_command"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::real_pty_input_resize_and_cleanup"
+        }
+      ],
+      "environment": "a real PTY and shell"
+    },
+    {
+      "id": "agent-reference-identity-across-roots",
+      "acceptance": "A workspace reference keeps the identity it was drafted with: the same relative path gives the same id across session roots, drafts never carry absolute paths, and files are canonicalized and deduplicated before they are authorized.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/electron.workspace-resource-delivery.test.mjs",
+          "sha256": "20ac132550e16415208256b68c7624ec40cf971293b4563bca5515448968fe53",
+          "cases": [
+            {
+              "index": 2,
+              "name": "resource delivery ownership > keeps legacy draft mention IDs scoped to the original session root"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::keeps_workspace_identity_portable_across_session_roots_and_withholds_absolute_paths_from_renderer_drafts"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::infrastructure::attachments::tests::canonicalizes_workspace_files_deduplicates_them_and_derives_renderer_independent_metadata"
+        }
+      ],
+      "environment": "temporary workspaces through the Agent reference authorization"
     }
   ],
   "openAcceptance": [
@@ -21483,6 +21867,38 @@
               "name": "copyWorkspaceEntry > copies a file between two authorized workspace roots"
             }
           ]
+        },
+        {
+          "path": "tests/integration/workspace/projects/electron.workspace-registry-lifecycle.test.mjs",
+          "sha256": "d8b7feb9566ed8a7f724340f01f79447163a7356f128982f3fbc2fd2a970234c",
+          "cases": [
+            {
+              "index": 2,
+              "name": "workspace registry lifecycle > persists an ordered active Workspace composition independently from recents"
+            },
+            {
+              "index": 3,
+              "name": "workspace registry lifecycle > persists Workbench identity independently from the primary Folder"
+            },
+            {
+              "index": 4,
+              "name": "workspace registry lifecycle > migrates a legacy active composition to one durable Workbench identity"
+            },
+            {
+              "index": 5,
+              "name": "workspace registry lifecycle > does not truncate an active composition"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/files/electron.workspace-resource-delivery.test.mjs",
+          "sha256": "20ac132550e16415208256b68c7624ec40cf971293b4563bca5515448968fe53",
+          "cases": [
+            {
+              "index": 6,
+              "name": "resource delivery ownership > round-trips cross-repo Agent identities through IPC and every native input adapter"
+            }
+          ]
         }
       ]
     },
@@ -21971,6 +22387,190 @@
             {
               "index": 19,
               "name": "project initialization receipts > fails safely on ambiguous recovery without modifying the replacement directory"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
+          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+          "cases": [
+            {
+              "index": 3,
+              "name": "project entry service > gives a retry the name its first attempt chose"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "import-adapter-framework-unused",
+      "kind": "out-of-scope",
+      "reason": "TS's local import service can copy a registered folder source into a project and run remote adapters (connect, list resources, inspect, materialize through a writer). No source in the shared registration manifest uses either: Notion, Google Drive and Airtable are experimental and not operational, and app sources are listed in place, never copied. Rust implements the manifest's operational sources (GitHub and GitLab repositories, app folders) and has no adapter framework without a product source to serve.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
+          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+          "cases": [
+            {
+              "index": 14,
+              "name": "project entry service > copies a registered folder source into a new local project and leaves the source independent"
+            },
+            {
+              "index": 15,
+              "name": "project entry service > does not overwrite an existing local project when importing a folder"
+            },
+            {
+              "index": 16,
+              "name": "project entry service > rejects a linked file and removes only its own staging directory"
+            },
+            {
+              "index": 17,
+              "name": "project entry service > rejects a destination inside the imported folder before copying"
+            },
+            {
+              "index": 19,
+              "name": "project entry service > accepts a registered remote adapter through the same local publication boundary"
+            },
+            {
+              "index": 20,
+              "name": "project entry service > validates a remote adapter's project name before creating staging"
+            },
+            {
+              "index": 21,
+              "name": "project entry service > loads a registered remote source module once and keeps its connection in Main"
+            },
+            {
+              "index": 22,
+              "name": "project entry service > binds remote connections and selected resources to their owner"
+            },
+            {
+              "index": 23,
+              "name": "project entry service > rejects a provider path outside the project and removes the staging directory"
+            },
+            {
+              "index": 24,
+              "name": "project entry service > cancels a remote file stream before publication and cleans up its staging directory"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "launch-reopens-last-project-after-home",
+      "kind": "gap",
+      "reason": "TS clears the window's last active composition when the person leaves the project for the Homepage, so the next launch (or a Dock click with no window) shows the Homepage. Rust always reopens the most recent project that still exists, even if the person was on the Homepage when they quit.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/electron.workspace-registry-lifecycle.test.mjs",
+          "sha256": "d8b7feb9566ed8a7f724340f01f79447163a7356f128982f3fbc2fd2a970234c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace registry lifecycle > clears the last closed composition without deleting recents or another window's selection"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-main-project-session-registry",
+      "kind": "out-of-scope",
+      "reason": "TS's Main process keeps a registry of each window's projects (generations, admission of in-flight work, per-project close participants, window composition identity and a navigation queue) so that renderer requests over IPC can be checked against the project and window they name. The native app has no renderer: a window's project, its terminals, Agent chats, watches and previews are that window's own entities, nothing outside the window can address them, and they end with it. Terminal ids cannot be used from another window or project for the same reason. What remains observable is covered by the Agent ownership, quit and terminal rows; failed closes are a recorded gap.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/electron.project-session-lifecycle.test.mjs",
+          "sha256": "32a3d7d5d8c93f36d2678c8cd63166b3b22da45e968b82a9ba1d3b69cb8af8bc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project lifetime independent of presentation > allows the same instance in two windows but rejects conflicting identities"
+            },
+            {
+              "index": 1,
+              "name": "project lifetime independent of presentation > retains both projects, scopes shutdown, and never authorizes a recent-only root"
+            },
+            {
+              "index": 2,
+              "name": "project lifetime independent of presentation > registers pending admission before async work and waits for late rollback"
+            },
+            {
+              "index": 3,
+              "name": "project lifetime independent of presentation > shares concurrent close and protects a reopened project from old callbacks"
+            },
+            {
+              "index": 4,
+              "name": "project lifetime independent of presentation > retains a failed close for retry and refuses cross-window access"
+            },
+            {
+              "index": 5,
+              "name": "project lifetime independent of presentation > window close fences all future admission, including projects without allocated sessions"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/projects/electron.project-close-coordination.test.mjs",
+          "sha256": "e43ddcc58e3137e273858688dc8082c0359b5a38c226afaaaffb4cc149d4cff0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project close composition > closes every resource port for only the selected project, retaining failed cleanup"
+            },
+            {
+              "index": 1,
+              "name": "project close composition > restores each composition identity and forgets explicitly closed roots"
+            },
+            {
+              "index": 2,
+              "name": "project close composition > serializes navigation and fences queued work after window close"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/projects/electron.project-terminal-integration.test.mjs",
+          "sha256": "4ae8d52cb2ace370a00ca5e9f53c9099efb233a113b178f9183c5af5dd36161e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project-owned Terminal IPC and native shutdown > isolates Terminal execution and shutdown for the same project in two windows"
+            },
+            {
+              "index": 2,
+              "name": "project-owned Terminal IPC and native shutdown > keeps A output while B opens and rejects commands with B's context for A's terminal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "failed-resource-close-retry",
+      "kind": "gap",
+      "reason": "Rust does not keep a failed close to retry. When a terminal's tab or window closes, its process group gets one hang-up signal; Rust neither waits for the process to exit nor tries again, so a process that ignores SIGHUP outlives its tab. Quitting waits for the drain only for a bounded time and then ends, where TS keeps the app running and lets the person quit again.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/electron.project-close-coordination.test.mjs",
+          "sha256": "e43ddcc58e3137e273858688dc8082c0359b5a38c226afaaaffb4cc149d4cff0",
+          "cases": [
+            {
+              "index": 4,
+              "name": "application shutdown after document/window gates > keeps failed shutdown retryable without an automatic quit loop"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/projects/electron.project-terminal-integration.test.mjs",
+          "sha256": "4ae8d52cb2ace370a00ca5e9f53c9099efb233a113b178f9183c5af5dd36161e",
+          "cases": [
+            {
+              "index": 3,
+              "name": "project-owned Terminal IPC and native shutdown > waits for actual exit, shares close, and accepts only confirmed repeated closure"
+            },
+            {
+              "index": 4,
+              "name": "project-owned Terminal IPC and native shutdown > retains a timed-out close and retries without losing the native handle"
             }
           ]
         }

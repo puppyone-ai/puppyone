@@ -28,6 +28,22 @@ fn identity_is_stable_but_open_grants_are_not_interchangeable() {
         ErrorKind::ForeignResource
     );
 }
+/// `deduplicates a symlink alias of the same physical workspace`: a folder
+/// opened through a link is its physical folder, which is what the project
+/// list remembers.
+#[test]
+fn a_folder_opened_through_a_link_is_its_physical_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let physical = dir.path().join("physical-workspace");
+    std::fs::create_dir(&physical).unwrap();
+    let alias = dir.path().join("workspace-alias");
+    std::os::unix::fs::symlink(&physical, &alias).unwrap();
+    let canonical = physical.canonicalize().unwrap();
+    for path in [&physical, &alias] {
+        let ws = Workspace::open(path).unwrap();
+        assert_eq!(ws.local_root(), Some(canonical.as_path()));
+    }
+}
 #[test]
 fn local_provider_roundtrip_preserves_encoding_conflicts_and_operations() {
     let dir = tempfile::tempdir().unwrap();

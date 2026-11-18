@@ -568,6 +568,39 @@ mod tests {
         assert!(made.join("README.md").is_file());
     }
 
+    /// `createProject`: one empty folder under a trimmed name; a taken name
+    /// is numbered only when asked (`numberIfTaken`, as the Agent start
+    /// does), past folders and files alike, within the name limit.
+    #[test]
+    fn a_blank_project_is_one_empty_folder_numbered_past_taken_names() {
+        let temp = tempfile::tempdir().unwrap();
+        let parent = temp.path();
+        let blank = Plan::default();
+        let name = require_project_name("  Notes  ").unwrap();
+        let made = materialize(parent, name, &blank).unwrap();
+        assert_eq!(made, parent.join("Notes"));
+        assert_eq!(std::fs::read_dir(&made).unwrap().count(), 0);
+        let error = materialize(parent, "Notes", &blank).unwrap_err();
+        assert!(error.contains("already exists"), "{error}");
+        let numbered = |name: &str| {
+            let free = free_name(parent, name).unwrap();
+            materialize(parent, &free, &blank).unwrap();
+            free
+        };
+        assert_eq!(numbered("CRM"), "CRM");
+        std::fs::write(parent.join("CRM/mine.md"), "my notes").unwrap();
+        assert_eq!(numbered("CRM"), "CRM 2");
+        std::fs::write(parent.join("CRM 3"), "a file, not a folder").unwrap();
+        assert_eq!(numbered("CRM"), "CRM 4");
+        assert_eq!(
+            std::fs::read_to_string(parent.join("CRM/mine.md")).unwrap(),
+            "my notes"
+        );
+        let long = "n".repeat(NAME_MAX);
+        assert_eq!(numbered(&long), long);
+        assert_eq!(numbered(&long), format!("{} 2", "n".repeat(NAME_MAX - 2)));
+    }
+
     #[test]
     fn a_template_name_becomes_a_folder_name() {
         assert_eq!(

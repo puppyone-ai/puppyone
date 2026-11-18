@@ -248,8 +248,18 @@ impl ProjectLifecycle {
                 && !self.file_window
                 && let Some(opened) = ws.local_root().map(PathBuf::from)
             {
+                // A remembered folder that moved here is followed, not
+                // listed twice (its file-system identity).
+                let identity = crate::platform::folder_availability::identity(&opened);
                 self.preferences.update(cx, |p, cx| {
-                    p.change(|p| p.remember_project(&opened, now), cx)
+                    p.change(
+                        |p| {
+                            p.remember_found_project(&opened, identity, now, |path| {
+                                std::fs::symlink_metadata(path).is_err()
+                            })
+                        },
+                        cx,
+                    )
                 });
             }
             pumped.entered = Some((ws, nodes));
