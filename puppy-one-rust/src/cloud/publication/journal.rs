@@ -282,6 +282,15 @@ impl Journal {
         self.directory.join(FILENAME)
     }
     pub fn read(&self) -> Result<Option<Record>, PublishError> {
+        match self.load()? {
+            Some(record) if record.migrated_from.as_ref().is_some_and(|m| !m.persisted) => {
+                self.persist_migration(record).map(Some)
+            }
+            other => Ok(other),
+        }
+    }
+    /// The record on disk, decoded (a version-1 record migrated in memory).
+    fn load(&self) -> Result<Option<Record>, PublishError> {
         let path = self.path();
         let metadata = match std::fs::symlink_metadata(&path) {
             Ok(m) => m,
@@ -316,11 +325,25 @@ impl Journal {
         })?;
         Record::decode(value).map(Some)
     }
+    /// A version-1 record is written back as its v2 migration the first
+    /// time it is read, one revision later, so every later reader and
+    /// compare-and-swap sees the same record.
+    fn persist_migration(&self, mut record: Record) -> Result<Record, PublishError> {
+        if let Some(migration) = record.migrated_from.as_mut() {
+            migration.persisted = true;
+        }
+        record.revision += 1;
+        record.validate()?;
+        self.locked(|| {
+            write_atomic(&self.path(), &record)?;
+            Ok(record.clone())
+        })
+    }
     pub fn write(&self, record: &Record, expect: Expect) -> Result<Record, PublishError> {
         record.validate()?;
         self.ensure_directory()?;
         self.locked(|| {
-            let current = self.read()?;
+            let current = self.load()?;
             check_swap(current.as_ref(), &expect)?;
             if let Some(current) = &current
                 && (record.revision <= current.revision
@@ -341,7 +364,7 @@ impl Journal {
             return Ok(());
         }
         self.locked(|| {
-            let Some(current) = self.read()? else {
+            let Some(current) = self.load()? else {
                 return Ok(());
             };
             check_swap(Some(&current), &expect)?;

@@ -21772,6 +21772,449 @@
         }
       ],
       "environment": "temporary workspaces; the native kernel against a scripted loopback model service; fixture runtimes"
+    },
+    {
+      "id": "cloud-first-publication-coordinator",
+      "acceptance": "A first publication runs through the real git CLI against a smart-HTTP Cloud Git with a scripted Cloud API, crashing at each durable point and resuming in a fresh coordinator. An unborn branch is refused before anything is created; a feature branch is created once and lands on Cloud main with the credential out of the journal and every stage in order; a crash after the remote is added, the Project or the credential is created, or the push lands resumes without another Project; lost Project, credential and discard responses are replayed with the same Idempotency-Key, body and secret; every API request names repository contract 2. A pending operation meeting another remote, a repointed remote and an edited journal fail closed: the journaled remote is re-validated before any secret is read or network Git runs (Rust now does this; where TS continues to the journaled URL after its check, Rust refuses on its later check, and nothing reaches the other place). The helper is pinned against a local config race, only the committed tree is sent, an attempt keeps its commit after HEAD moves, Push latest starts a new attempt, and a Cloud main that wins the absent race is never overwritten. Unresolved sends are retried with their commit; restarts while uploading or confirming offer Retry; an old upload landing first is not a failure; a second failure keeps the unresolved commit; identical publications at once share one run (Rust now singleflights them) and create one Project. Cleanup finishes after a failure and checkout changes, replays a lost discard, finishes after a crash that removed the remote, lets Cloud prove emptiness, reconciles Cloud main when Cloud refuses (Rust now does), and a definitive refusal keeps sending available across restarts. A deleted source branch can be replaced, an unavailable Project offers only Finish cleanup, version-1 journals migrate (and are written back on first read, as Rust now does) and resume by Cloud main. Every repository shape but Git LFS is accepted under the pinned contract; linked worktrees share the repository owner.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-creation.test.mjs",
+          "sha256": "496036f2c9af4b4a2c61d093246face410a6ffcc7fa9623de47a36a2f4db3812",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish coordinator: creating the Cloud project > rejects an unborn branch before creating any Cloud resources"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish coordinator: creating the Cloud project > creates once, keeps the credential out of the journal, and maps a feature branch to Cloud main"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish coordinator: creating the Cloud project > recovers after a crash immediately after remote add without creating another Project"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish coordinator: creating the Cloud project > fails closed when a pending operation finds the canonical remote at a different URL"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish coordinator: creating the Cloud project > never persists the main-owned raw credential in a crash journal"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish coordinator: creating the Cloud project > rejects a tampered journal remote before reading a secret or running network Git"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish coordinator: creating the Cloud project > replays Project creation with the same UUID after its response is lost"
+            },
+            {
+              "index": 7,
+              "name": "Cloud publish coordinator: creating the Cloud project > accepts a server-allocated display name without losing the durable Project identity"
+            },
+            {
+              "index": 8,
+              "name": "Cloud publish coordinator: creating the Cloud project > rejects a Project response that omits the explicitly requested Organization"
+            },
+            {
+              "index": 9,
+              "name": "Cloud publish coordinator: creating the Cloud project > replays credential issuance with the same secret after its response is lost"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-push.test.mjs",
+          "sha256": "33b7f1e3b6d7c802bede81ea599626410e733b1293e837a978839a26a550b5d5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish coordinator: pushing > reconciles a crash after the push side effect without creating another Project"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish coordinator: pushing > reconciles accepted remote truth before cleanup can delete anything"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish coordinator: pushing > uses the journaled canonical URL when another Git process mutates the remote name"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish coordinator: pushing > pins the allowlisted helper in command scope across a local config mutation race"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish coordinator: pushing > durably owns a remote added just before a crash and removes it on later Abandon"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish coordinator: pushing > pushes only the committed tree and preserves staged, unstaged, and untracked bytes"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish coordinator: pushing > continues an immutable attempt after HEAD advances on another checked-out branch"
+            },
+            {
+              "index": 8,
+              "name": "Cloud publish coordinator: pushing > does not overwrite a Cloud main ref that wins the expected-absent race"
+            },
+            {
+              "index": 9,
+              "name": "Cloud publish coordinator: pushing > lets server CAS reject a competitor that appears after the pre-push read"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
+          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish coordinator: retry and restart > retry of a missing receipt uses a fresh attempt and only retargets after definitive rejection"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish coordinator: retry and restart > retry of a pending receipt uses a fresh attempt and only retargets after definitive rejection"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish coordinator: retry and restart > a restart during uploading offers Retry without retargeting"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish coordinator: retry and restart > a restart during confirming offers Retry without retargeting"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish coordinator: retry and restart > an old upload completing just before Retry does not cause a false failure"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish coordinator: retry and restart > a second failure preserves unresolved intent across later local commits"
+            },
+            {
+              "index": 7,
+              "name": "Cloud publish coordinator: retry and restart > a concurrent different commit wins without being overwritten by Retry"
+            },
+            {
+              "index": 8,
+              "name": "Cloud publish coordinator: retry and restart > singleflights concurrent retries under the repository mutation lock"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-coordinator.test.mjs",
+          "sha256": "393c837130aea7d9ffb5dac2f210cd4d3f78da5d7c8807e14c9b7a408fcfcf1e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish coordinator: cleanup and migration > finishes a failed explicit cleanup after branch, HEAD, and dirty state change"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish coordinator: cleanup and migration > lets the user explicitly replace a deleted source branch with the current branch"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish coordinator: cleanup and migration > replays explicit deletion after the server response is lost"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish coordinator: cleanup and migration > finishes local cleanup after a crash immediately after owned remote removal"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish coordinator: cleanup and migration > lets the server prove emptiness when the owned local remote was already removed"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish coordinator: cleanup and migration > reconciles canonical remote truth when server refuses cleanup after local remote removal"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish coordinator: cleanup and migration > keeps sending available after a definitive discard refusal at after-project-created, including restart"
+            },
+            {
+              "index": 7,
+              "name": "Cloud publish coordinator: cleanup and migration > keeps sending available after a definitive discard refusal at after-remote-configured, including restart"
+            },
+            {
+              "index": 8,
+              "name": "Cloud publish coordinator: cleanup and migration > migrates v1 pre-push state by authoritative absent, accepted, and divergent remote refs"
+            },
+            {
+              "index": 9,
+              "name": "Cloud publish coordinator: cleanup and migration > finishes migrated v1 compensation after the local branch and HEAD change"
+            },
+            {
+              "index": 10,
+              "name": "Cloud publish coordinator: cleanup and migration > offers only Finish cleanup when the Cloud Project is already unavailable"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-initialization-journal.test.mjs",
+          "sha256": "653148abd9d9ba4b11d325a7e870b9dc8bec21de42203ef0c79fd8a4c1c1f805",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud initialization journal v1 migration > maps an interrupted pre-push operation to a retained empty Project and immutable attempt"
+            },
+            {
+              "index": 1,
+              "name": "Cloud initialization journal v1 migration > preserves a legacy cleanup intent as the sole Finish-cleanup recovery path"
+            },
+            {
+              "index": 2,
+              "name": "Cloud initialization journal v1 migration > persists the deterministic v2 record in place on the first journal read"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-repository-shapes.test.mjs",
+          "sha256": "375cb6a322978ad9ffe60100af2001e1a0335ab0ccdbebb57829e648e53239ff",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud first push across repository shapes > follows what the pinned Cloud contract accepts"
+            },
+            {
+              "index": 1,
+              "name": "Cloud first push across repository shapes > sends a linear repository with its history intact"
+            },
+            {
+              "index": 2,
+              "name": "Cloud first push across repository shapes > sends a mergeTip repository with its history intact"
+            },
+            {
+              "index": 3,
+              "name": "Cloud first push across repository shapes > sends a mergeInHistory repository with its history intact"
+            },
+            {
+              "index": 4,
+              "name": "Cloud first push across repository shapes > sends a octopusMergeTip repository with its history intact"
+            },
+            {
+              "index": 5,
+              "name": "Cloud first push across repository shapes > sends a unrelatedHistoriesMerge repository with its history intact"
+            },
+            {
+              "index": 6,
+              "name": "Cloud first push across repository shapes > sends a emptySnapshot repository with its history intact"
+            },
+            {
+              "index": 7,
+              "name": "Cloud first push across repository shapes > sends a lfsLookalikeText repository with its history intact"
+            },
+            {
+              "index": 8,
+              "name": "Cloud first push across repository shapes > refuses Git LFS pointers before creating anything in Cloud"
+            },
+            {
+              "index": 9,
+              "name": "Cloud first push across repository shapes > retries a merge-tip send that an earlier release refused, keeping the same Cloud project"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-git-operation-lease.test.mjs",
+          "sha256": "dcd8eb75f51bfc4fa5853be09dbde1357e3bc14256a8b2b23ef0c362f91555b1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Git cross-process lease > serializes linked worktrees through the shared Git commonDir"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_unborn_branch_is_refused_before_anything_is_created"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_feature_branch_is_created_once_and_lands_on_cloud_main"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_crash_right_after_the_remote_is_added_resumes_without_another_project"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_pending_operation_meeting_another_remote_fails_closed"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_crash_journal_never_holds_the_secret"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_tampered_journal_remote_is_refused_before_any_secret_or_network"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_lost_project_response_is_replayed_with_the_same_key_and_body"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_lost_credential_response_is_replayed_with_the_same_key_and_secret"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_crash_after_the_push_reconciles_without_another_project"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::accepted_remote_truth_is_reconciled_before_cleanup_can_delete_anything"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_repointed_remote_never_receives_the_upload"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::the_secure_helper_is_pinned_across_a_local_config_race"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_remote_added_just_before_a_crash_is_owned_and_removed_on_abandon"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::only_the_committed_tree_is_sent_and_the_checkout_is_untouched"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_attempt_finishes_its_commit_after_head_moves_to_another_branch"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::push_latest_starts_a_new_attempt_from_the_branch_tip"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_cloud_main_that_wins_the_absent_race_is_never_overwritten"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::the_server_lease_refuses_a_competitor_that_lands_after_the_check"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_unresolved_send_is_retried_with_its_commit_in_a_fresh_attempt"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_restart_while_uploading_or_confirming_offers_retry_without_retargeting"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_old_upload_landing_just_before_retry_is_not_a_failure"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_second_failure_keeps_the_unresolved_commit_across_later_work"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_different_commit_landing_concurrently_wins_over_retry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::concurrent_publications_of_one_repository_create_one_project"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_failed_cleanup_finishes_after_the_checkout_changes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_deleted_source_branch_can_be_replaced_by_the_current_one"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_lost_discard_response_is_replayed_with_the_same_key"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::local_cleanup_finishes_after_a_crash_right_after_removing_the_remote"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::the_server_proves_emptiness_when_the_remote_is_already_gone"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_refused_cleanup_reconciles_cloud_main_through_the_canonical_url"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_definitive_discard_refusal_keeps_sending_available_across_a_restart"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_version_1_operation_resumes_by_what_cloud_main_says"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_migrated_version_1_compensation_finishes_after_the_checkout_changes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_unavailable_project_offers_only_finish_cleanup"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::a_first_publication_walks_every_checkpoint_and_leaves_nothing_behind"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::the_git_acceptance_contract_is_pinned_and_its_codes_are_recognized"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::every_repository_shape_but_lfs_passes_the_preflight"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::the_cli_reads_remotes_sources_and_refuses_lfs_pointers"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::a_merge_tip_send_an_earlier_release_refused_is_retried_into_the_same_project"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::publication_context_owns_the_same_repository_domain_as_local_git"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::version_1_journals_migrate_and_persist_on_their_first_read"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_sends_the_pinned_commit_and_reconciles_an_identical_retry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_refuses_a_competing_main_even_when_the_server_allows_forcing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::api::tests::a_created_project_is_its_identity_in_the_requested_organization"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::billing_keys_with_scopes_reach_the_server_and_blank_keys_never_leave"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::coordinator::tests::independent_worktrees_run_together_but_shared_repository_keys_serialize"
+        }
+      ],
+      "environment": "real git CLI, a loopback smart-HTTP git-http-backend, temporary repositories and a scripted Cloud API; crashes simulated by unwinding"
     }
   ],
   "openAcceptance": [
@@ -22551,7 +22994,7 @@
     {
       "id": "cloud-initialization-telemetry",
       "kind": "gap",
-      "reason": "TS writes an allowlisted puppyone.cloud_initialization log record per publication step (identifiers, error code, attempt count, commit truncated to 12 characters; never secrets, remote URLs or local paths). Rust publication redacts secrets from its errors but emits no such structured record.",
+      "reason": "TS writes an allowlisted puppyone.cloud_initialization log record per publication step (identifiers, error code, attempt count, commit truncated to 12 characters; never secrets, remote URLs or local paths). Rust publication redacts secrets from its errors but emits no such structured record, including the empty_project_retained event when a failed first push keeps its empty Project (the Push latest recovery itself is covered by cloud-first-publication-coordinator).",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform-services/telemetry.md",
       "typescript": [
         {
@@ -22561,6 +23004,16 @@
             {
               "index": 0,
               "name": "Cloud initialization telemetry > emits only the structured allowlist and truncates commit identifiers"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-push.test.mjs",
+          "sha256": "33b7f1e3b6d7c802bede81ea599626410e733b1293e837a978839a26a550b5d5",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Cloud publish coordinator: pushing > creates a new immutable attempt from the selected branch tip on Push latest"
             }
           ]
         }
@@ -23599,6 +24052,116 @@
             {
               "index": 15,
               "name": "native Agent smoke runtime selection > bounds live-service timeouts and readiness output"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-push-receipts",
+      "kind": "gap",
+      "reason": "When reconciling, TS asks Cloud for the attempt's push receipt, and a send Cloud definitively rejected is retargeted to the source branch's current tip. Rust has no push-receipt query: it reconciles from Cloud main alone. An unresolved send keeps its commit even after Cloud rejected it, until the person chooses Push latest.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
+          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud publish coordinator: retry and restart > retry of a rejected receipt uses a fresh attempt and only retargets after definitive rejection"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-git-cross-process-lease",
+      "kind": "gap",
+      "reason": "TS takes a cross-process operation lease in the repository's common Git directory, recording the owner PID and an expiry. It never steals the lease from a live owner, reclaims it from a dead one before expiry, and serializes two contenders. A second app process therefore fails fast instead of interleaving. Rust serializes publication only within its own process (the repository mutation owner). Its journal lock is held per write and goes stale by age, so another process publishing the same repository at the same time is not excluded.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-git-operation-lease.test.mjs",
+          "sha256": "dcd8eb75f51bfc4fa5853be09dbde1357e3bc14256a8b2b23ef0c362f91555b1",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Cloud Git cross-process lease > never steals an expired lease while its owner PID is alive"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Git cross-process lease > reclaims a lease owned by a dead PID even before its timestamp expires"
+            },
+            {
+              "index": 3,
+              "name": "Cloud Git cross-process lease > serializes two contenders that both observed the same dead lease"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
+          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Cloud publish coordinator: retry and restart > serializes two independent coordinator instances with the common repository lease"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-git-connect-unused",
+      "kind": "out-of-scope",
+      "reason": "TS's Main can connect a local repository to an existing Cloud Project through its own coordinator and connect journal, but no TS view calls it: connectWorkspaceCloudProject has no caller in v0.4.4. Rust has no such entry point. First publication, which is offered, has its own coordinator and journal (cloud-first-publication-coordinator).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-git-connect-coordinator.test.mjs",
+          "sha256": "5c9c8cbf9ce77b42baacf6d417b7c62a138ce53f0e90f6a37abd9fe486d80b52",
+          "cases": [
+            {
+              "index": 0,
+              "name": "main-owned canonical Cloud Git connect > issues and stores the credential entirely in main and returns only public Project identity"
+            },
+            {
+              "index": 1,
+              "name": "main-owned canonical Cloud Git connect > replays the same credential operation after response loss without exposing or rotating its secret"
+            },
+            {
+              "index": 2,
+              "name": "main-owned canonical Cloud Git connect > rejects a tampered connect journal before reading a secret or running network Git"
+            },
+            {
+              "index": 3,
+              "name": "main-owned canonical Cloud Git connect > resumes after remote add and fails closed if that exact remote is later repointed"
+            },
+            {
+              "index": 4,
+              "name": "main-owned canonical Cloud Git connect > revokes server state before exact local compensation and sends repository contract v2"
+            },
+            {
+              "index": 5,
+              "name": "main-owned canonical Cloud Git connect > treats a lost completed IPC response as idempotent after ProjectGrant verification"
+            },
+            {
+              "index": 6,
+              "name": "main-owned canonical Cloud Git connect > rejects a completed canonical remote when a retry requests a different Project"
+            },
+            {
+              "index": 7,
+              "name": "main-owned canonical Cloud Git connect > remembers remote-add ownership across a crash, resume, and later Abandon"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-git-journal.test.mjs",
+          "sha256": "121e14c99c807e7d159a8de587717b1aeacff3f7f9ccd18bc146ac9724048ee0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Git operation journal CAS > enforces 0600 durability, revision CAS, and monotonic phases across instances"
             }
           ]
         }

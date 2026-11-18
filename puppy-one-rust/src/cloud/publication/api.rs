@@ -27,6 +27,9 @@ pub trait CloudOps: Send + Sync {
     fn abandon_empty_project(&self, record: &Record) -> Result<bool, PublishError>;
     /// `GET /organizations/`: where a Project may be created.
     fn organizations(&self) -> Result<Vec<Organization>, PublishError>;
+    /// Whether `url` is the canonical Git remote this Cloud issues for
+    /// `project` (`validateCanonicalCloudGitRemoteUrl`).
+    fn trusts_remote(&self, url: &str, project: &str, api_base: &str) -> bool;
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Organization {
@@ -191,6 +194,27 @@ fn project_id(value: &str) -> bool {
             .iter()
             .all(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-')
 }
+/// The Project a creation answered with: a valid identity in the requested
+/// organization. Its display name is Cloud's to choose.
+fn created_project(value: Value, record: &Record) -> Result<String, PublishError> {
+    let value = data(value);
+    let id = value["id"].as_str().map(str::trim).unwrap_or_default();
+    if !project_id(id) {
+        return Err(PublishError::new(
+            Code::ProjectCreateFailed,
+            "Cloud returned an invalid Project identity.",
+            false,
+        ));
+    }
+    if value["org_id"].as_str() != Some(record.organization_id.as_str()) {
+        return Err(PublishError::new(
+            Code::ProjectCreateFailed,
+            "Cloud returned a Project in a different organization.",
+            false,
+        ));
+    }
+    Ok(id.to_owned())
+}
 impl CloudOps for Http {
     fn create_project(&self, record: &Record) -> Result<String, PublishError> {
         let value = self
@@ -207,23 +231,7 @@ impl CloudOps for Http {
                     &e,
                 )
             })?;
-        let value = data(value);
-        let id = value["id"].as_str().map(str::trim).unwrap_or_default();
-        if !project_id(id) {
-            return Err(PublishError::new(
-                Code::ProjectCreateFailed,
-                "Cloud returned an invalid Project identity.",
-                false,
-            ));
-        }
-        if value["org_id"].as_str() != Some(record.organization_id.as_str()) {
-            return Err(PublishError::new(
-                Code::ProjectCreateFailed,
-                "Cloud returned a Project in a different organization.",
-                false,
-            ));
-        }
-        Ok(id.to_owned())
+        created_project(value, record)
     }
     fn issue_credential(&self, record: &Record, secret: &str) -> Result<Credential, PublishError> {
         let project = record.project_id.as_deref().unwrap_or_default();
@@ -319,6 +327,10 @@ impl CloudOps for Http {
             )),
         }
     }
+    fn trusts_remote(&self, url: &str, project: &str, api_base: &str) -> bool {
+        validate_remote_url(url, project, api_base, self.hosted_git_origin.as_deref())
+            .is_ok_and(|valid| valid == url)
+    }
     fn organizations(&self) -> Result<Vec<Organization>, PublishError> {
         let value = self
             .call(Method::GET, "/organizations/".into(), None, None)
@@ -344,5 +356,52 @@ impl CloudOps for Http {
                     .collect()
             })
             .unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    fn record() -> Record {
+        super::super::initial_record(
+            &super::super::Request {
+                root: "/repo".into(),
+                api_base_url: "https://api.puppyone.ai/api/v1".into(),
+                user_id: "user-1".into(),
+                organization_id: "org-1".into(),
+                project_name: "Untitled Project".into(),
+                source_branch: "main".into(),
+                operation_id: None,
+                action: super::super::Action::Initialize,
+            },
+            "fingerprint",
+            "0123456789abcdef0123456789abcdef01234567",
+        )
+    }
+
+    /// `accepts a server-allocated display name without losing the durable
+    /// Project identity`; `rejects a Project response that omits the
+    /// explicitly requested Organization`.
+    #[test]
+    fn a_created_project_is_its_identity_in_the_requested_organization() {
+        let record = record();
+        for answer in [
+            json!({"id": "project-1", "org_id": "org-1", "name": "Untitled Project 2"}),
+            json!({"code": 0, "data": {"id": "project-1", "org_id": "org-1", "name": "Other"}}),
+        ] {
+            assert_eq!(created_project(answer, &record).unwrap(), "project-1");
+        }
+        for answer in [
+            json!({"id": "project-1", "name": "Untitled Project"}),
+            json!({"id": "project-1", "org_id": "org-2"}),
+            json!({"id": "../project", "org_id": "org-1"}),
+            json!({"org_id": "org-1"}),
+        ] {
+            let error = created_project(answer.clone(), &record).unwrap_err();
+            assert_eq!(error.code, Code::ProjectCreateFailed, "{answer}");
+            assert!(!error.retryable, "{answer}");
+        }
     }
 }

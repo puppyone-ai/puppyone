@@ -219,6 +219,9 @@ impl CloudOps for Fake {
     fn organizations(&self) -> Result<Vec<Organization>, PublishError> {
         Ok(vec![])
     }
+    fn trusts_remote(&self, url: &str, project: &str, _: &str) -> bool {
+        url == URL && project == "project-a"
+    }
 }
 pub fn coordinator(fake: &Arc<Fake>) -> (Coordinator, Arc<Memory>) {
     let vault = Arc::new(Memory::default());

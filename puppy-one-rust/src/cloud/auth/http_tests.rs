@@ -613,13 +613,17 @@ fn billing_keys_with_scopes_reach_the_server_and_blank_keys_never_leave() {
     let record = seen.clone();
     let server = Server::new(move |_| {
         Arc::new(move |_, _, headers, _| {
-            record.lock().unwrap().push(
+            let header = |name: &str| {
                 headers
                     .iter()
-                    .find(|(k, _)| k.eq_ignore_ascii_case("idempotency-key"))
+                    .find(|(k, _)| k.eq_ignore_ascii_case(name))
                     .map(|(_, v)| v.to_string())
-                    .unwrap_or_default(),
-            );
+                    .unwrap_or_default()
+            };
+            // Every API request names the repository contract it speaks
+            // (Cloud refuses Git credential routes without it).
+            assert_eq!(header("x-puppyone-repository-contract"), "2");
+            record.lock().unwrap().push(header("idempotency-key"));
             json(serde_json::json!({}))
         })
     });

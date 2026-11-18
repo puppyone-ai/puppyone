@@ -18,6 +18,8 @@
 //! | User signs out after link | `app::tests::cloud_opening::signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project` |
 //! | Cleanup fails | `cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything`, `workspace::cloud::publish` derivation |
 //! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `app::tests::cloud_opening::a_vanished_cloud_projects_link_is_ended_from_its_notice` |
+#[path = "coordinator_tests.rs"]
+mod coordinator_tests;
 #[path = "git_push_tests.rs"]
 mod git_push_tests;
 
@@ -829,4 +831,101 @@ fn a_merge_tip_send_an_earlier_release_refused_is_retried_into_the_same_project(
     );
     assert!(retry.ok, "{:?}", retry.error);
     assert_eq!(fake.with(|s| s.creates), 1);
+}
+
+/// `electron.cloud-initialization-journal`: the TypeScript legacy journals
+/// (copied as they are) migrate to schema v2, and the first read writes the
+/// migration in place.
+#[test]
+fn version_1_journals_migrate_and_persist_on_their_first_read() {
+    let legacy: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/cloud/publish/legacy-v1-remote-configured.json"
+    ))
+    .unwrap();
+    let migrated = Record::decode(legacy.clone()).unwrap();
+    assert_eq!(
+        (
+            migrated.version,
+            migrated.kind.as_str(),
+            migrated.checkpoint.as_str(),
+            migrated.project_state.as_str(),
+            migrated.push_state.as_str(),
+            migrated.cleanup_state.as_str(),
+        ),
+        (
+            2,
+            "puppyone-cloud-initialization",
+            "remote-configured",
+            "empty",
+            "idle",
+            "none"
+        )
+    );
+    assert_eq!(migrated.selected_source_branch, "feature/legacy");
+    assert_eq!(migrated.selected_source_ref, "refs/heads/feature/legacy");
+    assert_eq!(migrated.attempt_count, 1);
+    assert_eq!(migrated.attempt.attempt_id, legacy["operation_id"]);
+    assert_eq!(
+        migrated.attempt.commit_oid,
+        legacy["expected_head_commit_id"]
+    );
+    assert_eq!(migrated.attempt.state, "preparing");
+    let from = migrated.migrated_from.clone().unwrap();
+    assert_eq!(
+        (
+            from.version,
+            from.phase.as_str(),
+            from.migrated_at.as_str(),
+            from.persisted
+        ),
+        (
+            1,
+            "remote-configured",
+            legacy["updated_at"].as_str().unwrap(),
+            false
+        )
+    );
+    let text = serde_json::to_string(&migrated).unwrap();
+    assert!(!text.contains("expected_head_commit_id") && !text.contains("expected_branch"));
+
+    let cleanup: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/cloud/publish/legacy-v1-compensation-pending.json"
+    ))
+    .unwrap();
+    let cleanup = Record::decode(cleanup).unwrap();
+    assert_eq!(
+        (
+            cleanup.checkpoint.as_str(),
+            cleanup.project_state.as_str(),
+            cleanup.push_state.as_str(),
+            cleanup.cleanup_state.as_str()
+        ),
+        ("cleanup-requested", "deleting", "failed", "requested")
+    );
+    let from = cleanup.migrated_from.unwrap();
+    assert_eq!(
+        (from.phase.as_str(), from.persisted),
+        ("compensation-pending", false)
+    );
+
+    // The first read writes the migration back, one revision later.
+    let temp = tempfile::tempdir().unwrap();
+    let journal = Journal::in_git_dir(&temp.path().join(".git"));
+    std::fs::create_dir_all(&journal.directory).unwrap();
+    let path = journal.directory.join(journal::FILENAME);
+    std::fs::write(&path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let first = journal.read().unwrap().unwrap();
+    let persisted: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let second = journal.read().unwrap().unwrap();
+    assert_eq!(first.version, 2);
+    assert_eq!(first.revision, legacy["revision"].as_u64().unwrap() + 1);
+    assert!(first.migrated_from.as_ref().unwrap().persisted);
+    assert_eq!(persisted, serde_json::to_value(&first).unwrap());
+    assert_eq!(second, first);
 }
