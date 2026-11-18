@@ -21026,6 +21026,253 @@
         }
       ],
       "environment": "loopback HTTP services; the native PuppyOne Agent kernel with temporary profiles"
+    },
+    {
+      "id": "themes-folder-service",
+      "acceptance": "The Themes Folder installs its guide once (a marker keeps an edited guide, and an older starter catalog gets it without its themes being touched) and ships no CSS of its own. It lists single .css themes, directory theme.css packages (which need @puppyone-theme metadata) and theme.json packages (preferred when both exist), across their Application, Markdown and CSV targets with each mode's first-paint canvas. Fonts injected directly or through an import, links out of a package (a theme.css, a manifest entrypoint, the manifest) and a themes folder redirected out of the data directory are refused; invalid themes are isolated, duplicates reported in folder order, and no diagnostic carries the data path. New themes are numbered, revealed as their own theme.css, carry the complete Markdown profile, and authored edits load without the file being rewritten. The legacy Custom CSS folder stays on disk unloaded and its id is reserved. Imports and embedded assets are bounded. Rust keeps the declarations natively instead of compiling CSS text, so the checks read declarations where TS reads compiled CSS.",
+      "typescript": [
+        {
+          "path": "tests/integration/appearance/themes/electron.theme-service.test.mjs",
+          "sha256": "0fd9edd5c57522fa9af13ac0c38f64513b0dbc7c0aa7ea20bb5276cd6e349d3d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host-owned CSS theme service > installs the theme guide without copying bundled CSS or changing user themes"
+            },
+            {
+              "index": 1,
+              "name": "host-owned CSS theme service > installs the guide for a previous starter catalog without overwriting themes"
+            },
+            {
+              "index": 2,
+              "name": "host-owned CSS theme service > ships the theme guide without distributable CSS assets"
+            },
+            {
+              "index": 3,
+              "name": "host-owned CSS theme service > discovers manifest packages and metadata-free token themes"
+            },
+            {
+              "index": 4,
+              "name": "host-owned CSS theme service > loads a coordinated single CSS theme across all declared surfaces"
+            },
+            {
+              "index": 5,
+              "name": "host-owned CSS theme service > rejects global font injection from a coordinated theme.css package"
+            },
+            {
+              "index": 6,
+              "name": "host-owned CSS theme service > requires coordinated metadata in a directory theme.css"
+            },
+            {
+              "index": 7,
+              "name": "host-owned CSS theme service > rejects a directory theme.css symlink that escapes its package"
+            },
+            {
+              "index": 8,
+              "name": "host-owned CSS theme service > prefers theme.json when a directory also contains theme.css"
+            },
+            {
+              "index": 9,
+              "name": "host-owned CSS theme service > rejects imported CSS that attempts to inject global fonts"
+            },
+            {
+              "index": 10,
+              "name": "host-owned CSS theme service > isolates invalid themes and reports duplicate IDs deterministically"
+            },
+            {
+              "index": 11,
+              "name": "host-owned CSS theme service > creates and opens only its exact user-data theme directory"
+            },
+            {
+              "index": 12,
+              "name": "host-owned CSS theme service > creates one-file local theme packages and reveals each new theme.css"
+            },
+            {
+              "index": 13,
+              "name": "host-owned CSS theme service > creates a complete editable Markdown profile and reloads authored values without rewriting it"
+            },
+            {
+              "index": 14,
+              "name": "host-owned CSS theme service > keeps a legacy managed Custom CSS directory on disk without loading it"
+            },
+            {
+              "index": 15,
+              "name": "host-owned CSS theme service > reserves the Custom CSS id for the managed package directory"
+            },
+            {
+              "index": 16,
+              "name": "host-owned CSS theme service > rejects a user-data theme root redirected through a symlink"
+            },
+            {
+              "index": 17,
+              "name": "host-owned CSS theme service > rejects manifest entrypoint symlinks that escape a package"
+            },
+            {
+              "index": 18,
+              "name": "host-owned CSS theme service > rejects manifest symlinks that escape a package"
+            },
+            {
+              "index": 19,
+              "name": "host-owned CSS theme service > rejects themes whose aggregate imported CSS exceeds the compilation budget"
+            },
+            {
+              "index": 20,
+              "name": "host-owned CSS theme service > rejects repeated asset expansion before compiled CSS exceeds its output budget"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::the_guide_is_installed_once_and_user_themes_are_left_alone"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::a_previous_starter_catalog_gets_the_guide_and_keeps_its_themes"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::the_app_installs_only_the_guide"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::manifest_packages_and_metadata_free_token_themes_are_discovered"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::a_coordinated_single_css_theme_loads_across_its_surfaces"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::fonts_cannot_be_injected_directly_or_through_an_import"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::a_directory_theme_css_needs_metadata_and_theme_json_wins"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::links_out_of_a_package_or_the_data_directory_are_refused"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::invalid_themes_are_isolated_and_duplicates_reported_in_order"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::new_themes_are_revealed_and_the_folder_is_exactly_the_data_directorys"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::the_starter_markdown_profile_is_complete_and_edits_load_without_a_rewrite"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::the_legacy_custom_css_folder_stays_and_its_id_is_reserved"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::imports_and_embedded_assets_are_bounded"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::tests::the_folder_lists_what_the_product_lists"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::tests::new_themes_are_numbered_selectable_and_complete"
+        }
+      ],
+      "environment": "temporary data directories with real files and symbolic links"
+    },
+    {
+      "id": "builtin-sub-theme-packages",
+      "acceptance": "The app ships the product's six built-in packages, one self-describing theme each, byte for byte (tools/import-theme-contract.mjs --check, run by verify.py and by a tools test that also proves a changed or extra package is caught). Each id matches its package, the builtin order is Neutral, Warm, Graphite, GitHub, Newspaper, Windows XP Luna, every target declares only custom properties and no editor internals, and each Default theme paints a first frame in both modes. Every package declares every Markdown role of the contract with the shared inline-code and code-block defaults. Neutral's Dark chrome is unified and apart from the editor, Warm's Dark header and sidebar mix chrome into the editor, and Graphite's Dark text and syntax colours keep their contrast. Neutral is the fallback under every theme, and no legacy preset palette remains. The Windows XP interface style itself is a recorded intended difference: its package is kept but not offered.",
+      "typescript": [
+        {
+          "path": "tests/integration/appearance/themes/builtinSubThemePackages.test.mjs",
+          "sha256": "7b8e2757d6377b108c776bf720911a0c826df3ef7833fb9fbe2c128402f37d98",
+          "cases": [
+            {
+              "index": 0,
+              "name": "built-in Sub Theme package architecture > keeps one self-describing theme.css in every built-in package"
+            },
+            {
+              "index": 1,
+              "name": "built-in Sub Theme package architecture > parses and compiles every package through the same public token boundary"
+            },
+            {
+              "index": 2,
+              "name": "built-in Sub Theme package architecture > keeps the generated runtime registry synchronized"
+            },
+            {
+              "index": 3,
+              "name": "built-in Sub Theme package architecture > declares every Markdown visual role in each file and generates defaults from that file"
+            },
+            {
+              "index": 4,
+              "name": "built-in Sub Theme package architecture > keeps Neutral's Dark chrome unified and distinct from the editor"
+            },
+            {
+              "index": 5,
+              "name": "built-in Sub Theme package architecture > keeps Warm's light shell surfaces from leaking into Dark mode"
+            },
+            {
+              "index": 6,
+              "name": "built-in Sub Theme package architecture > keeps Graphite's Dark text and syntax colors readable"
+            },
+            {
+              "index": 7,
+              "name": "built-in Sub Theme package architecture > removes legacy preset palettes from the global token layer"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::every_package_is_one_self_describing_theme_in_its_place"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::every_package_declares_every_markdown_role"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::neutral_dark_chrome_is_unified_and_apart_from_the_editor"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::warm_light_shell_surfaces_do_not_leak_into_dark"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::graphite_dark_text_and_syntax_stay_readable"
+        },
+        {
+          "package": "python",
+          "python": "tools/test_theme_contract.py",
+          "test": "ThemeContractTests.test_the_shipped_builtin_themes_are_the_products"
+        },
+        {
+          "package": "python",
+          "python": "tools/test_theme_contract.py",
+          "test": "ThemeContractTests.test_a_changed_or_extra_builtin_theme_is_stale"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::palette::tests::the_built_in_themes_project_exactly_as_the_importer_did"
+        },
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::tokens::tests::a_sub_theme_cascades_over_the_neutral_tokens"
+        }
+      ],
+      "environment": "the shipped theme sources; the pinned product checkout for the copy check"
     }
   ],
   "openAcceptance": [
@@ -22733,6 +22980,48 @@
             {
               "index": 1,
               "name": "model network boundaries > bounds parallel metadata requests and cancels queued work"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "project-appearance-experiment",
+      "kind": "out-of-scope",
+      "reason": "Local Project icons and emoji (the content-addressed appearance store, icon normalization, the asset protocol and its broadcast) are shown only by the Project Switcher Rail, which is the enableProjectSwitcherRail experiment (off by default in TS v0.4.4), and no TS view offers choosing an icon. Experiments that are off by default are out of scope.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/integration/appearance/styles/electron.project-appearance.test.mjs",
+          "sha256": "eaae6dd40f2023c6dfa81c3243f7a8c19f8dd64714796b856eebdb6d2c95d24d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local-first Project appearance store > persists content-addressed icons outside the Project and removes unreferenced assets"
+            },
+            {
+              "index": 1,
+              "name": "local-first Project appearance store > rejects traversal-shaped identities and non-PNG bytes"
+            },
+            {
+              "index": 2,
+              "name": "local-first Project appearance store > stores a single emoji as structured metadata and migrates legacy image records"
+            },
+            {
+              "index": 3,
+              "name": "local-first Project appearance store > detects an asset whose bytes no longer match its content-addressed filename"
+            },
+            {
+              "index": 4,
+              "name": "Project icon normalization > center-crops, bounds, and re-encodes the selected image as a square PNG"
+            },
+            {
+              "index": 5,
+              "name": "Project icon asset protocol > serves only exact content-hash URLs with immutable image headers"
+            },
+            {
+              "index": 6,
+              "name": "Project appearance IPC > broadcasts committed local changes to every live window"
             }
           ]
         }
