@@ -65,6 +65,21 @@ fn code(error: &std::io::Error) -> &'static str {
 fn io(error: std::io::Error) -> &'static str {
     code(&error)
 }
+#[cfg(test)]
+thread_local! {
+    /// Tests: what happens between a name's check and its use.
+    static BEFORE_IO: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = Default::default();
+}
+/// Between a name's check and the call that uses it; the call itself never
+/// leaves the folder, whatever the name has become by then.
+fn before_io() {
+    #[cfg(test)]
+    BEFORE_IO.with(|hook| {
+        if let Some(hook) = hook.borrow_mut().take() {
+            hook();
+        }
+    });
+}
 fn split(name: &str) -> (&str, &str) {
     match name.rfind('/') {
         Some(slash) => (&name[..slash], &name[slash + 1..]),
@@ -203,6 +218,11 @@ impl FileService {
     /// An existing name: every segment a real directory, the last a real
     /// file or directory, none a link.
     fn entry(dir: &Dir, name: &str) -> Result<cap_std::fs::Metadata, &'static str> {
+        let checked = Self::check(dir, name);
+        before_io();
+        checked
+    }
+    fn check(dir: &Dir, name: &str) -> Result<cap_std::fs::Metadata, &'static str> {
         if name.is_empty() {
             return dir.symlink_metadata(".").map_err(io);
         }
@@ -799,6 +819,247 @@ mod tests {
             }
         }
         drop(watch);
+    }
+
+    /// One registered root lists and reads without its Git metadata or
+    /// links; nothing outside it, nor another folder, is reached. A missing
+    /// name inside it is not_found, but a name behind a link says nothing
+    /// (invalid_path).
+    #[test]
+    fn a_root_is_read_without_git_or_links_and_names_behind_a_link_say_nothing() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path().canonicalize().unwrap();
+        let (root, outside) = (base.join("shared"), base.join("outside"));
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(root.join("note.md"), "initial").unwrap();
+        std::fs::write(root.join(".git/config"), "private").unwrap();
+        std::fs::write(outside.join("exists.md"), "outside").unwrap();
+        std::os::unix::fs::symlink("/etc/passwd", root.join("escape")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("linked")).unwrap();
+        let files = service(&root, vec![Capability::Read]);
+        let listed = files.list("f", "").unwrap();
+        let names: Vec<_> = listed["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["name"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(names, ["sub", "note.md"]);
+        let note = &listed["entries"][1];
+        assert_eq!(note["size"], 7);
+        assert!(
+            note["modified_ns"]
+                .as_str()
+                .unwrap()
+                .bytes()
+                .all(|b| b.is_ascii_digit())
+        );
+        let read = files.read("f", "note.md").unwrap();
+        assert_eq!(read["content_base64"], STANDARD.encode("initial"));
+        assert_eq!(
+            (read["name"].as_str(), read["kind"].as_str()),
+            (Some("note.md"), Some("file"))
+        );
+        for refused in ["escape", ".git/config", "../outside", "/etc/passwd"] {
+            assert!(files.read("f", refused).is_err(), "{refused}");
+        }
+        assert_eq!(files.read("other", "note.md"), Err("folder_unavailable"));
+        assert_eq!(files.read("f", "missing.md"), Err("not_found"));
+        assert_eq!(files.read("f", "sub/missing.md"), Err("not_found"));
+        assert_eq!(files.list("f", "nowhere"), Err("not_found"));
+        assert_eq!(files.read("f", "linked/exists.md"), Err("invalid_path"));
+        assert_eq!(files.read("f", "linked/missing.md"), Err("invalid_path"));
+    }
+
+    /// `host file service limits`: a directory of exactly 10,000 entries
+    /// lists, in order and well inside the gateway's timeout; one more is
+    /// refused. Files read back byte for byte up to 8 MiB and not past it,
+    /// and a binary write lands unchanged.
+    #[test]
+    fn a_directory_lists_up_to_its_limit_and_files_read_up_to_8_mib() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        let big = root.join("big");
+        std::fs::create_dir(&big).unwrap();
+        for index in 0..MAX_DIRECTORY_ENTRIES {
+            std::fs::write(big.join(format!("file-{index:05}.md")), "").unwrap();
+        }
+        let files = service(&root, vec![Capability::Read, Capability::Write]);
+        let started = std::time::Instant::now();
+        let listed = files.list("f", "big").unwrap();
+        assert!(started.elapsed() < Duration::from_secs(10));
+        let entries = listed["entries"].as_array().unwrap();
+        assert_eq!(entries.len(), MAX_DIRECTORY_ENTRIES);
+        assert_eq!(entries[0]["name"], "file-00000.md");
+        assert_eq!(entries[entries.len() - 1]["name"], "file-09999.md");
+        std::fs::write(big.join("one-more.md"), "").unwrap();
+        assert_eq!(files.list("f", "big"), Err("too_many_entries"));
+        let png = [
+            0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0xff, 0x10,
+        ];
+        std::fs::write(root.join("image.png"), png).unwrap();
+        std::fs::write(root.join("note.md"), "# Title\n\nUnicode: 中文 ✓\n").unwrap();
+        for (name, bytes) in [
+            ("image.png", png.to_vec()),
+            (
+                "note.md",
+                "# Title\n\nUnicode: 中文 ✓\n".as_bytes().to_vec(),
+            ),
+        ] {
+            let read = files.read("f", name).unwrap();
+            let content = STANDARD
+                .decode(read["content_base64"].as_str().unwrap())
+                .unwrap();
+            assert_eq!(content, bytes, "{name}");
+            assert_eq!(read["revision"].as_str().unwrap().len(), 64);
+        }
+        std::fs::write(root.join("limit.bin"), vec![1u8; MAX_FILE_BYTES as usize]).unwrap();
+        let at_limit = files.read("f", "limit.bin").unwrap();
+        assert_eq!(
+            STANDARD
+                .decode(at_limit["content_base64"].as_str().unwrap())
+                .unwrap()
+                .len() as u64,
+            MAX_FILE_BYTES
+        );
+        std::fs::write(
+            root.join("over.bin"),
+            vec![1u8; MAX_FILE_BYTES as usize + 1],
+        )
+        .unwrap();
+        assert_eq!(files.read("f", "over.bin"), Err("unsupported_file"));
+        files
+            .write("f", "copy.png", &STANDARD.encode(png), None)
+            .unwrap();
+        assert_eq!(std::fs::read(root.join("copy.png")).unwrap(), png);
+    }
+
+    /// A folder whose grant the test changes.
+    struct Changing(Mutex<Grant>);
+    impl Folders for Changing {
+        fn resolve(&self, folder: &str) -> Option<Grant> {
+            (folder == "f").then(|| self.0.lock().unwrap().clone())
+        }
+    }
+
+    /// Every request checks the folder's grant as it is now: read-only
+    /// refuses writing, making and removing, and a revoked share refuses
+    /// even reading. Two writes from the same revision cannot both land:
+    /// one conflicts, and the file holds the other's bytes.
+    #[test]
+    fn each_request_checks_the_grant_and_concurrent_writes_never_overwrite() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        std::fs::write(root.join("note.md"), "initial").unwrap();
+        let folders = Arc::new(Changing(Mutex::new(Grant {
+            root: root.clone(),
+            active: true,
+            capabilities: vec![Capability::Read],
+        })));
+        let files = Arc::new(FileService::new(folders.clone()));
+        let current = files.read("f", "note.md").unwrap()["revision"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(
+            files.write("f", "note.md", "bmV3", Some(&current)),
+            Err("folder_unavailable")
+        );
+        assert_eq!(files.mkdir("f", "new"), Err("folder_unavailable"));
+        assert_eq!(files.remove("f", "note.md"), Err("folder_unavailable"));
+        folders.0.lock().unwrap().capabilities = vec![Capability::Read, Capability::Write];
+        let writes: Vec<_> = ["Zmlyc3Q=", "c2Vjb25k"]
+            .into_iter()
+            .map(|content| {
+                let (files, current) = (files.clone(), current.clone());
+                std::thread::spawn(move || files.write("f", "note.md", content, Some(&current)))
+            })
+            .collect();
+        let outcomes: Vec<_> = writes.into_iter().map(|w| w.join().unwrap()).collect();
+        assert_eq!(
+            outcomes.iter().filter(|o| o.is_ok()).count(),
+            1,
+            "{outcomes:?}"
+        );
+        assert!(outcomes.contains(&Err("conflict")), "{outcomes:?}");
+        let held = std::fs::read_to_string(root.join("note.md")).unwrap();
+        assert!(["first", "second"].contains(&held.as_str()), "{held}");
+        folders.0.lock().unwrap().active = false;
+        assert_eq!(files.read("f", "note.md"), Err("folder_unavailable"));
+    }
+
+    /// A watch whose last subscriber stopped scans and publishes nothing.
+    #[test]
+    fn a_stopped_watch_scans_and_publishes_nothing() {
+        let temp = tempfile::tempdir().unwrap();
+        let files = service(temp.path(), vec![Capability::Read]);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let watch = files
+            .watch("f", move |paths, reset| {
+                let _ = tx.send((paths, reset));
+            })
+            .unwrap();
+        drop(watch);
+        while rx.recv_timeout(Duration::from_millis(100)).is_ok() {}
+        std::fs::write(temp.path().join("after.md"), "after stop").unwrap();
+        // Past the 2 s reconcile, nothing arrives.
+        assert!(rx.recv_timeout(Duration::from_millis(2_500)).is_err());
+    }
+
+    /// A directory swapped for a link to outside the folder between its
+    /// check and its use is never read, listed, removed, written or made
+    /// into through.
+    #[test]
+    fn a_directory_swapped_for_a_link_after_its_check_is_never_used() {
+        let racing = |operation: &dyn Fn(&FileService) -> Outcome| {
+            let temp = tempfile::tempdir().unwrap();
+            let base = temp.path().canonicalize().unwrap();
+            let (root, outside) = (base.join("shared"), base.join("outside"));
+            std::fs::create_dir_all(root.join("sub")).unwrap();
+            std::fs::write(root.join("sub/note.md"), "inside").unwrap();
+            std::fs::create_dir(&outside).unwrap();
+            std::fs::write(outside.join("note.md"), "outside secret").unwrap();
+            std::fs::write(outside.join("keep.md"), "keep me").unwrap();
+            let files = service(&root, vec![Capability::Read, Capability::Write]);
+            let swapped = std::rc::Rc::new(std::cell::Cell::new(false));
+            let (seen, sub, moved, target) = (
+                swapped.clone(),
+                root.join("sub"),
+                base.join("moved-away"),
+                outside.clone(),
+            );
+            BEFORE_IO.with(|hook| {
+                *hook.borrow_mut() = Some(Box::new(move || {
+                    std::fs::rename(&sub, &moved).unwrap();
+                    std::os::unix::fs::symlink(&target, &sub).unwrap();
+                    seen.set(true);
+                }))
+            });
+            let result = operation(&files);
+            assert!(swapped.get(), "the race happened between check and use");
+            assert_eq!(
+                std::fs::read_to_string(outside.join("keep.md")).unwrap(),
+                "keep me"
+            );
+            assert_eq!(
+                std::fs::read_to_string(outside.join("note.md")).unwrap(),
+                "outside secret"
+            );
+            for made in ["new.md", "made"] {
+                assert!(std::fs::symlink_metadata(outside.join(made)).is_err());
+            }
+            result
+        };
+        assert_eq!(racing(&|f| f.read("f", "sub/note.md")), Err("invalid_path"));
+        assert_eq!(racing(&|f| f.list("f", "sub")), Err("invalid_path"));
+        assert_eq!(racing(&|f| f.remove("f", "sub")), Err("invalid_path"));
+        assert_eq!(
+            racing(&|f| f.write("f", "sub/new.md", "bmV3", None)),
+            Err("invalid_path")
+        );
+        assert_eq!(racing(&|f| f.mkdir("f", "sub/made")), Err("invalid_path"));
     }
 
     #[test]

@@ -382,4 +382,113 @@ mod tests {
                 .is_err()
         );
     }
+
+    /// The mapping is this owner's alone and names no local path to the
+    /// Cloud. Widening a view-only folder back to editing gives editing
+    /// only, its running permissions asked for again; a link is never a
+    /// root, and a retry with other settings is refused. A lost removal
+    /// reply is asked again, and a revoked device loses every folder here
+    /// without a word to the Cloud.
+    #[test]
+    fn a_folder_is_this_owners_and_a_revoked_device_loses_it_here() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path().canonicalize().unwrap();
+        let root = base.join("notes");
+        std::fs::create_dir(&root).unwrap();
+        let registry = Registry::new(base.join("reg.json"), "https://api.puppyone.ai/api/v1");
+        let owner = owner();
+        let other = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+        // A link is not a folder to share.
+        std::os::unix::fs::symlink(&root, base.join("link")).unwrap();
+        assert!(
+            registry
+                .register(&owner, &base.join("link"), "notes", false, |id, _, _| Ok(
+                    id.into()
+                ))
+                .is_err()
+        );
+        let mut told = Vec::new();
+        assert!(
+            registry
+                .register(&owner, &root, "notes", false, |id, name, writable| {
+                    told.push(format!("{id} {name} {writable}"));
+                    Err("lost".into())
+                })
+                .is_err()
+        );
+        // Retried with other settings: refused.
+        assert!(
+            registry
+                .register(&owner, &root, "notes", true, |id, _, _| Ok(id.into()))
+                .is_err()
+        );
+        let (folder, _) = registry
+            .register(&owner, &root, "notes", false, |id, _, _| Ok(id.into()))
+            .unwrap();
+        assert!(told.iter().all(|t| !t.contains(&*root.to_string_lossy())));
+        for stranger in [
+            Owner {
+                account_id: other.into(),
+                ..owner.clone()
+            },
+            Owner {
+                device_id: other.into(),
+                ..owner.clone()
+            },
+        ] {
+            assert!(registry.resolve(&stranger, &folder).is_none());
+        }
+        let all = Execution {
+            terminal: true,
+            git: true,
+            agent: false,
+        };
+        assert!(registry.set_execution(&owner, &folder, all).is_err());
+        registry.set_access(&owner, &folder, "notes", true).unwrap();
+        registry.set_execution(&owner, &folder, all).unwrap();
+        assert_eq!(registry.list(&owner)[0].execution, all);
+        registry
+            .set_access(&owner, &folder, "notes", false)
+            .unwrap();
+        registry.set_access(&owner, &folder, "notes", true).unwrap();
+        assert_eq!(
+            registry.resolve(&owner, &folder).unwrap().capabilities(),
+            [Capability::Read, Capability::Write]
+        );
+        // A lost removal reply: denied already, and asked again.
+        let mut deletes = 0;
+        assert!(
+            registry
+                .remove(&owner, &folder, || {
+                    deletes += 1;
+                    Err("lost".into())
+                })
+                .is_err()
+        );
+        assert!(registry.resolve(&owner, &folder).is_none());
+        assert!(
+            registry
+                .remove(&owner, &folder, || {
+                    deletes += 1;
+                    Ok(())
+                })
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(deletes, 2);
+        // A revoked device loses every folder here, no request made.
+        let again = base.join("again");
+        std::fs::create_dir(&again).unwrap();
+        let (kept, _) = registry
+            .register(&owner, &again, "again", false, |id, _, _| Ok(id.into()))
+            .unwrap();
+        let elsewhere = Owner {
+            device_id: other.into(),
+            ..owner.clone()
+        };
+        assert!(registry.forget_device(&elsewhere).is_empty());
+        assert_eq!(registry.forget_device(&owner), std::slice::from_ref(&again));
+        assert!(registry.resolve(&owner, &kept).is_none());
+        assert!(!registry.has_active(&owner));
+    }
 }

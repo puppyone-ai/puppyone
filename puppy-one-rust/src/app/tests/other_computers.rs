@@ -54,6 +54,8 @@ fn another_computers_folder_opens_here_and_runs_there(cx: &mut TestAppContext) {
     cx.update(|_, cx| crate::features::flags::open_host_devices_rollout(cx));
     let (broker, browser) =
         crate::cloud::auth::responding_account_fixture(cloud_project_responder());
+    // Accounts are IDs, as the Cloud issues them.
+    crate::cloud::auth::relogin(&broker, crate::workspace::hosts::testing::ACCOUNT);
     view.update(cx, |s, cx| {
         s.session
             .project
@@ -248,6 +250,7 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
     cx.update(|_, cx| crate::features::flags::open_host_devices_rollout(cx));
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     crate::cloud::auth::relogin(&broker, USER);
+    let kept = broker.clone();
     view.update(cx, |s, cx| {
         s.session
             .project
@@ -296,6 +299,44 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
     cx.update(|_, cx| {
         crate::features::hosts::host_link(cx).update(cx, |l, _| l.use_dir(dir.clone()))
     });
+    // Asked, then answered under another sign-in: nothing is shared and
+    // the question goes.
+    view.update_in(cx, |s, w, cx| {
+        s.cloud
+            .update(cx, |c, cx| c.request_device_sharing(folder.clone(), w, cx))
+    });
+    view.update(cx, |s, cx| {
+        s.cloud.update(cx, |c, cx| c.sharing_press("share", cx))
+    });
+    let before = cx.update(|_, cx| {
+        crate::features::cloud::account::broker_and_binding(cx)
+            .unwrap()
+            .1
+            .epoch
+    });
+    crate::cloud::auth::sign_in_again(&kept, USER);
+    settle_cloud(&view, cx, "the new sign-in", &|_, cx| {
+        crate::features::cloud::account::broker_and_binding(cx)
+            .is_some_and(|(_, b)| b.epoch > before)
+    });
+    view.update(cx, |s, cx| {
+        s.cloud.update(cx, |c, cx| c.sharing_press("allow", cx))
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(s.cloud.read(cx).sharing_state().is_none());
+        assert!(
+            !s.cloud
+                .read(cx)
+                .dialog_open(crate::app::dialogs::DialogKey::HostSharing, cx)
+        );
+    });
+    assert!(
+        !asked
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|a| a.ends_with("/folders"))
+    );
     // From the Homepage: "Open on my other computers".
     view.update_in(cx, |s, w, cx| {
         s.cloud

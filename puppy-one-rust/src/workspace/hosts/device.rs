@@ -21,6 +21,14 @@ use std::{
 /// Stable resource identity (`deviceFolderRootUri`): never a device name, a
 /// local path, the online state or a connection.
 pub fn storage(api: &str, account: &str, device: &str, folder: &str) -> Result<StorageId> {
+    // `deviceFolderRootUri`: three IDs, and a deployment of the PuppyOne
+    // family (or loopback development) with nothing else in its address.
+    let id = |value: &str| uuid::Uuid::parse_str(value).is_ok() && value.len() == 36;
+    if !(id(account) && id(device) && id(folder))
+        || crate::cloud::auth::model::Environment::new(api, "https://puppyone.ai").is_err()
+    {
+        return Err(Error::from("Invalid remote folder"));
+    }
     let api = url::Url::parse(api).map_err(|_| Error::from("Invalid deployment"))?;
     let authority = &api[url::Position::BeforeHost..url::Position::AfterPort];
     let path = [
@@ -254,7 +262,13 @@ impl DeviceFolder {
                     sinks.retain(|_, (slot, _)| slot.strong_count() > 0);
                     for (slot, notify) in sinks.values() {
                         if let Some(slot) = slot.upgrade() {
-                            *slot.lock().unwrap() = Some(event.clone());
+                            // An event not read yet joins the next one.
+                            let mut pending = slot.lock().unwrap();
+                            *pending = Some(match pending.take() {
+                                Some(earlier) => earlier.coalesce(event.clone()),
+                                None => event.clone(),
+                            });
+                            drop(pending);
                             notify();
                         }
                     }
@@ -262,9 +276,9 @@ impl DeviceFolder {
                 };
                 hosts
                     .watch(&folder, |event| match event {
-                        FolderEvent::Change { .. } => {
+                        FolderEvent::Change { paths, reset } => {
                             *availability.lock().unwrap() = Availability::Online;
-                            deliver(WatchEvent::Invalidated)
+                            deliver(changed(&paths, reset))
                         }
                         FolderEvent::Offline(_) => {
                             *availability.lock().unwrap() = Availability::Offline;
@@ -462,6 +476,23 @@ impl ResourcePort for DeviceFolder {
         Ok(bytes)
     }
 }
+/// A change the other computer named: only its paths, unless it asks for a
+/// rescan, names none, or names one that is not a folder path.
+fn changed(paths: &[String], reset: bool) -> WatchEvent {
+    if reset || paths.is_empty() || paths.len() > 256 {
+        return WatchEvent::Invalidated;
+    }
+    let mut named = Vec::new();
+    for path in paths {
+        let Ok(path) = RelativePath::new(Path::new(path)) else {
+            return WatchEvent::Invalidated;
+        };
+        if !named.contains(&path) {
+            named.push(path);
+        }
+    }
+    WatchEvent::Changed(named)
+}
 impl ResourceWatchPort for DeviceFolder {
     fn watch(&self, _: &RelativePath, _: &Revision, notify: Notify) -> Result<WatchSubscription> {
         self.subscribe(notify)
@@ -476,6 +507,70 @@ mod tests {
     use super::super::testing::{ACCOUNT, DEVICE, FOLDER, fake};
     use super::*;
     use std::time::Duration;
+
+    /// `deviceFolderRootUri`: one identity per account, device, folder and
+    /// deployment, the same however the deployment is written; anything
+    /// that is not an ID, an address outside the PuppyOne family or one
+    /// carrying credentials is refused, and so is a path out of the folder.
+    #[test]
+    fn a_remote_folder_identity_is_stable_and_refuses_what_is_not_one() {
+        const OTHER: &str = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+        let api = "https://api.puppyone.ai/api/v1";
+        let root = storage(api, ACCOUNT, DEVICE, FOLDER).unwrap();
+        assert_eq!(
+            storage(&format!("{api}/"), ACCOUNT, DEVICE, FOLDER).unwrap(),
+            root
+        );
+        for changed in [
+            storage(api, OTHER, DEVICE, FOLDER),
+            storage(api, ACCOUNT, OTHER, FOLDER),
+            storage(api, ACCOUNT, DEVICE, OTHER),
+            storage("http://localhost:9090/api/v1", ACCOUNT, DEVICE, FOLDER),
+        ] {
+            assert_ne!(changed.unwrap(), root);
+        }
+        for refused in [
+            storage(api, ACCOUNT, DEVICE, "a/b"),
+            storage("http://169.254.169.254/api/v1", ACCOUNT, DEVICE, FOLDER),
+            storage(
+                "https://user:pass@api.puppyone.ai/api/v1",
+                ACCOUNT,
+                DEVICE,
+                FOLDER,
+            ),
+        ] {
+            assert!(refused.is_err());
+        }
+        for escape in ["../other/secret", "/etc/passwd"] {
+            assert!(RelativePath::new(Path::new(escape)).is_err(), "{escape}");
+        }
+    }
+
+    /// A change hands the workbench only the paths it names, so only their
+    /// listings are read again; a rescan, a change naming nothing or a name
+    /// that is not a folder path drops everything.
+    #[test]
+    fn a_change_names_its_paths_and_a_rescan_drops_everything() {
+        let named = changed(
+            &["docs/a.md".into(), "docs/a.md".into(), "other".into()],
+            false,
+        );
+        assert!(matches!(&named, WatchEvent::Changed(paths)
+            if paths.iter().map(|p| p.as_path()).eq([Path::new("docs/a.md"), Path::new("other")])));
+        for everything in [
+            changed(&["a.md".into()], true),
+            changed(&[], false),
+            changed(&["../outside.md".into()], false),
+        ] {
+            assert!(
+                matches!(everything, WatchEvent::Invalidated),
+                "{everything:?}"
+            );
+        }
+        // An event not read yet joins the next one.
+        let joined = changed(&["a.md".into()], false).coalesce(changed(&["b.md".into()], false));
+        assert!(matches!(joined, WatchEvent::Changed(paths) if paths.len() == 2));
+    }
 
     /// A remote folder in the editor's terms: list, read, save with its
     /// revision, a conflict when the other computer changed it first, the
@@ -542,21 +637,34 @@ mod tests {
         rx.recv_timeout(Duration::from_secs(5)).unwrap();
         while subscription.next().is_some() {}
         std::fs::write(root.join("other.md"), "x").unwrap();
-        let mut invalidated = false;
+        // The path the other computer names (or a rescan that covers it).
+        let mut seen = false;
         for _ in 0..20 {
             if rx.recv_timeout(Duration::from_secs(5)).is_ok()
-                && matches!(subscription.next(), Some(WatchEvent::Invalidated))
+                && match subscription.next() {
+                    Some(WatchEvent::Changed(paths)) => {
+                        paths.iter().any(|p| p.as_path() == Path::new("other.md"))
+                    }
+                    Some(WatchEvent::Invalidated) => true,
+                    _ => false,
+                }
             {
-                invalidated = true;
+                seen = true;
                 break;
             }
         }
-        assert!(invalidated);
+        assert!(seen);
         drop(subscription);
         hosts.close(FOLDER);
         *cloud.online.lock().unwrap() = false;
         let offline = workspace.list(Path::new("")).unwrap_err();
         assert_eq!(offline.kind, ErrorKind::Io);
         assert!(offline.detail.contains("Studio Mac"), "{}", offline.detail);
+        // A changed session ends what was admitted under the old one.
+        workspace.revoke();
+        let stale = workspace.list(Path::new("")).unwrap_err();
+        assert_eq!(stale.kind, ErrorKind::StaleLease);
+        // No local path ever stands for a file on another computer.
+        assert!(workspace.absolute(Path::new("note.md")).is_err());
     }
 }

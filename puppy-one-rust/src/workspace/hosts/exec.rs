@@ -667,6 +667,54 @@ mod tests {
         );
     }
 
+    /// `bubblewrapArgs`: everything read-only but the folder, the caches and
+    /// the Agent's own state, which are bound writable; credentials are
+    /// hidden (a folder under an empty tmpfs, a file under /dev/null); the
+    /// program follows "--" and starts in the folder. Each Agent's state is
+    /// known; a shell has none.
+    #[test]
+    fn bubblewrap_binds_the_folder_writable_and_hides_credentials() {
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().canonicalize().unwrap();
+        for dir in [".ssh", ".cache", ".codex", "Notes"] {
+            std::fs::create_dir_all(home.join(dir)).unwrap();
+        }
+        std::fs::write(home.join(".netrc"), "machine x").unwrap();
+        let root = home.join("Notes");
+        let args = bubblewrap_args(&root, &home, &[], &[home.join(".codex")]);
+        assert_eq!(&args[..4], ["--ro-bind", "/", "/", "--dev"]);
+        let pairs = args.join(" ");
+        let at = |p: &str| home.join(p).to_string_lossy().into_owned();
+        for expected in [
+            format!("--bind {0} {0}", at("Notes")),
+            format!("--bind {0} {0}", at(".cache")),
+            format!("--bind {0} {0}", at(".codex")),
+            format!("--tmpfs {}", at(".ssh")),
+            format!("--ro-bind /dev/null {}", at(".netrc")),
+        ] {
+            assert!(pairs.contains(&expected), "{expected} in {pairs}");
+        }
+        assert_eq!(args[args.len() - 2], "--chdir");
+        let sandbox = FolderSandbox {
+            mechanism: Some(Mechanism::Bubblewrap(PathBuf::from("/usr/bin/bwrap"))),
+            home: home.clone(),
+            app_data: vec![],
+            search_path: "/usr/bin:/bin".into(),
+            temp: vec![],
+        };
+        let prepared = sandbox.prepare(&root, &Run::Shell).unwrap();
+        assert_eq!(prepared.program, Path::new("/usr/bin/bwrap"));
+        let dash = prepared.args.iter().position(|a| a == "--").unwrap();
+        assert!(prepared.args.len() > dash + 1);
+        assert!(prepared.env.iter().any(|(k, v)| k == "HISTFILE"
+            && v.ends_with(&format!("puppyone-host-{}.history", std::process::id()))));
+        assert_eq!(
+            agent_state_paths("claude"),
+            [".claude", ".claude.json", ".config/claude"]
+        );
+        assert!(agent_state_paths("shell").is_empty());
+    }
+
     /// On this computer's own sandbox: a command runs in the folder, and
     /// writing outside it or reading a credential is refused.
     #[cfg(target_os = "macos")]

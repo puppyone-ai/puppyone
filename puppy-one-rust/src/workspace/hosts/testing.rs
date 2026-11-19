@@ -72,6 +72,8 @@ pub struct Fake {
     host_key: String,
     pub online: Mutex<bool>,
     pub refuse: Mutex<Option<&'static str>>,
+    /// The next tunnels that are lost before they open.
+    pub lose: Mutex<usize>,
     pub tunnels: Mutex<Vec<String>>,
     pub revoked: Mutex<Vec<String>>,
 }
@@ -114,6 +116,13 @@ impl Cloud for Fake {
     }
     fn tunnel(&self, url: &url::Url) -> Result<Box<dyn Socket>, HostError> {
         self.tunnels.lock().unwrap().push(url.to_string());
+        {
+            let mut lose = self.lose.lock().unwrap();
+            if *lose > 0 {
+                *lose -= 1;
+                return Err(HostError::new("network_unavailable"));
+            }
+        }
         let refuse = *self.refuse.lock().unwrap();
         let host = self.host.clone();
         let (near, far) = tokio::io::duplex(256 * 1024);
@@ -163,6 +172,7 @@ pub fn fake(root: std::path::PathBuf) -> Arc<Fake> {
         host_key: public_line(&host_key),
         online: Mutex::new(true),
         refuse: Mutex::new(None),
+        lose: Mutex::new(0),
         tunnels: Mutex::default(),
         revoked: Mutex::default(),
     })

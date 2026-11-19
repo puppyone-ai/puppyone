@@ -36,6 +36,20 @@ const MAX_TUNNELS: usize = 16;
 const TUNNEL_CHUNK: usize = 48 * 1024;
 const MAX_FRAME_CHARACTERS: usize = 12 * 1024 * 1024;
 
+/// How often the connection beats, how long silence lasts before it is
+/// dead, and the first retry's wait (doubling to [`MAX_RETRY`]).
+#[derive(Clone, Copy, Debug)]
+struct Timing {
+    heartbeat: Duration,
+    silent: Duration,
+    retry: Duration,
+}
+const TIMING: Timing = Timing {
+    heartbeat: HEARTBEAT,
+    silent: SILENT,
+    retry: Duration::from_secs(1),
+};
+
 /// A challenge refusal: the status, and the Cloud's code and clock.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Refused {
@@ -142,6 +156,7 @@ struct Shared {
     hello: Value,
     /// Learned from the Cloud when this computer's clock is off.
     clock_offset: Mutex<i64>,
+    timing: Timing,
     run: Mutex<Option<(u64, tokio::sync::watch::Sender<bool>)>>,
     next: std::sync::atomic::AtomicU64,
 }
@@ -186,9 +201,16 @@ impl Connector {
             hello: json!({"protocol": PROTOCOL_VERSION, "boot_id": uuid::Uuid::new_v4().to_string(),
                 "app_version": version}),
             clock_offset: Mutex::new(0),
+            timing: TIMING,
             run: Mutex::new(None),
             next: Default::default(),
         }))
+    }
+    /// Tests: a faster beat, silence and first retry.
+    #[cfg(test)]
+    fn timed(mut self, timing: Timing) -> Self {
+        Arc::get_mut(&mut self.0).expect("not yet shared").timing = timing;
+        self
     }
     pub fn status(&self) -> Status {
         self.0.status.lock().unwrap().clone()
@@ -200,6 +222,10 @@ impl Connector {
     /// failures retry with the same identity.
     pub fn connect(&self, owner: Owner, ssh: HostSsh) {
         self.stop();
+        // Only a device registered for its account connects at all.
+        if self.0.identity.key(&owner).is_err() {
+            return;
+        }
         let id = self
             .0
             .next
@@ -212,7 +238,7 @@ impl Connector {
             s.device = Some(owner.device_id.clone());
         });
         runtime().spawn(async move {
-            let mut delay = Duration::from_secs(1);
+            let mut delay = shared.timing.retry;
             loop {
                 let ended = session(&shared, &owner, &ssh, stopped.clone()).await;
                 let current = shared.run.lock().unwrap().as_ref().map(|(i, _)| *i) == Some(id);
@@ -237,7 +263,7 @@ impl Connector {
                     }
                     Ended::Lost { was_online } => {
                         if was_online {
-                            delay = Duration::from_secs(1);
+                            delay = shared.timing.retry;
                         }
                         shared.update(|s| {
                             s.state = State::Offline;
@@ -397,13 +423,13 @@ async fn serve(
     let mut tunnels: HashMap<String, Tunnel> = HashMap::new();
     let (ended_tx, mut ended_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let mut heard = Instant::now();
-    let mut beat = tokio::time::interval(HEARTBEAT);
+    let mut beat = tokio::time::interval(shared.timing.heartbeat);
     beat.tick().await;
     let ended = loop {
         tokio::select! {
             _ = stopped.changed() => break Ended::Stopped,
             _ = beat.tick() => {
-                if heard.elapsed() > SILENT {
+                if heard.elapsed() > shared.timing.silent {
                     break online;
                 }
                 let _ = out.send(json!({"type": "heartbeat"}));
@@ -857,6 +883,380 @@ mod tests {
             seen.contains(&State::Connecting) && seen.contains(&State::Online),
             "{seen:?}"
         );
+    }
+
+    /// A Cloud whose challenge refusals the test scripts (a good answer
+    /// once the script is spent); every connection hands the test the
+    /// Cloud's end of the socket.
+    struct Scripted {
+        public: Mutex<String>,
+        script: Mutex<std::collections::VecDeque<Refused>>,
+        timestamps: Mutex<Vec<i64>>,
+        ends: Mutex<std::sync::mpsc::Sender<tokio::io::DuplexStream>>,
+    }
+    impl Gateway for Scripted {
+        fn challenge(
+            &self,
+            device: &str,
+            body: Value,
+        ) -> BoxFuture<'static, Result<Value, Refused>> {
+            assert_eq!(device, DEVICE);
+            let timestamp = body["timestamp"].as_i64().unwrap();
+            self.timestamps.lock().unwrap().push(timestamp);
+            let refusal = self.script.lock().unwrap().pop_front();
+            let payload = challenge_payload(ACCOUNT, DEVICE, timestamp);
+            let signed = verify(
+                &self.public.lock().unwrap(),
+                &payload,
+                body["signature"].as_str().unwrap(),
+            );
+            Box::pin(async move {
+                assert!(signed);
+                match refusal {
+                    Some(refused) => Err(refused),
+                    None => Ok(json!({"challenge_id": uuid::Uuid::new_v4().to_string(),
+                        "epoch": uuid::Uuid::new_v4().to_string(), "nonce": "n0nce"})),
+                }
+            })
+        }
+        fn connect(&self, _: url::Url) -> BoxFuture<'static, Result<Box<dyn Socket>, String>> {
+            let (cloud, device) = tokio::io::duplex(1024 * 1024);
+            let _ = self.ends.lock().unwrap().send(cloud);
+            Box::pin(async move {
+                let (socket, _) = tokio_tungstenite::client_async("ws://localhost/", device)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(Box::new(socket) as Box<dyn Socket>)
+            })
+        }
+        fn authorities(&self) -> BoxFuture<'static, Result<Vec<String>, String>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn deployment(&self) -> &str {
+            "https://api.puppyone.ai/api/v1"
+        }
+    }
+    type CloudSide = tokio_tungstenite::WebSocketStream<tokio::io::DuplexStream>;
+    /// A registered device sharing one folder, connected through
+    /// [`Scripted`] with `silent` as its silence limit.
+    struct Rig {
+        connector: Connector,
+        owner: Owner,
+        ssh: HostSsh,
+        folder: String,
+        gateway: Arc<Scripted>,
+        ends: std::sync::mpsc::Receiver<tokio::io::DuplexStream>,
+        revoked: Arc<Mutex<Vec<String>>>,
+        _temp: tempfile::TempDir,
+    }
+    fn refusal(status: u16, code: Option<&str>, server_time: Option<i64>) -> Refused {
+        Refused {
+            status,
+            code: code.map(str::to_owned),
+            server_time,
+        }
+    }
+    fn rig(silent: Duration) -> Rig {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap().join("notes");
+        std::fs::create_dir(&root).unwrap();
+        let deployment = "https://api.puppyone.ai/api/v1";
+        let identity = Arc::new(DeviceIdentity::new(
+            temp.path().join("id.json"),
+            Box::new(MemoryKeys::default()),
+            deployment,
+        ));
+        let public = Mutex::new(String::new());
+        let owner = identity
+            .register(ACCOUNT, |key| {
+                *public.lock().unwrap() = key.into();
+                Ok(DEVICE.into())
+            })
+            .unwrap();
+        let registry = Arc::new(Registry::new(temp.path().join("reg.json"), deployment));
+        let (folder, _) = registry
+            .register(&owner, &root, "notes", false, |id, _, _| Ok(id.into()))
+            .unwrap();
+        let (sender, ends) = std::sync::mpsc::channel();
+        let gateway = Arc::new(Scripted {
+            public,
+            script: Default::default(),
+            timestamps: Default::default(),
+            ends: Mutex::new(sender),
+        });
+        let key = identity.key(&owner).unwrap();
+        let ssh = HostSsh::new(
+            Arc::new(HostIdentity {
+                account: ACCOUNT.into(),
+                device: DEVICE.into(),
+                key,
+            }),
+            Arc::new(Ca(new_key().public_key().clone())),
+            Arc::new(super::super::registry::Shared {
+                registry: registry.clone(),
+                owner: Arc::new(Mutex::new(Some(owner.clone()))),
+            }),
+            None,
+        );
+        let revoked = Arc::new(Mutex::new(Vec::new()));
+        let lost = revoked.clone();
+        let connector = Connector::new(
+            gateway.clone(),
+            identity,
+            registry,
+            "0.4.0",
+            |_| {},
+            move |owner| lost.lock().unwrap().push(owner.device_id.clone()),
+        )
+        .timed(Timing {
+            heartbeat: Duration::from_millis(50),
+            silent,
+            retry: Duration::from_millis(50),
+        });
+        Rig {
+            connector,
+            owner,
+            ssh,
+            folder,
+            gateway,
+            ends,
+            revoked,
+            _temp: temp,
+        }
+    }
+    impl Rig {
+        fn connect(&self) {
+            self.connector.connect(self.owner.clone(), self.ssh.clone());
+        }
+        fn challenges(&self) -> usize {
+            self.gateway.timestamps.lock().unwrap().len()
+        }
+        fn script(&self, refusals: impl IntoIterator<Item = Refused>) {
+            self.gateway.script.lock().unwrap().extend(refusals);
+        }
+        /// The Cloud's side of the next connection, `ready` sent.
+        fn accept(&self) -> CloudSide {
+            let end = self.ends.recv_timeout(Duration::from_secs(10)).unwrap();
+            let cloud = runtime().block_on(async move {
+                let mut cloud = tokio_tungstenite::accept_async(end).await.unwrap();
+                let hello = next(&mut cloud).await;
+                cloud
+                    .send(Message::Text(
+                        json!({"type": "ready", "epoch": hello["epoch"]})
+                            .to_string()
+                            .into(),
+                    ))
+                    .await
+                    .unwrap();
+                cloud
+            });
+            self.until("online", |s| s.state == State::Online);
+            cloud
+        }
+        fn until(&self, what: &str, ready: impl Fn(&Status) -> bool) {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while !ready(&self.connector.status()) {
+                assert!(
+                    Instant::now() < deadline,
+                    "{what}: {:?}",
+                    self.connector.status()
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    }
+    /// The next frame the device sent that is not a heartbeat or a
+    /// tunnel's bytes (an SSH server greets each tunnel it is handed).
+    async fn next(cloud: &mut CloudSide) -> Value {
+        loop {
+            match tokio::time::timeout(Duration::from_secs(10), cloud.next()).await {
+                Ok(Some(Ok(Message::Text(text)))) => {
+                    let frame: Value = serde_json::from_str(&text).unwrap();
+                    if frame["type"] != "heartbeat" && frame["type"] != "tunnel_data" {
+                        return frame;
+                    }
+                }
+                Ok(Some(Ok(_))) => {}
+                other => panic!("the device said nothing: {other:?}"),
+            }
+        }
+    }
+    fn send(cloud: &mut CloudSide, frame: Value) -> Value {
+        runtime().block_on(async {
+            cloud
+                .send(Message::Text(frame.to_string().into()))
+                .await
+                .unwrap();
+            next(cloud).await
+        })
+    }
+
+    /// `refuses to connect without a registered account and device`: a
+    /// device this computer holds no key for never connects.
+    #[test]
+    fn only_a_registered_device_connects() {
+        let rig = rig(Duration::from_secs(5));
+        rig.connector.connect(
+            Owner {
+                account_id: ACCOUNT.into(),
+                device_id: "1f2e3d4c-0000-4000-8000-000000000000".into(),
+            },
+            rig.ssh.clone(),
+        );
+        assert!(!rig.connector.is_active());
+        assert_eq!(rig.connector.status().state, State::Off);
+        assert_eq!(rig.challenges(), 0);
+    }
+
+    /// A bad signature, a clock that stays off, an unexplained 403 or an
+    /// outage are retried with the same identity, never taken for a
+    /// revocation; a clock that is off borrows the Cloud's once. Only a
+    /// revocation close or a `device_revoked` refusal stops for good.
+    #[test]
+    fn refusals_and_outages_are_retried_and_only_a_revocation_stops() {
+        let rig = rig(Duration::from_secs(5));
+        let skewed = 2_000_000_000;
+        rig.script([
+            refusal(401, Some("device_proof_invalid"), None),
+            refusal(401, Some("device_clock_skew"), Some(5)),
+            refusal(401, Some("device_clock_skew"), Some(5)),
+            refusal(403, None, None),
+            refusal(503, Some("device_unavailable"), None),
+            refusal(401, Some("device_clock_skew"), Some(skewed)),
+        ]);
+        rig.connect();
+        let mut cloud = rig.accept();
+        assert!(rig.revoked.lock().unwrap().is_empty());
+        let stamps = rig.gateway.timestamps.lock().unwrap().clone();
+        assert_eq!(stamps.len(), 7, "{stamps:?}");
+        // The skewed answer's retry came on the Cloud's clock.
+        assert!((stamps[2] - 5).abs() <= 2, "{stamps:?}");
+        assert!((stamps[6] - skewed).abs() <= 2, "{stamps:?}");
+        // A revocation close stops it for good.
+        runtime().block_on(async {
+            cloud
+                .send(Message::Close(Some(
+                    tokio_tungstenite::tungstenite::protocol::CloseFrame {
+                        code: CloseCode::from(CLOSE_REVOKED),
+                        reason: "".into(),
+                    },
+                )))
+                .await
+                .unwrap()
+        });
+        rig.until("revoked", |s| s.state == State::Off);
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!rig.connector.is_active());
+        assert_eq!(rig.revoked.lock().unwrap().as_slice(), [DEVICE]);
+        assert_eq!(rig.challenges(), 7);
+        // So does a `device_revoked` refusal, after an outage retried.
+        rig.script([
+            refusal(503, Some("device_unavailable"), None),
+            refusal(403, Some("device_revoked"), None),
+        ]);
+        rig.connect();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while rig.revoked.lock().unwrap().len() < 2 {
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(!rig.connector.is_active());
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(rig.challenges(), 9);
+    }
+
+    /// Tunnels past the limit or for a folder that is not shared are
+    /// refused; the old plaintext frames are refused too; a malformed
+    /// frame ends the connection, which comes back with a fresh challenge.
+    #[test]
+    fn tunnels_are_refused_past_the_limit_and_a_bad_frame_reconnects() {
+        let rig = rig(Duration::from_secs(5));
+        rig.connect();
+        let mut cloud = rig.accept();
+        let other = uuid::Uuid::new_v4().to_string();
+        let answer = send(
+            &mut cloud,
+            json!({"type": "tunnel_open", "stream": "x", "folder_id": other}),
+        );
+        assert_eq!(
+            answer,
+            json!({"type": "tunnel_refused", "stream": "x", "error": "folder_unavailable"})
+        );
+        for n in 0..MAX_TUNNELS {
+            let answer = send(
+                &mut cloud,
+                json!({"type": "tunnel_open", "stream": format!("s{n}"), "folder_id": rig.folder}),
+            );
+            assert_eq!(answer["type"], "tunnel_opened", "{answer}");
+        }
+        rig.until("every tunnel", |s| s.tunnels == MAX_TUNNELS);
+        let answer = send(
+            &mut cloud,
+            json!({"type": "tunnel_open", "stream": "over", "folder_id": rig.folder}),
+        );
+        assert_eq!(answer["error"], "tunnel_limit");
+        assert_eq!(
+            send(&mut cloud, json!({"type": "file", "id": 7}))["error"],
+            "not_allowed"
+        );
+        assert_eq!(
+            send(&mut cloud, json!({"type": "exec_open", "session": "e"}))["type"],
+            "exec_failed"
+        );
+        let challenges = rig.challenges();
+        runtime().block_on(async {
+            cloud
+                .send(Message::Text("not a frame".into()))
+                .await
+                .unwrap()
+        });
+        let _again = rig.accept();
+        assert_eq!(rig.challenges(), challenges + 1);
+        assert_eq!(rig.connector.status().tunnels, 0);
+        rig.connector.stop();
+    }
+
+    /// A Cloud that stops answering is left once the silence lasts, and one
+    /// whose socket closes unexpectedly is called again; each time with a
+    /// fresh challenge.
+    #[test]
+    fn a_silent_or_closed_socket_is_called_again_with_a_fresh_challenge() {
+        let rig = rig(Duration::from_millis(300));
+        rig.connect();
+        let silent = rig.accept();
+        let _second = rig.accept();
+        assert_eq!(rig.challenges(), 2);
+        drop(silent);
+        drop(_second);
+        let _third = rig.accept();
+        assert_eq!(rig.challenges(), 3);
+        assert!(rig.revoked.lock().unwrap().is_empty());
+        rig.connector.stop();
+    }
+
+    /// Close 4005: the Cloud no longer serves this protocol, so the
+    /// connection stops and asks for an update instead of retrying.
+    #[test]
+    fn the_cloud_asking_for_an_update_stops_the_connection() {
+        let rig = rig(Duration::from_secs(5));
+        rig.connect();
+        let mut cloud = rig.accept();
+        runtime().block_on(async {
+            cloud
+                .send(Message::Close(Some(
+                    tokio_tungstenite::tungstenite::protocol::CloseFrame {
+                        code: CloseCode::from(CLOSE_UNSUPPORTED),
+                        reason: "".into(),
+                    },
+                )))
+                .await
+                .unwrap()
+        });
+        rig.until("outdated", |s| s.state == State::Outdated);
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!rig.connector.is_active());
+        assert_eq!(rig.challenges(), 1);
+        assert!(rig.revoked.lock().unwrap().is_empty());
     }
 
     #[test]

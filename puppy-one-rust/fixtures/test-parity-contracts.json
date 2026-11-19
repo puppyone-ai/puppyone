@@ -29226,6 +29226,933 @@
           "test": "workspace::cloud::spaces::tests::a_space_reads_as_the_product_presents_it"
         }
       ]
+    },
+    {
+      "id": "host-connector",
+      "acceptance": "This computer's device connection dials out with only the device key (a device-signed challenge, then a signed hello), serves tunnels and refuses the old plaintext file and execution frames, and stops on request. A device this computer holds no key for never connects. A clock that is off borrows the Cloud's once; a bad signature, a clock that stays off, an unexplained 403 or an outage are retried with the same identity and never taken for a revocation; only a revocation close or a device_revoked refusal stops for good, and close 4005 stops it as outdated. Each admitted tunnel is handed to the SSH server as a byte stream; tunnels for a folder not shared or past the limit are refused; a malformed frame, a silent Cloud or an unexpected close end the connection, which comes back with a fresh challenge. A gateway outside the PuppyOne host family is never dialled.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/connection/hostConnector.test.mjs",
+          "sha256": "1c8ed267760fe840c848349b21410086e42a02a4a839c6499ac765de011dafe8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host connector > makes an outbound connection with only the device key, never serves plaintext files and stops"
+            },
+            {
+              "index": 1,
+              "name": "host connector > refuses to connect without a registered account and device"
+            },
+            {
+              "index": 2,
+              "name": "host connector > retries once with the Cloud's clock when this computer's clock is off"
+            },
+            {
+              "index": 3,
+              "name": "host connector > never treats a bad signature, a clock that stays off or an unexplained 403 as revocation"
+            },
+            {
+              "index": 4,
+              "name": "host connector > stops for good on a revocation close or a device_revoked refusal, but retries an outage"
+            },
+            {
+              "index": 5,
+              "name": "host connector > hands each admitted tunnel to the SSH server as a byte stream, and refuses others"
+            },
+            {
+              "index": 6,
+              "name": "host connector > refuses tunnels past the limit, and closes on a malformed tunnel frame"
+            },
+            {
+              "index": 7,
+              "name": "host connector > reconnects when the gateway stops answering heartbeats"
+            },
+            {
+              "index": 9,
+              "name": "host connector > stops and asks for an update when the Cloud no longer serves its protocol"
+            },
+            {
+              "index": 10,
+              "name": "host connector > uses a dedicated gateway address only inside the PuppyOne host family"
+            },
+            {
+              "index": 11,
+              "name": "host connector > reconnects with a fresh challenge after an unexpected socket close"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::the_device_connection_serves_ssh_tunnels_for_shared_folders"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::only_a_registered_device_connects"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::refusals_and_outages_are_retried_and_only_a_revocation_stops"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::tunnels_are_refused_past_the_limit_and_a_bad_frame_reconnects"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::a_silent_or_closed_socket_is_called_again_with_a_fresh_challenge"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::the_cloud_asking_for_an_update_stops_the_connection"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::a_gateway_outside_the_family_is_never_dialled"
+        }
+      ]
+    },
+    {
+      "id": "host-execution",
+      "acceptance": "Another computer runs only what this one allows, over its SSH session: a command or a terminal (a shell or a known Agent launcher, with a pty) needs the folder's write and shell or Agent capability and runs in the folder, with its output, errors and exit status coming back; a launcher that is not one is refused, a missing Agent is reported as launcher_unavailable rather than starting something else, and with no execution service (no sandbox) nothing starts while the session lives on. Unsharing the folder ends what it allowed. Every spawn is wrapped in the folder sandbox, with no unsandboxed tier, and shell history kept out of the owner's own. The terminal client starts a shell or an Agent by launcher, relays input as bytes, resizes, and reports how it ended. The sandboxed Git adapter cannot run Git when merely constructed and has no unsandboxed fallback.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/execution/hostExecution.test.mjs",
+          "sha256": "5a0ca258f895db3e9e60bd663385c9b9fff9369561a72078f37688367b410695",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host execution service > runs only what this computer allows, in the folder, and relays output and exit"
+            },
+            {
+              "index": 1,
+              "name": "host execution service > reports a missing Agent instead of starting something else"
+            },
+            {
+              "index": 2,
+              "name": "host execution policy > starts nothing without a policy, and nothing where this computer has no sandbox"
+            },
+            {
+              "index": 3,
+              "name": "host execution policy > wraps every spawn in the folder sandbox and runs nothing else"
+            },
+            {
+              "index": 5,
+              "name": "host Git service > imports the sandbox adapter without interpreting a launch path"
+            },
+            {
+              "index": 6,
+              "name": "host Git service > imports the sandbox adapter without interpreting a launch operation JSON"
+            },
+            {
+              "index": 8,
+              "name": "remote terminal client > starts a shell or an Agent by launcher inside SSH, relays input as bytes, and reports how it ended"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::ssh::tests::commands_and_terminals_run_in_the_folder"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::ssh::tests::a_folder_is_reached_only_with_the_clouds_certificate_for_this_device"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::exec::tests::the_folder_sandbox_writes_only_where_it_may_and_never_reads_credentials"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::exec::tests::bubblewrap_binds_the_folder_writable_and_hides_credentials"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::git::acceptance_tests::constructing_a_sandbox_adapter_cannot_run_git_and_missing_sandbox_has_no_fallback"
+        }
+      ]
+    },
+    {
+      "id": "host-folder-sandbox",
+      "acceptance": "The folder-tier sandbox never falls back to running unsandboxed (no sandbox: sandbox_unavailable). Seatbelt's profile allows writing only the folder, temporaries, caches and the Agent's own state, and puts the protected credential paths and the App's data after every allowance so they always win. Bubblewrap binds everything read-only but the folder, caches and Agent state, hides credentials (a folder under an empty tmpfs, a file under /dev/null), starts in the folder and runs the program after \"--\". Each Agent's own state is known; a shell has none. A real shell in this computer's sandbox writes only the folder and cannot read a credential.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/execution/hostSandbox.test.mjs",
+          "sha256": "ad9779f132922954f0f0eab76ee5aa73e549c2dcf28bdbe1874bbdd4450af4cb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "folder-tier sandbox > never falls back to running unsandboxed"
+            },
+            {
+              "index": 1,
+              "name": "folder-tier sandbox > puts protected paths after every allowance so they always win"
+            },
+            {
+              "index": 2,
+              "name": "folder-tier sandbox > builds bubblewrap with the folder writable and credentials hidden"
+            },
+            {
+              "index": 3,
+              "name": "folder-tier sandbox > knows where each Agent keeps its own state"
+            },
+            {
+              "index": 4,
+              "name": "folder-tier sandbox > reports no sandbox where the platform has none"
+            },
+            {
+              "index": 5,
+              "name": "folder-tier sandbox > confines a real shell in the folder sandbox: the folder only, no credentials"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::exec::tests::the_folder_sandbox_writes_only_where_it_may_and_never_reads_credentials"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::exec::tests::bubblewrap_binds_the_folder_writable_and_hides_credentials"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::exec::tests::a_command_in_the_seatbelt_stays_in_its_folder"
+        }
+      ]
+    },
+    {
+      "id": "host-file-service",
+      "acceptance": "One registered root lists and reads without exposing its Git metadata or links, and nothing outside it nor another folder is reached; a missing name inside it is not_found while a name behind a link says nothing (invalid_path). Writes need the revision they replace (or say they create), and two writes from the same revision cannot both land. Every request checks the folder's grant as it is now: read-only refuses writing, making and removing, and a revoked share refuses even reading. Changes made on this computer arrive as coalesced watch events; a two-second metadata reconcile names what the system's events missed on every platform and ends with its folder; a stopped watch scans and publishes nothing. A directory swapped for a link to outside between its check and its use is never read, listed, removed, written or made into through. The shared conformance cases of host-file-protocol-v1 all hold.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/files/hostFileService.test.mjs",
+          "sha256": "e7e282e702c9f699e6190b5aca8067fe535977aa9ba6ec046228f39a936945c4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host file service > lists and reads one registered root, without exposing Git or symlinks"
+            },
+            {
+              "index": 1,
+              "name": "host file service > reports a missing name inside the root, but nothing about names behind a symlink"
+            },
+            {
+              "index": 2,
+              "name": "host file service > requires a revision; concurrent writes cannot silently overwrite one another"
+            },
+            {
+              "index": 3,
+              "name": "host file service > checks the current registration and write capability on each request"
+            },
+            {
+              "index": 4,
+              "name": "host file service > coalesces changes made on this computer into watch events"
+            },
+            {
+              "index": 5,
+              "name": "host file service > reconciles real file changes when the native linux directory stream stays silent"
+            },
+            {
+              "index": 6,
+              "name": "host file service > reconciles real file changes when the native darwin directory stream stays silent"
+            },
+            {
+              "index": 7,
+              "name": "host file service > reconciles real file changes when the native win32 directory stream stays silent"
+            },
+            {
+              "index": 8,
+              "name": "host file service > ends reconciliation after revocation and releases the native watch"
+            },
+            {
+              "index": 9,
+              "name": "host file service > does not scan or publish after the last subscriber stops"
+            },
+            {
+              "index": 10,
+              "name": "host file service > a directory swapped for a symlink between check and use > never returns bytes read through the swapped directory"
+            },
+            {
+              "index": 11,
+              "name": "host file service > a directory swapped for a symlink between check and use > never lists the swapped-in directory"
+            },
+            {
+              "index": 12,
+              "name": "host file service > a directory swapped for a symlink between check and use > never deletes files outside the folder"
+            },
+            {
+              "index": 13,
+              "name": "host file service > a directory swapped for a symlink between check and use > never writes or creates files outside the folder"
+            },
+            {
+              "index": 14,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > list root hides git, links and special files"
+            },
+            {
+              "index": 15,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > read returns bytes and revision"
+            },
+            {
+              "index": 16,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > parent traversal is refused"
+            },
+            {
+              "index": 17,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > git metadata is refused"
+            },
+            {
+              "index": 18,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > symbolic link is refused"
+            },
+            {
+              "index": 19,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > missing file is not found"
+            },
+            {
+              "index": 20,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > stale write is a conflict"
+            },
+            {
+              "index": 21,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > matching write replaces content"
+            },
+            {
+              "index": 22,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > create never overwrites"
+            },
+            {
+              "index": 23,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > create a new file"
+            },
+            {
+              "index": 24,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > mkdir refuses an existing name"
+            },
+            {
+              "index": 25,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > move never overwrites"
+            },
+            {
+              "index": 26,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > move into a folder"
+            },
+            {
+              "index": 27,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > remove is recursive inside the folder"
+            },
+            {
+              "index": 28,
+              "name": "host file service > shared conformance cases (host-file-protocol-v1) > the folder root cannot be removed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::a_root_is_read_without_git_or_links_and_names_behind_a_link_say_nothing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::each_request_checks_the_grant_and_concurrent_writes_never_overwrite"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::a_folder_is_served_only_as_granted"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::a_watch_reports_changes_coalesced"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::the_metadata_reconcile_names_what_changed_and_ends_with_its_folder"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::a_stopped_watch_scans_and_publishes_nothing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::a_directory_swapped_for_a_link_after_its_check_is_never_used"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::the_host_file_service_meets_the_protocols_conformance_cases"
+        }
+      ]
+    },
+    {
+      "id": "host-file-limits",
+      "acceptance": "A directory of exactly 10,000 entries lists in order well inside the gateway's timeout and one more is refused (too_many_entries); files read back byte for byte with their revision up to 8 MiB and not past it (unsupported_file); a binary write lands unchanged.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/files/hostFileLimits.test.mjs",
+          "sha256": "8e59a0168a96ee1048a1b346d2020b902899ccdccbafef17f6e43b7ee37af4a7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host file service limits > lists a directory of exactly 10,000 entries and refuses one more"
+            },
+            {
+              "index": 1,
+              "name": "host file service limits > returns preview files byte for byte and refuses files over 8 MiB"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::a_directory_lists_up_to_its_limit_and_files_read_up_to_8_mib"
+        }
+      ]
+    },
+    {
+      "id": "remote-host-client",
+      "acceptance": "File operations go inside the folder's own SSH session as the protocol's typed requests (Git as named operations); a folder that is not an ID is refused. A read is asked again through a lost connection, on a new one; a write is sent exactly once. Failures keep their code and status (an offline computer, a refused tunnel with the Cloud's reason). A watch delivers changes, reports the computer offline, rescans after reconnecting, and ends for good on a definite denial.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/files/remoteHostClient.test.mjs",
+          "sha256": "3e604e0698e81598f8b8d2ca8c7fe9e03212a640d773e284c9b88e250ffc7b32",
+          "cases": [
+            {
+              "index": 0,
+              "name": "remote host client > sends protocol operations inside the folder's SSH session, never other fields"
+            },
+            {
+              "index": 1,
+              "name": "remote host client > retries a read through a lost connection, but sends a write exactly once"
+            },
+            {
+              "index": 2,
+              "name": "remote host client > returns structured failures that survive IPC"
+            },
+            {
+              "index": 3,
+              "name": "remote host client > watch delivers changes, reports offline, reconnects with a rescan, and ends on a definite denial"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::remote::tests::a_folder_on_another_computer_opens_through_the_cloud_tunnel"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::remote::tests::a_read_survives_a_lost_connection_and_a_write_is_sent_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::remote::tests::a_remote_watch_reports_changes_and_rescans_after_an_outage"
+        }
+      ]
+    },
+    {
+      "id": "remote-folder-workspace",
+      "acceptance": "A folder on another computer is a workspace with its own identity and no local path: it lists and reads through that computer, saves with the revision it replaces, and on a rejected compare-and-swap shows the other computer's version without replaying the save; a write whose outcome is unknown is sent once and the draft stays. It creates, renames and deletes only inside the folder and only when editable. Its reachability is worded for the person (offline with the computer's name); a change hands the workbench only the paths it names (a rescan drops everything), and a changed session ends what was admitted under the old one.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/files/deviceDataPort.test.ts",
+          "sha256": "349e615cda5643abcd39ddcb1c5654943657816b87479db07e6f7a69faeb13fd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "device DataPort > routes a resource to one folder through Main and reads text without a local path"
+            },
+            {
+              "index": 1,
+              "name": "device DataPort > does not retry an uncertain write and keeps the draft"
+            },
+            {
+              "index": 2,
+              "name": "device DataPort > returns a fresh snapshot after a rejected compare-and-swap without replaying it"
+            },
+            {
+              "index": 3,
+              "name": "device DataPort > creates, renames, moves and deletes only inside the folder, and only when writable"
+            },
+            {
+              "index": 4,
+              "name": "device DataPort > maps reachability for the folder surface and streams changes"
+            },
+            {
+              "index": 5,
+              "name": "device DataPort > hands the workbench the paths a change names and drops only their listings"
+            },
+            {
+              "index": 7,
+              "name": "device DataPort > invalidates old admission on session change"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::device::tests::a_folder_on_another_computer_reads_saves_and_watches_like_a_workspace"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::device::tests::a_change_names_its_paths_and_a_rescan_drops_everything"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::remote::tests::a_read_survives_a_lost_connection_and_a_write_is_sent_once"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::save_lifecycle::panicking_storage_settles_close_retains_the_draft_and_retries_unknown_outcomes"
+        }
+      ]
+    },
+    {
+      "id": "remote-folder-identity",
+      "acceptance": "A remote folder's identity is one per account, device, folder and deployment, the same however the deployment is written; anything that is not an ID, an address outside the PuppyOne family or one carrying credentials is refused, and so is a path out of the folder.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/identity/deviceFolderIdentity.test.ts",
+          "sha256": "3b00d6c771007c9daef243b95b1f748526cbfe011ede5e174354ac178b155b56",
+          "cases": [
+            {
+              "index": 0,
+              "name": "device folder identity > is stable across connection and display changes, but separated by account, device, folder and deployment"
+            },
+            {
+              "index": 1,
+              "name": "device folder identity > rejects path escapes, non-IDs and arbitrary deployments"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::device::tests::a_remote_folder_identity_is_stable_and_refuses_what_is_not_one"
+        }
+      ]
+    },
+    {
+      "id": "device-identity",
+      "acceptance": "This computer's device key is created once per account, its private half kept in the keychain (only public parts on disk); a lost registration reply registers the same key again, and a registered device is not registered twice. It signs as the Cloud checks, with nobody signed in, and only for its own account's device; another account here never reuses it, and a non-ID account is refused. Forgetting another account's device leaves it; forgetting it after a revocation takes its key, and a later share registers a new one.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/identity/deviceIdentity.test.mjs",
+          "sha256": "11c16fa8604849893f454dc5eb855cd18ad60d0f1c7b22d0baf69e8f3bcf49a6",
+          "cases": [
+            {
+              "index": 1,
+              "name": "device identity > persists one encrypted private key before request and retries with the same public key"
+            },
+            {
+              "index": 2,
+              "name": "device identity > forgets only the revoked device key so a later share registers a new device"
+            },
+            {
+              "index": 3,
+              "name": "device identity > signs for a registered identity with nobody signed in, and only for that account's device"
+            },
+            {
+              "index": 4,
+              "name": "device identity > does not reuse another account's identity"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::identity::tests::a_device_registers_once_per_account_and_signs_with_its_key"
+        }
+      ]
+    },
+    {
+      "id": "host-login-entry",
+      "acceptance": "On macOS the host starts at login from a per-user LaunchAgent that runs this installation's own program with --puppyone-host (escaped for the plist), which is removed when turned off and reported as on only while it is this installation's, unchanged; the setting is a yes or no.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostAutostart.test.mjs",
+          "sha256": "a4d64677809ab9e7cab7e92cf7ffceb0ad6406cb07826b211eb1948c1f860695",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host service at login > macOS: a per-user LaunchAgent that starts only the host service, removed when turned off"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/hosts/service/hostIpc.test.mjs",
+          "sha256": "5b302516b320a18a09eb91412109d569f3d1cb5c4cc94c378bd0ced0f0b22d58",
+          "cases": [
+            {
+              "index": 8,
+              "name": "host IPC > reports and changes starting at login, and refuses anything but a yes or no"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/hosts/service/hostControl.test.mjs",
+          "sha256": "96fa45df2b68ff23376fb6e285840e0ad1b3d8f4ef9a727d85acd58e2630cbd7",
+          "cases": [
+            {
+              "index": 3,
+              "name": "host service control channel > starts the host service from this installation's own program"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::process::tests::the_login_entry_runs_this_program_as_the_host"
+        }
+      ]
+    },
+    {
+      "id": "host-control-channel",
+      "acceptance": "The App reaches its host over a control socket in a directory only this user can read (0700, socket and token 0600), and only a client that presents the token is answered; the host borrows the App's person for its Cloud calls, and only for its own device and folder routes; observers may read and never change.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostControl.test.mjs",
+          "sha256": "96fa45df2b68ff23376fb6e285840e0ad1b3d8f4ef9a727d85acd58e2630cbd7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host service control channel > serves only a client that presents the token, in a directory only this user can read"
+            },
+            {
+              "index": 2,
+              "name": "host service control channel > lets the host service ask only for host device and folder routes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::control::tests::the_app_drives_its_host_over_the_control_socket"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::service::tests::the_host_asks_the_app_only_for_its_own_routes"
+        }
+      ]
+    },
+    {
+      "id": "host-entry",
+      "acceptance": "Outside the rollout a login entry an earlier build wrote starts nothing; the host's state and lock live in its own directory under the App's data for its channel, never the App's profile itself; a second host for the same App leaves the one already serving alone.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostEntry.test.mjs",
+          "sha256": "a63ad6d6bea10c604b6b2ff705aa294a3be2e33a1f73d512aa660986ce32b22b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Host's Electron entry > does not start from an existing login item outside the rollout"
+            },
+            {
+              "index": 1,
+              "name": "Host's Electron entry > uses Desktop's dev identity before choosing its profile and lock"
+            },
+            {
+              "index": 2,
+              "name": "Host's Electron entry > uses Desktop's internal identity before choosing its profile and lock"
+            },
+            {
+              "index": 3,
+              "name": "Host's Electron entry > uses Desktop's stable identity before choosing its profile and lock"
+            },
+            {
+              "index": 4,
+              "name": "Host's Electron entry > leaves the existing Host alone when its own channel's lock is held"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::process::tests::a_host_starts_only_in_the_rollout_and_only_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::process::tests::the_login_entry_runs_this_program_as_the_host"
+        }
+      ]
+    },
+    {
+      "id": "host-folder-registry",
+      "acceptance": "A shared folder keeps one canonical local mapping under one ID, which a lost reply registers again, and the Cloud is never told its path; it is this owner's alone (another account or device resolves nothing). Running things stays off until this computer allows it and only for an editable folder; narrowing to view-only ends every permission to run, and widening back gives editing only. A link or Git metadata is never a root, and a retry with other settings is refused. Removing denies here first and asks the Cloud again after a lost reply; a revoked device loses every folder here without a word to the Cloud.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostFolderRegistry.test.mjs",
+          "sha256": "63153e3f75473ebe6da275fabfe86aff4b1b073d83b8e713eb34a5694486e680",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host folder registry > persists one canonical local mapping and retries an unknown result with the same ID"
+            },
+            {
+              "index": 1,
+              "name": "host folder registry > denies locally before deletion and retries a lost revocation reply"
+            },
+            {
+              "index": 2,
+              "name": "host folder registry > denies every folder of a revoked device locally without contacting the backend"
+            },
+            {
+              "index": 3,
+              "name": "host folder registry > keeps running things off until this computer allows it, and only for an editable folder"
+            },
+            {
+              "index": 4,
+              "name": "host folder registry > rejects a symlink root and changed registration settings"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::registry::tests::a_shared_folder_keeps_its_id_and_its_consent_here"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::registry::tests::a_folder_is_this_owners_and_a_revoked_device_loses_it_here"
+        }
+      ]
+    },
+    {
+      "id": "host-sharing-lifecycle",
+      "acceptance": "Host operations stay off outside the rollout. Sharing belongs to the host: registering a folder needs this computer's explicit yes (and an answer given under another sign-in changes nothing), runs the person's Cloud calls through the App, keeps the device key and the folder's path with the host, continues after the App quits and resumes by itself after a restart. A pause stops it and outlives a restart with every folder kept. Signing out here stops it across restarts; someone else signing in does not resume it, the owner does. Running things is asked about separately, and where there is no sandbox nothing runs and there is no unsandboxed way. The host runs only host routes with the person's session, for this deployment.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostIpc.test.mjs",
+          "sha256": "5b302516b320a18a09eb91412109d569f3d1cb5c4cc94c378bd0ced0f0b22d58",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host IPC > blocks all host operations by default without starting a service or reading an account"
+            },
+            {
+              "index": 1,
+              "name": "host IPC > pauses an already running service and preserves registered local folders"
+            },
+            {
+              "index": 2,
+              "name": "host IPC > requires an admitted local root and explicit approval before registration"
+            },
+            {
+              "index": 3,
+              "name": "host IPC > rejects a account change during native approval before starting Host"
+            },
+            {
+              "index": 5,
+              "name": "host IPC > shares through the host service, which keeps sharing after Desktop quits and resumes on its own"
+            },
+            {
+              "index": 7,
+              "name": "host IPC > stops sharing when the person here signs out or switches accounts, and resumes for the owner"
+            },
+            {
+              "index": 9,
+              "name": "host IPC > lets the host service run only host routes with the person's session, and only for this deployment"
+            },
+            {
+              "index": 10,
+              "name": "host IPC > refuses running where there is no sandbox, and offers no unsandboxed way"
+            },
+            {
+              "index": 11,
+              "name": "host IPC > asks about running in the folder sandbox where a sandbox exists"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::other_computers::a_saved_choice_cannot_open_other_computers_past_the_release_gate"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::other_computers::a_folder_here_opens_to_my_other_computers_after_i_allow_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::service::tests::this_computer_shares_a_folder_through_the_apps_person"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::service::tests::sharing_outlives_the_app_and_follows_who_is_signed_in"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::service::tests::the_host_asks_the_app_only_for_its_own_routes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::process::tests::a_host_starts_only_in_the_rollout_and_only_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::ssh::tests::a_folder_is_reached_only_with_the_clouds_certificate_for_this_device"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::exec::tests::the_folder_sandbox_writes_only_where_it_may_and_never_reads_credentials"
+        }
+      ]
+    },
+    {
+      "id": "host-recents",
+      "acceptance": "Recent folders on other computers are remembered by ID and name per account, newest first, with the last one open.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostRecents.test.mjs",
+          "sha256": "6da10dfa784e868d25460bfad2fcd9debff90d415d19147d8d7fc70717f0b6cf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "recent folders on other computers > remembers IDs and names per account, newest first, and the last one open"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::hosts::recents::tests::the_last_remote_folder_is_remembered_per_account_until_left"
+        }
+      ]
+    },
+    {
+      "id": "host-ssh",
+      "acceptance": "Another computer reaches a shared folder only over SSH with the Cloud's certificate for this device: another device's, another account's, an expired one, one with critical options or from another authority are refused, as is a login for a folder other than the tunnel's and a host whose key is not the device's registered key. Inside, the file protocol works (list, read, conditional write, conflict, watch) as the folder is granted, so view-only writes are refused on the host itself. A terminal runs only with this computer's consent, with a pty, and reports its exit; one command runs binary safe with its exit status, and nothing runs without consent; a session that fails to start ends on its own and the host keeps serving. There is no SFTP or port forwarding, and sessions end when the folder stops being shared; consent changed here applies to the open connection. A refused tunnel says the Cloud's reason; an unanswered read times out and an unanswered write is uncertain; a connection that ends is replaced on the next request.",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/ssh/hostSsh.test.mjs",
+          "sha256": "63f14869cb6f81edf41b47eb64b8f9c39ec5b62ebe4500c613c4ee398faeb138",
+          "cases": [
+            {
+              "index": 0,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > serves the file protocol inside SSH: list, read, conditional write, conflict, watch"
+            },
+            {
+              "index": 1,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > refuses view-only writes on the host itself"
+            },
+            {
+              "index": 2,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > refuses another computer's certificate"
+            },
+            {
+              "index": 3,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > refuses another account's certificate"
+            },
+            {
+              "index": 4,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > refuses an expired certificate"
+            },
+            {
+              "index": 5,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > refuses a certificate with critical options"
+            },
+            {
+              "index": 6,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > refuses a certificate from another authority"
+            },
+            {
+              "index": 7,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > refuses a login for a folder other than the one the tunnel was admitted for"
+            },
+            {
+              "index": 8,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > refuses a host whose key is not the device's registered key"
+            },
+            {
+              "index": 9,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > reports a refused tunnel with the Cloud's reason"
+            },
+            {
+              "index": 10,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > runs a terminal only with this computer's consent, with a pty, and reports its exit"
+            },
+            {
+              "index": 11,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > runs one command binary safe with its exit status, and nothing without consent"
+            },
+            {
+              "index": 12,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > opens no SFTP, no port forwarding, and ends sessions when the folder stops being shared"
+            },
+            {
+              "index": 13,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > a read that gets no answer times out, and a write without an answer is reported as uncertain"
+            },
+            {
+              "index": 14,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > a connection that ends is replaced by a new one on the next request"
+            },
+            {
+              "index": 15,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > consent widened on this computer applies to the open connection once the host is told"
+            },
+            {
+              "index": 16,
+              "name": "host SSH: certificate login, files, terminals and commands, end to end > a session that fails to start ends on its own and the host keeps serving"
+            },
+            {
+              "index": 17,
+              "name": "OpenSSH certificates > parses and verifies what an authority signs, and nothing else"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::ssh::tests::a_folder_is_reached_only_with_the_clouds_certificate_for_this_device"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::ssh::tests::the_openssh_client_reaches_only_the_sandboxed_folder"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::ssh::tests::commands_and_terminals_run_in_the_folder"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::lines::tests::the_files_channel_carries_requests_errors_and_watches"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::lines::tests::an_unanswered_read_times_out_and_an_unanswered_write_is_uncertain"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::files::tests::a_folder_is_served_only_as_granted"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::remote::tests::a_folder_on_another_computer_opens_through_the_cloud_tunnel"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::remote::tests::a_read_survives_a_lost_connection_and_a_write_is_sent_once"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -36213,6 +37140,136 @@
             {
               "index": 0,
               "name": "keeps the account out of the Header's trailing end and omits global Space switching"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-connector-system-sleep",
+      "kind": "gap",
+      "reason": "TS's connector follows system sleep: it drops the socket on suspend and reconnects at once on wake. The native connector is not wired to the system's power notifications; after a sleep the dead socket is found by the 30 s silence (or a failed heartbeat write) and the connection comes back through the ordinary retry.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/connector.md",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/connection/hostConnector.test.mjs",
+          "sha256": "1c8ed267760fe840c848349b21410086e42a02a4a839c6499ac765de011dafe8",
+          "cases": [
+            {
+              "index": 8,
+              "name": "host connector > follows system sleep: drops the socket on suspend and reconnects at once on wake"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "remote-folder-mutations-in-order",
+      "kind": "out-of-scope",
+      "reason": "TS's device data port runs mutations to unrelated paths concurrently and only keeps overlapping ones in order. The native remote folder sends its changes one at a time, in the order they were made (one mutation lane per folder), so an unrelated change waits for the one before it; order is kept either way.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/access-connection.md",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/files/deviceDataPort.test.ts",
+          "sha256": "349e615cda5643abcd39ddcb1c5654943657816b87479db07e6f7a69faeb13fd",
+          "cases": [
+            {
+              "index": 6,
+              "name": "device DataPort > runs changes to unrelated paths concurrently and keeps overlapping ones in order"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "device-identity-linux-storage",
+      "kind": "out-of-scope",
+      "reason": "TS can run the host on Linux with Electron's secret storage and must refuse its plaintext fallback. The native host keeps device keys only in the macOS login keychain; there is no Linux secret-storage backend, so there is no plaintext fallback to refuse.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/device-identity.md",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/identity/deviceIdentity.test.mjs",
+          "sha256": "11c16fa8604849893f454dc5eb855cd18ad60d0f1c7b22d0baf69e8f3bcf49a6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "device identity > refuses Linux plaintext fallback even when the storage API reports availability"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-login-entry-other-platforms",
+      "kind": "out-of-scope",
+      "reason": "TS writes an XDG autostart entry on Linux and an App login item on Windows. The native host's login entry is a macOS LaunchAgent only; elsewhere starting at login is reported as unsupported.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/host-service.md",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostAutostart.test.mjs",
+          "sha256": "a4d64677809ab9e7cab7e92cf7ffceb0ad6406cb07826b211eb1948c1f860695",
+          "cases": [
+            {
+              "index": 1,
+              "name": "host service at login > Linux: an XDG autostart entry with every argument quoted; development builds pass the App path"
+            },
+            {
+              "index": 2,
+              "name": "host service at login > Windows: the App's login item with the host argument"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-control-error-codes",
+      "kind": "out-of-scope",
+      "reason": "TS's control channel carries a failure's HTTP status and code to the App. The native App and host are one program and the App never branches on a host failure's code, so the native channel carries the failure's message only.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/control-channel.md",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostControl.test.mjs",
+          "sha256": "96fa45df2b68ff23376fb6e285840e0ad1b3d8f4ef9a727d85acd58e2630cbd7",
+          "cases": [
+            {
+              "index": 1,
+              "name": "host service control channel > calls in both directions and carries error status and code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-sharing-approval-folder",
+      "kind": "out-of-scope",
+      "reason": "TS asks with a native message box and then re-checks that the folder is still the workspace assigned to the asking window. The native sharing dialog is opened for one folder chosen on the Homepage, not for the window's workspace, so there is no assigned workspace that could change under the question.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/app-link-and-sharing-ui.md",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostIpc.test.mjs",
+          "sha256": "5b302516b320a18a09eb91412109d569f3d1cb5c4cc94c378bd0ced0f0b22d58",
+          "cases": [
+            {
+              "index": 4,
+              "name": "host IPC > rejects a folder change during native approval before starting Host"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-share-at-missing-root",
+      "kind": "gap",
+      "reason": "TS withdraws a share whose folder has gone from disk once its project is found elsewhere (only that share, telling the Cloud, asking nobody). The native App does not retire such a share: it stays registered and the host serves nothing for it (root_changed) until it is stopped from the App.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/folder-registry.md",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostIpc.test.mjs",
+          "sha256": "5b302516b320a18a09eb91412109d569f3d1cb5c4cc94c378bd0ced0f0b22d58",
+          "cases": [
+            {
+              "index": 6,
+              "name": "host IPC > withdraws only a share whose folder has gone from disk, once its project was found elsewhere"
             }
           ]
         }
