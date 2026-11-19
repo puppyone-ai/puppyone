@@ -25,6 +25,15 @@ fn columns(width: f32) -> (usize, f32) {
     (count, tile)
 }
 
+/// `agentRecency`: the tile names the Agent, so under it is only when it
+/// last worked; one at work says so (in the success colour).
+fn recency(agent: &WorkspaceAgent, now: i64) -> Option<String> {
+    match (&agent.last_active_at, agent.active || !agent.activity_known) {
+        (Some(at), false) => relative_time(at, now),
+        _ => agent_status(agent, now),
+    }
+}
+
 impl WindowCloud {
     pub(in crate::app) fn agents_dialog(&self, cx: &mut Context<Self>) -> Dialog {
         let t = cx.palette();
@@ -212,13 +221,7 @@ impl WindowCloud {
                     ),
             );
         } else {
-            let now = crate::clock::now_ms() / 1000;
-            // `agentRecency`: the tile names the Agent, so under it is only
-            // when it last worked; one at work says so in the success colour.
-            let recency = match (&agent.last_active_at, agent.active || !agent.activity_known) {
-                (Some(at), false) => relative_time(at, now),
-                _ => agent_status(agent, now),
-            };
+            let recency = recency(agent, crate::clock::now_ms() / 1000);
             let confirm = entity.clone();
             let target = id.clone();
             tile = tile
@@ -388,5 +391,39 @@ mod tests {
         let (count, tile) = columns(ROSTER_WIDTH);
         assert!((tile * count as f32 + TILE_GAP * (count - 1) as f32 - ROSTER_WIDTH).abs() < 0.01);
         assert_eq!(columns(100.).0, 1);
+    }
+
+    /// `agentRecency`: under a tile's name, "Working now" for the one at
+    /// work, else only how long ago it last worked, or that it has not.
+    #[test]
+    fn a_tile_says_only_when_its_agent_last_worked() {
+        let now = 1_793_361_600; // 2026-10-30T12:00:00Z
+        let tile = |active: bool, last: Option<&str>, known: bool| WorkspaceAgent {
+            agent: crate::workspace::cloud::agents::ConnectedAgent {
+                id: "c1".into(),
+                name: "Codex".into(),
+                avatar: None,
+                admission: Admission::SignIn,
+                grant_id: "g1".into(),
+                connected_at: String::new(),
+                expires_at: None,
+            },
+            active,
+            last_active_at: last.map(str::to_owned),
+            activity_known: known,
+        };
+        assert_eq!(
+            recency(&tile(true, Some("2026-10-30T11:59:00Z"), true), now).as_deref(),
+            Some("Working now")
+        );
+        assert_eq!(
+            recency(&tile(false, Some("2026-10-30T10:00:00Z"), true), now).as_deref(),
+            Some("2 hours ago")
+        );
+        assert_eq!(
+            recency(&tile(false, None, true), now).as_deref(),
+            Some("No recent work")
+        );
+        assert_eq!(recency(&tile(false, None, false), now), None);
     }
 }

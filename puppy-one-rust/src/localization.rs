@@ -779,31 +779,30 @@ pub fn relative_now() -> &'static str {
         _ => "now",
     }
 }
-/// `Intl.ListFormat(locale, { type: "conjunction" })` of one or two items
-/// ("3 files and 2 searches", "3 个文件和 2 次搜索").
+/// `Intl.ListFormat(locale, { type: "conjunction" })` ("3 files and 2
+/// searches", "A, B, and C", "A、B和C").
 pub fn and_list(items: &[String]) -> String {
     let code = CURRENT.with(|c| c.borrow().clone());
+    and_list_in(&code, items)
+}
+fn and_list_in(code: &str, items: &[String]) -> String {
+    // CLDR's standard list patterns: the separator between the items, the
+    // one before the last of three or more, and the one between two.
+    let (between, last, pair) = match code {
+        "zh-Hans" => ("、", "和", "和"),
+        "ja" => ("、", "、", "、"),
+        "ko" => (", ", " 및 ", " 및 "),
+        "de" => (", ", " und ", " und "),
+        "fr" => (", ", " et ", " et "),
+        "es" => (", ", " y ", " y "),
+        "pt-BR" => (", ", " e ", " e "),
+        _ => (", ", ", and ", " and "),
+    };
     match items {
         [] => String::new(),
         [one] => one.clone(),
-        [a, b] => {
-            let and = match code.as_str() {
-                "zh-Hans" => "和",
-                "ja" => "、",
-                "ko" => " 및 ",
-                "de" => " und ",
-                "fr" => " et ",
-                "es" => " y ",
-                "pt-BR" => " e ",
-                _ => " and ",
-            };
-            format!("{a}{and}{b}")
-        }
-        [rest @ .., last] => format!(
-            "{}, {}",
-            rest.join(", "),
-            and_list(&[String::new(), last.clone()]).trim_start()
-        ),
+        [a, b] => format!("{a}{pair}{b}"),
+        [rest @ .., end] => format!("{}{last}{end}", rest.join(between)),
     }
 }
 /// `Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(n, "day")`
@@ -917,6 +916,28 @@ mod tests {
             month_day_in("pt-BR", Some(2024), 10, 23),
             "23 de out. de 2024"
         );
+    }
+    /// `formatList`: Intl's conjunction, however many there are.
+    #[test]
+    fn lists_join_as_intl_list_format_does() {
+        let names = |n: usize| {
+            ["A", "B", "C", "D"][..n]
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(super::and_list_in("en", &names(0)), "");
+        assert_eq!(super::and_list_in("en", &names(1)), "A");
+        assert_eq!(super::and_list_in("en", &names(2)), "A and B");
+        assert_eq!(super::and_list_in("en", &names(4)), "A, B, C, and D");
+        assert_eq!(super::and_list_in("zh-Hans", &names(2)), "A和B");
+        assert_eq!(super::and_list_in("zh-Hans", &names(3)), "A、B和C");
+        assert_eq!(super::and_list_in("ja", &names(3)), "A、B、C");
+        assert_eq!(super::and_list_in("ko", &names(3)), "A, B 및 C");
+        assert_eq!(super::and_list_in("de", &names(3)), "A, B und C");
+        assert_eq!(super::and_list_in("fr", &names(3)), "A, B et C");
+        assert_eq!(super::and_list_in("es", &names(2)), "A y B");
+        assert_eq!(super::and_list_in("pt-BR", &names(3)), "A, B e C");
     }
     #[test]
     fn relative_past_follows_intl_relative_time_format() {

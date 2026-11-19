@@ -74,11 +74,12 @@ impl gpui::Render for CoveringTooltip {
         _: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> impl gpui::IntoElement {
-        use gpui::{ParentElement as _, Styled as _};
+        use gpui::{InteractiveElement as _, ParentElement as _, Styled as _};
         use gpui_kit::component::ActiveTheme as _;
         let radius = f32::from(cx.theme().radius);
         gpui::div()
             .relative()
+            .debug_selector(|| "tooltip".into())
             .child(self.0.clone())
             .child(crate::ui::native_cover::reporter(
                 KIT_TOOLTIP_MARGIN,

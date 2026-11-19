@@ -286,6 +286,11 @@ impl CloudAgents {
     pub fn waiting(&self) -> bool {
         self.invite.is_some()
     }
+    /// The Project is known and the server has not yet said whether this
+    /// person may manage its Agents (`loading`).
+    pub fn checking(&self) -> bool {
+        self.scope.is_some() && !self.known
+    }
     fn fast(&self) -> bool {
         self.dialog_open || self.waiting()
     }
@@ -821,7 +826,15 @@ mod tests {
         pending: Mutex<Option<Value>>,
         denied: Mutex<bool>,
         offline: Mutex<bool>,
+        /// The sessions cannot be read; the list still can.
+        sessions_down: Mutex<bool>,
+        /// Answers and removals do not go through.
+        refuse_changes: Mutex<bool>,
+        /// The next invite is not made, for this reason.
+        link_failure: Mutex<Option<Error>>,
         calls: Mutex<Vec<String>>,
+        /// What every write carried, in order.
+        writes: Mutex<Vec<(String, Value)>>,
     }
     impl Transport for Server {
         fn request(&self, request: ApiRequest) -> services::Result<Value> {
@@ -829,6 +842,22 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push(format!("{} {}", request.method, request.path));
+            if request.method != reqwest::Method::GET {
+                self.writes.lock().unwrap().push((
+                    request.path.clone(),
+                    request.body.clone().unwrap_or(Value::Null),
+                ));
+            }
+            let change = request.path.ends_with("/decision") || request.path.contains("/grants/");
+            if change && *self.refuse_changes.lock().unwrap() {
+                return Err(Error::Unavailable);
+            }
+            if request.path.ends_with("/agent-links")
+                && request.method == reqwest::Method::POST
+                && let Some(error) = self.link_failure.lock().unwrap().take()
+            {
+                return Err(error);
+            }
             if request.path.ends_with("/agent-links") && request.method == reqwest::Method::GET {
                 if *self.denied.lock().unwrap() {
                     return Err(Error::Status(403));
@@ -844,6 +873,9 @@ mod tests {
                 return Ok(inventory);
             }
             if request.path.ends_with("/access/sessions") {
+                if *self.sessions_down.lock().unwrap() {
+                    return Err(Error::Unavailable);
+                }
                 return Ok(json!([]));
             }
             if request.path.ends_with("/workbench") {
@@ -864,6 +896,46 @@ mod tests {
                 .filter(|c| c.starts_with("GET") && c.ends_with("/agent-links"))
                 .count()
         }
+        fn reads_of(&self, project: &str) -> usize {
+            let list = format!("GET /projects/{project}/agent-links");
+            self.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|c| **c == list)
+                .count()
+        }
+        /// Each answer given, as `request:decision`.
+        fn decisions(&self) -> Vec<String> {
+            self.writes
+                .lock()
+                .unwrap()
+                .iter()
+                .filter_map(|(path, body)| {
+                    let id = path.strip_prefix("/agent-links/connections/")?;
+                    let id = id.strip_suffix("/decision")?;
+                    Some(format!("{id}:{}", body["decision"].as_str()?))
+                })
+                .collect()
+        }
+        /// The secret of every invite asked for.
+        fn secrets(&self) -> Vec<String> {
+            self.writes
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(path, _)| path.ends_with("/agent-links"))
+                .filter_map(|(_, body)| body["secret"].as_str().map(str::to_owned))
+                .collect()
+        }
+    }
+    fn ids(agents: &Entity<CloudAgents>, cx: &mut TestAppContext) -> Vec<String> {
+        agents.read_with(cx, |a, _| {
+            a.agents.iter().map(|a| a.agent.id.clone()).collect()
+        })
+    }
+    fn asked(agents: &Entity<CloudAgents>, cx: &mut TestAppContext) -> Vec<String> {
+        agents.read_with(cx, |a, _| a.requests.iter().map(|r| r.id.clone()).collect())
     }
     fn agent(id: &str) -> Value {
         json!({"id": id, "name": "Claude Code", "admission": "sign_in", "grant_id": format!("g-{id}"),
@@ -877,6 +949,36 @@ mod tests {
         agents.update(cx, |a, cx| a.attach_client("p1", "Docs", client, cx));
         cx.run_until_parked();
         (server, agents)
+    }
+
+    /// `workspaceAgentStatus`: working now, when it last worked, nothing
+    /// recent, and nothing at all when its sessions could not be read.
+    #[test]
+    fn the_status_says_when_an_agent_last_worked() {
+        let now = 1_793_361_600; // 2026-10-30T12:00:00Z
+        let one = |active: bool, last: Option<i64>, known: bool| WorkspaceAgent {
+            agent: serde_json::from_value(agent("c1")).unwrap(),
+            active,
+            last_active_at: last.map(|ago| {
+                chrono::DateTime::from_timestamp(now - ago, 0)
+                    .unwrap()
+                    .to_rfc3339()
+            }),
+            activity_known: known,
+        };
+        assert_eq!(
+            status(&one(true, None, true), now).as_deref(),
+            Some("Working now")
+        );
+        assert_eq!(
+            status(&one(false, Some(300), true), now).as_deref(),
+            Some("Last worked 5 minutes ago")
+        );
+        assert_eq!(
+            status(&one(false, None, true), now).as_deref(),
+            Some("No recent work")
+        );
+        assert_eq!(status(&one(false, None, false), now), None);
     }
 
     #[gpui::test]
@@ -934,11 +1036,280 @@ mod tests {
         agents.update(cx, |a, cx| a.set_visible(true, cx));
         cx.run_until_parked();
         assert_eq!(server.lists(), calls + 1);
+        // Nobody waiting any more: back to every ten seconds.
+        agents.update(cx, |a, cx| a.set_dialog_open(false, cx));
+        cx.run_until_parked();
+        let calls = server.lists();
+        cx.executor().advance_clock(WAITING_REFRESH);
+        cx.run_until_parked();
+        assert_eq!(server.lists(), calls);
+        cx.executor().advance_clock(REFRESH - WAITING_REFRESH);
+        cx.run_until_parked();
+        assert_eq!(server.lists(), calls + 1);
     }
 
+    /// `useWorkspaceAgents`: an Agent shows once it is allowed and goes once
+    /// it is removed, at once when asked rather than at the next poll; so do
+    /// the Agents asking to join. One whose activity could not be read is
+    /// still listed. Without a target nothing is asked, and whatever the
+    /// last one held goes with it (signing out ends a waiting request too).
+    #[gpui::test]
+    fn the_header_follows_the_list_and_forgets_it_with_the_target(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        *server.connections.lock().unwrap() = json!([]);
+        cx.executor().advance_clock(REFRESH);
+        cx.run_until_parked();
+        assert!(ids(&agents, cx).is_empty());
+        *server.connections.lock().unwrap() = json!([agent("c1")]);
+        cx.executor().advance_clock(REFRESH);
+        cx.run_until_parked();
+        assert_eq!(ids(&agents, cx), ["c1"]);
+        // Asked, it reads now.
+        *server.connections.lock().unwrap() = json!([]);
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.run_until_parked();
+        assert!(ids(&agents, cx).is_empty());
+        *server.pending.lock().unwrap() = Some(asking("r1"));
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.run_until_parked();
+        assert_eq!(asked(&agents, cx), ["r1"]);
+        *server.pending.lock().unwrap() = Some(json!([]));
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.run_until_parked();
+        assert!(asked(&agents, cx).is_empty());
+        // Its sessions could not be read: listed, its activity unknown.
+        *server.connections.lock().unwrap() = json!([agent("c1")]);
+        *server.sessions_down.lock().unwrap() = true;
+        *server.pending.lock().unwrap() = Some(asking("r2"));
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.run_until_parked();
+        agents.read_with(cx, |a, _| {
+            assert_eq!(a.agents[0].agent.name, "Claude Code");
+            assert!(!a.agents[0].activity_known);
+            assert!(!a.checking());
+        });
+        // The target goes: so do the Agents and the request, and nothing
+        // more is asked.
+        agents.update(cx, |a, cx| a.attach(None, cx));
+        agents.read_with(cx, |a, _| {
+            assert!(a.agents.is_empty() && a.requests.is_empty());
+            assert!(!a.manageable && !a.checking());
+        });
+        let calls = server.lists();
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.executor().advance_clock(REFRESH * 3);
+        cx.run_until_parked();
+        assert_eq!(server.lists(), calls);
+    }
+
+    /// `ignores an answer that arrives after a newer one`: what a read
+    /// overtaken by a newer one found never shows, not even for a moment.
+    #[gpui::test]
+    fn an_overtaken_answer_never_shows(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        *server.connections.lock().unwrap() = json!([]);
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.run_until_parked();
+        let shown = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let seen = shown.clone();
+        cx.update(|cx| {
+            cx.observe(&agents, move |a, cx| {
+                seen.borrow_mut().push(a.read(cx).agents.len());
+            })
+            .detach()
+        });
+        // The first read finds c1, but its answer has not landed when a
+        // newer read, which finds nobody, is asked for.
+        *server.connections.lock().unwrap() = json!([agent("c1")]);
+        let before = server.lists();
+        agents.update(cx, |a, cx| a.refresh(cx));
+        let executor = cx.executor();
+        let dispatcher = executor.dispatcher().as_test().unwrap();
+        while server.lists() == before {
+            assert!(dispatcher.tick(true), "the first read must run");
+        }
+        *server.connections.lock().unwrap() = json!([]);
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.run_until_parked();
+        assert_eq!(server.lists(), before + 2);
+        assert!(!shown.borrow().is_empty());
+        assert!(
+            shown.borrow().iter().all(|n| *n == 0),
+            "{:?}",
+            shown.borrow()
+        );
+        assert!(ids(&agents, cx).is_empty());
+    }
+
+    /// Not the owner from the very first read: nothing is listed, nothing
+    /// is offered and nothing more is asked.
+    #[gpui::test]
+    fn a_first_refusal_asks_no_more(cx: &mut TestAppContext) {
+        let server = Arc::new(Server::default());
+        *server.denied.lock().unwrap() = true;
+        let agents = cx.new(|_| CloudAgents::new());
+        let client = Client::new(server.clone());
+        agents.update(cx, |a, cx| a.attach_client("p1", "Docs", client, cx));
+        cx.run_until_parked();
+        assert_eq!(server.lists(), 1);
+        cx.executor().advance_clock(REFRESH * 2);
+        cx.run_until_parked();
+        assert_eq!(server.lists(), 1);
+        agents.read_with(cx, |a, _| {
+            assert!(a.agents.is_empty() && !a.manageable);
+            assert!(a.known && !a.checking());
+        });
+    }
+
+    /// `useAgentRequestAnswer` behind the request card: an answer goes once
+    /// and holds both choices until the list moves on to the next request;
+    /// one that did not go through says so and can be given again, letting
+    /// nobody in. The server dropping a request (expired, or answered
+    /// elsewhere) ends it; a bad network does not. A late answer in another
+    /// project changes nothing there.
+    #[gpui::test]
+    fn an_answer_goes_once_and_a_failed_one_can_be_given_again(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        *server.pending.lock().unwrap() = Some(json!([request("r1"), request("r2")]));
+        agents.update(cx, |a, cx| a.refresh(cx));
+        cx.run_until_parked();
+        assert_eq!(asked(&agents, cx), ["r1", "r2"]);
+        // Allow, then Deny before it lands: one answer, both choices held.
+        *server.pending.lock().unwrap() = Some(asking("r2"));
+        agents.update(cx, |a, cx| {
+            a.decide("r1", true, cx);
+            a.decide("r1", false, cx);
+            assert!(a.deciding.contains("r1"));
+        });
+        cx.run_until_parked();
+        assert_eq!(asked(&agents, cx), ["r2"]);
+        agents.read_with(cx, |a, _| {
+            assert!(a.deciding.is_empty() && !a.decision_failed)
+        });
+        // Not through: it says so, the request stays and nobody is let in.
+        *server.refuse_changes.lock().unwrap() = true;
+        agents.update(cx, |a, cx| a.decide("r2", true, cx));
+        cx.run_until_parked();
+        agents.read_with(cx, |a, _| {
+            assert!(a.decision_failed && !a.deciding.contains("r2"));
+            assert_eq!(a.agents.len(), 1);
+        });
+        assert_eq!(asked(&agents, cx), ["r2"]);
+        *server.refuse_changes.lock().unwrap() = false;
+        *server.pending.lock().unwrap() = Some(json!([]));
+        agents.update(cx, |a, cx| a.decide("r2", false, cx));
+        cx.run_until_parked();
+        assert!(asked(&agents, cx).is_empty());
+        agents.read_with(cx, |a, _| assert!(!a.decision_failed));
+        assert_eq!(
+            server.decisions(),
+            ["r1:approve", "r2:approve", "r2:reject"]
+        );
+        // Dropped by the server: gone without an answer. A bad network
+        // keeps the one waiting, still answerable.
+        *server.pending.lock().unwrap() = Some(asking("r3"));
+        cx.executor().advance_clock(REFRESH);
+        cx.run_until_parked();
+        assert_eq!(asked(&agents, cx), ["r3"]);
+        *server.pending.lock().unwrap() = Some(json!([]));
+        cx.executor().advance_clock(REFRESH);
+        cx.run_until_parked();
+        assert!(asked(&agents, cx).is_empty());
+        *server.pending.lock().unwrap() = Some(asking("r4"));
+        cx.executor().advance_clock(REFRESH);
+        cx.run_until_parked();
+        *server.offline.lock().unwrap() = true;
+        cx.executor().advance_clock(REFRESH);
+        cx.run_until_parked();
+        assert_eq!(asked(&agents, cx), ["r4"]);
+        agents.read_with(cx, |a, _| assert!(a.deciding.is_empty()));
+        assert_eq!(server.decisions().len(), 3);
+        // Answered, then another project: the late answer reads nothing.
+        *server.offline.lock().unwrap() = false;
+        *server.pending.lock().unwrap() = None;
+        agents.update(cx, |a, cx| a.decide("r4", false, cx));
+        let other = Client::new(server.clone());
+        agents.update(cx, |a, cx| a.attach_client("p2", "Other", other, cx));
+        cx.run_until_parked();
+        assert_eq!(server.reads_of("p2"), 1);
+        assert!(asked(&agents, cx).is_empty());
+        assert_eq!(server.decisions().len(), 4);
+    }
+
+    /// `CloudWorkspaceAgentInvite`'s Copy: nothing is made before it is
+    /// pressed — the prompt shows the link to come, masked — and every
+    /// press makes an invite of its own. One that could not be made says so
+    /// and Copy works again; a refusal says only the owner may, copying
+    /// nothing and setting no wait.
+    #[gpui::test]
+    fn every_copy_makes_its_own_invite_and_a_refusal_copies_nothing(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        agents.update(cx, |a, cx| {
+            a.set_dialog_open(true, cx);
+            a.open(Opener::Invite, cx)
+        });
+        agents.read_with(cx, |a, _| {
+            assert_eq!(
+                a.prompt().unwrap(),
+                format!(
+                    "Connect to my puppyone project \"Docs\" by following https://api.puppyone.ai/agent/{}",
+                    agents::UNMADE
+                )
+            );
+            assert_eq!(a.invite_phase(), InvitePhase::Give);
+        });
+        assert!(server.secrets().is_empty());
+        cx.write_to_clipboard(ClipboardItem::new_string("mine".into()));
+        *server.link_failure.lock().unwrap() = Some(Error::Unavailable);
+        agents.update(cx, |a, cx| a.copy_invite(cx));
+        cx.run_until_parked();
+        agents.read_with(cx, |a, _| {
+            assert_eq!(a.copy, CopyStatus::Failed);
+            assert_eq!(a.invite_phase(), InvitePhase::Give);
+            assert!(!a.waiting() && a.made.is_none());
+        });
+        assert_eq!(
+            cx.read_from_clipboard().and_then(|c| c.text()).as_deref(),
+            Some("mine")
+        );
+        agents.update(cx, |a, cx| a.copy_invite(cx));
+        cx.run_until_parked();
+        agents.read_with(cx, |a, _| {
+            assert_eq!(a.copy, CopyStatus::Copied);
+            assert_eq!(a.invite_phase(), InvitePhase::Waiting);
+        });
+        agents.update(cx, |a, cx| a.copy_invite(cx));
+        cx.run_until_parked();
+        let secrets = server.secrets();
+        assert_eq!(secrets.len(), 3);
+        assert!(secrets[0] != secrets[1] && secrets[1] != secrets[2]);
+        // Not the owner: told so, nothing copied, the Header not waiting.
+        let (refusing, invite) = setup(cx);
+        cx.write_to_clipboard(ClipboardItem::new_string("mine".into()));
+        *refusing.link_failure.lock().unwrap() = Some(Error::Status(403));
+        invite.update(cx, |a, cx| {
+            a.set_dialog_open(true, cx);
+            a.open(Opener::Invite, cx);
+            a.copy_invite(cx)
+        });
+        cx.run_until_parked();
+        invite.read_with(cx, |a, _| {
+            assert_eq!(a.copy, CopyStatus::NotOwner);
+            assert!(!a.waiting());
+            assert_eq!(a.invite_phase(), InvitePhase::Give);
+        });
+        assert_eq!(
+            cx.read_from_clipboard().and_then(|c| c.text()).as_deref(),
+            Some("mine")
+        );
+    }
+
+    fn request(id: &str) -> Value {
+        json!({"id": id, "name": "Codex", "admission": "sign_in",
+            "requested_at": "2026-10-30T12:00:00Z", "expires_at": "2026-10-30T12:10:00Z"})
+    }
     fn asking(id: &str) -> Value {
-        json!([{"id": id, "name": "Codex", "admission": "sign_in",
-            "requested_at": "2026-10-30T12:00:00Z", "expires_at": "2026-10-30T12:10:00Z"}])
+        json!([request(id)])
     }
     fn phase(agents: &Entity<CloudAgents>, cx: &mut TestAppContext) -> InvitePhase {
         agents.read_with(cx, |a, _| a.invite_phase())
@@ -1101,6 +1472,19 @@ mod tests {
     #[gpui::test]
     fn removing_asks_once_on_the_tile_and_tells_the_header(cx: &mut TestAppContext) {
         let (server, agents) = setup(cx);
+        // A removal that does not go through says so and keeps the Agent.
+        *server.refuse_changes.lock().unwrap() = true;
+        agents.update(cx, |a, cx| {
+            a.confirm_remove(Some("c1".into()), cx);
+            a.remove("c1", cx)
+        });
+        cx.run_until_parked();
+        agents.read_with(cx, |a, _| {
+            assert!(a.change_failed && a.removing.is_none() && a.confirming.is_none());
+            assert_eq!(a.agents.len(), 1);
+        });
+        *server.refuse_changes.lock().unwrap() = false;
+        server.calls.lock().unwrap().clear();
         agents.update(cx, |a, cx| a.confirm_remove(Some("c1".into()), cx));
         agents.read_with(cx, |a, _| assert_eq!(a.confirming.as_deref(), Some("c1")));
         // Keep takes nothing out.
