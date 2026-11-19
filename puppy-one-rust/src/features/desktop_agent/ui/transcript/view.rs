@@ -85,9 +85,9 @@ pub struct TranscriptView {
     pub(super) row_signatures: Vec<(String, blake3::Hash)>,
     /// The space after each row (`buildAgentTimelineLayout`).
     pub(super) gaps: Vec<f32>,
-    /// The view follows the latest row; `unread` counts what arrived while
-    /// it did not.
-    follow: bool,
+    /// What arrived while the view did not follow the latest row (the
+    /// list's tail mode: any scroll toward the start releases it, reaching
+    /// the bottom or Jump to latest takes it up again).
     unread: usize,
     pub(super) width: f32,
     /// Standalone shell disclosures (`rowId:partId`).
@@ -108,11 +108,11 @@ pub struct TranscriptView {
 impl TranscriptView {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let list = ListState::new(0, ListAlignment::Top, px(300.));
+        list.set_follow_mode(FollowMode::Tail);
         let weak = cx.entity().downgrade();
         list.set_scroll_handler(move |event, _, cx| {
             let _ = weak.update(cx, |s, cx| {
-                s.follow = event.visible_range.end >= event.count;
-                if s.follow {
+                if event.is_following_tail {
                     s.unread = 0;
                 }
                 cx.notify();
@@ -125,7 +125,6 @@ impl TranscriptView {
             parts: HashMap::new(),
             row_signatures: Vec::new(),
             gaps: Vec::new(),
-            follow: true,
             unread: 0,
             width: 0.,
             expanded: HashSet::new(),
@@ -147,7 +146,12 @@ impl TranscriptView {
     }
     /// A submission follows the latest row again.
     pub fn follow_latest(&mut self) {
-        self.follow = true;
+        self.unread = 0;
+        self.list.set_follow_mode(FollowMode::Tail);
+    }
+    /// Whether the view follows the latest row.
+    pub(super) fn following(&self) -> bool {
+        self.list.is_following_tail()
     }
     /// Dev captures: the first tool group opens its command step; `false`
     /// until the conversation shows one.
@@ -241,11 +245,11 @@ impl TranscriptView {
                     .splice(previous.len()..previous.len(), next.len() - previous.len());
             }
         }
-        if !self.follow && (added > 0 || next != previous) {
+        if !self.following() && (added > 0 || next != previous) {
             self.unread = (self.unread + added.max(1)).min(99);
         }
         self.row_signatures = next;
-        if self.follow {
+        if self.following() {
             self.unread = 0;
             self.list.scroll_to(ListOffset {
                 item_ix: self.row_signatures.len(),
@@ -359,7 +363,7 @@ impl Render for TranscriptView {
                     "agent-transcript-scrollbar",
                     &self.list,
                 ));
-            if !self.follow && !self.rows.is_empty() {
+            if !self.following() && !self.rows.is_empty() {
                 let label: SharedString = if self.unread > 0 {
                     tf(
                         "agent.transcript.jumpLatestUnread",
@@ -372,6 +376,7 @@ impl Render for TranscriptView {
                 region = region.child(
                     div()
                         .id("agent-jump-latest")
+                        .debug_selector(|| "agent-jump-latest".into())
                         .absolute()
                         .bottom(px(12.))
                         .right(px(16.))
@@ -386,12 +391,7 @@ impl Render for TranscriptView {
                         .cursor(theme::clickable_cursor())
                         .tooltip(crate::ui::components::tooltip(label))
                         .on_click(cx.listener(|s, _, _, cx| {
-                            s.follow = true;
-                            s.unread = 0;
-                            s.list.scroll_to(ListOffset {
-                                item_ix: s.row_signatures.len(),
-                                offset_in_item: px(0.),
-                            });
+                            s.follow_latest();
                             cx.notify();
                         }))
                         .child(

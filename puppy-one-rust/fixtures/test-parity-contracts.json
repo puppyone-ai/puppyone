@@ -34078,6 +34078,221 @@
           "test": "features::desktop_agent::workbench::item::tests::the_item_snapshot_maps_status_and_labels_like_the_product"
         }
       ]
+    },
+    {
+      "id": "agent-transcript-prompts-and-replies",
+      "acceptance": "A prompt shows once, its media above its text and its file mentions inline, with its delivery state (queued, delivery unknown, not sent) readable in place; admission, the native echo and completion keep that one prompt with no state line; a partial reply says only part is shown without claiming a failure; a finished turn shows one muted Worked for line.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/messages.test.ts",
+          "sha256": "cb1ca1574892085a6d51b095c779aff2c6877c2e07c29768fdd40300b633f9b7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > keeps queued delivery information readable without the old corner footer"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > keeps outcome-unknown delivery information readable without the old corner footer"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent renderer surfaces > keeps rejected delivery information readable without the old corner footer"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent renderer surfaces > keeps cancelled delivery information readable without the old corner footer"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent renderer surfaces > renders the same Main user part through admission, echo and completion without a duplicate bubble"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent renderer surfaces > discloses partial reply content without pretending the native turn failed"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/run-status.test.ts",
+          "sha256": "4265aac7a3530c0539d5f9452f248793aa09b7ef41bb3fb0a255a643f6c7fde7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > renders a quiet document flow without role labels or a generic response toolbar"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > renders one muted duration summary after a terminal Agent turn"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_prompt_shows_once_with_its_delivery_state_until_the_native_turn_takes_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_partial_reply_is_disclosed_and_a_finished_turn_says_how_long_it_worked"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_prompt_shows_its_media_above_and_its_mentions_inline"
+        }
+      ]
+    },
+    {
+      "id": "agent-transcript-live-tail",
+      "acceptance": "The live tail shows one status: Preparing the Agent or Starting turn while a submission prepares, Thinking while a running turn has nothing newer, Working around tool activity, nothing while an answer streams; after five seconds it adds the active elapsed time, which excludes approval waits; a running reasoning summary stays behind the status; a connection state replaces the status and goes once recovered.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/run-status.test.ts",
+          "sha256": "4265aac7a3530c0539d5f9452f248793aa09b7ef41bb3fb0a255a643f6c7fde7",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Desktop Agent renderer surfaces > distinguishes native session preparation from genuine Thinking and then yields to streaming text"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent renderer surfaces > uses one quiet live-tail indicator and reveals elapsed work after five seconds"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent renderer surfaces > excludes approval wait from the active run duration"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent renderer surfaces > keeps an official non-transcript working pulse visible around native tool activity"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent renderer surfaces > renders only the current connection state and removes its animation after recovery"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/reasoning.test.ts",
+          "sha256": "a825804176d01cb62e0c3ae6b58ecab276179bd1c7bff6966974a80675a3e5d0",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > keeps a streaming reasoning summary behind the single live-tail status"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::the_live_tail_says_preparing_then_thinking_and_yields_to_streaming_text"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::elapsed_work_shows_after_five_seconds_without_approval_waits"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::tools_keep_the_working_pulse_reasoning_stays_behind_it_and_a_connection_state_replaces_it"
+        }
+      ]
+    },
+    {
+      "id": "agent-transcript-scroll-intent",
+      "acceptance": "Scrolling toward the start releases following (past the list's one-pixel bottom tolerance), so new rows leave the view where it is and Jump to latest appears; following resumes only at the bottom or on Jump to latest.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.transcript-geometry.test.tsx",
+          "sha256": "fe5eadde03992644a57fb16c96ef74e0d42a4ddeb564ff367400ac1c154ac863",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Transcript scrolling intent > releases following after an upward scroll of 1 pixels"
+            },
+            {
+              "index": 4,
+              "name": "Transcript scrolling intent > releases following after an upward scroll of 10 pixels"
+            },
+            {
+              "index": 5,
+              "name": "Transcript scrolling intent > releases following after an upward scroll of 79 pixels"
+            },
+            {
+              "index": 6,
+              "name": "Transcript scrolling intent > reattaches only on reaching the bottom or explicitly choosing Latest"
+            },
+            {
+              "index": 7,
+              "name": "Transcript scrolling intent > does not rewrite scrollTop when already at the clamped bottom"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/jump-to-latest.test.ts",
+          "sha256": "b8a3bd3b76c183bd1c27d89f008c175751edb81bdbd73957db27f075ab0f25e7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > shows Jump to latest when the transcript is not pinned to the bottom"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_small_upward_scroll_releases_following_until_the_bottom_or_jump_to_latest"
+        }
+      ]
+    },
+    {
+      "id": "agent-markdown-blocks",
+      "acceptance": "Agent Markdown parses task lists, nested lists, strikethrough and rules; raw HTML stays text, an unsafe link is no link and only https links navigate (through the host), an image shows only its alt text; a mermaid fence is drawn as a diagram by the render service.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
+          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Agent Markdown renderer > keeps raw HTML inert, rejects unsafe links, and never auto-loads assistant images"
+            },
+            {
+              "index": 4,
+              "name": "Agent Markdown renderer > delegates safe external navigation to the host capability"
+            },
+            {
+              "index": 7,
+              "name": "Agent Markdown renderer > lazy-renders a closed Mermaid fence through the shared safe mount"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::gfm_blocks_parse_and_unsafe_content_stays_inert"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::inline_code_and_links_flatten_into_runs_chips_and_targets"
+        },
+        {
+          "package": "po-editor",
+          "test": "render_service::tests::unavailable_is_never_permanently_cached_and_superseded_jobs_skip"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -42981,6 +43196,54 @@
             {
               "index": 0,
               "name": "keeps a silent utility alive through a clock jump and missed heartbeats, while retaining explicit termination"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-markdown-gfm-extras",
+      "kind": "gap",
+      "reason": "Agent Markdown in the native transcript has no footnotes, no bare-URL autolinks (only <url> and [text](url)), no table column alignment (`:---:`) and no lang attribute for locale-aware reading typography; tables, task lists, nested lists, strikethrough and rules do parse.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/agent-markdown.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
+          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent Markdown renderer > uses the message language for locale-aware reading typography"
+            },
+            {
+              "index": 1,
+              "name": "Agent Markdown renderer > renders semantic GFM tables inside a bounded horizontal viewport"
+            },
+            {
+              "index": 2,
+              "name": "Agent Markdown renderer > supports task lists, nested lists, strikethrough, autolinks, rules, and footnotes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-markdown-block-registry",
+      "kind": "out-of-scope",
+      "reason": "TS lets features register rich Markdown blocks by fence language and guards external navigation behind an optional host capability. The native transcript draws only its built-in mermaid block and always has the host's link opener, so there is no registry or absent capability to test.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/agent-markdown.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
+          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Agent Markdown renderer > does not navigate external links when the host capability is absent"
+            },
+            {
+              "index": 6,
+              "name": "Agent Markdown renderer > resolves only explicitly registered rich blocks"
             }
           ]
         }
