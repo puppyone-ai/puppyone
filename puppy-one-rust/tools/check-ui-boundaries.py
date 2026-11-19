@@ -70,6 +70,17 @@ for relative in ['src/documents/mod.rs', 'src/app/explorer', 'src/features/creat
         if re.search(r'workspace::local|cap_std\s*::|std\s*::\s*fs\b', source):
             errors.append(f'{path.relative_to(root)}: workspace consumer bypasses provider authority')
 
+# Installation discovery inspects executables only: it never reads or changes
+# an Agent's activity Hook enrollment (`detects local Agents without reading or
+# changing activity Hook enrollment`).
+discovery = list((root / 'src/agent/installation').rglob('*.rs')) + [
+    root / 'src/agent/host/installation_host.rs',
+    root / 'src/features/local_agents/discovery.rs',
+]
+for path in discovery:
+    if re.search(r'\bagent_activity\b', path.read_text()):
+        errors.append(f'{path.relative_to(root)}: installation discovery touches Hook enrollment')
+
 # Native auth has one credential/transport owner, outside presentation. Only
 # features/cloud/account.rs projects public snapshots and opens validated URLs.
 for path in (root / 'src/cloud/auth').rglob('*.rs'):

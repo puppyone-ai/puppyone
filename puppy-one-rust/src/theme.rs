@@ -602,6 +602,13 @@ pub struct Theme {
     pub terminal_bg: Rgba,
     pub terminal_fg: Rgba,
     pub terminal_cursor: Rgba,
+    /// `--po-terminal-selection`, else the text selection: a selection in
+    /// the focused terminal of the focused window.
+    pub terminal_selection: Rgba,
+    /// `--po-terminal-selection-inactive`, else
+    /// `--po-text-selection-inactive-bg` (the text selection at 55%): any
+    /// other terminal's selection, and every one while the window is blurred.
+    pub terminal_selection_inactive: Rgba,
     pub ansi: [Rgba; 16],
 }
 
@@ -783,6 +790,8 @@ impl Theme {
     }
     fn from_tokens(tokens: &std::collections::HashMap<String, String>, dark: bool) -> Self {
         let c = |name: &str| parse_color(tokens.get(name).map(String::as_str).unwrap_or("#000000"));
+        let given = |name: &str| tokens.get(name).map(|value| parse_color(value));
+        let selection = c("text-selection-bg");
         let text = c("text");
         let muted = c("text-muted");
         let subtle = c("text-subtle");
@@ -841,7 +850,7 @@ impl Theme {
             focus: resizer,
             update_accent: if dark { rgb(0x60a5fa) } else { rgb(0x2563eb) },
             focus_ring: c("focus-ring"),
-            selection: c("text-selection-bg"),
+            selection,
             // color-mix(in srgb, var(--po-pane-resizer-blue) 55%, var(--po-divider))
             pane_resizer_hover: mix(resizer, divider, 0.55),
             pane_resizer_active: resizer,
@@ -882,6 +891,13 @@ impl Theme {
             // --po-terminal-fg
             terminal_fg: mix(text, muted, 0.70),
             terminal_cursor: c("terminal-cursor"),
+            terminal_selection: given("terminal-selection").unwrap_or(selection),
+            terminal_selection_inactive: given("terminal-selection-inactive")
+                .or_else(|| given("text-selection-inactive-bg"))
+                .unwrap_or(Rgba {
+                    a: selection.a * 0.55,
+                    ..selection
+                }),
             ansi,
         }
     }
@@ -969,6 +985,57 @@ mod tests {
                         }
                     }
                 }
+            }
+        }
+    }
+    /// `readTerminalTheme`: a terminal selects with the product's pair, the
+    /// text selection and the same at 55% while inactive, unless the theme
+    /// names an inactive text selection or a terminal pair of its own.
+    #[test]
+    fn a_terminal_selects_with_the_product_pair_unless_the_theme_names_its_own() {
+        let theme = |pairs: &[(&str, &str)]| {
+            let tokens = pairs
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect();
+            Theme::from_tokens(&tokens, false)
+        };
+        let product = theme(&[("text-selection-bg", "rgba(30, 120, 80, 0.3)")]);
+        assert_eq!(product.terminal_selection, product.selection);
+        assert_eq!(
+            product.terminal_selection_inactive,
+            Rgba {
+                a: product.selection.a * 0.55,
+                ..product.selection
+            }
+        );
+        let text = theme(&[
+            ("text-selection-bg", "rgba(30, 120, 80, 0.3)"),
+            ("text-selection-inactive-bg", "rgba(30, 120, 80, 0.15)"),
+        ]);
+        assert_eq!(text.terminal_selection, text.selection);
+        assert_eq!(
+            text.terminal_selection_inactive,
+            parse_color("rgba(30, 120, 80, 0.15)")
+        );
+        let own = theme(&[
+            ("text-selection-bg", "rgba(30, 120, 80, 0.3)"),
+            ("text-selection-inactive-bg", "rgba(30, 120, 80, 0.15)"),
+            ("terminal-selection", "rgba(10, 20, 30, 0.4)"),
+            ("terminal-selection-inactive", "rgba(140, 90, 200, 0.2)"),
+        ]);
+        assert_eq!(own.terminal_selection, parse_color("rgba(10, 20, 30, 0.4)"));
+        assert_eq!(
+            own.terminal_selection_inactive,
+            parse_color("rgba(140, 90, 200, 0.2)")
+        );
+        for (pack, _) in pack_choices() {
+            for dark in [false, true] {
+                let t = pack_theme(pack, dark);
+                assert!(
+                    t.terminal_selection_inactive.a < t.terminal_selection.a,
+                    "{pack}"
+                );
             }
         }
     }

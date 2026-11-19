@@ -18,6 +18,9 @@ pub(crate) struct Installations {
     latest: Option<Arc<Snapshot>>,
     progress: Option<Arc<Progress>>,
     pub scanning: bool,
+    /// The running scan was asked for while evidence was already shown
+    /// (`refreshing`): the launcher says it is refreshing, not checking.
+    pub refreshing: bool,
     pub failed: bool,
     /// Request identity fences an older scan's completion while a refresh is queued.
     request: u64,
@@ -47,6 +50,7 @@ pub(super) fn install(
             latest: None,
             progress: None,
             scanning: false,
+            refreshing: false,
             failed: false,
             request: 0,
             disposed: false,
@@ -75,6 +79,7 @@ pub(super) fn install(
         let _ = weak.update(cx, |s, _| {
             s.disposed = true;
             s.scanning = false;
+            s.refreshing = false;
             s.host.close();
         });
         std::future::ready(())
@@ -100,10 +105,12 @@ impl Installations {
         }
         self.request += 1;
         self.scanning = true;
+        self.refreshing = refresh && self.latest.is_some();
         self.failed = false;
         self.progress = None;
         if !self.host.discover(self.request, refresh) {
             self.scanning = false;
+            self.refreshing = false;
             self.failed = true;
         }
         cx.notify();
@@ -148,11 +155,13 @@ impl Installations {
                 }
                 if request == self.request {
                     self.scanning = false;
+                    self.refreshing = false;
                     self.failed = result.is_err();
                 }
             }
             Event::Unavailable => {
                 self.scanning = false;
+                self.refreshing = false;
                 self.failed = true;
             }
         }

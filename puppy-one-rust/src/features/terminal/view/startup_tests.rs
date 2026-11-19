@@ -407,3 +407,63 @@ fn a_cursor_report_is_answered_once_by_the_session(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(inputs(&bridge), [b"\x1b[1;1R".to_vec()]);
 }
+
+/// `does not reassign terminal font metrics during a color-only refresh`:
+/// new terminal colors repaint the session without measuring its grid
+/// again or resizing its PTY.
+#[gpui::test]
+fn a_color_only_theme_change_keeps_the_grid_and_the_pty_size(cx: &mut TestAppContext) {
+    let slot = Rc::new(RefCell::new(None));
+    let (view, cx) = cx.add_window_view({
+        let slot = slot.clone();
+        move |window, cx| {
+            TerminalView::start(
+                move |wake| {
+                    let (terminal, bridge) = Terminal::bridged(wake);
+                    *slot.borrow_mut() = Some(bridge);
+                    terminal
+                },
+                false,
+                window,
+                cx,
+            )
+        }
+    });
+    let bridge = slot.borrow_mut().take().unwrap();
+    let draw = |cx: &mut VisualTestContext| {
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+        cx.run_until_parked();
+    };
+    draw(cx);
+    let resized = |bridge: &Bridge| {
+        bridge
+            .requests
+            .try_iter()
+            .filter(|r| matches!(r, Request::Resize(_, _)))
+            .count()
+    };
+    assert!(resized(&bridge) > 0, "the first frame fits the PTY");
+    let grid = view.read_with(cx, |s, _| {
+        (s.grid.cell_w, s.grid.cell_h, s.parser.screen().size())
+    });
+    cx.update(|_, cx| {
+        let mut appearance = crate::ui::appearance::Appearance::default();
+        appearance.palette.terminal_fg = rgb(0xd1cec6);
+        appearance.palette.terminal_bg = rgb(0x161413);
+        cx.set_global(appearance);
+    });
+    // The window repaints its terminal in the new colors.
+    view.update(cx, |_, cx| cx.notify());
+    draw(cx);
+    assert_eq!(resized(&bridge), 0);
+    assert_eq!(
+        view.read_with(cx, |s, _| (
+            s.grid.cell_w,
+            s.grid.cell_h,
+            s.parser.screen().size()
+        )),
+        grid
+    );
+}
