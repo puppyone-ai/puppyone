@@ -24,6 +24,9 @@ const WAITING_REFRESH: Duration = Duration::from_secs(3);
 const INVITE_WAIT: Duration = Duration::from_secs(10 * 60);
 /// How long Copy says "Copied" before it offers to copy again.
 const COPIED_FLASH: Duration = Duration::from_millis(1600);
+/// An Agent's first connection waits for its machine, up to seven minutes;
+/// past this, one let in that has not connected is said not to have.
+const CONNECT_WAIT: Duration = Duration::from_secs(10 * 60);
 
 /// Who opened the Agents dialog: one Agent's mark, the stack of the ones at
 /// rest, or the empty seat.
@@ -44,8 +47,8 @@ pub enum Invite {
     Out(i64),
     /// Nobody came before the message lapsed.
     Lapsed,
-    /// The Agent that came in, by id.
-    Joined(String),
+    /// The Agent let in, by id, and since when (ms).
+    Joined(String, i64),
 }
 /// What the invite shows now: [`Invite`] with an Agent asking to join
 /// answered where it asks.
@@ -55,6 +58,8 @@ pub enum InvitePhase {
     Waiting,
     Knocking,
     Lapsed,
+    /// Let in, but not connected yet: allowing is not being in.
+    Connecting,
     Joined,
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -119,6 +124,12 @@ pub struct CloudAgents {
     pub confirming: Option<String>,
     pub removing: Option<String>,
     pub change_failed: bool,
+}
+
+/// Whether an Agent has reached the workspace: any session of its grant. A
+/// list of sessions that could not be read says nothing, so it counts as in.
+fn connected(agent: &WorkspaceAgent) -> bool {
+    !agent.activity_known || agent.active || agent.last_active_at.is_some()
 }
 
 /// `workspaceAgentStatus`: the server lists recent sessions only, so an
@@ -390,7 +401,7 @@ impl CloudAgents {
                 .map(|a| a.agent.id.clone());
             if let Some(id) = newcomer {
                 if self.dialog_open && self.invite_open {
-                    self.invite_flow = Invite::Joined(id);
+                    self.invite_flow = Invite::Joined(id, crate::clock::now_ms());
                     self.ticker = None;
                 } else {
                     self.reset_invite(cx);
@@ -430,7 +441,7 @@ impl CloudAgents {
     pub fn start_invite(&mut self, cx: &mut Context<Self>) {
         self.confirming = None;
         self.invite_open = true;
-        if matches!(self.invite_flow, Invite::Joined(_) | Invite::Lapsed) {
+        if matches!(self.invite_flow, Invite::Joined(..) | Invite::Lapsed) {
             self.reset_invite(cx);
         }
         self.tick(cx);
@@ -463,12 +474,15 @@ impl CloudAgents {
     /// invite, whatever brought it; a message out past its ten minutes has
     /// lapsed.
     pub fn invite_phase(&self) -> InvitePhase {
-        match &self.invite_flow {
-            Invite::Joined(id) if self.agents.iter().any(|a| &a.agent.id == id) => {
-                return InvitePhase::Joined;
-            }
-            _ if !self.requests.is_empty() => return InvitePhase::Knocking,
-            _ => {}
+        if let Some(agent) = self.joined() {
+            return if connected(agent) {
+                InvitePhase::Joined
+            } else {
+                InvitePhase::Connecting
+            };
+        }
+        if !self.requests.is_empty() {
+            return InvitePhase::Knocking;
         }
         match self.invite_flow {
             Invite::Out(_) if self.remaining_secs() > 0 => InvitePhase::Waiting,
@@ -483,6 +497,14 @@ impl CloudAgents {
         self.ticker = None;
         cx.notify();
     }
+    /// Captures: the Agent let in long enough ago to be overdue.
+    #[cfg(feature = "dev-capture")]
+    pub fn capture_overdue(&mut self, cx: &mut Context<Self>) {
+        if let Invite::Joined(_, since) = &mut self.invite_flow {
+            *since -= CONNECT_WAIT.as_millis() as i64;
+        }
+        cx.notify();
+    }
     /// Whole seconds left before the message lapses.
     pub fn remaining_secs(&self) -> u64 {
         let Invite::Out(since) = self.invite_flow else {
@@ -494,9 +516,14 @@ impl CloudAgents {
     /// The Agent the invite ended on.
     pub fn joined(&self) -> Option<&WorkspaceAgent> {
         match &self.invite_flow {
-            Invite::Joined(id) => self.agents.iter().find(|a| &a.agent.id == id),
+            Invite::Joined(id, _) => self.agents.iter().find(|a| &a.agent.id == id),
             _ => None,
         }
+    }
+    /// Let in long enough ago that it should have connected by now.
+    pub fn connect_overdue(&self) -> bool {
+        matches!(self.invite_flow, Invite::Joined(_, since)
+            if crate::clock::now_ms() - since >= CONNECT_WAIT.as_millis() as i64)
     }
     /// The countdown moves once a second while the message is out and the
     /// invite is on screen.
@@ -730,7 +757,8 @@ impl CloudAgents {
 }
 /// Captures: a project with Agents at work, at rest and one asking to join;
 /// `roster`, nobody asking; `empty`, nobody yet; `invite`, nobody yet until
-/// the message goes out, then Claude Code asks to join and, allowed, is in.
+/// the message goes out, then Claude Code asks to join and, allowed, is in;
+/// `invite-connecting`, the same, but allowed it never reaches the workspace.
 #[cfg(feature = "dev-capture")]
 pub fn lab_client(variant: &str) -> Client {
     use crate::{cloud::auth::model::ApiRequest, workspace::cloud::services::Transport};
@@ -759,7 +787,8 @@ pub fn lab_client(variant: &str) -> Client {
                 self.1.store(2, Ordering::SeqCst);
                 return Ok(json!({}));
             }
-            if self.0 == "invite" && request.path.ends_with("/agent-links") {
+            let invite = self.0.starts_with("invite");
+            if invite && request.path.ends_with("/agent-links") {
                 return Ok(match self.1.load(Ordering::SeqCst) {
                     0 => json!({"links": [], "connections": [], "pending": []}),
                     1 => json!({"links": [], "connections": [], "pending": [{"id": "knock",
@@ -771,30 +800,34 @@ pub fn lab_client(variant: &str) -> Client {
                     }
                 });
             }
-            Ok(if request.path.ends_with("/access/sessions") {
-                json!([
-                    {"grant_id": "g-claude", "state": "active", "created_at": ago(900),
-                        "closed_at": null, "lease_until": ago(-60), "commands_running": 1,
-                        "last_command_at": ago(5)},
-                    {"grant_id": "g-codex", "state": "closed", "created_at": ago(301),
-                        "closed_at": ago(300), "lease_until": ago(270)},
-                ])
-            } else if self.0 == "empty" {
-                json!({"links": [], "connections": [], "pending": []})
-            } else {
-                json!({
-                    "links": [],
-                    "connections": [
-                        agent("claude", "Claude Code", "sign_in"),
-                        agent("codex", "Codex", "link"),
-                        agent("cursor", "Cursor", "sign_in"),
-                        agent("helper", "Research helper", "sign_in"),
-                    ],
-                    "pending": if self.0 == "roster" { json!([]) } else { json!([{"id": "robo",
-                        "name": "Robo", "avatar": "other", "admission": "sign_in",
-                        "requested_at": ago(60), "expires_at": ago(-540)}]) },
-                })
-            })
+            Ok(
+                if request.path.ends_with("/access/sessions") && self.0 == "invite-connecting" {
+                    json!([])
+                } else if request.path.ends_with("/access/sessions") {
+                    json!([
+                        {"grant_id": "g-claude", "state": "active", "created_at": ago(900),
+                            "closed_at": null, "lease_until": ago(-60), "commands_running": 1,
+                            "last_command_at": ago(5)},
+                        {"grant_id": "g-codex", "state": "closed", "created_at": ago(301),
+                            "closed_at": ago(300), "lease_until": ago(270)},
+                    ])
+                } else if self.0 == "empty" {
+                    json!({"links": [], "connections": [], "pending": []})
+                } else {
+                    json!({
+                        "links": [],
+                        "connections": [
+                            agent("claude", "Claude Code", "sign_in"),
+                            agent("codex", "Codex", "link"),
+                            agent("cursor", "Cursor", "sign_in"),
+                            agent("helper", "Research helper", "sign_in"),
+                        ],
+                        "pending": if self.0 == "roster" { json!([]) } else { json!([{"id": "robo",
+                            "name": "Robo", "avatar": "other", "admission": "sign_in",
+                            "requested_at": ago(60), "expires_at": ago(-540)}]) },
+                    })
+                },
+            )
         }
     }
     Client::new(Arc::new(Lab(variant.to_owned(), AtomicU8::new(0))))
@@ -818,6 +851,7 @@ mod tests {
     #[derive(Default)]
     struct Server {
         connections: Mutex<Value>,
+        sessions: Mutex<Option<Value>>,
         pending: Mutex<Option<Value>>,
         denied: Mutex<bool>,
         offline: Mutex<bool>,
@@ -844,7 +878,7 @@ mod tests {
                 return Ok(inventory);
             }
             if request.path.ends_with("/access/sessions") {
-                return Ok(json!([]));
+                return Ok(self.sessions.lock().unwrap().clone().unwrap_or(json!([])));
             }
             if request.path.ends_with("/workbench") {
                 return Ok(json!({"workspace": {"id": "wb"}}));
@@ -988,18 +1022,57 @@ mod tests {
         next_poll(cx);
         assert_eq!(phase(&agents, cx), InvitePhase::Knocking);
         agents.read_with(cx, |a, _| assert!(!a.waiting()));
-        // Let in, it is the one the invite ends on.
+        // Let in, it is the one the invite ends on; it is in once it has
+        // reached the workspace, which allowing alone does not do.
         *server.pending.lock().unwrap() = None;
         *server.connections.lock().unwrap() = json!([agent("c1"), agent("c2")]);
         next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Connecting);
+        agents.read_with(cx, |a, _| {
+            assert_eq!(a.joined().unwrap().agent.id, "c2");
+            assert!(!a.connect_overdue());
+        });
+        *server.sessions.lock().unwrap() = Some(json!([{"grant_id": "g-c2", "state": "closed",
+            "created_at": "2026-10-30T12:00:00Z", "closed_at": "2026-10-30T12:00:09Z",
+            "lease_until": "2026-10-30T12:00:45Z", "commands_running": 0,
+            "last_command_at": "2026-10-30T12:00:08Z"}]));
+        next_poll(cx);
         assert_eq!(phase(&agents, cx), InvitePhase::Joined);
-        agents.read_with(cx, |a, _| assert_eq!(a.joined().unwrap().agent.id, "c2"));
         // Another starts over from what to copy.
         agents.update(cx, |a, cx| a.reset_invite(cx));
         agents.read_with(cx, |a, _| {
             assert_eq!(a.invite_phase(), InvitePhase::Give);
             assert_eq!((a.copy, a.made.as_deref()), (CopyStatus::Idle, None));
         });
+    }
+
+    /// An Agent let in that never reaches the workspace is not shown as in:
+    /// past the first machine start it is said not to have connected.
+    #[gpui::test]
+    fn an_agent_let_in_that_never_connects_is_not_shown_as_in(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        agents.update(cx, |a, cx| {
+            a.set_dialog_open(true, cx);
+            a.open(Opener::Invite, cx);
+            a.copy_invite(cx)
+        });
+        cx.run_until_parked();
+        *server.connections.lock().unwrap() = json!([agent("c1"), agent("c2")]);
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Connecting);
+        agents.update(cx, |a, _| {
+            if let Invite::Joined(_, since) = &mut a.invite_flow {
+                *since -= CONNECT_WAIT.as_millis() as i64;
+            }
+        });
+        agents.read_with(cx, |a, _| {
+            assert_eq!(a.invite_phase(), InvitePhase::Connecting);
+            assert!(a.connect_overdue());
+        });
+        // Sessions that could not be read say nothing: the invite does not wait on them.
+        *server.sessions.lock().unwrap() = Some(json!({"unexpected": true}));
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Joined);
     }
 
     /// The dialog closed while the message is out: it keeps waiting, and an

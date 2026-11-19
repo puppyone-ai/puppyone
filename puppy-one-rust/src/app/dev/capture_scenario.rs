@@ -19,12 +19,12 @@
 //! `home-actions:<index>` (its actions menu), `pin:<path>` (a file pinned
 //! above the tree), `template` (a template
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
-//! `agents-fixture:<roster|empty|invite>` (the Cloud Header with fixture Agents,
+//! `agents-fixture:<roster|empty|invite|invite-connecting>` (the Cloud Header with fixture Agents,
 //! nobody asking to join, or nobody yet; `invite`: nobody until the message
 //! goes out, then Claude Code asks to join), `agents:<more|invite|agent id>` (their dialog), `agent-card:<id>`
 //! (the card under a Header face), `agents-copy` (the invite copied),
 //! `agents-allow` (the first asking Agent let in), `agents-lapse` (the
-//! message lapsed),
+//! message lapsed), `agents-overdue` (the Agent let in has not connected in time),
 //! `agent-chat:<runtime id>` (a new chat on a detected
 //! Agent), `agent-settled` (its session prepared or failed),
 //! `agent-prompt:<text>` (the chat sends it), `agent-idle` (no turn
@@ -112,6 +112,8 @@ enum Step {
     AgentsAllow,
     /// `agents-lapse`: the invite's message has lapsed.
     AgentsLapse,
+    /// `agents-overdue`: the Agent let in has not connected in time.
+    AgentsOverdue,
     FileMenu(crate::app::file_mode::FileMenu),
     FileEdit,
     Blur,
@@ -198,6 +200,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "agents-copy" => Step::AgentsCopy,
                 "agents-allow" => Step::AgentsAllow,
                 "agents-lapse" => Step::AgentsLapse,
+                "agents-overdue" => Step::AgentsOverdue,
                 "file-menu" => Step::FileMenu(match arg {
                     "settings" => crate::app::file_mode::FileMenu::Settings,
                     _ => crate::app::file_mode::FileMenu::View,
@@ -795,6 +798,13 @@ impl Shell {
             Step::AgentsLapse => {
                 let agents = self.cloud.read(cx).agents.clone();
                 agents.update(cx, |a, cx| a.capture_lapse(cx));
+            }
+            Step::AgentsOverdue => {
+                let agents = self.cloud.read(cx).agents.clone();
+                if agents.read(cx).joined().is_none() {
+                    return false;
+                }
+                agents.update(cx, |a, cx| a.capture_overdue(cx));
             }
             Step::FileMenu(menu) => {
                 if let Some(file) = &self.file {

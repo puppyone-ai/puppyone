@@ -144,7 +144,8 @@ fn the_invite_waits_for_the_agent_and_lets_it_in_where_it_asks(cx: &mut TestAppC
     use std::sync::{Arc, Mutex};
     let (view, cx) = setup(cx);
     let base = cloud_project_responder();
-    // 0: nobody, also once the message is out; 1: Claude Code asks; 2: let in.
+    // 0: nobody, also once the message is out; 1: Claude Code asks; 2: let in;
+    // 3: it has connected.
     let stage = Arc::new(Mutex::new(0));
     let state = stage.clone();
     let responder = with_catalog(Arc::new(move |request| {
@@ -178,7 +179,15 @@ fn the_invite_waits_for_the_agent_and_lets_it_in_where_it_asks(cx: &mut TestAppC
                 "connections": connections, "pending": pending}}));
         }
         if path.ends_with("/access/sessions") {
-            return Ok(serde_json::json!({"code": 0, "data": []}));
+            let sessions = if *stage == 3 {
+                serde_json::json!([{"grant_id": "g1", "state": "active",
+                    "created_at": "2026-10-30T12:00:00Z", "closed_at": null,
+                    "lease_until": "2099-01-01T00:00:00Z", "commands_running": 1,
+                    "last_command_at": "2026-10-30T12:00:05Z"}])
+            } else {
+                serde_json::json!([])
+            };
+            return Ok(serde_json::json!({"code": 0, "data": sessions}));
         }
         drop(stage);
         base(request)
@@ -230,6 +239,16 @@ fn the_invite_waits_for_the_agent_and_lets_it_in_where_it_asks(cx: &mut TestAppC
     assert!(cx.debug_bounds("cloud-agent-invite-ask:r1").is_some());
     assert!(cx.debug_bounds("cloud-agent-request-card").is_none());
     agents.update(cx, |a, cx| a.decide("r1", true, cx));
+    // Allowed is not in: the invite waits until the Agent reaches the workspace.
+    settle_cloud(&view, cx, "the Agent allowed", &|s, cx| {
+        s.cloud.read(cx).agents.read(cx).invite_phase()
+            == crate::features::cloud::InvitePhase::Connecting
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-agent-invite-connecting").is_some());
+    assert!(cx.debug_bounds("cloud-agent-invite-joined").is_none());
+    *stage.lock().unwrap() = 3;
+    agents.update(cx, |a, cx| a.refresh(cx));
     settle_cloud(&view, cx, "the Agent in", &|s, cx| {
         s.cloud.read(cx).agents.read(cx).invite_phase()
             == crate::features::cloud::InvitePhase::Joined

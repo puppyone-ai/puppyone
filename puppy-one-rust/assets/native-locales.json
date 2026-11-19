@@ -165,6 +165,10 @@
       "native.agentInvite.access": "It can read and edit this project’s files and run commands.",
       "native.agentInvite.joined": "{name} is in",
       "native.agentInvite.joinedHint": "You’ll see it up top while it works.",
+      "native.agentInvite.connecting": "Waiting for {name} to connect…",
+      "native.agentInvite.connectingHint": "It’s allowed in. Its first connection can take a few minutes.",
+      "native.agentInvite.notConnected": "{name} hasn’t connected yet",
+      "native.agentInvite.notConnectedHint": "Ask it to follow its invite’s steps again.",
       "native.agentInvite.another": "Add another agent",
       "native.agentInvite.headerWaiting": "Waiting for agent…"
     },
@@ -332,6 +336,10 @@
       "native.agentInvite.access": "它可以读取、修改此项目的文件并运行命令。",
       "native.agentInvite.joined": "{name} 已加入",
       "native.agentInvite.joinedHint": "它工作时，你会在顶部看到它。",
+      "native.agentInvite.connecting": "正在等 {name} 连上…",
+      "native.agentInvite.connectingHint": "已允许它进入。第一次连接可能需要几分钟。",
+      "native.agentInvite.notConnected": "{name} 还没连上",
+      "native.agentInvite.notConnectedHint": "让它按邀请里的步骤再试一次。",
       "native.agentInvite.another": "再添加一个 Agent",
       "native.agentInvite.headerWaiting": "正在等 Agent…"
     },
@@ -499,6 +507,10 @@
       "native.agentInvite.access": "このプロジェクトのファイルの読み取り・編集とコマンドの実行ができます。",
       "native.agentInvite.joined": "{name} が参加しました",
       "native.agentInvite.joinedHint": "作業中は上部に表示されます。",
+      "native.agentInvite.connecting": "{name} の接続を待っています…",
+      "native.agentInvite.connectingHint": "参加は許可済みです。初回の接続には数分かかることがあります。",
+      "native.agentInvite.notConnected": "{name} はまだ接続していません",
+      "native.agentInvite.notConnectedHint": "招待の手順をもう一度実行するよう伝えてください。",
       "native.agentInvite.another": "別のエージェントを追加",
       "native.agentInvite.headerWaiting": "エージェントを待っています…"
     },
@@ -666,6 +678,10 @@
       "native.agentInvite.access": "이 프로젝트의 파일을 읽고 편집하며 명령을 실행할 수 있습니다.",
       "native.agentInvite.joined": "{name}이(가) 참여했습니다",
       "native.agentInvite.joinedHint": "작업하는 동안 상단에 표시됩니다.",
+      "native.agentInvite.connecting": "{name}의 연결을 기다리는 중…",
+      "native.agentInvite.connectingHint": "참여가 허용되었습니다. 첫 연결에는 몇 분 걸릴 수 있습니다.",
+      "native.agentInvite.notConnected": "{name}이(가) 아직 연결되지 않았습니다",
+      "native.agentInvite.notConnectedHint": "초대에 있는 단계를 다시 따라 하도록 요청하세요.",
       "native.agentInvite.another": "다른 에이전트 추가",
       "native.agentInvite.headerWaiting": "에이전트를 기다리는 중…"
     },
@@ -833,6 +849,10 @@
       "native.agentInvite.access": "Podrá leer y editar los archivos de este proyecto y ejecutar comandos.",
       "native.agentInvite.joined": "{name} ya está dentro",
       "native.agentInvite.joinedHint": "Lo verás arriba mientras trabaja.",
+      "native.agentInvite.connecting": "Esperando a que {name} se conecte…",
+      "native.agentInvite.connectingHint": "Ya tiene permiso. Su primera conexión puede tardar unos minutos.",
+      "native.agentInvite.notConnected": "{name} aún no se ha conectado",
+      "native.agentInvite.notConnectedHint": "Pídele que vuelva a seguir los pasos de su invitación.",
       "native.agentInvite.another": "Añadir otro agente",
       "native.agentInvite.headerWaiting": "Esperando al agente…"
     },
@@ -1000,6 +1020,10 @@
       "native.agentInvite.access": "Poderá ler e editar os arquivos deste projeto e executar comandos.",
       "native.agentInvite.joined": "{name} entrou",
       "native.agentInvite.joinedHint": "Você o verá no topo enquanto ele trabalha.",
+      "native.agentInvite.connecting": "Aguardando {name} se conectar…",
+      "native.agentInvite.connectingHint": "Já tem permissão. A primeira conexão pode levar alguns minutos.",
+      "native.agentInvite.notConnected": "{name} ainda não se conectou",
+      "native.agentInvite.notConnectedHint": "Peça para seguir de novo os passos do convite.",
       "native.agentInvite.another": "Adicionar outro agente",
       "native.agentInvite.headerWaiting": "Aguardando o agente…"
     },
@@ -1167,6 +1191,10 @@
       "native.agentInvite.access": "Pourra lire et modifier les fichiers de ce projet et exécuter des commandes.",
       "native.agentInvite.joined": "{name} est là",
       "native.agentInvite.joinedHint": "Vous le verrez en haut pendant qu’il travaille.",
+      "native.agentInvite.connecting": "En attente de la connexion de {name}…",
+      "native.agentInvite.connectingHint": "Son accès est autorisé. Sa première connexion peut prendre quelques minutes.",
+      "native.agentInvite.notConnected": "{name} ne s’est pas encore connecté",
+      "native.agentInvite.notConnectedHint": "Demandez-lui de suivre à nouveau les étapes de son invitation.",
       "native.agentInvite.another": "Ajouter un autre agent",
       "native.agentInvite.headerWaiting": "En attente de l’agent…"
     },
@@ -1334,6 +1362,10 @@
       "native.agentInvite.access": "Darf die Dateien dieses Projekts lesen und bearbeiten sowie Befehle ausführen.",
       "native.agentInvite.joined": "{name} ist dabei",
       "native.agentInvite.joinedHint": "Du siehst ihn oben, während er arbeitet.",
+      "native.agentInvite.connecting": "Warte darauf, dass sich {name} verbindet…",
+      "native.agentInvite.connectingHint": "Der Zugang ist erlaubt. Die erste Verbindung kann einige Minuten dauern.",
+      "native.agentInvite.notConnected": "{name} hat sich noch nicht verbunden",
+      "native.agentInvite.notConnectedHint": "Bitte es, die Schritte aus seiner Einladung noch einmal auszuführen.",
       "native.agentInvite.another": "Weiteren Agenten hinzufügen",
       "native.agentInvite.headerWaiting": "Warte auf Agenten…"
     }
