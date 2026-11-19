@@ -5,6 +5,7 @@ use crate::documents::Phase;
 use gpui::EntityInputHandler;
 
 mod across_windows;
+mod appearance_settings;
 mod autosave;
 mod close_lifecycle;
 mod cloud_opening;

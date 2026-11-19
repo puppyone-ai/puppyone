@@ -21188,7 +21188,7 @@
     },
     {
       "id": "builtin-sub-theme-packages",
-      "acceptance": "The app ships the product's six built-in packages, one self-describing theme each, byte for byte (tools/import-theme-contract.mjs --check, run by verify.py and by a tools test that also proves a changed or extra package is caught). Each id matches its package, the builtin order is Neutral, Warm, Graphite, GitHub, Newspaper, Windows XP Luna, every target declares only custom properties and no editor internals, and each Default theme paints a first frame in both modes. Every package declares every Markdown role of the contract with the shared inline-code and code-block defaults. Neutral's Dark chrome is unified and apart from the editor, Warm's Dark header and sidebar mix chrome into the editor, and Graphite's Dark text and syntax colours keep their contrast. Neutral is the fallback under every theme, and no legacy preset palette remains. The Windows XP interface style itself is a recorded intended difference: its package is kept but not offered.",
+      "acceptance": "The app ships the product's six built-in packages, one self-describing theme each, byte for byte (tools/import-theme-contract.mjs --check, run by verify.py and by a tools test that also proves a changed or extra package is caught). Each id matches its package, the builtin order is Neutral, Warm, Graphite, GitHub, Newspaper, Windows XP Luna, every target declares only custom properties and no editor internals, and each Default theme paints a first frame in both modes. Every package declares every Markdown role of the contract with the shared inline-code and code-block defaults. Neutral's Dark chrome is unified and apart from the editor, Warm's Dark header and sidebar mix chrome into the editor, and Graphite's Dark text and syntax colours keep their contrast. Neutral is the fallback under every theme, and no legacy preset palette remains. The Windows XP interface style itself is a recorded gap (windows-xp-interface-style): its package is shipped but cannot be chosen.",
       "typescript": [
         {
           "path": "tests/integration/appearance/themes/builtinSubThemePackages.test.mjs",
@@ -22519,6 +22519,502 @@
         }
       ],
       "environment": "real git repositories; a helper that repoints the remote during the credential detach"
+    },
+    {
+      "id": "appearance-preference-documents",
+      "acceptance": "The product's appearance documents of every schema are imported like readAppearancePreferences: schema 2 keeps the Default style's remembered Sub Theme and mode even while another style was active (byStyle), and its retired left-vertical navigation has nowhere to go because the native footer is fixed at the bottom; schema 1 keeps its top-level fields the same way; the retired content size becomes the typography scale before schema 6 and is ignored once a schema-6 document exists; the retired branded file-icon theme id becomes the default inside a canonical document; legacy Light and Dark presets become independent Sub Theme memories; and a document newer than this release is not read (the legacy keys and the Default style decide). The import only reads the product's storage, so a newer document can never be overwritten, and the native preferences carry no retired text-size channel.",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/styles/appearanceArchitecture.test.ts",
+          "sha256": "c4c6a37348adfa1d949aade96967a366a799ee1f57b17c1c35bd754dea3d9f1b",
+          "cases": [
+            {
+              "index": 4,
+              "name": "appearance profile architecture > normalizes retired navigation intent, preserves theme intent, and round-trips V6"
+            },
+            {
+              "index": 5,
+              "name": "appearance profile architecture > normalizes the version 1 navigation-layout field to the fixed footer"
+            },
+            {
+              "index": 6,
+              "name": "appearance profile architecture > migrates the retired content-size switch into the semantic typography preference"
+            },
+            {
+              "index": 7,
+              "name": "appearance profile architecture > ignores the retired field once a canonical V6 document has been written"
+            },
+            {
+              "index": 8,
+              "name": "appearance profile architecture > migrates the retired branded file-icon theme ID inside a canonical document"
+            },
+            {
+              "index": 9,
+              "name": "appearance profile architecture > migrates legacy Light and Dark presets into independent Sub Theme memories"
+            },
+            {
+              "index": 13,
+              "name": "appearance profile architecture > does not authorize overwriting a newer unsupported preference document"
+            },
+            {
+              "index": 15,
+              "name": "appearance profile architecture > keeps the retired text-size channel inside the v5 migration boundary only"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::appearance_documents_of_every_schema_migrate_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::the_product_appearance_document_and_layout_carry_over"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::legacy_keys_flags_and_unknown_values_follow_the_product_parsers"
+        }
+      ],
+      "environment": "the product's stored preference documents, imported read-only"
+    },
+    {
+      "id": "sub-theme-resolution",
+      "acceptance": "The window resolves its Color Mode first and then reads the Sub Theme remembered for that mode (Light shows the light memory, Dark the dark one). A remembered Sub Theme made for another root theme, one without the effective mode's variant, one only partly declared, or one that is gone falls back to Neutral, while a compatible installed theme paints its own colours per mode; a Sub Theme id conflicting with a built-in is reported. The native theme menu lists the mode and checks the effective Sub Theme. The resolver's internal diagnostic codes are not shown by either product.",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/styles/appearanceArchitecture.test.ts",
+          "sha256": "c4c6a37348adfa1d949aade96967a366a799ee1f57b17c1c35bd754dea3d9f1b",
+          "cases": [
+            {
+              "index": 10,
+              "name": "appearance profile architecture > resolves the remembered Sub Theme after resolving the effective Color Mode"
+            },
+            {
+              "index": 11,
+              "name": "appearance profile architecture > resolves requested and effective Sub Themes without leaking identity into editors"
+            },
+            {
+              "index": 12,
+              "name": "appearance profile architecture > resolves system Color Mode before checking Sub Theme mode compatibility"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/themeNativeMenuBridge.test.tsx",
+          "sha256": "b18effc2320d5f2598c0661bda5c9348cd0521c2b7e1981c91a3f25d8dc65353",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native theme menu bridge > syncs safe menu metadata and handles theme-pack selection requests"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::sub_theme_catalog::tests::installed_themes_resolve_per_mode_and_paint"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::sub_theme_catalog::tests::the_theme_menu_lists_the_mode_and_checks_the_effective_theme"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::the_remembered_sub_theme_follows_the_effective_color_mode"
+        }
+      ],
+      "environment": "an installed Themes Folder catalog in memory; a test window with isolated preferences"
+    },
+    {
+      "id": "dock-icon-canonical",
+      "acceptance": "The Dock shows the channel's canonical App Image and nothing else: a development build applies the Blue-D development icon (decoded at 1024 px), internal and stable builds the product icon. No theme, light or matte Dock icon exists and no command changes it.",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/styles/appearanceArchitecture.test.ts",
+          "sha256": "c4c6a37348adfa1d949aade96967a366a799ee1f57b17c1c35bd754dea3d9f1b",
+          "cases": [
+            {
+              "index": 16,
+              "name": "appearance profile architecture > keeps the Dock icon fixed to the canonical product asset"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::app_icon::tests::channel_icon_sources_match_release_policy"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_icon::tests::embedded_dev_dock_icon_decodes_at_1024px"
+        }
+      ],
+      "environment": "macOS AppKit image decoding"
+    },
+    {
+      "id": "appearance-shared-scales",
+      "acceptance": "Compact controls and popovers share two elevations: low (0 2px 4px -2px of the theme shadow at 32%, 28% dark) and popover (0 3px 8px -4px at 64%, 36% dark); menus take the popover level, compact menus the low one, framed cards none, and the editor mode toggle and the find widget cast the low level. Markdown selection paint is the theme tint composited source-over the canvas into one opaque colour, exact for every tint alpha, so overlapping line fragments paint no seams. One bounded application scale drives every surface: Small, Medium and Large keep the product's role tables (Large: 34px controls, 16px body, 24/20/18/17/16/16 headings and the right-sidebar roles), the Header and the Right Sidebar stay aligned at every preset, meta stays below body, every size is a whole pixel, and every retired per-surface scale migrates to the one scale.",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/styles/elevationArchitecture.test.ts",
+          "sha256": "e4c377c6ae165a68463e2586741966c752411560f6f069fb0e03c6369cb38b72",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop elevation architecture > keeps compact controls and popovers on a two-level shared elevation scale"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/nativeSelectionPaint.test.ts",
+          "sha256": "8df80c7216343283276d721fac7dda73d54e0320d3ef0b2111161588ecd08c55",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native text selection paint > paints every native highlight from one opaque composite of the theme tint"
+            },
+            {
+              "index": 2,
+              "name": "native text selection paint > matches source-over for every tint alpha under CSS premultiplied color-mix"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/typography/typographyArchitecture.test.ts",
+          "sha256": "d4b8a68c03bb1cf45ab48ac709203b68bfc9e085d83fb6bf3463449cc4b8f609",
+          "cases": [
+            {
+              "index": 4,
+              "name": "typography architecture > coordinates every surface through one bounded application scale"
+            },
+            {
+              "index": 5,
+              "name": "typography architecture > keeps Header and Right Sidebar text aligned across all application presets"
+            },
+            {
+              "index": 6,
+              "name": "typography architecture > keeps every product-owned font size on the integer type scale"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/typography/typographyPresetContract.test.ts",
+          "sha256": "037913be78ffd7b2b056f523c571b109f4a22871ae5c5ac65eeaa00614c783c9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "appearance preferences > keeps the CSS typography token sets aligned with the preset contract"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::components::surface::tests::elevations_follow_the_two_level_shared_scale"
+        },
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::frame::tests::the_mode_toggle_casts_the_low_elevation"
+        },
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::tokens::tests::a_tint_over_the_canvas_is_source_over_for_every_alpha"
+        },
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::markdown::style::tests::latest_web_typography_and_selection_hold_in_every_variant"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::tests::every_preset_keeps_the_product_role_table_and_its_invariants"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::tests::medium_literals_follow_the_product_role_table"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::stored_preferences_migrate_every_legacy_shape"
+        }
+      ],
+      "environment": "theme tokens and typography tables in memory"
+    },
+    {
+      "id": "typography-font-roles",
+      "acceptance": "Typography preferences keep one font per role: the UI font is pinned to Geist Sans and legacy UI font choices are discarded; content follows the theme by default, and the legacy default font (Geist before version 3, the 'theme' id) migrates to following the theme while an explicit choice is kept; code defaults to Geist Mono and terminals to the system monospace stack; a font missing from the catalog, or one of the wrong role, resolves to that role's product font with the fallback recorded; changing the content font changes nothing else; and ids that are not catalog ids (CSS, URLs, paths) are refused before they reach the resolver.",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/typography/typographyArchitecture.test.ts",
+          "sha256": "d4b8a68c03bb1cf45ab48ac709203b68bfc9e085d83fb6bf3463449cc4b8f609",
+          "cases": [
+            {
+              "index": 2,
+              "name": "typography architecture > discards legacy UI font preferences and pins the runtime UI font to the product default"
+            },
+            {
+              "index": 3,
+              "name": "typography architecture > defaults content typography to Theme and migrates the legacy default font"
+            },
+            {
+              "index": 9,
+              "name": "typography architecture > keeps preferences source-agnostic and resolves unavailable fonts safely"
+            },
+            {
+              "index": 10,
+              "name": "typography architecture > changes one semantic role without coupling the other typography roles"
+            },
+            {
+              "index": 11,
+              "name": "typography architecture > rejects CSS-like IDs before they can reach the font resolver"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::the_product_defaults_are_geist_for_code_and_the_system_stack_for_terminals"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::stored_preferences_migrate_every_legacy_shape"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::unknown_or_wrong_role_fonts_fall_back_to_the_product_font_for_that_role"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::stored_selections_normalize_like_the_product"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::the_selection_round_trips_in_the_product_shape"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::font_ids_follow_the_catalog_pattern"
+        }
+      ],
+      "environment": "typography preferences in memory"
+    },
+    {
+      "id": "appearance-settings-surface",
+      "acceptance": "Settings → Appearance as the window shows it: Show file icons is always offered, and hiding file icons hides only file glyphs while file names and folder rows keep their place (the slot stays for alignment) and the setting survives a reload; the File icons choice appears only once a second icon theme is registered; the theme row offers the variant select, then the Themes Folder and New Theme actions as named buttons.",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/icons/fileIconVisibility.test.ts",
+          "sha256": "8c1980ab3acdd795e4292cf5237c056995cce2dee06d767c1644061511ff5833",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Appearance → Show file icons > hides only file glyphs, never folder chevrons, and keeps the slot for alignment"
+            },
+            {
+              "index": 2,
+              "name": "Appearance → Show file icons > offers the File icons choice in Appearance only once a second theme is registered"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/themeSettings.test.tsx",
+          "sha256": "a8d258447554cf61c9c6c1a5a34edc19b1be1696e5017e87ff469b49fb31fc52",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Sub Theme settings > offers root-compatible visual variants without editor implementation controls"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::hidden_file_icons_keep_the_slot_and_leave_folder_disclosures"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::the_appearance_page_offers_icon_and_theme_choices_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preference_types::tests::hidden_file_icons_survive_preference_reload"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::tests::new_themes_are_numbered_selectable_and_complete"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::new_themes_are_revealed_and_the_folder_is_exactly_the_data_directorys"
+        }
+      ],
+      "environment": "a test window with isolated preferences"
+    },
+    {
+      "id": "builtin-theme-surfaces",
+      "acceptance": "Neutral is the fallback: its opaque canvas literals (#fafafa light, #161616 dark) give a window's first paint and its light header and sidebar are #ebebeb, while Warm is a package of its own (#fbfaf7 panel, #f1eee8 header and sidebar). Every built-in package is self-describing and declares only public tokens: no host projections, no private editor selectors. Public Markdown and CSV tokens, the complete syntax palette included, reach the editors through the host document. GitHub and Newspaper declare all ten syntax roles in both modes, Neutral's twenty syntax colours are achromatic, every syntax colour of Neutral, GitHub and Newspaper keeps 4.5:1 over its code block, and no package brings its own fonts (fonts cannot be injected directly or through an import).",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/themes/interfaceStyleSources.test.ts",
+          "sha256": "04915d338d4a53758a3e75e989fdc1099d5958337d16df198e893c987cbea79d",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Interface style registry > keeps the native window underlay on the generated first-paint contract"
+            },
+            {
+              "index": 2,
+              "name": "Interface style registry > uses Neutral as the attribute-free fallback and packages Warm independently"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/themeSurfaceArchitecture.test.ts",
+          "sha256": "0059e0d65143fb3bc2dfd5953832f18a834741b575c37fda9ad19e5a77b8390f",
+          "cases": [
+            {
+              "index": 1,
+              "name": "appearance surface boundary > projects product styles through public host tokens consumed by editor-owned CSS"
+            },
+            {
+              "index": 2,
+              "name": "appearance surface boundary > projects the complete Markdown syntax palette through public host tokens"
+            },
+            {
+              "index": 4,
+              "name": "appearance surface boundary > loads built-in Sub Theme CSS through the runtime host without private editor selectors"
+            },
+            {
+              "index": 5,
+              "name": "appearance surface boundary > gives Markdown-focused built-in themes a complete syntax palette in both modes"
+            },
+            {
+              "index": 6,
+              "name": "appearance surface boundary > keeps the Neutral Markdown syntax palette complete and achromatic"
+            },
+            {
+              "index": 7,
+              "name": "appearance surface boundary > keeps every Markdown-focused syntax color at accessible text contrast"
+            },
+            {
+              "index": 8,
+              "name": "appearance surface boundary > keeps product fonts outside the untrusted Sub Theme CSS contract"
+            },
+            {
+              "index": 9,
+              "name": "appearance surface boundary > authors built-ins as self-describing public-token packages"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::neutral_is_the_fallback_and_warm_a_package_of_its_own"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::markdown_syntax_palettes_are_complete_readable_and_bring_no_fonts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::every_package_is_one_self_describing_theme_in_its_place"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::every_package_declares_every_markdown_role"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::compiler::tests::the_token_lists_match_the_product"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::document::tests::neutral_changes_nothing_and_packs_change_their_tokens"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::document::tests::csv_tokens_follow_the_application_through_the_product_defaults"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::fonts_cannot_be_injected_directly_or_through_an_import"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::a_new_window_keeps_the_persisted_appearance"
+        }
+      ],
+      "environment": "the shipped theme sources; a test window with persisted preferences"
+    },
+    {
+      "id": "agent-chat-history-ownership",
+      "acceptance": "PuppyOne persists only bounded routing metadata and pointers to each Agent's native session across restarts, never the conversation itself: recovery events stay redacted, bounded and in memory, a new process restores no conversation, and the legacy durable chat journal is removed and never recreated. A provider retry is live connection state shown while the turn runs (a tool can progress meanwhile) and cleared when the turn completes; it is never written into the transcript history.",
+      "typescript": [
+        {
+          "path": "tests/architecture/agent/sessions/desktop-agent.architecture.test.ts",
+          "sha256": "c9e1923066238fbe8bb1a244f65731bdc332f82e8aaadd9b4142c47b68d3b1bd",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop Agent architecture boundaries > persists routing and native-session metadata, never PuppyOne Chat History"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Agent architecture boundaries > models provider recovery as replaceable live state rather than transcript history"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::persistence::tests::persists_only_bounded_routing_metadata_and_native_session_pointers_across_restarts"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::cache::tests::keeps_bounded_redacted_recovery_events_in_memory_only"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::cache::tests::does_not_restore_conversations_in_a_new_application_process_cache"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::cache::tests::removes_the_legacy_durable_chat_journal_and_never_recreates_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::session_feed::keeps_a_model_retry_while_a_tool_progresses_and_clears_it_on_completion"
+        }
+      ],
+      "environment": "a temporary Agent data directory; an in-process session feed"
     }
   ],
   "openAcceptance": [
@@ -22912,6 +23408,16 @@
               "name": "desktop credential store > fails closed when Linux safeStorage selected basic_text"
             }
           ]
+        },
+        {
+          "path": "tests/architecture/appearance/typography/titlebarTypographyArchitecture.test.ts",
+          "sha256": "2bf4d980fa8a8fc53f65f05266139eb42b1f367bf50cb08527f8785f875168a7",
+          "cases": [
+            {
+              "index": 6,
+              "name": "titlebar typography architecture > continues native Windows caption-button geometry through the app actions"
+            }
+          ]
         }
       ]
     },
@@ -23248,6 +23754,16 @@
               "name": "renderer output lifetime > releases the build lease after a compile failure"
             }
           ]
+        },
+        {
+          "path": "tests/architecture/appearance/styles/appearanceArchitecture.test.ts",
+          "sha256": "c4c6a37348adfa1d949aade96967a366a799ee1f57b17c1c35bd754dea3d9f1b",
+          "cases": [
+            {
+              "index": 18,
+              "name": "appearance profile architecture > gates the representative visual matrix in CI"
+            }
+          ]
         }
       ]
     },
@@ -23336,7 +23852,7 @@
     {
       "id": "electron-ipc-sender-authorization",
       "kind": "out-of-scope",
-      "reason": "These check the Electron main process against its renderers: roots and session ids a renderer supplies, sender-owned capabilities and cancellations, and recent paths a renderer asks to open. The native app is one process with no renderer; each window's workspace, terminals and viewers hold their own authority, so there is no sender to spoof (process model recorded as an intentional difference).",
+      "reason": "These check the Electron main process against its renderers: roots and session ids a renderer supplies, sender-owned capabilities and cancellations, recent paths a renderer asks to open, and the preload bridges that decide which commands and snapshots a renderer may use. The native app is one process with no renderer; each window's workspace, terminals, viewers and theme service hold their own authority and are called directly, so there is no sender to spoof (process model recorded as an intentional difference).",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
       "typescript": [
         {
@@ -23402,6 +23918,34 @@
             {
               "index": 2,
               "name": "workspace folder drop preload boundary > exposes location grants and narrow create/import requests without accepting a renderer path"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/themePreloadArchitecture.test.mjs",
+          "sha256": "40f766bbb0e94d26bbcc73772bac79cb7e2ca051c26411b08255521e8cf56952",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSS theme host bridge architecture > exposes only pathless catalog and directory commands"
+            },
+            {
+              "index": 1,
+              "name": "CSS theme host bridge architecture > registers one host-owned service through trusted IPC"
+            },
+            {
+              "index": 2,
+              "name": "CSS theme host bridge architecture > declares immutable renderer theme snapshots"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/agent/security/electron.agent-preload.test.mjs",
+          "sha256": "0cb939eae3fa6b5263141aa1533ad232981511843cb45c5bc56815c4c9b67ce1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent preload boundary > exposes the versioned feed and routes user intent through one command channel"
             }
           ]
         }
@@ -24512,6 +25056,542 @@
             {
               "index": 0,
               "name": "starts the actual standalone server, checks login once, and tears down only owned services"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "windows-xp-interface-style",
+      "kind": "gap",
+      "reason": "TS v0.4.4 Settings → Appearance → Interface Style offers Default and Windows XP (InterfaceStyleSetting lists every style of the interface-style manifest). Windows XP loads the Luna skin as modules in its own cascade layer and applies the style's policies: Light mode forced, navigation kept in the footer with a workspace path location bar, classic scrollbars with arrow buttons inside the owner pane, the XP file artwork in the Explorer (the database cylinder kept visible), and editor projections through public surface tokens. The native frontend implements only the Default style: the Interface Style row offers Default alone (src/features/settings/main/appearance_settings_view.rs), it has no style policy layer, a stored windows-xp style imports as Default with the Neutral Sub Theme, and the shipped Windows XP Luna Blue Sub Theme cannot be chosen under the Default root.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/settings/pages/appearance.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/styles/appearanceArchitecture.test.ts",
+          "sha256": "c4c6a37348adfa1d949aade96967a366a799ee1f57b17c1c35bd754dea3d9f1b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "appearance profile architecture > keeps navigation in the bottom footer for every interface style"
+            },
+            {
+              "index": 1,
+              "name": "appearance profile architecture > keeps allow policies editable while rejecting values outside the curated set"
+            },
+            {
+              "index": 2,
+              "name": "appearance profile architecture > describes resolved Style profiles without a runtime Style × Viewer route table"
+            },
+            {
+              "index": 3,
+              "name": "appearance profile architecture > makes Interface Style the only owner of Editor presentation"
+            },
+            {
+              "index": 17,
+              "name": "appearance profile architecture > loads the XP pack as modules in the dedicated cascade layer"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/interfaceStyleSources.test.ts",
+          "sha256": "04915d338d4a53758a3e75e989fdc1099d5958337d16df198e893c987cbea79d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Interface style registry > keeps the database cylinder visible instead of covering it with XP generic file artwork"
+            },
+            {
+              "index": 3,
+              "name": "Interface style registry > generates deterministic skin imports and enforces one shared component contract"
+            },
+            {
+              "index": 4,
+              "name": "Interface style registry > retains the historically specific XP treatment"
+            },
+            {
+              "index": 5,
+              "name": "Interface style registry > keeps Luna paint authentic and delegates structure to the profile"
+            },
+            {
+              "index": 6,
+              "name": "Interface style registry > keeps historical scrollbar geometry and arrow buttons style-dependent"
+            },
+            {
+              "index": 7,
+              "name": "Interface style registry > has a translated label for every registered style"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/styles/rendererStyleArchitecture.test.ts",
+          "sha256": "76e8159606e8e03458148000afd72deddcf61cf1298704161860f1e359844e19",
+          "cases": [
+            {
+              "index": 1,
+              "name": "renderer style architecture > keeps Viewer editor authority above runtime CSS without coupling it to a Style profile"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/styles/scrollbarArchitecture.test.ts",
+          "sha256": "629155fe0bf76ebd7b9c3d35a61e8bf716079734ba2ab6f4684782d75a57d365",
+          "cases": [
+            {
+              "index": 4,
+              "name": "scrollbar architecture > keeps arrow controls inside the owner pane instead of a viewport overlay"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-source-architecture",
+      "kind": "out-of-scope",
+      "reason": "These read the TypeScript, Electron or build sources as text and assert how that repository is organised: which module imports or registers what, where an identifier may or may not appear, which file owns a rule or a drawing, how stylesheets are layered and imported, and what the development orchestrator watches. They describe the TS codebase, not behaviour a person can observe beyond what the behavioural rows test. The native frontend is a different codebase whose organisation is enforced by Rust module privacy, its crate split, tools/check-ui-boundaries.py and strict clippy; the behaviour these rules protect is mapped to native tests in the behavioural rows (for appearance: theme packages, Sub Theme resolution, typography roles, selection paint, elevation, file icons).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/styles/appearanceArchitecture.test.ts",
+          "sha256": "c4c6a37348adfa1d949aade96967a366a799ee1f57b17c1c35bd754dea3d9f1b",
+          "cases": [
+            {
+              "index": 14,
+              "name": "appearance profile architecture > keeps Settings and Shell on the shared resolver rather than Style-ID branches"
+            },
+            {
+              "index": 19,
+              "name": "appearance profile architecture > restarts the dev renderer when a Style Pack import graph changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/icons/fileIconVisibility.test.ts",
+          "sha256": "8c1980ab3acdd795e4292cf5237c056995cce2dee06d767c1644061511ff5833",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Appearance → Show file icons > ships with the shared UI styles"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/icons/productIconArchitecture.test.ts",
+          "sha256": "4ecf26a5b8baa83bd661cd31bbe599d8b9936fae0b7f00f018b4eaf29c34100c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "product icon architecture > asks the registry for home, folder, local and Cloud meanings instead of importing drawings"
+            },
+            {
+              "index": 1,
+              "name": "product icon architecture > draws every in-place expand arrow with the registry's DisclosureIcon"
+            },
+            {
+              "index": 2,
+              "name": "product icon architecture > keeps one Home drawing, owned by the registry"
+            },
+            {
+              "index": 3,
+              "name": "product icon architecture > keeps one Cloud drawing, owned by the registry"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/styles/rendererStyleArchitecture.test.ts",
+          "sha256": "76e8159606e8e03458148000afd72deddcf61cf1298704161860f1e359844e19",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer style architecture > keeps one deterministic cascade and one renderer reset owner"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/nativeSelectionPaint.test.ts",
+          "sha256": "8df80c7216343283276d721fac7dda73d54e0320d3ef0b2111161588ecd08c55",
+          "cases": [
+            {
+              "index": 1,
+              "name": "native text selection paint > keeps the composite and native selection paint out of feature stylesheets"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/styles/scrollbarArchitecture.test.ts",
+          "sha256": "629155fe0bf76ebd7b9c3d35a61e8bf716079734ba2ab6f4684782d75a57d365",
+          "cases": [
+            {
+              "index": 3,
+              "name": "scrollbar architecture > shares one presentation color and explicit owner state across surfaces"
+            },
+            {
+              "index": 5,
+              "name": "scrollbar architecture > restricts scrollbar pseudo-elements to the primitive, skins, and xterm adapter"
+            },
+            {
+              "index": 6,
+              "name": "scrollbar architecture > keeps registered owner variants inside the public contract"
+            },
+            {
+              "index": 8,
+              "name": "scrollbar architecture > requires every vertical SidebarResizeHandle to opt into the pane-edge contract"
+            },
+            {
+              "index": 10,
+              "name": "scrollbar architecture > keeps Git History out of the changes-pane resize stack"
+            },
+            {
+              "index": 12,
+              "name": "scrollbar architecture > registers structured and horizontal editor scroll owners without local paint rules"
+            },
+            {
+              "index": 13,
+              "name": "scrollbar architecture > does not opt any app stylesheet back into platform-native scrollbar rendering"
+            },
+            {
+              "index": 14,
+              "name": "scrollbar architecture > does not reset modern thumb clipping with the background shorthand"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/themeSurfaceArchitecture.test.ts",
+          "sha256": "0059e0d65143fb3bc2dfd5953832f18a834741b575c37fda9ad19e5a77b8390f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "appearance surface boundary > keeps Root/Sub Theme identity in the product shell and out of shared editors"
+            },
+            {
+              "index": 3,
+              "name": "appearance surface boundary > keeps renderer adapters free of a competing Markdown palette or font defaults"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/themes/themeSettings.test.tsx",
+          "sha256": "a8d258447554cf61c9c6c1a5a34edc19b1be1696e5017e87ff469b49fb31fc52",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Sub Theme settings > wires the catalog and preferences through the settings surface"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/typography/typographyArchitecture.test.ts",
+          "sha256": "d4b8a68c03bb1cf45ab48ac709203b68bfc9e085d83fb6bf3463449cc4b8f609",
+          "cases": [
+            {
+              "index": 7,
+              "name": "typography architecture > owns scaled control geometry at the shared design-token boundary"
+            },
+            {
+              "index": 8,
+              "name": "typography architecture > keeps Right sidebar text sizes behind semantic typography roles"
+            },
+            {
+              "index": 12,
+              "name": "typography architecture > binds content surfaces and metric-sensitive consumers to semantic contracts"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/agent/activity/agentActivityArchitecture.test.ts",
+          "sha256": "46811f65430cdb856880592212a7aa66bf8a430c3a30846893520106e6e779b9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent activity architecture boundaries > keeps the small presence module flat, including its styles"
+            },
+            {
+              "index": 1,
+              "name": "Agent activity architecture boundaries > keeps provider payloads outside shared and Renderer code"
+            },
+            {
+              "index": 2,
+              "name": "Agent activity architecture boundaries > keeps Editor and Explorer coupled only to the public presence feature"
+            },
+            {
+              "index": 3,
+              "name": "Agent activity architecture boundaries > keeps concrete providers in the Terminal adapter composition root"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/agent/runtimes/pi/electron.pi-plugin-architecture.test.mjs",
+          "sha256": "f1b51428065693e21e93a21a6dead8d0de414051c5a5c960dfc66d1582a30b42",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Pi RuntimeDefinition plug-in architecture > keeps user Pi policy thin over the shared Pi RPC protocol layer"
+            },
+            {
+              "index": 1,
+              "name": "Pi RuntimeDefinition plug-in architecture > allows concrete Pi construction only at the production composition edge"
+            },
+            {
+              "index": 2,
+              "name": "Pi RuntimeDefinition plug-in architecture > keeps shared Renderer behavior capability-driven and Pi UI work limited to composition identity"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/agent/sessions/desktop-agent.architecture.test.ts",
+          "sha256": "c9e1923066238fbe8bb1a244f65731bdc332f82e8aaadd9b4142c47b68d3b1bd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent architecture boundaries > composes Chat Items through the project and keeps the controller framework independent"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent architecture boundaries > enforces virtual, responsive, safe presentation contracts"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent architecture boundaries > keeps product-critical Agent performance scenarios in the benchmark suite"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent architecture boundaries > keeps application behind an explicit client port and Electron access in the composition adapter"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent architecture boundaries > separates History queries, prepared-session ownership, and optional Harness History operations"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent architecture boundaries > keeps native transport internals out of Renderer"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent architecture boundaries > uses one terminal lifecycle authority and a provider-neutral semantic Renderer registry"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Agent architecture boundaries > keeps Core backend-neutral and concrete backends in the single production composition root"
+            },
+            {
+              "index": 10,
+              "name": "Desktop Agent architecture boundaries > keeps ACP generic, Cursor extensions isolated and native starts supervised"
+            },
+            {
+              "index": 11,
+              "name": "Desktop Agent architecture boundaries > keeps ACP lifecycle generic and user-owned OpenCode selection explicit"
+            },
+            {
+              "index": 12,
+              "name": "Desktop Agent architecture boundaries > keeps local executable inventory main-owned, lazy and separate from OpenCode provider authority"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-stylesheet-visual-contracts",
+      "kind": "out-of-scope",
+      "reason": "These assert the declarations of particular CSS rules (a selector's shadow, gap, grid columns, weight, colour, scrollbar pseudo-elements, resize-lane widths) by reading the TS stylesheets as text. The native frontend has no stylesheet or cascade to read: each GPUI component sets its geometry and paint directly, with values ported from the cited TS rule, and visual parity is reviewed by capturing both products and comparing the captures (tools/capture-*.py, tools/compare.py, tools/compare-native-geometry.py) rather than by text assertions. Rules that carry product meaning beyond one selector have native tests in their rows: the elevation scale, the opaque selection paint, the typography role tables and the file-icon slot.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/appearance/styles/elevationArchitecture.test.ts",
+          "sha256": "e4c377c6ae165a68463e2586741966c752411560f6f069fb0e03c6369cb38b72",
+          "cases": [
+            {
+              "index": 1,
+              "name": "desktop elevation architecture > does not give chrome controls their own ambient shadow"
+            },
+            {
+              "index": 2,
+              "name": "desktop elevation architecture > routes small floating UI through the shared low or popover elevations"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/styles/scrollbarArchitecture.test.ts",
+          "sha256": "629155fe0bf76ebd7b9c3d35a61e8bf716079734ba2ab6f4684782d75a57d365",
+          "cases": [
+            {
+              "index": 0,
+              "name": "scrollbar architecture > defines one opt-in product scrollbar primitive in the primitives layer"
+            },
+            {
+              "index": 1,
+              "name": "scrollbar architecture > supports persistent overflow discoverability without changing default or system owners"
+            },
+            {
+              "index": 2,
+              "name": "scrollbar architecture > supports hidden scrollbars through the shared contract"
+            },
+            {
+              "index": 7,
+              "name": "scrollbar architecture > defines one collision-safe pane-edge resize lane"
+            },
+            {
+              "index": 9,
+              "name": "scrollbar architecture > overlays the Data sash on one shared Sidebar and Editor boundary"
+            },
+            {
+              "index": 11,
+              "name": "scrollbar architecture > keeps the auxiliary resizer on the panel side of the Markdown scroll lane"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/typography/titlebarTypographyArchitecture.test.ts",
+          "sha256": "2bf4d980fa8a8fc53f65f05266139eb42b1f367bf50cb08527f8785f875168a7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "titlebar typography architecture > keeps Git counts neutral while using restrained semantic colors on status icons"
+            },
+            {
+              "index": 1,
+              "name": "titlebar typography architecture > keeps the theme's Header for Cloud projects instead of tinting it"
+            },
+            {
+              "index": 2,
+              "name": "titlebar typography architecture > draws the Header's Cloud place mark in product blue and leaves the project mark in text ink"
+            },
+            {
+              "index": 3,
+              "name": "titlebar typography architecture > does not paint a Cloud frame around the workspace"
+            },
+            {
+              "index": 4,
+              "name": "titlebar typography architecture > keeps the titlebar divider inside the native window edge"
+            },
+            {
+              "index": 5,
+              "name": "titlebar typography architecture > matches titlebar context weight to ordinary sidebar elements"
+            },
+            {
+              "index": 7,
+              "name": "titlebar typography architecture > uses the compact titlebar height without shrinking shared sidebar controls"
+            },
+            {
+              "index": 8,
+              "name": "titlebar typography architecture > keeps the unified Agent entry at the compact tool width"
+            },
+            {
+              "index": 9,
+              "name": "titlebar typography architecture > matches the collapsed explorer action to the rectangular tool target"
+            },
+            {
+              "index": 10,
+              "name": "titlebar typography architecture > binds .desktop-titlebar-context-name to the platform-aware titlebar context tokens"
+            },
+            {
+              "index": 11,
+              "name": "titlebar typography architecture > binds .desktop-titlebar-workspace-name to the platform-aware titlebar context tokens"
+            },
+            {
+              "index": 12,
+              "name": "titlebar typography architecture > binds .desktop-titlebar-branch-button span to the platform-aware titlebar context tokens"
+            },
+            {
+              "index": 13,
+              "name": "titlebar typography architecture > keeps the folder trigger quiet with no location control beside it"
+            },
+            {
+              "index": 14,
+              "name": "titlebar typography architecture > keeps Header spacing invariant while the window crosses compact widths"
+            },
+            {
+              "index": 15,
+              "name": "titlebar typography architecture > keeps branch-menu metadata quiet without introducing new type sizes"
+            },
+            {
+              "index": 16,
+              "name": "titlebar typography architecture > uses explicit Header columns and deterministic context compression"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/appearance/typography/typographyArchitecture.test.ts",
+          "sha256": "d4b8a68c03bb1cf45ab48ac709203b68bfc9e085d83fb6bf3463449cc4b8f609",
+          "cases": [
+            {
+              "index": 0,
+              "name": "typography architecture > shares regular-weight content typography between discovery feedback and launcher labels"
+            },
+            {
+              "index": 1,
+              "name": "typography architecture > rebinds scale-derived control geometry at each appearance boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/agent/transcript/desktop-agent.chrome-visual-contract.test.ts",
+          "sha256": "82765a83508f015f37864eacdedec01642a7dc9ed74f23ee1102984b35023fa1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent and Terminal chrome visual contract > shows launcher content immediately while retaining tab and busy-state motion"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent and Terminal chrome visual contract > keeps the in-chat runtime chooser compact and free of global history navigation"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent and Terminal chrome visual contract > keeps Terminal in the local group and history in its heading"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent and Terminal chrome visual contract > uses shared tab typography and control geometry for Agent and Terminal"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent and Terminal chrome visual contract > shares row spacing and geometry without merging discovery and bundled busy semantics"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/agent/transcript/desktop-agent.sidebar-visual-contract.test.ts",
+          "sha256": "65f038dd7b934e11cb3cafb9b9bf2ea3095de31cf73feae7f2d4f64559cfb3e1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent sidebar visual contract > keeps user prompts as full-width rows and Agent replies in document flow"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent sidebar visual contract > keeps chrome in flow and gives the composer explicit control sizing"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent sidebar visual contract > uses the same quiet divider as the left sidebar edge"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent sidebar visual contract > matches Agent Chat type to the Left sidebar while preserving reading and code roles"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent sidebar visual contract > uses one centered product loader for startup without a duplicate status loader"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent sidebar visual contract > reads each native tool as one quiet step line: glyph, verb, object, outcome"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent sidebar visual contract > uses a quiet finite attention treatment for approval decisions"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Agent sidebar visual contract > retains bounded overflow and explicit responsive contracts"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent sidebar visual contract > keeps fenced results compact with a visible language and quiet Copy action"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Agent sidebar visual contract > renders file mentions as quiet accent-colored atomic references without a drag overlay"
             }
           ]
         }

@@ -135,13 +135,7 @@ impl Render for FindBar {
                 })
         };
         // `--po-elevation-low`.
-        let shadow = BoxShadow {
-            color: theme::alpha(t_.shadow, 0.28).into(),
-            offset: point(px(0.), px(2.)),
-            blur_radius: px(4.),
-            spread_radius: px(-2.),
-            inset: false,
-        };
+        let shadow = theme::elevation_low(&t_);
         // `:focus-within` strengthens the border.
         let focused = self
             .input

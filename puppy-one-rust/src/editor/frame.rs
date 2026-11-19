@@ -22,7 +22,8 @@ impl FrameTheme {
     /// the translucent control fill is composited onto the surface first.
     pub fn resolve(dark: bool, scale: Scale, surface: Rgba) -> Self {
         let t = Tokens::csv(dark, scale);
-        // `--po-elevation-low`: 0 2px 4px -2px of the shadow colour at 28%.
+        // `--po-elevation-low`: 0 2px 4px -2px of the shadow colour at 32%
+        // (28% dark).
         let shadow = t.color("--po-shadow");
         Self {
             border: t.color("--po-border"),
@@ -32,7 +33,7 @@ impl FrameTheme {
             active_color: t.color("--po-text"),
             button_height: t.len("--po-control-size-tight", 16.),
             shadow: Rgba {
-                a: shadow.a * 0.28,
+                a: shadow.a * if dark { 0.28 } else { 0.32 },
                 ..shadow
             },
         }
@@ -100,4 +101,24 @@ pub fn mode_toggle(
             button("editor-mode-source", "editor-mode-source", !live)
                 .on_click(move |_, w, cx| on_source(w, cx)),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    /// `.editor-mode-toggle`: `var(--po-surface-editor-mode-shadow,
+    /// var(--po-elevation-low))`, the shadow colour at 32% (28% dark).
+    #[test]
+    fn the_mode_toggle_casts_the_low_elevation() {
+        for dark in [false, true] {
+            let shadow = Tokens::csv(dark, Scale::Medium).color("--po-shadow");
+            let surface = Tokens::csv(dark, Scale::Medium).color("--po-csv-surface-background");
+            let cast = FrameTheme::resolve(dark, Scale::Medium, surface).shadow;
+            let strength = if dark { 0.28 } else { 0.32 };
+            assert!((cast.a - shadow.a * strength).abs() < 1e-4, "{dark}");
+            assert_eq!((cast.r, cast.g, cast.b), (shadow.r, shadow.g, shadow.b));
+        }
+    }
 }

@@ -172,9 +172,11 @@ impl Explorer {
         } else {
             // The TS visibility rule keeps the icon slot and only hides its glyph.
             row.leading(
-                div().when(self.preferences.read(cx).state.show_file_icons, |d| {
-                    d.child(FileIcon::file(item.name.clone(), icon_theme))
-                }),
+                div()
+                    .debug_selector(|| format!("tree-row-glyph:{}", item.path.display()))
+                    .when(self.preferences.read(cx).state.show_file_icons, |d| {
+                        d.child(FileIcon::file(item.name.clone(), icon_theme))
+                    }),
             )
         };
         // Indent guides through the row's 1px margins.
@@ -194,6 +196,7 @@ impl Explorer {
         }));
         row.child(
             div()
+                .debug_selector(|| format!("tree-row-name:{}", item.path.display()))
                 .flex()
                 .flex_1()
                 .min_w_0()

@@ -76,6 +76,38 @@ fn metadata(text: &str) -> HashMap<String, String> {
         .into_iter()
         .collect()
 }
+/// WCAG contrast of two `#rrggbb` colours.
+fn contrast(a: &str, b: &str) -> f64 {
+    let luminance = |hex: &str| {
+        let channel = |at: usize| {
+            let c = u8::from_str_radix(&hex[at..at + 2], 16).unwrap() as f64 / 255.;
+            if c <= 0.04045 {
+                c / 12.92
+            } else {
+                ((c + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+    };
+    let (a, b) = (luminance(a), luminance(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+/// Every `#rrggbb` literal declared for a property starting with `prefix`,
+/// in source order (light before dark).
+fn hex_values(text: &str, prefix: &str) -> Vec<String> {
+    text.match_indices(prefix)
+        .filter_map(|(at, _)| {
+            let rest = &text[at + prefix.len()..];
+            let name = rest
+                .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+                .unwrap_or(rest.len());
+            let value = rest[name..].strip_prefix(':')?.trim_start();
+            let hex = value.get(..7)?;
+            (hex.starts_with('#') && hex[1..].chars().all(|c| c.is_ascii_hexdigit()))
+                .then(|| hex.to_ascii_lowercase())
+        })
+        .collect()
+}
 /// A theme's own Dark declarations.
 fn dark(name: &str) -> HashMap<String, String> {
     palette::application_blocks(source(name))
@@ -99,6 +131,16 @@ fn every_package_is_one_self_describing_theme_in_its_place() {
     assert_eq!(files, expected);
     let mut order = Vec::new();
     for (name, text) in PACKAGES {
+        // Public tokens only: no host projections or private editor selectors.
+        assert!(text.contains("@puppyone-theme"), "{name}");
+        for private in [
+            "--po-host-",
+            ".cm-",
+            ".markdown-codemirror-editor",
+            ".csv-table-editor",
+        ] {
+            assert!(!text.contains(private), "{name}: {private}");
+        }
         let meta = metadata(text);
         let id = &meta["id"];
         assert_eq!(id.replace('.', "-"), name);
@@ -240,22 +282,80 @@ fn graphite_dark_text_and_syntax_stay_readable() {
     let mut both = light;
     both.extend(dark);
     let projected = palette::project(&both, true);
-    let luminance = |hex: &str| {
-        let channel = |at: usize| {
-            let c = u8::from_str_radix(&hex[at..at + 2], 16).unwrap() as f64 / 255.;
-            if c <= 0.04045 {
-                c / 12.92
-            } else {
-                ((c + 0.055) / 1.055).powf(2.4)
-            }
-        };
-        0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
-    };
-    let contrast = |a: &str, b: &str| {
-        let (a, b) = (luminance(a), luminance(b));
-        (a.max(b) + 0.05) / (a.min(b) + 0.05)
-    };
     let canvas = &projected["canvas"];
     assert!(contrast(&projected["text"], canvas) >= 7.);
     assert!(contrast(&projected["text-muted"], canvas) >= 4.5);
+}
+
+/// `interfaceStyleSources`: Neutral is the attribute-free fallback whose
+/// opaque canvas literals give the first paint, and Warm is a package of its
+/// own rather than a preset inside the shared tokens.
+#[test]
+fn neutral_is_the_fallback_and_warm_a_package_of_its_own() {
+    let light = |name: &str| -> HashMap<String, String> {
+        palette::application_blocks(source(name))
+            .0
+            .into_iter()
+            .collect()
+    };
+    let neutral = light("default-neutral");
+    for (token, value) in [
+        ("--po-surface-panel", "#fafafa"),
+        ("--po-canvas", "#fafafa"),
+        ("--po-header", "#ebebeb"),
+        ("--po-sidebar", "#ebebeb"),
+    ] {
+        assert_eq!(neutral[token], value, "{token}");
+    }
+    assert_eq!(dark("default-neutral")["--po-surface-canvas"], "#161616");
+    let warm = light("default-warm");
+    for (token, value) in [
+        ("--po-surface-panel", "#fbfaf7"),
+        ("--po-header", "#f1eee8"),
+        ("--po-sidebar", "#f1eee8"),
+    ] {
+        assert_eq!(warm[token], value, "{token}");
+    }
+    assert_eq!(metadata(source("default-warm"))["id"], "default.warm");
+}
+
+/// `themeSurfaceArchitecture`: the Markdown-focused built-ins carry a complete
+/// syntax palette in both modes, Neutral's is achromatic, every syntax colour
+/// keeps 4.5:1 over its code block, and no package brings its own fonts.
+#[test]
+fn markdown_syntax_palettes_are_complete_readable_and_bring_no_fonts() {
+    let roles = [
+        "keyword", "string", "comment", "constant", "special", "type", "function", "property",
+        "operator", "meta",
+    ];
+    for name in ["default-github", "default-newspaper"] {
+        let text = source(name);
+        for role in roles {
+            let declared = format!("--po-md-syntax-{role}:");
+            assert_eq!(text.matches(declared.as_str()).count(), 2, "{name}: {role}");
+        }
+        assert!(!text.contains("@font-face"), "{name}");
+    }
+    let neutral = hex_values(source("default-neutral"), "--po-md-syntax-");
+    assert_eq!(neutral.len(), 20);
+    for color in &neutral {
+        assert!(
+            color[1..3] == color[3..5] && color[3..5] == color[5..7],
+            "{color}"
+        );
+    }
+    for name in ["default-neutral", "default-github", "default-newspaper"] {
+        let text = source(name);
+        let backgrounds = hex_values(text, "--po-md-code-block-background");
+        let syntax = hex_values(text, "--po-md-syntax-");
+        assert_eq!((backgrounds.len(), syntax.len()), (2, 20), "{name}");
+        for (mode, background) in backgrounds.iter().enumerate() {
+            for color in &syntax[mode * 10..mode * 10 + 10] {
+                assert!(
+                    contrast(background, color) >= 4.5,
+                    "{name}: {color} on {background}"
+                );
+            }
+        }
+    }
 }
