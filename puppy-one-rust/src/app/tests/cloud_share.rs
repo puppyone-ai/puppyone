@@ -485,9 +485,9 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_keeps_readings_through_
     });
 }
 
-/// ST-1/ST-2, MB-1, AP-1: Settings manages the account's own space: the
-/// Space group lists Members and Plan under its name, Members reads the
-/// space's people for its owner, and Account reads the space's plan.
+/// ST-1/ST-2, MB-1: Settings manages the account's own space as Personal:
+/// its Account and Plan, never Space settings, and its Members because
+/// someone else is already in it (read without opening Members).
 #[gpui::test]
 fn settings_manage_one_space_its_members_and_its_plan(cx: &mut TestAppContext) {
     use crate::features::settings::Page;
@@ -495,9 +495,10 @@ fn settings_manage_one_space_its_members_and_its_plan(cx: &mut TestAppContext) {
     let (_view, cx, settings) = plan_window(cx, responder);
     settings.read_with(cx, |s, cx| {
         assert_eq!(s.settings_space(cx).map(|s| s.id), Some("org-1".to_owned()));
-        assert!(s.page_available(Page::Space, cx));
+        assert!(s.page_available(Page::Account, cx));
+        assert!(s.page_available(Page::Plan, cx));
+        assert!(!s.page_available(Page::SpaceSettings, cx));
     });
-    settings.update(cx, |s, cx| s.select_page(Page::Space, cx));
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     while settings.read_with(cx, |s, _| s.space_members()).is_none() {
         cx.run_until_parked();
@@ -508,15 +509,12 @@ fn settings_manage_one_space_its_members_and_its_plan(cx: &mut TestAppContext) {
         settings.read_with(cx, |s, _| s.space_members()),
         Some((2, true))
     );
+    settings.read_with(cx, |s, cx| assert!(s.page_available(Page::Space, cx)));
+    settings.update(cx, |s, cx| s.select_page(Page::Space, cx));
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    settings.update(cx, |s, cx| s.select_page(Page::Account, cx));
-    wait_for_plan(&settings, cx, |p| !p.loading && p.summary.is_some());
-    assert_eq!(
-        settings.read_with(cx, |s, cx| s.account_plan_reading(cx)),
-        Some("Personal · Team".to_owned())
-    );
+    settings.read_with(cx, |s, _| assert!(s.page_shown(Page::Space)));
 }
 
 /// `CreateTeamDialog`: a space starts from the place menu; once made, the
@@ -657,4 +655,117 @@ fn a_linked_folder_offers_no_share(cx: &mut TestAppContext) {
     assert!(!labels.contains(&share));
     draw(cx);
     assert!(cx.debug_bounds("cloud-share").is_none());
+}
+
+/// Two spaces the account is in: its own, and a team it owns.
+fn two_spaces_responder(
+    removed: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+) -> crate::cloud::auth::Responder {
+    let base = plan_responder("org-1", Default::default(), Default::default());
+    std::sync::Arc::new(
+        move |request| match (request.method.as_str(), request.path.as_str()) {
+            (_, "/organizations/") => Ok(serde_json::json!([
+            {"id": "org-1", "name": "One", "is_default": true, "role": "owner",
+                "can_manage_space": true, "can_create_projects": true},
+            {"id": "org-2", "name": "Studio", "role": "owner", "can_manage_space": true,
+                "can_create_projects": true, "billing_plan_id": "free"}])),
+            (_, "/organizations/org-2/access") => Ok(serde_json::json!({"org_id": "org-2",
+            "user_id": "u1", "role": "owner", "can_manage_billing": true})),
+            ("GET", "/organizations/org-2/members") => Ok(serde_json::json!([
+            {"user_id": "u1", "email": "owner@example.com", "role": "owner"},
+            {"user_id": "u2", "email": "mia@example.com", "role": "member"}])),
+            ("DELETE", path) => {
+                removed.lock().unwrap().push(path.to_owned());
+                Ok(serde_json::json!({}))
+            }
+            _ => base(request),
+        },
+    )
+}
+
+/// Settings by scope (Vercel's): Personal is the account and its plan; the
+/// switcher turns Settings to a team space its reader owns, which opens on
+/// its Members and lists its settings; asking for Account turns it back.
+#[gpui::test]
+fn the_scope_switcher_turns_settings_between_personal_and_a_team(cx: &mut TestAppContext) {
+    use crate::features::settings::Page;
+    let (_view, cx, settings) = plan_window(cx, two_spaces_responder(Default::default()));
+    settings.update(cx, |s, cx| s.select_page(Page::Account, cx));
+    settings.read_with(cx, |s, cx| {
+        assert_eq!(s.settings_space(cx).map(|s| s.id), Some("org-1".to_owned()));
+        assert!(s.page_shown(Page::Account));
+        assert!(s.page_available(Page::Plan, cx));
+        assert!(!s.page_available(Page::SpaceSettings, cx));
+    });
+    settings.update(cx, |s, cx| s.switch_scope_for_test("org-2", cx));
+    settings.read_with(cx, |s, cx| {
+        assert_eq!(s.settings_space(cx).map(|s| s.id), Some("org-2".to_owned()));
+        // Account is Personal's, so the team opens on its first page.
+        assert!(s.page_shown(Page::Space));
+        assert!(!s.page_available(Page::Account, cx));
+        assert!(s.page_available(Page::SpaceSettings, cx));
+    });
+    // Plan stays Plan across the switch: the same page of the other space.
+    settings.update(cx, |s, cx| s.select_page(Page::Plan, cx));
+    settings.update(cx, |s, cx| s.switch_scope_for_test("org-1", cx));
+    settings.read_with(cx, |s, cx| {
+        assert_eq!(s.settings_space(cx).map(|s| s.id), Some("org-1".to_owned()));
+        assert!(s.page_shown(Page::Plan));
+    });
+    settings.update(cx, |s, cx| s.switch_scope_for_test("org-2", cx));
+    settings.update(cx, |s, cx| s.select_page(Page::Account, cx));
+    settings.read_with(cx, |s, cx| {
+        assert_eq!(s.settings_space(cx).map(|s| s.id), Some("org-1".to_owned()));
+        assert!(s.page_shown(Page::Account));
+    });
+}
+
+/// The switcher's Create space closes Settings for the window's dialog.
+#[gpui::test]
+fn creating_a_space_from_settings_opens_the_windows_dialog(cx: &mut TestAppContext) {
+    let (view, cx, settings) = plan_window(cx, two_spaces_responder(Default::default()));
+    settings.update(cx, |_, cx| {
+        cx.emit(crate::features::settings::SettingsEvent::CreateSpace)
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |s, cx| assert!(s.has_dialog("CreateSpace", cx)));
+}
+
+/// Removing a member is asked from their row's menu and confirmed on the
+/// line under it; only the confirmation sends it.
+#[gpui::test]
+fn removing_a_member_waits_for_its_confirmation(cx: &mut TestAppContext) {
+    use crate::features::settings::Page;
+    let removed = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (view, cx, settings) = plan_window(cx, two_spaces_responder(removed.clone()));
+    view.update_in(cx, |s, w, cx| {
+        s.open_space_settings("org-2".into(), false, w, cx)
+    });
+    settings.read_with(cx, |s, _| assert!(s.page_shown(Page::Space)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while settings.read_with(cx, |s, _| s.space_members()) != Some((2, true)) {
+        cx.run_until_parked();
+        assert!(std::time::Instant::now() < deadline, "members did not load");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    settings.update(cx, |s, cx| s.ask_to_remove_for_test("u2", cx));
+    draw(cx);
+    assert!(removed.lock().unwrap().is_empty());
+    cx.update(|w, cx| {
+        use gpui_kit::test::TestWindowExt as _;
+        w.click("space-remove-u2", cx)
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while removed.lock().unwrap().is_empty() {
+        cx.run_until_parked();
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the removal was not sent"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(
+        removed.lock().unwrap().as_slice(),
+        ["/organizations/org-2/members/u2"]
+    );
 }

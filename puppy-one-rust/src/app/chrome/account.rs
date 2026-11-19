@@ -7,7 +7,7 @@ use crate::{
     localization::t as tr,
     ui::{
         appearance::ActiveAppearance as _,
-        components::{Menu, MenuItem, MenuVariant},
+        components::{Menu, MenuItem, MenuVariant, PersonMark},
     },
     workspace::cloud::spaces::{mark_initial, mark_tone},
 };
@@ -17,21 +17,8 @@ const AVATAR: f32 = 22.;
 const MENU_WIDTH: f32 = 220.;
 
 /// The person's circle: one tone per email, its first letter.
-fn avatar(email: &str, dark: bool) -> Div {
-    let ui = theme::ty().ui;
-    div()
-        .flex()
-        .flex_none()
-        .items_center()
-        .justify_center()
-        .size(px(AVATAR))
-        .rounded_full()
-        .bg(theme::space_mark(mark_tone(email) as usize, dark))
-        .text_color(theme::space_mark_letter())
-        .text_size(px(ui.caption))
-        .line_height(px(ui.caption))
-        .font_weight(FontWeight::SEMIBOLD)
-        .child(mark_initial(email))
+fn avatar(email: &str) -> PersonMark {
+    PersonMark::new(mark_tone(email) as usize, mark_initial(email)).side(AVATAR)
 }
 
 /// Who is signed in, when someone is.
@@ -48,7 +35,7 @@ impl WindowChrome {
         let trigger = Button::new("header-account")
             .debug_selector(|| "header-account".into())
             .variant(ButtonVariant::Titlebar)
-            .leading(avatar(email, cx.palette().dark))
+            .leading(avatar(email))
             .accessibility_label(tr("settings.sidebar.account"))
             .tooltip(email.to_owned())
             .selected(open)

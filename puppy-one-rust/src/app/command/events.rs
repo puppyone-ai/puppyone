@@ -364,6 +364,9 @@ impl Shell {
             DialogEvent::OpenImport => {
                 self.home.update(cx, |h, cx| h.begin_import(window, cx));
             }
+            DialogEvent::CreateSpace => self
+                .cloud
+                .update(cx, |c, cx| c.open_create_space(window, cx)),
             DialogEvent::FolderSharing { folder, name } => {
                 let target = super::super::host_sharing::Target::Settings {
                     folder: folder.clone(),

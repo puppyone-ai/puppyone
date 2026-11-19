@@ -60,28 +60,6 @@ pub fn short_date(iso: &str) -> String {
         .unwrap_or_default()
 }
 
-/// `heldPlanName` with `describeHolding`: the plan held, and what it costs
-/// a month when that is known.
-pub fn held_plan(holding: &PlanHolding) -> String {
-    let name = t(if !holding.subscribed {
-        "settings.plan.name.free"
-    } else if holding.plan_id == "enterprise" {
-        "settings.plan.name.enterprise"
-    } else {
-        "settings.plan.name.team"
-    });
-    match (holding.subscribed, holding.monthly_cents) {
-        (true, Some(cents)) => format!(
-            "{name} · {}",
-            tf(
-                "settings.plan.monthlyFor",
-                &[("amount", money(Some(cents), &holding.currency).into())]
-            )
-        ),
-        _ => name.to_owned(),
-    }
-}
-
 /// `PlanStatus`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Status {

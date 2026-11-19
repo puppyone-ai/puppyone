@@ -3,7 +3,7 @@
 use super::{
     preferences_store::{PreferencesChanged, PreferencesStore},
     repository_settings::RepositorySettings,
-    sidebar::settings_sidebar_model::{Page, Visibility, available},
+    sidebar::settings_sidebar_model::{Page, Scope, Visibility, available, fallback, first_page},
 };
 use crate::{
     localization::t as tr,
@@ -39,6 +39,9 @@ pub enum SettingsEvent {
         project: String,
         sandbox: crate::workspace::cloud::sandbox::CloudSandbox,
     },
+    /// The scope switcher's "Create space": the window's dialog makes it,
+    /// and Settings opens on its Members.
+    CreateSpace,
 }
 pub struct SettingsWorkspaceSurface {
     pub preferences: Entity<PreferencesStore>,
@@ -85,6 +88,15 @@ pub struct SettingsWorkspaceSurface {
 impl EventEmitter<SettingsEvent> for SettingsWorkspaceSurface {}
 impl SettingsWorkspaceSurface {
     pub fn select_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        // Account is Personal's: asked for from a team space, Settings
+        // turns to Personal.
+        if page == Page::Account
+            && let Some(personal) = self.personal_space(cx)
+            && self.settings_space(cx).is_some_and(|s| s.id != personal)
+        {
+            self.requested_space = Some(personal);
+            self.follow_space(cx);
+        }
         self.page = page;
         if matches!(page, Page::Git | Page::Host) {
             self.repository.update(cx, |r, cx| r.refresh(cx));
@@ -96,7 +108,7 @@ impl SettingsWorkspaceSurface {
         if matches!(page, Page::Plan | Page::Account) {
             self.load_plan(false, cx);
         }
-        if page == Page::Space {
+        if matches!(page, Page::Space | Page::SpaceSettings) {
             self.load_space(cx);
         }
         if page == Page::OtherComputers {
@@ -116,6 +128,31 @@ impl SettingsWorkspaceSurface {
             }
             self.follow_space(cx);
         }
+    }
+    /// The scope switcher chose `space`: Settings manages it now, on the
+    /// same page when that space has it, else on its first.
+    pub(in crate::features::settings) fn switch_scope(
+        &mut self,
+        space: String,
+        cx: &mut Context<Self>,
+    ) {
+        self.requested_space = Some(space);
+        self.follow_space(cx);
+        let visibility = self.visibility(cx);
+        let page = if available(self.page, visibility) {
+            self.page
+        } else {
+            first_page(visibility)
+        };
+        self.select_page(page, cx);
+    }
+    /// The account's own space, once the spaces are known.
+    fn personal_space(&self, cx: &App) -> Option<String> {
+        crate::features::cloud::global_spaces_read(cx)?
+            .spaces()
+            .iter()
+            .find(|s| s.is_default)
+            .map(|s| s.id.clone())
     }
     /// What the window opening Settings shows and which space, if any, the
     /// control that opened it named; `invite` (a space just made) puts the
@@ -147,9 +184,14 @@ impl SettingsWorkspaceSurface {
                 space.id,
             ))
         });
+        // Members are read for the space's own pages, and for Personal to
+        // know whether anyone else is in it (`Scope::Personal`).
+        let personal = self.settings_space(cx).is_some_and(|s| s.is_default);
         if expected_space.is_none() && self.space_page.org().is_some() {
             self.space_page.reset(cx);
-        } else if self.page == Page::Space && self.space_page.context() != expected_space.as_ref() {
+        } else if (personal || matches!(self.page, Page::Space | Page::SpaceSettings))
+            && self.space_page.context() != expected_space.as_ref()
+        {
             self.load_space(cx);
         }
         let expected_plan = self.plan_scope_context(cx);
@@ -334,19 +376,23 @@ impl SettingsWorkspaceSurface {
             && let Ok(name) = std::env::var("PUPPYONE_CAPTURE_SETTINGS_PAGE")
         {
             use super::sidebar::settings_sidebar_model::groups;
-            let all = Visibility {
+            let all = |scope| Visibility {
                 local_workspace: true,
                 other_app_imports: true,
                 host_devices: crate::workspace::hosts::AVAILABLE,
                 cloud_enabled: true,
                 account_available: true,
-                current_space_available: true,
+                scope: Some(scope),
                 cloud_computer_available: true,
             };
-            if let Some(item) = groups(all)
-                .into_iter()
-                .flat_map(|g| g.items)
-                .find(|i| format!("{:?}", i.page).eq_ignore_ascii_case(&name))
+            if let Some(item) = [
+                all(Scope::Personal { members: true }),
+                all(Scope::Team { owner: true }),
+            ]
+            .into_iter()
+            .flat_map(groups)
+            .flat_map(|g| g.items)
+            .find(|i| format!("{:?}", i.page).eq_ignore_ascii_case(&name))
             {
                 s.capture_page = Some(item.page);
             }
@@ -384,6 +430,16 @@ impl SettingsWorkspaceSurface {
             self.content_scroll.scroll_to_bottom();
         }
     }
+    /// Dev-capture: follow an account a fixture installed after Settings was
+    /// made (the app's own account lives as long as the app).
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_follow_account(&mut self, cx: &mut Context<Self>) {
+        self.cloud = crate::features::cloud::account::account(cx);
+        if let Some(cloud) = &self.cloud {
+            cx.observe(cloud, |s, _, cx| s.follow_space(cx)).detach();
+        }
+        self.follow_space(cx);
+    }
     /// Track the open project; Settings reads repository facts lazily.
     pub fn set_root(&mut self, root: Option<PathBuf>, cx: &mut Context<Self>) {
         if self.root != root {
@@ -406,6 +462,11 @@ impl SettingsWorkspaceSurface {
             }
         });
     }
+    /// The scope switcher's choice, as its menu makes it.
+    #[cfg(test)]
+    pub fn switch_scope_for_test(&mut self, space: &str, cx: &mut Context<Self>) {
+        self.switch_scope(space.to_owned(), cx);
+    }
     #[cfg(test)]
     pub fn page_shown(&self, page: Page) -> bool {
         self.page == page
@@ -426,7 +487,17 @@ impl SettingsWorkspaceSurface {
             host_devices: crate::workspace::hosts::AVAILABLE,
             cloud_enabled: crate::features::flags::cloud_enabled(&self.preferences, cx),
             account_available: crate::features::flags::account_available(cx),
-            current_space_available: self.settings_space(cx).is_some(),
+            scope: self.settings_space(cx).map(|space| {
+                if space.is_default {
+                    Scope::Personal {
+                        members: self.space_page.others_in(&space.id),
+                    }
+                } else {
+                    Scope::Team {
+                        owner: space.role.as_deref() == Some("owner") || space.can_manage_space,
+                    }
+                }
+            }),
             cloud_computer_available: crate::features::flags::cloud_screen_enabled(
                 &self.preferences,
                 cx,
@@ -470,15 +541,11 @@ impl Render for SettingsWorkspaceSurface {
             self.capture_page = None;
             self.select_page(page, cx);
         }
-        // An unavailable page falls back to Account where the build has
-        // accounts, else General (`App.tsx`).
+        // An unavailable page falls back: a space's pages to its Plan, the
+        // rest to Account where the build has accounts, else General.
         let visibility = self.visibility(cx);
         if !available(self.page, visibility) {
-            self.page = if visibility.account_available {
-                Page::Account
-            } else {
-                Page::General
-            };
+            self.page = fallback(self.page, visibility);
         }
         let content = if !self.preferences.read(cx).loaded {
             SettingsSection::new(tr(self.page.title()))

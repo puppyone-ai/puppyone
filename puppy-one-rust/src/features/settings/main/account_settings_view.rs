@@ -1,11 +1,14 @@
 //! Account is a projection of the app-owned native broker, never a credential
-//! or browser protocol owner. Plan/billing remains the catalogue fallback.
+//! or browser protocol owner. It is Personal's first page and the person's
+//! own: who is signed in, one card, and their AI balance, another. A space's
+//! plan is on Plan, beside it.
 use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::components::{Button, ButtonVariant, SettingsSection, SettingsSubsection, ValueRow},
+    ui::components::{Button, ButtonVariant, PersonMark, SettingsCard, SettingsSection},
+    workspace::cloud::spaces::{mark_initial, mark_tone},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
@@ -32,47 +35,44 @@ impl SettingsWorkspaceSurface {
             Status::Refreshing => "settings.account.status.refreshing",
             Status::SigningOut => "settings.account.status.signingOut",
         });
-        let m = theme::ty();
-        // `.desktop-account-identity`: a 38px round mark (an initial once
-        // signed in), 11px before the name and the signed-out reason.
+        // The person: their circle (an empty one until someone signs in),
+        // their email and where the session stands.
         let identity = h_flex()
-            .gap(px(11.))
-            .px(px(10.))
-            .pt(px(4.))
-            .pb(px(14.))
-            .child(
-                div()
-                    .size(px(38.))
+            .gap(px(12.))
+            .min_w_0()
+            .child(match account {
+                Some(account) => PersonMark::new(
+                    mark_tone(&account.email) as usize,
+                    mark_initial(&account.email),
+                )
+                .side(28.)
+                .into_any_element(),
+                None => div()
+                    .size(px(28.))
                     .flex_shrink_0()
                     .rounded_full()
-                    .bg(t.control),
-            )
+                    .bg(t.control)
+                    .into_any_element(),
+            })
             .child(
                 v_flex()
                     .min_w_0()
-                    .gap(px(1.))
                     .child(
                         div()
-                            .text_size(px(m.ui.label))
-                            .line_height(px(18.))
+                            .min_w_0()
+                            .truncate()
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(t.text)
                             .child(title),
                     )
-                    .child(
-                        div()
-                            .text_size(px(m.ui.meta))
-                            .line_height(px(17.))
-                            .text_color(t.subtle)
-                            .child(detail),
-                    ),
+                    .child(div().text_color(t.muted).child(detail)),
             );
         let busy = closing
             || matches!(
                 status,
                 Status::Restoring | Status::Refreshing | Status::SigningOut
             );
-        let mut sign_in = h_flex().gap(px(8.)).px(px(10.)).pt(px(2.)).pb(px(6.));
+        let mut sign_in = h_flex().gap(px(8.));
         if status == Status::SigningIn {
             // `startWebSignIn` while the browser is out: the same button
             // sends it to the sign-in page again, and the page says where
@@ -124,11 +124,7 @@ impl SettingsWorkspaceSurface {
                     })),
             );
         }
-        let mut session_details = v_flex()
-            .gap(px(6.))
-            .px(px(10.))
-            .text_size(px(m.ui.meta))
-            .text_color(t.subtle);
+        let mut session_details = v_flex().gap(px(2.)).min_w_0();
         if let Some(snapshot) = &snapshot {
             let (label, service) = account.map_or(
                 (
@@ -145,55 +141,25 @@ impl SettingsWorkspaceSurface {
             session_details = session_details.child(format!("{}: {}", tr(label), service));
         }
         if let Some(error) = unavailable.or_else(|| snapshot.as_ref().and_then(|s| s.error)) {
-            session_details = session_details.child(error.to_string());
+            session_details =
+                session_details.child(div().text_color(t.danger).child(error.to_string()));
         }
         let payments = crate::features::flags::payments_enabled(&self.preferences, cx);
-        let cloud_on = crate::features::flags::cloud_enabled(&self.preferences, cx);
         // The balance belongs to the account, so it is topped up here, the
         // page the account entry in every Header opens.
         let credits = (payments && account.is_some() && status == Status::Authenticated)
             .then(|| self.compute_credits(true, t, cx));
-        // A compact reading of the Settings space's plan; Plan owns usage,
-        // prices and changes.
-        let space = self.settings_space(cx).filter(|_| payments && cloud_on);
-        let plan = space.map(|space| {
-            let (reading, billing) =
-                self.plan_reading(&space.id, status == Status::Restoring, account.is_some());
-            SettingsSubsection::new().lead(true).child(
-                ValueRow::new(
-                    tr("settings.account.plan"),
-                    format!("{} · {reading}", crate::features::cloud::space_name(&space)),
-                )
-                .action(
-                    Button::new("account-open-plan")
-                        .label(tr(if billing {
-                            "settings.account.openBilling"
-                        } else {
-                            "settings.account.upgrade"
-                        }))
-                        .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Plan, cx))),
-                ),
-            )
-        });
-        SettingsSection::new(tr(Page::Account.title()))
+        let personal = self.settings_space(cx).filter(|s| s.is_default);
+        let identity = SettingsCard::new()
+            .id("account-identity")
             .child(identity)
-            .child(sign_in)
-            .when(self.cloud.is_some(), |section| {
-                section.child(session_details)
-            })
-            .children(plan)
-            .children(credits)
-            .into_any_element()
-    }
-    /// Account's Plan row as it reads now.
-    #[cfg(test)]
-    pub fn account_plan_reading(&self, cx: &App) -> Option<String> {
-        let space = self.settings_space(cx)?;
-        let (reading, _) = self.plan_reading(&space.id, false, true);
-        Some(format!(
-            "{} · {reading}",
-            crate::features::cloud::space_name(&space)
-        ))
+            .when(self.cloud.is_some(), |card| card.note(session_details))
+            .action(sign_in);
+        let mut section = SettingsSection::new(tr(Page::Account.title()));
+        if let Some(space) = &personal {
+            section = section.lede(self.scope_lede(space, None, t, cx));
+        }
+        section.child(identity).children(credits).into_any_element()
     }
     /// `AccountAICredits`: the available balance and the top-up packs.
     fn compute_credits(&self, top_up: bool, t: Theme, cx: &mut Context<Self>) -> AnyElement {
@@ -218,7 +184,7 @@ impl SettingsWorkspaceSurface {
                 let id = pack.id.clone();
                 actions = actions.child(
                     Button::new(("compute-top-up", index))
-                        .variant(ButtonVariant::OutlinePrimary)
+                        .variant(ButtonVariant::Solid)
                         .label(tf(
                             "agent.compute.topUp",
                             &[("amount", money(pack.price_cents * 10_000).into())],
@@ -239,22 +205,28 @@ impl SettingsWorkspaceSurface {
                     })),
             );
         }
-        let mut row = ValueRow::new(tr("agent.compute.availableBalance"), value);
-        if top_up {
-            row = row.action(actions);
+        let ui = theme::ty().ui;
+        let mut card = SettingsCard::new()
+            .id("account-balance")
+            .title(tr("agent.compute.availableBalance"))
+            .child(
+                div()
+                    .font_family(theme::MONO)
+                    .text_size(px(ui.page_title))
+                    .line_height(px(ui.page_title * 1.4))
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(value),
+            );
+        if failed {
+            card = card.note(
+                div()
+                    .text_color(t.danger)
+                    .child(tr("agent.compute.paymentUnavailable")),
+            );
         }
-        SettingsSubsection::new()
-            .child(row)
-            .when(failed, |d| {
-                d.child(
-                    div()
-                        .px(px(10.))
-                        .pt(px(6.))
-                        .text_size(px(theme::ty().ui.meta))
-                        .text_color(t.danger)
-                        .child(tr("agent.compute.paymentUnavailable")),
-                )
-            })
-            .into_any_element()
+        if top_up {
+            card = card.action(actions);
+        }
+        card.into_any_element()
     }
 }

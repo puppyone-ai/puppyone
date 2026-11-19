@@ -927,37 +927,6 @@ impl SettingsWorkspaceSurface {
         .detach();
     }
 
-    /// Account's compact reading of the Settings space's plan
-    /// (`AccountSettingsView`): an actual holding, never an assumed catalog
-    /// price; "Loading…" or "—" while the space's summary is not in. Also
-    /// whether its button opens Billing rather than offering an upgrade.
-    pub(in crate::features::settings) fn plan_reading(
-        &self,
-        space: &str,
-        restoring: bool,
-        signed_in: bool,
-    ) -> (String, bool) {
-        let ours = self
-            .plan_page
-            .context
-            .as_ref()
-            .is_some_and(|c| c.1 == space);
-        let snapshot = &self.plan_page.snapshot;
-        let summary = snapshot.summary.as_ref().filter(|_| ours);
-        let holding = pricing::resolve_holding(summary, snapshot.catalog.as_ref());
-        let unread = signed_in && summary.is_none();
-        let reading = if restoring || unread {
-            if restoring || snapshot.loading || !ours {
-                crate::localization::t("settings.plan.loading").to_owned()
-            } else {
-                "—".to_owned()
-            }
-        } else {
-            format::held_plan(&holding)
-        };
-        (reading, holding.subscribed || unread)
-    }
-
     #[cfg(test)]
     pub fn plan_snapshot(&self) -> &PlanSnapshot {
         &self.plan_page.snapshot

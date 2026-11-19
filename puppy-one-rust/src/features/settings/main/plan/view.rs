@@ -55,15 +55,20 @@ fn card(t: Theme) -> Div {
     v_flex()
         .border_1()
         .border_color(t.divider)
-        .rounded(px(10.))
+        .rounded(px(theme::metric::CARD_RADIUS))
         .bg(theme::fade(t.text, 0.015))
         .overflow_hidden()
 }
-/// A block's name above it, in the page's one small size.
+/// A block's name above it, as Settings titles a list: meta size, medium,
+/// subtle.
 fn section_label(text: impl Into<SharedString>, t: Theme) -> Div {
+    let meta = theme::ty().ui.meta;
     div()
         .mt(px(28.))
-        .mb(px(10.))
+        .mb(px(8.))
+        .text_size(px(meta))
+        .line_height(px(18.))
+        .font_weight(FontWeight::MEDIUM)
         .text_color(t.subtle)
         .child(text.into())
 }
@@ -200,6 +205,9 @@ impl SettingsWorkspaceSurface {
             .filter(|org| space.as_ref().is_some_and(|s| &s.id == org));
         let snapshot = &page.snapshot;
         let mut section = SettingsSection::new(tr("settings.seats.title"));
+        if let Some(space) = &space {
+            section = section.lede(self.scope_lede(space, None, t, cx));
+        }
         if signed_in && space.is_none() {
             section = section.child(note(tr("settings.space.choose"), t).px(px(10.)));
         }
@@ -668,7 +676,7 @@ impl SettingsWorkspaceSurface {
                                     .text_color(t.text)
                                     .text_size(px(theme::ty().ui.page_title))
                                     .line_height(px(theme::ty().ui.page_title * 1.4))
-                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .font_weight(FontWeight::MEDIUM)
                                     .child(plan_name(offer.id)),
                             )
                             .child(div().text_color(t.muted).child(facts.join(" · "))),

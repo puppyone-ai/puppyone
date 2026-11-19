@@ -89,6 +89,9 @@ enum Step {
     /// `plan-fixture:<state>`: Settings › Plan as `#cloud-plans-visual-smoke`
     /// shows it (`free`, `team`, `enterprise`, `scheduled`).
     PlanFixture(String),
+    /// `settings-fixture:<space>/<page>`: Settings by scope over a fixture
+    /// account's three spaces (`settings_lab`).
+    SettingsFixture(String),
     /// `cloud-offline`: an available account with Cloud on, nothing behind it.
     CloudOffline,
     /// `host-share:<absolute path>`: the sharing dialog for that folder.
@@ -187,6 +190,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
                 "plan-fixture" => Step::PlanFixture(arg.to_string()),
+                "settings-fixture" => Step::SettingsFixture(arg.to_string()),
                 "cloud-offline" => Step::CloudOffline,
                 "updates-fixture" => Step::UpdatesFixture(arg.to_string()),
                 "host-share" => Step::HostShare(path()),
@@ -739,6 +743,10 @@ impl Shell {
                 self.open_modal(Modal::Task(Task::Settings), cx);
                 let settings = self.dialogs.read(cx).settings.clone();
                 settings.update(cx, |s, cx| s.install_plan_lab(state, cx));
+            }
+            Step::SettingsFixture(case) => {
+                let case = case.clone();
+                self.lab_settings(&case, cx);
             }
             Step::HostShare(path) => {
                 let path = path.clone();

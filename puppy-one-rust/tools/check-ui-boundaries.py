@@ -233,7 +233,7 @@ for base in ['src/app', 'src/features', 'src/editor']:
 # document pump in `app/command/`; the window's parts are their own
 # entities. The dev-capture scenario driver, the Homepage and Cloud screen
 # lab fixtures and tests are the exceptions.
-shell_impls = {'mod.rs', 'command/route.rs', 'command/events.rs', 'command/pump.rs', 'dev/capture_scenario.rs', 'dev/home_lab.rs', 'dev/screen_lab.rs'}
+shell_impls = {'mod.rs', 'command/route.rs', 'command/events.rs', 'command/pump.rs', 'dev/capture_scenario.rs', 'dev/home_lab.rs', 'dev/screen_lab.rs', 'dev/settings_lab.rs'}
 for path in (root / 'src/app').rglob('*.rs'):
     relative = path.relative_to(root / 'src/app').as_posix()
     if relative not in shell_impls and not fixture(path) and re.search(r'^impl\s+Shell\b', path.read_text(), re.M):
