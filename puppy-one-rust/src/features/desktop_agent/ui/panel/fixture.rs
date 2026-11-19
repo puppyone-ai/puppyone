@@ -259,6 +259,38 @@ fn lab_conversation(scenario: &str) -> Vec<Value> {
             None,
         );
     }
+    // A follow-up whose provider request ended degraded: the recovery dock.
+    if scenario == "chat-degraded" {
+        let degraded = Some("turn-degraded");
+        push(
+            &mut events,
+            t1 + 40_000,
+            "turn.started",
+            json!({ "prompt": "Finish it", "recoveryOfTurnId": "turn-original" }),
+            degraded,
+            None,
+        );
+        push(
+            &mut events,
+            t1 + 41_000,
+            "assistant.completed",
+            json!({ "text": "The stream was cancelled before the answer finished." }),
+            degraded,
+            Some("assistant-degraded"),
+        );
+        push(
+            &mut events,
+            t1 + 42_000,
+            "turn.completed",
+            json!({
+                "status": "completed", "durationMs": 2_000, "completionQuality": "degraded",
+                "failureScope": "upstream-request", "failureCode": "CURSOR_HTTP2_STREAM_CANCEL",
+                "retryable": true, "transportHealth": "healthy", "sideEffects": "possible",
+            }),
+            degraded,
+            None,
+        );
+    }
     if scenario == "chat-approval" {
         push(
             &mut events,
@@ -463,11 +495,19 @@ fn capabilities() -> Value {
     })
 }
 
-fn inspection(models: &Value) -> Value {
-    let readiness = json!({
-        "runtimeId": "codex", "provider": "codex", "status": "ready", "code": "READY", "version": "0.144.1",
-        "minimumVersion": "0.144.1", "message": "ready", "selectable": true,
-    });
+fn inspection(models: &Value, ready: bool) -> Value {
+    let readiness = if ready {
+        json!({
+            "runtimeId": "codex", "provider": "codex", "status": "ready", "code": "READY", "version": "0.144.1",
+            "minimumVersion": "0.144.1", "message": "ready", "selectable": true,
+        })
+    } else {
+        json!({
+            "runtimeId": "codex", "provider": "codex", "status": "installed-not-authenticated",
+            "code": "AUTHENTICATION_REQUIRED", "version": "0.144.1", "minimumVersion": "0.144.1",
+            "message": "Sign in to Codex.", "selectable": true,
+        })
+    };
     let runtime = json!({ "id": "codex", "displayName": "Codex", "iconKey": "codex" });
     json!({
         "runtimes": [{ "descriptor": runtime, "readiness": readiness }],
@@ -482,6 +522,10 @@ struct FixtureClient {
     /// The session a fresh chat starts.
     fresh: Value,
     models: Value,
+    /// The runtime is ready to run turns.
+    ready: bool,
+    /// Turns asked of it (none run).
+    starts: Rc<std::cell::Cell<usize>>,
 }
 
 impl JsonAgent for FixtureClient {
@@ -489,7 +533,8 @@ impl JsonAgent for FixtureClient {
         use AgentOperation as O;
         matches!(
             operation,
-            O::DiscoverRuntimes
+            O::StartTurn
+                | O::DiscoverRuntimes
                 | O::ResumeSession
                 | O::CreateSession
                 | O::AttachSession
@@ -509,7 +554,7 @@ impl JsonAgent for FixtureClient {
         // A fresh chat attaches to the session `createAgentSession` started.
         let current = snapshot.clone().unwrap_or_else(|| self.fresh.clone());
         let result = match operation {
-            O::DiscoverRuntimes => Ok(inspection(&self.models)),
+            O::DiscoverRuntimes => Ok(inspection(&self.models, self.ready)),
             O::ResumeSession => Ok(snapshot.unwrap_or(Value::Null)),
             O::CreateSession => Ok(current),
             O::AttachSession => Ok(json!({ "subscriptionId": "fixture", "snapshot": current })),
@@ -526,6 +571,12 @@ impl JsonAgent for FixtureClient {
                 "resyncRequired": false,
             })),
             O::DetachFeed => Ok(json!({ "subscriptionId": "fixture", "detached": true })),
+            O::StartTurn => {
+                self.starts.set(self.starts.get() + 1);
+                Err(AgentError::new(
+                    "The visual fixture does not run Agent work.",
+                ))
+            }
             _ => Err(AgentError::new(
                 "The visual fixture does not run Agent work.",
             )),
@@ -572,10 +623,39 @@ impl AgentChatTabPanel {
                     .then(|| snapshot(&events, &models, Some("Markdown editor review"))),
                 fresh: snapshot(&events[..1], &models, None),
                 models,
+                ready: true,
+                starts: Rc::default(),
             },
             window,
             cx,
         )
+    }
+
+    /// Tests: a fresh chat seeded with `prompt`, over a runtime that is
+    /// `ready` or still needs sign-in; the turns it asked for.
+    #[cfg(test)]
+    pub(crate) fn seeded_fixture(
+        ready: bool,
+        prompt: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Self, Rc<std::cell::Cell<usize>>) {
+        let events = lab_conversation("chat-empty");
+        let models = models();
+        let starts = Rc::<std::cell::Cell<usize>>::default();
+        let panel = Self::fixture(
+            FixtureClient {
+                snapshot: None,
+                fresh: snapshot(&events[..1], &models, None),
+                models,
+                ready,
+                starts: starts.clone(),
+            },
+            window,
+            cx,
+        );
+        panel.controller.seed_initial_prompt(prompt);
+        (panel, starts)
     }
 
     /// The pixel lab's chat `scenario` (`tools/workbench-scenarios.json`).
@@ -587,6 +667,8 @@ impl AgentChatTabPanel {
                 snapshot: Some(snapshot(&events, &models, Some("Codex"))),
                 fresh: snapshot(&events[..1], &models, None),
                 models,
+                ready: true,
+                starts: Rc::default(),
             },
             window,
             cx,

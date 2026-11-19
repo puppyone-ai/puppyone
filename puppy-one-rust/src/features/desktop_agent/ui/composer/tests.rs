@@ -117,3 +117,61 @@ fn enter_asks_to_send(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("enter");
     assert_eq!(log.borrow().last().map(String::as_str), Some("submit"));
 }
+
+/// `uses Shift+Enter for a newline and plain Enter for one submission`.
+#[gpui::test]
+fn shift_enter_breaks_the_line_and_enter_sends_once(cx: &mut TestAppContext) {
+    let (composer, log, cx) = setup(cx);
+    cx.simulate_input("first");
+    cx.simulate_keystrokes("shift-enter");
+    cx.simulate_input("second");
+    assert_eq!(text(&composer, cx), "first\nsecond");
+    assert!(!log.borrow().iter().any(|l| l == "submit"));
+    cx.simulate_keystrokes("enter");
+    assert_eq!(log.borrow().iter().filter(|l| *l == "submit").count(), 1);
+}
+
+/// `keeps a useful placeholder when the caller supplies blank copy`;
+/// `morphs the single send action into stop while a turn is running`.
+#[gpui::test]
+fn a_blank_placeholder_keeps_the_default_and_a_running_turn_offers_stop(cx: &mut TestAppContext) {
+    crate::localization::set_current("en");
+    let (composer, log, cx) = setup(cx);
+    let show =
+        |composer: &Entity<ComposerView>, cx: &mut VisualTestContext, input: ComposerInput| {
+            composer.update_in(cx, |c, window, cx| c.set_input(input, window, cx));
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+        };
+    show(
+        &composer,
+        cx,
+        ComposerInput {
+            placeholder: "   ".into(),
+            ..Default::default()
+        },
+    );
+    let placeholder = composer.read_with(cx, |c, cx| c.input.read(cx).placeholder().to_owned());
+    assert_eq!(
+        placeholder,
+        crate::localization::t("agent.composer.placeholder.default")
+    );
+    let action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("one action");
+    cx.simulate_click(action.center(), Modifiers::default());
+    assert!(log.borrow().is_empty(), "nothing to send");
+    show(
+        &composer,
+        cx,
+        ComposerInput {
+            draft: "Follow up".into(),
+            running: true,
+            ..Default::default()
+        },
+    );
+    let action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("one action");
+    cx.simulate_click(action.center(), Modifiers::default());
+    assert_eq!(log.borrow().last().map(String::as_str), Some("stop"));
+}

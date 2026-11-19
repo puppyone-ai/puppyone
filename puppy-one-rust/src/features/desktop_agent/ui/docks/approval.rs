@@ -93,7 +93,9 @@ impl DocksView {
         };
         let policy = approval.policy_change_requested;
         let meta = |text: String| {
+            let selector = format!("agent-approval-detail:{text}");
             div()
+                .debug_selector(move || selector)
                 .text_size(px(m.left.meta))
                 .line_height(px(m.left.meta * 1.5))
                 .text_color(a.text_muted)
@@ -101,7 +103,9 @@ impl DocksView {
                 .child(text)
         };
         let code = |text: String| {
+            let selector = format!("agent-approval-detail:{text}");
             div()
+                .debug_selector(move || selector)
                 .font_family(theme::MONO)
                 .text_size(px(m.right.code))
                 .line_height(px(m.right.code * 1.5))
@@ -167,6 +171,7 @@ impl DocksView {
                 resolving,
                 &a,
             )
+            .debug_selector(|| "agent-approval:decline".into())
             .on_click(resolve("decline")),
         );
         if can_allow_for_session {
@@ -178,6 +183,7 @@ impl DocksView {
                     resolving,
                     &a,
                 )
+                .debug_selector(|| "agent-approval:acceptForSession".into())
                 .on_click(resolve("acceptForSession")),
             );
         }
@@ -189,6 +195,7 @@ impl DocksView {
                 resolving,
                 &a,
             )
+            .debug_selector(|| "agent-approval:accept".into())
             .on_click(resolve("accept")),
         );
         self.dock_card(&a)
@@ -218,10 +225,18 @@ impl DocksView {
                             .min_w_0()
                             .font_weight(FontWeight::MEDIUM)
                             .whitespace_normal()
+                            .debug_selector({
+                                let selector = format!("agent-approval-title:{title}");
+                                move || selector
+                            })
                             .child(title),
                     )
                     .child(
                         div()
+                            .debug_selector({
+                                let selector = format!("agent-approval-status:{status}");
+                                move || selector
+                            })
                             .flex_shrink_0()
                             .text_size(px(m.left.meta))
                             .text_color(a.text_subtle)

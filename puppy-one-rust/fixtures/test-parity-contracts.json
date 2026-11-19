@@ -34657,6 +34657,220 @@
           "test": "ui::components::agent_presence::tests::initials_and_easing_follow_the_product"
         }
       ]
+    },
+    {
+      "id": "agent-composer-keys-and-actions",
+      "acceptance": "Enter sends once and Shift+Enter breaks the line; Enter during IME composition never sends; a blank caller placeholder keeps the default one and nothing is sent without a draft; while a turn runs the single action is Stop.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/composer/input.test.ts",
+          "sha256": "48b2892d4244b941b5a81a8dd7d18279106f6da65322a5b265bb68818f4d61bc",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > leaves early IME Enter to native composition (shift=false)"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent renderer surfaces > leaves early IME Enter to native composition (shift=true)"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent renderer surfaces > uses Shift+Enter for a newline and plain Enter for one submission"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent renderer surfaces > keeps a useful placeholder when the caller supplies blank copy"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent renderer surfaces > morphs the single send action into stop while a turn is running"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::shift_enter_breaks_the_line_and_enter_sends_once"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::enter_asks_to_send"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::a_blank_placeholder_keeps_the_default_and_a_running_turn_offers_stop"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::form_input::tests::kit_composer_submit_does_not_insert_a_newline"
+        }
+      ]
+    },
+    {
+      "id": "agent-approval-dock",
+      "acceptance": "The approval dock states its request once (a reason repeating the title is not shown again), says Needs your approval or how many are pending, offers exactly the runtime's decisions (Deny, Allow for session when offered, Allow once) and sends each one, disables them while a decision is being submitted, and states its network target, write scope, reason and any policy change.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/controls/approvals.test.ts",
+          "sha256": "14d4ec3d3aaf0db18361ce8f47664d464082ff182965332d007931e83704de4e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > disables approval actions while a decision is resolving"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > keeps approval copy concise and preserves every provider decision"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent renderer surfaces > shows the queue count instead of a redundant waiting label for multiple approvals"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent renderer surfaces > renders material network and filesystem approval scope"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::docks::tests::the_approval_dock_offers_every_decision_once_and_states_its_scope"
+        }
+      ]
+    },
+    {
+      "id": "agent-stream-presentation",
+      "acceptance": "A streaming answer catches up in grapheme-safe frames and converges; an incomplete Markdown block stays a plain-text tail until it completes; backtick and tilde fences stay in the tail until their matching close; GFM table rows are promoted one completed row at a time.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/events/desktop-agent.stream-presentation.test.tsx",
+          "sha256": "49f6954646af6206917ee6c79af3f2abd2437a6eef5b86059e424cefc487d33a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent stream presentation > smooths append-only deltas on the injected frame cadence and flushes completion immediately"
+            },
+            {
+              "index": 1,
+              "name": "Agent stream presentation > keeps the live Markdown tail structurally stable until completion"
+            },
+            {
+              "index": 2,
+              "name": "Agent stream presentation > keeps backtick and tilde fences inert until their matching close fence arrives"
+            },
+            {
+              "index": 3,
+              "name": "Agent stream presentation > streams complete GFM table rows without remounting the table viewport"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::advances_by_grapheme_safe_adaptive_frames_and_converges"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_an_incomplete_markdown_block_in_a_stable_plain_text_tail"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::a_fence_stays_in_the_tail_until_its_matching_close"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::promotes_a_validated_gfm_table_one_completed_row_at_a_time"
+        }
+      ]
+    },
+    {
+      "id": "agent-degraded-recovery-surface",
+      "acceptance": "A turn that ended degraded shows a recovery with one explicit continuation and folded, provider-neutral details (its code, scope, connection and side effects); continuing keeps the draft and references.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/recovery/degraded-completion.test.tsx",
+          "sha256": "a33ef140f14476dae87ae22581ced402827c1a1322d86fa589518b4f7bff0069",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent degraded-completion recovery > offers an explicit continuation and bounded provider-neutral details"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.panel.test.ts",
+          "sha256": "03966d5fc1034ff40beeb73ea7822e60e6b0ca4d94e5c713e1cee11703f9f3fe",
+          "cases": [
+            {
+              "index": 14,
+              "name": "Project-owned Agent Chat Workbench lifecycle > ends Stop and offers a draft-preserving follow-up for degraded completion"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::desktop_agent::ui::panel::tests::a_degraded_turn_offers_details_and_one_continuation"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::continues_a_degraded_turn_without_consuming_the_draft_or_references"
+        }
+      ]
+    },
+    {
+      "id": "agent-initial-prompt-handoff",
+      "acceptance": "A chat created with a prompt sends it once when it first settles ready (an identical composer echo keeps it armed, a manual edit disarms it); over a runtime that is not ready the prompt stays the draft and is never sent later.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/composer/agentInitialPromptAutoSubmit.test.tsx",
+          "sha256": "c67a2b0d54de59850058bb421a77eb7e56bd6d2d51a0202401d8182adbdd1dbe",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent initial prompt handoff and one-shot auto-submit > creates an agent-chat item with initialPrompt and submits it exactly once when ready"
+            },
+            {
+              "index": 1,
+              "name": "Agent initial prompt handoff and one-shot auto-submit > prefills the draft without sending when the runtime is not ready"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::desktop_agent::ui::panel::tests::a_seeded_prompt_sends_once_when_ready_and_otherwise_stays_a_draft"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::seeds_initial_prompt_survives_echo_and_disarms_on_manual_edit"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -43618,6 +43832,42 @@
             {
               "index": 6,
               "name": "Agent Markdown renderer > resolves only explicitly registered rich blocks"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-composer-and-overlay-mechanics",
+      "kind": "out-of-scope",
+      "reason": "TS leaves pointer selection to CodeMirror so buttons do not take its focus, sizes the composer in CSS, and places its pickers with its own overlay geometry clamped to the Agent panel. The native composer is one text input whose height follows its lines, and its pickers are GPUI anchored overlays above their trigger kept inside the window.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/composer.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/composer/input.test.ts",
+          "sha256": "48b2892d4244b941b5a81a8dd7d18279106f6da65322a5b265bb68818f4d61bc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > leaves pointer selection to CodeMirror without stealing button focus"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent renderer surfaces > leaves composer auto-sizing to CSS while controlled draft text changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/composer/overlay-positioning.test.ts",
+          "sha256": "fb04e71ee20e4168999071cfac810d0a8be716bcf1fe43aeac1bd21dc32bf875",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > keeps anchored overlays inside the Agent boundary and prefers the available side"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > locks Composer pickers above the trigger even when the lower side has more room"
             }
           ]
         }

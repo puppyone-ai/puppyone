@@ -168,6 +168,9 @@ impl TextInput {
     pub fn set_placeholder(&mut self, text: impl Into<SharedString>) {
         self.placeholder = text.into();
     }
+    pub fn placeholder(&self) -> &str {
+        &self.placeholder
+    }
     pub fn restore(&mut self, mut s: InputSnapshot, cx: &mut Context<Self>) {
         s.text = s.text.chars().take(self.max_chars).collect();
         s.anchor = s.anchor.min(s.text.len());
