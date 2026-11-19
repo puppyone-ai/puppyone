@@ -491,6 +491,48 @@ mod tests {
         assert_eq!(sent[1].body, None);
     }
 
+    /// `cloudApi.client.test.ts`: "updates native Project settings through
+    /// the secure Cloud bridge" — every setting given, trimmed, in one PUT;
+    /// an empty update or a blank name is refused before anything is sent.
+    #[test]
+    fn project_settings_are_trimmed_into_one_put_and_empty_ones_are_refused() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"id": "p", "name": "Atlas", "visibility": "private"}),
+        ));
+        let client = Client::new(transport.clone());
+        let update = ProjectUpdate {
+            name: Some("  Atlas  ".into()),
+            description: Some(None),
+            bound_git_branch: Some("  main  ".into()),
+            visibility: Some("private"),
+        };
+        assert_eq!(client.update_project("p", update).unwrap().name, "Atlas");
+        assert!(
+            client
+                .update_project("p", ProjectUpdate::default())
+                .is_err()
+        );
+        let blank = ProjectUpdate {
+            name: Some("  ".into()),
+            ..Default::default()
+        };
+        assert!(client.update_project("p", blank).is_err());
+        let sent = transport.0.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(
+            (sent[0].method.as_str(), sent[0].path.as_str()),
+            ("PUT", "/projects/p")
+        );
+        assert_eq!(
+            sent[0].body,
+            Some(
+                json!({"name": "Atlas", "description": null, "bound_git_branch": "main",
+                "visibility": "private"})
+            )
+        );
+    }
+
     #[test]
     fn a_new_cloud_project_names_its_space_and_keeps_its_operation_key() {
         let transport = Arc::new(Recorded(

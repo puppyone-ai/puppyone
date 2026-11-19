@@ -935,6 +935,111 @@ mod tests {
         .unwrap()
     }
 
+    struct Recorded(std::sync::Mutex<Vec<ApiRequest>>);
+    impl Transport for Recorded {
+        fn request(&self, request: ApiRequest) -> Result<Value> {
+            let quote = json!({"quote_id": "q", "org_id": "o", "target_plan_id": "team",
+                "target_seats": 3, "application_mode": "checkout",
+                "expires_at": "2026-10-30T12:00:00Z"});
+            let operation = json!({"id": "op", "org_id": "o", "kind": "checkout",
+                "state": "pending", "terminal": false});
+            let reply = if request.path.ends_with("/checkout") {
+                json!({"checkout_url": "https://checkout.example/session", "quote": quote,
+                    "operation": operation})
+            } else if request.path.ends_with("/change") {
+                let mut applied = quote.clone();
+                applied["operation"] = operation;
+                applied
+            } else {
+                quote
+            };
+            self.0.lock().unwrap().push(request);
+            Ok(reply)
+        }
+    }
+
+    /// `cloudApi.client.test.ts`: "uses only the PuppyOne BFF and preserves
+    /// billing idempotency headers" — every billing call is the BFF's own
+    /// route for the organization, with the intent's key and the body the
+    /// product sends.
+    #[test]
+    fn billing_calls_use_the_organizations_routes_with_their_intent_keys() {
+        let transport = Arc::new(Recorded(Default::default()));
+        let client = Client::new(transport.clone());
+        let quote = client
+            .quote_plan("o", "team", 3, "desktop:plan-quote:k1".into())
+            .unwrap();
+        client
+            .checkout(
+                "o",
+                &quote,
+                Some("operation-1"),
+                "desktop:checkout:k2".into(),
+            )
+            .unwrap();
+        let mut plan = quote.clone();
+        plan.application_mode = "plan_change".into();
+        client
+            .apply("o", &plan, None, "desktop:plan-change:k3".into())
+            .unwrap();
+        let mut seats = quote.clone();
+        seats.application_mode = "seat_change".into();
+        client
+            .apply(
+                "o",
+                &seats,
+                Some("operation-1"),
+                "desktop:seat-change:k4".into(),
+            )
+            .unwrap();
+        let sent = transport.0.lock().unwrap();
+        let calls: Vec<_> = sent
+            .iter()
+            .map(|r| {
+                (
+                    r.method.as_str(),
+                    r.path.as_str(),
+                    r.idempotency_key.as_deref(),
+                    r.body.clone(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            calls,
+            [
+                (
+                    "POST",
+                    "/billing/organizations/o/plan/quote",
+                    Some("desktop:plan-quote:k1"),
+                    Some(json!({"target_plan_id": "team", "seat_quantity": 3}))
+                ),
+                (
+                    "POST",
+                    "/billing/organizations/o/checkout",
+                    Some("desktop:checkout:k2"),
+                    Some(
+                        json!({"plan_id": "team", "seat_quantity": 3, "quote_id": "q",
+                        "operation_id": "operation-1"})
+                    )
+                ),
+                (
+                    "POST",
+                    "/billing/organizations/o/plan/change",
+                    Some("desktop:plan-change:k3"),
+                    Some(json!({"quote_id": "q"}))
+                ),
+                (
+                    "POST",
+                    "/billing/organizations/o/seats/change",
+                    Some("desktop:seat-change:k4"),
+                    Some(json!({"quote_id": "q", "operation_id": "operation-1"}))
+                ),
+            ]
+        );
+        assert!(client.quote_plan("o/1", "team", 3, "k".into()).is_err());
+        assert_eq!(sent.len(), 4, "an unsafe organization id is never sent");
+    }
+
     #[test]
     fn the_same_intent_keeps_its_key_and_a_new_context_never_shares_one() {
         let mut keys = Keys::default();

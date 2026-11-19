@@ -25508,6 +25508,403 @@
           "test": "cloud::publication::tests::credential_tests::detach_restores_the_values_that_were_there_before"
         }
       ]
+    },
+    {
+      "id": "cloud-agent-durable-client",
+      "acceptance": "Opening a hosted chat sends nothing. A submission names this Project's workbench and the prompt, through a transport that holds no token. A lost receipt is queried before the same UUID is submitted again and a found receipt is never admitted twice; a pending receipt survives a restart and is confirmed on load. A definite refusal keeps the draft and forgets the submission; a late receipt never clears later edits. Opening a conversation reads its runs and sends no message. A server error stays unresolved across reopen (draft and request id kept, nothing re-sent) and its receipt is asked before the same UUID is admitted. Approvals reuse their decision id after transport loss; closing a tab never stops its run and Stop targets the exact run once. Event batches resume by sequence, a reset replaces the copy, and a committed publication refreshes once. Empty event batches are not completion, and an unknown or conflicting outcome has no terminal state.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/agent/cloudAgentController.test.ts",
+          "sha256": "fed3d21dc064ccec7e60ff1e408f92dd83be0a24d004d7799921d26c45560ac8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Agent durable client > opens immediately without creating an Agent, session or run"
+            },
+            {
+              "index": 1,
+              "name": "Cloud Agent durable client > binds a submission to the current workspace without exposing credentials"
+            },
+            {
+              "index": 3,
+              "name": "Cloud Agent durable client > recovers a lost accepted receipt with the same UUID and no second admission"
+            },
+            {
+              "index": 4,
+              "name": "Cloud Agent durable client > keeps a draft after rejection and never clears later edits on a delayed receipt"
+            },
+            {
+              "index": 5,
+              "name": "Cloud Agent durable client > restores a persisted accepted run without submitting it again"
+            },
+            {
+              "index": 6,
+              "name": "Cloud Agent durable client > keeps a 500 submission unresolved across reopen and retries its receipt before admission"
+            },
+            {
+              "index": 7,
+              "name": "Cloud Agent durable client > reuses an approval decision ID after transport loss and stops only on an explicit command"
+            },
+            {
+              "index": 8,
+              "name": "Cloud Agent durable client > uses authoritative reset snapshots, ignores older facts, and refreshes once after publication"
+            },
+            {
+              "index": 9,
+              "name": "Cloud Agent durable client > does not treat EOF as completion or unknown/conflict outcomes as success"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::an_empty_tab_sends_nothing"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_submission_names_this_projects_workbench_and_its_prompt"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_lost_receipt_is_queried_then_resubmitted_with_the_same_uuid"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_pending_receipt_survives_a_restart_and_is_confirmed_on_load"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_definite_refusal_forgets_the_submission"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_refusal_keeps_the_draft_and_a_late_receipt_keeps_later_edits"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::opening_a_conversation_reads_its_runs_and_sends_nothing"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_server_error_stays_unresolved_across_reopen_and_its_receipt_is_asked_first"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::stop_and_approvals_target_the_exact_run_and_a_retry_keeps_its_decision"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::closing_a_tab_never_stops_its_run"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::events_resume_by_sequence_a_reset_replaces_and_a_commit_publishes_once"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::an_empty_event_read_is_not_completion_and_unknown_outcomes_are_not_success"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::agent::tests::answers_must_belong_to_the_project_workspace_and_request"
+        }
+      ]
+    },
+    {
+      "id": "cloud-agent-event-batches",
+      "acceptance": "Hosted Agent events are read as bounded SSE batches: frames split inside UTF-8 and CRLF decode, a terminal or reset ends the batch, 64 events end it, a heartbeat before any event keeps the one connection waiting until data arrives, and an idle read ends at its deadline without touching the run. Malformed cursors, frames over 512 KiB and non-SSE answers fail the read; the read goes through the authenticated stream, never JSON decoding.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/agent/electron.cloud-agent-event-reader.test.mjs",
+          "sha256": "90172ca52f698bd2e6d08ffbabb13abd3030a10e7130e6d7c08f7da56e61ba4b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Authenticated Cloud Agent SSE batching > decodes split UTF-8 and CRLF, returns a terminal batch and cancels only the read"
+            },
+            {
+              "index": 1,
+              "name": "Authenticated Cloud Agent SSE batching > bounds batches, idle wait time and authoritative reset"
+            },
+            {
+              "index": 2,
+              "name": "Authenticated Cloud Agent SSE batching > retains one idle connection across repeated keepalives until data arrives"
+            },
+            {
+              "index": 3,
+              "name": "Authenticated Cloud Agent SSE batching > rejects malformed cursors, non-SSE and unbounded frames"
+            },
+            {
+              "index": 4,
+              "name": "Authenticated Cloud Agent SSE batching > passes the authorized request through the existing API client without JSON decoding SSE"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::agent::tests::frames_split_inside_utf8_decode_and_a_terminal_ends_the_batch"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::agent::tests::a_batch_ends_at_64_events_a_reset_a_terminal_or_a_heartbeat_after_events"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::agent::tests::invalid_cursors_and_oversized_frames_fail_the_read"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_bounded_event_read_ends_at_its_heartbeat_or_its_deadline_without_touching_the_run"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::non_sse_responses_fail_closed_and_transport_reconnects_are_bounded"
+        }
+      ]
+    },
+    {
+      "id": "cloud-read-caches",
+      "acceptance": "Cloud readings are joined and isolated: views asking at once share one flight, a snapshot belongs to one account namespace (user, session generation, API) and another account clears every snapshot and cancels the old flights, so a late answer of the old one never lands. Readings are fresh for 30 s and stay readable while stale for one background revalidation; caches are bounded by entries, and file bodies are never cached. A change drops only the listings it names (the parent and the subtree), an unrelated read in flight stays shared, and a read a change superseded is read again rather than cached; mutations through the workspace invalidate their listings and a lease that ends leaves nothing behind.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/cache/cloudCacheLifecycle.test.ts",
+          "sha256": "0a8d96fe3f292f7acc0ebd596be2cbe3ebcf74e6dcaa7d4e5810a153653df38c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "account/revision-aware Cloud cache > coalesces requests and keys results by immutable account generation and revision"
+            },
+            {
+              "index": 1,
+              "name": "account/revision-aware Cloud cache > drops a late old-generation response after account/session rotation"
+            },
+            {
+              "index": 2,
+              "name": "account/revision-aware Cloud cache > expires mutable data and enforces both entry and byte bounds"
+            },
+            {
+              "index": 3,
+              "name": "account/revision-aware Cloud cache > retains a stale snapshot during a single background revalidation and never reuses an uncached body"
+            },
+            {
+              "index": 4,
+              "name": "account/revision-aware Cloud cache > invalidates a project namespace after a successful mutation and clears on logout"
+            },
+            {
+              "index": 5,
+              "name": "account/revision-aware Cloud cache > does not join or cache a stale read that resolves after mutation invalidation"
+            },
+            {
+              "index": 6,
+              "name": "account/revision-aware Cloud cache > keeps another project's in-flight read shared and cacheable after invalidation"
+            },
+            {
+              "index": 7,
+              "name": "account/revision-aware Cloud cache > invalidates overlapping paths without dropping sibling in-flight reads"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::cache::tests::the_cache_is_bounded_namespaced_and_serves_stale_snapshots"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::cloud_history::tests::flights_are_shared_released_and_settled_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::listings_are_cached_only_while_watching_and_are_bounded"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::change_scope_drops_the_parent_and_subtree_but_preserves_other_listings"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::a_change_during_a_read_reads_again_without_discarding_unrelated_reads"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::saving_keeps_live_listings_and_creating_invalidates_only_its_parent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::lease_revocation_interrupts_reads_and_rejects_late_mutation_receipts"
+        }
+      ]
+    },
+    {
+      "id": "cloud-api-client-requests",
+      "acceptance": "A stalled billing read ends within the transport's bounded budget and its request is dropped. Resolving a repository context is a read and leaves file listings alone; workspace mutations invalidate theirs. Billing goes only to the BFF's organization routes (quote, checkout, plan change, seat change) with each intent's idempotency key and the product's bodies; an unsafe organization id is never sent. A billing catalog of another schema major or carrying the provider's private data is refused (the current catalog has no overage switch to check). Only a safe checkout URL may open in the system browser. A new Cloud Project is created in the chosen Space as the publish contract defines, keyed by its operation so a retry is the same request. Project settings are trimmed into one PUT and an empty update or blank name is refused unsent. History reads 80 summaries per page by the topological contract and cursor, normalizes legacy optional fields, and fails closed on another project, missing topology or inconsistent pagination. Errors keep their status, allowlisted code, retry decision and request id; a request under a lease of another API base is refused before it is sent. The default Space falls back to the personal route only when the new route is absent, and provisioning is never retried after 401, 403, 409 or 500.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/cloudApi.client.test.ts",
+          "sha256": "39addb36dd8f20359dcc9188192f5bbd07777031db2f23757ba28573284d8fb4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "cloud API client delegation > cancels the secure billing read on deadline even if its IPC promise stalls"
+            },
+            {
+              "index": 1,
+              "name": "cloud API client delegation > does not invalidate file reads when resolving a repository context through POST"
+            },
+            {
+              "index": 3,
+              "name": "cloud API client delegation > uses only the PuppyOne BFF and preserves billing idempotency headers"
+            },
+            {
+              "index": 4,
+              "name": "cloud API client delegation > fails closed on unknown catalog majors and leaked provider mappings"
+            },
+            {
+              "index": 7,
+              "name": "cloud API client delegation > opens verified checkout URLs through the system-browser bridge"
+            },
+            {
+              "index": 8,
+              "name": "cloud API client delegation > creates a Cloud project in the chosen space as the publish contract defines, once per operation"
+            },
+            {
+              "index": 10,
+              "name": "cloud API client delegation > updates native Project settings through the secure Cloud bridge"
+            },
+            {
+              "index": 13,
+              "name": "cloud API client delegation > getCloudHistory requests the topological contract and forwards its cursor"
+            },
+            {
+              "index": 14,
+              "name": "cloud API client delegation > normalizes legacy optional fields at the API boundary and rejects malformed ancestry"
+            },
+            {
+              "index": 15,
+              "name": "cloud API client delegation > fails closed on cross-project, topology-less, or inconsistent History pages"
+            },
+            {
+              "index": 16,
+              "name": "session / api-base guards > reconstructs typed errors from the structured IPC envelope"
+            },
+            {
+              "index": 17,
+              "name": "session / api-base guards > keeps the server's retry decision and request id from the IPC envelope"
+            },
+            {
+              "index": 18,
+              "name": "session / api-base guards > rejects with 401 (without calling the bridge) when the requested api base != the session's"
+            },
+            {
+              "index": 20,
+              "name": "default Space during a staggered server rollout > falls back only when the new authenticated route is absent"
+            },
+            {
+              "index": 21,
+              "name": "default Space during a staggered server rollout > does not retry provisioning on status 401"
+            },
+            {
+              "index": 22,
+              "name": "default Space during a staggered server rollout > does not retry provisioning on status 403"
+            },
+            {
+              "index": 23,
+              "name": "default Space during a staggered server rollout > does not retry provisioning on status 409"
+            },
+            {
+              "index": 24,
+              "name": "default Space during a staggered server rollout > does not retry provisioning on status 500"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::a_body_that_stalls_after_its_headers_times_out"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::model::request_policy_tests::only_exact_context_resolution_posts_can_be_retried_as_reads"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::saving_keeps_live_listings_and_creating_invalidates_only_its_parent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::billing::tests::billing_calls_use_the_organizations_routes_with_their_intent_keys"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::billing::tests::the_catalog_reads_add_ons_and_refuses_private_or_broken_ones"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::billing::tests::responses_are_held_to_the_organization_and_the_url_rule"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::billing::tests::only_a_safe_billing_url_may_open"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::services::tests::a_new_cloud_project_names_its_space_and_keeps_its_operation_key"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::api::tests::the_publish_requests_follow_the_pinned_cloud_contract"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::services::tests::project_settings_are_trimmed_into_one_put_and_empty_ones_are_refused"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::history::tests::requests_read_eighty_summaries_per_page_and_detail_separately"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::history::tests::pages_follow_the_topology_contract"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::history::tests::pages_merge_within_one_snapshot_and_restart_otherwise"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::api_refusals_keep_their_safe_code_retry_decision_and_plain_request_id"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::wrong_account_refresh_and_changed_environment_never_retarget_a_lease"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::an_older_deployment_provisions_the_personal_space_as_the_default"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::provisioning_is_not_retried_after_any_other_failure"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -30937,6 +31334,102 @@
               "name": "Cloud Overview metrics > does not invent storage usage when the tree contains no measurable files"
             }
           ]
+        },
+        {
+          "path": "tests/unit/cloud/environment/cloudApi.client.test.ts",
+          "sha256": "39addb36dd8f20359dcc9188192f5bbd07777031db2f23757ba28573284d8fb4",
+          "cases": [
+            {
+              "index": 11,
+              "name": "cloud API client delegation > keeps OAuth provider-to-slug translation inside the Automation adapter"
+            },
+            {
+              "index": 12,
+              "name": "cloud API client delegation > shapes resource pagination, edits, trigger updates, and lazy run history"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/environment/accessSurfacesApi.test.ts",
+          "sha256": "c95117519a7a55d0234ea1e8787e076525b7525efee64bd922b6195220e06ebb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "canonical Access surface client > preserves session transport context and uses encoded resource URLs"
+            },
+            {
+              "index": 1,
+              "name": "canonical Access surface client > rejects old or foreign identities instead of converting them"
+            },
+            {
+              "index": 2,
+              "name": "canonical Access surface client > rejects old or foreign identities instead of converting them"
+            },
+            {
+              "index": 3,
+              "name": "canonical Access surface client > rejects old or foreign identities instead of converting them"
+            },
+            {
+              "index": 4,
+              "name": "canonical Access surface client > rejects old or foreign identities instead of converting them"
+            },
+            {
+              "index": 5,
+              "name": "canonical Access surface client > rejects mismatched creation, update, target and issuance echoes"
+            },
+            {
+              "index": 6,
+              "name": "canonical Access surface client > never broadens empty/legacy selectors or falls back after a backend error"
+            },
+            {
+              "index": 7,
+              "name": "canonical Access surface client > has no Access run API"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/environment/resourceDashboardApi.test.ts",
+          "sha256": "4dfd2491fa3bb69f440eadf7593d5d141ce18ce9a2b2d464ed9abe70776adac5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "canonical Dashboard resources > preserves domain identities and session/server transport without legacy fallback"
+            },
+            {
+              "index": 1,
+              "name": "canonical Dashboard resources > rejects ambiguous, foreign and duplicate identities rather than interpreting aliases"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/organization/cloudAccessPointDomain.test.ts",
+          "sha256": "19f69a6f3888418f258a3b9d1b10e17b9ab9a8dc4d7574d479fb7209b2c121ae",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Access Point domain > normalizes provider aliases at the adapter boundary"
+            },
+            {
+              "index": 1,
+              "name": "Access Point domain > represents provider status as a closed UI state"
+            },
+            {
+              "index": 2,
+              "name": "Access Point domain > builds typed rows and adds only the placeholder requested by the route"
+            },
+            {
+              "index": 3,
+              "name": "Access Point domain > filters standardized rows without reading provider aliases"
+            },
+            {
+              "index": 4,
+              "name": "Access Point domain > uses the persisted MCP target and status, never adapter paths, names or metadata keys"
+            },
+            {
+              "index": 5,
+              "name": "Access Point domain > does not fabricate persisted Access or healthy Git from a Scope, URL or orphan adapter"
+            }
+          ]
         }
       ]
     },
@@ -31439,7 +31932,7 @@
     {
       "id": "electron-main-network-composition",
       "kind": "out-of-scope",
-      "reason": "These check how Electron's Main process composes its network stack: Chromium's net.fetch instead of Node's fetch (with credentials 'omit' and bypassCustomProtocolHandlers), a transport that must be injected, a DataPort's session guard not mistaken for a fetch transport, an opt-in bytes response and multipart (FormData) bodies no TS caller sends, and an HTTP status written into the error message so it survives IPC serialization. The native app has one in-process reqwest client (no cookie store; redirects refused, see transport_rejects_redirects_and_privileged_or_oversized_configurations), JSON replies only, and typed errors that keep their status without crossing an IPC boundary; server prose is never shown.",
+      "reason": "These check how Electron's Main process composes its network stack: Chromium's net.fetch instead of Node's fetch (with credentials 'omit' and bypassCustomProtocolHandlers), a transport that must be injected, a DataPort's session guard not mistaken for a fetch transport, an opt-in bytes response and multipart (FormData) bodies no TS caller sends, an HTTP status written into the error message so it survives IPC serialization, and a renderer whose preload bridge to Main is missing. The native app has one in-process reqwest client (no cookie store; redirects refused, see transport_rejects_redirects_and_privileged_or_oversized_configurations), JSON replies only, and typed errors that keep their status without crossing an IPC boundary; server prose is never shown.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/README.md",
       "typescript": [
         {
@@ -31475,6 +31968,16 @@
             {
               "index": 5,
               "name": "main-owned Cloud Auth Broker > adds auth without overriding the multipart boundary for managed Office uploads"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/environment/cloudApi.client.test.ts",
+          "sha256": "39addb36dd8f20359dcc9188192f5bbd07777031db2f23757ba28573284d8fb4",
+          "cases": [
+            {
+              "index": 19,
+              "name": "session / api-base guards > rejects with 401 when the desktop session bridge is unavailable"
             }
           ]
         }
@@ -31515,6 +32018,122 @@
             {
               "index": 1,
               "name": "desktop OAuth loopback callback > offers a system launch fallback only for a known Desktop URL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hosted-agent-whole-project-only",
+      "kind": "out-of-scope",
+      "reason": "TS can bind the hosted Agent to a workspace whose Scope restricts it, and then refuses to submit before asking for the whole workspace. The native hosted Agent opens only in a Cloud Project window, which always opens a whole Project; a Scope checkout is never a hosted target (its Cloud context is a recorded gap, scoped-checkout-cloud-notice), so there is no restricted target to refuse.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/hosted-agent-runs.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/agent/cloudAgentController.test.ts",
+          "sha256": "fed3d21dc064ccec7e60ff1e408f92dd83be0a24d004d7799921d26c45560ac8",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud Agent durable client > rejects a restricted Scope before requesting a whole workspace"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-cloud-agent-live-harness",
+      "kind": "out-of-scope",
+      "reason": "These test the TS repository's live Cloud Agent acceptance scenario (tests/support/cloud/cloudAgentLiveScenario.mjs) against scripted results: its outage check, its three-reply location script and its rejection of incomplete or misrouted results. They exercise test tooling, not the product; the native hosted Agent's admission, ownership and result checks have their own rows.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/agent/cloudAgentLiveAcceptance.test.mjs",
+          "sha256": "4e8e3be55a39daf7b57eaf39a3efc0d3d93b9b3b0051056e6defa2ed6896745b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "live Cloud Agent acceptance gate > fails on a real API/storage outage before sending messages or changing workspace"
+            },
+            {
+              "index": 1,
+              "name": "live Cloud Agent acceptance gate > requires three replies with two location returns in the same server session"
+            },
+            {
+              "index": 2,
+              "name": "live Cloud Agent acceptance gate > rejects incomplete or misrouted server results: {\"state\":\"failed\"}"
+            },
+            {
+              "index": 3,
+              "name": "live Cloud Agent acceptance gate > rejects incomplete or misrouted server results: {\"state\":\"running\"}"
+            },
+            {
+              "index": 4,
+              "name": "live Cloud Agent acceptance gate > rejects incomplete or misrouted server results: {\"snapshot\":{\"text\":\"\"}}"
+            },
+            {
+              "index": 5,
+              "name": "live Cloud Agent acceptance gate > rejects incomplete or misrouted server results: {\"project_id\":\"other-project\"}"
+            },
+            {
+              "index": 6,
+              "name": "live Cloud Agent acceptance gate > rejects incomplete or misrouted server results: {\"session_id\":\"\"}"
+            },
+            {
+              "index": 7,
+              "name": "live Cloud Agent acceptance gate > rejects incomplete or misrouted server results: {\"request_id\":\"\"}"
+            },
+            {
+              "index": 8,
+              "name": "live Cloud Agent acceptance gate > rejects replies that resume into a different server conversation"
+            },
+            {
+              "index": 9,
+              "name": "live Cloud Agent acceptance gate > cannot pass just because the prompt marker is present in the user bubble"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-billing-current-contract",
+      "kind": "out-of-scope",
+      "reason": "TS v0.4.4 validates its billing summary, quote and operation shapes strictly: a closed summary status set, required seat_changes_available and runtime unit fields, a closed application_mode set and consistent lifecycle flags. The native client reads the current billing service's contract (allowances, add-ons, pending seat changes) and checks what it acts on: organization identity, schema major 1, unique plans, no private provider data, safe URLs, that a quote and its operation answer the request, and that what was seen to end stays ended. Statuses, modes and flags it does not act on are read leniently rather than refused.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/billing-and-plan.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/cloudApi.client.test.ts",
+          "sha256": "39addb36dd8f20359dcc9188192f5bbd07777031db2f23757ba28573284d8fb4",
+          "cases": [
+            {
+              "index": 5,
+              "name": "cloud API client delegation > requires server-declared billing actions instead of inferring them from plan ids"
+            },
+            {
+              "index": 6,
+              "name": "cloud API client delegation > rejects malformed or contradictory billing lifecycle data"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-identifiers-refused-not-encoded",
+      "kind": "out-of-scope",
+      "reason": "TS percent-encodes an organization or project id that contains '/' into one path segment (org%2F1, a%2Fb) and reads an organization's seat usage for the team details of its initialization route. The native client refuses an identifier that is not a single safe path segment before sending anything (Cloud issues no such ids), and its first publication chooses a Space without reading seat usage.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/project-and-space-services.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/cloudApi.client.test.ts",
+          "sha256": "39addb36dd8f20359dcc9188192f5bbd07777031db2f23757ba28573284d8fb4",
+          "cases": [
+            {
+              "index": 2,
+              "name": "cloud API client delegation > reads capability-derived seat usage without trusting or mis-encoding organization ids"
+            },
+            {
+              "index": 9,
+              "name": "cloud API client delegation > getCloudProject URL-encodes the project id in the path"
             }
           ]
         }

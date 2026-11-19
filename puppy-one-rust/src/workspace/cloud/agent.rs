@@ -557,6 +557,35 @@ mod tests {
         assert_eq!(batch.events.len(), BATCH_EVENTS);
     }
 
+    /// `electron.cloud-agent-event-reader.test.mjs`: "decodes split UTF-8 and
+    /// CRLF, returns a terminal batch" — the TS frames, one byte at a time.
+    #[test]
+    fn frames_split_inside_utf8_decode_and_a_terminal_ends_the_batch() {
+        let frame = |id: u64, event: &str, data: Value| {
+            format!("id: {id}\r\nevent: {event}\r\ndata: {data}\r\n\r\n")
+        };
+        let text = frame(1, "text_delta", json!({"text": "你好"}))
+            + &frame(2, "terminal", json!({"state": "succeeded"}));
+        let mut batch = Batch::default();
+        let mut ended = false;
+        for byte in text.as_bytes() {
+            ended = batch.feed(std::slice::from_ref(byte)).unwrap();
+        }
+        assert!(ended);
+        let events: Vec<_> = batch
+            .events
+            .iter()
+            .map(|e| (e.id, e.event.as_str(), e.data.clone()))
+            .collect();
+        assert_eq!(
+            events,
+            [
+                (1, "text_delta", json!({"text": "你好"})),
+                (2, "terminal", json!({"state": "succeeded"}))
+            ]
+        );
+    }
+
     #[test]
     fn invalid_cursors_and_oversized_frames_fail_the_read() {
         let mut batch = Batch::default();
