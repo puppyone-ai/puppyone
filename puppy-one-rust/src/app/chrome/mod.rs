@@ -278,6 +278,7 @@ impl WindowChrome {
         if !o.panes.read(cx).explorer().open {
             bar = bar.leading(
                 IconButton::new("expand-explorer", "panel-left")
+                    .debug_selector(|| "expand-explorer".into())
                     .label(tr("shared-ui.explorer.expandSidebar"))
                     .w(px(theme::control()))
                     .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
@@ -342,6 +343,7 @@ impl WindowChrome {
                 let label = tr("source-control.history.title");
                 bar = bar.action(
                     Button::new("cloud-history")
+                        .debug_selector(|| "header-cloud-history".into())
                         .variant(ButtonVariant::Titlebar)
                         .icon(crate::ui::components::Icon::new("history").stroke(1.75))
                         .accessibility_label(label)

@@ -111,6 +111,85 @@ fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppC
         );
     });
 }
+/// `the Header's place, and the way to every other place`: in a project
+/// window the place menu offers Home, this computer with a way to start a
+/// space, then the account and Settings, and Home goes Home; signed out it
+/// offers this computer and Sign in. With the project rail on, the Header
+/// keeps the place alone.
+#[gpui::test]
+fn the_place_menu_offers_home_the_places_and_the_account_or_sign_in(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud::auth::account_fixture();
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    cx.update(|_, cx| {
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
+    });
+    settle_cloud(&view, cx, "the account", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    let row = |key: &str| -> &'static str {
+        Box::leak(format!("menu-item:{}", crate::localization::t(key)).into_boxed_str())
+    };
+    let device = row(if cfg!(target_os = "macos") {
+        "shell.workspaceSwitcher.location.thisMac"
+    } else {
+        "shell.workspaceSwitcher.location.thisComputer"
+    });
+    let open = |cx: &mut VisualTestContext| {
+        command(&view, cx, Command::LocationMenu);
+        draw(cx);
+        draw(cx);
+    };
+    open(cx);
+    for key in [
+        "shell.workspaceSwitcher.home",
+        "settings.space.create",
+        "settings.sidebar.account",
+        "shell.navigation.settings",
+    ] {
+        assert!(cx.debug_bounds(row(key)).is_some(), "{key}");
+    }
+    assert!(cx.debug_bounds(device).is_some());
+    assert!(cx.debug_bounds(row("cloud.auth.signIn")).is_none());
+    let home = cx
+        .debug_bounds(row("shell.workspaceSwitcher.home"))
+        .unwrap();
+    cx.simulate_click(home.center(), Modifiers::none());
+    view.read_with(cx, |s, cx| {
+        assert!(s.session.project.read(cx).home);
+        assert!(s.chrome.read(cx).popover.is_none());
+    });
+    view.update(cx, |s, cx| {
+        s.session.project.update(cx, |p, _| p.home = false)
+    });
+    cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
+    settle_cloud(&view, cx, "signed out", &|_, cx| {
+        !crate::features::cloud::account::has_account(cx)
+    });
+    open(cx);
+    assert!(cx.debug_bounds(device).is_some());
+    assert!(cx.debug_bounds(row("cloud.auth.signIn")).is_some());
+    for key in ["settings.space.create", "settings.sidebar.account"] {
+        assert!(cx.debug_bounds(row(key)).is_none(), "{key}");
+    }
+    command(&view, cx, Command::Escape);
+    draw(cx);
+    assert!(cx.debug_bounds("header-project").is_some());
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |store, cx| {
+            store.change(|p| p.project_switcher_rail = true, cx)
+        })
+    });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("header-project").is_none(),
+        "the rail names the project"
+    );
+}
 /// `WindowNavigation`: a signed-in account stays out of a project
 /// window's Header end. On the Homepage the brand opens the places and the
 /// account, with no way to the page it is on; a place shows it there and
@@ -420,5 +499,112 @@ fn the_rail_create_action_offers_the_three_project_entries(cx: &mut TestAppConte
                 h.import_picker = None;
             })
         });
+    }
+}
+
+/// `desktop explorer Header expansion`: a collapsed Explorer gets one
+/// Header action that expands it, beside the project; an open one gets none,
+/// even in a compact window. With the editor's tabs in the Header the
+/// project button still opens its menu beside them, and without them there
+/// is no tab column. The project rail sits below the full-width Header.
+#[gpui::test]
+fn the_header_expands_a_collapsed_explorer_and_keeps_the_project_beside_editor_tabs(
+    cx: &mut TestAppContext,
+) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap().join("alpha");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("a.md"), "# A\n").unwrap();
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| s.open_project(root.clone(), w, cx));
+    settle_cloud(&view, cx, "the project", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(root.as_path())
+    });
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFile("a.md".into())))
+    });
+    settle_cloud(&view, cx, "the document", &|s, cx| {
+        s.files(cx).opened().is_some()
+    });
+    draw(cx);
+    let explorer_open =
+        |cx: &mut VisualTestContext| view.read_with(cx, |s, cx| s.panes.read(cx).explorer().open);
+    assert!(explorer_open(cx));
+    assert!(cx.debug_bounds("expand-explorer").is_none());
+    assert!(cx.debug_bounds("header-project").is_some());
+    command(&view, cx, Command::ToggleExplorer);
+    draw(cx);
+    assert!(!explorer_open(cx));
+    assert!(cx.debug_bounds("header-project").is_some());
+    let expand = cx.debug_bounds("expand-explorer").expect("one way back");
+    cx.simulate_click(expand.center(), Modifiers::none());
+    draw(cx);
+    assert!(explorer_open(cx));
+    assert!(cx.debug_bounds("expand-explorer").is_none());
+    cx.simulate_resize(size(px(640.), px(600.)));
+    draw(cx);
+    assert!(explorer_open(cx), "a compact window keeps the Explorer");
+    assert!(cx.debug_bounds("expand-explorer").is_none());
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    draw(cx);
+    assert!(
+        cx.debug_bounds("editor-tabs").is_none(),
+        "no empty tab column"
+    );
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
+    store.update(cx, |store, cx| {
+        store.change(|p| p.experimental.editor_tabs_in_header = true, cx)
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("editor-tabs").is_some());
+    let project = cx.debug_bounds("header-project").unwrap();
+    cx.simulate_click(project.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.chrome.read(cx).popover,
+            Some(super::chrome::Popover::Project)
+        )
+    });
+    command(&view, cx, Command::Escape);
+    store.update(cx, |store, cx| {
+        store.change(
+            |p| {
+                p.experimental.editor_tabs_in_header = false;
+                p.project_switcher_rail = true;
+                p.remember_project(&root, 1);
+            },
+            cx,
+        )
+    });
+    draw(cx);
+    let mark = cx.debug_bounds("rail-project-alpha").expect("the rail");
+    assert!(
+        mark.origin.y >= px(crate::theme::HEADER),
+        "the rail starts below the Header: {mark:?}"
+    );
+}
+
+/// `DesktopTitlebarActions`: a folder's Header offers its Changes, and the
+/// Agent entry beside them only while the Header Agent tool is on.
+#[gpui::test]
+fn the_folder_header_offers_changes_and_the_agent_only_while_its_tool_is_on(
+    cx: &mut TestAppContext,
+) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| s.open_project(root.clone(), w, cx));
+    settle_cloud(&view, cx, "the folder", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(root.as_path())
+    });
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
+    for on in [true, false, true] {
+        store.update(cx, |store, cx| store.change(|p| p.header_terminal = on, cx));
+        draw(cx);
+        assert!(cx.debug_bounds("header-changes").is_some(), "{on}");
+        assert_eq!(cx.debug_bounds("header-agent").is_some(), on);
     }
 }

@@ -447,6 +447,87 @@ impl WorkbenchItem for Probe {
     }
 }
 
+/// `uses one Store for DOM focus activation, while only explicit tab
+/// actions request focus`: a press inside another split group's content
+/// makes its item the command target, and none while the workbench hides.
+#[gpui::test]
+fn a_press_in_a_group_makes_its_item_the_command_target(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let root = tempfile::tempdir().unwrap();
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    let closes = Rc::new(Cell::new(0));
+    let probe = |s: &mut Workbench, cx: &mut Context<Workbench>| {
+        let presentation = Rc::new(RefCell::new((false, false)));
+        let item = Probe {
+            kind: ItemKind::Terminal,
+            view: cx.new(|_| ProbeView {
+                draft: "draft".into(),
+            }),
+            presentation: presentation.clone(),
+            closes: closes.clone(),
+        };
+        let content = s.content(Rc::new(item), cx);
+        let p = s.project_mut().unwrap();
+        let id = p.layout.add(0);
+        p.content.insert(id, content);
+        p.layout.groups.get_mut(&0).unwrap().active = Some(id);
+        (id, presentation)
+    };
+    let (first, second) = view.update(cx, |s, cx| {
+        s.show(root.path().to_path_buf(), cx);
+        // Nothing was stored for this project: show it without waiting.
+        s.project_mut().unwrap().loading = false;
+        let (_, first) = probe(s, cx);
+        let (tab, second) = probe(s, cx);
+        s.project_mut()
+            .unwrap()
+            .layout
+            .split(0, Axis::Vertical, true, Some(tab));
+        cx.notify();
+        (first, second)
+    });
+    let targets = |cx: &mut VisualTestContext| {
+        // Measure, then draw with the measured group bounds.
+        for _ in 0..2 {
+            cx.run_until_parked();
+            cx.update(|w, cx| w.draw(cx).clear(cx));
+        }
+        (first.borrow().1, second.borrow().1)
+    };
+    let (a, b) = targets(cx);
+    assert!(a != b, "one command target");
+    let press = |cx: &mut VisualTestContext, group: Id| {
+        let selector: &'static str =
+            Box::leak(format!("workbench-group-content-{group}").into_boxed_str());
+        let at = cx
+            .debug_bounds(selector)
+            .expect("the group's content")
+            .center();
+        cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::default());
+    };
+    let other = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, _| {
+            let layout = &s.project().unwrap().layout;
+            *layout
+                .groups
+                .keys()
+                .find(|g| **g != layout.active_group)
+                .unwrap()
+        })
+    };
+    let group = other(cx);
+    press(cx, group);
+    assert_eq!(targets(cx), (b, a), "the pressed group's item");
+    let group = other(cx);
+    press(cx, group);
+    assert_eq!(targets(cx), (a, b));
+    view.update(cx, |s, cx| s.set_content_visible(false, cx));
+    assert_eq!(targets(cx), (false, false));
+    assert_eq!(closes.get(), 0);
+}
+
 /// `AuxiliaryPanelHost` → `AuxiliaryWorkbenchPanel active`: hiding the
 /// workbench withdraws every item's presentation and command target
 /// without closing, recreating or rearranging anything; showing it again

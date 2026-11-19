@@ -685,6 +685,12 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
         assert_eq!(offered.len(), 1);
         assert_eq!(offered[0].label, crate::features::cloud::HOSTED_AGENT_LABEL);
     });
+    // `History among a Cloud project's Header tools`: the hosted Project's
+    // record is offered in its Header, and this Mac's Changes are not.
+    draw(cx);
+    assert!(cx.debug_bounds("header-cloud-history").is_some());
+    assert!(cx.debug_bounds("header-changes").is_none());
+    assert!(cx.debug_bounds("header-agent").is_some());
     // Opening the Agent sidebar sends nothing.
     view.update_in(cx, |s, w, cx| s.command(Command::ToggleRightSidebar, w, cx));
     draw(cx);
@@ -696,6 +702,12 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
         s.workspace_root(cx).as_deref() == Some(root.as_path())
             && !s.sidebar.read(cx).launcher.read(cx).is_hosted()
     });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("header-cloud-history").is_none(),
+        "a folder has no hosted record to show"
+    );
+    assert!(cx.debug_bounds("header-changes").is_some());
 }
 
 /// The account's own space as v0.4.4 lists it, and the billing service's

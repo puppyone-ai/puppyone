@@ -96,6 +96,12 @@ impl Workbench {
             .child(
                 div()
                     .id(("group-content", id))
+                    .debug_selector(move || format!("workbench-group-content-{id}"))
+                    // Pointer focus within a group makes it the command
+                    // target; only tab actions ask an item for focus.
+                    .capture_any_mouse_down(cx.listener(move |s, _, _, cx| {
+                        s.activate_group(id, cx)
+                    }))
                     .relative()
                     .flex_1()
                     .min_h_0()

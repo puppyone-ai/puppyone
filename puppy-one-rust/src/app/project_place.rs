@@ -312,6 +312,23 @@ pub(super) fn place_name(menu: &PlaceMenu) -> (String, Vec<String>) {
     }
 }
 
+/// The place button's name: the place, the role or path, the link, then
+/// what the menu is.
+pub(super) fn spoken_place(menu: &PlaceMenu) -> String {
+    let (_, spoken) = place_name(menu);
+    let link = menu.link.as_ref().map(|link| {
+        link_problem(&link.0)
+            .filter(|_| link_has_problem(Some(link)))
+            .unwrap_or_else(|| tr("cloud.placeMenu.link.linked").to_owned())
+    });
+    spoken
+        .into_iter()
+        .chain(link)
+        .chain([tr("shell.placeMenu.label").to_owned()])
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 impl WindowCloud {
     /// The open local folder's notice, while Cloud is on.
     pub(super) fn local_folder_notice(&self, cx: &App) -> Option<Notice> {
@@ -393,18 +410,8 @@ impl WindowCloud {
     pub(super) fn place_button(&self, menu: &PlaceMenu, cx: &App) -> Button {
         let t = cx.palette();
         let ty = theme::ty().header;
-        let (name, spoken) = place_name(menu);
-        let link = menu.link.as_ref().map(|link| {
-            link_problem(&link.0)
-                .filter(|_| link_has_problem(Some(link)))
-                .unwrap_or_else(|| tr("cloud.placeMenu.link.linked").to_owned())
-        });
-        let accessible = spoken
-            .into_iter()
-            .chain(link)
-            .chain([tr("shell.placeMenu.label").to_owned()])
-            .collect::<Vec<_>>()
-            .join(", ");
+        let (name, _) = place_name(menu);
+        let accessible = spoken_place(menu);
         let mark: AnyElement = match (&menu.space, menu.place) {
             (Some(space), _) => crate::features::cloud::space_mark(space).into_any_element(),
             (None, Place::Cloud) => Icon::product(ProductIcon::Cloud)
@@ -935,6 +942,76 @@ mod tests {
         let off = resolve(Place::Local, None, None, false, Some(Notice::Missing), true);
         assert_eq!((off.place, &off.link), (Place::Local, &None));
         assert!(place_name(&off).0.starts_with("This "));
+    }
+
+    /// `ProjectPlaceMenu`: the place button says this computer, the
+    /// folder's path and its Cloud link or what is wrong with it; a Cloud
+    /// folder by its organization until its space is known, then by the
+    /// space (the account's own one is Personal) and the account's role.
+    #[test]
+    fn the_place_button_says_the_place_its_path_or_role_and_its_link() {
+        use crate::workspace::cloud::spaces::Space;
+        crate::localization::set_current("en");
+        let device = if cfg!(target_os = "macos") {
+            "This Mac"
+        } else {
+            "This computer"
+        };
+        let local = |address: Option<Address>, notice| {
+            spoken_place(&resolve(Place::Local, address, None, true, notice, false))
+        };
+        let linked = Notice::Linked {
+            project: "p1".into(),
+            name: Some("Vault".into()),
+            openable: true,
+        };
+        assert_eq!(
+            local(
+                local_address(std::path::Path::new("/tmp/one")),
+                Some(linked)
+            ),
+            format!("{device}, /tmp/one, Linked to a Cloud project, Places and account")
+        );
+        assert_eq!(
+            local(None, Some(Notice::Missing)),
+            format!("{device}, No longer in the Cloud, Places and account")
+        );
+        assert_eq!(
+            local(
+                None,
+                Some(Notice::OtherEnvironment {
+                    origin: Some("http://localhost:9090".into())
+                })
+            ),
+            format!("{device}, In another environment: localhost:9090, Places and account")
+        );
+        let cloud = |address, space| {
+            spoken_place(&resolve(Place::Cloud, address, space, true, None, false))
+        };
+        assert_eq!(
+            cloud(cloud_address(Some("Acme")), None),
+            "Cloud project, Acme, Places and account"
+        );
+        let acme = Space {
+            id: "acme".into(),
+            name: "Acme".into(),
+            role: Some("owner".into()),
+            can_create_projects: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            cloud(cloud_address(Some("Acme org")), Some(acme)),
+            "Acme, Owner, Places and account"
+        );
+        let own = Space {
+            id: "mine".into(),
+            name: "guanqun's Workspace".into(),
+            is_default: true,
+            can_create_projects: true,
+            ..Default::default()
+        };
+        let menu = resolve(Place::Cloud, None, Some(own), true, None, false);
+        assert_eq!(place_name(&menu).0, "Personal");
     }
 
     #[test]

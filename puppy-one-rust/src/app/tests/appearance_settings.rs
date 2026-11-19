@@ -145,3 +145,51 @@ fn the_remembered_sub_theme_follows_the_effective_color_mode(cx: &mut TestAppCon
         assert_eq!(crate::theme::pack_id(), expected, "{mode:?}");
     }
 }
+
+/// `updates the mounted App shell and editor appearance boundary from
+/// preference actions`: changing the stored appearance (mode, type scale,
+/// pointer cursors) applies to the open window without reopening it.
+#[gpui::test]
+fn appearance_preferences_apply_to_the_open_window(cx: &mut TestAppContext) {
+    use crate::features::settings::ThemeMode;
+    use crate::ui::appearance::ActiveAppearance as _;
+    let (view, cx) = setup(cx);
+    let root = tempfile::tempdir().unwrap();
+    isolate_preferences(&view, cx, root.path());
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
+    for (mode, scale, pointer, dark) in [
+        (
+            ThemeMode::Light,
+            crate::typography::Scale::Large,
+            true,
+            false,
+        ),
+        (
+            ThemeMode::Dark,
+            crate::typography::Scale::Medium,
+            false,
+            true,
+        ),
+    ] {
+        store.update(cx, |store, cx| {
+            store.change(
+                |p| {
+                    p.theme_mode = mode;
+                    p.text_scale = scale;
+                    p.pointer_cursors = pointer;
+                },
+                cx,
+            )
+        });
+        cx.run_until_parked();
+        draw(cx);
+        cx.update(|_, cx| {
+            assert_eq!(cx.is_dark(), dark, "{mode:?}");
+            assert_eq!(crate::theme::scale(), scale);
+            assert_eq!(
+                crate::theme::navigation_cursor() == gpui::CursorStyle::PointingHand,
+                pointer
+            );
+        });
+    }
+}

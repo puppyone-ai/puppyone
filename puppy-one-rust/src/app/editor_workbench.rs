@@ -344,6 +344,7 @@ impl EditorArea {
         let palette = cx.palette();
         let mut tabs = div()
             .id("editor-tabs")
+            .debug_selector(|| "editor-tabs".into())
             .flex()
             .items_center()
             .h_full()

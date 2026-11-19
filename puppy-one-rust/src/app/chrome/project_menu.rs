@@ -53,6 +53,7 @@ impl WindowChrome {
         let ty = theme::ty().header;
         // `.desktop-titlebar-workspace-button`.
         let project = Button::new("project")
+            .debug_selector(|| "header-project".into())
             .variant(ButtonVariant::Ghost)
             .accessibility_label(label)
             .track_focus(&self.project_focus)

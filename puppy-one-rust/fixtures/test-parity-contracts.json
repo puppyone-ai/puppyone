@@ -33261,6 +33261,525 @@
           "test": "ui::appearance::tests::kit_overlays_follow_light_dark_and_sub_theme_changes"
         }
       ]
+    },
+    {
+      "id": "header-place-menu",
+      "acceptance": "In a project window the place menu offers Home, this computer and the account's spaces with a way to start one, then the account and Settings, and nothing about the folder; Home goes Home and a place opens the Homepage on it; signed out it offers this computer and Sign in. With the project rail on, the Header keeps the place alone.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/header/projectPlaceMenu.test.tsx",
+          "sha256": "fd6957e436ab93cdeb65fdef67191fc9b7b2c75e55e3763e63f30cddb3768d45",
+          "cases": [
+            {
+              "index": 0,
+              "name": "the Header's place, and the way to every other place > offers Home, the places with a new Space, then the account, and nothing about the folder"
+            },
+            {
+              "index": 1,
+              "name": "the Header's place, and the way to every other place > goes Home from the place, and leaves the folder menu to switching and starting folders"
+            },
+            {
+              "index": 2,
+              "name": "the Header's place, and the way to every other place > asks to sign in where no account is signed in"
+            },
+            {
+              "index": 3,
+              "name": "the Header's place, and the way to every other place > keeps the place alone in the Header while the Project rail names the project"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::the_place_menu_offers_home_the_places_and_the_account_or_sign_in"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::a_place_opens_the_homepage_on_it_and_escape_closes_the_menu"
+        }
+      ]
+    },
+    {
+      "id": "header-place-name",
+      "acceptance": "The place button says this computer, the folder's path and its Cloud link or what is wrong with it; a Cloud folder by its organization until its space is known, then by the space (the account's own one is Personal) and the account's role; a folder's link is kept only while Cloud is on and only as its Cloud copy; a local place is the folder that holds it, shortened to its root and last folders, and a blank organization is no place.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/header/projectPlaceMenu.test.tsx",
+          "sha256": "fd6957e436ab93cdeb65fdef67191fc9b7b2c75e55e3763e63f30cddb3768d45",
+          "cases": [
+            {
+              "index": 4,
+              "name": "the Header's place, and the way to every other place > keeps a local folder's link only as its Cloud copy"
+            },
+            {
+              "index": 5,
+              "name": "the Header's place, and the way to every other place > states a local folder by this computer, before the folder, and speaks its path"
+            },
+            {
+              "index": 6,
+              "name": "the Header's place, and the way to every other place > states a Cloud folder by its organization until its Space is known"
+            },
+            {
+              "index": 7,
+              "name": "the Header's place, and the way to every other place > states a Cloud folder by the Space that holds it, with its square and the account's role, and marks it among the places"
+            },
+            {
+              "index": 8,
+              "name": "the Header's place, and the way to every other place > names the account's own Space Personal, never the server's generated name"
+            },
+            {
+              "index": 9,
+              "name": "the Header's place, and the way to every other place > says a folder has a Cloud copy, and says what is wrong with one that cannot be used"
+            },
+            {
+              "index": 10,
+              "name": "the Header's place, and the way to every other place > shortens a local project's place to its root and last folders, and knows no Cloud place without a name"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::the_place_button_says_the_place_its_path_or_role_and_its_link"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::the_place_names_a_space_or_this_computer_and_states_a_link"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::a_local_address_is_the_folder_that_holds_it_shortened"
+        }
+      ]
+    },
+    {
+      "id": "header-explorer-expansion",
+      "acceptance": "A collapsed Explorer gets one Header action that expands it, beside the project; an open one gets none, even in a compact window. With the editor's tabs in the Header the project button still opens its menu beside them, and without them there is no tab column. The project rail sits below the full-width Header.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/desktopSidebarHeaderInteractions.test.tsx",
+          "sha256": "76f735a0869991e74c78cae27b2503947aebacca1c4395a25aac4be516bc4aa9",
+          "cases": [
+            {
+              "index": 2,
+              "name": "desktop explorer Header expansion > keeps the project menu interactive beside file tabs in the same Header"
+            },
+            {
+              "index": 3,
+              "name": "desktop explorer Header expansion > shows the expansion action without hiding workspace or Git context"
+            },
+            {
+              "index": 4,
+              "name": "desktop explorer Header expansion > does not render an empty editor Header column when no slot is provided"
+            },
+            {
+              "index": 5,
+              "name": "desktop explorer Header expansion > does not expose an expansion action merely because the window is compact"
+            },
+            {
+              "index": 6,
+              "name": "desktop explorer Header expansion > expands an explicitly collapsed explorer from the single Header action"
+            },
+            {
+              "index": 7,
+              "name": "desktop explorer Header expansion > mounts an optional cross-Project rail below the full-width Header"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::the_header_expands_a_collapsed_explorer_and_keeps_the_project_beside_editor_tabs"
+        }
+      ]
+    },
+    {
+      "id": "header-coachmarks",
+      "acceptance": "The Agent entry is introduced once (without opening the sidebar, and not while the Agent is open); Changes waits for a first edit in a clean workspace (an already dirty one, or switching to one, is no edit) and queues behind the Agent; the always-show experiment replays both without consuming progress; a dismissal is stored and Escape acknowledges the introduction wherever focus is; malformed stored progress reads as not seen.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/navigation/headerCoachmarks.test.tsx",
+          "sha256": "d42229f0de1a4499bfba00b6d5ea3958085569cbaf2de9b369f1f0f631991c2b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "contextual Header coachmarks > offers Agent discovery once without opening the sidebar for the user"
+            },
+            {
+              "index": 1,
+              "name": "contextual Header coachmarks > waits for a real zero-to-dirty transition before offering Changes"
+            },
+            {
+              "index": 2,
+              "name": "contextual Header coachmarks > queues Changes behind Agent when the first edit happens before dismissal"
+            },
+            {
+              "index": 3,
+              "name": "contextual Header coachmarks > does not treat switching to an already-dirty workspace as a new edit"
+            },
+            {
+              "index": 4,
+              "name": "contextual Header coachmarks > replays both coachmarks without consuming one-time progress when the experiment is on"
+            },
+            {
+              "index": 5,
+              "name": "contextual Header coachmarks > persists dismissal and renders the Agent action as a non-modal anchored dialog"
+            },
+            {
+              "index": 6,
+              "name": "contextual Header coachmarks > recovers from malformed stored progress"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::coachmarks::tests::the_agent_is_introduced_once_and_changes_wait_their_turn"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::coachmarks::tests::changes_wait_for_a_first_edit_in_a_clean_workspace"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::coachmarks::tests::an_open_agent_needs_no_introduction_and_the_experiment_repeats_them"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::escape_acknowledges_the_header_introduction_wherever_focus_is"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::legacy_keys_flags_and_unknown_values_follow_the_product_parsers"
+        }
+      ]
+    },
+    {
+      "id": "header-tools-per-place",
+      "acceptance": "A folder's Header offers its Changes, and the Agent entry beside them only while the Header Agent tool is on, as one toggle; a hosted Cloud project's Header offers its record (History) and no Changes of this Mac, and a folder has no History tool.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/desktop-terminal.menu.test.tsx",
+          "sha256": "684d8e177b414d38280e22711d7bf8e39f9b177fe80c37b97ea6711989a82f90",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Terminal tab session manager > has no legacy Share control with terminal enabled=true"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Terminal tab session manager > has no legacy Share control with terminal enabled=false"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Terminal tab session manager > presents one unified Agent Workbench toggle in the workspace toolbar"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/header/cloudHeaderHistory.test.tsx",
+          "sha256": "80c17792aa0b768e6d90b1fac35a9f9ffd970f92ea67c5197386ee2dfcde374a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "History among a Cloud project's Header tools > is offered where the project has a record"
+            },
+            {
+              "index": 1,
+              "name": "History among a Cloud project's Header tools > is absent where there is nothing to show"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::the_folder_header_offers_changes_and_the_agent_only_while_its_tool_is_on"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_header_agent_entry_is_one_toggle_without_a_menu"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_share::the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own"
+        }
+      ]
+    },
+    {
+      "id": "workbench-close-dialog",
+      "acceptance": "A busy item's close asks first: Cancel or the dialog's close leaves the item and its execution, and confirming commits once.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/desktop-terminal.menu.test.tsx",
+          "sha256": "684d8e177b414d38280e22711d7bf8e39f9b177fe80c37b97ea6711989a82f90",
+          "cases": [
+            {
+              "index": 15,
+              "name": "Desktop Terminal tab session manager > keeps the close dialog dismissible (committing=false)"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::closes_commit_first_wait_for_their_release_and_stay_apart"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_terminal_asks_before_closing_only_while_it_starts_or_runs"
+        }
+      ]
+    },
+    {
+      "id": "workbench-header-motion",
+      "acceptance": "The tab strip lays out its tabs, the new-tab control and the overflow control together; a resized rail fits at once and motion resumes only after it holds; an interrupted layout retargets every element from where it is drawn; a launcher that becomes an item keeps its tab, and the overflow window keeps its tabs while it can.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/auxiliaryWorkbenchHeaderMotion.test.tsx",
+          "sha256": "05a53d5e7553eba00b43d7f900048b15cb4ecb6cb7bf1350f6efb14a69f8922c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "coordinates new-tab entry, the tab strip, and the stable trailing control"
+            },
+            {
+              "index": 1,
+              "name": "retains the visual tab and keyboard focus while replacing a launcher identity"
+            },
+            {
+              "index": 2,
+              "name": "fits a resized container immediately and re-enables motion only after measurement"
+            },
+            {
+              "index": 3,
+              "name": "keeps the overflow window and label slots stable across launcher promotion"
+            },
+            {
+              "index": 4,
+              "name": "retargets interrupted pixels together, ignores summary updates, and cancels on resize/unmount"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::header_layout::tests::layout_changes_animate_from_where_elements_are_drawn"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::header_layout::tests::a_resized_rail_fits_at_once_and_moves_again_after"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::header_layout::tests::full_tabs_share_the_rail_up_to_their_maximum"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::header_layout::tests::narrow_rails_compact_inactive_tabs_then_overflow"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::plus_adds_independent_blank_tabs_and_an_item_fills_the_one_it_was_chosen_in"
+        }
+      ]
+    },
+    {
+      "id": "workbench-chat-activation",
+      "acceptance": "A chat is presented and the command target only while the open sidebar shows the Agent workbench; another project's (or a hosted Project's) workbench hides it at once and keeps its draft, which returns with its project.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/appChatActivation.test.tsx",
+          "sha256": "908d59e5438a3574ef70db7df3bfef9352f26bb7ef05fca4e4d9732ac0863424",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App Chat activation > requires visible local Chat when the selected surface is chat"
+            },
+            {
+              "index": 1,
+              "name": "App Chat activation > requires visible local Chat when the selected surface is changes"
+            },
+            {
+              "index": 2,
+              "name": "App Chat activation > requires visible local Chat when the selected surface is history"
+            },
+            {
+              "index": 3,
+              "name": "App Chat activation > deactivates retained Chat immediately on Cloud entry, even while the closing pane remains visible"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_workbench_is_visible_only_while_the_open_sidebar_shows_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_hidden_workbench_withdraws_presentation_and_keeps_its_items"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::project_switch_retains_tabs_without_starting_a_process"
+        }
+      ]
+    },
+    {
+      "id": "appearance-live-preferences",
+      "acceptance": "Changing the stored appearance (mode, type scale, pointer cursors) applies to the open window without reopening it.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/appChatActivation.test.tsx",
+          "sha256": "908d59e5438a3574ef70db7df3bfef9352f26bb7ef05fca4e4d9732ac0863424",
+          "cases": [
+            {
+              "index": 4,
+              "name": "updates the mounted App shell and editor appearance boundary from preference actions"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::appearance_preferences_apply_to_the_open_window"
+        }
+      ]
+    },
+    {
+      "id": "feedback-dialog",
+      "acceptance": "Feedback needs a written message and a contact email before it sends (a failure re-arms on edit), leaves only by its close button and forgets its draft, keeps focus inside it, and takes a screenshot (attached, replaced or pasted) alongside the message.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/feedback/desktopHelpLauncher.test.tsx",
+          "sha256": "ce7d8bbc2fb62e2d447006dc3ba30adf701a9771ddd315a9b9bae8b8829318dd",
+          "cases": [
+            {
+              "index": 1,
+              "name": "DesktopHelpLauncher > collects required feedback and a required contact email before sending"
+            },
+            {
+              "index": 2,
+              "name": "DesktopHelpLauncher > can only be dismissed with its close button"
+            },
+            {
+              "index": 3,
+              "name": "DesktopHelpLauncher > attaches a screenshot alongside the required written feedback"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::feedback::tests::send_needs_a_message_and_an_email_and_a_failure_rearms_on_edit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::feedback_leaves_only_by_its_close_button_and_forgets_the_draft"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::kit_dialog_tab_order_keeps_focus_inside_feedback"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::feedback::tests::screenshots_attach_replace_and_report_unsupported_files"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::feedback::tests::a_pasted_image_becomes_the_screenshot_and_text_still_pastes"
+        }
+      ]
+    },
+    {
+      "id": "pane-open-in-default-app",
+      "acceptance": "Open in default app opens the pane's own file with the system's default app (asking first for a file that may run code).",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/navigation/activeExternalOpenTarget.test.tsx",
+          "sha256": "827be001a186aa255c46629b022f42637b7e7b4f32ec05f2b8a97e118da5deea",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pane-scoped external file opening > opens the exact pane resource with the system default app"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::opening_a_script_in_its_default_app_asks_first"
+        }
+      ]
+    },
+    {
+      "id": "workbench-group-focus",
+      "acceptance": "A press inside another split group's content makes its shown item the command target (without asking the item for focus); a hidden workbench has no command target.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/focus/auxiliaryWorkbenchFocus.test.tsx",
+          "sha256": "1e4574e367e4de66ddc2ee57e633bec73e77d8405d3812b1bb343f2684d6e269",
+          "cases": [
+            {
+              "index": 0,
+              "name": "uses one Store for DOM focus activation, while only explicit tab actions request focus"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_press_in_a_group_makes_its_item_the_command_target"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_hidden_workbench_withdraws_presentation_and_keeps_its_items"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -36552,6 +37071,42 @@
             {
               "index": 4,
               "name": "scrollbar architecture > keeps arrow controls inside the owner pane instead of a viewport overlay"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/navigation/desktopShellLocationBar.interactions.test.tsx",
+          "sha256": "9cb9a6b2f12363926cd4ec3762a9ebcf5915961fbd4f42b214327fb5bdb52fd3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopShellLocationBar interactions > submits an edited address from the clickable Go button"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/navigation/desktopShellLocationBar.test.ts",
+          "sha256": "dc3ba762da6ed99aa1ef91b7810b0bc2329843d4f3373de6bff47858616b6822",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop Shell location bar > shows the selected folder while the Files view is active"
+            },
+            {
+              "index": 1,
+              "name": "desktop Shell location bar > shows the complete active editor file path"
+            },
+            {
+              "index": 2,
+              "name": "desktop Shell location bar > falls back to the workspace outside Files or for an unrelated path"
+            },
+            {
+              "index": 3,
+              "name": "desktop Shell location bar > turns relative explorer paths into a full address without leaving the workspace"
+            },
+            {
+              "index": 4,
+              "name": "desktop Shell location bar > maps entered addresses back to workspace-scoped entry paths"
             }
           ]
         }
@@ -41072,6 +41627,16 @@
               "name": "Auxiliary Workbench close coordinator > rejects a handoff for the wrong undeclared-kind"
             }
           ]
+        },
+        {
+          "path": "tests/component/workbench/tabs/desktop-terminal.menu.test.tsx",
+          "sha256": "684d8e177b414d38280e22711d7bf8e39f9b177fe80c37b97ea6711989a82f90",
+          "cases": [
+            {
+              "index": 16,
+              "name": "Desktop Terminal tab session manager > keeps the close dialog dismissible (committing=true)"
+            }
+          ]
         }
       ]
     },
@@ -41624,6 +42189,16 @@
               "name": "contains a launcher callback failure in the tab workbench"
             }
           ]
+        },
+        {
+          "path": "tests/component/workbench/runtime/application-render-boundary.test.tsx",
+          "sha256": "c40749c38fff923c044f3187f592d98d13cb8a7a453a124cc2de60f1dcaecd85",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ApplicationRenderBoundary > keeps a recoverable shell visible when an uncaught feature render fails"
+            }
+          ]
         }
       ]
     },
@@ -41722,6 +42297,102 @@
             {
               "index": 1,
               "name": "Tooltip > disables nested hints without removing accessible names or explicit content"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-unmounted-shell-navigation",
+      "kind": "out-of-scope",
+      "reason": "TS keeps shell navigation the product does not show on macOS: a Header Home button only its smoke harness passes (ProjectShell onGoHome), sidebar top and rail navigation that no surface mounts, and the sidebar footer navigation (Changes, Settings, Feedback, Plugins) that shows only off macOS (sidebarFooterVisible). The native frontend is macOS-only: Home is in the place menu, Changes and the Agent in the Header, Settings in the application menu.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/chrome/menu-bar.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/desktopSidebarHeaderInteractions.test.tsx",
+          "sha256": "76f735a0869991e74c78cae27b2503947aebacca1c4395a25aac4be516bc4aa9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop explorer Header expansion > keeps Home first and independently clickable with sidebar collapsed=false"
+            },
+            {
+              "index": 1,
+              "name": "desktop explorer Header expansion > keeps Home first and independently clickable with sidebar collapsed=true"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/navigation/appShellNavigation.test.tsx",
+          "sha256": "5e602e71ba1769c568f1a80153b1fb53604cab327a7c392282e35d9a5aa4360d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopSidebarTopNavigation > keeps project-specific Cloud tools out of the local shell navigation"
+            },
+            {
+              "index": 1,
+              "name": "DesktopSidebarTopNavigation > keeps project Cloud out of the Sidebar navigation"
+            },
+            {
+              "index": 2,
+              "name": "DesktopSidebarTopNavigation > exposes a stable Shell-toolbar contract without replacing Sidebar semantics"
+            },
+            {
+              "index": 3,
+              "name": "DesktopSidebarTopNavigation > places the Feedback utility at the far edge of top navigation"
+            },
+            {
+              "index": 4,
+              "name": "DesktopSidebarTopNavigation > opens Plugins as a dialog task instead of workspace navigation"
+            },
+            {
+              "index": 5,
+              "name": "DesktopSidebarFooterNavigation > keeps navigation, Settings, and Feedback together on the left edge"
+            },
+            {
+              "index": 6,
+              "name": "DesktopSidebarRailNavigation local status > uses a dot without a count for local workspace changes"
+            },
+            {
+              "index": 7,
+              "name": "DesktopSidebarRailNavigation local status > shows only the incoming cloud count when local and remote changes coexist"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/feedback/desktopHelpLauncher.test.tsx",
+          "sha256": "ce7d8bbc2fb62e2d447006dc3ba30adf701a9771ddd315a9b9bae8b8829318dd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopHelpLauncher > stays a quiet icon-only question-mark button"
+            },
+            {
+              "index": 4,
+              "name": "DesktopHelpLauncher > belongs to the Sidebar utility edge instead of the Chat and Terminal panel"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hosted-header-agent-entry",
+      "kind": "out-of-scope",
+      "reason": "TS turns the Agent toggle off in a Cloud project's Header (terminalToolEnabled is !cloudHeaderActive). The native Header keeps the Agent entry for a hosted Project on purpose: it opens the Project's Cloud Agent workbench, not this Mac's local execution, and the local Changes stay out (workspace/chrome/title-bar.md).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/chrome/title-bar.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/desktop-terminal.menu.test.tsx",
+          "sha256": "684d8e177b414d38280e22711d7bf8e39f9b177fe80c37b97ea6711989a82f90",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Desktop Terminal tab session manager > hides local execution controls in the Cloud titlebar"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Terminal tab session manager > hides local execution controls in the Cloud toolbar"
             }
           ]
         }

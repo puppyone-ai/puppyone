@@ -161,12 +161,12 @@ impl Workbench {
         let at_rest = crate::lab::settled();
         #[cfg(not(feature = "dev-capture"))]
         let at_rest = false;
-        let enabled = source.is_none() && insert.is_none() && !cx.reduce_motion() && !at_rest;
-        let (spans, moving) = self
-            .header_motion
-            .entry((root.clone(), group))
-            .or_default()
-            .frame(&targets, enabled, std::time::Instant::now());
+        let motion = self.header_motion.entry((root.clone(), group)).or_default();
+        // A resized rail fits at once.
+        let resized = motion.resized(available);
+        let enabled =
+            source.is_none() && insert.is_none() && !resized && !cx.reduce_motion() && !at_rest;
+        let (spans, moving) = motion.frame(&targets, enabled, std::time::Instant::now());
         if moving && !self.motion_frame {
             self.motion_frame = true;
             cx.spawn(async move |this, cx| {

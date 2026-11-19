@@ -444,6 +444,18 @@ impl Workbench {
         })
     }
 
+    /// Focus within `group`'s content (`activate-group`): it becomes the
+    /// active group, so its shown item is the command target.
+    pub(super) fn activate_group(&mut self, group: Id, cx: &mut Context<Self>) {
+        if let Some(p) = self.project_mut()
+            && p.layout.active_group != group
+            && p.layout.groups.contains_key(&group)
+        {
+            p.layout.active_group = group;
+            cx.notify();
+        }
+    }
+
     pub(super) fn add(&mut self, group: Id, cx: &mut Context<Self>) {
         if let Some(p) = self.project_mut() {
             let id = p.layout.add(group);

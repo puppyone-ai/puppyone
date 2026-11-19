@@ -485,6 +485,36 @@ mod tests {
         c.observe(&inputs(Some("/p#2"), Some(3), stored));
         assert_eq!(c.active, None);
     }
+    /// `waits for a real zero-to-dirty transition before offering Changes`,
+    /// `does not treat switching to an already-dirty workspace as a new
+    /// edit`.
+    #[test]
+    fn changes_wait_for_a_first_edit_in_a_clean_workspace() {
+        let mut c = Coachmarks::default();
+        let agent_seen = Progress {
+            agent: true,
+            changes: false,
+        };
+        let at = |scope: &'static str, local| Inputs {
+            scope: Some(scope),
+            ..inputs(Some("/p#1"), local, agent_seen)
+        };
+        // Already dirty when first seen, and still dirty: no edit happened.
+        c.observe(&at("/p", Some(3)));
+        c.observe(&at("/p", Some(4)));
+        assert_eq!(c.active, None);
+        // Switching to another workspace that is already dirty is no edit.
+        c.observe(&at("/q", Some(2)));
+        assert_eq!(c.active, None);
+        // Not known yet, then dirty: still no clean start.
+        c.observe(&at("/r", None));
+        c.observe(&at("/r", Some(1)));
+        assert_eq!(c.active, None);
+        // Clean, then the first edit.
+        c.observe(&at("/r", Some(0)));
+        c.observe(&at("/r", Some(1)));
+        assert_eq!(c.active, Some(Coachmark::Changes));
+    }
     #[test]
     fn an_open_agent_needs_no_introduction_and_the_experiment_repeats_them() {
         let mut c = Coachmarks::default();

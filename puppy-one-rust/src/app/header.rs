@@ -264,6 +264,7 @@ impl RenderOnce for ChangesButton {
         }
         let label = self.label();
         Button::new("changes")
+            .debug_selector(|| "header-changes".into())
             .variant(if self.coachmark {
                 ButtonVariant::TitlebarCoachmark
             } else {
