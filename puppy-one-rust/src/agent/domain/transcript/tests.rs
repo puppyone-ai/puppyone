@@ -1128,3 +1128,277 @@ fn keeps_sanitized_reference_display_identity_stable_across_committed_projection
             .is_match(&serialized)
     );
 }
+
+// `tests/unit/agent/sessions/desktop-agent.harness-lifecycle-conformance.test.ts`:
+// every Harness's normalized turn settles the same way.
+
+fn harness_event(
+    runtime: &str,
+    sequence: i64,
+    event_type: &str,
+    payload: Value,
+    item_id: Option<&str>,
+) -> Value {
+    let mut event = event(sequence, event_type, payload, Some("turn-1"), item_id);
+    event["provider"] = json!(runtime);
+    event["runtimeId"] = json!(runtime);
+    event
+}
+
+/// Each Harness's turn up to its answer (`harnessFixtures`).
+fn harness_turn(runtime: &str) -> Vec<Value> {
+    let e = |sequence, event_type, payload, item| {
+        harness_event(runtime, sequence, event_type, payload, item)
+    };
+    let boundary = |item| {
+        e(
+            2,
+            "reasoning.summary.delta",
+            json!({"delta": "", "boundary": true}),
+            Some(item),
+        )
+    };
+    match runtime {
+        "codex" => vec![
+            e(1, "turn.started", json!({"prompt": "Inspect it"}), None),
+            boundary("reasoning-1"),
+            e(
+                3,
+                "assistant.delta",
+                json!({"delta": "Done"}),
+                Some("assistant-1"),
+            ),
+            e(
+                4,
+                "assistant.completed",
+                json!({"text": "Done"}),
+                Some("assistant-1"),
+            ),
+        ],
+        "cursor" => vec![
+            e(1, "turn.started", json!({"prompt": "?"}), None),
+            e(
+                2,
+                "reasoning.summary.delta",
+                json!({"delta": "", "boundary": true, "status": "working"}),
+                Some("cursor-thought-1"),
+            ),
+            e(
+                3,
+                "assistant.delta",
+                json!({"delta": "I'm here."}),
+                Some("cursor-message-1"),
+            ),
+            e(
+                4,
+                "assistant.completed",
+                json!({"text": "I'm here."}),
+                Some("cursor-message-1"),
+            ),
+        ],
+        "claude" => vec![
+            e(1, "turn.started", json!({"prompt": "Inspect it"}), None),
+            boundary("claude-thinking-1"),
+            e(
+                3,
+                "tool.started",
+                json!({"kind": "read", "tool": "read", "label": "Read file", "status": "running"}),
+                Some("tool-1"),
+            ),
+            e(
+                4,
+                "tool.completed",
+                json!({"kind": "read", "tool": "read", "label": "Read file", "status": "completed"}),
+                Some("tool-1"),
+            ),
+            e(
+                5,
+                "assistant.completed",
+                json!({"text": "Done"}),
+                Some("claude-message-1"),
+            ),
+        ],
+        "opencode" => vec![
+            e(1, "turn.started", json!({"prompt": "Inspect it"}), None),
+            e(
+                2,
+                "reasoning.summary.delta",
+                json!({"delta": "", "boundary": true, "status": "working"}),
+                Some("opencode-thought-1"),
+            ),
+            e(
+                3,
+                "plan.updated",
+                json!({"steps": [{"step": "Inspect", "status": "in-progress"}]}),
+                Some("current-plan"),
+            ),
+            e(
+                4,
+                "assistant.completed",
+                json!({"text": "Done"}),
+                Some("opencode-message-1"),
+            ),
+        ],
+        _ => vec![
+            e(1, "turn.started", json!({"prompt": "Inspect it"}), None),
+            boundary("pi-reasoning-1"),
+            e(
+                3,
+                "tool.started",
+                json!({"kind": "command", "tool": "bash", "label": "Run command", "status": "running"}),
+                Some("pi-tool-1"),
+            ),
+            e(
+                4,
+                "tool.completed",
+                json!({"kind": "command", "tool": "bash", "label": "Run command", "status": "completed"}),
+                Some("pi-tool-1"),
+            ),
+            e(
+                5,
+                "assistant.completed",
+                json!({"text": "Done"}),
+                Some("pi-message-1"),
+            ),
+        ],
+    }
+}
+
+const HARNESSES: [&str; 5] = ["codex", "cursor", "claude", "opencode", "pi"];
+
+/// `defines the complete shared set of live activity states`.
+#[test]
+fn defines_the_complete_shared_set_of_live_activity_states() {
+    assert_eq!(
+        super::turn_lifecycle::LIVE_AGENT_ACTIVITY_STATUSES,
+        [
+            "queued",
+            "running",
+            "pending",
+            "in-progress",
+            "waiting-for-user"
+        ]
+    );
+}
+
+/// `settles every <runtime> child on turn.completed / turn.failed /
+/// turn.interrupted`: the turn, its reasoning, answer, approval, question and
+/// connection state all settle with the terminal outcome.
+#[test]
+fn every_harness_child_settles_on_each_terminal_outcome() {
+    use super::turn_lifecycle::LIVE_AGENT_ACTIVITY_STATUSES as LIVE;
+    for runtime in HARNESSES {
+        for (terminal, status) in [
+            ("turn.completed", "completed"),
+            ("turn.failed", "failed"),
+            ("turn.interrupted", "interrupted"),
+        ] {
+            let mut events = harness_turn(runtime);
+            let next = events
+                .iter()
+                .map(|e| e["sequence"].as_i64().unwrap())
+                .max()
+                .unwrap()
+                + 1;
+            events.extend([
+                harness_event(runtime, next, "provider.connection.updated", json!({"state": "reconnecting", "message": "Reconnecting", "attempt": 1, "maxAttempts": 5}), None),
+                harness_event(runtime, next + 1, "approval.requested", json!({"requestId": format!("{runtime}-approval"), "kind": "command"}), Some(&format!("{runtime}-approval"))),
+                harness_event(runtime, next + 2, "question.requested", json!({"requestId": format!("{runtime}-question"), "questions": []}), Some(&format!("{runtime}-question"))),
+                harness_event(runtime, next + 3, terminal, json!({"status": status}), None),
+            ]);
+            let display = Fixture::new().apply_all(&events).display;
+            let case = format!("{runtime} {terminal}");
+            let turn = display
+                .turns
+                .iter()
+                .find(|t| t["id"] == "turn-1")
+                .expect("turn");
+            assert_eq!(turn["status"], status, "{case}");
+            assert!(js::nullish(display.values.get("runningTurnId")), "{case}");
+            assert!(
+                js::nullish(display.values.get("connectionStatus")),
+                "{case}"
+            );
+            assert!(
+                display.approvals.is_empty() && display.questions.is_empty(),
+                "{case}"
+            );
+            for kind in ["permission", "question"] {
+                let part = display
+                    .parts
+                    .iter()
+                    .find(|p| p["kind"] == kind)
+                    .expect(kind);
+                assert_eq!(part["state"], "resolved", "{case} {kind}");
+            }
+            let live = |entry: &&crate::agent::contract::display_types::Entry| {
+                entry["status"].as_str().is_some_and(|s| LIVE.contains(&s))
+            };
+            assert_eq!(display.activities.iter().filter(live).count(), 0, "{case}");
+            assert_eq!(display.parts.iter().filter(live).count(), 0, "{case}");
+            let reasoning: Vec<_> = display
+                .parts
+                .iter()
+                .filter(|p| p["kind"] == "reasoning")
+                .collect();
+            assert_eq!(reasoning.len(), 1, "{case}");
+            assert_eq!(
+                (&reasoning[0]["turnId"], &reasoning[0]["status"]),
+                (&json!("turn-1"), &json!(status)),
+                "{case}"
+            );
+            let answer = display
+                .parts
+                .iter()
+                .find(|p| p["kind"] == "assistant")
+                .expect("answer");
+            assert_eq!(
+                (&answer["streaming"], &answer["terminalState"]),
+                (&json!(false), &json!(status)),
+                "{case}"
+            );
+        }
+    }
+}
+
+/// `keeps <runtime> semantic rows stable across later completion events`.
+#[test]
+fn every_harness_keeps_its_rows_stable_across_later_completions() {
+    for runtime in HARNESSES {
+        let e = |sequence, event_type, payload, item| {
+            harness_event(runtime, sequence, event_type, payload, item)
+        };
+        let display = Fixture::new()
+            .apply_all(&[
+                e(1, "turn.started", json!({"prompt": "Inspect it"}), None),
+                e(2, "assistant.delta", json!({"delta": "Inspecting"}), Some("shared-message")),
+                e(3, "tool.started", json!({"kind": "command", "tool": "shell", "label": "List", "status": "running"}), Some("shared-tool")),
+                e(4, "tool.completed", json!({"kind": "command", "tool": "shell", "label": "List", "status": "completed"}), Some("shared-tool")),
+                e(5, "assistant.completed", json!({"text": "Done"}), Some("shared-message")),
+                e(6, "turn.completed", json!({"status": "completed"}), None),
+            ])
+            .display;
+        let rows: Vec<&Value> = display.rows.iter().map(|r| &**r).collect();
+        let kinds: Vec<&str> = rows
+            .iter()
+            .map(|r| r["kind"].as_str().unwrap_or(""))
+            .collect();
+        assert_eq!(
+            kinds,
+            ["user", "assistant", "command", "assistant", "turn-summary"],
+            "{runtime}"
+        );
+        let sequences = |kind: &str| -> Vec<(Value, Value)> {
+            rows.iter()
+                .filter(|r| r["kind"] == kind)
+                .map(|r| (r["sequence"].clone(), r["updatedSequence"].clone()))
+                .collect()
+        };
+        assert_eq!(
+            sequences("assistant"),
+            [(json!(2), json!(2)), (json!(5), json!(5))],
+            "{runtime}"
+        );
+        assert_eq!(sequences("command"), [(json!(3), json!(4))], "{runtime}");
+    }
+}

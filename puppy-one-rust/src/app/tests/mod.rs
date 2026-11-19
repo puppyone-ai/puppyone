@@ -7,6 +7,7 @@ use gpui::EntityInputHandler;
 mod across_windows;
 mod appearance_settings;
 mod autosave;
+mod brand_assets;
 mod close_lifecycle;
 mod cloud_opening;
 mod cloud_publish_dialog;

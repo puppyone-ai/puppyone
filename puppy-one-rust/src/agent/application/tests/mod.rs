@@ -19,3 +19,6 @@ mod concurrency;
 
 #[cfg(test)]
 mod history_identity;
+
+#[cfg(test)]
+mod input_policy;

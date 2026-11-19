@@ -390,16 +390,7 @@ impl AgentSettings {
                         .checked(visible)
                         .on_change(move |on, _, cx| {
                             store.update(cx, |p, cx| {
-                                p.change(
-                                    |p| {
-                                        let hidden = &mut p.local_agents.hidden_agent_ids;
-                                        hidden.retain(|h| h != id);
-                                        if !on {
-                                            hidden.push(id.into());
-                                        }
-                                    },
-                                    cx,
-                                )
+                                p.change(|p| p.local_agents.set_agent_visible(id, on), cx)
                             })
                         }),
                     )

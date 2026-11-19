@@ -35997,6 +35997,1478 @@
           "test": "features::desktop_agent::domain::tests::reserves_visual_cards_for_raster_images"
         }
       ]
+    },
+    {
+      "id": "agent-tool-evidence-bounds",
+      "acceptance": "Tool output keeps ordinary text exactly, bounds many-line and single pathological lines with head and tail evidence, mounts only bounded search rows while reporting the full count, and serializes wide structured input within one budget (a JSON value cannot be cyclic in Rust).",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/activity/desktop-agent.tool-evidence.test.ts",
+          "sha256": "ed600699d21b0bb6367181e0916d5e18bfe323728fda7247c54919535ee272f2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent tool evidence budgets > preserves ordinary output exactly"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent tool evidence budgets > bounds adversarial many-line output while retaining head and tail evidence"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent tool evidence budgets > bounds one pathological line without asking layout to wrap it"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent tool evidence budgets > collects only mountable search rows while reporting the full result count"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent tool evidence budgets > serializes cyclic and wide structured input within an aggregate budget"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::preserves_ordinary_output_exactly",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::bounds_adversarial_many_line_output_while_retaining_head_and_tail",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::bounds_one_pathological_line",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::collects_only_mountable_search_rows_while_reporting_the_full_count",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::serializes_wide_structured_input_within_an_aggregate_budget",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-shell-presentation",
+      "acceptance": "Simple read-only shell commands (rg, git grep, cat, find -name, through a login shell) present as Grep, Glob or Read via the shell; redirection, deletion, -exec, --pre and pipes stay Bash; a structured tool result renders without an adapter preview.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/activity/desktop-agent.tool-presentation.test.ts",
+          "sha256": "841cd84630639afb526a7a012a8470659f8eb809cb6491c208a2d9915e504746",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent Shell presentation semantics > classifies a simple read-only command: /bin/zsh -lc \"rg -n needle src\""
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent Shell presentation semantics > classifies a simple read-only command: rg --files src"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent Shell presentation semantics > classifies a simple read-only command: git grep needle"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent Shell presentation semantics > classifies a simple read-only command: cat src/App.tsx"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent Shell presentation semantics > classifies a simple read-only command: find src -name '*.ts'"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent Shell presentation semantics > keeps ambiguous or mutating shell syntax as Bash: cat src/App.tsx > /tmp/copy"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent Shell presentation semantics > keeps ambiguous or mutating shell syntax as Bash: find src -delete"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Agent Shell presentation semantics > keeps ambiguous or mutating shell syntax as Bash: find src -exec rm {} ;"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent Shell presentation semantics > keeps ambiguous or mutating shell syntax as Bash: rg --pre 'node preprocess.js' needle"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Agent Shell presentation semantics > keeps ambiguous or mutating shell syntax as Bash: rg needle src | xargs rm"
+            },
+            {
+              "index": 10,
+              "name": "Desktop Agent Shell presentation semantics > renders a structured tool result even when an adapter supplies no preview"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::classifies_simple_read_only_commands",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::keeps_ambiguous_or_mutating_shell_syntax_as_bash",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::renders_a_structured_tool_result_without_an_adapter_preview",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-prompt-mentions",
+      "acceptance": "Prompt mentions keep UTF-16 ranges stable and present a file as one segment, drop stale, overlapping and out-of-range decorations, sanitize control characters in names, use the workspace-relative identity, and reserve visual cards for raster images (SVG is a path mention).",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/composer/desktop-agent.prompt-mentions.test.ts",
+          "sha256": "55c68f146cc0afe3cd0e52dd55af21ce69e0872905158259b0138b76b6cea3e8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent structured prompt mentions > keeps UTF-16 ranges stable for Unicode text and presents a file as one semantic segment"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent structured prompt mentions > drops stale, overlapping and out-of-range decorations instead of corrupting the draft"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent structured prompt mentions > sanitizes control characters while preserving human-readable file names"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent structured prompt mentions > uses the portable workspace-relative identity so same-name files stay distinguishable"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent structured prompt mentions > reserves visual cards for raster images and treats SVG as a text path reference"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::keeps_utf16_ranges_stable_and_presents_a_file_as_one_segment",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::drops_stale_overlapping_and_out_of_range_decorations",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::sanitizes_control_characters_while_preserving_file_names",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::uses_the_portable_workspace_relative_identity",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::reserves_visual_cards_for_raster_images",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-submission-lifecycle",
+      "acceptance": "Input admitted as queued, dispatching, accepted or outcome-unknown is never restored or redispatched after a lost receipt; a synchronous bridge failure releases ownership and restores input; a settled provider reconnects before the next turn; an old receipt cannot release a newer conversation's lock; an invalidated conversation never dispatches; a degraded turn continues without consuming the draft.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/composer/desktop-agent.submission-lifecycle.test.ts",
+          "sha256": "44061da337b73278bdd6c2ce7c1d4bdcfcd090f353d324687125270d155d2ee8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Shared Agent submission lifecycle > does not restore or redispatch queued input after losing the RPC receipt"
+            },
+            {
+              "index": 1,
+              "name": "Shared Agent submission lifecycle > does not restore or redispatch dispatching input after losing the RPC receipt"
+            },
+            {
+              "index": 2,
+              "name": "Shared Agent submission lifecycle > does not restore or redispatch accepted input after losing the RPC receipt"
+            },
+            {
+              "index": 3,
+              "name": "Shared Agent submission lifecycle > does not restore or redispatch outcome-unknown input after losing the RPC receipt"
+            },
+            {
+              "index": 4,
+              "name": "Shared Agent submission lifecycle > releases ownership and restores input after a synchronous bridge failure"
+            },
+            {
+              "index": 5,
+              "name": "Shared Agent submission lifecycle > reconnects a settled provider before dispatching the next turn"
+            },
+            {
+              "index": 6,
+              "name": "Shared Agent submission lifecycle > does not let an old receipt release a newer conversation's submission lock"
+            },
+            {
+              "index": 7,
+              "name": "Shared Agent submission lifecycle > does not dispatch after preparation completes for an invalidated conversation"
+            },
+            {
+              "index": 8,
+              "name": "Shared Agent submission lifecycle > continues a degraded turn explicitly without consuming the user's draft or references"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_restore_or_redispatch_admitted_input_after_losing_the_receipt",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::releases_ownership_and_restores_input_after_a_synchronous_bridge_failure",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::reconnects_a_settled_provider_before_dispatching_the_next_turn",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_let_an_old_receipt_release_a_newer_conversations_lock",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_dispatch_after_preparation_completes_for_an_invalidated_conversation",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::continues_a_degraded_turn_without_consuming_the_draft_or_references",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-workspace-path-routing",
+      "acceptance": "Provider paths convert to workspace-relative paths only inside the assigned folder, keep provider-relative paths with harmless dot segments resolved, never route through the wrong folder, and compare Windows paths case-insensitively.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/references/agentWorkspacePath.test.ts",
+          "sha256": "fc29da6256606bbf8fd597e9033f10e1f9d7b24fe53bcf9fa6ea98bdc6e293ea",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent Workspace navigation path > converts absolute paths inside the assigned Workspace Folder"
+            },
+            {
+              "index": 1,
+              "name": "Agent Workspace navigation path > keeps provider-relative paths and resolves harmless dot segments"
+            },
+            {
+              "index": 2,
+              "name": "Agent Workspace navigation path > does not route an absolute path through the wrong Workspace Folder"
+            },
+            {
+              "index": 3,
+              "name": "Agent Workspace navigation path > supports Windows paths case-insensitively"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::converts_absolute_paths_inside_the_assigned_workspace_folder",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::keeps_provider_relative_paths_and_resolves_dot_segments",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::does_not_route_an_absolute_path_through_the_wrong_workspace_folder",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::domain::tests::supports_windows_paths_case_insensitively",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-reference-draft-lifecycle",
+      "acceptance": "Reference drafts keep structured failure reasons for attachments and workspace entries, bound legacy failures without inventing retry, never resurrect an image removed, reset or disposed during staging, publish each completed image beside its pending sibling, keep a retained token a cancelled duplicate resolves to, keep valid entries when another source fails, and discard late resolutions after reset.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/references/desktop-agent.resource-reference-drafts.test.ts",
+          "sha256": "14f52a2449fbeface355d8189a3686fe57c3e7df1d9679c31828849ccebf5383",
+          "cases": [
+            {
+              "index": 0,
+              "name": "root-qualified reference drafts > preserves the structured failure reason for a attachment reference"
+            },
+            {
+              "index": 1,
+              "name": "root-qualified reference drafts > preserves the structured failure reason for a workspace reference"
+            },
+            {
+              "index": 2,
+              "name": "root-qualified reference drafts > keeps legacy failures bounded without inventing retry policy"
+            },
+            {
+              "index": 3,
+              "name": "root-qualified reference drafts > does not resurrect an image when remove happens during staging"
+            },
+            {
+              "index": 4,
+              "name": "root-qualified reference drafts > does not resurrect an image when reset happens during staging"
+            },
+            {
+              "index": 5,
+              "name": "root-qualified reference drafts > does not resurrect an image when dispose happens during staging"
+            },
+            {
+              "index": 6,
+              "name": "root-qualified reference drafts > publishes each completed image without removing its pending sibling"
+            },
+            {
+              "index": 7,
+              "name": "root-qualified reference drafts > does not revoke the retained token when a cancelled acquisition deduplicates to it"
+            },
+            {
+              "index": 8,
+              "name": "root-qualified reference drafts > keeps valid entries when another source cannot be resolved and retries the original owner"
+            },
+            {
+              "index": 9,
+              "name": "root-qualified reference drafts > discards a late resolution after the draft was reset and releases its preview"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::preserves_the_structured_failure_reason",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::keeps_legacy_failures_bounded_without_inventing_retry_policy",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::does_not_resurrect_an_image_removed_reset_or_disposed_during_staging",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::publishes_each_completed_image_without_removing_its_pending_sibling",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::does_not_revoke_the_retained_token_when_a_cancelled_acquisition_deduplicates_to_it",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::keeps_valid_entries_when_another_source_fails_and_retries_the_original_owner",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::reference_drafts::discards_a_late_resolution_after_reset_and_releases_its_preview",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-chat-view-model",
+      "acceptance": "The chat view model derives readiness, startup loading, recovery, stale-replica blocking, hidden runtimes, route and compute readiness, first-use onboarding versus credential recovery, empty-state suppression, attachment-only feedback, silent event-gap recovery and read-only capability from one state.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/transcript/agentChatViewModel.test.ts",
+          "sha256": "528d1869411add9a6084e3591ea5e3297842287e37c0b90699fbd2c113488c74",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent chat view model > derives ready rendering and session preparation from the same route"
+            },
+            {
+              "index": 1,
+              "name": "Agent chat view model > shows startup loading for discovering"
+            },
+            {
+              "index": 2,
+              "name": "Agent chat view model > shows startup loading for restoring"
+            },
+            {
+              "index": 3,
+              "name": "Agent chat view model > shows startup loading for creating"
+            },
+            {
+              "index": 4,
+              "name": "Agent chat view model > preserves failed recovery"
+            },
+            {
+              "index": 5,
+              "name": "Agent chat view model > preserves runtime-exited recovery"
+            },
+            {
+              "index": 6,
+              "name": "Agent chat view model > blocks the composer while replica is stale"
+            },
+            {
+              "index": 7,
+              "name": "Agent chat view model > blocks the composer while replica is subscribing"
+            },
+            {
+              "index": 8,
+              "name": "Agent chat view model > keeps hidden sessions bound while hiding unused runtimes from the launcher"
+            },
+            {
+              "index": 9,
+              "name": "Agent chat view model > blocks missing, unregistered and pending model routes"
+            },
+            {
+              "index": 10,
+              "name": "Agent chat view model > requires compute readiness only for app-managed models and hides their duplicate model picker"
+            },
+            {
+              "index": 11,
+              "name": "Agent chat view model > offers first-use access without turning setup into a session failure"
+            },
+            {
+              "index": 12,
+              "name": "Agent chat view model > retains recovery for AUTHENTICATION_REQUIRED"
+            },
+            {
+              "index": 13,
+              "name": "Agent chat view model > retains recovery for AUTHENTICATION_EXPIRED"
+            },
+            {
+              "index": 14,
+              "name": "Agent chat view model > retains recovery for PROVIDER_CREDENTIALS_REJECTED"
+            },
+            {
+              "index": 15,
+              "name": "Agent chat view model > excludes model from first-use onboarding"
+            },
+            {
+              "index": 16,
+              "name": "Agent chat view model > excludes session from first-use onboarding"
+            },
+            {
+              "index": 17,
+              "name": "Agent chat view model > excludes history from first-use onboarding"
+            },
+            {
+              "index": 18,
+              "name": "Agent chat view model > excludes error from first-use onboarding"
+            },
+            {
+              "index": 19,
+              "name": "Agent chat view model > excludes failed from first-use onboarding"
+            },
+            {
+              "index": 20,
+              "name": "Agent chat view model > suppresses empty state for rows"
+            },
+            {
+              "index": 21,
+              "name": "Agent chat view model > suppresses empty state for parts"
+            },
+            {
+              "index": 22,
+              "name": "Agent chat view model > suppresses empty state for messages"
+            },
+            {
+              "index": 23,
+              "name": "Agent chat view model > suppresses empty state for activities"
+            },
+            {
+              "index": 24,
+              "name": "Agent chat view model > suppresses empty state for approvals"
+            },
+            {
+              "index": 25,
+              "name": "Agent chat view model > suppresses empty state for questions"
+            },
+            {
+              "index": 26,
+              "name": "Agent chat view model > keeps the empty overlay for drafts but hides it for history gaps and connection status"
+            },
+            {
+              "index": 27,
+              "name": "Agent chat view model > keeps attachment-only submission feedback across session preparation and native admission"
+            },
+            {
+              "index": 28,
+              "name": "Agent chat view model > preserves silent event-gap recovery without suppressing other errors"
+            },
+            {
+              "index": 29,
+              "name": "Agent chat view model > keeps read-only capability separate from route readiness"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::derives_ready_rendering_and_session_preparation_from_the_same_route",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::shows_startup_loading_while_discovering_restoring_or_creating",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::preserves_failed_and_exited_recovery",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::blocks_the_composer_while_the_replica_is_stale_or_subscribing",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_hidden_sessions_bound_while_hiding_unused_runtimes",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::blocks_missing_unregistered_and_pending_model_routes",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::requires_compute_readiness_only_for_app_managed_models",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::offers_first_use_access_without_turning_setup_into_a_failure",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::retains_recovery_for_credential_failures",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::excludes_saved_state_from_first_use_onboarding",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::suppresses_the_empty_state_for_committed_or_interactive_content",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_the_empty_overlay_for_drafts_but_hides_it_for_history_gaps_and_connection_status",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_attachment_only_submission_feedback_across_preparation_and_admission",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::preserves_silent_event_gap_recovery_without_suppressing_other_errors",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_read_only_capability_separate_from_route_readiness",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-ended-session-every-locale",
+      "acceptance": "Every bundled locale carries its own message for an ended session, so the presentation never falls back or shows the key.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/transcript/desktop-agent.error-presentation.test.ts",
+          "sha256": "1bd317391af8170c947a7b4558babac39dcde47b59119621b1d6c00e435e84ee",
+          "cases": [
+            {
+              "index": 0,
+              "name": "closed Agent session presentation > renders an ended session without missing-message fallback in /src/localization/catalog-loaders/de.ts"
+            },
+            {
+              "index": 1,
+              "name": "closed Agent session presentation > renders an ended session without missing-message fallback in /src/localization/catalog-loaders/en.ts"
+            },
+            {
+              "index": 2,
+              "name": "closed Agent session presentation > renders an ended session without missing-message fallback in /src/localization/catalog-loaders/es.ts"
+            },
+            {
+              "index": 3,
+              "name": "closed Agent session presentation > renders an ended session without missing-message fallback in /src/localization/catalog-loaders/fr.ts"
+            },
+            {
+              "index": 4,
+              "name": "closed Agent session presentation > renders an ended session without missing-message fallback in /src/localization/catalog-loaders/ja.ts"
+            },
+            {
+              "index": 5,
+              "name": "closed Agent session presentation > renders an ended session without missing-message fallback in /src/localization/catalog-loaders/ko.ts"
+            },
+            {
+              "index": 6,
+              "name": "closed Agent session presentation > renders an ended session without missing-message fallback in /src/localization/catalog-loaders/pt-BR.ts"
+            },
+            {
+              "index": 7,
+              "name": "closed Agent session presentation > renders an ended session without missing-message fallback in /src/localization/catalog-loaders/zh-Hans.ts"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::renders_an_ended_session_without_a_missing_message_fallback",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-session-presentation",
+      "acceptance": "Session controls project native model and mode capabilities without inventing effort, derive effort only from the selected model's variants; streaming text advances by grapheme-safe frames, keeps incomplete Markdown in a plain tail, promotes a validated table one row at a time, never promotes malformed pipes, and ends a streaming table before a competing block.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/transcript/desktop-agent.session-presentation.test.ts",
+          "sha256": "0151112b0b759ebb1b240396be2aa7d8a7ff00c819259532d7506ff1a5ac8271",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent session control projection > projects native model and mode capabilities without inventing effort"
+            },
+            {
+              "index": 1,
+              "name": "Agent session control projection > derives effort only from the selected model's native variants"
+            },
+            {
+              "index": 2,
+              "name": "Agent streaming presentation policy > advances by grapheme-safe adaptive frames and converges without rewriting the source"
+            },
+            {
+              "index": 3,
+              "name": "Agent streaming presentation policy > keeps an incomplete Markdown block in a stable plain-text tail"
+            },
+            {
+              "index": 4,
+              "name": "Agent streaming presentation policy > promotes a validated GFM table one completed row at a time"
+            },
+            {
+              "index": 5,
+              "name": "Agent streaming presentation policy > does not promote malformed or ambiguous pipe text as a streaming table"
+            },
+            {
+              "index": 6,
+              "name": "Agent streaming presentation policy > ends table streaming before a competing CommonMark flow block"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::projects_native_model_and_mode_capabilities_without_inventing_effort",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::derives_effort_only_from_the_selected_models_native_variants",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::advances_by_grapheme_safe_adaptive_frames_and_converges",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_an_incomplete_markdown_block_in_a_stable_plain_text_tail",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::promotes_a_validated_gfm_table_one_completed_row_at_a_time",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::does_not_promote_malformed_or_ambiguous_pipe_text",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::ends_table_streaming_before_a_competing_flow_block",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-timeline-layout-and-anchor",
+      "acceptance": "Timeline gaps follow one deterministic rhythm independent of remeasurement, drop non-visual usage rows, survive virtualization boundaries, recompute a handoff when a user turn follows a summary; the viewport anchor keeps a visible row's coordinate through reflow, keeps an absolute coordinate above the canvas, falls back to the nearest surviving row and never guesses a replacement.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/transcript/desktop-agent.timeline-layout.test.ts",
+          "sha256": "1e206c2eedbd2b06ba14be4f8d5b78f60834d2d33b92e44156ac3c02d9a0bf23",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent timeline layout policy > uses one deterministic rhythm for work flow and turn handoffs"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent timeline layout policy > recomputes the handoff when a new user turn is appended after a settled summary"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent timeline layout policy > keeps semantic spacing independent from content remeasurement"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent timeline layout policy > removes non-visual usage state before it can affect row adjacency"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent timeline layout policy > retains full-timeline gaps when the mounted window crosses a virtualization boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/agent/transcript/desktop-agent.timeline-viewport.test.ts",
+          "sha256": "7f1d02735d902b045d87a878778834d267a0d2371371c6399d9b364f8858d884",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent timeline viewport anchoring > keeps the same visible row coordinate when many earlier rows reflow together"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent timeline viewport anchoring > retains an absolute viewport coordinate above the virtual canvas"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent timeline viewport anchoring > preserves the nearest surviving row coordinate when the anchored row is filtered"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent timeline viewport anchoring > does not guess a replacement row when the anchored row disappears"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::uses_one_deterministic_rhythm_for_work_flow_and_turn_handoffs",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::recomputes_the_handoff_when_a_user_turn_follows_a_settled_summary",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::keeps_semantic_spacing_independent_from_content_remeasurement",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::removes_non_visual_usage_state_before_it_affects_row_adjacency",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::retains_full_timeline_gaps_across_a_virtualization_boundary",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::keeps_the_same_visible_row_coordinate_when_earlier_rows_reflow",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::retains_an_absolute_viewport_coordinate_above_the_virtual_canvas",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::preserves_the_nearest_surviving_row_when_the_anchor_is_filtered",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::ui::tests::timeline::does_not_guess_a_replacement_when_the_anchored_row_disappears",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "agent-event-workspace-paths",
+      "acceptance": "Absolute Codex file-change paths become workspace-relative before delivery and paths owned by another workspace folder fail closed.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/references/electron.agent-event-workspace-paths.test.mjs",
+          "sha256": "6c7eda2995a0b1aebcf57b9345da0a3e7c988be09f3edd6446c368d419a10ed3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent event workspace path policy > normalizes absolute Codex file-change paths before Renderer delivery"
+            },
+            {
+              "index": 1,
+              "name": "Agent event workspace path policy > fails closed for paths owned by another Workspace Folder"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::normalizes_absolute_codex_file_change_paths_before_renderer_delivery"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::tests::fails_closed_for_paths_owned_by_another_workspace_folder"
+        }
+      ]
+    },
+    {
+      "id": "agent-file-presence-claims",
+      "acceptance": "Agent file claims project only onto their own window and file; a write outranks a read, a cancelled claim goes at once and a finished one lingers before it goes; Editor and Explorer paths share one workspace-relative key and paths outside the workspace, the root itself and parent escapes are refused.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/activity/agentActivityStore.test.ts",
+          "sha256": "8286776e4a4047378acb15d3bff0c156ede30cd5a3e121c971ad57b6c0e4bdfb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AgentActivityStore > uses one native subscription and updates only affected path listeners"
+            },
+            {
+              "index": 1,
+              "name": "AgentActivityStore > prioritizes writes over reads and removes cancelled claims"
+            },
+            {
+              "index": 2,
+              "name": "AgentActivityStore > keeps a completed claim visible long enough to be perceived"
+            },
+            {
+              "index": 3,
+              "name": "Agent activity workspace path projection > uses the same key for relative Editor resources and absolute Explorer paths"
+            },
+            {
+              "index": 4,
+              "name": "Agent activity workspace path projection > rejects resources that do not identify a workspace-relative file"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::agent_presence::tests::claims_project_onto_their_window_and_file",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::path_policy::tests::only_paths_inside_the_workspace_become_public"
+        }
+      ]
+    },
+    {
+      "id": "agent-reference-admission-policy",
+      "acceptance": "References are admitted by semantic kind with stable typed failures for unsupported kinds, limits and a missing capability; only authenticated, atomic mention ranges compile into native paths (a resource block keeps the display mention); forged, overlapping, missing and image mentions are refused while SVG and directory mentions pass.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/composer/electron.agent-input-policy.test.mjs",
+          "sha256": "f817474c6456f3362d5e619cd08181f01ce266b6da3b271a10b445d966418d78",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent semantic reference admission policy > admits references by semantic kind instead of native transport"
+            },
+            {
+              "index": 1,
+              "name": "Agent semantic reference admission policy > returns stable typed failures for unsupported kinds and native kind limits"
+            },
+            {
+              "index": 2,
+              "name": "Agent semantic reference admission policy > compiles only authenticated atomic mention ranges into native paths"
+            },
+            {
+              "index": 3,
+              "name": "Agent semantic reference admission policy > keeps the display mention in prompt text when the Harness negotiated a resource block"
+            },
+            {
+              "index": 4,
+              "name": "Agent semantic reference admission policy > rejects forged, overlapping, missing and image mention ranges"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::input_policy::admits_references_by_semantic_kind_instead_of_native_transport"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::input_policy::returns_stable_typed_failures_for_unsupported_kinds_and_native_kind_limits"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::input_policy::compiles_only_authenticated_atomic_mention_ranges_into_native_paths"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::input_policy::keeps_the_display_mention_in_prompt_text_when_the_harness_negotiated_a_resource_block"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::input_policy::rejects_forged_overlapping_missing_and_image_mention_ranges"
+        }
+      ]
+    },
+    {
+      "id": "agent-event-path-migration",
+      "acceptance": "A restored session's saved file-change paths and a live one are both workspace-relative, and nothing reaches a renderer directly.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/references/electron.agent-event-workspace-paths.test.mjs",
+          "sha256": "6c7eda2995a0b1aebcf57b9345da0a3e7c988be09f3edd6446c368d419a10ed3",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Agent event workspace path policy > normalizes live delivery and migrates persisted replay events"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::restored_and_live_file_change_paths_become_workspace_relative"
+        }
+      ]
+    },
+    {
+      "id": "agent-attachment-semantic-kinds",
+      "acceptance": "Attachments classify as image, text (including SVG and extension-only Markdown), audio, video or binary without any Harness transport, and only declared kinds, MIME patterns and extensions are accepted.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/references/electron.agent-reference-capabilities.test.mjs",
+          "sha256": "d3180a0c317fd51f5c854cd10e7b2b464a58c24d61cbcecddafec01ee28279bf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "semantic Agent reference capabilities > classifies semantic input kinds without knowing any Harness transport"
+            },
+            {
+              "index": 1,
+              "name": "semantic Agent reference capabilities > admits only the declared semantic kinds, MIME patterns and extensions"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::reference_input::tests::classifies_semantic_input_kinds_without_knowing_any_harness_transport"
+        },
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::reference_input::tests::admits_only_the_declared_semantic_kinds_mime_patterns_and_extensions"
+        }
+      ]
+    },
+    {
+      "id": "agent-brand-catalog",
+      "acceptance": "Agent brands are recognized by whole words however a name is written (never from part of a word or a shared word), runtime ids and aliases resolve (Pi is not an ordinary word), every brand has one id, a name, a scale and existing themed assets (a currentColor mark has a dark asset), colour marks follow the theme from their own assets, and ChatGPT, Claude, Codex, Cursor and Pi have monochrome vectors (Codex shares ChatGPT's).",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/runtimes/discovery/agentBrandCatalog.test.tsx",
+          "sha256": "de8be81a6d6e0556e78843654111c0bd59b3737a09402fd29fdbd82524ffc78b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent brand registry > recognizes a brand however an Agent writes its name"
+            },
+            {
+              "index": 1,
+              "name": "Agent brand registry > gives a mark that cannot inherit the page's color an asset for each theme"
+            },
+            {
+              "index": 2,
+              "name": "Agent brand registry > claims no brand from part of a word or from a word two brands share"
+            },
+            {
+              "index": 3,
+              "name": "Agent brand registry > uses one canonical id and themed asset contract for every registered brand"
+            },
+            {
+              "index": 5,
+              "name": "Agent brand registry > resolves runtime aliases without confusing Pi with ordinary words"
+            },
+            {
+              "index": 6,
+              "name": "Agent brand registry > renders Built-in Agent with its own themed mark instead of the PuppyOne product mark"
+            },
+            {
+              "index": 7,
+              "name": "Agent brand registry > renders WorkBuddy with the supplied local color mark"
+            },
+            {
+              "index": 8,
+              "name": "Agent brand registry > renders Pi's existing light and dark repository marks"
+            },
+            {
+              "index": 9,
+              "name": "Agent brand registry > renders Pi's normalized monochrome mark without the source asset's oversized safety area"
+            },
+            {
+              "index": 10,
+              "name": "Agent brand registry > renders chatgpt as a current-color monochrome vector"
+            },
+            {
+              "index": 11,
+              "name": "Agent brand registry > renders claude as a current-color monochrome vector"
+            },
+            {
+              "index": 12,
+              "name": "Agent brand registry > renders codex as a current-color monochrome vector"
+            },
+            {
+              "index": 13,
+              "name": "Agent brand registry > renders cursor as a current-color monochrome vector"
+            },
+            {
+              "index": 14,
+              "name": "Agent brand registry > renders pi as a current-color monochrome vector"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::agent_brands::tests::recognizes_a_brand_however_an_agent_writes_its_name"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::agent_brands::tests::claims_no_brand_from_part_of_a_word_or_a_shared_word"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::agent_brands::tests::resolves_runtime_aliases_without_confusing_pi_with_ordinary_words"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::brand_assets::every_brand_has_one_id_a_name_a_scale_and_themed_assets"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::agent_brands::tests::colour_marks_follow_the_theme_from_their_own_assets"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::brand_assets::monochrome_marks_are_vectors_drawn_in_the_surface_colour"
+        }
+      ]
+    },
+    {
+      "id": "agent-routing-preference-scope",
+      "acceptance": "A route change stays with its own runtime and keeps the selection; legacy routes migrate without becoming an explicit choice; the channel-ambiguous legacy WorkBuddy route is cleared.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/runtimes/discovery/agentRoutingPreferences.test.ts",
+          "sha256": "07f067fc4f000a2cd33f2d534a15476008573f4e31f01ac6a2bb43335743fe67",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent routing preferences > keeps Provider, Model, Variant, Effort and Mode scoped to one Agent runtime"
+            },
+            {
+              "index": 1,
+              "name": "Agent routing preferences > preserves a legacy runtime's model route without treating its old implicit runtime as an explicit choice"
+            },
+            {
+              "index": 2,
+              "name": "Agent routing preferences > clears the channel-ambiguous legacy WorkBuddy route"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::settings::agent_routing_preferences::tests::a_route_change_stays_with_its_own_runtime",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::settings::agent_routing_preferences::tests::parses_versions_and_migrates_only_the_legacy_route",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::settings::agent_routing_preferences::tests::the_ambiguous_legacy_workbuddy_route_is_cleared",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "local-connection-characterization",
+      "acceptance": "Local connection characterization preserves every probe, gate and field case of the product snapshots, never reads gates before the probe is ready and never reads the workspace gate after a backend denial.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/runtimes/discovery/localAgentConnectionPolicy.test.mjs",
+          "sha256": "ed73c53ad128dcd6cea5330ecae46a0be37c86b73b035f50b4ff614968690ed8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local connection characterization > preserves ready"
+            },
+            {
+              "index": 1,
+              "name": "local connection characterization > preserves missing probe"
+            },
+            {
+              "index": 2,
+              "name": "local connection characterization > preserves not-found"
+            },
+            {
+              "index": 3,
+              "name": "local connection characterization > preserves unsupported"
+            },
+            {
+              "index": 4,
+              "name": "local connection characterization > preserves broken"
+            },
+            {
+              "index": 5,
+              "name": "local connection characterization > preserves invalid"
+            },
+            {
+              "index": 6,
+              "name": "local connection characterization > preserves signed-out"
+            },
+            {
+              "index": 7,
+              "name": "local connection characterization > preserves expired"
+            },
+            {
+              "index": 8,
+              "name": "local connection characterization > preserves error"
+            },
+            {
+              "index": 9,
+              "name": "local connection characterization > preserves unknown"
+            },
+            {
+              "index": 10,
+              "name": "local connection characterization > preserves invalid"
+            },
+            {
+              "index": 11,
+              "name": "local connection characterization > preserves protocol unavailable"
+            },
+            {
+              "index": 12,
+              "name": "local connection characterization > preserves protocol precedes authentication"
+            },
+            {
+              "index": 13,
+              "name": "local connection characterization > preserves missing models"
+            },
+            {
+              "index": 14,
+              "name": "local connection characterization > preserves strict protocol boolean"
+            },
+            {
+              "index": 15,
+              "name": "local connection characterization > preserves strict models boolean"
+            },
+            {
+              "index": 16,
+              "name": "local connection characterization > preserves backend denied"
+            },
+            {
+              "index": 17,
+              "name": "local connection characterization > preserves workspace denied"
+            },
+            {
+              "index": 18,
+              "name": "local connection characterization > preserves only explicit false denies gates"
+            },
+            {
+              "index": 19,
+              "name": "local connection characterization > preserves sanitized fields"
+            },
+            {
+              "index": 20,
+              "name": "local connection characterization > preserves invalid fields"
+            },
+            {
+              "index": 21,
+              "name": "local connection characterization > preserves long fields"
+            },
+            {
+              "index": 22,
+              "name": "local connection characterization > preserves user-installation"
+            },
+            {
+              "index": 23,
+              "name": "local connection characterization > preserves system-installation"
+            },
+            {
+              "index": 24,
+              "name": "local connection characterization > preserves path-installation"
+            },
+            {
+              "index": 25,
+              "name": "local connection characterization > preserves application-bundle"
+            },
+            {
+              "index": 26,
+              "name": "local connection characterization > does not read admission gates before the probe is ready"
+            },
+            {
+              "index": 27,
+              "name": "local connection characterization > does not read the workspace gate after backend denial"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::connections::tests::preserves_the_local_connection_characterization"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::connections::tests::does_not_read_admission_gates_before_the_probe_is_ready"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::connections::tests::does_not_read_the_workspace_gate_after_backend_denial"
+        }
+      ]
+    },
+    {
+      "id": "local-agent-launcher-visibility",
+      "acceptance": "Detected Agents show by default; hiding one persists only its id, showing it again removes it, and hidden ids stay sorted so the same choices persist the same list.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/runtimes/discovery/localAgentSelection.test.ts",
+          "sha256": "d85c2ac9f8a997876289f20a789013543b2256384a068ef634a9ae5b41ae010d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Local Agent selection > shows detected Agents in Terminal by default and persists only hidden launchers"
+            },
+            {
+              "index": 1,
+              "name": "Local Agent selection > keeps hidden launcher ids stable and sorted"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::settings::preference_types::tests::launchers_show_by_default_and_only_sorted_hidden_ids_persist",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::local_agents::settings::tests::detected_agents_list_with_their_hooks_and_only_hidden_ids_persist",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "local-tools-discovered-on-request",
+      "acceptance": "Opening a chat never scans local tools; the local Agents scan runs when its surface asks and scans again only on an explicit refresh.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller-runtimes.test.ts",
+          "sha256": "5fa0ed93dd92563859053a3ab046516c1babeb9a5bc46f58779aeb8ca113e847",
+          "cases": [
+            {
+              "index": 13,
+              "name": "AgentSessionController: Agents, models and runtimes > discovers local tools only when the Provider surface requests them"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::desktop_agent::application::tests::controller::discovers_installed_agents_without_selecting_or_resuming_one",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::local_agents::discovery::tests::only_an_explicit_refresh_scans_again",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "harness-lifecycle-conformance",
+      "acceptance": "The live activity states are queued, running, pending, in-progress and waiting-for-user; for every Harness a completed, failed or interrupted turn settles its reasoning, answer, approval, question, connection state and live parts; rows keep their first sequence across later completion events.",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.harness-lifecycle-conformance.test.ts",
+          "sha256": "178bb2ed7904b4dc8863c9d33f755e173a0bdda4e071b5935ab4ba5edc09cd97",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > defines the complete shared set of live activity states"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'codex' child on 'turn.completed'"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'codex' child on 'turn.failed'"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'codex' child on 'turn.interrupted'"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'cursor' child on 'turn.completed'"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'cursor' child on 'turn.failed'"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'cursor' child on 'turn.interrupted'"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'claude' child on 'turn.completed'"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'claude' child on 'turn.failed'"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'claude' child on 'turn.interrupted'"
+            },
+            {
+              "index": 10,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'opencode' child on 'turn.completed'"
+            },
+            {
+              "index": 11,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'opencode' child on 'turn.failed'"
+            },
+            {
+              "index": 12,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'opencode' child on 'turn.interrupted'"
+            },
+            {
+              "index": 13,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'pi' child on 'turn.completed'"
+            },
+            {
+              "index": 14,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'pi' child on 'turn.failed'"
+            },
+            {
+              "index": 15,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > settles every 'pi' child on 'turn.interrupted'"
+            },
+            {
+              "index": 16,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > keeps 'codex' semantic rows stable across later completion events"
+            },
+            {
+              "index": 17,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > keeps 'cursor' semantic rows stable across later completion events"
+            },
+            {
+              "index": 18,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > keeps 'claude' semantic rows stable across later completion events"
+            },
+            {
+              "index": 19,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > keeps 'opencode' semantic rows stable across later completion events"
+            },
+            {
+              "index": 20,
+              "name": "Desktop Agent normalized Harness lifecycle conformance > keeps 'pi' semantic rows stable across later completion events"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::defines_the_complete_shared_set_of_live_activity_states"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::every_harness_child_settles_on_each_terminal_outcome"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::transcript::tests::every_harness_keeps_its_rows_stable_across_later_completions"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -36218,7 +37690,7 @@
     {
       "id": "windows-and-cross-platform-release",
       "kind": "out-of-scope",
-      "reason": "Only macOS is in scope for the native frontend: Windows NSIS releases and updater delivery, Windows identity and Authenticode checks, combined macOS+Windows release sets, Windows CLI resolution and non-macOS icon tooling are not built or verified, and Linux secure-storage backends (Electron safeStorage's basic_text fallback) do not apply.",
+      "reason": "Only macOS is in scope for the native frontend: Windows NSIS releases and updater delivery, Windows identity and Authenticode checks, combined macOS+Windows release sets, Windows CLI resolution and non-macOS icon tooling are not built or verified, and Linux secure-storage backends (Electron safeStorage's basic_text fallback) do not apply; Windows Agent process termination and Windows workspace path semantics are not built or verified either.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
       "typescript": [
         {
@@ -36504,6 +37976,26 @@
             {
               "index": 2,
               "name": "Windows release signing configuration > rejects a configuration that is not an NSIS Windows target"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/agent/processes/electron.agent-process-tree.test.mjs",
+          "sha256": "8a8c7dbbaf5f58b5d61c64deff58f6b0a00aee23fd2043ed928462b3396d8bf9",
+          "cases": [
+            {
+              "index": 1,
+              "name": "managed Agent process trees > uses the child handle on Windows where detached groups have different semantics"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/agent/references/electron.agent-event-workspace-paths.test.mjs",
+          "sha256": "6c7eda2995a0b1aebcf57b9345da0a3e7c988be09f3edd6446c368d419a10ed3",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Agent event workspace path policy > supports native Windows workspace paths without weakening containment"
             }
           ]
         }
@@ -45264,6 +46756,144 @@
             {
               "index": 8,
               "name": "Desktop Agent reference ingestion > preserves another attached root's URI through native authorization"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-scroll-ownership-guard",
+      "kind": "out-of-scope",
+      "reason": "TS lints its renderer so only the transcript viewport hook writes scroll positions or creates ResizeObservers. GPUI's list owns the native transcript's scrolling and measurement; there is no DOM scroll API to guard.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/transcript.md",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/transcript/desktop-agent.renderer-ownership.test.mjs",
+          "sha256": "b5fd2ca3580a4e3e2cb8730840b22c36b41a3900f2691a11e5e07c8926000657",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: element.scrollTop = 10;"
+            },
+            {
+              "index": 1,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: element['scrollTop'] += 10;"
+            },
+            {
+              "index": 2,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: element.scrollTop++;"
+            },
+            {
+              "index": 3,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: element.scrollTo({top: 10});"
+            },
+            {
+              "index": 4,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: element['scrollBy'](0, 10);"
+            },
+            {
+              "index": 5,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: element?.scrollIntoView();"
+            },
+            {
+              "index": 6,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: element.scroll({top: 10});"
+            },
+            {
+              "index": 7,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: new ResizeObserver(callback);"
+            },
+            {
+              "index": 8,
+              "name": "Chat viewport ownership gate > rejects an independent scroll/measurement owner: new window.ResizeObserver(callback);"
+            },
+            {
+              "index": 9,
+              "name": "Chat viewport ownership gate > allows read-only geometry and reporting to the shared owner"
+            },
+            {
+              "index": 10,
+              "name": "Chat viewport ownership gate > allows the explicit owner or isolated fixture: transcript/useTranscriptViewport.ts"
+            },
+            {
+              "index": 11,
+              "name": "Chat viewport ownership gate > allows the explicit owner or isolated fixture: AgentRenderStabilitySmokeHarness.tsx"
+            },
+            {
+              "index": 12,
+              "name": "Chat viewport ownership gate > applies to newly added TS hooks and TSX leaves"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "js-cyclic-provider-payloads",
+      "kind": "out-of-scope",
+      "reason": "TS guards provider payloads that are cyclic JavaScript object graphs before IPC delivery. Native provider payloads are parsed JSON (serde_json::Value is a tree) and cannot be cyclic; the size and shape bounds are the agent-normalized-event-boundary contract.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/contract/js-semantics.md",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/events/electron.agent-events.test.mjs",
+          "sha256": "62267f7ae474b7265491e82a7a4d85aaf825a34e03718b9d7639afe9d463e3bb",
+          "cases": [
+            {
+              "index": 3,
+              "name": "normalized AgentEvent envelopes > terminates cyclic provider payloads before IPC delivery"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "native-picker-type-filters",
+      "kind": "out-of-scope",
+      "reason": "TS derives accept-lists for its HTML file input from the attachment capabilities (and leaves it unrestricted when a path-delivered class accepts everything). GPUI's native path prompt takes no file-type filter, so the picker is always unrestricted and unsupported files are refused when staged.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/references/electron.agent-reference-capabilities.test.mjs",
+          "sha256": "d3180a0c317fd51f5c854cd10e7b2b464a58c24d61cbcecddafec01ee28279bf",
+          "cases": [
+            {
+              "index": 2,
+              "name": "semantic Agent reference capabilities > leaves the native picker unrestricted when any path-delivered class accepts all file types"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codex-colour-mark",
+      "kind": "out-of-scope",
+      "reason": "TS draws Codex's colour image with the ChatGPT artwork, which is white-only and disappears on light surfaces. The native in-chat launcher draws Codex's colour image from the Codex app icon (codex-light/dark.png); the monochrome Codex mark is ChatGPT's vector as in TS (agent-brand-catalog).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/theme-and-brand.md",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/runtimes/discovery/agentBrandCatalog.test.tsx",
+          "sha256": "de8be81a6d6e0556e78843654111c0bd59b3737a09402fd29fdbd82524ffc78b",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Agent brand registry > renders both Codex and ChatGPT identities with the ChatGPT monochrome mark"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "native-registry-default-selection",
+      "kind": "out-of-scope",
+      "reason": "The TS registry selects a configured default runtime from a catalog (without readiness fallback) and reports active resources. The native registry only validates its default; a chat always names its runtime (the launcher choice or routing preferences), and cleanup is covered by the registry cleanup contract.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/host/runtime-resolution.md",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/runtimes/discovery/electron.agent-runtime-registry.test.mjs",
+          "sha256": "628c3220822c3529073c7d16da73678bb83fe4f130afaac6b136988a7ab80b06",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Agent runtime registry > selects the configured default without readiness fallback and keeps lifecycle dispatch neutral"
             }
           ]
         }

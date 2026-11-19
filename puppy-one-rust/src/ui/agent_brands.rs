@@ -245,4 +245,92 @@ mod tests {
         );
         assert_eq!(id("pipeline"), None);
     }
+
+    /// `recognizes a brand however an Agent writes its name`.
+    #[test]
+    fn recognizes_a_brand_however_an_agent_writes_its_name() {
+        for (label, brand) in [
+            ("Grok Bot", "grok-bot"),
+            ("grok-bot", "grok-bot"),
+            ("GROK_BOT", "grok-bot"),
+            ("Grok", "grok-bot"),
+            ("xAI Grok CLI", "grok-bot"),
+            ("GitHub Copilot", "github-copilot"),
+            ("github-copilot", "github-copilot"),
+            ("Microsoft Copilot Studio", "copilot-studio"),
+            ("Built-in Agent", "built-in-agent"),
+            ("Claude Code", "claude"),
+        ] {
+            assert_eq!(
+                resolve(None, None, Some(label)).map(|b| b.id),
+                Some(brand),
+                "{label}"
+            );
+        }
+    }
+
+    /// `claims no brand from part of a word or from a word two brands
+    /// share`.
+    #[test]
+    fn claims_no_brand_from_part_of_a_word_or_a_shared_word() {
+        for label in [
+            "Groq",
+            "Grokking Notes",
+            "Copilot",
+            "GitHub",
+            "Research helper",
+            "我的小助手",
+        ] {
+            assert_eq!(
+                resolve(None, None, Some(label)).map(|b| b.id),
+                None,
+                "{label}"
+            );
+        }
+    }
+
+    /// `resolves runtime aliases without confusing Pi with ordinary words`.
+    #[test]
+    fn resolves_runtime_aliases_without_confusing_pi_with_ordinary_words() {
+        let id = |id: Option<&str>, icon: Option<&str>, label: Option<&str>| {
+            resolve(id, icon, label).map(|b| b.id)
+        };
+        assert_eq!(id(Some("claude-code"), None, None), Some("claude"));
+        assert_eq!(id(Some("cursor-cli"), None, None), Some("cursor"));
+        assert_eq!(
+            id(None, Some("openai"), Some("Codex session")),
+            Some("codex")
+        );
+        assert_eq!(id(None, None, Some("Pi Agent")), Some("pi"));
+        for workbuddy in ["workbuddy", "workbuddy-china", "workbuddy-international"] {
+            assert_eq!(id(Some(workbuddy), None, None), Some("workbuddy"));
+        }
+        assert_eq!(id(None, None, Some("CodeBuddy session")), Some("workbuddy"));
+        assert_eq!(
+            id(Some("puppyone-agent"), Some("built-in-agent"), None),
+            Some("built-in-agent")
+        );
+        assert_eq!(get("workspace-agent").map(|b| b.id), Some("built-in-agent"));
+        assert_eq!(id(None, None, Some("API session")), None);
+        assert_eq!(get("PI").map(|b| b.name), Some("Pi Agent"));
+    }
+
+    /// `renders Built-in Agent with its own themed mark instead of the
+    /// PuppyOne product mark`; `renders WorkBuddy with the supplied local
+    /// color mark`; `renders Pi's existing light and dark repository marks`.
+    #[test]
+    fn colour_marks_follow_the_theme_from_their_own_assets() {
+        let built_in = get("built-in-agent").unwrap();
+        assert_eq!(
+            (built_in.light, built_in.dark),
+            ("built-in-agent.svg", Some("built-in-agent-dark.svg"))
+        );
+        let workbuddy = get("workbuddy").unwrap();
+        assert_eq!((workbuddy.light, workbuddy.dark), ("workbuddy.png", None));
+        let pi = get("pi").unwrap();
+        assert_eq!(
+            (pi.light, pi.dark, pi.scale),
+            ("pi.svg", Some("pi-dark.svg"), 1.28)
+        );
+    }
 }

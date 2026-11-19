@@ -471,9 +471,21 @@ fn keeps_read_only_capability_separate_from_route_readiness() {
 
 #[test]
 fn renders_an_ended_session_without_a_missing_message_fallback() {
-    let presented = present_agent_error(Some(&error("session-ended"))).expect("presented");
-    assert!(!presented.summary.is_empty());
-    assert_ne!(presented.summary, "agent.error.session-ended");
+    let catalogs: Value = serde_json::from_str(
+        &std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/locales.json"))
+            .expect("the bundled catalogs"),
+    )
+    .expect("catalog JSON");
+    for locale in ["de", "en", "es", "fr", "ja", "ko", "pt-BR", "zh-Hans"] {
+        // Every catalog carries the message itself: no fallback to English.
+        let own = catalogs["catalogs"][locale]["agent.error.session-ended"].as_str();
+        assert!(own.is_some_and(|m| !m.is_empty()), "{locale}");
+        crate::localization::set_current(locale);
+        let presented = present_agent_error(Some(&error("session-ended"))).expect("presented");
+        assert!(!presented.summary.is_empty(), "{locale}");
+        assert_ne!(presented.summary, "agent.error.session-ended", "{locale}");
+    }
+    crate::localization::set_current("en");
 }
 
 fn inspection(models: Value, modes: Value) -> RuntimeInspection {

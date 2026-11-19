@@ -102,6 +102,15 @@ impl LocalAgents {
             .take(16)
             .collect();
     }
+    /// `setTerminalAgentVisible`: shows or hides one launcher; the hidden ids
+    /// stay sorted, so the same choices persist the same list.
+    pub fn set_agent_visible(&mut self, id: &str, visible: bool) {
+        self.hidden_agent_ids.retain(|hidden| hidden != id);
+        if !visible {
+            self.hidden_agent_ids.push(id.to_owned());
+        }
+        self.hidden_agent_ids.sort();
+    }
 }
 /// `HeaderCoachmarkProgress`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -684,6 +693,25 @@ fn stored_width(width: f32, minimum: f32, default: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    /// `shows detected Agents in Terminal by default and persists only
+    /// hidden launchers`; `keeps hidden launcher ids stable and sorted`.
+    #[test]
+    fn launchers_show_by_default_and_only_sorted_hidden_ids_persist() {
+        let mut p = super::Preferences::default();
+        assert!(p.agent_visible("codex"));
+        p.local_agents.set_agent_visible("codex", false);
+        assert_eq!(p.local_agents.hidden_agent_ids, ["codex"]);
+        assert!(!p.agent_visible("codex"));
+        assert!(!p.local_agents.chat_history_discovery);
+        p.local_agents.set_agent_visible("codex", true);
+        assert!(p.local_agents.hidden_agent_ids.is_empty());
+        p.local_agents.chat_history_discovery = true;
+        p.local_agents.set_agent_visible("opencode", false);
+        p.local_agents.set_agent_visible("claude", false);
+        assert_eq!(p.local_agents.hidden_agent_ids, ["claude", "opencode"]);
+        assert!(p.local_agents.chat_history_discovery);
+    }
+
     #[test]
     fn loading_material_migrates_without_discarding_other_preferences() {
         for value in [

@@ -610,3 +610,63 @@ fn replayed_history_claims_no_worked_duration() {
     assert!(display.turns[0]["durationMs"].is_null());
     assert!(!display.parts.iter().any(|p| p["kind"] == "turn-summary"));
 }
+
+/// `electron.agent-event-workspace-paths.test.mjs`: `normalizes live
+/// delivery and migrates persisted replay events` — a restored session's
+/// saved file-change paths and a live one are both workspace-relative.
+#[test]
+fn restored_and_live_file_change_paths_become_workspace_relative() {
+    use crate::agent::application::agent_event_journal::AgentEventJournal;
+    use crate::agent::application::tests::harness::{FakePersistence, RecordingLogger, run};
+    use crate::agent::domain::agent_session_model::{
+        SessionRecordInput, create_agent_session_record,
+    };
+    use crate::agent::sender::Sender;
+    use std::rc::Rc;
+    run(async {
+        let envelope = |path: &str| {
+            json!({
+                "schemaVersion": 1, "sequence": 1, "sessionId": "session", "runtimeId": "codex",
+                "provider": "codex", "providerSessionId": null, "turnId": "turn-1", "itemId": "item-1",
+                "emittedAt": "2026-09-01T00:00:00.000Z", "type": "file.change.updated",
+                "payload": { "path": path, "changes": [{ "path": path }] },
+            })
+        };
+        let sent = Rc::new(std::cell::Cell::new(0));
+        let count = sent.clone();
+        let session = create_agent_session_record(SessionRecordInput {
+            id: "session".into(),
+            owner_id: 1,
+            sender: Sender::new(1, Rc::new(move |_| count.set(count.get() + 1))),
+            workspace_root: "/Users/example/project".into(),
+            runtime_id: "codex".into(),
+            runtime: None,
+            model: None,
+            effort: None,
+            mode: None,
+            events: vec![envelope("/Users/example/project/old.md")],
+            sequence: 0,
+            created_at: None,
+            title: Some("Codex session".into()),
+            terminal_state: None,
+        })
+        .unwrap();
+        assert_eq!(session.actor.events()[0]["payload"]["path"], "old.md");
+        let persistence = Rc::new(FakePersistence::default());
+        let journal =
+            AgentEventJournal::new(Rc::new(persistence), Rc::new(RecordingLogger::default()));
+        journal.emit(
+            &session,
+            json!({"type": "file.change.updated", "payload": {
+                "path": "/Users/example/project/new.md",
+                "changes": [{ "path": "/Users/example/project/new.md" }],
+            }}),
+        );
+        let last = session.actor.events().last().cloned().unwrap();
+        assert_eq!(
+            last["payload"],
+            json!({ "path": "new.md", "changes": [{ "path": "new.md" }] })
+        );
+        assert_eq!(sent.get(), 0, "nothing is sent to a renderer directly");
+    });
+}
