@@ -86,6 +86,27 @@ pub(super) fn linked_entry(publication_pending: bool) -> LinkedEntry {
         LinkedEntry::Open
     }
 }
+/// The one action a notice offers (`LocalFolderCloudNotice`): open the
+/// Cloud project (never from a scoped checkout), sign in, end a link this
+/// app can end, or retry; an ambiguous link is only explained.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NoticeAct {
+    Open,
+    SignIn,
+    Disconnect,
+    Retry,
+}
+pub(super) fn notice_act(notice: &Notice, disconnectable: bool) -> Option<NoticeAct> {
+    match notice {
+        Notice::Linked { openable, .. } => openable.then_some(NoticeAct::Open),
+        Notice::SignIn => Some(NoticeAct::SignIn),
+        Notice::OtherEnvironment { .. } | Notice::Missing | Notice::NoAccess => {
+            disconnectable.then_some(NoticeAct::Disconnect)
+        }
+        Notice::Ambiguous => None,
+        Notice::Unreachable { .. } => Some(NoticeAct::Retry),
+    }
+}
 /// `localFolderCloudNoticeKey`: a new folder or a new meaning shows again.
 pub(super) fn notice_key(root: &std::path::Path, notice: &Notice) -> String {
     let kind = match notice {
@@ -502,54 +523,20 @@ impl WindowCloud {
                     let _ = host.update(cx, |s, cx| run(s, w, cx));
                 })
             };
-        let disconnect = self.disconnectable(cx).then(|| {
-            action(
-                "local-folder-notice-disconnect",
-                tr("cloud.localFolderNotice.disconnect"),
-                |s, w, cx| s.open_disconnect(w, cx),
-            )
-        });
-        let (tone, message, action) = match &notice {
-            Notice::Linked {
-                project,
-                name,
-                openable,
-            } => {
-                let message = match name {
+        let (tone, message) = match &notice {
+            Notice::Linked { name, .. } => (
+                NoticeTone::Info,
+                match name {
                     Some(name) => tf(
                         "cloud.localFolderNotice.linked",
                         &[("name", name.clone().into())],
                     ),
                     None => tr("cloud.localFolderNotice.linkedUnnamed").to_owned(),
-                };
-                let project = project.clone();
-                let host = host.clone();
-                let open = openable.then(|| {
-                    NoticeAction::new(
-                        "local-folder-notice-open",
-                        tr("cloud.localFolderNotice.openProject"),
-                        move |w, cx| {
-                            let _ = host.update(cx, |s, cx| {
-                                match linked_entry(s.publication_pending(cx)) {
-                                    LinkedEntry::Publish => s.put_in_cloud(w, cx),
-                                    LinkedEntry::Open => {
-                                        cx.emit(CloudEvent::OpenCloud(project.clone()))
-                                    }
-                                }
-                            });
-                        },
-                    )
-                });
-                (NoticeTone::Info, message, open)
-            }
+                },
+            ),
             Notice::SignIn => (
                 NoticeTone::Info,
                 tr("cloud.localFolderNotice.signIn").to_owned(),
-                Some(action(
-                    "local-folder-notice-sign-in",
-                    tr("cloud.auth.signIn"),
-                    |s, w, cx| s.sign_in_for_cloud(w, cx),
-                )),
             ),
             Notice::OtherEnvironment { origin } => (
                 NoticeTone::Info,
@@ -560,22 +547,18 @@ impl WindowCloud {
                     ),
                     None => tr("cloud.localFolderNotice.otherEnvironmentUnknown").to_owned(),
                 },
-                disconnect,
             ),
             Notice::Missing => (
                 NoticeTone::Warning,
                 tr("cloud.localFolderNotice.missing").to_owned(),
-                disconnect,
             ),
             Notice::NoAccess => (
                 NoticeTone::Warning,
                 tr("cloud.localFolderNotice.noAccess").to_owned(),
-                disconnect,
             ),
             Notice::Ambiguous => (
                 NoticeTone::Warning,
                 tr("cloud.localFolderNotice.ambiguous").to_owned(),
-                None,
             ),
             Notice::Unreachable { cause } => (
                 NoticeTone::Warning,
@@ -587,15 +570,48 @@ impl WindowCloud {
                     ),
                     None => tr("cloud.localFolderNotice.unreachable").to_owned(),
                 },
-                Some(action(
-                    "local-folder-notice-retry",
-                    tr("common.action.retry"),
-                    |s, _, cx| {
-                        s.repository.update(cx, |r, cx| r.retry(cx));
-                    },
-                )),
             ),
         };
+        let action = notice_act(&notice, self.disconnectable(cx)).map(|act| match act {
+            NoticeAct::Open => {
+                let Notice::Linked { project, .. } = &notice else {
+                    unreachable!("only a linked notice opens its project")
+                };
+                let project = project.clone();
+                let host = host.clone();
+                NoticeAction::new(
+                    "local-folder-notice-open",
+                    tr("cloud.localFolderNotice.openProject"),
+                    move |w, cx| {
+                        let _ = host.update(cx, |s, cx| {
+                            match linked_entry(s.publication_pending(cx)) {
+                                LinkedEntry::Publish => s.put_in_cloud(w, cx),
+                                LinkedEntry::Open => {
+                                    cx.emit(CloudEvent::OpenCloud(project.clone()))
+                                }
+                            }
+                        });
+                    },
+                )
+            }
+            NoticeAct::SignIn => action(
+                "local-folder-notice-sign-in",
+                tr("cloud.auth.signIn"),
+                |s, w, cx| s.sign_in_for_cloud(w, cx),
+            ),
+            NoticeAct::Disconnect => action(
+                "local-folder-notice-disconnect",
+                tr("cloud.localFolderNotice.disconnect"),
+                |s, w, cx| s.open_disconnect(w, cx),
+            ),
+            NoticeAct::Retry => action(
+                "local-folder-notice-retry",
+                tr("common.action.retry"),
+                |s, _, cx| {
+                    s.repository.update(cx, |r, cx| r.retry(cx));
+                },
+            ),
+        });
         let dismiss = self.weak.clone();
         let mut notice = FloatingNotice::new("local-folder-cloud-notice", message)
             .tone(tone)
@@ -1004,6 +1020,33 @@ mod tests {
         let (a, b) = (std::path::Path::new("/a"), std::path::Path::new("/b"));
         assert_ne!(notice_key(a, &linked), notice_key(b, &linked));
         assert_ne!(notice_key(a, &linked), notice_key(a, &other));
+    }
+
+    /// `LocalFolderCloudNotice`: each notice offers the one action that
+    /// helps, and only explains what this app cannot end by itself.
+    #[test]
+    fn each_notice_offers_only_the_action_that_helps() {
+        let linked = |openable| Notice::Linked {
+            project: "p".into(),
+            name: None,
+            openable,
+        };
+        assert_eq!(notice_act(&linked(true), true), Some(NoticeAct::Open));
+        assert_eq!(notice_act(&linked(false), true), None);
+        assert_eq!(notice_act(&Notice::SignIn, false), Some(NoticeAct::SignIn));
+        for notice in [
+            Notice::OtherEnvironment { origin: None },
+            Notice::Missing,
+            Notice::NoAccess,
+        ] {
+            assert_eq!(notice_act(&notice, true), Some(NoticeAct::Disconnect));
+            assert_eq!(notice_act(&notice, false), None, "{notice:?}");
+        }
+        assert_eq!(notice_act(&Notice::Ambiguous, true), None);
+        assert_eq!(
+            notice_act(&Notice::Unreachable { cause: None }, true),
+            Some(NoticeAct::Retry)
+        );
     }
 
     #[test]

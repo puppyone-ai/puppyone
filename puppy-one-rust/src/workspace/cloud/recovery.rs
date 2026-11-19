@@ -112,6 +112,7 @@ mod tests {
     #[test]
     fn only_transport_and_transient_server_failures_recover() {
         assert!(recoverable(&AuthError::Unavailable));
+        assert!(recoverable(&AuthError::Timeout));
         for status in [408, 500, 502, 503, 504] {
             assert!(
                 recoverable(&AuthError::Response(status, None, Default::default())),
@@ -122,9 +123,13 @@ mod tests {
             AuthError::Http(401),
             AuthError::Http(403),
             AuthError::Http(404),
+            AuthError::Http(426),
             AuthError::Response(429, None, Default::default()),
+            AuthError::Http(501),
             AuthError::SessionChanged,
             AuthError::Cancelled,
+            // Unclassified.
+            AuthError::InvalidResponse,
         ] {
             assert!(!recoverable(&error), "{error:?}");
         }

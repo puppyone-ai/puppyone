@@ -27410,6 +27410,912 @@
           "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
         }
       ]
+    },
+    {
+      "id": "cloud-hosted-project-opening",
+      "acceptance": "An authorized hosted Project opens in the same window with no local workspace or Git, the Header naming it while it opens; a refusal keeps the selected Project and is classified by what the person can do (sign in, plan, access, missing project, workspace unavailable or not configured); a workspace replaced while opening is opened again once by itself, and one that moves again is reported; a missing Project is told apart from an unavailable runtime; a retained or cleanup-pending runtime is never woken; a refused local association leaves the account catalog usable; a failed opening keeps what is open with its recovery and Retry repeats that opening; the same target joins its pending opening and turning Cloud off cancels it; a response for another Project or target is refused; signing out revokes the hosted selection and returns home; going back to the folder makes it its own project again; a reopened lease rebinds a document's baseline and saves.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/accountCloudWorkspace.test.tsx",
+          "sha256": "60602fce7d7f829d3cbdef1c4969d2f1fd43147f05f2af60ca6f95c1d26535fe",
+          "cases": [
+            {
+              "index": 0,
+              "name": "account-owned Cloud workspaces on the existing API > opens an authorized hosted project without any local workspace or Git remote"
+            },
+            {
+              "index": 1,
+              "name": "account-owned Cloud workspaces on the existing API > preserves the selected project and classifies runtime failure 401 / undefined"
+            },
+            {
+              "index": 2,
+              "name": "account-owned Cloud workspaces on the existing API > preserves the selected project and classifies runtime failure 402 / undefined"
+            },
+            {
+              "index": 3,
+              "name": "account-owned Cloud workspaces on the existing API > preserves the selected project and classifies runtime failure 403 / undefined"
+            },
+            {
+              "index": 4,
+              "name": "account-owned Cloud workspaces on the existing API > preserves the selected project and classifies runtime failure 404 / undefined"
+            },
+            {
+              "index": 5,
+              "name": "account-owned Cloud workspaces on the existing API > preserves the selected project and classifies runtime failure 503 / workbench_provider_not_configured"
+            },
+            {
+              "index": 6,
+              "name": "account-owned Cloud workspaces on the existing API > preserves the selected project and classifies runtime failure 503 / undefined"
+            },
+            {
+              "index": 7,
+              "name": "account-owned Cloud workspaces on the existing API > opens again by itself once when the workspace moved while opening (workbench_generation_changed)"
+            },
+            {
+              "index": 8,
+              "name": "account-owned Cloud workspaces on the existing API > opens again by itself once when the workspace moved while opening (workbench_not_running)"
+            },
+            {
+              "index": 9,
+              "name": "account-owned Cloud workspaces on the existing API > opens again by itself once when the workspace moved while opening (workbench_context_changed)"
+            },
+            {
+              "index": 10,
+              "name": "account-owned Cloud workspaces on the existing API > reports a workspace that moves again rather than reopening forever"
+            },
+            {
+              "index": 11,
+              "name": "account-owned Cloud workspaces on the existing API > distinguishes a missing project from an unavailable runtime"
+            },
+            {
+              "index": 12,
+              "name": "account-owned Cloud workspaces on the existing API > does not allocate another runtime when its state is retained"
+            },
+            {
+              "index": 13,
+              "name": "account-owned Cloud workspaces on the existing API > does not allocate another runtime when its state is cleanup_pending"
+            },
+            {
+              "index": 14,
+              "name": "account-owned Cloud workspaces on the existing API > keeps the account catalog usable when local association is local-only"
+            },
+            {
+              "index": 15,
+              "name": "account-owned Cloud workspaces on the existing API > keeps the account catalog usable when local association is wrong-host"
+            },
+            {
+              "index": 16,
+              "name": "account-owned Cloud workspaces on the existing API > keeps the account catalog usable when local association is not-authorized"
+            },
+            {
+              "index": 17,
+              "name": "account-owned Cloud workspaces on the existing API > keeps the account catalog usable when local association is not-found"
+            },
+            {
+              "index": 19,
+              "name": "account-owned Cloud workspaces on the existing API > preserves the current Cloud project when opening another project fails"
+            },
+            {
+              "index": 20,
+              "name": "account-owned Cloud workspaces on the existing API > does not commit a cancelled or superseded project selection"
+            },
+            {
+              "index": 22,
+              "name": "account-owned Cloud workspaces on the existing API > reports an opening failure to the shared navigation without replacing the current project"
+            },
+            {
+              "index": 23,
+              "name": "account-owned Cloud workspaces on the existing API > rejects a mismatched project/target response"
+            },
+            {
+              "index": 24,
+              "name": "account-owned Cloud workspaces on the existing API > invalidates old-account catalog and late selection results"
+            },
+            {
+              "index": 25,
+              "name": "account-owned Cloud workspaces on the existing API > returns to local without changing Git configuration or losing the selected Cloud identity"
+            },
+            {
+              "index": 26,
+              "name": "account-owned Cloud workspaces on the existing API > rebinds retained document inputs and save ports after signing back into the same account"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/appProjectLocation.test.tsx",
+          "sha256": "b074cafbe198cbeb8b7b69476aef0a4db36a769c631607cf33dad923765ce6dd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "production App location wiring > binds the Header and body to the same shown project (false)"
+            },
+            {
+              "index": 1,
+              "name": "production App location wiring > binds the Header and body to the same shown project (true)"
+            },
+            {
+              "index": 2,
+              "name": "production App location wiring > binds the Header and body to the same shown project (false)"
+            },
+            {
+              "index": 3,
+              "name": "production App location wiring > never offers to switch one project between this computer and the Cloud (ADR-001)"
+            },
+            {
+              "index": 4,
+              "name": "production App location wiring > goes to the Cloud project and back through the project menu, keeping the folder's draft"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/nativeCloudWorkbench.test.tsx",
+          "sha256": "520f05e10159d0e55d4392d8574d394dc72d51ce0b126ef617a32ce4e5dffadc",
+          "cases": [
+            {
+              "index": 1,
+              "name": "native Cloud workbench for a Cloud project opened beside a local folder > refreshes from native file events without focus polling or Git publication"
+            },
+            {
+              "index": 4,
+              "name": "native Cloud workbench for a Cloud project opened beside a local folder > shows the Cloud project without a dialog and restores the exact local editor host and draft"
+            },
+            {
+              "index": 5,
+              "name": "native Cloud workbench for a Cloud project opened beside a local folder > changes the storage namespace on account change and revokes the previous provider"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudOpenWaitsForSession.test.tsx",
+          "sha256": "37017ca7e80fe08202e1e270812e43d8574d4b52de8220372b89975593306582",
+          "cases": [
+            {
+              "index": 3,
+              "name": "opening a Cloud project from the cached list > opens at once when the session is already known"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_linked_folder_opens_its_cloud_project_in_the_same_window"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::injected_opening_failures_reach_the_recovery_with_the_product_code"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::opening::tests::workspace_opening_failures_say_what_to_do_next_and_carry_their_diagnostics"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_workspace_replaced_while_opening_is_opened_again_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_recovery_and_access_denial_never_wake"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_refused_association_leaves_the_account_catalog_usable"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::the_same_cloud_target_joins_its_pending_opening"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::turning_cloud_off_cancels_an_opening_in_flight"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::exact_authorized_root_and_running_generation_are_required_before_handoff"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::signing_out_revokes_the_hosted_selection_and_returns_home"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_reopened_lease_rebinds_a_document_baseline_and_saves"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease"
+        }
+      ]
+    },
+    {
+      "id": "cloud-repository-context",
+      "acceptance": "A checkout's Cloud context is decided by its remotes first: no canonical PuppyOne remote is local-only, signed out asks to sign in without a request, another host or conflicting locators are decided locally, retired access-key remotes are ignored, legacy official HTTP and explicitly mapped hosted-Git locators resolve only in their own environment; only then is the exact Project authorized. 401, 403, 404 and 503 map to their recovery states, a changed session stays resolving, and the server's reason is kept without SDK detail. Only transport failures, timeouts and 408/500/502/503/504 recover, with two jittered retries and then one throttled probe per return of the window or network; 401, 403, 404, 426, 429, 501, a changed session, a cancellation and unclassified failures are never retried; probes never overlap and a success ends recovery. A new checkout, account, session or API resolves afresh and drops late results.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/contextualCloudResolution.test.tsx",
+          "sha256": "33a10f8adcf97b563952d6c6cd04e686db5e4428e0fbb548927137c272493838",
+          "cases": [
+            {
+              "index": 0,
+              "name": "current-repository Cloud context > clears a transient dependency error after a fresh successful authorization read"
+            },
+            {
+              "index": 1,
+              "name": "current-repository Cloud context > cancels the old retry when a different repository becomes current"
+            },
+            {
+              "index": 2,
+              "name": "current-repository Cloud context > ignores a late authorization success after the account changes"
+            },
+            {
+              "index": 3,
+              "name": "current-repository Cloud context > keeps a repository without a canonical PuppyOne remote local-only"
+            },
+            {
+              "index": 4,
+              "name": "current-repository Cloud context > resolves exactly the Project identified by the current repository remote"
+            },
+            {
+              "index": 6,
+              "name": "current-repository Cloud context > verifies a legacy official HTTP locator via the configured HTTPS API"
+            },
+            {
+              "index": 7,
+              "name": "current-repository Cloud context > resolves a legacy hosted Git locator using the explicitly configured development API after sign-in"
+            },
+            {
+              "index": 8,
+              "name": "current-repository Cloud context > keeps a legacy hosted Git locator blocked without an explicit development Git origin"
+            },
+            {
+              "index": 9,
+              "name": "current-repository Cloud context > retains a missing legacy association after the development API returns 404"
+            },
+            {
+              "index": 10,
+              "name": "current-repository Cloud context > requires a session for a canonical remote without calling the API"
+            },
+            {
+              "index": 11,
+              "name": "current-repository Cloud context > rejects a wrong host and conflicting locators locally"
+            },
+            {
+              "index": 12,
+              "name": "current-repository Cloud context > does not revive the retired access-key remote format"
+            },
+            {
+              "index": 13,
+              "name": "current-repository Cloud context > maps HTTP 401 to the body recovery phase wrong-account"
+            },
+            {
+              "index": 14,
+              "name": "current-repository Cloud context > maps HTTP 403 to the body recovery phase not-authorized"
+            },
+            {
+              "index": 15,
+              "name": "current-repository Cloud context > maps HTTP 404 to the body recovery phase not-found"
+            },
+            {
+              "index": 16,
+              "name": "current-repository Cloud context > maps HTTP 503 to the body recovery phase temporarily-unavailable"
+            },
+            {
+              "index": 17,
+              "name": "current-repository Cloud context > preserves the server reason while keeping SDK details out of the recovery model"
+            },
+            {
+              "index": 18,
+              "name": "current-repository Cloud context > keeps SESSION_CHANGED in resolving until a new session key arrives"
+            },
+            {
+              "index": 19,
+              "name": "resolution input gating > waits only for the initial Git snapshot, never for local config"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/repositoryContextRecovery.test.ts",
+          "sha256": "53ac09316487134e15ab329613ed3e1d3a27744b701d09352c236755cb58a8cb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "repository authorization read recovery > recovers a transient 503 and stops all probes after success"
+            },
+            {
+              "index": 1,
+              "name": "repository authorization read recovery > bounds a persistent outage, then coalesces focus and online into one probe"
+            },
+            {
+              "index": 2,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {\"status\":401}"
+            },
+            {
+              "index": 3,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {\"status\":403}"
+            },
+            {
+              "index": 4,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {\"status\":404}"
+            },
+            {
+              "index": 5,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {\"status\":426}"
+            },
+            {
+              "index": 6,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {\"status\":429}"
+            },
+            {
+              "index": 7,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {\"status\":501}"
+            },
+            {
+              "index": 8,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {\"code\":\"SESSION_CHANGED\"}"
+            },
+            {
+              "index": 9,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {\"code\":\"CLOUD_REQUEST_CANCELLED\"}"
+            },
+            {
+              "index": 10,
+              "name": "repository authorization read recovery > does not retry permanent or unclassified failures: {}"
+            },
+            {
+              "index": 11,
+              "name": "repository authorization read recovery > recovers typed transport failure CLOUD_TRANSPORT_UNAVAILABLE"
+            },
+            {
+              "index": 12,
+              "name": "repository authorization read recovery > recovers typed transport failure CLOUD_REQUEST_TIMEOUT"
+            },
+            {
+              "index": 13,
+              "name": "repository authorization read recovery > never overlaps probes, and disposal ignores a late failure"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::repository::tests::remotes_decide_before_any_request"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::repository::tests::refusals_are_told_apart_and_mapped_to_location_states"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::legacy_locators_are_identity_hints_for_their_own_environment_only"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::only_the_configured_origin_or_explicit_hosted_mapping_is_trusted"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::remotes_parse_projects_scopes_and_ignore_access_points"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::failure::tests::connection_reasons_come_from_structured_evidence_only"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::recovery::tests::only_transport_and_transient_server_failures_recover"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::recovery::tests::two_jittered_retries_then_throttled_probes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::recovery::tests::denials_never_schedule_retries_or_probes"
+        }
+      ]
+    },
+    {
+      "id": "cloud-folder-notices",
+      "acceptance": "A linked folder's notice says the folder and its Cloud project are two projects and opens the Cloud one separately (continuing a pending first publication instead), never from a scoped checkout; every other association offers the one action that helps — sign in, end the link (only where this app can end it), retry with the readable server cause — and an ambiguous link is only explained; a notice can be dismissed and shows again for a new folder or meaning. Ending a link is offered for the folder's puppyone connection, says the Cloud project and files stay, warns about commits Cloud has not received, removes exactly the reviewed connection, and keeps the link and says so when the connection changed after it was reviewed.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/localFolderCloudNotice.test.tsx",
+          "sha256": "5883aa2ae5b0b84e7507874c7e43c42ce7fc434eb2e6af19f0f4b18a64afd0c7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "LocalFolderCloudNotice > says a linked folder and its Cloud project are two projects and opens the Cloud one separately"
+            },
+            {
+              "index": 1,
+              "name": "LocalFolderCloudNotice > does not offer to open the whole Cloud project from a scoped checkout"
+            },
+            {
+              "index": 2,
+              "name": "LocalFolderCloudNotice > explains another environment and offers only ending the link, never reconnecting"
+            },
+            {
+              "index": 3,
+              "name": "LocalFolderCloudNotice > offers the one action that helps for { kind: 'sign-in' }"
+            },
+            {
+              "index": 4,
+              "name": "LocalFolderCloudNotice > offers the one action that helps for { kind: 'other-environment', origin: null }"
+            },
+            {
+              "index": 5,
+              "name": "LocalFolderCloudNotice > offers the one action that helps for { kind: 'missing' }"
+            },
+            {
+              "index": 6,
+              "name": "LocalFolderCloudNotice > offers the one action that helps for { kind: 'no-access' }"
+            },
+            {
+              "index": 7,
+              "name": "LocalFolderCloudNotice > offers the one action that helps for { kind: 'unreachable', cause: null }"
+            },
+            {
+              "index": 8,
+              "name": "LocalFolderCloudNotice > only explains a link this app cannot end by itself"
+            },
+            {
+              "index": 9,
+              "name": "LocalFolderCloudNotice > only explains an ambiguous link"
+            },
+            {
+              "index": 10,
+              "name": "LocalFolderCloudNotice > can be dismissed"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudFailurePresentation.test.tsx",
+          "sha256": "a2ac42911769eda397bcd5e103de3fbf0b95cbdabb04f59b81d0526c800701b5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "states a readable server-side cause in the folder's notice, without technical detail"
+            },
+            {
+              "index": 1,
+              "name": "offers an appropriate action for wrong-account instead of a retry loop"
+            },
+            {
+              "index": 2,
+              "name": "offers an appropriate action for not-authorized instead of a retry loop"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudLinkDisconnectDialog.test.tsx",
+          "sha256": "ae2fba430de5ecfc5d3e75b6fdd8496b3bc179a64483a8f9621ce3dc1089952e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ending a folder's Cloud link > is offered for exactly one Cloud connection named puppyone, on any environment"
+            },
+            {
+              "index": 1,
+              "name": "ending a folder's Cloud link > counts only commits the linked Cloud project has not received"
+            },
+            {
+              "index": 2,
+              "name": "ending a folder's Cloud link > says the Cloud project and the files stay, and keeps the focus on Cancel"
+            },
+            {
+              "index": 3,
+              "name": "ending a folder's Cloud link > warns about commits that will not be sent"
+            },
+            {
+              "index": 4,
+              "name": "ending a folder's Cloud link > removes exactly the reviewed connection, then finishes"
+            },
+            {
+              "index": 5,
+              "name": "ending a folder's Cloud link > keeps the link and says so when ending it fails"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::each_notice_offers_only_the_action_that_helps"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::every_association_has_its_notice_and_a_pending_publication_continues"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::notices_follow_the_association"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_vanished_cloud_projects_link_is_ended_from_its_notice"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::a_reviewed_detach_keeps_history_content_and_unrelated_remotes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::detaching_a_missing_project_removes_only_the_reviewed_remote"
+        }
+      ]
+    },
+    {
+      "id": "cloud-spaces-and-places",
+      "acceptance": "The account's own Space is resolved (provisioned once if missing, through the older personal route on older servers, never retried after any other failure) and sorted first; a multi-person Space can be the default; an undescribed Space makes the answer unusable rather than guessed. The Homepage groups from the Spaces the account last saw while it answers, keeps them when a later read fails, never shows one account's Spaces for another's, and leaves on sign-out. The place that holds an open Cloud project is named from the account's Spaces (the last launch's answer at first), and Settings manage the named Space, else the open project's, else the account's own, stating each Space the same way everywhere with one tone per id.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/cloudSpacesDiscovery.test.tsx",
+          "sha256": "fa0268547fea1e17d91b8b7b77147802ab5f2355453b6b8493c1d139a3a9b219",
+          "cases": [
+            {
+              "index": 0,
+              "name": "resolves the account default, then sorts it before other spaces"
+            },
+            {
+              "index": 1,
+              "name": "does not repeat provisioning when an accessible default already exists"
+            },
+            {
+              "index": 2,
+              "name": "old or failing servers provide no guessed writable destinations and can be retried"
+            },
+            {
+              "index": 3,
+              "name": "late discovery cannot leak spaces into another account or provision after sign-out"
+            },
+            {
+              "index": 4,
+              "name": "groups from the spaces an account last saw while it answers, then from its answer"
+            },
+            {
+              "index": 5,
+              "name": "keeps the spaces last answered when a later read fails, and reports the failure"
+            },
+            {
+              "index": 6,
+              "name": "never stands in one account's spaces for another's"
+            },
+            {
+              "index": 7,
+              "name": "a multi-person Space can be the default without creating a separate personal silo"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudOrganizationName.test.tsx",
+          "sha256": "cb2f420e2e0201423743ea00a269b91fb0c701c88314ea67f23946fbc1c3f7bf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "the organization that holds an open Cloud project > is asked for only while a Cloud project is open, and once per account in a launch"
+            },
+            {
+              "index": 1,
+              "name": "the organization that holds an open Cloud project > names the place from the first frame with the last launch's answer, and forgets it on sign-out"
+            },
+            {
+              "index": 2,
+              "name": "the organization that holds an open Cloud project > asks again on the next open after an unanswered request, and keeps accounts apart"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/settingsSpace.test.ts",
+          "sha256": "41ba3909b9d1a490ba89bf19d04127e4d62983aac886f195caef56a458f53334",
+          "cases": [
+            {
+              "index": 0,
+              "name": "suggests the open cloud project's Space only for management"
+            },
+            {
+              "index": 1,
+              "name": "manages the Space its opener named, and only an accessible one"
+            },
+            {
+              "index": 2,
+              "name": "names the open Cloud project's Space only once the account lists it"
+            },
+            {
+              "index": 3,
+              "name": "states a Space the same way everywhere: Personal for the account's own, one stable tone per id"
+            },
+            {
+              "index": 4,
+              "name": "ignores retired global selections and only chooses accessible Spaces"
+            },
+            {
+              "index": 5,
+              "name": "normalizes cached legacy Space kinds and keeps them isolated to their account"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::a_missing_own_space_is_provisioned_once_and_comes_first"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::an_older_deployment_provisions_the_personal_space_as_the_default"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::a_listed_own_space_needs_no_provisioning"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::provisioning_is_not_retried_after_any_other_failure"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::a_shared_space_can_be_the_default"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::an_undescribed_space_makes_the_answer_unusable"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::spaces_sort_own_first_then_by_name_as_the_product_compares"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::settings_manage_the_named_space_else_the_open_projects_else_the_own"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::a_space_reads_as_the_product_presents_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::a_space_keeps_one_tone_wherever_it_appears"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::spaces::cache::tests::cached_legacy_spaces_read_as_spaces_for_their_account_only"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::home_groups::the_homepage_groups_projects_by_the_place_that_holds_them"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::the_place_names_a_space_or_this_computer_and_states_a_link"
+        }
+      ]
+    },
+    {
+      "id": "cloud-space-drop-destination",
+      "acceptance": "A folder dropped on a team's group opens its publication to that Space, discloses what is sent and confirms before anything is created; cancelling has no side effect; a destination the account can no longer create in is never swapped for the default Space; a list read for an earlier account is dropped.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/cloudSpaceDestinationConfirmation.test.tsx",
+          "sha256": "4b949bf3387ddf590da5cc629cb54204c772a640d92790148c34457be2cad92a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "uses the drop destination, discloses Git scope and confirms before publication"
+            },
+            {
+              "index": 1,
+              "name": "cancelling confirmation has no publication side effect"
+            },
+            {
+              "index": 2,
+              "name": "a missing target cannot fall back to the account's default space"
+            },
+            {
+              "index": 3,
+              "name": "a pending sign-in flow cannot auto-start a targeted drag"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudSpacePublishIntent.test.tsx",
+          "sha256": "acc15acf097b92fa370b5425d8ec836af328551affec630ee0db5b1e54ee7084",
+          "cases": [
+            {
+              "index": 0,
+              "name": "opens confirmation only after the exact source has opened"
+            },
+            {
+              "index": 1,
+              "name": "a failed or superseded navigation cannot leave an intent for a later visit"
+            },
+            {
+              "index": 2,
+              "name": "account/deployment generation changes cancel the pending target"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::home_groups::a_folder_dropped_on_a_team_opens_its_publication_to_that_team"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::tests::a_publication_asks_which_organization_unless_there_is_only_one"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::tests::a_list_read_for_an_earlier_scope_is_dropped"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_publish_dialog::the_first_page_states_the_value_and_the_confirmation_a_separate_project"
+        }
+      ]
+    },
+    {
+      "id": "cloud-header-agents-and-sidebar",
+      "acceptance": "The Header's Agent entry and History switch the one right sidebar and close it, and closing it never stops an Agent run; History stays open when asked for again and closes outside its hosted Project, so another Project, account, session, host, a local folder or signing out clears it and it does not reopen by itself on return. The hosted Project's Agents stand in the Header with an invite seat only while someone may invite; any mark opens the Agents dialog for the active hosted Project, which can be dismissed.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/cloudWorkspaceHeaderTools.test.tsx",
+          "sha256": "77c6afa2eb07177bc6190308d9b5fadfbec2b3ef7ea9806ddd3aa57a5c94c02d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud workspace Header tools > enables the shared Agent entry and toggles its sidebar state"
+            },
+            {
+              "index": 1,
+              "name": "Cloud workspace Header tools > keeps people sharing out of the Header for now, and holds the invite seat while it is checked"
+            },
+            {
+              "index": 2,
+              "name": "Cloud workspace Header tools > keeps the seat checking until the server answers, and drops it for someone who may not invite"
+            },
+            {
+              "index": 3,
+              "name": "Cloud workspace Header tools > puts a divider between the invite seat and the Agent pane"
+            },
+            {
+              "index": 4,
+              "name": "Cloud workspace Header tools > opens the Agents dialog for the active hosted project and allows dismissal"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudWorkspaceSidebar.test.tsx",
+          "sha256": "1b959080c9db5fb41b3bd51654316684aa1939fde285e4e142d27e8feb198a49",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud auxiliary pane ownership > switches between History and Agent and closes without stopping the Agent run"
+            },
+            {
+              "index": 1,
+              "name": "Cloud auxiliary pane ownership > keeps History open when asked for it again; the panel owns its close"
+            },
+            {
+              "index": 3,
+              "name": "Cloud auxiliary pane ownership > clears History on project change without reopening it on return"
+            },
+            {
+              "index": 4,
+              "name": "Cloud auxiliary pane ownership > clears History on account change without reopening it on return"
+            },
+            {
+              "index": 5,
+              "name": "Cloud auxiliary pane ownership > clears History on generation change without reopening it on return"
+            },
+            {
+              "index": 6,
+              "name": "Cloud auxiliary pane ownership > clears History on host change without reopening it on return"
+            },
+            {
+              "index": 7,
+              "name": "Cloud auxiliary pane ownership > clears History on local change without reopening it on return"
+            },
+            {
+              "index": 8,
+              "name": "Cloud auxiliary pane ownership > clears History on sign-out change without reopening it on return"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_header_entries_switch_and_close_the_right_sidebar"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_right_sidebar_keeps_and_restores_its_surface"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::cloud_history_closes_outside_a_hosted_project"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::cloud_history::tests::the_sidebar_pages_reads_detail_on_demand_and_shares_snapshots"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::closing_a_tab_never_stops_its_run"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_share::the_agents_stand_in_the_header_and_open_their_dialog"
+        }
+      ]
+    },
+    {
+      "id": "first-run-sign-in",
+      "acceptance": "On a fresh empty launch the Homepage waits for the saved sign-in to be restored, then offers sign-in once without opening a browser by itself; continuing locally completes it for good.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/firstRunSignIn.test.tsx",
+          "sha256": "e7b6b42af767ca5fc7136b0fc6bf249be54e23c6a2d9cb8eda6aaa2f324f40e4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "first-run sign-in > waits for restoration, then offers sign-in on the fresh empty launch without opening a browser automatically"
+            },
+            {
+              "index": 2,
+              "name": "first-run sign-in > lets a user continue locally and remembers that explicit choice"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::first_run_offers_sign_in_once_on_an_empty_launch"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -33453,6 +34359,16 @@
               "name": "local folder Cloud notice > never broadens a scoped checkout into its whole Cloud project"
             }
           ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/contextualCloudResolution.test.tsx",
+          "sha256": "33a10f8adcf97b563952d6c6cd04e686db5e4428e0fbb548927137c272493838",
+          "cases": [
+            {
+              "index": 5,
+              "name": "current-repository Cloud context > resolves an exact Scope while preserving its owning Project"
+            }
+          ]
         }
       ]
     },
@@ -33621,6 +34537,16 @@
             {
               "index": 3,
               "name": "Cloud Agent view identity > isolates drafts and visibility on scope change"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudWorkspaceSidebar.test.tsx",
+          "sha256": "1b959080c9db5fb41b3bd51654316684aa1939fde285e4e142d27e8feb198a49",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud auxiliary pane ownership > offers no History for a scoped target, which has no project-wide record"
             }
           ]
         }
@@ -34155,6 +35081,68 @@
             {
               "index": 5,
               "name": "Cloud publish task > gives error precedence over the completed view"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-context-retries-while-hidden",
+      "kind": "gap",
+      "reason": "TS defers a repository-context retry while the window is hidden until it is visible again, and removes its focus, visibility and online listeners when the context is disposed. The native retries (at most two, jittered) run on their timers whether or not the window is visible; a returning window still asks for the one throttled probe.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/context-recovery.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/repositoryContextRecovery.test.ts",
+          "sha256": "53ac09316487134e15ab329613ed3e1d3a27744b701d09352c236755cb58a8cb",
+          "cases": [
+            {
+              "index": 14,
+              "name": "repository authorization read recovery > defers hidden-window retries until visible and removes listeners on disposal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-open-during-session-restore",
+      "kind": "gap",
+      "reason": "TS opening a Cloud project from the cached Home list while the session is still being restored waits for it (and opens nothing if the person left meanwhile), failing as signed out only once the session is known to be gone. The native open_cloud answers at once from the account it has: while the session is restoring it reports that sign-in is required.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/opening.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/cloudOpenWaitsForSession.test.tsx",
+          "sha256": "37017ca7e80fe08202e1e270812e43d8574d4b52de8220372b89975593306582",
+          "cases": [
+            {
+              "index": 0,
+              "name": "opening a Cloud project from the cached list > waits for the session instead of reporting that nobody is signed in"
+            },
+            {
+              "index": 1,
+              "name": "opening a Cloud project from the cached list > fails as signed out only once the session is known to be gone"
+            },
+            {
+              "index": 2,
+              "name": "opening a Cloud project from the cached list > does not open a project the user has since left"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "home-creates-in-spaces",
+      "kind": "out-of-scope",
+      "reason": "TS v0.4.4's Homepage lists Cloud projects but never reads organizations, creates or publishes projects. The native Homepage groups projects by the Space that holds them and can make a project in a Space or publish a dropped folder to it (Projects Home, Space groups), a deliberate native design.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/spaces.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/accountCloudWorkspace.test.tsx",
+          "sha256": "60602fce7d7f829d3cbdef1c4969d2f1fd43147f05f2af60ca6f95c1d26535fe",
+          "cases": [
+            {
+              "index": 27,
+              "name": "account-owned Cloud workspaces on the existing API > does not fetch organizations or create or publish projects from the Homepage"
             }
           ]
         }

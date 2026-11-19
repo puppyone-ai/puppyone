@@ -610,6 +610,26 @@ fn a_vanished_cloud_projects_link_is_ended_from_its_notice(cx: &mut TestAppConte
             Some(url)
         );
     });
+    // A connection that changed after it was reviewed is not ended: the
+    // link stays and the dialog says ending it failed.
+    git(&[
+        "remote",
+        "set-url",
+        "puppyone",
+        "http://127.0.0.1:18080/git/other.git",
+    ]);
+    view.update(cx, |s, cx| {
+        s.cloud.update(cx, |c, cx| c.confirm_disconnect(cx))
+    });
+    settle(&view, cx, "the refused detach", &|s, cx| {
+        s.cloud
+            .read(cx)
+            .disconnect
+            .as_ref()
+            .is_some_and(|d| d.failed && !d.busy)
+    });
+    view.read_with(cx, |s, cx| assert!(s.has_dialog("CloudDisconnect", cx)));
+    git(&["remote", "set-url", "puppyone", url]);
     view.update(cx, |s, cx| {
         s.cloud.update(cx, |c, cx| c.confirm_disconnect(cx))
     });
