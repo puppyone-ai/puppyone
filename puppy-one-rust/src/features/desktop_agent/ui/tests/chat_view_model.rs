@@ -699,3 +699,16 @@ fn ends_table_streaming_before_a_competing_flow_block() {
         )
     );
 }
+
+/// `removes the empty-state cue as soon as a prompt enters the live tail`.
+#[test]
+fn a_prompt_in_the_live_tail_removes_the_empty_cue() {
+    assert!(view(&ready_state()).show_ready_empty_state);
+    assert!(
+        !view(&AgentControllerState {
+            pending_prompt: Some("Start here".into()),
+            ..ready_state()
+        })
+        .show_ready_empty_state
+    );
+}

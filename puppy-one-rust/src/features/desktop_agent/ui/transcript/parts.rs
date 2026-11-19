@@ -28,6 +28,10 @@ impl TranscriptView {
         let a = AgentTheme::new(&palette);
         let last = index + 1 == self.row_signatures.len();
         let content_width = (self.width - 2. * INSET).clamp(0., CONTENT_MAX);
+        let row_id = self
+            .rows
+            .get(index)
+            .map_or_else(|| "live-tail".to_owned(), |row| row.row.id.clone());
         let (body, gap) = match self.rows.get(index).cloned() {
             Some(row) => {
                 let parts: Vec<Arc<Part>> = row
@@ -53,6 +57,7 @@ impl TranscriptView {
             .then(|| self.render_history_notice(&self.input.projection, &a, cx))
             .flatten();
         div()
+            .debug_selector(move || format!("agent-row:{row_id}"))
             .w_full()
             .pl(px(INSET))
             .pr(px(INSET))
@@ -314,6 +319,14 @@ impl TranscriptView {
                     div().px(px(12.)).flex().child(
                         div()
                             .id(SharedString::from(format!("agent-md-disclosure-{id}")))
+                            .debug_selector(move || {
+                                let key = if full {
+                                    "agent.markdown.collapse"
+                                } else {
+                                    "agent.markdown.showFull"
+                                };
+                                format!("agent-md-disclosure:{}", t(key))
+                            })
                             .mt(px(8.))
                             .h(px(theme::control()))
                             .px(px(9.))

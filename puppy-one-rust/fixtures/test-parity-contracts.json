@@ -35656,6 +35656,264 @@
           "test": "features::local_agents::settings::tests::a_hook_checkbox_installs_the_hook_and_turns_on_file_activity"
         }
       ]
+    },
+    {
+      "id": "agent-transcript-bounded-rows",
+      "acceptance": "A 2,000-row conversation draws only the rows in view (never more than 120) and a followed transcript shows its end.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent virtual transcript > keeps a 2,000-row fixture below the 120 mounted-row budget"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_long_conversation_draws_only_the_rows_in_view"
+        }
+      ]
+    },
+    {
+      "id": "agent-markdown-safety-and-fences",
+      "acceptance": "Answer Markdown shows raw HTML as text and keeps only safe links; a fence names its language and offers an icon-only Copy that copies its source.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Desktop Agent virtual transcript > renders Markdown without executing raw HTML or unsafe links"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent virtual transcript > renders fenced output with a visible language and an icon-only copy action"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::gfm_blocks_parse_and_unsafe_content_stays_inert"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_fence_names_its_language_and_copies_its_source"
+        }
+      ]
+    },
+    {
+      "id": "agent-markdown-progressive-disclosure",
+      "acceptance": "A long answer first shows a bounded window (at most 240 blocks or 24 KiB) with Show full response, which opens the whole answer and offers to collapse it again.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Desktop Agent virtual transcript > progressively discloses long Markdown without mounting an unbounded initial document"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_long_answer_shows_its_first_window_until_opened_in_full"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown_policy::tests::many_blocks_stop_at_the_limit"
+        }
+      ]
+    },
+    {
+      "id": "agent-prompt-handoff-one-row",
+      "acceptance": "A prompt is one user row from admission through the native echo and completion, never repeated in the live tail; distinct submissions with identical text stay distinct.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Desktop Agent virtual transcript > hands an optimistic prompt to its committed user row without replaying entrance motion"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.transcript-continuity.test.tsx",
+          "sha256": "ad6e1a1c694b8b014f2fb4e2df13d677c8079661e6a6b15bf5a1845b0e1d00e6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Transcript presentation identity > renders one Main row when admission and preview overlap without mutating the snapshot"
+            },
+            {
+              "index": 1,
+              "name": "Transcript presentation identity > does not correlate distinct submissions merely because they contain identical text"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_prompt_shows_once_with_its_delivery_state_until_the_native_turn_takes_it"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::identical_text_with_distinct_native_submissions_and_followups_remains_distinct"
+        }
+      ]
+    },
+    {
+      "id": "agent-transcript-handoff-spacing",
+      "acceptance": "Row gaps follow one rhythm: a settled summary's gap becomes a turn handoff when the next user turn arrives, and the next row moves to its new offset.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Desktop Agent virtual transcript > keeps the summary-to-user handoff stable when the next turn arrives later"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::timeline::recomputes_the_handoff_when_a_user_turn_follows_a_settled_summary"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::timeline::uses_one_deterministic_rhythm_for_work_flow_and_turn_handoffs"
+        }
+      ]
+    },
+    {
+      "id": "agent-transcript-reflow-anchor",
+      "acceptance": "When rows reflow (a width change) the visible row keeps its viewport coordinate through one anchor, and a filtered anchor falls back to the nearest surviving row.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Desktop Agent virtual transcript > commits a width-driven row reflow as one batch and restores one viewport anchor"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.transcript-geometry.test.tsx",
+          "sha256": "fe5eadde03992644a57fb16c96ef74e0d42a4ddeb564ff367400ac1c154ac863",
+          "cases": [
+            {
+              "index": 8,
+              "name": "Transcript scrolling intent > keeps the visible row mounted while reflow changes its pixel offset"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::timeline::keeps_the_same_visible_row_coordinate_when_earlier_rows_reflow"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::timeline::preserves_the_nearest_surviving_row_when_the_anchor_is_filtered"
+        }
+      ]
+    },
+    {
+      "id": "agent-empty-conversation",
+      "acceptance": "The transcript draws no empty cue of its own; a ready empty chat shows the runtime's theme-coloured vector mark (Codex, Pi) that spins once per click and asks what to work on; a prompt in the live tail removes the cue.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/empty-state.test.ts",
+          "sha256": "f66f8323a24cef94cb4f54acdb06880ccc42b038ba4d176c5052e58f38311a60",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > keeps the transcript generic when no product empty-state slot is supplied"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > renders the quiet runtime identity only for a ready empty conversation"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent renderer surfaces > uses Pi's theme-colored normalized vector in the empty conversation"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent renderer surfaces > removes the empty-state cue as soon as a prompt enters the live tail"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::empty_state::the_empty_mark_is_the_runtimes_vector_and_spins_per_click"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::empty_state::an_empty_transcript_draws_no_cue_of_its_own"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::a_prompt_in_the_live_tail_removes_the_empty_cue"
+        }
+      ]
+    },
+    {
+      "id": "agent-history-saved-chat-actionable",
+      "acceptance": "A saved chat stays openable while its Agent needs sign-in; opening returns its target.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/history/desktop-agent.history-browser.test.tsx",
+          "sha256": "5c1d4a48d17a02fbd45ff99437182a62716f2d27ccfd505c031a5e4d99d542bc",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Agent Chat global history browser > keeps a saved session actionable while its runtime readiness is unavailable"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_conversation_history::tests::a_saved_chat_opens_while_its_agent_is_not_ready"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -44719,6 +44977,114 @@
             {
               "index": 8,
               "name": "Desktop Agent renderer surfaces > supports Arrow, Enter and Escape with focus return in the custom Agent picker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "transcript-row-entrance-motion",
+      "kind": "gap",
+      "reason": "TS fades a newly committed row in once (and never replays it on rerender); the native transcript draws new rows without entrance motion.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/transcript.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop Agent virtual transcript > animates only newly committed parts and does not replay entrance motion after rerender"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-virtual-row-measurement",
+      "kind": "out-of-scope",
+      "reason": "TS virtualizes the transcript itself: it exposes an estimated canvas height until a ResizeObserver (border-box) reports, caches row sizes under a width/font layout signature across remounts, guards observer callbacks after unmount and keeps DOM nodes for identity through the first native binding. GPUI's list lays out and measures each visible row before painting and remeasures spliced rows; the native transcript keeps its ListState per mounted chat, with no size cache, observers or DOM nodes.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/transcript.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Desktop Agent virtual transcript > measures a newly mounted virtual row before exposing its estimated canvas height"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent virtual transcript > observes virtual row border boxes as a defensive measurement fallback"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.transcript-geometry.test.tsx",
+          "sha256": "fe5eadde03992644a57fb16c96ef74e0d42a4ddeb564ff367400ac1c154ac863",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Transcript geometry lifetime > rejects cached sizes from another width or unknown provenance"
+            },
+            {
+              "index": 1,
+              "name": "Transcript geometry lifetime > retains sizes while the hidden viewport cannot be measured"
+            },
+            {
+              "index": 2,
+              "name": "Transcript geometry lifetime > does not let a queued observer callback publish after unmount"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.transcript-continuity.test.tsx",
+          "sha256": "ad6e1a1c694b8b014f2fb4e2df13d677c8079661e6a6b15bf5a1845b0e1d00e6",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Transcript presentation identity > keeps the preview DOM during first native binding but resets when the conversation or runtime changes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-agent-panel-layout-contract",
+      "kind": "out-of-scope",
+      "reason": "TS asserts its CSS grid (five regions, the overlay spanning conversation and dock rows, computed control sizes and cursors) and an optional surface header. The native panel stacks status, the conversation with its overlay and the dock in GPUI flex layout and has no header region; its geometry is checked by the pixel lab.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/panel-layout.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/layout.test.ts",
+          "sha256": "3e414b27618c0c68df945a3e1eed3c85c41e3959e61e74a0f0280c8b3092e39f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > renders the structural regions and applies the real layout CSS contract"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > removes the Agent header region when Minimal Mode supplies no header"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-part-renderer-registry",
+      "kind": "out-of-scope",
+      "reason": "TS lets extensions register a renderer per part kind and restore the previous one on dispose. The native transcript renders a closed set of part kinds compiled into the app; there is no runtime renderer registry.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/transcript.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/part-extensions.test.ts",
+          "sha256": "9c31d5f9924aaa9169f6e8a32402cda5517ff83f5a886eee20e9be15fcad24f6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > registers semantic part extensions by kind and restores the previous renderer on dispose"
             }
           ]
         }

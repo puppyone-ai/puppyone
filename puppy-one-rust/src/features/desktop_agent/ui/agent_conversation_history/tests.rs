@@ -373,3 +373,33 @@ fn escape_only_reaches_the_history_browser_containing_keyboard_focus(cx: &mut Te
 }
 
 mod integration;
+
+/// `keeps a saved session actionable while its runtime readiness is
+/// unavailable`: a saved chat of an Agent that needs sign-in still opens.
+#[gpui::test]
+fn a_saved_chat_opens_while_its_agent_is_not_ready(cx: &mut TestAppContext) {
+    let source = source();
+    {
+        let mut state = source.state.borrow_mut();
+        state.runtimes = vec![typed(json!({
+            "descriptor": { "id": "cursor", "displayName": "Cursor Agent" },
+            "readiness": { "runtimeId": "cursor", "provider": "cursor",
+                "status": "installed-not-authenticated", "code": "AUTHENTICATION_REQUIRED",
+                "version": "1", "minimumVersion": null, "message": "Sign in" },
+        }))];
+        state.sessions = vec![typed(json!({
+            "id": "saved-cursor", "runtimeId": "cursor", "providerSessionId": "native",
+            "title": "Design review", "workspaceRoot": "/workspace", "terminalState": "idle",
+            "createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-01T00:00:00Z",
+        }))];
+    }
+    let (_, events, cx) = setup(cx, source, true);
+    click(cx, "history-option:saved-cursor");
+    assert_eq!(
+        events.borrow().last().unwrap(),
+        &json!({
+            "type": "open", "id": "saved-cursor", "title": "Design review",
+            "runtimeId": "cursor", "sessionId": "saved-cursor",
+        })
+    );
+}

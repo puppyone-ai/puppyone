@@ -696,3 +696,92 @@ fn a_tool_group_opens_one_step_at_a_time_and_unfolds_its_exploration(cx: &mut Te
         );
     }
 }
+
+// `desktop-agent.virtual-timeline.test.ts`: the transcript's own bounds.
+
+fn answers(texts: impl IntoIterator<Item = String>) -> AgentProjection {
+    projected(
+        texts
+            .into_iter()
+            .enumerate()
+            .map(|(i, text)| {
+                json!({"type": "assistant.completed", "turnId": format!("turn-{}", i / 4),
+                    "itemId": format!("item-{i}"), "payload": {"text": text}})
+            })
+            .collect(),
+    )
+}
+
+fn leak(text: String) -> &'static str {
+    Box::leak(text.into_boxed_str())
+}
+
+/// `keeps a 2,000-row fixture below the 120 mounted-row budget`: only the
+/// rows in view are drawn, and a followed transcript shows its end.
+#[gpui::test]
+fn a_long_conversation_draws_only_the_rows_in_view(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let (view, cx) = cx.add_window_view(|_, cx| TranscriptView::new(cx));
+    show(&view, answers((0..2_000).map(|i| format!("Row {i}"))), cx);
+    draw(cx);
+    let ids: Vec<String> =
+        view.read_with(cx, |v, _| v.rows.iter().map(|r| r.row.id.clone()).collect());
+    assert_eq!(ids.len(), 2_000);
+    let drawn: Vec<&String> = ids
+        .iter()
+        .filter(|id| cx.debug_bounds(leak(format!("agent-row:{id}"))).is_some())
+        .collect();
+    assert!(!drawn.is_empty() && drawn.len() <= 120, "{}", drawn.len());
+    assert!(drawn.contains(&ids.last().unwrap()), "followed to the end");
+}
+
+/// `renders fenced output with a visible language and an icon-only copy
+/// action`.
+#[gpui::test]
+fn a_fence_names_its_language_and_copies_its_source(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let (view, cx) = cx.add_window_view(|_, cx| TranscriptView::new(cx));
+    show(&view, answers(["```text\n项目备注\n```".to_owned()]), cx);
+    draw(cx);
+    assert!(cx.debug_bounds("agent-code-language:text").is_some());
+    let copy = cx.debug_bounds("agent-code-copy").unwrap();
+    cx.simulate_click(copy.center(), Modifiers::default());
+    assert_eq!(
+        cx.read_from_clipboard().and_then(|c| c.text()).as_deref(),
+        Some("项目备注")
+    );
+}
+
+/// `progressively discloses long Markdown without mounting an unbounded
+/// initial document`.
+#[gpui::test]
+fn a_long_answer_shows_its_first_window_until_opened_in_full(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let (view, cx) = cx.add_window_view(|_, cx| TranscriptView::new(cx));
+    let blocks = crate::features::desktop_agent::ui::agent_markdown_policy::INITIAL_BLOCK_LIMIT;
+    show(&view, answers(["Paragraph\n\n".repeat(blocks + 20)]), cx);
+    draw(cx);
+    let show_full = leak(format!(
+        "agent-md-disclosure:{}",
+        crate::localization::t("agent.markdown.showFull")
+    ));
+    let collapse = leak(format!(
+        "agent-md-disclosure:{}",
+        crate::localization::t("agent.markdown.collapse")
+    ));
+    let disclosure = cx.debug_bounds(show_full).expect("a first window");
+    let row = view.read_with(cx, |v, _| v.rows[0].row.id.clone());
+    let row = leak(format!("agent-row:{row}"));
+    let first = cx.debug_bounds(row).unwrap().size.height;
+    cx.simulate_click(disclosure.center(), Modifiers::default());
+    draw(cx);
+    draw(cx);
+    assert!(cx.debug_bounds(collapse).is_some());
+    let opened = cx.debug_bounds(row).map(|b| b.size.height);
+    assert!(
+        opened.is_none_or(|h| h > first),
+        "the full answer is longer"
+    );
+}
