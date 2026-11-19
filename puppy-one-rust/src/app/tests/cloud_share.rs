@@ -241,7 +241,8 @@ fn the_invite_waits_for_the_agent_and_lets_it_in_where_it_asks(cx: &mut TestAppC
 }
 
 /// Signed in with Cloud on and `project-a` open; `agents` answers what it
-/// takes (the data, or a refusal) and leaves the rest to the project.
+/// takes (the data, or a refusal) and leaves the rest to the project. The
+/// returned function signs a user in again, as a new sign-in does.
 fn open_with_agents(
     view: &Entity<Shell>,
     cx: &mut VisualTestContext,
@@ -251,13 +252,14 @@ fn open_with_agents(
     + Send
     + Sync
     + 'static,
-) {
+) -> Box<dyn Fn(&str)> {
     let base = cloud_project_responder();
     let responder = with_catalog(std::sync::Arc::new(move |request| match agents(request) {
         Some(answer) => answer.map(|data| serde_json::json!({"code": 0, "data": data})),
         None => base(request),
     }));
     let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    let kept = broker.clone();
     view.update(cx, |s, cx| {
         s.prefs
             .store
@@ -268,6 +270,7 @@ fn open_with_agents(
         crate::features::cloud::account::has_account(cx)
     });
     view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    Box::new(move |user| crate::cloud::auth::sign_in_again(&kept, user))
 }
 fn connection(id: &str, name: &str) -> serde_json::Value {
     serde_json::json!({"id": id, "name": name, "admission": "sign_in",
@@ -300,7 +303,7 @@ fn a_face_shows_its_card_after_a_moment_and_never_over_a_request(cx: &mut TestAp
     let (view, cx) = setup(cx);
     let asking = Arc::new(Mutex::new(false));
     let pending = asking.clone();
-    open_with_agents(&view, cx, move |request| {
+    let _sign_in_again = open_with_agents(&view, cx, move |request| {
         if request.path.ends_with("/agent-links") {
             let mut inventory = serde_json::json!({"links": [], "connections": [
                 connection("c1", "Cursor"), connection("c2", "Grok Bot"),
@@ -435,7 +438,7 @@ fn the_dialog_meets_everyone_in_one_grid_and_stays_when_the_last_one_goes(cx: &m
         ..Default::default()
     }));
     let state = room.clone();
-    open_with_agents(&view, cx, move |request| {
+    let _sign_in_again = open_with_agents(&view, cx, move |request| {
         let mut room = state.lock().unwrap();
         let path = request.path.as_str();
         let about_agents = path.contains("/agent-links") || path.contains("/access/grants/");
@@ -569,6 +572,82 @@ fn the_dialog_meets_everyone_in_one_grid_and_stays_when_the_last_one_goes(cx: &m
     ] {
         assert!(cx.debug_bounds(id).is_none(), "{id}");
     }
+}
+
+/// A hosted Project with nobody here yet, on a signed-in fixture account.
+fn open_empty_project(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Box<dyn Fn(&str)> {
+    let sign_in_again = open_with_agents(view, cx, |request| {
+        if request.path.ends_with("/agent-links") {
+            return Some(Ok(serde_json::json!({"links": [], "connections": []})));
+        }
+        if request.path.ends_with("/access/sessions") {
+            return Some(Ok(serde_json::json!([])));
+        }
+        None
+    });
+    settle_cloud(view, cx, "the Project", &|s, cx| {
+        s.hosted_project(cx).as_deref() == Some("project-a")
+    });
+    sign_in_again
+}
+/// `project-a` shown as the signed-in identity sees it, its Agents dialog
+/// opened from the empty seat.
+fn open_invite(view: &Entity<Shell>, cx: &mut VisualTestContext) {
+    let elsewhere = view.read_with(cx, |s, cx| {
+        s.hosted_project(cx).as_deref() != Some("project-a") && !s.cloud.read(cx).session().opening
+    });
+    if elsewhere {
+        view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    }
+    settle_cloud(view, cx, "the seat", &|s, cx| {
+        let agents = s.cloud.read(cx).agents.read(cx);
+        s.hosted_project(cx).as_deref() == Some("project-a")
+            && agents.manageable
+            && agents.scope_key().is_some()
+    });
+    let seat = cx
+        .debug_bounds("cloud-workspace-tool:invite-agent")
+        .unwrap();
+    cx.simulate_click(seat.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, cx| assert!(s.has_dialog("Agents", cx)));
+}
+
+/// `CloudWorkspaceHeaderTools`' scope: an Agents dialog open for one
+/// Project and identity ends when the sign-in, the account or the Project
+/// changes (the hosted Project itself ends with the identity that opened
+/// it); nothing of it is inherited.
+#[gpui::test]
+fn the_agents_dialog_ends_with_its_project_and_identity(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let sign_in_again = open_empty_project(&view, cx);
+    for user in ["alice", "bob"] {
+        open_invite(&view, cx);
+        sign_in_again(user);
+        settle_cloud(&view, cx, user, &|s, cx| !s.has_dialog("Agents", cx));
+    }
+    open_invite(&view, cx);
+    view.update(cx, |s, cx| s.open_cloud("project-b".into(), cx));
+    settle_cloud(&view, cx, "another Project", &|s, cx| {
+        !s.has_dialog("Agents", cx)
+    });
+}
+
+/// Signing out ends an open Agents dialog and leaves no seat to open it
+/// again.
+#[gpui::test]
+fn signing_out_ends_the_agents_dialog_and_its_seat(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let _sign_in_again = open_empty_project(&view, cx);
+    open_invite(&view, cx);
+    cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
+    settle_cloud(&view, cx, "signing out", &|s, cx| {
+        !s.has_dialog("Agents", cx) && !crate::features::cloud::account::has_account(cx)
+    });
+    assert!(
+        cx.debug_bounds("cloud-workspace-tool:invite-agent")
+            .is_none()
+    );
 }
 
 /// C-10.1/10.2: in Cloud the right sidebar's workbench is the hosted Agent —

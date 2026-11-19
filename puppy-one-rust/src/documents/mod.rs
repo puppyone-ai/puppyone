@@ -526,6 +526,7 @@ impl Documents {
                     self.copy.local_overwrite_notice = None;
                     self.copy.recovered_draft_notice = None;
                     self.copy.drafts.reset();
+                    self.copy.next_open = None;
                     self.folder_busy = false;
                     self.tree_update = Some(rows);
                     self.copy.phase = Phase::Idle;
@@ -554,6 +555,12 @@ impl Documents {
         self.copy.poll_copy_with(ctx, now, move |copy, path, wake| {
             Self::spawn_open_folder(copy, folder_tx.clone(), path, wake);
         });
+        // The newest file choice, once the copy is free.
+        if matches!(self.copy.phase, Phase::Idle)
+            && let Some(intent) = self.copy.next_open.take()
+        {
+            self.begin(intent, ctx);
+        }
     }
 }
 

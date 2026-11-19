@@ -499,6 +499,67 @@ fn switch_file_automatically_drains_then_ignores_previous_document_events() {
     );
     assert!(!d.dirty);
 }
+/// `onPublication`: a hosted run's accepted changes reread the open
+/// document from a provider that sends no change of its own; it then shows
+/// what was published without writing.
+#[test]
+fn a_publication_rereads_the_open_document() {
+    use crate::workspace::testing::Memory;
+    let provider = Arc::new(Memory::new("memory://publication/project/"));
+    let ws = Workspace::from_provider(provider.clone()).unwrap();
+    let doc = ws.read(Path::new("note.md")).unwrap();
+    let mut d = Documents::in_workspace(ws);
+    d.document = Some(doc);
+    let ctx = Wake::default();
+    *provider.text.lock().unwrap() = "published".into();
+    for _ in 0..20 {
+        d.poll(&ctx);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(d.document.as_ref().unwrap().text, "original");
+    d.observe_publication();
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while d.document.as_ref().unwrap().text != "published" {
+        assert!(Instant::now() < deadline, "the publication was not read");
+        d.poll(&ctx);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(!d.dirty);
+    assert_eq!(*provider.text.lock().unwrap(), "published");
+}
+/// A file chosen while another is still on its way in replaces it: the
+/// slower choice never takes the editor from the newer one.
+#[test]
+fn a_newer_file_choice_replaces_one_still_on_its_way_in() {
+    let (temp, mut d, ctx) = setup();
+    std::fs::write(temp.path().join("c.md"), b"third").unwrap();
+    std::fs::write(temp.path().join("d.md"), b"fourth").unwrap();
+    // Chosen while the current file is still being drained.
+    d.begin(Intent::OpenFile("b.md".into()), &ctx);
+    d.begin(Intent::OpenFile("c.md".into()), &ctx);
+    snapshot(&mut d, &ctx, "original");
+    wait(&mut d, &ctx);
+    assert_eq!(d.document.as_ref().unwrap().relative, Path::new("c.md"));
+    // Chosen while the other is already being read: it opens next.
+    d.begin(Intent::OpenFile("b.md".into()), &ctx);
+    snapshot(&mut d, &ctx, "third");
+    assert!(matches!(d.phase, Phase::Working));
+    d.begin(Intent::OpenFile("d.md".into()), &ctx);
+    assert!(matches!(&d.next_open, Some(Intent::OpenFile(p)) if p == Path::new("d.md")));
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while d.document.as_ref().unwrap().relative != Path::new("d.md") || d.busy() {
+        assert!(Instant::now() < deadline, "the newest choice did not open");
+        d.poll(&ctx);
+        if let Phase::Snapshot { request, .. } = d.phase {
+            reply(&mut d, &ctx, request, 1, "second");
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    // Quitting is never followed by a file opening.
+    d.begin(Intent::Quit, &ctx);
+    d.begin(Intent::OpenFile("a.md".into()), &ctx);
+    assert!(d.next_open.is_none());
+}
 #[test]
 fn failed_target_load_keeps_previous_document_after_persisting_it() {
     let (temp, mut d, ctx) = setup();

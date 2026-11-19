@@ -142,6 +142,12 @@ pub fn status(agent: &WorkspaceAgent, now_secs: i64) -> Option<String> {
     })
 }
 
+/// `CloudWorkspaceHeaderTools`' scope: the API host, the account, its
+/// sign-in generation and the Project.
+fn scope_key(api: &str, user: &str, epoch: u64, project: &str) -> String {
+    format!("{api}\n{user}\n{epoch}\n{project}")
+}
+
 impl CloudAgents {
     pub fn new() -> Self {
         Self {
@@ -184,11 +190,11 @@ impl CloudAgents {
     ) {
         let target = project.and_then(|(project, name)| {
             let (broker, binding) = account::broker_and_binding(cx)?;
-            let key = format!(
-                "{}\n{}\n{}\n{project}",
+            let key = scope_key(
                 binding.environment.api(),
-                binding.user,
-                binding.epoch
+                &binding.user,
+                binding.epoch,
+                project,
             );
             Some((key, project, name, broker, binding))
         });
@@ -249,6 +255,11 @@ impl CloudAgents {
             self.schedule(cx);
         }
         cx.notify();
+    }
+    /// The Project and identity everything here belongs to; anything open
+    /// for one ends when it changes.
+    pub fn scope_key(&self) -> Option<&str> {
+        self.scope.as_ref().map(|s| s.key.as_str())
     }
     pub fn project_name(&self) -> Option<&str> {
         self.scope.as_ref().map(|s| s.project_name.as_str())
@@ -949,6 +960,21 @@ mod tests {
         agents.update(cx, |a, cx| a.attach_client("p1", "Docs", client, cx));
         cx.run_until_parked();
         (server, agents)
+    }
+
+    /// The host, the account, its sign-in generation and the Project each
+    /// make a scope of their own.
+    #[test]
+    fn every_part_of_the_identity_makes_its_own_scope() {
+        let key = scope_key("https://api.puppyone.ai/api/v1", "alice", 1, "p1");
+        for other in [
+            scope_key("https://other.puppyone.ai/api/v1", "alice", 1, "p1"),
+            scope_key("https://api.puppyone.ai/api/v1", "bob", 1, "p1"),
+            scope_key("https://api.puppyone.ai/api/v1", "alice", 2, "p1"),
+            scope_key("https://api.puppyone.ai/api/v1", "alice", 1, "p2"),
+        ] {
+            assert_ne!(key, other);
+        }
     }
 
     /// `workspaceAgentStatus`: working now, when it last worked, nothing

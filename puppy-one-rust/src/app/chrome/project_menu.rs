@@ -104,6 +104,7 @@ impl WindowChrome {
             tr("shell.placeMenu.label")
         );
         let button = Button::new("homepage-brand")
+            .debug_selector(|| "homepage-brand".into())
             .variant(ButtonVariant::Titlebar)
             .accessibility_label(label)
             .label(tr("shell.brand.name"))

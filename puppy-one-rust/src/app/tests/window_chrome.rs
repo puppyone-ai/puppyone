@@ -111,6 +111,66 @@ fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppC
         );
     });
 }
+/// `WindowNavigation`: a signed-in account stays out of a project
+/// window's Header end. On the Homepage the brand opens the places and the
+/// account, with no way to the page it is on; a place shows it there and
+/// closes the menu.
+#[gpui::test]
+fn the_homepage_brand_opens_the_places_and_the_account_but_not_home(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud::auth::account_fixture();
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    cx.update(|_, cx| {
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
+    });
+    settle_cloud(&view, cx, "the account", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    for end in ["header-account", "header-sign-in"] {
+        assert!(cx.debug_bounds(end).is_none(), "{end}");
+    }
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false)
+    });
+    command(&view, cx, Command::Home);
+    // The Homepage ends with the account's own circle instead (native).
+    assert!(cx.debug_bounds("header-account").is_some());
+    let brand = cx.debug_bounds("homepage-brand").unwrap();
+    cx.simulate_click(brand.center(), Modifiers::none());
+    draw(cx);
+    draw(cx);
+    let row = |key: &str| -> &'static str {
+        Box::leak(format!("menu-item:{}", crate::localization::t(key)).into_boxed_str())
+    };
+    let device = row(if cfg!(target_os = "macos") {
+        "shell.workspaceSwitcher.location.thisMac"
+    } else {
+        "shell.workspaceSwitcher.location.thisComputer"
+    });
+    assert!(cx.debug_bounds(device).is_some(), "the places");
+    assert!(cx.debug_bounds(row("settings.sidebar.account")).is_some());
+    assert!(
+        cx.debug_bounds(row("shell.workspaceSwitcher.home"))
+            .is_none()
+    );
+    let place = cx.debug_bounds(device).unwrap();
+    cx.simulate_click(place.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.chrome.read(cx).popover.is_none());
+        assert_eq!(
+            s.home.read(cx).place_focus.as_ref().map(|f| f.0.clone()),
+            Some(super::home::groups::GroupId::LocalOnly)
+        );
+    });
+    assert!(cx.debug_bounds(device).is_none());
+}
 #[gpui::test]
 fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);

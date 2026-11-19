@@ -192,6 +192,9 @@ pub struct WorkingCopy {
     pub(super) observation_failures: usize,
     pub(super) copy_tx: Sender<CopyCompleted>,
     pub(super) copy_rx: Receiver<CopyCompleted>,
+    /// A file chosen while another transition was under way; it opens once
+    /// the copy is free, so the newest choice is the one that stays.
+    pub(super) next_open: Option<Intent>,
 }
 
 impl Default for WorkingCopy {
@@ -243,6 +246,7 @@ impl Default for WorkingCopy {
             observation_failures: 0,
             copy_tx,
             copy_rx,
+            next_open: None,
         }
     }
 }
@@ -904,7 +908,11 @@ impl WorkingCopy {
     where
         F: FnOnce(&mut Self, Intent, &Wake),
     {
-        if self.abandoned.load(Ordering::Acquire) || !matches!(self.phase, Phase::Idle) {
+        if self.abandoned.load(Ordering::Acquire) {
+            return;
+        }
+        if !matches!(self.phase, Phase::Idle) {
+            self.defer_open(intent);
             return;
         }
         self.ensure_session(ctx);
@@ -922,6 +930,29 @@ impl WorkingCopy {
             return;
         }
         self.request_barrier_snapshot(intent, ctx);
+    }
+
+    /// `onActivePathChange`: a file chosen while the copy is busy. A switch
+    /// still draining the current file takes the newer target at once; one
+    /// already reading (or a save) opens it next. Closing, quitting and
+    /// folder changes keep the choice from outliving them.
+    fn defer_open(&mut self, intent: Intent) {
+        if !matches!(intent, Intent::OpenFile(_)) {
+            return;
+        }
+        match &mut self.phase {
+            Phase::Snapshot {
+                intent: pending, ..
+            }
+            | Phase::AwaitComposition { intent: pending }
+            | Phase::Draining { intent: pending } => match pending {
+                Intent::OpenFile(_) => *pending = intent,
+                Intent::Save | Intent::Reload => self.next_open = Some(intent),
+                _ => {}
+            },
+            Phase::Working => self.next_open = Some(intent),
+            Phase::Idle | Phase::Prepared => {}
+        }
     }
 
     fn request_barrier_snapshot(&mut self, intent: Intent, ctx: &Wake) {

@@ -354,6 +354,125 @@ fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
     });
     let _ = account;
 }
+/// Preferences loaded with Cloud on, as a launch has them.
+fn launch_with_cloud(view: &Entity<Shell>, cx: &mut VisualTestContext) {
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.loaded = true;
+            p.change(|p| p.experimental.cloud_workspace = true, cx);
+        })
+    });
+    draw(cx);
+}
+fn first_run(view: &Entity<Shell>, cx: &mut VisualTestContext) -> bool {
+    view.read_with(cx, |s, cx| s.home.read(cx).first_run_sign_in(cx))
+}
+
+/// `useFirstRunSignIn`: a build without an account never gates the launch.
+/// A sign-in that succeeded once is remembered across a later signed-out
+/// launch, and so is having had a project after the history is cleared.
+#[gpui::test]
+fn first_run_remembers_a_sign_in_or_a_project_for_good(cx: &mut TestAppContext) {
+    use crate::features::cloud::account;
+    let (view, cx) = setup(cx);
+    launch_with_cloud(&view, cx);
+    assert!(!first_run(&view, cx));
+    let (broker, browser, control) = crate::cloud::auth::sign_in_fixture();
+    cx.update(|_, cx| account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "the signed-out account", &|_, cx| {
+        account::status(cx) == Some(crate::cloud::auth::Status::SignedOut)
+    });
+    assert!(first_run(&view, cx));
+    control.complete("alice");
+    settle_cloud(&view, cx, "signing in", &|s, cx| {
+        account::has_account(cx) && s.prefs.store.read(cx).state.first_run_sign_in_completed
+    });
+    cx.update(|_, cx| account::sign_out(cx));
+    settle_cloud(&view, cx, "signing out", &|_, cx| !account::has_account(cx));
+    assert!(!first_run(&view, cx));
+    // A fresh first run on this launch, but a project already opened.
+    let folder = std::path::PathBuf::from("/tmp/puppyone-first-run-project");
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(
+                |p| {
+                    p.first_run_sign_in_completed = false;
+                    p.remember_project(&folder, 1);
+                },
+                cx,
+            )
+        })
+    });
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.prefs.store.read(cx).state.first_run_sign_in_completed)
+    });
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, cx| p.change(|p| p.forget_project(&folder), cx))
+    });
+    draw(cx);
+    assert!(!first_run(&view, cx));
+}
+
+/// `FirstRunSignInScreen`: while the browser hands off it says it waits,
+/// and Sign in stays pressable to start it again (a closed browser page
+/// never strands anyone). An error is shown and the gate stays, and
+/// Continue locally completes the first run.
+#[gpui::test]
+fn first_run_waits_on_the_browser_and_continues_locally_after_an_error(cx: &mut TestAppContext) {
+    use crate::features::cloud::account;
+    let (view, cx) = setup(cx);
+    let (broker, browser, control) = crate::cloud::auth::sign_in_fixture();
+    cx.update(|_, cx| account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "the signed-out account", &|_, cx| {
+        account::status(cx) == Some(crate::cloud::auth::Status::SignedOut)
+    });
+    launch_with_cloud(&view, cx);
+    assert!(first_run(&view, cx));
+    // The Homepage, not the visual fixture's project.
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false)
+    });
+    command(&view, cx, Command::Home);
+    assert!(cx.debug_bounds("first-run-waiting").is_none());
+    let sign_in = cx.debug_bounds("first-run-sign-in").unwrap();
+    cx.simulate_click(sign_in.center(), Modifiers::none());
+    settle_cloud(&view, cx, "the handoff", &|_, cx| {
+        account::status(cx) == Some(crate::cloud::auth::Status::SigningIn)
+    });
+    assert!(cx.debug_bounds("first-run-waiting").is_some());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while control.starts() < 1 {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // Asked again while waiting: it starts again.
+    let sign_in = cx.debug_bounds("first-run-sign-in").unwrap();
+    cx.simulate_click(sign_in.center(), Modifiers::none());
+    while control.starts() < 2 {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    control.fail(crate::cloud::auth::Error::Unavailable);
+    settle_cloud(&view, cx, "the error", &|_, cx| {
+        account::snapshot(cx)
+            .is_some_and(|s| s.status == crate::cloud::auth::Status::SignedOut && s.error.is_some())
+    });
+    assert!(cx.debug_bounds("first-run-error").is_some());
+    assert!(cx.debug_bounds("first-run-waiting").is_none());
+    assert!(first_run(&view, cx));
+    let local = cx.debug_bounds("first-run-continue").unwrap();
+    cx.simulate_click(local.center(), Modifiers::none());
+    draw(cx);
+    assert!(!first_run(&view, cx));
+    view.read_with(cx, |s, cx| {
+        assert!(s.prefs.store.read(cx).state.first_run_sign_in_completed)
+    });
+}
 /// v0.4.4 `OnboardingImportDialog`: Import lists its sources first; a
 /// repository source takes only its own provider's URLs, and Back returns
 /// to the list.
@@ -845,7 +964,8 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     view.update(cx, |s, cx| assert!(s.home.read(cx).intro.is_none()));
 }
 /// N-12: an account's last list stands in for its first answer (not as
-/// the settled order), and signing out removes it.
+/// the settled order), listing opens no project by itself, and signing out
+/// removes it.
 #[gpui::test]
 fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mut TestAppContext) {
     use crate::features::cloud::CatalogState as State;
@@ -884,6 +1004,10 @@ fn the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out(cx: &mu
         c.fresh && matches!(c.state, State::Ready(_))
     });
     assert!(dir.path().join("cloud-project-catalog.v1.json").exists());
+    // Listing the projects opens none of them.
+    view.read_with(cx, |s, cx| {
+        assert!(s.hosted_project(cx).is_none() && s.files(cx).cloud_opening().is_none())
+    });
     // The next launch: the cached list shows at once, not yet settled.
     slow.store(true, Ordering::SeqCst);
     view.update(cx, |s, cx| {

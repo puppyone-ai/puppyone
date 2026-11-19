@@ -753,10 +753,15 @@ impl Shell {
                 .session
                 .project
                 .update(cx, |p, _| p.record.notice = None),
-            // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
+            // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`;
+            // in a hosted Project, History settles after the activity.
             SessionEvent::ContentChanged => {
                 let source_control = self.sidebar.read(cx).source_control.clone();
                 source_control.update(cx, |sc, cx| sc.working_tree_changed(cx));
+                if self.hosted_project(cx).is_some() {
+                    let history = self.sidebar.read(cx).cloud_history.clone();
+                    history.update(cx, |h, cx| h.file_activity(cx));
+                }
             }
         }
         self.receive(window, cx);

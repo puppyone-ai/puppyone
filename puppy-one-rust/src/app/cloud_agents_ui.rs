@@ -960,9 +960,13 @@ impl WindowCloud {
         });
         let name = self.session().name.clone();
         let open = self.dialog_open(DialogKey::Agents, cx);
+        let before = self.agents.read(cx).scope_key().map(str::to_owned);
         self.agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });
+        // A dialog open for one Project and identity ends with them: another
+        // Project, account, sign-in or host never inherits it.
+        let revoked = before.is_some() && self.agents.read(cx).scope_key() != before.as_deref();
         // The Agent at work here: the screen's card unfolds to watch it.
         let operator = self
             .agents
@@ -978,7 +982,7 @@ impl WindowCloud {
         let gone =
             agents.project_name().is_none() || (!listed && !agents.manageable && agents.known);
         // An open dialog answers a request itself, where the Agent asks.
-        if open && gone {
+        if open && (gone || revoked) {
             self.close_dialog(DialogKey::Agents, cx);
         }
         if pending || gone {

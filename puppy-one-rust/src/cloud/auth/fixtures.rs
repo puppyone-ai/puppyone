@@ -281,6 +281,12 @@ pub(super) fn login(broker: &Broker, user: &str) -> Result<()> {
 pub fn relogin(broker: &Broker, user: &str) {
     login(broker, user).unwrap();
 }
+/// A new sign-in of `user` while one is current, as the browser flow makes
+/// one: a new generation, so every lease of the old one ends.
+pub fn sign_in_again(broker: &Broker, user: &str) {
+    broker.control.advance();
+    login(broker, user).unwrap();
+}
 /// Controls a signed-out fixture broker's browser sign-in without opening a
 /// loopback socket.
 pub struct SignInControl {
