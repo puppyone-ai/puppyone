@@ -229,13 +229,15 @@ impl RenderOnce for SettingsCategory {
                     .min_h(px(by_scale([36., 40., 44.])))
                     .justify_between()
                     .gap(px(10.))
-                    .child(
+                    .child({
+                        let selector = format!("settings-category:{}", self.title);
                         div()
+                            .debug_selector(move || selector)
                             .text_size(px(theme::ty().ui.label))
                             .line_height(px(18.))
                             .text_color(t.muted)
-                            .child(self.title),
-                    )
+                            .child(self.title)
+                    })
                     .children(self.action),
             )
             .when(!self.rows.is_empty(), |d| {

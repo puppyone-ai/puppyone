@@ -258,6 +258,14 @@ impl AgentSettings {
         self.enrollments = enrollments;
         self.read_enrollment(false, cx);
     }
+    /// Tests: these installations instead of this machine's.
+    #[cfg(test)]
+    fn with_installations(&mut self, installations: Vec<Installation>, cx: &mut Context<Self>) {
+        self.discovery_override = true;
+        self.scanning = false;
+        self.installations = Some(installations);
+        cx.notify();
+    }
     /// Category rows for the Settings page (rendered inside its section).
     fn categories(&self, t: Theme, cx: &mut Context<Self>) -> Vec<SettingsCategory> {
         use crate::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
@@ -455,8 +463,10 @@ impl AgentSettings {
                 let icon = local_agent_inventory::runtime_for(id)
                     .map_or_else(|| div().size(px(18.)).into_any_element(), agent_icon);
                 // The row is the checkbox's `<label>`.
+                let selector = format!("agent-hook:{id}:{}", if installed { "on" } else { "off" });
                 control_row()
                     .id(SharedString::from(format!("agent-hook-{id}")))
+                    .debug_selector(move || selector)
                     .when(pending, |d| d.opacity(0.62))
                     .when(!pending, |d| d.cursor(theme::clickable_cursor()))
                     .child(identity(icon, provider.display_name.to_owned()))
@@ -596,6 +606,8 @@ mod tests {
             }
         };
         settle(cx);
+        // Discovery reads the enrollment and changes nothing.
+        assert!(changes.lock().unwrap().is_empty());
         view.update(cx, |v, cx| {
             assert_eq!(v.hooks.len(), 2);
             v.set_hook("codex", true);
@@ -612,6 +624,141 @@ mod tests {
         view.update(cx, |v, _| v.set_hook("codex", false));
         settle(cx);
         assert!(!preferences.read_with(cx, |p, _| p.state.agent_file_activity_indicators));
+    }
+
+    /// `opens with every discovered Hook off without enrolling during
+    /// discovery`; `uses local product detection and persists only hidden
+    /// launcher ids`; `shows Hook enrollment as the third settings group`.
+    #[gpui::test]
+    fn detected_agents_list_with_their_hooks_and_only_hidden_ids_persist(cx: &mut TestAppContext) {
+        use crate::agent::connections::legacy_local_agent_inventory::LOCAL_AGENTS;
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        crate::localization::set_current("en");
+        let preferences = cx.new(|_| PreferencesStore::memory());
+        let changes: Arc<Mutex<Vec<(&str, bool)>>> = Arc::default();
+        let log = changes.clone();
+        let enrollments: Enrollments = Arc::new(move |change| {
+            if let Some(change) = change {
+                log.lock().unwrap().push(change);
+            }
+            let status = |provider_id, display_name, configurable| ProviderStatus {
+                provider_id,
+                display_name,
+                enrollment: if configurable {
+                    Enrollment::NotConfigured
+                } else {
+                    Enrollment::BasicOnly
+                },
+                configurable,
+            };
+            Ok(vec![
+                status("codex", "Codex", true),
+                status("claude", "Claude Code", true),
+                status("cursor", "Cursor Agent CLI", true),
+                status("opencode", "OpenCode", false),
+            ])
+        });
+        let detected = [
+            "codex",
+            "claude",
+            "cursor",
+            "opencode",
+            "pi",
+            "hermes",
+            "workbuddy-china",
+            "workbuddy-international",
+        ];
+        let mut installations: Vec<Installation> = LOCAL_AGENTS
+            .iter()
+            .filter(|agent| detected.contains(&agent.id))
+            .map(|agent| Installation {
+                runtime: agent.runtime,
+                id: agent.id,
+                label: agent.label.into(),
+                executable: Default::default(),
+                chat: true,
+            })
+            .collect();
+        installations.push(Installation {
+            runtime: crate::agent::connections::legacy_runtime_registry::Runtime::PuppyOne,
+            id: local_agent_inventory::BUILT_IN_AGENT_ID,
+            label: local_agent_inventory::BUILT_IN_AGENT_LABEL.into(),
+            executable: Default::default(),
+            chat: true,
+        });
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            let mut view = AgentSettings::new(preferences.clone(), window, cx);
+            view.with_installations(installations, cx);
+            view.with_enrollments(enrollments, cx);
+            view
+        });
+        let draw = |cx: &mut VisualTestContext| {
+            for _ in 0..50 {
+                cx.run_until_parked();
+                if view.read_with(cx, |v, _| v.hooks_phase != HooksPhase::Loading) {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+        };
+        draw(cx);
+        for title in ["Active Chat", "Chat History", "Hooks"] {
+            let selector = format!("settings-category:{title}");
+            assert!(
+                cx.debug_bounds(Box::leak(selector.into_boxed_str()))
+                    .is_some(),
+                "{title}"
+            );
+        }
+        for name in [
+            "Codex",
+            "Pi Agent",
+            "Hermes Agent",
+            "WorkBuddy (China)",
+            "WorkBuddy (International)",
+        ] {
+            let selector = format!("switch:Show {name}:on");
+            assert!(
+                cx.debug_bounds(Box::leak(selector.into_boxed_str()))
+                    .is_some(),
+                "{name}"
+            );
+        }
+        assert!(cx.debug_bounds("switch:Show Built-in Agent:on").is_none());
+        for hook in ["codex", "claude", "cursor"] {
+            let selector = format!("agent-hook:{hook}:off");
+            assert!(
+                cx.debug_bounds(Box::leak(selector.into_boxed_str()))
+                    .is_some(),
+                "{hook}"
+            );
+        }
+        assert!(
+            cx.debug_bounds("agent-hook:opencode:off").is_none(),
+            "not configurable"
+        );
+        assert!(
+            changes.lock().unwrap().is_empty(),
+            "discovery never enrolls"
+        );
+
+        let codex = cx.debug_bounds("switch:Show Codex:on").unwrap();
+        cx.simulate_click(codex.center(), Modifiers::default());
+        draw(cx);
+        let local = |cx: &mut VisualTestContext| {
+            preferences.read_with(cx, |p, _| p.state.local_agents.clone())
+        };
+        assert_eq!(local(cx).hidden_agent_ids, ["codex"]);
+        assert!(!local(cx).chat_history_discovery);
+        let history = cx
+            .debug_bounds("switch:Discover local Agent chat history:off")
+            .unwrap();
+        cx.simulate_click(history.center(), Modifiers::default());
+        draw(cx);
+        assert_eq!(local(cx).hidden_agent_ids, ["codex"]);
+        assert!(local(cx).chat_history_discovery);
     }
 }
 

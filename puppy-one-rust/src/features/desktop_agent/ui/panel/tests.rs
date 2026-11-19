@@ -483,3 +483,106 @@ fn startup_is_one_centered_loader_until_the_runtime_is_ready(cx: &mut TestAppCon
     assert!(cx.debug_bounds("agent-startup-loading").is_none());
     assert!(cx.debug_bounds("agent-dock").is_some());
 }
+
+/// `BuiltInAgentCompute`: the first summary names PuppyOne compute and asks
+/// for nothing; after a send the access prompt also offers the user's own
+/// model in Settings; an empty balance offers the account and buys nothing;
+/// a new connections catalog rediscovers the runtime once.
+#[gpui::test]
+fn the_compute_dock_names_its_route_and_hands_off_its_actions(cx: &mut TestAppContext) {
+    use super::AgentChatPanelEvent;
+    use super::compute::{ComputeSnapshot, ManagedCompute};
+    use std::{cell::Cell, cell::RefCell, rc::Rc};
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let slot = Rc::new(RefCell::new(None));
+    let kept = slot.clone();
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        let (panel, asked) =
+            AgentChatTabPanel::managed_fixture(Rc::new(Cell::new(false)), window, cx);
+        *kept.borrow_mut() = Some(asked);
+        panel
+    });
+    let asked = slot.borrow().clone().unwrap();
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let log = events.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&panel, move |_, event, _| match event {
+            AgentChatPanelEvent::OpenAccount => log.borrow_mut().push("account"),
+            AgentChatPanelEvent::OpenModelConnections => log.borrow_mut().push("connections"),
+            _ => {}
+        })
+        .detach()
+    });
+    let compute = |revision: &str, signed_in: bool, reason: &'static str| ComputeSnapshot {
+        revision: revision.into(),
+        sources: Default::default(),
+        managed: Some(ManagedCompute {
+            signed_in,
+            available: false,
+            reason,
+        }),
+    };
+    panel.update_in(cx, |p, window, cx| {
+        p.set_presentation(true, true, window, cx);
+        p.set_payments(true, cx);
+        p.apply_compute(compute("1", false, "sign-in-required"), cx);
+    });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("agent-compute-summary:Puppyone's token")
+            .is_some()
+    );
+    assert!(cx.debug_bounds("agent-compute-sign-in").is_none());
+    assert!(cx.debug_bounds("agent-picker-Model").is_none());
+
+    focus_composer(&panel, cx);
+    cx.simulate_input("Hello");
+    cx.simulate_keystrokes("enter");
+    draw(cx);
+    assert!(
+        cx.debug_bounds("agent-compute-title:Use PuppyOne compute")
+            .is_some()
+    );
+    let own = cx.debug_bounds("agent-compute-own").unwrap();
+    cx.simulate_click(own.center(), Modifiers::default());
+    draw(cx);
+    assert_eq!(*events.borrow(), ["connections"]);
+
+    panel.update(cx, |p, cx| {
+        p.apply_compute(compute("1", true, "insufficient-credit"), cx)
+    });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("agent-compute-title:Add credit to use this model.")
+            .is_some()
+    );
+    let balance = cx.debug_bounds("agent-compute-balance").unwrap();
+    cx.simulate_click(balance.center(), Modifiers::default());
+    draw(cx);
+    assert_eq!(*events.borrow(), ["connections", "account"]);
+    assert!(!asked.borrow().iter().any(|op| matches!(
+        op,
+        AgentOperation::StartTurn | AgentOperation::CreateSession
+    )));
+
+    let discoveries = || {
+        asked
+            .borrow()
+            .iter()
+            .filter(|op| **op == AgentOperation::DiscoverRuntimes)
+            .count()
+    };
+    let before = discoveries();
+    panel.update(cx, |p, cx| {
+        p.apply_compute(compute("2", true, "insufficient-credit"), cx)
+    });
+    draw(cx);
+    assert_eq!(discoveries(), before + 1, "a new catalog rediscovers");
+    panel.update(cx, |p, cx| {
+        p.apply_compute(compute("2", true, "insufficient-credit"), cx)
+    });
+    draw(cx);
+    assert_eq!(discoveries(), before + 1, "the same catalog does not");
+}

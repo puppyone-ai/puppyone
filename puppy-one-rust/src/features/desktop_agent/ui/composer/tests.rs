@@ -175,3 +175,62 @@ fn a_blank_placeholder_keeps_the_default_and_a_running_turn_offers_stop(cx: &mut
     cx.simulate_click(action.center(), Modifiers::default());
     assert_eq!(log.borrow().last().map(String::as_str), Some("stop"));
 }
+
+/// `hides the configured Model in Minimal Mode without removing the
+/// composer`; `keeps the session-level Agent in the header and only Model in
+/// the composer`; `shows Agent in the header and withholds Model until a
+/// connected runtime is selected`: the composer's only configuration is the
+/// session's controls — a Model when the session has one, nothing (and still
+/// the input and its action) when it has none.
+#[gpui::test]
+fn the_composer_offers_only_the_sessions_model_and_works_without_one(cx: &mut TestAppContext) {
+    use crate::features::desktop_agent::domain::agent_session_controls::{
+        AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
+    };
+    crate::localization::set_current("en");
+    let (composer, log, cx) = setup(cx);
+    let model = AgentSessionControl {
+        id: AgentSessionControlId::Model,
+        value: Some("gpt-5".into()),
+        options: vec![AgentSessionControlOption {
+            value: "gpt-5".into(),
+            label: "GPT-5".into(),
+            description: None,
+            keywords: None,
+        }],
+    };
+    composer.update_in(cx, |c, window, cx| {
+        c.set_input(
+            ComposerInput {
+                draft: "Continue".into(),
+                session_controls: vec![model],
+                ..Default::default()
+            },
+            window,
+            cx,
+        )
+    });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(cx.debug_bounds("agent-picker-Model:GPT-5").is_some());
+    assert!(cx.debug_bounds("agent-picker-Effort").is_none());
+    assert!(cx.debug_bounds("agent-picker-Mode").is_none());
+
+    composer.update_in(cx, |c, window, cx| {
+        c.set_input(
+            ComposerInput {
+                draft: "Hello".into(),
+                composer_disabled: true,
+                ..Default::default()
+            },
+            window,
+            cx,
+        )
+    });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(cx.debug_bounds("agent-picker-Model").is_none());
+    let action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("the action stays");
+    cx.simulate_click(action.center(), Modifiers::default());
+    assert!(!log.borrow().iter().any(|l| l == "submit"), "blocked");
+}

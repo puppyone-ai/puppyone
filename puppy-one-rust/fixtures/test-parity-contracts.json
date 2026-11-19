@@ -35312,6 +35312,350 @@
           "test": "features::desktop_agent::application::tests::controller::renders_main_display_revisions_and_preserves_the_old_locator_on_new_chat"
         }
       ]
+    },
+    {
+      "id": "agent-compute-first-summary",
+      "acceptance": "Before anything is sent the compute dock names PuppyOne compute and shows no prompt, picker, balance or account detail, and nothing is read, saved, selected or opened.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 0,
+              "name": "keeps the initial managed summary free of account and billing details"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::compute::tests::the_first_summary_asks_for_nothing"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::desktop_agent::ui::panel::tests::the_compute_dock_names_its_route_and_hands_off_its_actions"
+        }
+      ]
+    },
+    {
+      "id": "agent-compute-own-routes",
+      "acceptance": "Every ready configured model is offered in Chat's model picker and a choice is reported, not configured, in Chat; a ready own route restores as ready with its source; connection management stays in Settings.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 1,
+              "name": "offers every ready configured model without configuring connections in Chat"
+            },
+            {
+              "index": 2,
+              "name": "restores a ready custom route while keeping management in Settings"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::compute::tests::every_ready_own_route_is_offered_and_a_chosen_one_is_ready"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::pickers::tests::a_pointer_choice_updates_the_label_and_a_disabled_picker_stays_shut"
+        }
+      ]
+    },
+    {
+      "id": "agent-compute-locked-during-a-turn",
+      "acceptance": "While a turn runs the model choice is disabled and a disabled picker never opens or chooses.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 3,
+              "name": "disables model selection during a turn"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::pickers::tests::a_pointer_choice_updates_the_label_and_a_disabled_picker_stays_shut"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_attachment_only_submission_feedback_across_preparation_and_admission"
+        }
+      ]
+    },
+    {
+      "id": "agent-compute-catalog-refresh-and-hand-offs",
+      "acceptance": "A new connections catalog makes the chat rediscover its runtime once (the same catalog does not); signing in, the user's own model and the balance are handed to the account and Settings without selecting a model or sending a turn.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 4,
+              "name": "asks the controller to refresh when the shared connection catalog arrives"
+            },
+            {
+              "index": 5,
+              "name": "opens email sign-in without selecting a paid model or sending a turn"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::desktop_agent::ui::panel::tests::the_compute_dock_names_its_route_and_hands_off_its_actions"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::desktop_agent::ui::panel::tests::first_use_compute_keeps_the_draft_until_the_next_send"
+        }
+      ]
+    },
+    {
+      "id": "agent-compute-connecting-not-billing",
+      "acceptance": "A signed-in account whose compute is loading, or ready but still awaiting its model, shows a disabled Connecting to compute action instead of a billing error, and the route is not ready.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 7,
+              "name": "shows preparation instead of a billing error while loading is awaiting a model"
+            },
+            {
+              "index": 8,
+              "name": "shows preparation instead of a billing error while ready is awaiting a model"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::compute::tests::a_signed_in_account_awaiting_its_model_is_connecting"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::desktop_agent::ui::panel::tests::first_use_compute_keeps_the_draft_until_the_next_send"
+        }
+      ]
+    },
+    {
+      "id": "agent-compute-paid-route",
+      "acceptance": "An empty balance blocks a selected PuppyOne model with 'Add credit to use this model.' and a Manage AI balance action that opens the account and never checks out; with credit PuppyOne compute offers no model choice and is ready exactly when a model is selected.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 10,
+              "name": "blocks a selected managed model when the personal balance is empty"
+            },
+            {
+              "index": 12,
+              "name": "hides the managed model and picker while retaining its readiness: null"
+            },
+            {
+              "index": 13,
+              "name": "hides the managed model and picker while retaining its readiness: mc_22222222-2222-2222-2222-222222222222/cloud-model"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::compute::tests::paid_compute_is_blocked_without_credit_and_never_offers_a_choice"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::compute::tests::paid_compute_needs_a_signed_in_account_with_credit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::desktop_agent::ui::panel::tests::the_compute_dock_names_its_route_and_hands_off_its_actions"
+        }
+      ]
+    },
+    {
+      "id": "agent-composer-configuration",
+      "acceptance": "The composer's only configuration is the session's own controls: a Model when the session has one (never an Agent or backend control), nothing when it has none, and the input and its single action stay; a chat without a selected runtime offers no models and cannot send.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/pickers.test.ts",
+          "sha256": "a0ce9124d6658a0ad618e9b3153e71b41fa9e826ff34fab647cbfbe5f88c7f72",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > hides the configured Model in Minimal Mode without removing the composer"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > keeps the session-level Agent in the header and only Model in the composer"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent renderer surfaces > shows Agent in the header and withholds Model until a connected runtime is selected"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::the_composer_offers_only_the_sessions_model_and_works_without_one"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_hidden_sessions_bound_while_hiding_unused_runtimes"
+        }
+      ]
+    },
+    {
+      "id": "agent-runtime-catalog-lists",
+      "acceptance": "The runtime catalog keeps registry order and products without provider-specific filtering; enabled lists keep only installed enabled Agents and visible lists drop hidden and uninstalled ones.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/pickers.test.ts",
+          "sha256": "a0ce9124d6658a0ad618e9b3153e71b41fa9e826ff34fab647cbfbe5f88c7f72",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Desktop Agent renderer surfaces > preserves registry-provided Agent products without provider-specific UI filtering"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent renderer surfaces > shows only locally selected and still-installed Coding Agents"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::domain::tests::runtime_lists_keep_the_registry_and_drop_uninstalled_or_hidden_agents"
+        }
+      ]
+    },
+    {
+      "id": "agent-model-picker",
+      "acceptance": "Choosing a model by pointer reports it, closes the picker and the trigger shows the new label; a large catalog shows at most 120 options with a 'Showing 120 of N' note and search narrows it.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/pickers.test.ts",
+          "sha256": "a0ce9124d6658a0ad618e9b3153e71b41fa9e826ff34fab647cbfbe5f88c7f72",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Desktop Agent renderer surfaces > updates the visible Agent and Model labels after pointer selection"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent renderer surfaces > keeps a large model catalog searchable while bounding mounted picker options"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::pickers::tests::a_pointer_choice_updates_the_label_and_a_disabled_picker_stays_shut"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::pickers::tests::a_large_catalog_is_bounded_and_searchable"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::pickers::tests::arrows_move_enter_chooses_and_escape_closes"
+        }
+      ]
+    },
+    {
+      "id": "local-agent-settings",
+      "acceptance": "Local Agents settings list the detected Agents (not the Built-in Agent) under Active Chat, Chat History and Hooks; hiding an Agent persists only its id and the history switch only its flag; every detected configurable Hook starts off and discovery never enrolls; Hooks install one provider at a time and turn on file activity.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/discovery/localAgentSettingsViews.test.tsx",
+          "sha256": "4a704132692160c32f698d72692422bb3ef0d4d201ecaa67cd9aeafda411b0ec",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Local Agent settings views > opens with every discovered Hook off without enrolling during discovery"
+            },
+            {
+              "index": 1,
+              "name": "Local Agent settings views > uses local product detection and persists only hidden launcher ids"
+            },
+            {
+              "index": 2,
+              "name": "Local Agent settings views > shows Hook enrollment as the third settings group and installs one provider at a time"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::settings::tests::detected_agents_list_with_their_hooks_and_only_hidden_ids_persist"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::settings::tests::a_hook_checkbox_installs_the_hook_and_turns_on_file_activity"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -44327,6 +44671,54 @@
             {
               "index": 6,
               "name": "Desktop Agent renderer surfaces > keeps incompatible runtime recovery product-owned"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "managed-compute-failure-and-trial-states",
+      "kind": "gap",
+      "reason": "Chat's compute snapshot (`read_compute_snapshot`) only knows signed out, no credit and ready: it has no managed-compute failure code (gateway unavailable), no Retry that refreshes with progress (the dock's Retry only rereads, and its 'temporarily unavailable' state is unreachable), no in-Chat browser sign-in handoff whose failure could be labelled (sign-in goes to the account), and no server-configured trial credit line (`agent.compute.trialGranted`, `signInUnavailable` are unused).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/routing-and-compute.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 6,
+              "name": "labels a failed browser handoff as a sign-in problem"
+            },
+            {
+              "index": 9,
+              "name": "offers retry after a confirmed failure and shows progress while retrying"
+            },
+            {
+              "index": 11,
+              "name": "offers the server-configured trial only after the first send attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "in-chat-runtime-picker",
+      "kind": "out-of-scope",
+      "reason": "TS keeps AgentRuntimePicker and AgentSurfaceHeader only for its visual smoke harness; the product chooses the Agent on the launcher before a chat mounts and the chat has no Agent picker (contract agent-launcher-before-chat). The native app has no in-chat runtime picker or surface header, so its flat menu, warnings and focus return have no counterpart.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/panel-layout.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/pickers.test.ts",
+          "sha256": "a0ce9124d6658a0ad618e9b3153e71b41fa9e826ff34fab647cbfbe5f88c7f72",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Desktop Agent renderer surfaces > renders one flat coding-Agent menu and keeps detected runtimes selectable with one warning"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent renderer surfaces > supports Arrow, Enter and Escape with focus return in the custom Agent picker"
             }
           ]
         }

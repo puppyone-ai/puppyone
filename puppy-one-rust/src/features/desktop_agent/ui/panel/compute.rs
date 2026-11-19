@@ -182,7 +182,9 @@ impl AgentChatTabPanel {
                     _ => "agent.compute.source.local",
                 })
             };
+            let selector = format!("agent-compute-summary:{label}");
             let mut summary = h_flex()
+                .debug_selector(move || selector)
                 .gap(px(6.))
                 .min_w_0()
                 .text_size(px(m.left.content))
@@ -231,10 +233,12 @@ impl AgentChatTabPanel {
             section = section.child(summary);
         }
         let prompt = |title: SharedString, detail: Option<SharedString>| {
+            let selector = format!("agent-compute-title:{title}");
             v_flex()
                 .gap(px(4.))
                 .child(
                     div()
+                        .debug_selector(move || selector)
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(a.text)
                         .child(title),
@@ -273,6 +277,7 @@ impl AgentChatTabPanel {
                                 disabled,
                                 &a,
                             )
+                            .debug_selector(|| "agent-compute-customize".into())
                             .on_click(cx.listener(|_, _, _, cx| {
                                 cx.emit(AgentChatPanelEvent::OpenModelConnections)
                             })),
@@ -348,6 +353,7 @@ impl AgentChatTabPanel {
                             disabled,
                             &a,
                         )
+                        .debug_selector(|| "agent-compute-own".into())
                         .on_click(cx.listener(|_, _, _, cx| {
                             cx.emit(AgentChatPanelEvent::OpenModelConnections)
                         })),
@@ -429,5 +435,72 @@ mod tests {
         // Before the connections load, a first paid route is still connecting.
         let loading = derive_compute(None, &models, true, None, false);
         assert_eq!(loading.access_required, Some("loading"));
+    }
+
+    fn managed(signed_in: bool, available: bool, reason: &'static str) -> Option<ManagedCompute> {
+        Some(ManagedCompute {
+            signed_in,
+            available,
+            reason,
+        })
+    }
+
+    /// `keeps the initial managed summary free of account and billing
+    /// details`: before a send, no prompt, picker or route.
+    #[test]
+    fn the_first_summary_asks_for_nothing() {
+        let snapshot = snapshot(managed(false, false, "sign-in-required"));
+        let view = derive_compute(Some(&snapshot), &[], true, None, false);
+        assert_eq!(view.source, "managed");
+        assert!(!view.ready && !view.show_picker && !view.paid_prompt && !view.setup_prompt);
+    }
+
+    /// `offers every ready configured model without configuring connections
+    /// in Chat`; `restores a ready custom route while keeping management in
+    /// Settings`.
+    #[test]
+    fn every_ready_own_route_is_offered_and_a_chosen_one_is_ready() {
+        let models = [model("mc_own", "llama"), model("mc_api", "cloud-model")];
+        let mut snapshot = snapshot(managed(false, false, "sign-in-required"));
+        snapshot.sources.insert("mc_api".into(), "api");
+        let choosing = derive_compute(Some(&snapshot), &models, true, None, false);
+        assert_eq!(choosing.offered.len(), 2);
+        assert!(choosing.show_picker && !choosing.ready && !choosing.paid_prompt);
+        let restored = derive_compute(Some(&snapshot), &models, true, Some("mc_own/llama"), false);
+        assert!(restored.ready);
+        assert_eq!(restored.source, "local");
+        assert_eq!(restored.access_required, None);
+    }
+
+    /// `shows preparation instead of a billing error while loading / ready
+    /// is awaiting a model`.
+    #[test]
+    fn a_signed_in_account_awaiting_its_model_is_connecting() {
+        for (reason, available) in [("loading", false), ("ready", true)] {
+            let snapshot = snapshot(managed(true, available, reason));
+            let view = derive_compute(Some(&snapshot), &[], true, None, true);
+            assert!(
+                view.connecting && view.paid_prompt && !view.ready,
+                "{reason}"
+            );
+            assert_eq!(view.access_required, Some("loading"), "{reason}");
+        }
+    }
+
+    /// `blocks a selected managed model when the personal balance is empty`;
+    /// `hides the managed model and picker while retaining its readiness`.
+    #[test]
+    fn paid_compute_is_blocked_without_credit_and_never_offers_a_choice() {
+        let models = [model("mc_paid", "gpt")];
+        let empty = snapshot(managed(true, false, "insufficient-credit"));
+        let blocked = derive_compute(Some(&empty), &models, true, Some("mc_paid/gpt"), true);
+        assert!(!blocked.ready && blocked.paid_prompt && !blocked.connecting);
+        assert_eq!(blocked.access_required, Some("insufficient-credit"));
+        let funded = snapshot(managed(true, true, "ready"));
+        for selected in [None, Some("mc_paid/gpt")] {
+            let view = derive_compute(Some(&funded), &models, true, selected, false);
+            assert!(!view.show_picker && !view.paid_prompt);
+            assert_eq!(view.ready, selected.is_some());
+        }
     }
 }
