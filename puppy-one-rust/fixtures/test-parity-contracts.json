@@ -32978,6 +32978,289 @@
           "test": "editor::workbench::pane::tests::entries_follow_the_menu_order_and_skip_disabled_commands"
         }
       ]
+    },
+    {
+      "id": "agent-chat-close-lifecycle",
+      "acceptance": "Closing a chat is accepted at once in every stage of its turn or of a display repair (streaming, provider retry, silent, reconnecting, degraded, paused, exhausted, an acknowledgement pending, an approval waiting, the runtime exited, completed): the repair stops, a receipt or retry that lands later attaches nothing, and no turn, approval answer or second close is sent. A prepared empty chat closes without an error; a close before the first display snapshot detaches the late subscription; a close during preparation lets no late startup dispatch; queued input is sealed and late receipts or completions change nothing; a sibling chat is unaffected and a close that was not confirmed keeps the tab for a retry.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/item-hosts/agentChatLifecycle.test.tsx",
+          "sha256": "6536450bdd20a1874de93e6562a130272b335f9398827a4a7ecf3f915070d408",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > opens a prepared empty Chat and closes before the first input without a failure popup"
+            },
+            {
+              "index": 2,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in streaming without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 3,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in provider-retrying without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 4,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in silent without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 5,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in reconnecting without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 6,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in degraded without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 7,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in paused without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 8,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in exhausted without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 9,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in ack-pending without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 10,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in approval without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 11,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in runtime-exited without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 12,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > accepts closing a Chat in completed without waiting for recovery or OS cleanup"
+            },
+            {
+              "index": 15,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > closes before the first display snapshot arrives and releases the late subscription"
+            },
+            {
+              "index": 16,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > closes during native creation before any session ID and rejects the late startup"
+            },
+            {
+              "index": 17,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > seals queued input when closing and ignores late native completion"
+            },
+            {
+              "index": 18,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > keeps a sibling Chat responsive while a termination receipt is lost, then retries the fixed intent"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::session_feed::closing_a_chat_in_any_stage_is_accepted_at_once_and_late_work_stays_inert"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::session_feed::termination_of_a_healthy_display_is_not_a_recovery_incident"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::closes_a_tab_owned_native_session_without_affecting_another_controller"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::session_feed::stops_first_attach_recovery_after_disposal"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::session_feed::recovers_a_timed_out_first_attach_and_detaches_its_late_receipt"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_dispatch_after_preparation_completes_for_an_invalidated_conversation"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::closes_a_restored_native_session_when_workbench_preparation_rolls_back"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::ignores_receipts_and_new_submissions_after_disposal"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller_registry::coalesces_close_requests_and_keeps_failed_closes_available_for_retry"
+        }
+      ]
+    },
+    {
+      "id": "agent-chat-turn-repair-and-retry",
+      "acceptance": "A chat repairs a lost final frame from the watermark and continues once with its draft kept, and a provider retry that succeeds shows the recovered answer without a stale failure; cancelling the close confirmation of a running chat keeps it and its execution.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/item-hosts/agentChatLifecycle.test.tsx",
+          "sha256": "6536450bdd20a1874de93e6562a130272b335f9398827a4a7ecf3f915070d408",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > sends, displays content, repairs a lost final frame, continues once, and closes"
+            },
+            {
+              "index": 13,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > shows native retry recovery as successful content and closes without a stale failure card"
+            },
+            {
+              "index": 14,
+              "name": "Chat lifecycle through production Actor, feed, replica, UI and Main supervision > cancels the running-task confirmation while reconnecting and leaves the same execution usable"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::session_feed::repairs_a_lost_last_terminal_frame_using_the_watermark"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::continues_a_degraded_turn_without_consuming_the_draft_or_references"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::recovered_pi_request_completes_without_a_stale_failure_card"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::session_feed::keeps_a_model_retry_while_a_tool_progresses_and_clears_it_on_completion"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::closes_commit_first_wait_for_their_release_and_stay_apart"
+        }
+      ]
+    },
+    {
+      "id": "agent-titlebar-entry",
+      "acceptance": "The right sidebar starts on Chat unless History or Changes was stored (a retired value is Chat), only a valid runtime id is restored as the selected Agent, and the Header's Agent entry is one toggle without a menu or a second Chat toggle beside it.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/item-hosts/desktop-agent.titlebar-gate.test.ts",
+          "sha256": "a38113984bd6ce6681fc174d81088ef4edfd06be0d6dddb040c61250d0609e2f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "unified Agent workbench titlebar entry > defaults the right sidebar to Chat and restores Git surfaces independently"
+            },
+            {
+              "index": 1,
+              "name": "unified Agent workbench titlebar entry > restores only a validated last-selected Agent id"
+            },
+            {
+              "index": 2,
+              "name": "unified Agent workbench titlebar entry > presents the unified workbench as a stable Agent toggle without a dropdown menu"
+            },
+            {
+              "index": 3,
+              "name": "unified Agent workbench titlebar entry > does not expose a second Chat toggle beside the Workbench entry"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::the_right_sidebar_starts_on_chat_unless_a_git_surface_was_stored"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::agent_routing_preferences::tests::only_a_valid_runtime_id_is_restored_as_the_selection"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_right_sidebar_keeps_and_restores_its_surface"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_header_agent_entry_is_one_toggle_without_a_menu"
+        }
+      ]
+    },
+    {
+      "id": "tooltip-hover-hint",
+      "acceptance": "A hint shows only after the pointer rests on its control (the native toolkit's half second) and goes as soon as the pointer leaves.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
+          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopTooltipLayer > shows hover-only hints after a delay and hides them on leave even while their menu item is focused"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::a_header_hint_waits_for_the_pointer_to_rest_and_goes_when_it_leaves"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_share::a_face_shows_its_card_after_a_moment_and_never_over_a_request"
+        }
+      ]
+    },
+    {
+      "id": "tooltip-overlay-theme",
+      "acceptance": "Tooltips and other overlays take the active palette's menu, text and canvas colors through light, dark and Sub Theme changes, at the selected type scale.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipTheme.test.ts",
+          "sha256": "4cbefc540438b26025ff13b2c7ff26c0534792cbcc613666a75be6255e72e1f9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop tooltip theme > follows the overlay colors through light, dark, and sub-theme changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
+          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
+          "cases": [
+            {
+              "index": 9,
+              "name": "DesktopTooltipLayer > uses the themed overlay root for the selected typography scale"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::appearance::tests::kit_overlays_follow_light_dark_and_sub_theme_changes"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -41289,6 +41572,156 @@
             {
               "index": 4,
               "name": "DesktopEditorSplitView: what a pane shows > shows an unavailable state instead of blanking a pane restored as a directory"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "react-error-boundaries",
+      "kind": "out-of-scope",
+      "reason": "React error boundaries contain a render exception or a failed DOM measurement to one Workbench view, status renderer or launcher and offer to reload it. Native views are Rust code that reports failures as values shown in the item, and layout never fails to measure; only editor viewer surfaces, which may run pack code, are isolated against panics (rg23_panicking_viewer_surface_degrades_only_its_pane_and_preserves_unsaved_working_copy).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/item-hosts/workbenchRenderIsolation.test.tsx",
+          "sha256": "3b18a467283591da2e2b7930a082cfef4b65028df175fbba5fe67e3ca9c9a2c5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "isolates chat terminal-neighbor content failure (callback), and reloads only the failed view"
+            },
+            {
+              "index": 1,
+              "name": "isolates chat terminal-neighbor content failure (child), and reloads only the failed view"
+            },
+            {
+              "index": 2,
+              "name": "isolates terminal chat-neighbor content failure (callback), and reloads only the failed view"
+            },
+            {
+              "index": 3,
+              "name": "isolates terminal chat-neighbor content failure (child), and reloads only the failed view"
+            },
+            {
+              "index": 4,
+              "name": "isolates an optional status renderer failure (callback) without removing tabs or content"
+            },
+            {
+              "index": 5,
+              "name": "isolates an optional status renderer failure (child) without removing tabs or content"
+            },
+            {
+              "index": 6,
+              "name": "uses the declared minimum when a feature measurement fails, retaining both split hosts"
+            },
+            {
+              "index": 7,
+              "name": "contains a launcher callback failure in the empty workbench"
+            },
+            {
+              "index": 8,
+              "name": "contains a launcher callback failure in the tab workbench"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tooltip-keyboard-shortcut-and-overflow",
+      "kind": "gap",
+      "reason": "Native hints are hover-only: keyboard focus opens none (so there is no Escape dismissal or press-focus rule), a hint shows its label without a shortcut line, and clipped values (such as a long project path) get no overflow-only hint.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/chrome/title-bar.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
+          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DesktopTooltipLayer > waits for hover and shows the label and optional shortcut"
+            },
+            {
+              "index": 3,
+              "name": "DesktopTooltipLayer > opens on keyboard focus and dismisses on Escape"
+            },
+            {
+              "index": 4,
+              "name": "DesktopTooltipLayer > does not reopen immediately when a pointer press focuses the trigger"
+            },
+            {
+              "index": 10,
+              "name": "DesktopTooltipLayer > only shows overflow hints when their visible value is clipped"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-tooltip-layer-mechanics",
+      "kind": "out-of-scope",
+      "reason": "TS draws every hint in one document-level layer, so it must strip native title bubbles (including SVG titles) while keeping accessible names, link hints with aria-describedby, remove a hint whose trigger unmounted, honour explicit content only, and suppress hints in editor scopes and menus that draw their own cards. A native control owns its own hint, which goes with it; there are no title bubbles to strip, and editor and menu controls that show their own cards carry no hint.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
+          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
+          "cases": [
+            {
+              "index": 1,
+              "name": "DesktopTooltipLayer > removes a stale tooltip and its description when the trigger is unmounted"
+            },
+            {
+              "index": 5,
+              "name": "DesktopTooltipLayer > does not show hover or focus hints in a disabled editor scope"
+            },
+            {
+              "index": 6,
+              "name": "DesktopTooltipLayer > clears a focused editor control's hint when the pointer enters a surface with its own card"
+            },
+            {
+              "index": 7,
+              "name": "DesktopTooltipLayer > rechecks suppression before a delayed hover hint opens"
+            },
+            {
+              "index": 8,
+              "name": "DesktopTooltipLayer > suppresses hints in a document-level menu independently of its editor"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/tooltips/nativeTitleSuppression.test.ts",
+          "sha256": "2f1634f612721d94846d7c4a4da7d7c6a34f32b666403beb009fa2f565ab8143",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native title suppression > removes existing and subsequently inserted native titles"
+            },
+            {
+              "index": 1,
+              "name": "native title suppression > preserves the accessible name of frames and icon-only controls"
+            },
+            {
+              "index": 2,
+              "name": "native title suppression > keeps custom hints and accessibility descriptions while removing native titles"
+            },
+            {
+              "index": 3,
+              "name": "native title suppression > removes SVG title bubbles while retaining their accessible name"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/tooltips/tooltipActivation.test.tsx",
+          "sha256": "46ce93da55b0f06b13a6c1905a4c4e0e79cd74f1006d80da9da764e4caa7ddce",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Tooltip > only activates when explicit content is provided"
+            },
+            {
+              "index": 1,
+              "name": "Tooltip > disables nested hints without removing accessible names or explicit content"
             }
           ]
         }

@@ -678,6 +678,27 @@ mod tests {
         assert_eq!(p.explorer_pins.len(), 1);
     }
 
+    /// `readInitialRightSidebarSurface`: Chat unless History or Changes was
+    /// stored; anything else (a retired `terminal`) is Chat.
+    #[test]
+    fn the_right_sidebar_starts_on_chat_unless_a_git_surface_was_stored() {
+        assert_eq!(
+            import(&data(&[])).right_sidebar_surface,
+            RightSidebarSurface::Chat
+        );
+        for (stored, surface) in [
+            ("history", RightSidebarSurface::History),
+            ("changes", RightSidebarSurface::Changes),
+            ("terminal", RightSidebarSurface::Chat),
+        ] {
+            assert_eq!(
+                import(&data(&[(keys::RIGHT_SIDEBAR_SURFACE, stored)])).right_sidebar_surface,
+                surface,
+                "{stored}"
+            );
+        }
+    }
+
     #[test]
     fn legacy_keys_flags_and_unknown_values_follow_the_product_parsers() {
         let p = import(&data(&[

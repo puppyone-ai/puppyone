@@ -289,6 +289,7 @@ pub(super) fn agent_entry(open: bool) -> Button {
         "shell.titlebar.showAgent"
     });
     Button::new("right")
+        .debug_selector(|| "header-agent".into())
         .variant(ButtonVariant::Titlebar)
         .icon("agent-entry")
         .accessibility_label(label)

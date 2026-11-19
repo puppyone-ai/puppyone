@@ -293,3 +293,55 @@ fn the_workbench_is_visible_only_while_the_open_sidebar_shows_it(cx: &mut TestAp
     command(&view, cx, Command::ToggleRightSidebar);
     assert!(!visible(&view, cx), "closed");
 }
+
+/// `unified Agent workbench titlebar entry`: the Header's Agent entry is
+/// one toggle with no menu: it shows the right sidebar's Agent workbench
+/// and hides it again, and no second Chat entry stands beside it.
+#[gpui::test]
+fn the_header_agent_entry_is_one_toggle_without_a_menu(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    draw(cx);
+    let shown =
+        |cx: &mut VisualTestContext| view.update(cx, |s, cx| s.right_shows(Surface::Agent, cx));
+    let entry = cx.debug_bounds("header-agent").expect("the Agent entry");
+    let before = shown(cx);
+    for expected in [!before, before] {
+        cx.simulate_click(entry.center(), Modifiers::default());
+        draw(cx);
+        assert_eq!(shown(cx), expected, "one click toggles the workbench");
+    }
+}
+
+/// `DesktopTooltipLayer`: a hint shows only after the pointer rests on its
+/// control for half a second and goes as soon as the pointer leaves.
+#[gpui::test]
+fn a_header_hint_waits_for_the_pointer_to_rest_and_goes_when_it_leaves(cx: &mut TestAppContext) {
+    let (_view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    draw(cx);
+    let rest = |cx: &mut VisualTestContext, ms: u64| {
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(ms));
+        cx.run_until_parked();
+        draw(cx);
+    };
+    let entry = cx.debug_bounds("header-agent").expect("the Agent entry");
+    // The pointer arrives and moves on within the entry.
+    cx.simulate_mouse_move(entry.center(), None, Modifiers::default());
+    draw(cx);
+    cx.simulate_mouse_move(
+        entry.center() + point(px(1.), px(0.)),
+        None,
+        Modifiers::default(),
+    );
+    rest(cx, 400);
+    assert!(cx.debug_bounds("tooltip").is_none(), "not yet");
+    rest(cx, 150);
+    assert!(cx.debug_bounds("tooltip").is_some(), "after a rest");
+    cx.simulate_mouse_move(point(px(5.), px(400.)), None, Modifiers::default());
+    draw(cx);
+    assert!(cx.debug_bounds("tooltip").is_none(), "gone on leave");
+    rest(cx, 1_000);
+    assert!(cx.debug_bounds("tooltip").is_none());
+}

@@ -258,6 +258,20 @@ mod tests {
         );
     }
 
+    /// `restores only a validated last-selected Agent id`.
+    #[test]
+    fn only_a_valid_runtime_id_is_restored_as_the_selection() {
+        let stored = |id: &str| {
+            let v2 = serde_json::json!({ "version": 2, "selectedRuntimeId": id, "routes": {} });
+            AgentRoutingPreferences::parse(Some(&v2.to_string()), None, None).selected_runtime_id
+        };
+        assert_eq!(stored("codex").as_deref(), Some("codex"));
+        for invalid in ["../../not-a-runtime", "Codex", "x", "workbuddy", ""] {
+            assert_eq!(stored(invalid), None, "{invalid}");
+        }
+        assert_eq!(AgentRoutingPreferences::default().selected_runtime_id, None);
+    }
+
     #[test]
     fn routes_follow_the_selected_runtime_and_empty_routes_are_dropped() {
         let preferences = AgentRoutingPreferences::default().select_runtime(Some("codex"));

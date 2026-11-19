@@ -118,4 +118,50 @@ mod tests {
             assert_eq!(theme::scale(), Scale::Medium);
         });
     }
+
+    /// `desktop tooltip theme`: Kit overlays (tooltips, popovers) take the
+    /// active palette's menu and text colors through light, dark and Sub
+    /// Theme changes.
+    #[gpui::test]
+    fn kit_overlays_follow_light_dark_and_sub_theme_changes(cx: &mut gpui::TestAppContext) {
+        use gpui_kit::component::Theme as KitTheme;
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            // A Sub Theme whose menus differ from the default's in both modes.
+            let other = theme::pack_choices()
+                .map(|(id, _)| id)
+                .find(|id| {
+                    [false, true].iter().all(|&dark| {
+                        theme::pack_theme(id, dark).menu_bg
+                            != theme::pack_theme(theme::DEFAULT_PACK, dark).menu_bg
+                    })
+                })
+                .expect("a Sub Theme with its own menus");
+            for (dark, pack) in [
+                (false, theme::DEFAULT_PACK),
+                (true, theme::DEFAULT_PACK),
+                (true, other),
+                (false, other),
+            ] {
+                Appearance::new(dark, pack, Scale::Medium, false).apply(None, cx);
+                let palette = theme::pack_theme(pack, dark);
+                let kit = KitTheme::global(cx);
+                assert_eq!(
+                    (kit.popover, kit.popover_foreground, kit.background),
+                    (
+                        palette.menu_bg.into(),
+                        palette.text.into(),
+                        palette.canvas.into()
+                    ),
+                    "{pack} dark={dark}"
+                );
+            }
+            // And the selected type scale.
+            Appearance::new(true, theme::DEFAULT_PACK, Scale::Large, false).apply(None, cx);
+            let large = KitTheme::global(cx).font_size;
+            assert_eq!(large, gpui::px(theme::font_size(theme::FONT)));
+            Appearance::default().apply(None, cx);
+            assert!(KitTheme::global(cx).font_size < large);
+        });
+    }
 }
