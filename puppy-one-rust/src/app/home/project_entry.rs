@@ -91,6 +91,7 @@ impl Homepage {
         let option = |route: Route, icon: Icon, label: &'static str| {
             div()
                 .id(SharedString::from(format!("project-entry-{route:?}")))
+                .debug_selector(move || format!("project-entry-{route:?}"))
                 .flex()
                 .items_center()
                 .min_h(px(theme::control()))

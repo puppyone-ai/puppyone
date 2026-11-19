@@ -319,3 +319,106 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
         assert!(s.chrome.read(cx).coachmarks.read(cx).shown(cx));
     });
 }
+
+/// `moves only the active state when switching Projects`, `announces the
+/// active Project and routes selection through the host`: a rail mark
+/// enters its project in this window, and every mark keeps its place
+/// though the project just entered becomes the most recent.
+#[gpui::test]
+fn a_rail_mark_enters_its_project_and_the_marks_keep_their_places(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let alpha = temp.path().canonicalize().unwrap().join("alpha");
+    let beta = temp.path().canonicalize().unwrap().join("beta");
+    for dir in [&alpha, &beta] {
+        std::fs::create_dir(dir).unwrap();
+        std::fs::write(dir.join("a.md"), "# A\n").unwrap();
+    }
+    let (view, cx) = setup(cx);
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
+    store.update(cx, |store, cx| {
+        store.change(
+            |p| {
+                p.project_switcher_rail = true;
+                p.remember_project(&beta, 1);
+                p.remember_project(&alpha, 2);
+            },
+            cx,
+        )
+    });
+    view.update_in(cx, |s, w, cx| s.open_project(alpha.clone(), w, cx));
+    settle_cloud(&view, cx, "alpha", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(alpha.as_path())
+    });
+    draw(cx);
+    let top = |cx: &mut VisualTestContext, name: &str| {
+        let selector: &'static str = Box::leak(format!("rail-project-{name}").into_boxed_str());
+        cx.debug_bounds(selector).map(|b| b.top())
+    };
+    let places = (top(cx, "alpha").unwrap(), top(cx, "beta").unwrap());
+    assert!(places.0 < places.1);
+    let mark = cx.debug_bounds("rail-project-beta").unwrap().center();
+    cx.simulate_click(mark, Modifiers::none());
+    settle_cloud(&view, cx, "beta", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(beta.as_path())
+    });
+    // The project entered becomes the most recent; the marks stay.
+    store.update(cx, |store, cx| {
+        store.change(|p| p.remember_project(&beta, 3), cx)
+    });
+    draw(cx);
+    assert_eq!(
+        store.read_with(cx, |s, _| s.state.recent_projects[0].path.clone()),
+        beta
+    );
+    assert_eq!(
+        (top(cx, "alpha").unwrap(), top(cx, "beta").unwrap()),
+        places
+    );
+}
+
+/// `routes the create launcher through the three existing Project entry
+/// paths`, `hands the in-project launcher off to the shared Import flow`:
+/// the rail's create action opens one launcher offering creating a
+/// project, opening a folder and importing (with its source marks); a
+/// choice closes it and starts that flow.
+#[gpui::test]
+fn the_rail_create_action_offers_the_three_project_entries(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let entry = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.dialogs.read(cx).contains(DialogKey::ProjectEntry)
+        })
+    };
+    for (route, started) in [("Create", "create"), ("Import", "import")] {
+        command(&view, cx, Command::CreateNew);
+        draw(cx);
+        assert!(entry(cx));
+        for option in [
+            "project-entry-Create",
+            "project-entry-OpenFolder",
+            "project-entry-Import",
+        ] {
+            assert!(cx.debug_bounds(option).is_some(), "{option}");
+        }
+        assert!(cx.debug_bounds("import-preview-github").is_some());
+        assert!(cx.debug_bounds("import-preview-gitlab").is_some());
+        let selector: &'static str = Box::leak(format!("project-entry-{route}").into_boxed_str());
+        let option = cx.debug_bounds(selector).unwrap().center();
+        cx.simulate_click(option, Modifiers::none());
+        draw(cx);
+        assert!(!entry(cx));
+        view.read_with(cx, |s, cx| {
+            let home = s.home.read(cx);
+            match started {
+                "create" => assert!(home.create.is_some()),
+                _ => assert!(home.import_picker.is_some()),
+            }
+        });
+        view.update(cx, |s, cx| {
+            s.home.update(cx, |h, _| {
+                h.create = None;
+                h.import_picker = None;
+            })
+        });
+    }
+}

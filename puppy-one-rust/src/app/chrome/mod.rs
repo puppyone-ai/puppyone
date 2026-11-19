@@ -92,6 +92,8 @@ pub(super) struct WindowChrome {
     copied_path: Option<(String, std::time::Instant)>,
     /// The project rail replaces the Header's project button.
     rail: bool,
+    /// The rail's projects in the slots they were first shown in.
+    rail_slots: std::cell::RefCell<Vec<std::path::PathBuf>>,
     weak: WeakEntity<Self>,
 }
 impl EventEmitter<ChromeEvent> for WindowChrome {}
@@ -137,6 +139,7 @@ impl WindowChrome {
             project_focus: cx.focus_handle(),
             copied_path: None,
             rail,
+            rail_slots: Default::default(),
             weak: cx.weak_entity(),
         }
     }

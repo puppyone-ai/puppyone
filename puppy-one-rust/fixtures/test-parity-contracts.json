@@ -32094,6 +32094,72 @@
           "test": "app::panes::gesture::tests::both_sides_share_the_collapse_rule"
         }
       ]
+    },
+    {
+      "id": "project-rail-compact",
+      "acceptance": "The compact project rail shows a mark per recent local project, each the first grapheme of its name (else of its folder), uppercased; a mark enters its project in this window, and every mark keeps its place when the order of recent projects changes, only the active state moving; while a project is still opening the rail stays usable and the latest choice wins. Its create action opens one launcher offering creating a project, opening a folder and importing (with its source marks); a choice closes it and starts that flow.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/projectSwitcherRail.test.tsx",
+          "sha256": "7607d41ee732730d71c815f13de7819cd10b6060e817ebf145b9e1f8a6cc5472",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Project switcher rail > retains shell controls and New Project during pending navigation (expanded=false)"
+            },
+            {
+              "index": 18,
+              "name": "Project switcher rail > derives a stable Unicode grapheme from the Project identity"
+            },
+            {
+              "index": 19,
+              "name": "Project switcher rail > preserves existing slots when the active and recent Project order changes"
+            },
+            {
+              "index": 20,
+              "name": "Project switcher rail > moves only the active state when switching Projects"
+            },
+            {
+              "index": 21,
+              "name": "Project switcher rail > announces the active Project and routes selection through the host"
+            },
+            {
+              "index": 22,
+              "name": "Project switcher rail > keeps every Project visually stable and serializes the latest switch intent"
+            },
+            {
+              "index": 24,
+              "name": "Project switcher rail > routes the create launcher through the three existing Project entry paths"
+            },
+            {
+              "index": 25,
+              "name": "Project switcher rail > hands the in-project launcher off to the shared Import flow"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::chrome::rail::tests::rail_marks_take_a_grapheme_and_keep_their_slots"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::a_rail_mark_enters_its_project_and_the_marks_keep_their_places"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::the_rail_create_action_offers_the_three_project_entries"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::project_lifecycle::a_newer_choice_replaces_a_project_still_opening"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -40033,7 +40099,7 @@
     {
       "id": "project-rail-compact-only",
       "kind": "out-of-scope",
-      "reason": "TS has an expandable Project sidebar that collapses into a compact rail and resizes like a pane. The native project rail is the experimental fixed 56px compact rail only; there is no expanded sidebar to resize, preview or collapse.",
+      "reason": "TS has an expandable Project sidebar that collapses into a compact rail and resizes like a pane, with full rows, a per-row actions menu, places, Finder drag export, app utilities, stored project appearance and hosted Projects from the shared catalog. The native project rail is the experimental fixed 56px compact rail of up to 12 recent local folders: their marks (each with a name tooltip) and a create action, mapped in project-rail-compact.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/chrome/project-menus-and-rail.md",
       "typescript": [
         {
@@ -40063,6 +40129,84 @@
             {
               "index": 5,
               "name": "desktop side-pane resize: the Project sidebar and rail > hands a compact Project rail drag to direct resize before pointer release"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/layout/projectSwitcherRail.test.tsx",
+          "sha256": "7607d41ee732730d71c815f13de7819cd10b6060e817ebf145b9e1f8a6cc5472",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Project switcher rail > retains shell controls and New Project during pending navigation (expanded=true)"
+            },
+            {
+              "index": 2,
+              "name": "Project switcher rail > does not reload appearance data when switching among the same project identities"
+            },
+            {
+              "index": 3,
+              "name": "Project switcher rail > sizes the compact rail from a square control plus stable inline padding"
+            },
+            {
+              "index": 4,
+              "name": "Project switcher rail > renders the expanded rail with full Sidebar rows and no collapse button"
+            },
+            {
+              "index": 5,
+              "name": "Project switcher rail > opens a Project actions menu and confirms rename or unlink in centered dialogs"
+            },
+            {
+              "index": 6,
+              "name": "Project switcher rail > keeps Project actions out of the compact rail and clamps the expanded menu to the viewport"
+            },
+            {
+              "index": 7,
+              "name": "Project switcher rail > opens a page's action menu beside its trigger, then under it, then over it"
+            },
+            {
+              "index": 8,
+              "name": "Project switcher rail > exports a Project row as a Finder-compatible native folder drag"
+            },
+            {
+              "index": 9,
+              "name": "Project switcher rail > keeps app-level Plugins, Settings, and Feedback utilities at the bottom of the expanded rail"
+            },
+            {
+              "index": 10,
+              "name": "Project switcher rail > keeps the active Project selected underneath the Settings dialog"
+            },
+            {
+              "index": 11,
+              "name": "Project switcher rail > uses the shared catalog and de-duplicates catalog identities"
+            },
+            {
+              "index": 12,
+              "name": "Project switcher rail > renders all three Homepage project types and routes hosted-only rows without local file actions"
+            },
+            {
+              "index": 13,
+              "name": "Project switcher rail > lists Projects without a way back to a second Project list"
+            },
+            {
+              "index": 14,
+              "name": "Project switcher rail > states only the Cloud place on rows, and never in the compact rail"
+            },
+            {
+              "index": 15,
+              "name": "Project switcher rail > derives a row's place from the Project itself, never from what the window shows"
+            },
+            {
+              "index": 16,
+              "name": "Project switcher rail > offers no Local / Cloud switch in the open Project's row menu"
+            },
+            {
+              "index": 17,
+              "name": "Project switcher rail > omits hints for Project initials and expanded labels while hinting the icon-only create action"
+            },
+            {
+              "index": 23,
+              "name": "Project switcher rail > keeps stored Project appearance without owning a context-menu action"
             }
           ]
         }
