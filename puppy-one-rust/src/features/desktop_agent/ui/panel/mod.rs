@@ -493,6 +493,7 @@ impl Render for AgentChatTabPanel {
         let view = self.view_model(&state);
         let panel = v_flex()
             .id("agent-chat-panel")
+            .debug_selector(|| "agent-chat-panel".into())
             .key_context("AgentChatPanel")
             .size_full()
             .min_h_0()
@@ -518,9 +519,13 @@ impl Render for AgentChatTabPanel {
             .show_status
             .then(|| self.render_status(&state, &view, cx));
         // `desktop-agent-conversation-region` and the empty-state overlay.
-        let empty = view
-            .show_ready_empty_state
-            .then(|| div().absolute().inset_0().child(self.empty_state.clone()));
+        let empty = view.show_ready_empty_state.then(|| {
+            div()
+                .debug_selector(|| "agent-empty-state".into())
+                .absolute()
+                .inset_0()
+                .child(self.empty_state.clone())
+        });
         let conversation = div()
             .relative()
             .flex_1()

@@ -320,6 +320,7 @@ impl Render for TranscriptView {
             } else if self.input.startup_loading && !has_live_tail {
                 region = region.child(
                     div()
+                        .debug_selector(|| "agent-startup-loading".into())
                         .size_full()
                         .flex()
                         .items_center()

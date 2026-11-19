@@ -123,19 +123,22 @@ impl AgentChatTabPanel {
         let read = cx.background_spawn(async { read_compute_snapshot() });
         cx.spawn(async move |this, cx| {
             let snapshot = read.await;
-            this.update(cx, |s, cx| {
-                let revision = Some(snapshot.revision.clone());
-                if s.compute_revision.is_some() && s.compute_revision != revision {
-                    drop(s.controller.refresh_model_connections());
-                }
-                s.compute_revision = revision;
-                s.compute = Some(snapshot);
-                s.refresh_views();
-                cx.notify();
-            })
-            .ok();
+            this.update(cx, |s, cx| s.apply_compute(snapshot, cx)).ok();
         })
         .detach();
+    }
+
+    /// A read of the connections; a new revision rediscovers the runtime's
+    /// models.
+    pub(super) fn apply_compute(&mut self, snapshot: ComputeSnapshot, cx: &mut Context<Self>) {
+        let revision = Some(snapshot.revision.clone());
+        if self.compute_revision.is_some() && self.compute_revision != revision {
+            drop(self.controller.refresh_model_connections());
+        }
+        self.compute_revision = revision;
+        self.compute = Some(snapshot);
+        self.refresh_views();
+        cx.notify();
     }
 
     pub(super) fn compute_view(&self, models: &[Model], selected: Option<&str>) -> ComputeView {
@@ -299,6 +302,7 @@ impl AgentChatTabPanel {
                     true,
                     &a,
                 )
+                .debug_selector(|| "agent-compute-connecting".into())
             } else if !signed_in {
                 agent_button(
                     "agent-compute-sign-in",
@@ -307,6 +311,7 @@ impl AgentChatTabPanel {
                     disabled,
                     &a,
                 )
+                .debug_selector(|| "agent-compute-sign-in".into())
                 .on_click(cx.listener(|_, _, _, cx| cx.emit(AgentChatPanelEvent::OpenAccount)))
             } else if managed
                 .as_ref()
@@ -319,6 +324,7 @@ impl AgentChatTabPanel {
                     disabled,
                     &a,
                 )
+                .debug_selector(|| "agent-compute-balance".into())
                 .on_click(cx.listener(|_, _, _, cx| cx.emit(AgentChatPanelEvent::OpenAccount)))
             } else {
                 agent_button(
@@ -328,6 +334,7 @@ impl AgentChatTabPanel {
                     false,
                     &a,
                 )
+                .debug_selector(|| "agent-compute-retry".into())
                 .on_click(cx.listener(|s, _, _, cx| s.reload_model_connections(cx)))
             };
             let mut actions = h_flex().gap(px(6.)).child(action);

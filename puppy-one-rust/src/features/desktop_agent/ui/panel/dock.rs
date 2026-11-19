@@ -28,6 +28,7 @@ impl AgentChatTabPanel {
         let a = AgentTheme::new(&palette);
         let m = theme::ty();
         let mut dock = v_flex()
+            .debug_selector(|| "agent-dock".into())
             .flex_shrink_0()
             .pt(px(12.))
             .px(px(12.))

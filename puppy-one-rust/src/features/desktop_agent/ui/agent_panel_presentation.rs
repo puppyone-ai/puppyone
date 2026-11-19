@@ -59,3 +59,71 @@ pub fn session_status_code(status: Option<&str>) -> String {
         .unwrap_or("ready")
         .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    fn readiness(status: &str, code: &str, message: &str) -> RuntimeReadiness {
+        serde_json::from_value(serde_json::json!({
+            "runtimeId": "cursor", "provider": "cursor", "status": status, "code": code,
+            "version": "2026.08.1", "minimumVersion": null, "message": message,
+        }))
+        .unwrap()
+    }
+
+    /// `renders explicit sign-out / status probe failure from the structured
+    /// readiness code`; `keeps incompatible runtime recovery product-owned`.
+    #[test]
+    fn readiness_reads_from_its_structured_code() {
+        crate::localization::set_current("en");
+        let plain =
+            |p: &RuntimeReadinessPresentation| p.heading.replace(['\u{2068}', '\u{2069}'], "");
+        let signed_out = present_runtime_readiness(
+            Some(&readiness(
+                "installed-not-authenticated",
+                "AUTHENTICATION_REQUIRED",
+                "Structured backend detail.",
+            )),
+            "Cursor Agent",
+        );
+        assert_eq!(plain(&signed_out), "Sign in to Cursor Agent");
+        assert_eq!(signed_out.code, "AUTHENTICATION_REQUIRED");
+        assert_eq!(signed_out.detail, "Structured backend detail.");
+        let crashed = present_runtime_readiness(
+            Some(&readiness(
+                "error",
+                "AUTHENTICATION_PROBE_CRASHED",
+                "Structured backend detail.",
+            )),
+            "Cursor Agent",
+        );
+        assert_eq!(plain(&crashed), "Cursor Agent sign-in check crashed");
+        let message = "The configured Agent engine is incompatible with this PuppyOne build. Use PuppyOne's managed engine, then retry.";
+        let engine = present_runtime_readiness(
+            Some(&readiness(
+                "unsupported-version",
+                "RUNTIME_VERSION_UNSUPPORTED",
+                message,
+            )),
+            "OpenCode",
+        );
+        assert_eq!(plain(&engine), "Update OpenCode");
+        assert_eq!(engine.detail, message);
+        assert_eq!(engine.code, "RUNTIME_VERSION_UNSUPPORTED");
+        assert_eq!(
+            readiness_status_code(Some(&readiness("x", "AUTHENTICATION_REQUIRED", ""))),
+            "setup-required"
+        );
+        assert_eq!(
+            readiness_status_code(Some(&readiness("x", "RUNTIME_VERSION_UNSUPPORTED", ""))),
+            "needs-repair"
+        );
+        assert_eq!(readiness_status_code(None), "checking");
+        assert_eq!(
+            present_runtime_readiness(None, "Codex").code,
+            "RUNTIME_INSPECTION_FAILED"
+        );
+    }
+}
