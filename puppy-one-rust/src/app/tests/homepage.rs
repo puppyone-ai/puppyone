@@ -1346,3 +1346,195 @@ fn a_folder_dropped_on_the_homepage_opens_here(cx: &mut TestAppContext) {
     });
     view.read_with(cx, |s, cx| assert!(s.home.read(cx).error.is_none()));
 }
+
+/// `going Home from a project`: Home arrives at once with the waiting mark
+/// standing in for the list, and the list shows once its projects' dates
+/// are read; a hold never outlasts the budget, and an earlier hold's
+/// budget does not release a later one.
+#[gpui::test]
+fn going_home_holds_only_the_list_until_its_dates_or_the_budget(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let alpha = temp.path().canonicalize().unwrap().join("alpha");
+    let gamma = temp.path().canonicalize().unwrap().join("gamma");
+    let dated = |dir: &std::path::Path, secs: u64| {
+        let file = std::fs::File::create(dir.join("a.md")).unwrap();
+        file.set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs))
+            .unwrap();
+    };
+    for (dir, secs) in [(&alpha, 1_000_000), (&gamma, 2_000_000)] {
+        std::fs::create_dir(dir).unwrap();
+        dated(dir, secs);
+    }
+    let (view, cx) = setup(cx);
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
+    store.update(cx, |store, cx| {
+        store.change(
+            |p| {
+                p.remember_project(&alpha, 1);
+                p.remember_project(&gamma, 2);
+            },
+            cx,
+        )
+    });
+    let order = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.home
+                .read(cx)
+                .visible_projects(cx)
+                .iter()
+                .filter_map(|item| item.local_path.clone())
+                .collect::<Vec<_>>()
+        })
+    };
+    view.update_in(cx, |s, w, cx| s.open_project(alpha.clone(), w, cx));
+    settle_cloud(&view, cx, "alpha", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(alpha.as_path())
+    });
+    let held = |cx: &mut VisualTestContext| view.read_with(cx, |s, cx| s.home.read(cx).list_held());
+    command(&view, cx, Command::Home);
+    view.read_with(cx, |s, cx| {
+        assert!(s.home_visible(cx));
+        let home = s.home.read(cx);
+        assert!(home.visible_projects(cx).is_empty());
+        assert!(home.has_projects(cx), "a held list is not an empty one");
+    });
+    assert!(held(cx));
+    settle_cloud(&view, cx, "the dates", &|s, cx| {
+        !s.home.read(cx).list_held()
+    });
+    let path = |p: &std::path::Path| p.to_string_lossy().into_owned();
+    assert_eq!(order(cx), [path(&gamma), path(&alpha)]);
+    // Work in alpha, then Home again: a new visit, in the new order.
+    view.update_in(cx, |s, w, cx| s.open_project(alpha.clone(), w, cx));
+    settle_cloud(&view, cx, "alpha", &|s, cx| !s.home_visible(cx));
+    dated(&alpha, 3_000_000);
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the new dates", &|s, cx| {
+        !s.home.read(cx).list_held()
+    });
+    assert_eq!(order(cx), [path(&alpha), path(&gamma)]);
+    // In a project, nothing reads the list: only the budget releases it.
+    view.update_in(cx, |s, w, cx| s.open_project(alpha.clone(), w, cx));
+    settle_cloud(&view, cx, "alpha again", &|s, cx| !s.home_visible(cx));
+    let hold = |cx: &mut VisualTestContext| {
+        view.update(cx, |s, cx| s.home.update(cx, |h, cx| h.hold_list(cx)))
+    };
+    let ms = std::time::Duration::from_millis;
+    hold(cx);
+    cx.executor().advance_clock(ms(2_000));
+    hold(cx);
+    cx.executor().advance_clock(ms(2_000));
+    assert!(held(cx), "the earlier hold's budget leaves the later one");
+    cx.executor().advance_clock(ms(1_999));
+    assert!(held(cx));
+    cx.executor().advance_clock(ms(1));
+    assert!(!held(cx));
+}
+
+/// `waits for the signed-in session, because signed out is not yet known
+/// while it restores`, `shows the list once, in final order`, `does not
+/// take back a Homepage released before a slow session turned up`, `holds
+/// a Homepage whose user signs in, and shows the account's whole list
+/// together`, `stops holding that sign-in at the budget`: the first
+/// Homepage waits while the Cloud session restores and then for the
+/// account's list, and shows it whole; released by the budget before a
+/// slow session turned up, it is not held again when the session does,
+/// but a person signing in later holds it again, never past the budget.
+#[gpui::test]
+fn the_first_homepage_waits_for_the_session_and_the_whole_list(cx: &mut TestAppContext) {
+    use crate::cloud::auth::Status;
+    let (view, cx) = setup(cx);
+    let (broker, browser) =
+        crate::cloud::auth::responding_account_fixture(with_catalog(cloud_project_responder()));
+    let account =
+        cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "the account", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    let signed_in = account.read_with(cx, |a, _| a.snapshot.clone().unwrap());
+    let set = |cx: &mut VisualTestContext, status: Status| {
+        account.update(cx, |a, cx| {
+            let mut snapshot = signed_in.clone();
+            snapshot.status = status;
+            if status != Status::Authenticated {
+                snapshot.account = None;
+            }
+            a.snapshot = Some(snapshot);
+            cx.notify();
+        });
+        view.update(cx, |s, cx| {
+            s.refresh_cloud_catalog(false, cx);
+            s.home.update(cx, |h, cx| h.refresh(cx));
+        });
+        draw(cx);
+    };
+    let held = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| s.home.read(cx).first_paint_held(cx))
+    };
+    set(cx, Status::Restoring);
+    launch_with_cloud(&view, cx);
+    view.update(cx, |s, cx| {
+        s.session.project.update(cx, |p, _| {
+            p.record.fixture = false;
+            p.home = true;
+        })
+    });
+    draw(cx);
+    view.read_with(cx, |s, cx| assert!(s.home_visible(cx)));
+    // The local projects are read; the session is what it waits for.
+    settle_cloud(&view, cx, "the local read", &|s, cx| {
+        !s.home.read(cx).reading
+    });
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    draw(cx);
+    assert!(
+        held(cx),
+        "signed out is not yet known while the session restores"
+    );
+    set(cx, Status::Authenticated);
+    settle_cloud(&view, cx, "the whole list", &|s, cx| {
+        let home = s.home.read(cx);
+        !home.first_paint_held(cx)
+            && home
+                .visible_projects(cx)
+                .iter()
+                .any(|i| i.label == "Fixture Cloud")
+    });
+    // A later launch whose session outlasts the budget is released...
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| h.relaunch_first_paint())
+    });
+    set(cx, Status::Restoring);
+    assert!(held(cx));
+    view.update(cx, |s, cx| s.home.update(cx, |h, _| h.expire_first_paint()));
+    draw(cx);
+    draw(cx);
+    assert!(!held(cx));
+    // ...and is not taken back when the session turns up.
+    set(cx, Status::Authenticated);
+    assert!(!held(cx));
+    // Signed out, then signing in: the account's list is held again.
+    set(cx, Status::SignedOut);
+    assert!(!held(cx));
+    let home = view.read_with(cx, |s, _| s.home.clone());
+    let was_held = std::rc::Rc::new(std::cell::Cell::new(false));
+    let _watch = cx.update(|_, cx| {
+        let was_held = was_held.clone();
+        cx.observe(&home, move |home, cx| {
+            if home.read(cx).first_paint_held(cx) {
+                was_held.set(true);
+            }
+        })
+    });
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| h.restart_first_paint())
+    });
+    set(cx, Status::Authenticated);
+    settle_cloud(&view, cx, "the signed-in list", &|s, cx| {
+        !s.home.read(cx).first_paint_held(cx)
+    });
+    assert!(
+        was_held.get(),
+        "a sign-in holds the list until the account's list settles"
+    );
+}

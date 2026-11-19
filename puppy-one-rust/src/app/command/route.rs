@@ -267,7 +267,7 @@ impl Shell {
                 self.set_popover(None, cx);
                 self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
                 if !self.home_visible(cx) {
-                    self.home.update(cx, |h, _| h.hold_list());
+                    self.home.update(cx, |h, cx| h.hold_list(cx));
                 }
                 self.dialogs
                     .update(cx, |d, cx| d.set_cloud_project(None, cx));
