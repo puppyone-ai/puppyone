@@ -27124,6 +27124,292 @@
           "test": "features::cloud::publish::tests::a_list_read_for_an_earlier_scope_is_dropped"
         }
       ]
+    },
+    {
+      "id": "cloud-publish-dialog-states",
+      "acceptance": "The first page states what the Cloud project gives (Agents, teammates, history) before offering one action, Upload to Cloud, beside Not now; the confirmation that follows says the Cloud project is made from the folder's tracked files as a separate project and who will see it, and only Confirm starts the publication for the chosen organization. An unfinished publication is the progress standing still at its step with exactly Discard and Retry (or Push latest / reconcile as its actions say); Discard asks first, inline, with Cancel and Discard; an unfinished discard says so, offers only Discard and draws no send steps, says Discarding while it runs, and shows why it failed; a refused discard offers sending again and no Discard; a run in flight draws its step with Continue in background. A run keeps going when the dialog is put away, and the folder stays the open project.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/publish/cloudInitializationStates.test.tsx",
+          "sha256": "cfb20f65c194fa7f463a6938967f372418d94d0deecb21c8e04ef86b70069b02",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud initialization render contract captured before extraction > offers sending again after Cloud explicitly refuses discard"
+            },
+            {
+              "index": 11,
+              "name": "Cloud initialization render contract captured before extraction > locks retry push"
+            },
+            {
+              "index": 17,
+              "name": "Cloud initialization render contract captured before extraction > locks finish cleanup"
+            },
+            {
+              "index": 26,
+              "name": "Cloud initialization render contract captured before extraction > requires confirmation to give up and supports cancel"
+            },
+            {
+              "index": 27,
+              "name": "Cloud initialization render contract captured before extraction > shows an unfinished publish as the progress view standing still, not a separate page"
+            },
+            {
+              "index": 28,
+              "name": "Cloud initialization render contract captured before extraction > offers exactly two choices when paused: give up on it, or continue it"
+            },
+            {
+              "index": 29,
+              "name": "Cloud initialization render contract captured before extraction > finishes an unfinished discard with Discard, and never draws a send for it"
+            },
+            {
+              "index": 30,
+              "name": "Cloud initialization render contract captured before extraction > keeps a first Discard on its own screen instead of drawing a send"
+            },
+            {
+              "index": 31,
+              "name": "Cloud initialization render contract captured before extraction > still draws the send when a retry is running"
+            },
+            {
+              "index": 32,
+              "name": "Cloud initialization render contract captured before extraction > forwards organization selection, retry, and push intents"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudSimplePublishOnboarding.test.tsx",
+          "sha256": "8fc8e2b5a16db3f6fdcda09137e4ddaffb284af4eada3752e383312bdce10dab",
+          "cases": [
+            {
+              "index": 0,
+              "name": "simple Cloud publish onboarding > presents one activation action without the repository-to-Cloud diagram"
+            },
+            {
+              "index": 1,
+              "name": "simple Cloud publish onboarding > reduces the first upload to one vertical five-step task list"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/repositoryCloudActivation.test.tsx",
+          "sha256": "91e18dc801f92b401b0dcf910f25bce7ec8fed60133e694567285e77606604a1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "putting a local folder in the Cloud > states the value of the Cloud project before offering to create it"
+            },
+            {
+              "index": 1,
+              "name": "putting a local folder in the Cloud > confirms that the Cloud project is a separate project before creating it (ADR-001)"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishTask.test.tsx",
+          "sha256": "d9648e9c7e6377ec8de7d23406e2ed1a5abd9983230311b8b78c1d8bfbb047fd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish task > shows the result without navigating away from the local project automatically"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish task > keeps sign-in focused on publishing, with no Share, MCP or CLI destination picker"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish task > gives progress precedence over the completed view"
+            },
+            {
+              "index": 7,
+              "name": "Cloud publish task > gives journal precedence over the completed view"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
+          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Cloud publish running view > continues the activation banner and lets the dialog go without stopping the run"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_publish_dialog::the_first_page_states_the_value_and_the_confirmation_a_separate_project"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_publish_dialog::every_saved_state_says_where_it_stopped_and_offers_only_its_choices"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_publish_dialog::confirming_runs_the_publication_for_the_chosen_space"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::the_header_states_the_publication_where_it_stands"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-durable-flow",
+      "acceptance": "Signed out, the publication waits passively for the account. It sends a named branch's committed tree and never snapshots the dirty checkout; a plain folder is first made into one committed branch; the coordinator's stages drive the progress while it runs; a retry keeps the exact Project and source branch after the checkout switches branches, and a missing source is replaced by the checked-out branch only when chosen; a typed failure is kept for an explicit retry; cleanup finishes for the exact operation; another checkout or account drops the shown result and error.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/publish/cloudPublishFlow.test.tsx",
+          "sha256": "134daed56963291b5d0da6966d6e51f9f623e452a6923f282e39e26e2b7b385e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "durable Puppyone Cloud initialization renderer flow > keeps signed-out initialization passive and owned by the auth state"
+            },
+            {
+              "index": 1,
+              "name": "durable Puppyone Cloud initialization renderer flow > starts from a named source branch without snapshotting dirty worktree state"
+            },
+            {
+              "index": 2,
+              "name": "durable Puppyone Cloud initialization renderer flow > turns a local folder into one committed branch before starting the Cloud publish"
+            },
+            {
+              "index": 3,
+              "name": "durable Puppyone Cloud initialization renderer flow > applies main-process progress while the durable operation is running"
+            },
+            {
+              "index": 4,
+              "name": "durable Puppyone Cloud initialization renderer flow > retries the exact durable Project and selected source branch after a branch switch"
+            },
+            {
+              "index": 5,
+              "name": "durable Puppyone Cloud initialization renderer flow > uses the checked-out branch only after the user chooses it for a missing source"
+            },
+            {
+              "index": 6,
+              "name": "durable Puppyone Cloud initialization renderer flow > keeps typed coordinator failure state for an explicit retry"
+            },
+            {
+              "index": 7,
+              "name": "durable Puppyone Cloud initialization renderer flow > finishes cleanup for the exact durable operation"
+            },
+            {
+              "index": 8,
+              "name": "durable Puppyone Cloud initialization renderer flow > clears the signed-out body error when an authenticated identity arrives"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishTask.test.tsx",
+          "sha256": "d9648e9c7e6377ec8de7d23406e2ed1a5abd9983230311b8b78c1d8bfbb047fd",
+          "cases": [
+            {
+              "index": 8,
+              "name": "Cloud publish task > revokes a displayed result when the account or repository changes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::only_the_committed_tree_is_sent_and_the_checkout_is_untouched"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::preparation::tests::a_plain_folder_is_prepared_once_and_left_alone_after"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_feature_branch_is_created_once_and_lands_on_cloud_main"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_attempt_finishes_its_commit_after_head_moves_to_another_branch"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_deleted_source_branch_can_be_replaced_by_the_current_one"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_second_failure_keeps_the_unresolved_commit_across_later_work"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::local_cleanup_finishes_after_a_crash_right_after_removing_the_remote"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::tests::another_checkout_or_account_drops_the_shown_result_and_error"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-header-status",
+      "acceptance": "The Header states the publication beside the location and reopens the same view: a run in flight spins; a stopped run keeps its state until it is resolved; a saved unfinished publication is a warning after a restart too, and becomes the spinner the moment a retry runs; an unfinished discard is stated as a discard, never as a send to retry.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
+          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish Header status > states an unwatched run with step progress and reopens it on click"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish Header status > keeps an unwatched failure until the user looks at it"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish Header status > keeps a saved unfinished publish visible as a warning, even after the app restarts"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish Header status > turns the warning into a spinner the moment a retry restarts the send"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish Header status > states an unfinished discard as a discard, never as a send to retry"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::the_header_states_the_publication_where_it_stands"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -33487,6 +33773,42 @@
               "name": "Cloud publish push progress > reports the transfer as part of the uploading step"
             }
           ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
+          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Cloud publish Header status > answers an unwatched upload with how far it has got"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishTransfer.test.tsx",
+          "sha256": "4582542d3d92cec67fd8c52c512f2189631d0767decbd1cb3b2bfbf1659f33dd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish upload progress > draws the upload's share, bytes and rate on the Upload row"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish upload progress > keeps fast-changing numbers out of the live region"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish upload progress > claims no total and no time left, because Git cannot know them yet"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish upload progress > says only the share before Git has measured bytes, and drops the rate once done"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish upload progress > draws nothing extra outside a running upload"
+            }
+          ]
         }
       ]
     },
@@ -33671,6 +33993,168 @@
             {
               "index": 4,
               "name": "Cloud Agent view identity > isolates drafts and visibility on generation change"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-header-watch-awareness",
+      "kind": "gap",
+      "reason": "TS's Header knows whether the dialog is watching the run: it leaves a watched run's ending to the dialog, shows a fresh unwatched failure before the paused task it leaves, and announces an unwatched success only briefly. The native Header states the publication the same way whether or not the dialog shows it, and a finished publication stays announced until the person clicks it or the checkout or account changes.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/first-publication/state-projection-and-ui.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
+          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud publish Header status > keeps spinning while the dialog shows the run, but leaves its ending to the dialog"
+            },
+            {
+              "index": 7,
+              "name": "Cloud publish Header status > states a fresh failure first, then the paused task it leaves behind"
+            },
+            {
+              "index": 8,
+              "name": "Cloud publish Header status > announces an unwatched success briefly"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-initialization-render-snapshots",
+      "kind": "out-of-scope",
+      "reason": "These lock the DOM of TS's pre-extraction initialization view (CloudLocalOnlyWorkspace) per state with snapshots: its exact text, buttons with disabled and aria-busy, alert and status regions, the organization select, hero and progress classes. The native publication dialog is its own design; what its states say and offer is asserted by cloud-publish-dialog-states and cloud-publish-organization-choice, and its readiness (repository, commit, branch) is prepared rather than reported.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/first-publication/state-projection-and-ui.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/publish/cloudInitializationStates.test.tsx",
+          "sha256": "cfb20f65c194fa7f463a6938967f372418d94d0deecb21c8e04ef86b70069b02",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Cloud initialization render contract captured before extraction > locks prerequisite"
+            },
+            {
+              "index": 2,
+              "name": "Cloud initialization render contract captured before extraction > locks waiting for sign in"
+            },
+            {
+              "index": 3,
+              "name": "Cloud initialization render contract captured before extraction > locks default validating progress"
+            },
+            {
+              "index": 4,
+              "name": "Cloud initialization render contract captured before extraction > locks uploading with error"
+            },
+            {
+              "index": 5,
+              "name": "Cloud initialization render contract captured before extraction > locks state loading signed out"
+            },
+            {
+              "index": 6,
+              "name": "Cloud initialization render contract captured before extraction > locks state loading sign in pending"
+            },
+            {
+              "index": 7,
+              "name": "Cloud initialization render contract captured before extraction > locks repository missing"
+            },
+            {
+              "index": 8,
+              "name": "Cloud initialization render contract captured before extraction > locks commit missing"
+            },
+            {
+              "index": 9,
+              "name": "Cloud initialization render contract captured before extraction > locks branch missing"
+            },
+            {
+              "index": 10,
+              "name": "Cloud initialization render contract captured before extraction > locks explicit readiness"
+            },
+            {
+              "index": 12,
+              "name": "Cloud initialization render contract captured before extraction > locks size limit rejected"
+            },
+            {
+              "index": 13,
+              "name": "Cloud initialization render contract captured before extraction > locks push latest"
+            },
+            {
+              "index": 14,
+              "name": "Cloud initialization render contract captured before extraction > locks choose source"
+            },
+            {
+              "index": 15,
+              "name": "Cloud initialization render contract captured before extraction > locks reconcile"
+            },
+            {
+              "index": 16,
+              "name": "Cloud initialization render contract captured before extraction > locks no actions"
+            },
+            {
+              "index": 18,
+              "name": "Cloud initialization render contract captured before extraction > locks organization signed-out"
+            },
+            {
+              "index": 19,
+              "name": "Cloud initialization render contract captured before extraction > locks organization loading"
+            },
+            {
+              "index": 20,
+              "name": "Cloud initialization render contract captured before extraction > locks organization none"
+            },
+            {
+              "index": 21,
+              "name": "Cloud initialization render contract captured before extraction > locks organization error"
+            },
+            {
+              "index": 22,
+              "name": "Cloud initialization render contract captured before extraction > locks organization selection-required"
+            },
+            {
+              "index": 23,
+              "name": "Cloud initialization render contract captured before extraction > locks organization ready"
+            },
+            {
+              "index": 24,
+              "name": "Cloud initialization render contract captured before extraction > locks multiple organizations"
+            },
+            {
+              "index": 25,
+              "name": "Cloud initialization render contract captured before extraction > locks minimum change count"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-no-completed-page",
+      "kind": "out-of-scope",
+      "reason": "TS's publish task has a completed view and decides what takes precedence over it (a local folder, resolving, loading, an error). The native publication has no completed page: a finished publication is announced in the Header and the folder stays the open project; the dialog's own precedence (a run in flight, then a saved operation, then the first page) is covered by cloud-publish-dialog-states.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/first-publication/state-projection-and-ui.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/publish/cloudPublishTask.test.tsx",
+          "sha256": "d9648e9c7e6377ec8de7d23406e2ed1a5abd9983230311b8b78c1d8bfbb047fd",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud publish task > gives local precedence over the completed view"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish task > gives resolving precedence over the completed view"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish task > gives loading precedence over the completed view"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish task > gives error precedence over the completed view"
             }
           ]
         }

@@ -1214,7 +1214,7 @@ fn new_attempt(sequence: u32, commit: &str) -> Attempt {
     }
 }
 /// `createInitialRecord`.
-fn initial_record(request: &Request, fingerprint: &str, commit: &str) -> Record {
+pub fn initial_record(request: &Request, fingerprint: &str, commit: &str) -> Record {
     let now = now_iso();
     let origin = url::Url::parse(&request.api_base_url)
         .map(|u| u.origin().ascii_serialization())

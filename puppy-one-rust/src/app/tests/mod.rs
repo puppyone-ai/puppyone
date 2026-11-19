@@ -9,6 +9,7 @@ mod appearance_settings;
 mod autosave;
 mod close_lifecycle;
 mod cloud_opening;
+mod cloud_publish_dialog;
 mod cloud_screen;
 mod cloud_share;
 mod computer_mode;

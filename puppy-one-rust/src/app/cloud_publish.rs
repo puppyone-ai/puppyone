@@ -432,6 +432,7 @@ impl WindowCloud {
             .child(body.child(self.local_note(cx)))
             .footer(
                 Button::new("publish-not-now")
+                    .debug_selector(|| "publish-not-now".into())
                     .variant(ButtonVariant::Secondary)
                     .label(tr("cloud.activation.project.notNow"))
                     .on_click(cx.listener(|s, _, _, cx| {
@@ -441,6 +442,7 @@ impl WindowCloud {
             )
             .footer(
                 Button::new("publish-upload")
+                    .debug_selector(|| "publish-upload".into())
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.activation.project.publish"))
                     .disabled(!ready)
@@ -476,13 +478,19 @@ impl WindowCloud {
         } else {
             ((active as f32 + 0.5) / STEPS.len() as f32).min(1.)
         };
-        let bar = div().w_full().h(px(4.)).rounded_full().bg(t.border).child(
-            div()
-                .h_full()
-                .w(relative(fraction))
-                .rounded_full()
-                .bg(if paused { t.warning } else { t.brand_blue }),
-        );
+        let bar = div()
+            .debug_selector(|| "publish-progress".into())
+            .w_full()
+            .h(px(4.))
+            .rounded_full()
+            .bg(t.border)
+            .child(
+                div()
+                    .h_full()
+                    .w(relative(fraction))
+                    .rounded_full()
+                    .bg(if paused { t.warning } else { t.brand_blue }),
+            );
         let rows = STEPS.iter().enumerate().map(|(index, step)| {
             let done = completed || index < active;
             let current = !completed && index == active;
@@ -579,6 +587,7 @@ impl WindowCloud {
             .child(self.progress(stage, false, cx));
         dialog.child(body).footer(
             Button::new("publish-hide")
+                .debug_selector(|| "publish-hide".into())
                 .variant(ButtonVariant::Secondary)
                 .label(tr("cloud.initialize.progress.hide"))
                 .on_click(cx.listener(|s, _, _, cx| s.publish_in_background(cx))),
@@ -682,6 +691,7 @@ impl WindowCloud {
                             .gap(px(8.))
                             .child(
                                 Button::new("publish-discard-cancel")
+                                    .debug_selector(|| "publish-discard-cancel".into())
                                     .variant(ButtonVariant::Secondary)
                                     .label(tr("cloud.common.cancel"))
                                     .track_focus(&self.dialog_focus.clone())
@@ -694,6 +704,7 @@ impl WindowCloud {
                             )
                             .child(
                                 Button::new("publish-discard-confirm")
+                                    .debug_selector(|| "publish-discard-confirm".into())
                                     .variant(ButtonVariant::SolidDanger)
                                     .label(tr("cloud.initialize.resume.abandonConfirm"))
                                     .disabled(busy)
@@ -708,6 +719,7 @@ impl WindowCloud {
         if can_discard && !confirming {
             dialog = dialog.footer(
                 Button::new("publish-discard")
+                    .debug_selector(|| "publish-discard".into())
                     .variant(ButtonVariant::Secondary)
                     .label(tr(if busy {
                         "cloud.initialize.resume.discarding"
@@ -726,6 +738,7 @@ impl WindowCloud {
         if finish_cleanup {
             dialog = dialog.footer(
                 Button::new("publish-finish-cleanup")
+                    .debug_selector(|| "publish-finish-cleanup".into())
                     .variant(ButtonVariant::Solid)
                     .label(tr(if busy {
                         "cloud.initialize.resume.discarding"
@@ -741,6 +754,7 @@ impl WindowCloud {
             let action = self.publish.read(cx).push_action();
             dialog = dialog.footer(
                 Button::new("publish-retry")
+                    .debug_selector(|| "publish-retry".into())
                     .variant(ButtonVariant::Solid)
                     .label(tr(if action == Action::PushLatest {
                         "cloud.initialize.pushLatestCommit"
