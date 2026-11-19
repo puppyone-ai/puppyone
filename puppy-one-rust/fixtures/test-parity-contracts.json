@@ -30407,6 +30407,443 @@
           "test": "workspace::hosts::exec::tests::the_folder_sandbox_writes_only_where_it_may_and_never_reads_credentials"
         }
       ]
+    },
+    {
+      "id": "terminal-folder-title",
+      "acceptance": "A terminal tab is titled by its folder's name: the last path segment, ignoring a trailing separator, for POSIX and Windows paths alike; the root keeps its slash and an empty path reads as an em dash.",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/input/terminalPath.test.ts",
+          "sha256": "38cef19c1ea73b327cc82a7f2b033e70388aab45e3aff5bc9b30915189b963c7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal path labels > shows the leaf name for /Users/test/my private"
+            },
+            {
+              "index": 1,
+              "name": "Terminal path labels > shows the leaf name for /Users/test/my private/"
+            },
+            {
+              "index": 2,
+              "name": "Terminal path labels > shows the leaf name for C:\\Users\\test\\workspace"
+            },
+            {
+              "index": 3,
+              "name": "Terminal path labels > shows the leaf name for C:\\Users\\test\\workspace\\"
+            },
+            {
+              "index": 4,
+              "name": "Terminal path labels > shows the leaf name for /"
+            },
+            {
+              "index": 5,
+              "name": "Terminal path labels > shows the leaf name for "
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::tests::a_session_is_titled_by_its_folder"
+        }
+      ]
+    },
+    {
+      "id": "terminal-input-order-and-bounds",
+      "acceptance": "Input and resizes reach a session in the order they were made; a paste over 1 MiB is refused with a visible message before anything is sent; input a session can no longer take fails visibly instead of being kept to replay later.",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/io/TerminalControlQueue.test.ts",
+          "sha256": "c277892938041c5b78f216bd27143970969b56eb87cf28536d096bcf9484303c",
+          "cases": [
+            {
+              "index": 1,
+              "name": "terminal display controls > fails visibly on uncertain delivery without replaying input"
+            },
+            {
+              "index": 2,
+              "name": "terminal display controls > bounds queued bytes before accepting a paste"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::input_keeps_its_order_and_what_cannot_be_delivered_fails_visibly"
+        }
+      ]
+    },
+    {
+      "id": "terminal-output-backpressure",
+      "acceptance": "Output waits in a bounded queue for the session's screen: a noisy process whose screen does not read stops at its writes instead of filling memory, and finishes once its screen reads again; closing a session ends a process even while its output waits unread. The session's own screen is the one responder to terminal queries: a cursor position report is answered exactly once, also when the query arrives split.",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/io/terminal-display-stream.test.mjs",
+          "sha256": "73ee3c186200c709cf153b81d842bcd9506486d372400ae37527b09be6d066cf",
+          "cases": [
+            {
+              "index": 2,
+              "name": "PTY display flow and recovery > pauses a noisy PTY and releases pressure when a crashed display detaches"
+            },
+            {
+              "index": 3,
+              "name": "PTY display flow and recovery > has one canonical query responder even without a display"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::a_noisy_process_waits_for_its_screen_and_closing_ends_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::a_cursor_report_is_answered_once_by_the_session"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::queries::tests::split_queries_and_clipboard_are_handled_safely"
+        }
+      ]
+    },
+    {
+      "id": "terminal-sessions-own-folder-and-size",
+      "acceptance": "Sessions started together, in one folder or several, each run in the folder they were given at their own size, sharing no request state; each carries the presentation colors it was started with.",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/io/terminalRuntimeRequest.test.ts",
+          "sha256": "8eef686aff974121dcf7ad81de367e0ee54625f68cb2821d5cdfdd74e9dda117",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal PTY capability requests > binds every request when 1 Terminal session(s) start together"
+            },
+            {
+              "index": 1,
+              "name": "Terminal PTY capability requests > binds every request when 2 Terminal session(s) start together"
+            },
+            {
+              "index": 2,
+              "name": "Terminal PTY capability requests > binds every request when 3 Terminal session(s) start together"
+            },
+            {
+              "index": 3,
+              "name": "Terminal PTY capability requests > preserves the explicit Folder and presentation colors without sharing request state"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::sessions_started_together_run_in_their_folder_at_their_size"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::environment::tests::renderer_brightness_replaces_inherited_colorfgbg_and_preserves_explicit_clicolor"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::native_color_queries_follow_the_current_theme_and_reply_only_to_the_owning_terminal"
+        }
+      ]
+    },
+    {
+      "id": "terminal-default-color-queries",
+      "acceptance": "OSC 10/11 default-color probes are answered with the current theme's colors and removed from what the screen shows, also when a probe is split across output chunks; later probes get the theme as it is then.",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/screen/electron.terminal-color-query.test.mjs",
+          "sha256": "79f7e3b50115bc09f2c4fad60109c99dc9c581a477b1350b1e05bf4743a3d82e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "terminal default-color query responder > answers and removes OSC 10/11 probes before xterm rendering"
+            },
+            {
+              "index": 1,
+              "name": "terminal default-color query responder > recognizes a color query split across PTY output chunks"
+            },
+            {
+              "index": 3,
+              "name": "terminal default-color query responder > answers later probes with the current renderer theme"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::colors::tests::every_query_encoding_survives_each_chunk_boundary_and_color_updates"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::colors::tests::partial_queries_flush_once_and_unrelated_output_is_preserved_byte_for_byte"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::native_color_queries_follow_the_current_theme_and_reply_only_to_the_owning_terminal"
+        }
+      ]
+    },
+    {
+      "id": "terminal-agent-activity-projection",
+      "acceptance": "What leaves an Agent's Hook names files, never their content: a patch names the files it touches (update, add, delete) without its body; a write keeps only its path; Cursor's conversation is the session; Codex 0.147.0's own Bash and apply_patch payloads keep only file names, never the shell command or patch body. Literal reads in pipelines, quoted names and sed scripts name their files; anything that depends on shell state (variables, globs, substitutions, a changed directory, in-place edits, other programs) names none. Each provider's own start event and tool name begin that kind of activity on the named file, a projected shell read is a read of exactly those files, an unsupported shell command has no target, and Cursor ending its session while the shell stays open ends only that source session. A plain shell is instrumented for every enrolled Agent, without naming one provider.",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/sessions/electron.terminal-agent-activity-adapters.test.mjs",
+          "sha256": "abf7a8ab206bfed0832567e5f3ca22d5f293082957fed17b6997700ab7bd2b31",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal Agent activity bridge projection > extracts patch paths without forwarding patch bodies or file content"
+            },
+            {
+              "index": 1,
+              "name": "Terminal Agent activity bridge projection > keeps only structured path fields for write tools"
+            },
+            {
+              "index": 2,
+              "name": "Terminal Agent activity bridge projection > projects Cursor CLI Hook input without forwarding file content"
+            },
+            {
+              "index": 3,
+              "name": "Terminal Agent activity bridge projection > projects literal Codex Bash reads without forwarding the shell command"
+            },
+            {
+              "index": 4,
+              "name": "Terminal Agent activity bridge projection > projects a versioned Codex apply_patch payload without forwarding its body"
+            },
+            {
+              "index": 5,
+              "name": "Terminal Agent activity bridge projection > extracts literal reads from pipelines and fails closed for dynamic shell paths"
+            },
+            {
+              "index": 6,
+              "name": "Terminal Agent activity adapter registry > normalizes codex lifecycle events"
+            },
+            {
+              "index": 7,
+              "name": "Terminal Agent activity adapter registry > normalizes claude lifecycle events"
+            },
+            {
+              "index": 8,
+              "name": "Terminal Agent activity adapter registry > normalizes cursor lifecycle events"
+            },
+            {
+              "index": 9,
+              "name": "Terminal Agent activity adapter registry > normalizes opencode lifecycle events"
+            },
+            {
+              "index": 10,
+              "name": "Terminal Agent activity adapter registry > normalizes pi lifecycle events"
+            },
+            {
+              "index": 11,
+              "name": "Terminal Agent activity adapter registry > normalizes hermes lifecycle events"
+            },
+            {
+              "index": 12,
+              "name": "Terminal Agent activity adapter registry > normalizes conservatively projected shell reads as exact file activity"
+            },
+            {
+              "index": 13,
+              "name": "Terminal Agent activity adapter registry > keeps unsupported shell commands target-free"
+            },
+            {
+              "index": 14,
+              "name": "Terminal Agent activity adapter registry > closes a Cursor CLI source session when its shell remains open"
+            },
+            {
+              "index": 15,
+              "name": "Terminal Agent activity session preparation > instruments a regular shell for manually started enrolled Agents"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::projector::tests::only_file_names_leave_the_hook"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::projector::tests::patches_shell_reads_and_nested_fields_project_paths"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::shell_intent::tests::literal_read_commands_name_their_files"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::shell_intent::tests::anything_that_depends_on_shell_state_fails_closed"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::adapters::tests::each_provider_starts_its_tool_on_the_named_file"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::adapters::tests::tools_classify_like_the_product"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::agent_activity::host::tests::an_enabled_hook_reports_a_terminal_agents_file_reads_to_its_window"
+        }
+      ]
+    },
+    {
+      "id": "terminal-agent-activity-signal",
+      "acceptance": "An Agent CLI's terminal is active while its title shows a spinner frame or a busy status (Working, Running shell command, Planning) and not for Ready, Waiting or a plain title; every Agent gets the same output pulse, active until the output idle interval after its last output; an explicit busy title stays active through silence until it says Ready; a host-owned presentation refresh hides only its own repaint, never what the title says; a plain shell never reports activity.",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/sessions/terminalActivity.test.ts",
+          "sha256": "535e7bf9eb5f4143f422fe9439f6cf6fd962f18ab69cad2a8bbf75d026db52a8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title ⠋ Working to activity=true"
+            },
+            {
+              "index": 1,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title ⠙ Working to activity=true"
+            },
+            {
+              "index": 2,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title Fix tests - ⏳ Working ··· to activity=true"
+            },
+            {
+              "index": 3,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title Fix tests - ⌨️ Running shell command to activity=true"
+            },
+            {
+              "index": 4,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title Fix tests - 🧭 Planning to activity=true"
+            },
+            {
+              "index": 5,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title Fix tests - ✅ Ready to activity=false"
+            },
+            {
+              "index": 6,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title Fix tests - ❓ Waiting for you to activity=false"
+            },
+            {
+              "index": 7,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title ✳ Fix tests to activity=false"
+            },
+            {
+              "index": 8,
+              "name": "Terminal Agent activity normalization > maps the upstream terminal title Fix tests to activity=false"
+            },
+            {
+              "index": 9,
+              "name": "Terminal Agent activity normalization > gives codex a generic output activity pulse without product UI branches"
+            },
+            {
+              "index": 10,
+              "name": "Terminal Agent activity normalization > gives claude a generic output activity pulse without product UI branches"
+            },
+            {
+              "index": 11,
+              "name": "Terminal Agent activity normalization > gives cursor a generic output activity pulse without product UI branches"
+            },
+            {
+              "index": 12,
+              "name": "Terminal Agent activity normalization > gives opencode a generic output activity pulse without product UI branches"
+            },
+            {
+              "index": 13,
+              "name": "Terminal Agent activity normalization > gives pi a generic output activity pulse without product UI branches"
+            },
+            {
+              "index": 14,
+              "name": "Terminal Agent activity normalization > gives hermes a generic output activity pulse without product UI branches"
+            },
+            {
+              "index": 15,
+              "name": "Terminal Agent activity normalization > keeps an explicit title protocol active across output silence"
+            },
+            {
+              "index": 16,
+              "name": "Terminal Agent activity normalization > does not report host-owned presentation repaint as Agent work"
+            },
+            {
+              "index": 17,
+              "name": "Terminal Agent activity normalization > keeps explicit title activity authoritative during presentation refresh"
+            },
+            {
+              "index": 18,
+              "name": "Terminal Agent activity normalization > does not turn ordinary shell output into Agent activity"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::activity::tests::upstream_titles_and_output_pulses_read_as_the_product_does"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::activity::tests::output_lapses_and_refresh_bursts_are_ignored"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::activity::tests::titles_follow_the_product_protocols"
+        }
+      ]
+    },
+    {
+      "id": "terminal-close-policy",
+      "acceptance": "A tab still choosing its launcher closes at once; a terminal asks before closing while it starts or runs, and closes unasked once it exited or failed.",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/sessions/terminalClosePolicy.test.ts",
+          "sha256": "dea90dcf5f4ecfe4183e69c5231f3dbb23545750624faccf48c61438e80da368",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal close policy > maps selecting sessions to close"
+            },
+            {
+              "index": 1,
+              "name": "Terminal close policy > maps starting sessions to confirm"
+            },
+            {
+              "index": 2,
+              "name": "Terminal close policy > maps running sessions to confirm"
+            },
+            {
+              "index": 3,
+              "name": "Terminal close policy > maps exited sessions to close"
+            },
+            {
+              "index": 4,
+              "name": "Terminal close policy > maps error sessions to close"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_terminal_asks_before_closing_only_while_it_starts_or_runs"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -37542,6 +37979,210 @@
             {
               "index": 10,
               "name": "other computers, in Settings > opens only one computer menu and restores focus on Escape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal-resizes-in-order",
+      "kind": "out-of-scope",
+      "reason": "TS queues resize messages to its PTY process and coalesces consecutive ones. The native session applies each resize to its PTY in process, in the order asked, behind the same bounded request queue as input, so there is no message backlog to coalesce.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/pty-host.md",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/io/TerminalControlQueue.test.ts",
+          "sha256": "c277892938041c5b78f216bd27143970969b56eb87cf28536d096bcf9484303c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "terminal display controls > preserves input order and coalesces only consecutive queued resize operations"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal-screen-in-process",
+      "kind": "out-of-scope",
+      "reason": "TS streams PTY output to a renderer display in frames acknowledged one at a time, and can recreate a crashed display from a replay buffer without respawning. The native screen (the vt100 parser) lives in the same process as its session for the session's whole life, reading output as it arrives; there is no separate display to acknowledge frames or to recreate.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/pty-host.md",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/io/terminal-display-stream.test.mjs",
+          "sha256": "73ee3c186200c709cf153b81d842bcd9506486d372400ae37527b09be6d066cf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "PTY display flow and recovery > sends only one frame until the consumer acknowledges parsing"
+            },
+            {
+              "index": 1,
+              "name": "PTY display flow and recovery > recreates a screen without respawning, including a split escape sequence"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal-colors-typed",
+      "kind": "out-of-scope",
+      "reason": "TS receives renderer colors as untyped numbers and keeps xterm's own path when one is out of range. Native colors come from the theme as 8-bit channels by type, so no invalid color can reach the responder.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/terminal-queries.md",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/screen/electron.terminal-color-query.test.mjs",
+          "sha256": "79f7e3b50115bc09f2c4fad60109c99dc9c581a477b1350b1e05bf4743a3d82e",
+          "cases": [
+            {
+              "index": 2,
+              "name": "terminal default-color query responder > keeps the normal xterm path when renderer colors are invalid"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal-screen-never-serialized",
+      "kind": "out-of-scope",
+      "reason": "TS serializes an xterm screen and restores a checkpoint of its modes (scroll regions, tab stops, saved cursor, charsets, alternate screen) when a display is recreated, and must not checkpoint inside an escape or surrogate pair. The native screen is never serialized: hiding, resizing, moving tabs and switching projects keep the same parser instance, so there is no checkpoint to continue from.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/model-and-grid.md",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/screen/xterm-checkpoint.test.mjs",
+          "sha256": "d1fc0eaa637faec7635e3f8fd53d57a4dfde46017123990863fa804ed1d4840c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pinned xterm checkpoint continuation > preserves scroll regions and origin mode"
+            },
+            {
+              "index": 1,
+              "name": "pinned xterm checkpoint continuation > preserves custom tab stops"
+            },
+            {
+              "index": 2,
+              "name": "pinned xterm checkpoint continuation > preserves saved cursor and rendition"
+            },
+            {
+              "index": 3,
+              "name": "pinned xterm checkpoint continuation > preserves line drawing charset"
+            },
+            {
+              "index": 4,
+              "name": "pinned xterm checkpoint continuation > preserves alternate screen returning to the normal buffer"
+            },
+            {
+              "index": 5,
+              "name": "pinned xterm checkpoint continuation > preserves alternate screen custom region"
+            },
+            {
+              "index": 6,
+              "name": "pinned xterm checkpoint continuation > does not discard an unfinished escape or UTF-16 surrogate at a checkpoint"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal-legacy-tab-group-reducer",
+      "kind": "out-of-scope",
+      "reason": "TS keeps a terminal-only tab-group reducer (desktopTerminalSessionsReducer) that only its split visual smoke harness uses; the product's terminal tabs are Workbench items, and their groups, splits, moves, merges and failed launches are the Workbench's, mapped with the workbench tests. Native terminals have only the Workbench model, where a group emptied by a move stays until closed rather than collapsing.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
+      "typescript": [
+        {
+          "path": "tests/unit/terminal/sessions/terminalSessions.test.ts",
+          "sha256": "e5b3947592e714d9381b328ba11b5149e7b272a191ecfb1201113956efe02282",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Terminal local Tab Groups > preserves 2 concurrent Sessions while splitting every Tab and merging them back"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Terminal local Tab Groups > preserves 3 concurrent Sessions while splitting every Tab and merging them back"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Terminal local Tab Groups > creates new Sessions as Tabs in the focused Group and deduplicates the launcher"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Terminal local Tab Groups > deduplicates launcher Tabs per Group rather than across the whole Sidebar"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Terminal local Tab Groups > splits one Tab to the right into a new Group with its own Tab stack"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Terminal local Tab Groups > supports nested horizontal and vertical Group splits"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Terminal local Tab Groups > moves a sole Tab across the layout without leaving an empty Group"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Terminal local Tab Groups > swaps existing left/right Groups without creating or deleting a leaf"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Terminal local Tab Groups > moves a multi-Tab Group as one split-tree leaf"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Terminal local Tab Groups > merges every Tab in a source Group into a target Bar as one ordered block"
+            },
+            {
+              "index": 10,
+              "name": "Desktop Terminal local Tab Groups > keeps one active Tab per visible Group while focus moves independently"
+            },
+            {
+              "index": 11,
+              "name": "Desktop Terminal local Tab Groups > inserts a Tab at a relative position in another Bar and collapses its empty source Group"
+            },
+            {
+              "index": 12,
+              "name": "Desktop Terminal local Tab Groups > reorders a Tab inside its own Bar without changing the active Session"
+            },
+            {
+              "index": 13,
+              "name": "Desktop Terminal local Tab Groups > keeps a multi-Tab source Group when one member joins another Bar"
+            },
+            {
+              "index": 14,
+              "name": "Desktop Terminal local Tab Groups > rejects an insertion index outside the target Bar after source removal"
+            },
+            {
+              "index": 15,
+              "name": "Desktop Terminal local Tab Groups > closes Tabs locally and collapses a Group only when its final Tab closes"
+            },
+            {
+              "index": 16,
+              "name": "Desktop Terminal local Tab Groups > updates one Sidebar split ratio without affecting Session lifecycle"
+            },
+            {
+              "index": 17,
+              "name": "Desktop Terminal local Tab Groups > preserves ownership invariants across deterministic split, merge and focus commands"
+            },
+            {
+              "index": 18,
+              "name": "Desktop Terminal local Tab Groups > rejects splitting the only Tab out of its own Group"
+            },
+            {
+              "index": 19,
+              "name": "Desktop Terminal local Tab Groups > returns a failed startup to the selector inside the same local Tab Group"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/terminal/sessions/terminalSessions.state-machine.test.ts",
+          "sha256": "664bd45b5091d2e02223e86196f648b8f12456abec95dd7c0121fa5f550a297d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Terminal reducer state machine > preserves every ownership invariant across reproducible randomized command sequences"
             }
           ]
         }

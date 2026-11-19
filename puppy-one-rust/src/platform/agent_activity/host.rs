@@ -260,6 +260,8 @@ mod tests {
                 .map(|(_, v)| v.clone())
         };
         assert!(lookup(env::PROVIDER).is_none());
+        assert_eq!(lookup(env::TERMINAL_SESSION_ID).as_deref(), Some("t1"));
+        assert!(lookup(env::ENDPOINT).is_some());
         let args = ["--provider".into(), "codex".into()];
         let input = br#"{"hook_event_name":"PreToolUse","tool_name":"Read","tool_use_id":"c1","tool_input":{"file_path":"src/a.rs"}}"#;
         let cwd = root.to_string_lossy();

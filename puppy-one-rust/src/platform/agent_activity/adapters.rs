@@ -292,6 +292,59 @@ mod tests {
         );
         assert!(normalize("opencode", &payload("SessionEnd", "x", json!({})), "t", 5).is_none());
     }
+    /// Each provider's own start event and tool name begin an activity of
+    /// that kind on the file the tool names; Cursor ending its session
+    /// while the shell stays open ends only that source session.
+    #[test]
+    fn each_provider_starts_its_tool_on_the_named_file() {
+        for (provider, name, tool, operation) in [
+            ("codex", "PreToolUse", "Read", Operation::Read),
+            ("claude", "PreToolUse", "Edit", Operation::Write),
+            ("cursor", "preToolUse", "read_file", Operation::Read),
+            (
+                "opencode",
+                "tool.execute.before",
+                "write_file",
+                Operation::Write,
+            ),
+            ("pi", "tool_call", "grep", Operation::Search),
+            ("hermes", "pre_tool_call", "write_file", Operation::Write),
+        ] {
+            let e = event(normalize(
+                provider,
+                &payload(name, tool, json!({ "file_path": "src/a.ts" })),
+                "terminal-1",
+                42,
+            ));
+            assert_eq!(
+                (e.provider_id.as_str(), e.phase, e.operation),
+                (provider, Phase::Started, operation),
+                "{provider}"
+            );
+            assert_eq!(
+                (e.terminal_session_id.as_str(), e.occurred_at),
+                ("terminal-1", 42)
+            );
+            assert_eq!(
+                e.targets
+                    .iter()
+                    .map(|t| t.path.as_str())
+                    .collect::<Vec<_>>(),
+                ["src/a.ts"]
+            );
+        }
+        assert_eq!(
+            normalize(
+                "cursor",
+                &payload("sessionEnd", "unknown", json!({})),
+                "terminal-1",
+                42
+            ),
+            Some(Normalized::SessionEnded {
+                source_session_id: Some("s".into())
+            })
+        );
+    }
     #[test]
     fn tools_classify_like_the_product() {
         for (tool, op) in [

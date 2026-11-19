@@ -378,3 +378,32 @@ finally:
         std::thread::sleep(Duration::from_millis(2));
     }
 }
+
+/// `has one canonical query responder even without a display`: the
+/// session's own screen answers a cursor position report, exactly once.
+#[gpui::test]
+fn a_cursor_report_is_answered_once_by_the_session(cx: &mut TestAppContext) {
+    let slot = Rc::new(RefCell::new(None));
+    cx.add_window({
+        let slot = slot.clone();
+        move |window, cx| {
+            TerminalView::start(
+                move |wake| {
+                    let (terminal, bridge) = Terminal::bridged(wake);
+                    *slot.borrow_mut() = Some(bridge);
+                    terminal
+                },
+                false,
+                window,
+                cx,
+            )
+        }
+    });
+    let bridge = slot.borrow_mut().take().unwrap();
+    bridge.outlet.send(Event::Started {
+        input_shell: "/bin/zsh".into(),
+    });
+    bridge.outlet.send(Event::Data(b"\x1b[6n".to_vec()));
+    cx.run_until_parked();
+    assert_eq!(inputs(&bridge), [b"\x1b[1;1R".to_vec()]);
+}

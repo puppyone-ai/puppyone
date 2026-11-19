@@ -435,6 +435,13 @@ mod tests {
             paths("cat a.txt\ncat b.txt && cat a.txt"),
             ["a.txt", "b.txt"]
         );
+        assert_eq!(paths("tail -c 80 notes.md | od -An -t x1"), ["notes.md"]);
+        assert_eq!(paths("tail -20 notes.md && wc -l notes.md"), ["notes.md"]);
+        assert_eq!(
+            paths("cat 'notes with spaces.md'"),
+            ["notes with spaces.md"]
+        );
+        assert_eq!(paths("sed -n '1,220p' notes.md"), ["notes.md"]);
     }
     #[test]
     fn anything_that_depends_on_shell_state_fails_closed() {
@@ -452,6 +459,10 @@ mod tests {
             "rg pattern",
             "grep --weird x file",
             "python read.py",
+            "python3 script.py note.md",
+            "sed -i '' 's/old/new/' notes.md",
+            "cat \"$TARGET\"",
+            "cat $(resolve-file)",
             "cat https://example.com/x",
             "cat - /dev/null",
             "",

@@ -524,3 +524,78 @@ fn a_hidden_workbench_withdraws_presentation_and_keeps_its_items(cx: &mut TestAp
         assert_eq!(draft.read_with(cx, |d, _| d.draft.clone()), "edited draft");
     }
 }
+/// `terminalClosePolicy`: a launcher still choosing closes at once; a
+/// terminal asks first while it starts or runs, and closes unasked once
+/// it exited or failed.
+#[gpui::test]
+fn a_terminal_asks_before_closing_only_while_it_starts_or_runs(cx: &mut TestAppContext) {
+    use crate::features::terminal::{SessionStatus, TerminalItem, TerminalView};
+    use crate::platform::terminal::{Bridge, Event, Terminal};
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    let bridges: Rc<RefCell<Vec<Bridge>>> = Rc::default();
+    let (exits, fails, terminals) = view.update_in(cx, |s, w, cx| {
+        s.attach(
+            PathBuf::from(format!("terminal-close-{}", uuid::Uuid::new_v4())),
+            cx,
+        );
+        s.project_mut().unwrap().loading = false;
+        let launcher = s.new_launcher_tab(0, cx).unwrap();
+        s.close(launcher, false, cx);
+        assert_eq!(s.confirm, None);
+        assert!(!s.project().unwrap().content.contains_key(&launcher));
+        let mut open = || {
+            let bridges = bridges.clone();
+            let terminal = cx.new(|cx| {
+                TerminalView::start(
+                    move |wake| {
+                        let (terminal, bridge) = Terminal::bridged(wake);
+                        bridges.borrow_mut().push(bridge);
+                        terminal
+                    },
+                    true,
+                    w,
+                    cx,
+                )
+            });
+            let item = TerminalItem::of(terminal.clone(), "repo".into(), None);
+            (s.place(0, None, Rc::new(item), cx).unwrap(), terminal)
+        };
+        let (exits, a) = open();
+        let (fails, b) = open();
+        (exits, fails, [a, b])
+    });
+    let status =
+        |cx: &mut VisualTestContext, i: usize| terminals[i].read_with(cx, |t, _| t.status());
+    let asks = |cx: &mut VisualTestContext, tab: Id| {
+        view.update(cx, |s, cx| {
+            s.close(tab, false, cx);
+            let asked = s.confirm == Some(tab);
+            s.confirm = None;
+            asked
+        })
+    };
+    assert_eq!(status(cx, 0), SessionStatus::Starting);
+    assert!(asks(cx, exits));
+    let send = |i: usize, event: Event| assert!(bridges.borrow()[i].outlet.send(event));
+    send(
+        0,
+        Event::Started {
+            input_shell: "/bin/zsh".into(),
+        },
+    );
+    send(0, Event::Data(b"\x1b[?1049h".to_vec()));
+    cx.run_until_parked();
+    assert_eq!(status(cx, 0), SessionStatus::Running);
+    assert!(asks(cx, exits));
+    send(0, Event::Exit(0));
+    send(1, Event::Error("Agent is unavailable".into()));
+    cx.run_until_parked();
+    assert_eq!(status(cx, 0), SessionStatus::Exited);
+    assert_eq!(status(cx, 1), SessionStatus::Error);
+    for tab in [exits, fails] {
+        assert!(!asks(cx, tab));
+        assert!(view.read_with(cx, |s, _| !s.project().unwrap().content.contains_key(&tab)));
+    }
+}
