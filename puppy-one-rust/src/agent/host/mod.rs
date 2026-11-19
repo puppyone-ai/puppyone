@@ -1,5 +1,7 @@
 //! The Agent host thread and its window bridge.
 pub mod agent_host;
+mod codex_repair;
+pub use codex_repair::{RepairResult, repair_codex};
 #[cfg(test)]
 mod tests;
 

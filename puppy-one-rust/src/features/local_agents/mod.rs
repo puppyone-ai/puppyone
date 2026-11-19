@@ -14,4 +14,5 @@ pub use chat_recipes::{
     local_agent_id_for_agent_chat_runtime,
 };
 pub use settings::AgentSettings;
+pub(crate) use setup::ActivationDialog;
 pub use setup::{InstallationsChanged, Presentation, SetupSection, store as activation_store};

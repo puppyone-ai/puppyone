@@ -2,6 +2,7 @@
 //! exist and which executable each one launches. Setup and activation live
 //! in `local_agent_setup`.
 pub mod candidate_identity;
+pub(crate) mod codex_repair;
 pub mod definitions;
 pub mod executable_resolver;
 pub mod installation_definition;

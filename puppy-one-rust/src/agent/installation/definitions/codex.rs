@@ -11,6 +11,18 @@ pub fn codex_installation_definition() -> InstallationDefinition {
         if let Some(path) = context.var("CODEX_PATH") {
             candidates.push(CandidateSpec::new(path, "environment-override"));
         }
+        if let Some(path) =
+            crate::agent::installation::codex_repair::saved(context.homedir, context.platform)
+        {
+            let mut candidate = CandidateSpec::new(path.to_string_lossy(), "product-fallback");
+            candidate.environment_overrides =
+                crate::agent::installation::codex_repair::launch_path(
+                    &path,
+                    context.var("PATH").unwrap_or_default(),
+                )
+                .map(|value| vec![("PATH".into(), value)]);
+            candidates.push(candidate);
+        }
         if let Some(directory) = context.var("CODEX_INSTALL_DIR") {
             candidates.push(CandidateSpec::new(
                 join(directory, &[&executable]),
