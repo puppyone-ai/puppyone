@@ -200,34 +200,51 @@ pub fn percent_of(used: Option<f64>, total: Option<f64>) -> Option<f64> {
         _ => None,
     }
 }
-/// `PlanUsageBar`: 24 ticks; any reading above zero lights at least one.
-pub const METER_TICKS: usize = 24;
-pub fn active_ticks(percent: Option<f64>) -> usize {
-    match percent.map(|p| p.clamp(0., 100.)) {
+/// A meter is forty cells, 2.5% each.
+pub const CELLS: usize = 40;
+/// How many cells are used and how many are held by agents still running
+/// (`percent`s of the allowance); any reading above zero lights at least
+/// one, and the two never pass the end together.
+pub fn cells(used: Option<f64>, running: Option<f64>) -> (usize, usize) {
+    let count = |percent: Option<f64>| match percent.map(|p| p.clamp(0., 100.)) {
         None => 0,
         Some(0.) => 0,
-        Some(p) => ((p / 100. * METER_TICKS as f64).round() as usize).max(1),
+        Some(p) => ((p / 100. * CELLS as f64).round() as usize).max(1),
+    };
+    let used = count(used);
+    (used, count(running).min(CELLS - used))
+}
+/// How full a meter reads: its used cells turn warning from 80% and danger
+/// once nothing is left.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fill {
+    Calm,
+    Near,
+    Full,
+}
+pub fn fill(percent: Option<f64>) -> Fill {
+    match percent {
+        Some(p) if p >= 100. => Fill::Full,
+        Some(p) if p >= 80. => Fill::Near,
+        _ => Fill::Calm,
     }
 }
-
-/// `teamActionLabel`.
-pub fn team_action(on_team: bool, sellable: bool) -> &'static str {
-    if on_team {
-        "settings.plan.changePeople"
-    } else if sellable {
-        "settings.plan.upgrade"
-    } else {
-        "settings.plan.comingSoon"
-    }
+/// A percentage as a meter prints it.
+pub fn percent(value: f64) -> String {
+    format!("{}%", value.round() as i64)
 }
-/// `planActionLabel`.
-pub fn plan_action(subscribed: bool, sellable: bool) -> &'static str {
-    if !sellable {
-        "settings.plan.comingSoon"
-    } else if subscribed {
-        "settings.plan.switch"
-    } else {
-        "settings.plan.upgrade"
+/// History kept: days, whole years, or no limit.
+pub fn history(days: Option<u64>) -> String {
+    match days {
+        None => t("settings.plan.spec.unlimited").to_owned(),
+        Some(days) if days >= 365 && days % 365 == 0 => tf(
+            "settings.plan.spec.years",
+            &[("count", Arg::Number((days / 365) as i64))],
+        ),
+        Some(days) => tf(
+            "settings.plan.spec.days",
+            &[("count", Arg::Number(days as i64))],
+        ),
     }
 }
 
@@ -318,12 +335,19 @@ mod tests {
         assert_eq!(status(&held), Status::Updating);
         held.subscribed = false;
         assert_eq!(status(&held), Status::Free);
-        // "keeps every tick" and lights one for any reading above zero.
-        assert_eq!(active_ticks(None), 0);
-        assert_eq!(active_ticks(Some(0.)), 0);
-        assert_eq!(active_ticks(Some(0.1)), 1);
-        assert_eq!(active_ticks(Some(50.)), 12);
-        assert_eq!(active_ticks(Some(140.)), 24);
+        // Every cell stays; any reading above zero lights one, and what
+        // agents still hold follows what is used without passing the end.
+        assert_eq!(cells(None, None), (0, 0));
+        assert_eq!(cells(Some(0.), Some(0.)), (0, 0));
+        assert_eq!(cells(Some(0.1), None), (1, 0));
+        assert_eq!(cells(Some(50.), Some(2.)), (20, 1));
+        assert_eq!(cells(Some(140.), Some(10.)), (40, 0));
+        assert_eq!(cells(Some(95.), Some(10.)), (38, 2));
+        assert_eq!(fill(None), Fill::Calm);
+        assert_eq!(fill(Some(79.)), Fill::Calm);
+        assert_eq!(fill(Some(80.)), Fill::Near);
+        assert_eq!(fill(Some(100.)), Fill::Full);
+        assert_eq!(percent(92.6), "93%");
         assert_eq!(percent_of(Some(20.), Some(40.)), Some(50.));
         assert_eq!(percent_of(Some(1.), Some(0.)), None);
     }

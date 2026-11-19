@@ -484,13 +484,14 @@
         "src/features/settings/main/plan/format.rs",
         "src/workspace/cloud/pricing.rs"
       ],
-      "remaining": "v0.4.4 Plan (Your plan, the 24-cell hours rail, storage warning, three plan cards and add-ons) and the Account plan row are native over scripted billing. Plan card columns follow the last measured width; the storage disclosure is a line rather than <details>; not pixel-compared (AC-2).",
+      "remaining": "Plan follows the 2026-11-19 redesign rather than v0.4.4: one card with the plan, its price and renewal and two 40-cell meters (agent hours with running agents half-lit, storage), the add-ons as a list, and the other plans as rows that each say what they add, a change confirmed in its own row. The Account plan row is unchanged. Native over scripted billing; not pixel-compared with v0.4.4 by design (AC-2).",
       "evidence": [
         "test:offers_three_plans_with_one_price_each_and_the_same_allowances",
         "test:bills_a_team_per_person_and_names_a_legacy_plan_by_its_new_name",
         "test:a_quote_says_whether_it_pays_now_waits_or_keeps",
         "test:the_status_pill_and_the_rail_follow_the_holding_and_reading",
-        "test:plan_cards_share_a_row_above_600px",
+        "test:other_plans_list_upgrades_first_and_free_last",
+        "test:choosing_a_plan_quotes_it_in_its_row_requotes_new_people_and_confirms_once",
         "test:the_plan_page_shows_the_spaces_own_usage",
         "test:settings_manage_one_space_its_members_and_its_plan"
       ]

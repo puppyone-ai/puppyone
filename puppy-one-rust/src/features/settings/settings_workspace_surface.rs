@@ -183,14 +183,6 @@ impl SettingsWorkspaceSurface {
         )
         .cloned()
     }
-    /// The page's width at the last layout, as wide as the reading column
-    /// allows (`.desktop-plan-comparison`'s container).
-    pub(super) fn content_width(&self) -> f32 {
-        let viewport = f32::from(self.content_scroll.bounds().size.width);
-        let gutter = if self.content_overflows { 12. } else { 0. };
-        (viewport - 2. * metric::UTILITY_PADDING_INLINE - gutter)
-            .clamp(0., metric::READING_CONTENT_WIDTH)
-    }
     /// `AccountAICredits`: read the wallet when Account shows, then every
     /// 30 s while it stays on screen.
     pub(super) fn refresh_compute(&mut self, cx: &mut Context<Self>) {

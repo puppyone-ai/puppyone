@@ -1,18 +1,22 @@
-//! `CloudPlans.tsx`, `PlanLoading.tsx` and `PlanUsageBar.tsx` with
-//! `settings.css`' `.desktop-plan-*` rules. The page answers three questions
-//! in the order people ask them: the plan held and this period's agent hours,
-//! then the plans side by side with one price and the same allowance rows,
-//! then, for a paid plan, the add-ons.
+//! Settings › Plan as redesigned on 2026-11-19 (puppy-issues
+//! `document/puppyone-desktop/cloud/billing.md`, "Plan page"). The page
+//! answers, in order: what
+//! the space is on and how much of it is used (one card, two forty-cell
+//! meters with machine-set readings), what the add-ons held are, and what
+//! each other plan would add. A change is confirmed where it was asked for:
+//! in the chosen plan's row, or in the card for people and a kept plan.
+//! Two type sizes: the interface label for everything, the page title for
+//! the plan's name.
 use super::super::super::settings_workspace_surface::SettingsWorkspaceSurface;
-use super::format::{self as f, METER_TICKS};
+use super::Target;
+use super::format::{self as f, Fill};
 use crate::localization::{Arg, format_number, t as tr, tf};
 use crate::theme::{self, Theme};
-use crate::ui::components::{
-    Button, ButtonVariant, Icon, IconButton, SettingsSection, SettingsSubsection, ValueRow,
-};
+use crate::ui::components::{Button, ButtonVariant, Icon, IconButton, SettingsSection, Spinner};
 use crate::ui::loading::{self, model::Shape};
+use crate::workspace::cloud::billing::Quote;
 use crate::workspace::cloud::pricing::{
-    self, AddOnKind, AddOnOffer, MeterTone, PlanHolding, PlanId, PlanOffer,
+    self, AddOnKind, AddOnOffer, CatalogView, PLAN_ORDER, PlanHolding, PlanId, PlanOffer,
 };
 use gpui::{prelude::*, *};
 use gpui_kit::{
@@ -20,28 +24,16 @@ use gpui_kit::{
     component::Sizable as _,
 };
 
-/// `.desktop-plan-note`: meta type, subtle, 10px in.
+/// A note in the page's subtle ink.
 fn note(text: impl Into<SharedString>, t: Theme) -> Div {
-    let meta = theme::ty().ui.meta;
-    div()
-        .px(px(10.))
-        .text_size(px(meta))
-        .line_height(px(meta * 1.5))
-        .text_color(t.subtle)
-        .child(text.into())
+    div().text_color(t.subtle).child(text.into())
 }
-/// `.desktop-plan-error`.
 fn error_note(text: impl Into<SharedString>, t: Theme) -> Div {
-    note(text, t).text_color(t.danger)
+    div().text_color(t.danger).child(text.into())
 }
-/// `CurrentBadge`.
-fn current_badge(t: Theme) -> Div {
-    div()
-        .flex()
-        .items_center()
-        .min_h(px(theme::control_compact() + 6.))
-        .text_color(t.muted)
-        .child(tr("settings.plan.current"))
+/// Numbers a machine set: readings, prices quoted.
+fn mono(text: impl Into<SharedString>) -> Div {
+    div().font_family(theme::MONO).child(text.into())
 }
 fn placeholder(id: &'static str, width: f32, height: f32) -> AnyElement {
     loading::placeholder(
@@ -58,66 +50,129 @@ fn placeholder(id: &'static str, width: f32, height: f32) -> AnyElement {
     )
     .into_any_element()
 }
-
-/// One drawn string and its native reading, shared by the comparison cards.
-fn accessible_text(id: &'static str, text: impl Into<SharedString>) -> AnyElement {
-    let text = text.into();
+/// The bordered surface every block of the page sits on.
+fn card(t: Theme) -> Div {
+    v_flex()
+        .border_1()
+        .border_color(t.divider)
+        .rounded(px(10.))
+        .bg(theme::fade(t.text, 0.015))
+        .overflow_hidden()
+}
+/// A block's name above it, in the page's one small size.
+fn section_label(text: impl Into<SharedString>, t: Theme) -> Div {
     div()
-        .id(id)
-        .role(Role::Label)
-        .aria_value(text.clone())
-        .child(text)
-        .test_support()
-        .into_any_element()
+        .mt(px(28.))
+        .mb(px(10.))
+        .text_color(t.subtle)
+        .child(text.into())
+}
+/// One line inside a card, under a hairline.
+fn card_row(t: Theme) -> Div {
+    h_flex()
+        .gap(px(16.))
+        .px(px(20.))
+        .py(px(14.))
+        .border_t_1()
+        .border_color(t.divider)
+}
+fn plan_name(id: PlanId) -> String {
+    tr(&format!("settings.plan.name.{}", id.key())).to_owned()
 }
 
-/// `PlanUsageBar`: a complete short rail stays visible for every reading,
-/// zero included; only authoritative readings light its ticks.
-fn meter(percent: Option<f64>, t: Theme) -> AnyElement {
-    let active = f::active_ticks(percent);
-    let lit = match percent.map(pricing::meter_tone) {
-        Some(MeterTone::Exhausted) => t.danger,
-        _ => theme::plan_accent(),
+/// Forty cells in one row: used, held by agents still running, left. Only
+/// a reading draws used cells; without one every cell stays dark.
+fn cells(
+    id: &'static str,
+    label: &'static str,
+    percent: Option<f64>,
+    running: Option<f64>,
+    t: Theme,
+) -> AnyElement {
+    let (used, held) = f::cells(percent, running);
+    let ink = match f::fill(percent) {
+        Fill::Calm => theme::fade(t.text, 0.88),
+        Fill::Near => t.warning,
+        Fill::Full => t.danger,
     };
-    let track = theme::fade(t.text, 0.38);
     div()
-        .id("plan-hours-meter")
-        .debug_selector(|| "plan-hours-meter".into())
+        .id(id)
+        .debug_selector(move || id.into())
         .when_some(percent, |d, value| {
             d.role(Role::ProgressIndicator)
-                .aria_label(tr("settings.plan.hoursLabel"))
+                .aria_label(tr(label))
                 .aria_numeric_value(value.clamp(0., 100.))
                 .aria_min_numeric_value(0.)
                 .aria_max_numeric_value(100.)
         })
         .flex()
-        .flex_none()
-        .gap(px(6.))
-        .h(px(18.))
-        .children((0..METER_TICKS).map(|tick| {
+        .w_full()
+        .h(px(14.))
+        .gap(px(2.))
+        .children((0..f::CELLS).map(|cell| {
             div()
-                .debug_selector(move || format!("plan-meter-tick-{tick}"))
-                .when(tick < active, |d| {
-                    d.debug_selector(move || format!("plan-meter-active-{tick}"))
+                .debug_selector(move || format!("{id}-cell-{cell}"))
+                .when(cell < used, |d| {
+                    d.debug_selector(move || format!("{id}-used-{cell}"))
                 })
-                .w(px(2.))
-                .h(px(18.))
-                .bg(if tick < active { lit } else { track })
+                .when(cell >= used && cell < used + held, |d| {
+                    d.debug_selector(move || format!("{id}-running-{cell}"))
+                })
+                .flex_1()
+                .h_full()
+                .rounded(px(1.))
+                .bg(if cell < used {
+                    ink
+                } else if cell < used + held {
+                    theme::fade(t.text, 0.34)
+                } else {
+                    theme::fade(t.text, 0.075)
+                })
         }))
         .test_support()
         .into_any_element()
 }
 
-/// How many plan cards share a row: `--desktop-plan-columns: plans.length`,
-/// `@container (max-width: 900px)` -> 2, `@container (max-width: 600px)` -> 1.
-fn columns(width: f32, count: usize) -> usize {
-    if width > 900. {
-        count.max(1)
-    } else if width > 600. {
-        2
-    } else {
-        1
-    }
+/// A meter with its name and reading above, and what the reading means
+/// below.
+fn meter(
+    label: &'static str,
+    reading: String,
+    cells: AnyElement,
+    left: AnyElement,
+    right: Option<String>,
+    t: Theme,
+) -> Div {
+    v_flex()
+        .flex_1()
+        .min_w_0()
+        .child(
+            h_flex()
+                .justify_between()
+                .gap(px(8.))
+                .child(div().text_color(t.text).child(tr(label)))
+                .child(mono(reading).text_color(t.text)),
+        )
+        .child(div().mt(px(10.)).child(cells))
+        .child(
+            h_flex()
+                .flex_wrap()
+                .mt(px(8.))
+                .gap_x(px(8.))
+                .text_color(t.subtle)
+                .child(left)
+                .children(right.map(|r| div().ml_auto().child(r))),
+        )
+}
+
+/// Where the plans are listed for: no account, an account whose space
+/// could not be read, its owner, or someone else in the space.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Reader {
+    SignedOut,
+    Unread,
+    Owner,
+    Member,
 }
 
 impl SettingsWorkspaceSurface {
@@ -146,9 +201,10 @@ impl SettingsWorkspaceSurface {
         let snapshot = &page.snapshot;
         let mut section = SettingsSection::new(tr("settings.seats.title"));
         if signed_in && space.is_none() {
-            section = section.child(note(tr("settings.space.choose"), t));
+            section = section.child(note(tr("settings.space.choose"), t).px(px(10.)));
         }
         let waiting = signed_in && space.is_some();
+        let ui = theme::ty().ui;
         let body = if restoring
             || (waiting && snapshot.summary.is_none() && (snapshot.loading || !snapshot.error))
         {
@@ -159,7 +215,6 @@ impl SettingsWorkspaceSurface {
             let view = pricing::resolve_catalog(snapshot.catalog.as_ref());
             let holding = pricing::resolve_holding(None, None);
             v_flex()
-                .gap(px(16.))
                 .when(waiting, |d| {
                     d.child(
                         div()
@@ -167,150 +222,108 @@ impl SettingsWorkspaceSurface {
                             .role(Role::Alert)
                             .aria_label(tr("cloud.billing.loadFailed"))
                             .child(
-                                SettingsSubsection::new()
-                                    .title(tr("settings.plan.currentLabel"))
-                                    .child(
-                                        ValueRow::new(tr("cloud.billing.loadFailed"), "").action(
+                                card(t).child(
+                                    h_flex()
+                                        .justify_between()
+                                        .gap(px(16.))
+                                        .p(px(20.))
+                                        .child(
+                                            div()
+                                                .text_color(t.muted)
+                                                .child(tr("cloud.billing.loadFailed")),
+                                        )
+                                        .child(
                                             Button::new("plan-load-retry")
                                                 .label(tr("common.action.retry"))
                                                 .on_click(
                                                     cx.listener(|s, _, _, cx| s.refresh_plan(cx)),
                                                 ),
                                         ),
-                                    ),
+                                ),
                             )
                             .test_support(),
                     )
                 })
-                .child(self.plan_comparison(
-                    &view.plans,
+                .child(self.plan_rows(
+                    &view,
                     &holding,
+                    if waiting {
+                        Reader::Unread
+                    } else {
+                        Reader::SignedOut
+                    },
                     false,
-                    None,
                     t,
                     cx,
-                    |plan, _, cx| {
-                        (!waiting).then(|| {
-                            Button::new(SharedString::from(format!(
-                                "plan-sign-in-{}",
-                                plan.id.key()
-                            )))
-                            .variant(if plan.id == PlanId::Free {
-                                ButtonVariant::PlanCard
-                            } else {
-                                ButtonVariant::PlanCardPrimary
-                            })
-                            .label(tr("settings.plan.signInToChoose"))
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                // Buying needs an account; Account owns sign-in.
-                                s.select_page(crate::features::settings::Page::Account, cx)
-                            }))
-                            .into_any_element()
-                        })
-                    },
                 ))
+                .child(note(tr("settings.plan.finePrint"), t).mt(px(24.)))
                 .into_any_element()
         };
-        section.child(body).into_any_element()
+        section
+            .child(
+                div()
+                    .mx(px(10.))
+                    .text_size(px(ui.label))
+                    .line_height(px(ui.label * 1.5))
+                    .child(body),
+            )
+            .into_any_element()
     }
 
-    /// `PlanLoading`: the signed-in page keeps its reading order while its
-    /// first snapshot loads.
+    /// The signed-in page keeps its reading order while its first snapshot
+    /// loads: the card with dark meters, then the plans.
     fn plan_loading(&self, t: Theme) -> AnyElement {
         let ui = theme::ty().ui;
-        let card = |index: usize| {
-            let ids = [
-                "plan-loading-card-0",
-                "plan-loading-card-1",
-                "plan-loading-card-2",
-            ];
-            div()
-                .id(ids[index])
-                .flex()
-                .flex_col()
-                .min_h(px(280.))
-                .p(px(16.))
-                .border_1()
-                .border_color(t.divider)
-                .rounded(px(8.))
-                .gap(px(12.))
-                .child(placeholder("plan-loading-name", 108., ui.label * 1.5))
-                .child(placeholder("plan-loading-price", 120., ui.display * 1.25))
+        let empty = |id, label| {
+            meter(
+                label,
+                String::new(),
+                cells(id, label, None, None, t),
+                placeholder("plan-loading-reading", 72., ui.label * 1.5),
+                None,
+                t,
+            )
+        };
+        let row = |id: &'static str| {
+            card_row(t).child(
+                v_flex()
+                    .gap(px(4.))
+                    .child(placeholder(id, 120., ui.label * 1.5))
+                    .child(placeholder("plan-loading-gains", 300., ui.label * 1.5)),
+            )
         };
         v_flex()
             .id("plan-loading")
             .role(Role::Status)
             .aria_label(tr("common.status.loading"))
             .debug_selector(|| "plan-loading".into())
-            .gap(px(16.))
             .child(
-                SettingsSubsection::new().child(
-                    h_flex()
-                        .min_h(px(44.))
-                        .px(px(10.))
-                        .gap(px(16.))
+                card(t).p(px(20.)).child(
+                    v_flex()
+                        .gap(px(4.))
+                        .child(placeholder("plan-loading-plan", 96., ui.page_title * 1.4))
+                        .child(placeholder("plan-loading-detail", 168., ui.label * 1.5))
                         .child(
-                            div()
-                                .text_color(t.muted)
-                                .child(tr("settings.plan.currentLabel")),
-                        )
-                        .child(
-                            v_flex()
-                                .gap(px(5.))
-                                .child(placeholder(
-                                    "plan-loading-plan",
-                                    108.,
-                                    ui.section_title * 1.4,
-                                ))
-                                .child(placeholder("plan-loading-detail", 168., ui.meta * 1.5)),
+                            h_flex()
+                                .mt(px(18.))
+                                .gap(px(32.))
+                                .child(empty("plan-hours-meter", "settings.plan.hoursLabel"))
+                                .child(empty("plan-storage-meter", "settings.plan.storageLabel")),
                         ),
                 ),
             )
+            .child(section_label(tr("settings.plan.chooseTitle"), t))
             .child(
-                v_flex()
-                    .px(px(10.))
-                    .pb(px(24.))
-                    .gap(px(8.))
-                    .border_b_1()
-                    .border_color(t.divider)
-                    .child(
-                        div()
-                            .text_color(t.muted)
-                            .child(tr("settings.plan.hoursLabel")),
-                    )
-                    .child(
-                        h_flex()
-                            .gap(px(16.))
-                            .child(placeholder("plan-loading-reading", 84., ui.label * 1.5))
-                            .child(meter(None, t))
-                            .child(placeholder("plan-loading-left", 84., ui.label * 1.5)),
-                    ),
-            )
-            .child(
-                SettingsSubsection::new()
-                    .title(tr("settings.plan.chooseTitle"))
-                    .child(self.plan_grid((0..3).map(|i| card(i).into_any_element()).collect())),
+                card(t)
+                    .child(row("plan-loading-row-0").border_t_0())
+                    .child(row("plan-loading-row-1")),
             )
             .test_support()
             .into_any_element()
     }
 
-    /// Cards in rows of `columns`, 16px apart, 14px below the title.
-    fn plan_grid(&self, cards: Vec<AnyElement>) -> Div {
-        let columns = columns(self.content_width(), cards.len());
-        let mut rows = v_flex().gap(px(16.)).mt(px(14.)).mx(px(10.));
-        let mut cards = cards.into_iter().peekable();
-        while cards.peek().is_some() {
-            let mut row = h_flex().items_stretch().gap(px(16.));
-            for _ in 0..columns {
-                row = row.child(div().flex_1().min_w_0().children(cards.next()));
-            }
-            rows = rows.child(row);
-        }
-        rows
-    }
-
-    /// `ConnectedPlans`.
+    /// The space's plan as the server holds it, with everything its owner
+    /// can change.
     fn connected_plans(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let page = &self.plan_page;
         let snapshot = &page.snapshot;
@@ -327,12 +340,13 @@ impl SettingsWorkspaceSurface {
         let owner = snapshot.can_manage_billing == Some(true);
         let sellable =
             !snapshot.catalog_unavailable && view.authoritative && !controller.disabled && owner;
-        let busy = controller.acting || snapshot.loading;
+        let busy = controller.acting || snapshot.loading || controller.polling.is_some();
         let held_plan = summary
             .as_ref()
             .map(|s| s.plan_id.clone())
             .unwrap_or_default();
         let portal = summary.as_ref().is_some_and(|s| s.portal_available);
+        let seat_changes = summary.as_ref().is_some_and(|s| s.seat_changes_available);
         let add_ons: Vec<AddOnOffer> =
             if !snapshot.catalog_unavailable && owner && holding.subscribed {
                 view.add_ons
@@ -343,206 +357,127 @@ impl SettingsWorkspaceSurface {
             } else {
                 vec![]
             };
-        let team_minimum = view.plan(PlanId::Team).map_or(1, |p| p.minimum_seats);
-        let seat_target = team_minimum.max(controller.seats);
-        let on_team = holding.subscribed;
-        let timing = f::quote_timing(controller.quote.as_ref(), &holding);
 
-        let current_plan = self.current_plan(
+        let mut actions = vec![];
+        if owner && holding.subscribed {
+            if current.per_person
+                && sellable
+                && seat_changes
+                && holding.scheduled.is_none()
+                && controller.target.is_none()
+            {
+                actions.push(
+                    Button::new("plan-change-people")
+                        .label(tr("native.plan.changePeople"))
+                        .disabled(busy)
+                        .on_click(cx.listener(|s, _, _, cx| s.change_people(cx)))
+                        .into_any_element(),
+                );
+            }
+            if portal {
+                actions.push(
+                    Button::new("plan-invoices")
+                        .label(tr("settings.plan.invoices"))
+                        .trailing(Icon::new("external-link").small())
+                        .disabled(busy)
+                        .on_click(cx.listener(|s, _, _, cx| s.open_portal(cx)))
+                        .into_any_element(),
+                );
+            }
+        }
+
+        let mut notices = vec![];
+        if holding.scheduled.is_some() {
+            let keep = (owner && sellable && current.purchasable && controller.target.is_none())
+                .then(|| current.catalog_plan.clone())
+                .flatten()
+                .map(|plan| {
+                    let seats = holding.seats;
+                    Button::new("plan-keep-current")
+                        .label(tr("settings.plan.keepCurrent"))
+                        .disabled(busy)
+                        .on_click(
+                            cx.listener(move |s, _, _, cx| s.keep_plan(plan.clone(), seats, cx)),
+                        )
+                        .into_any_element()
+                });
+            notices.push(self.scheduled_notice(&holding, current.id, keep, t, cx));
+        }
+        if controller.target == Some(Target::People) {
+            let stepper = self.stepper(
+                "plan-seats".into(),
+                tr("settings.plan.peopleLabel").into(),
+                controller.seats,
+                1,
+                500,
+                controller.polling.is_some(),
+                Some(tf(
+                    "settings.plan.peopleUnit",
+                    &[("count", Arg::Number(controller.seats as i64))],
+                )),
+                |s, value, cx| s.set_plan_seats(value, cx),
+                t,
+                cx,
+            );
+            notices.push(self.confirmation(
+                Some(stepper.into_any_element()),
+                &holding,
+                current.id,
+                t,
+                cx,
+            ));
+        } else if controller.polling.is_some()
+            && !matches!(controller.target, Some(Target::Plan(_) | Target::Keep))
+        {
+            // A change resumed from an earlier visit, or one just confirmed.
+            notices.push(
+                h_flex()
+                    .gap(px(10.))
+                    .text_color(t.muted)
+                    .child(Spinner::new("plan-confirming", t.divider, t.text))
+                    .child(tr("native.plan.confirming"))
+                    .into_any_element(),
+            );
+        }
+        if snapshot.can_manage_billing == Some(false) {
+            notices.push(
+                div()
+                    .text_color(t.muted)
+                    .child(tr("settings.plan.space.managedByOwner"))
+                    .into_any_element(),
+            );
+        }
+
+        let summary_card = self.current_plan(
             &current,
             &holding,
             view.authoritative && !snapshot.catalog_unavailable,
             &view.add_ons,
-            (holding.subscribed && portal).then(|| {
-                Button::new("plan-invoices")
-                    .label(tr("settings.plan.invoices"))
-                    .trailing(Icon::new("external-link").small())
-                    .disabled(busy)
-                    .on_click(cx.listener(|s, _, _, cx| s.open_portal(cx)))
-                    .into_any_element()
-            }),
-            (holding.scheduled.is_some() && current.catalog_plan.is_some()).then(|| {
-                let plan = current
-                    .catalog_plan
-                    .clone()
-                    .unwrap_or_else(|| unreachable!());
-                let seats = holding.seats;
-                Button::new("plan-keep-current")
-                    .label(tr("settings.plan.keepCurrent"))
-                    .disabled(busy || !sellable || !current.purchasable)
-                    .on_click(cx.listener(move |s, _, _, cx| s.quote_plan(plan.clone(), seats, cx)))
-                    .into_any_element()
-            }),
+            actions,
+            notices,
+            if holding.subscribed {
+                "native.plan.freeUpOrAdd"
+            } else if sellable {
+                "native.plan.freeUpOrUpgrade"
+            } else {
+                "native.plan.freeUp"
+            },
             t,
         );
-
-        let quote = controller.quote.as_ref().map(|quote| {
-            SettingsSubsection::new()
-                .title(tr("settings.plan.quoteTitle"))
-                .child(
-                    ValueRow::new(
-                        tf(
-                            "settings.plan.quotePlan",
-                            &[
-                                (
-                                    "plan",
-                                    tr(&format!(
-                                        "settings.plan.name.{}",
-                                        f::plan_key(&quote.target_plan_id)
-                                    ))
-                                    .into(),
-                                ),
-                                ("count", Arg::Number(quote.target_seats as i64)),
-                            ],
-                        ),
-                        tf(
-                            "settings.plan.monthlyFor",
-                            &[(
-                                "amount",
-                                f::money(Some(quote.target_amount_cents), &quote.currency).into(),
-                            )],
-                        ),
-                    )
-                    .action(
-                        Button::new("plan-confirm-quote")
-                            .variant(ButtonVariant::OutlinePrimary)
-                            .label(tr(timing.confirm))
-                            .when(timing.opens_browser, |b| {
-                                b.trailing(Icon::new("external-link").small())
-                            })
-                            .disabled(controller.acting)
-                            .on_click(cx.listener(|s, _, _, cx| s.confirm_quote(cx))),
-                    ),
-                )
-                .child(note(timing.note.clone(), t))
-        });
-
-        let render_action =
-            move |plan: &PlanOffer, page: &SettingsWorkspaceSurface, cx: &mut Context<Self>| {
-                let is_current = plan.id == current.id;
-                let can_purchase = sellable && plan.purchasable;
-                let catalog_id = plan.catalog_plan.as_ref().map(|p| p.id.clone());
-                if !owner {
-                    return is_current.then(|| current_badge(t).into_any_element());
-                }
-                if plan.id == PlanId::Free {
-                    if is_current {
-                        return Some(current_badge(t).into_any_element());
-                    }
-                    // Leaving a paid plan is a cancellation, which lives with
-                    // invoices.
-                    return Some(
-                        Button::new("plan-move-to-free")
-                            .variant(ButtonVariant::PlanCard)
-                            .label(tr("settings.plan.moveToFree"))
-                            .trailing(Icon::new("external-link").small())
-                            .disabled(busy || !portal)
-                            .on_click(cx.listener(|s, _, _, cx| s.open_portal(cx)))
-                            .into_any_element(),
-                    );
-                }
-                let choose = {
-                    let plan = plan.catalog_plan.clone();
-                    let held_plan = held_plan.clone();
-                    let seats = if holding.subscribed {
-                        holding.seats
-                    } else {
-                        seat_target
-                    };
-                    cx.listener(move |s, _, _, cx| {
-                        let Some(plan) = plan.clone() else { return };
-                        if plan.id == held_plan && on_team {
-                            s.quote_seats(cx);
-                        } else {
-                            s.quote_plan(plan, seats, cx);
-                        }
-                    })
-                };
-                if plan.per_person {
-                    let changed = !is_current
-                        || catalog_id.as_deref() != Some(held_plan.as_str())
-                        || seat_target != holding.seats;
-                    let can_choose_seats =
-                        !holding.subscribed || catalog_id.as_deref() == Some(held_plan.as_str());
-                    let minimum = if on_team { 1 } else { team_minimum };
-                    let seats = if can_choose_seats {
-                        page.stepper(
-                            SharedString::from(format!("plan-seats-{}", plan.id.key())),
-                            tr("settings.plan.peopleLabel").into(),
-                            seat_target,
-                            minimum,
-                            500,
-                            busy || !can_purchase,
-                            Some(tf(
-                                "settings.plan.peopleUnit",
-                                &[("count", Arg::Number(seat_target as i64))],
-                            )),
-                            |s, value, cx| s.set_plan_seats(value, cx),
-                            t,
-                            cx,
-                        )
-                        .into_any_element()
-                    } else {
-                        div()
-                            .child(tf(
-                                "settings.plan.peopleUnit",
-                                &[("count", Arg::Number(holding.seats as i64))],
-                            ))
-                            .into_any_element()
-                    };
-                    let action = if is_current && !changed {
-                        current_badge(t).into_any_element()
-                    } else {
-                        Button::new(SharedString::from(format!("plan-choose-{}", plan.id.key())))
-                            .variant(ButtonVariant::PlanCardPrimary)
-                            .label(tr(f::team_action(is_current, can_purchase)))
-                            .disabled(busy || !can_purchase || catalog_id.is_none())
-                            .on_click(choose)
-                            .into_any_element()
-                    };
-                    return Some(
-                        h_flex()
-                            .w_full()
-                            .flex_wrap()
-                            .justify_center()
-                            .gap(px(10.))
-                            .child(seats)
-                            .child(div().flex_1().flex().justify_center().child(action))
-                            .into_any_element(),
-                    );
-                }
-                if is_current {
-                    return Some(current_badge(t).into_any_element());
-                }
-                Some(
-                    Button::new(SharedString::from(format!("plan-choose-{}", plan.id.key())))
-                        .variant(if holding.subscribed {
-                            ButtonVariant::PlanCard
-                        } else {
-                            ButtonVariant::PlanCardPrimary
-                        })
-                        .label(tr(f::plan_action(holding.subscribed, can_purchase)))
-                        .disabled(busy || !can_purchase || catalog_id.is_none())
-                        .on_click(choose)
-                        .into_any_element(),
-                )
-            };
-
-        let storage_add_ons = self.add_ons(&add_ons, AddOnKind::Storage, &holding, sellable, t, cx);
-        let hours_add_ons = self.add_ons(&add_ons, AddOnKind::Hours, &holding, sellable, t, cx);
+        // An error of a change shows where that change is confirmed.
+        let loose_error = controller
+            .error
+            .filter(|_| !matches!(controller.target, Some(Target::Plan(_))));
         v_flex()
-            .gap(px(16.))
-            .child(current_plan)
-            .children(quote)
-            .children(controller.error.map(|e| error_note(tr(e), t)))
+            .child(summary_card)
+            .children(loose_error.map(|e| error_note(tr(e), t).mt(px(12.))))
             .when(snapshot.error, |d| {
                 d.child(
                     h_flex()
-                        .flex_wrap()
+                        .mt(px(12.))
                         .justify_between()
                         .gap(px(16.))
-                        .px(px(10.))
-                        .child(note(tr("cloud.billing.loadFailed"), t).px(px(0.)))
+                        .child(note(tr("cloud.billing.loadFailed"), t))
                         .child(
                             Button::new("plan-retry")
                                 .label(tr("common.action.retry"))
@@ -551,24 +486,21 @@ impl SettingsWorkspaceSurface {
                         ),
                 )
             })
-            .when(snapshot.can_manage_billing == Some(false), |d| {
-                d.child(note(tr("settings.plan.space.managedByOwner"), t))
-            })
-            .child(self.plan_comparison(
-                &view.plans,
+            .children(self.add_ons(&add_ons, &holding, sellable, t, cx))
+            .child(self.plan_rows(
+                &view,
                 &holding,
-                true,
-                Some((snapshot.usage.clone(), storage_add_ons)),
+                if owner { Reader::Owner } else { Reader::Member },
+                sellable,
                 t,
                 cx,
-                render_action,
             ))
-            .children(hours_add_ons)
+            .child(note(tr("settings.plan.finePrint"), t).mt(px(24.)))
             .into_any_element()
     }
 
-    /// `CurrentPlan`: the plan held and its one primary usage indicator,
-    /// cloud agent hours; storage speaks only when it needs attention.
+    /// The plan held, what it costs and when it renews, and this period's
+    /// agent hours and storage as cell meters.
     #[allow(clippy::too_many_arguments)]
     fn current_plan(
         &self,
@@ -576,44 +508,26 @@ impl SettingsWorkspaceSurface {
         holding: &PlanHolding,
         show_price: bool,
         add_ons: &[AddOnOffer],
-        action: Option<AnyElement>,
-        scheduled_action: Option<AnyElement>,
+        actions: Vec<AnyElement>,
+        notices: Vec<AnyElement>,
+        storage_hint: &'static str,
         t: Theme,
     ) -> AnyElement {
         let usage = self.plan_page.snapshot.usage.as_ref();
         let reading = pricing::resolve_allowance(usage, offer, holding, add_ons);
         let hours = pricing::resolve_agent_hours(usage);
-        let value = hours.used.map_or_else(|| "—".to_owned(), f::hours);
-        let used = tf(
-            "settings.plan.hoursUsed",
-            &[(
-                "hours",
-                match hours.total.filter(|h| *h > 0.) {
-                    Some(total) => format!("{value} / {}", f::hours(total)),
-                    None => value,
-                }
-                .into(),
-            )],
-        );
-        let remaining = tf(
-            "settings.plan.hoursRemaining",
-            &[(
-                "hours",
-                hours
-                    .remaining
-                    .map_or_else(|| "—".to_owned(), f::hours)
-                    .into(),
-            )],
-        );
-        let reserved = hours.reserved.filter(|h| *h > 0.).map(|h| {
-            tf(
-                "settings.plan.hoursReserved",
-                &[("hours", f::hours(h).into())],
-            )
-        });
         let status = f::status(holding);
         let mut facts = vec![];
+        if matches!(status, f::Status::Attention | f::Status::Updating) {
+            facts.push(tr(&format!("settings.plan.status.{}", status.key())).to_owned());
+        }
         if holding.subscribed {
+            if offer.per_person {
+                facts.push(tf(
+                    "settings.plan.peopleUnit",
+                    &[("count", Arg::Number(holding.seats as i64))],
+                ));
+            }
             // Until the catalog answers, the plan's own price stands in.
             let monthly = holding.monthly_cents.unwrap_or(
                 offer.price_cents
@@ -626,24 +540,55 @@ impl SettingsWorkspaceSurface {
             if show_price {
                 facts.push(tf(
                     "settings.plan.monthlyFor",
-                    &[("amount", f::money(Some(monthly), &holding.currency).into())],
+                    &[(
+                        "amount",
+                        f::currency_amount(monthly, &holding.currency).into(),
+                    )],
                 ));
             }
-            if offer.per_person {
+            if let Some(renews) = &holding.renews_at {
                 facts.push(tf(
-                    "settings.plan.peopleUnit",
-                    &[("count", Arg::Number(holding.seats as i64))],
+                    if holding.cancel_at_period_end {
+                        "settings.plan.endsOn"
+                    } else {
+                        "settings.plan.renewsOn"
+                    },
+                    &[("date", f::short_date(renews).into())],
                 ));
             }
-        }
-        if let Some(renews) = &holding.renews_at {
+        } else {
             facts.push(tf(
-                if holding.cancel_at_period_end {
-                    "settings.plan.endsOn"
-                } else {
-                    "settings.plan.renewsOn"
-                },
-                &[("date", f::short_date(renews).into())],
+                "settings.plan.monthlyFor",
+                &[("amount", f::currency_amount(0, &holding.currency).into())],
+            ));
+        }
+
+        // Agent hours: used of the month's grant; what running agents hold
+        // follows in half-lit cells.
+        let hours_percent = f::percent_of(hours.used, hours.total);
+        let running = f::percent_of(hours.reserved, hours.total);
+        let hours_reading = tf(
+            "native.plan.hoursOf",
+            &[
+                (
+                    "used",
+                    hours.used.map_or_else(|| "—".to_owned(), f::hours).into(),
+                ),
+                (
+                    "total",
+                    hours
+                        .total
+                        .filter(|h| *h > 0.)
+                        .map_or_else(|| "—".to_owned(), f::hours)
+                        .into(),
+                ),
+            ],
+        );
+        let mut hours_left = vec![hours_percent.map_or_else(|| "—".to_owned(), f::percent)];
+        if let Some(reserved) = hours.reserved.filter(|h| *h > 0.) {
+            hours_left.push(tf(
+                "settings.plan.hoursReserved",
+                &[("hours", f::hours(reserved).into())],
             ));
         }
         let resets = reading.resets_at.as_deref().map(|at| {
@@ -652,462 +597,540 @@ impl SettingsWorkspaceSurface {
                 &[("date", f::short_date(at).into())],
             )
         });
-        let storage = f::percent_of(
+        let hours_meter = meter(
+            "settings.plan.hoursLabel",
+            hours_reading,
+            cells(
+                "plan-hours-meter",
+                "settings.plan.hoursLabel",
+                hours_percent,
+                running,
+                t,
+            ),
+            mono(hours_left.join(" · "))
+                .id("plan-hours-left")
+                .debug_selector(|| "plan-hours-left".into())
+                .into_any_element(),
+            resets,
+            t,
+        );
+
+        // Storage: what the space keeps of what its plan and packs include.
+        let storage_percent = f::percent_of(
             reading.used_bytes.map(|b| b as f64),
             reading.included_bytes.map(|b| b as f64),
         );
-        let ui = theme::ty().ui;
-        v_flex()
-            .gap(px(12.))
+        let storage_reading = match (reading.used_bytes, reading.included_bytes) {
+            (Some(used), Some(limit)) => format!("{}/{}", f::storage(used), f::storage(limit)),
+            (Some(used), None) => f::storage(used),
+            _ => "—".to_owned(),
+        };
+        let fill = f::fill(storage_percent);
+        let storage_left = {
+            let percent = storage_percent.map_or_else(|| "—".to_owned(), f::percent);
+            let (text, ink) = match fill {
+                Fill::Calm => (percent, t.subtle),
+                Fill::Near => (
+                    format!("{percent} · {}", tr("native.plan.almostFull")),
+                    t.warning,
+                ),
+                Fill::Full => (format!("{percent} · {}", tr("native.plan.full")), t.danger),
+            };
+            mono(text).text_color(ink).into_any_element()
+        };
+        let storage_meter = meter(
+            "settings.plan.storageLabel",
+            storage_reading,
+            cells(
+                "plan-storage-meter",
+                "settings.plan.storageLabel",
+                storage_percent,
+                None,
+                t,
+            ),
+            storage_left,
+            (fill != Fill::Calm).then(|| tr(storage_hint).to_owned()),
+            t,
+        );
+
+        card(t)
+            .p(px(20.))
             .child(
-                SettingsSubsection::new()
+                h_flex()
+                    .items_start()
+                    .gap(px(16.))
                     .child(
-                        h_flex()
-                            .flex_wrap()
-                            .min_h(px(44.))
-                            .px(px(10.))
-                            .gap(px(16.))
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
                             .child(
                                 div()
-                                    .flex_none()
-                                    .text_color(t.muted)
-                                    .child(tr("settings.plan.currentLabel")),
+                                    .text_color(t.text)
+                                    .text_size(px(theme::ty().ui.page_title))
+                                    .line_height(px(theme::ty().ui.page_title * 1.4))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(plan_name(offer.id)),
                             )
-                            .child(
-                                v_flex()
-                                    .min_w_0()
-                                    .gap(px(5.))
-                                    .child(
-                                        h_flex()
-                                            .flex_wrap()
-                                            .gap(px(10.))
-                                            .child(div().text_color(t.text).child(tr(&format!(
-                                                "settings.plan.name.{}",
-                                                offer.id.key()
-                                            ))))
-                                            .when(status != f::Status::Free, |d| {
-                                                d.child(tr(&format!(
-                                                    "settings.plan.status.{}",
-                                                    status.key()
-                                                )))
-                                            }),
-                                    )
-                                    .when(!facts.is_empty(), |d| {
-                                        d.child(div().text_color(t.muted).child(facts.join(" · ")))
-                                    }),
-                            )
-                            .child(
-                                h_flex()
-                                    .ml_auto()
-                                    .flex_wrap()
-                                    .justify_end()
-                                    .gap(px(12.))
-                                    .text_color(t.muted)
-                                    .children(resets)
-                                    .children(action),
-                            ),
+                            .child(div().text_color(t.muted).child(facts.join(" · "))),
                     )
-                    .when(holding.scheduled.is_some(), |d| {
-                        let row = ValueRow::new(
-                            tr("settings.plan.scheduledLabel"),
-                            f::scheduled_change(holding),
-                        );
-                        d.child(match scheduled_action {
-                            Some(action) => row.action(action),
-                            None => row,
-                        })
+                    .when(!actions.is_empty(), |d| {
+                        d.child(h_flex().flex_none().gap(px(8.)).children(actions))
                     }),
             )
             .child(
-                v_flex()
-                    .px(px(10.))
-                    .pb(px(24.))
-                    .gap(px(8.))
-                    .border_b_1()
+                h_flex()
+                    .items_start()
+                    .mt(px(22.))
+                    .gap(px(32.))
+                    .child(hours_meter)
+                    .child(storage_meter),
+            )
+            .children(notices.into_iter().map(|notice| {
+                div()
+                    .mt(px(18.))
+                    .pt(px(16.))
+                    .border_t_1()
                     .border_color(t.divider)
+                    .child(notice)
+            }))
+            .into_any_element()
+    }
+
+    /// The change scheduled for renewal, beside what keeps the plan held,
+    /// and that keeping's confirmation once it is asked for.
+    fn scheduled_notice(
+        &self,
+        holding: &PlanHolding,
+        current: PlanId,
+        keep: Option<AnyElement>,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        v_flex()
+            .child(
+                h_flex()
+                    .gap(px(12.))
+                    .child(
+                        div()
+                            .flex_none()
+                            .text_color(t.muted)
+                            .child(tr("settings.plan.scheduledLabel")),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_color(t.text)
+                            .child(f::scheduled_change(holding)),
+                    )
+                    .children(keep),
+            )
+            .when(
+                self.plan_page.controller.target == Some(Target::Keep),
+                |d| {
+                    d.child(
+                        div()
+                            .mt(px(14.))
+                            .child(self.confirmation(None, holding, current, t, cx)),
+                    )
+                },
+            )
+            .into_any_element()
+    }
+
+    /// The quote for the change under way, said once, and the two choices:
+    /// confirm it as the server priced it, or leave everything as it is.
+    /// While a confirmed change is paid or settled, it waits instead.
+    fn confirmation(
+        &self,
+        stepper: Option<AnyElement>,
+        holding: &PlanHolding,
+        plan: PlanId,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let controller = &self.plan_page.controller;
+        if controller.polling.is_some() {
+            let paying = controller.checkout_url.is_some();
+            return v_flex()
+                .id("plan-waiting")
+                .debug_selector(|| "plan-waiting".into())
+                .role(Role::Status)
+                .child(
+                    h_flex()
+                        .gap(px(10.))
+                        .child(Spinner::new("plan-waiting-spinner", t.divider, t.text))
+                        .child(
+                            div()
+                                .text_color(t.text)
+                                .font_weight(FontWeight::MEDIUM)
+                                .child(tr(if paying {
+                                    "native.plan.waitingPayment"
+                                } else {
+                                    "native.plan.confirming"
+                                })),
+                        ),
+                )
+                .when(paying, |d| {
+                    d.child(
+                        div()
+                            .mt(px(10.))
+                            .text_color(t.muted)
+                            .child(tr("native.plan.waitingNote")),
+                    )
+                    .child(
+                        h_flex().mt(px(14.)).justify_end().child(
+                            Button::new("plan-reopen-checkout")
+                                .label(tr("native.plan.reopenPayment"))
+                                .trailing(Icon::new("external-link").small())
+                                .on_click(cx.listener(|s, _, _, cx| s.reopen_checkout(cx))),
+                        ),
+                    )
+                })
+                .test_support()
+                .into_any_element();
+        }
+        let seats = controller.seats;
+        let quote = controller
+            .quote
+            .as_ref()
+            .filter(|q| matches_target(q, plan, seats));
+        let timing = f::quote_timing(quote, holding);
+        let price = match quote {
+            Some(quote) => tf(
+                "settings.plan.monthlyFor",
+                &[(
+                    "amount",
+                    f::money(Some(quote.target_amount_cents), &quote.currency).into(),
+                )],
+            ),
+            None if controller.acting => tr("native.plan.quoting").to_owned(),
+            None => "—".to_owned(),
+        };
+        v_flex()
+            .id("plan-confirmation")
+            .debug_selector(|| "plan-confirmation".into())
+            .gap(px(12.))
+            .children(stepper.map(|stepper| {
+                h_flex()
+                    .justify_between()
+                    .gap(px(12.))
                     .child(
                         div()
                             .text_color(t.muted)
-                            .child(tr("settings.plan.hoursLabel")),
+                            .child(tr("settings.plan.peopleLabel")),
                     )
+                    .child(stepper)
+            }))
+            .child(
+                h_flex()
+                    .justify_between()
+                    .gap(px(12.))
+                    .child(div().text_color(t.muted).child(tf(
+                        "settings.plan.quotePlan",
+                        &[
+                            ("plan", plan_name(plan).into()),
+                            ("count", Arg::Number(seats as i64)),
+                        ],
+                    )))
                     .child(
-                        h_flex()
-                            .flex_wrap()
-                            .gap(px(16.))
-                            .child(div().text_color(t.text).child(used))
-                            .child(meter(f::percent_of(hours.used, hours.total), t))
-                            .child(
-                                div()
-                                    .id("plan-hours-left")
-                                    .debug_selector(|| "plan-hours-left".into())
-                                    .text_color(t.muted)
-                                    .child(remaining)
-                                    .when_some(reserved, |d, reserved| {
-                                        d.tooltip(crate::ui::components::tooltip(reserved))
-                                    }),
-                            ),
+                        mono(price)
+                            .id("plan-quote-price")
+                            .debug_selector(|| "plan-quote-price".into())
+                            .text_color(t.text),
                     ),
             )
-            .when_some(storage.filter(|p| *p >= 80.), |d, percent| {
-                let full = percent >= 100.;
-                d.child(
-                    h_flex()
-                        .flex_wrap()
-                        .justify_between()
-                        .gap(px(16.))
-                        .px(px(10.))
-                        .text_color(if full { t.danger } else { t.warning })
-                        .child(tr(if full {
-                            "settings.plan.storageFull"
-                        } else {
-                            "settings.plan.storageNearLimit"
-                        }))
-                        .child(format!(
-                            "{} / {}",
-                            f::storage(reading.used_bytes.unwrap_or(0)),
-                            f::storage(reading.included_bytes.unwrap_or(0))
-                        )),
-                )
+            .when(quote.is_some(), |d| {
+                d.child(div().text_color(t.muted).child(timing.note.clone()))
             })
-            .text_size(px(ui.label))
-            .line_height(px(ui.label * 1.5))
+            .children(
+                controller
+                    .error
+                    .map(|e| error_note(tr(e), t).into_any_element()),
+            )
+            .child(
+                h_flex()
+                    .mt(px(4.))
+                    .justify_end()
+                    .gap(px(8.))
+                    .child(
+                        Button::new("plan-cancel-change")
+                            .label(tr("settings.plan.cancel"))
+                            .disabled(controller.acting)
+                            .on_click(cx.listener(|s, _, _, cx| s.close_change(cx))),
+                    )
+                    .child(
+                        Button::new("plan-confirm-quote")
+                            .variant(ButtonVariant::Solid)
+                            .label(tr(timing.confirm))
+                            .when(timing.opens_browser, |b| {
+                                b.trailing(Icon::new("external-link").small())
+                            })
+                            .disabled(controller.acting || quote.is_none())
+                            .on_click(cx.listener(|s, _, _, cx| s.confirm_quote(cx))),
+                    ),
+            )
             .into_any_element()
     }
 
-    /// `PlanComparison`: comparable cards, then the fine print, then the
-    /// storage details with storage's add-ons.
-    #[allow(clippy::too_many_arguments)]
-    fn plan_comparison(
+    /// Every plan but the one held, each saying what it adds: upgrades
+    /// first, Free last. Without a holding (signed out, or unread) all
+    /// three are listed.
+    fn plan_rows(
         &self,
-        plans: &[PlanOffer],
+        view: &CatalogView,
         holding: &PlanHolding,
-        signed_in: bool,
-        storage: Option<(
-            Option<crate::workspace::cloud::billing::Usage>,
-            Option<AnyElement>,
-        )>,
+        reader: Reader,
+        sellable: bool,
         t: Theme,
         cx: &mut Context<Self>,
-        render_action: impl Fn(&PlanOffer, &Self, &mut Context<Self>) -> Option<AnyElement>,
     ) -> AnyElement {
-        let ui = theme::ty().ui;
-        let cards = plans
-            .iter()
-            .map(|plan| {
-                let current = signed_in && plan.id.key() == holding.plan_id;
-                let per_person = |value: String| {
-                    if plan.per_person {
-                        tf("settings.plan.spec.perPerson", &[("value", value.into())])
-                    } else {
-                        value
-                    }
-                };
-                let history = match plan.history_days {
-                    None => tr("settings.plan.spec.unlimited").to_owned(),
-                    Some(days) if days >= 365 && days % 365 == 0 => tf(
-                        "settings.plan.spec.years",
-                        &[("count", Arg::Number((days / 365) as i64))],
-                    ),
-                    Some(days) => tf(
-                        "settings.plan.spec.days",
-                        &[("count", Arg::Number(days as i64))],
-                    ),
-                };
-                let specs = [
-                    (
-                        tr("settings.plan.hoursLabel").to_owned(),
-                        tf(
-                            if plan.per_person {
-                                "settings.plan.spec.hoursPerPerson"
+        let connected = matches!(reader, Reader::Owner | Reader::Member);
+        let current = holding.plan().filter(|_| connected);
+        let plans = listed(view, current);
+        let title = match (connected, holding.subscribed) {
+            (false, _) => "settings.plan.chooseTitle",
+            (true, false) => "settings.plan.upgrade",
+            (true, true) => "native.plan.otherPlans",
+        };
+        let controller = &self.plan_page.controller;
+        let portal = self
+            .plan_page
+            .snapshot
+            .summary
+            .as_ref()
+            .is_some_and(|s| s.portal_available);
+        // While a change is paid or settled nothing else is offered.
+        let paying = controller.polling.is_some();
+        let busy = controller.acting || self.plan_page.snapshot.loading;
+        let mut list = card(t);
+        for (index, plan) in plans.into_iter().enumerate() {
+            let open = controller.target == Some(Target::Plan(plan.id));
+            let price = if plan.per_person {
+                tf(
+                    "native.plan.perPersonMonthly",
+                    &[(
+                        "amount",
+                        f::currency_amount(plan.price_cents, &plan.currency).into(),
+                    )],
+                )
+            } else {
+                f::currency_amount(plan.price_cents, &plan.currency)
+            };
+            let action: Option<AnyElement> = match reader {
+                Reader::SignedOut => Some(
+                    Button::new(SharedString::from(format!(
+                        "plan-sign-in-{}",
+                        plan.id.key()
+                    )))
+                    .label(tr("settings.plan.signInToChoose"))
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        // Buying needs an account; Account owns sign-in.
+                        s.select_page(crate::features::settings::Page::Account, cx)
+                    }))
+                    .into_any_element(),
+                ),
+                Reader::Unread | Reader::Member => None,
+                Reader::Owner if open || paying => None,
+                // Leaving a paid plan is a cancellation, which lives with
+                // invoices at the payment provider.
+                Reader::Owner if plan.id == PlanId::Free => Some(
+                    Button::new("plan-move-to-free")
+                        .variant(ButtonVariant::Ghost)
+                        .label(tr("settings.plan.moveToFree"))
+                        .trailing(Icon::new("external-link").small())
+                        .disabled(busy || !portal)
+                        .on_click(cx.listener(|s, _, _, cx| s.open_portal(cx)))
+                        .into_any_element(),
+                ),
+                Reader::Owner if !(sellable && plan.purchasable && plan.catalog_plan.is_some()) => {
+                    Some(
+                        div()
+                            .text_color(t.subtle)
+                            .child(tr("settings.plan.comingSoon"))
+                            .into_any_element(),
+                    )
+                }
+                Reader::Owner => {
+                    let id = plan.id;
+                    let upgrade = current.is_none_or(|c| rank(id) > rank(c));
+                    Some(
+                        Button::new(SharedString::from(format!("plan-choose-{}", id.key())))
+                            .label(tr(if upgrade {
+                                "settings.plan.upgrade"
                             } else {
-                                "settings.plan.spec.hours"
-                            },
-                            &[("hours", f::hours(plan.agent_hours).into())],
-                        ),
-                    ),
-                    (
-                        tr("settings.plan.storageLabel").to_owned(),
-                        tr("settings.plan.storageIncluded").to_owned(),
-                    ),
-                    (
-                        tr("settings.plan.spec.projects").to_owned(),
-                        plan.projects.map_or_else(
-                            || tr("settings.plan.spec.unlimited").to_owned(),
-                            |n| per_person(format_number(n as i64)),
-                        ),
-                    ),
-                    (tr("settings.plan.spec.history").to_owned(), history),
-                ];
-                div()
-                    .id(SharedString::from(format!("plan-card-{}", plan.id.key())))
-                    .role(Role::Group)
-                    .aria_label(tr(&format!("settings.plan.name.{}", plan.id.key())))
-                    .flex()
-                    .flex_col()
-                    .h_full()
-                    .min_h(px(280.))
-                    .p(px(16.))
-                    .border_1()
-                    .border_color(t.divider)
-                    .rounded(px(8.))
-                    .when(current, |d| d.bg(theme::fade(t.text, 0.02)))
-                    .child(
-                        v_flex()
-                            .gap(px(12.))
-                            .child(
-                                h_flex()
-                                    .justify_between()
-                                    .gap(px(12.))
-                                    .min_h(px(21.))
-                                    .child(div().text_color(t.text).child(tr(&format!(
-                                        "settings.plan.name.{}",
-                                        plan.id.key()
-                                    ))))
-                                    .when(current, |d| {
-                                        d.child(Icon::new("check").small().color(t.muted))
-                                    }),
-                            )
-                            .child(
-                                h_flex()
-                                    .flex_wrap()
-                                    .items_baseline()
-                                    .gap(px(8.))
-                                    .child(
-                                        div()
-                                            .text_color(t.text)
-                                            .text_size(px(ui.display))
-                                            .line_height(px(ui.display * 1.25))
-                                            .font_weight(FontWeight::MEDIUM)
-                                            .child(accessible_text(
-                                                "amount",
-                                                f::currency_amount(
-                                                    plan.price_cents,
-                                                    &plan.currency,
-                                                ),
-                                            )),
-                                    )
-                                    .child(div().text_color(t.muted).child(accessible_text(
-                                        "period",
-                                        tr(if plan.per_person {
-                                            "settings.plan.spec.perPersonMonth"
-                                        } else {
-                                            "settings.plan.spec.perMonth"
-                                        }),
-                                    ))),
-                            ),
+                                "settings.plan.switch"
+                            }))
+                            .disabled(busy)
+                            .on_click(cx.listener(move |s, _, _, cx| s.choose_plan(id, cx)))
+                            .into_any_element(),
                     )
-                    .child(
-                        v_flex().gap(px(10.)).mt(px(18.)).mb(px(20.)).children(
-                            specs
-                                .into_iter()
-                                .enumerate()
-                                .map(|(index, (label, value))| {
-                                    h_flex()
-                                        .id(("plan-spec", index))
-                                        .role(Role::Group)
-                                        .justify_between()
-                                        .items_baseline()
-                                        .gap(px(12.))
-                                        .child(
-                                            div()
-                                                .min_w_0()
-                                                .text_color(t.muted)
-                                                .child(accessible_text("label", label)),
-                                        )
-                                        .child(
-                                            div()
-                                                .text_color(t.text)
-                                                .text_right()
-                                                .child(accessible_text("value", value)),
-                                        )
-                                }),
-                        ),
-                    )
-                    .child(
-                        div()
-                            .mt_auto()
-                            .flex()
-                            .min_h(px(theme::control_compact()))
-                            .items_center()
-                            .justify_center()
-                            .children(render_action(plan, self, cx).map(|action| {
-                                div().w_full().flex().justify_center().child(action)
-                            })),
-                    )
-                    .test_support()
-                    .into_any_element()
-            })
-            .collect();
-        let open = self.plan_page.storage_open;
-        let (usage, storage_actions) = storage.unwrap_or((None, None));
-        v_flex()
-            .mt(px(10.))
-            .child(
-                SettingsSubsection::new()
-                    .title(tr("settings.plan.chooseTitle"))
-                    .child(self.plan_grid(cards)),
-            )
-            .child(
-                note(tr("settings.plan.finePrint"), t)
-                    .mt(px(16.))
-                    .text_color(t.muted),
-            )
-            .child(
+                }
+            };
+            let row = h_flex()
+                .id(SharedString::from(format!("plan-row-{}", plan.id.key())))
+                .role(Role::Group)
+                .aria_label(plan_name(plan.id))
+                .gap(px(16.))
+                .px(px(20.))
+                .py(px(14.))
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .child(
+                            h_flex()
+                                .gap(px(6.))
+                                .child(div().text_color(t.text).child(plan_name(plan.id)))
+                                .child(div().text_color(t.subtle).child("·"))
+                                .child(div().text_color(t.subtle).child(price)),
+                        )
+                        .child(div().text_color(t.muted).child(gains(plan))),
+                )
+                .children(action.map(|action| {
+                    h_flex()
+                        .flex_none()
+                        .min_w(px(92.))
+                        .justify_end()
+                        .child(action)
+                }))
+                .test_support();
+            let stepper = plan.per_person.then(|| {
+                self.stepper(
+                    "plan-seats".into(),
+                    tr("settings.plan.peopleLabel").into(),
+                    controller.seats,
+                    plan.minimum_seats.max(1),
+                    500,
+                    controller.polling.is_some(),
+                    Some(tf(
+                        "settings.plan.peopleUnit",
+                        &[("count", Arg::Number(controller.seats as i64))],
+                    )),
+                    |s, value, cx| s.set_plan_seats(value, cx),
+                    t,
+                    cx,
+                )
+                .into_any_element()
+            });
+            list = list.child(
                 v_flex()
-                    .mt(px(12.))
-                    .mx(px(10.))
-                    .text_color(t.muted)
-                    .child(
-                        div()
-                            .id("plan-storage-details")
-                            .debug_selector(|| "plan-storage-details".into())
-                            .cursor(theme::clickable_cursor())
-                            .child(format!(
-                                "{}  {}",
-                                tr("settings.plan.storageDetails"),
-                                if open { "−" } else { "+" }
-                            ))
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                s.plan_page.storage_open = !s.plan_page.storage_open;
-                                cx.notify();
-                            })),
-                    )
+                    .when(index > 0, |d| d.border_t_1().border_color(t.divider))
+                    .when(open, |d| d.bg(theme::fade(t.text, 0.04)))
+                    .child(row)
                     .when(open, |d| {
                         d.child(
-                            v_flex()
-                                .gap(px(4.))
-                                .pt(px(12.))
-                                .children(usage.map(|usage| {
-                                    let mut value = f::storage(usage.storage.logical_bytes);
-                                    if let Some(limit) = usage.storage.limit_bytes {
-                                        value = format!("{value} / {}", f::storage(limit));
-                                    }
-                                    ValueRow::new(tr("settings.plan.storageUsed"), value).px(px(0.))
-                                }))
-                                .children(plans.iter().map(|plan| {
-                                    let mut capacity = plan.storage_bytes.map_or_else(
-                                        || tr("settings.plan.custom").to_owned(),
-                                        f::storage,
-                                    );
-                                    if plan.storage_bytes.is_some() && plan.per_person {
-                                        capacity = tf(
-                                            "settings.plan.spec.perPerson",
-                                            &[("value", capacity.into())],
-                                        );
-                                    }
-                                    ValueRow::new(
-                                        tr(&format!("settings.plan.name.{}", plan.id.key())),
-                                        capacity,
-                                    )
-                                    .px(px(0.))
-                                }))
-                                .child(note(tr("settings.plan.storagePolicy"), t).px(px(0.)))
-                                .children(storage_actions),
+                            div()
+                                .px(px(20.))
+                                .pb(px(18.))
+                                .child(self.confirmation(stepper, holding, plan.id, t, cx)),
                         )
                     }),
-            )
-            .text_size(px(ui.label))
-            .line_height(px(ui.label * 1.5))
+            );
+        }
+        v_flex()
+            .child(section_label(tr(title), t))
+            .child(list)
             .into_any_element()
     }
 
-    /// `AddOns`: extra hours or storage as monthly packs on a paid plan.
+    /// Extra hours and storage as monthly packs on a paid plan: one row
+    /// each, a change priced on the line under its row.
     fn add_ons(
         &self,
         offers: &[AddOnOffer],
-        kind: AddOnKind,
         holding: &PlanHolding,
         sellable: bool,
         t: Theme,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let offers: Vec<&AddOnOffer> = offers.iter().filter(|a| a.kind == kind).collect();
         if offers.is_empty() {
             return None;
         }
+        let mut offers: Vec<&AddOnOffer> = offers.iter().collect();
+        offers.sort_by_key(|o| o.kind == AddOnKind::Storage);
         let state = &self.plan_page.controller.add_on;
         let draft = state.draft.clone();
-        let kind_key = match kind {
-            AddOnKind::Hours => "hours",
-            AddOnKind::Storage => "storage",
-        };
-        let mut subsection = SettingsSubsection::new().title(tr("settings.plan.addOnsTitle"));
-        for offer in &offers {
+        let mut list = card(t);
+        for (index, offer) in offers.iter().enumerate() {
+            let kind = match offer.kind {
+                AddOnKind::Hours => "hours",
+                AddOnKind::Storage => "storage",
+            };
             let held = holding.add_ons.get(&offer.id).copied().unwrap_or(0);
             let shown = match &draft {
                 Some((id, quantity)) if id == &offer.id => *quantity,
                 _ => held,
             };
             let id = offer.id.clone();
-            subsection = subsection.child(
-                h_flex()
-                    .py(px(10.))
-                    .px(px(10.))
-                    .justify_between()
-                    .gap(px(18.))
-                    .child(
-                        v_flex()
-                            .min_w_0()
-                            .gap(px(5.))
-                            .child(tr(&format!("settings.plan.addOn.{kind_key}")))
-                            .child(div().text_color(t.muted).child(tf(
-                                &format!("settings.plan.addOn.{kind_key}Detail"),
+            let row = h_flex()
+                .gap(px(16.))
+                .px(px(20.))
+                .py(px(14.))
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .child(
+                            div()
+                                .text_color(t.text)
+                                .child(tr(&format!("settings.plan.addOn.{kind}"))),
+                        )
+                        .child(div().text_color(t.muted).child(tf(
+                            &format!("settings.plan.addOn.{kind}Detail"),
+                            &[
+                                ("hours", f::hours(offer.hours).into()),
+                                ("amount", f::storage(offer.storage_bytes).into()),
+                                (
+                                    "price",
+                                    f::money(Some(offer.price_cents), &offer.currency).into(),
+                                ),
+                            ],
+                        ))),
+                )
+                .child(self.stepper(
+                    SharedString::from(format!("plan-add-on-{}", offer.id)),
+                    tr(&format!("settings.plan.addOn.{kind}")).into(),
+                    shown,
+                    0,
+                    offer.max_quantity.max(0) as u64,
+                    state.pending
+                        || !sellable
+                        || draft.as_ref().is_some_and(|(d, _)| d != &offer.id),
+                    None,
+                    move |s, quantity, cx| s.draft_add_on(id.clone(), quantity, held, cx),
+                    t,
+                    cx,
+                ));
+            let change = draft
+                .as_ref()
+                .filter(|(id, _)| id == &offer.id)
+                .map(|(_, quantity)| {
+                    let difference = quantity.abs_diff(held) as i64 * offer.price_cents;
+                    h_flex()
+                        .gap(px(12.))
+                        .px(px(20.))
+                        .pb(px(16.))
+                        .child(
+                            div().flex_1().min_w_0().text_color(t.muted).child(tf(
+                                if *quantity > held {
+                                    "settings.plan.addOnMoreNow"
+                                } else {
+                                    "settings.plan.addOnFewerNext"
+                                },
                                 &[
-                                    ("hours", f::hours(offer.hours).into()),
-                                    ("amount", f::storage(offer.storage_bytes).into()),
+                                    ("amount", f::money(Some(difference), &offer.currency).into()),
                                     (
-                                        "price",
-                                        f::money(Some(offer.price_cents), &offer.currency).into(),
+                                        "total",
+                                        f::money(
+                                            Some(*quantity as i64 * offer.price_cents),
+                                            &offer.currency,
+                                        )
+                                        .into(),
                                     ),
                                 ],
-                            ))),
-                    )
-                    .child(self.stepper(
-                        SharedString::from(format!("plan-add-on-{}", offer.id)),
-                        tr(&format!("settings.plan.addOn.{kind_key}")).into(),
-                        shown,
-                        0,
-                        offer.max_quantity.max(0) as u64,
-                        state.pending
-                            || !sellable
-                            || draft.as_ref().is_some_and(|(d, _)| d != &offer.id),
-                        None,
-                        move |s, quantity, cx| s.draft_add_on(id.clone(), quantity, held, cx),
-                        t,
-                        cx,
-                    )),
-            );
-        }
-        if let Some((id, quantity)) = &draft
-            && let Some(offer) = offers.iter().find(|o| &o.id == id)
-        {
-            let held = holding.add_ons.get(id).copied().unwrap_or(0);
-            let difference = quantity.abs_diff(held) as i64 * offer.price_cents;
-            subsection = subsection.child(
-                ValueRow::new(
-                    tr("settings.plan.addOnChangeLabel"),
-                    tf(
-                        if *quantity > held {
-                            "settings.plan.addOnMoreNow"
-                        } else {
-                            "settings.plan.addOnFewerNext"
-                        },
-                        &[
-                            ("amount", f::money(Some(difference), &offer.currency).into()),
-                            (
-                                "total",
-                                f::money(
-                                    Some(*quantity as i64 * offer.price_cents),
-                                    &offer.currency,
-                                )
-                                .into(),
-                            ),
-                        ],
-                    ),
-                )
-                .action(
-                    h_flex()
-                        .gap(px(8.))
+                            )),
+                        )
                         .child(
                             Button::new("plan-add-on-cancel")
                                 .label(tr("settings.plan.cancel"))
@@ -1119,7 +1142,7 @@ impl SettingsWorkspaceSurface {
                         )
                         .child(
                             Button::new("plan-add-on-confirm")
-                                .variant(ButtonVariant::OutlinePrimary)
+                                .variant(ButtonVariant::Solid)
                                 .label(tr(if held == 0 {
                                     "settings.plan.confirmAndPay"
                                 } else {
@@ -1130,18 +1153,28 @@ impl SettingsWorkspaceSurface {
                                 })
                                 .disabled(state.pending)
                                 .on_click(cx.listener(|s, _, _, cx| s.confirm_add_on(cx))),
-                        ),
-                ),
+                        )
+                });
+            list = list.child(
+                v_flex()
+                    .when(index > 0, |d| d.border_t_1().border_color(t.divider))
+                    .child(row)
+                    .children(change),
             );
         }
-        if let Some((message, error)) = state.message {
-            subsection = subsection.child(if error {
-                error_note(tr(message), t)
-            } else {
-                note(tr(message), t)
-            });
-        }
-        Some(subsection.into_any_element())
+        Some(
+            v_flex()
+                .child(section_label(tr("settings.plan.addOnsTitle"), t))
+                .child(list)
+                .children(state.message.map(|(message, error)| {
+                    if error {
+                        error_note(tr(message), t).mt(px(10.))
+                    } else {
+                        note(tr(message), t).mt(px(10.))
+                    }
+                }))
+                .into_any_element(),
+        )
     }
 
     /// `QuantityStepper`: fewer, the value (or its unit), more.
@@ -1167,7 +1200,8 @@ impl SettingsWorkspaceSurface {
             .min_h(px(theme::control_compact() + 6.))
             .border_1()
             .border_color(t.divider)
-            .rounded(px(5.))
+            .rounded(px(6.))
+            .bg(t.control)
             .child(
                 IconButton::new(
                     SharedString::from(format!("{id}-less")),
@@ -1187,7 +1221,7 @@ impl SettingsWorkspaceSurface {
             )
             .child(
                 div()
-                    .min_w(px(28.))
+                    .min_w(px(64.))
                     .text_center()
                     .whitespace_nowrap()
                     .child(unit.unwrap_or_else(|| format_number(value as i64))),
@@ -1210,18 +1244,97 @@ impl SettingsWorkspaceSurface {
     }
 }
 
+fn rank(id: PlanId) -> usize {
+    PLAN_ORDER.iter().position(|p| *p == id).unwrap_or(0)
+}
+/// The plans offered besides the one held: upgrades first, Free last.
+/// Without a holding all of them, in the catalog's order.
+fn listed(view: &CatalogView, current: Option<PlanId>) -> Vec<&PlanOffer> {
+    let mut plans: Vec<&PlanOffer> = view
+        .plans
+        .iter()
+        .filter(|p| Some(p.id) != current)
+        .collect();
+    if current.is_some() {
+        plans.sort_by_key(|p| (p.id == PlanId::Free, rank(p.id)));
+    }
+    plans
+}
+
+/// Whether a quote prices this plan for these people.
+fn matches_target(quote: &Quote, plan: PlanId, seats: u64) -> bool {
+    f::plan_key(&quote.target_plan_id) == plan.key() && quote.target_seats == seats
+}
+
+/// What a plan adds, in one line: Free and Team by their allowance,
+/// Enterprise as Team plus what differs from it.
+fn gains(plan: &PlanOffer) -> String {
+    let storage = plan
+        .storage_bytes
+        .map_or_else(|| tr("settings.plan.spec.unlimited").to_owned(), f::storage);
+    let projects = plan.projects.map_or(0, |n| n as i64);
+    match plan.id {
+        PlanId::Free => tf(
+            "native.plan.gains.free",
+            &[
+                ("hours", f::hours(plan.agent_hours).into()),
+                ("storage", storage.into()),
+                ("projects", Arg::Number(projects)),
+            ],
+        ),
+        PlanId::Team => tf(
+            "native.plan.gains.team",
+            &[
+                ("hours", f::hours(plan.agent_hours).into()),
+                ("storage", storage.into()),
+                ("projects", Arg::Number(projects)),
+            ],
+        ),
+        PlanId::Enterprise => tf(
+            "native.plan.gains.enterprise",
+            &[
+                ("storage", storage.into()),
+                ("history", f::history(plan.history_days).into()),
+            ],
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use core::prelude::v1::test;
 
     #[test]
-    fn plan_cards_share_a_row_above_600px() {
-        assert_eq!(columns(960., 3), 3);
-        assert_eq!(columns(900., 3), 2);
-        assert_eq!(columns(724., 3), 2);
-        assert_eq!(columns(601., 3), 2);
-        assert_eq!(columns(600., 3), 1);
+    fn other_plans_list_upgrades_first_and_free_last() {
+        let view = pricing::resolve_catalog(None);
+        let ids = |current| {
+            listed(&view, current)
+                .iter()
+                .map(|p| p.id)
+                .collect::<Vec<_>>()
+        };
+        use PlanId::{Enterprise, Free, Team};
+        assert_eq!(ids(None), [Free, Team, Enterprise]);
+        assert_eq!(ids(Some(Free)), [Team, Enterprise]);
+        assert_eq!(ids(Some(Team)), [Enterprise, Free]);
+        assert_eq!(ids(Some(Enterprise)), [Team, Free]);
+    }
+
+    #[test]
+    fn each_plan_says_what_it_adds_and_enterprise_only_its_difference() {
+        crate::localization::set_current("en");
+        let view = pricing::resolve_catalog(None);
+        let said = |id| gains(view.plan(id).unwrap());
+        assert_eq!(said(PlanId::Free), "5 h a month, 1 GB, 1 project online");
+        assert_eq!(
+            said(PlanId::Team),
+            "40 h and 10 GB per person, 20 projects each, members and roles"
+        );
+        assert_eq!(
+            said(PlanId::Enterprise),
+            "Everything in Team, plus 20 GB per person, 1 year of history and an activity log"
+        );
     }
 }
 

@@ -9206,7 +9206,7 @@
     },
     {
       "id": "settings-plan-subscription-acceptance",
-      "acceptance": "All 28 frozen TS planSubscription cases: project-independent Cloud-gated navigation; authoritative and indicative three-tier pricing, add-ons, legacy identities, holding and scheduled changes; actual rendered per-card prices/periods/specs, storage disclosure, separate model costs and all sign-in actions; restoring/loading/retry states without invented holdings; one known-only native progress indicator, all 24 measured ticks, reserved and legacy spendable hours, missing usage, storage warnings and keep-current action; quote timing/confirmation. Rust PlanOffer excludes machine-spec fields structurally. Native Status with a localized loading label represents the web busy state. GPUI tests observe actual element accessibility properties through Kit, text layout and pointer dispatch; they do not claim an OS screen-reader or live-payment run.",
+      "acceptance": "All 28 frozen TS planSubscription cases: project-independent Cloud-gated navigation; authoritative and indicative three-tier pricing, add-ons, legacy identities, holding and scheduled changes; actual rendered prices and what each plan adds, separate model costs and all sign-in actions; restoring/loading/retry states without invented holdings; known-only native progress indicators, all 40 measured cells of the hours and storage meters (2026-11-19 redesign: storage is metered beside hours instead of a disclosure, plan cards became one list of the other plans), reserved and legacy spendable hours, missing usage, storage warnings and keep-current action; quote timing/confirmation. Rust PlanOffer excludes machine-spec fields structurally. Native Status with a localized loading label represents the web busy state. GPUI tests observe actual element accessibility properties through Kit, text layout and pointer dispatch; they do not claim an OS screen-reader or live-payment run.",
       "typescript": [
         {
           "path": "tests/component/settings/feature-flags/planSubscription.test.tsx",
@@ -9387,7 +9387,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::settings::main::plan::view::acceptance_tests::actual_current_plan_keeps_one_meter_and_shows_only_relevant_storage_warnings"
+          "test": "features::settings::main::plan::view::acceptance_tests::actual_current_plan_meters_hours_and_storage_and_warns_only_when_storage_needs_it"
         },
         {
           "package": "po-app",

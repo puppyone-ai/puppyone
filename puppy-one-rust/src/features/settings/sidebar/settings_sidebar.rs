@@ -39,7 +39,7 @@ impl SettingsWorkspaceSurface {
                 .map(|(index, group)| {
                     let mut heading = SidebarGroup::new(Some(tr(group.key).into()));
                     // The Space group is headed by the space Settings manages:
-                    // its mark, its name and its plan (`SettingsSidebar`).
+                    // its mark and its name; its plan is Plan's to say.
                     if group.key == "settings.space.group"
                         && let Some(space) = &space
                     {
@@ -55,8 +55,7 @@ impl SettingsWorkspaceSurface {
                                         .min_w_0()
                                         .truncate()
                                         .child(crate::features::cloud::space_name(space)),
-                                )
-                                .children(crate::features::cloud::space_plan_badge(space)),
+                                ),
                         );
                     }
                     heading

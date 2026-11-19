@@ -35,7 +35,7 @@ pub use repository::RepositoryCloud;
 pub use screen::{CloudScreen, CloudScreenEvent, ScreenLayout};
 pub use spaces::{
     CloudSpaces, Status as SpacesStatus, global as global_spaces, mark as space_mark,
-    name as space_name, plan_badge as space_plan_badge, read as global_spaces_read,
+    name as space_name, read as global_spaces_read,
 };
 #[cfg(test)]
 pub use workspace_agents::Invite;
