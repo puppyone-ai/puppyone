@@ -34293,6 +34293,370 @@
           "test": "render_service::tests::unavailable_is_never_permanently_cached_and_superseded_jobs_skip"
         }
       ]
+    },
+    {
+      "id": "agent-tool-step-lines",
+      "acceptance": "A tool call is one step line in user terms: a command reads Ran with its command (a read-only shell command as the step it performs, without its login-shell wrapper), no exit code or duration on the line, and opens to the command and its output; a search names its pattern, place and result count and opens to its results (at most eighty shown, each line naming the file it opens); a read opens to its output; a large output keeps a 64 KiB source and shows a bounded head-and-tail preview.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/activity/tool-rendering.test.ts",
+          "sha256": "3d58b738e1b27124fc3577b608802620ec5c50d5b18118b980f3a7c105d4a5ec",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > renders Bash activity as one step line with a bounded expandable transcript"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent renderer surfaces > presents conservative read-only shell commands as the step they perform"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent renderer surfaces > renders native Grep as a dedicated bounded result disclosure"
+            },
+            {
+              "index": 18,
+              "name": "Desktop Agent renderer surfaces > keeps Read activity compact and reveals output without a redundant row action"
+            },
+            {
+              "index": 19,
+              "name": "Desktop Agent renderer surfaces > mounts a bounded tool preview instead of the complete provider output"
+            },
+            {
+              "index": 20,
+              "name": "Desktop Agent renderer surfaces > mounts at most eighty searchable result elements"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::a_command_is_one_step_line_with_its_command_and_output"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::a_search_names_its_pattern_place_and_results"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::a_read_reveals_its_output_and_large_output_is_a_bounded_preview"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::tests::tool_presentation::bounds_adversarial_many_line_output_while_retaining_head_and_tail"
+        }
+      ]
+    },
+    {
+      "id": "agent-edit-evidence",
+      "acceptance": "Every runtime's edit reaches the transcript as the same file change (path, +2/−1 counts, removed and added blocks) and reads Edited with its file and counts, opening to its path and only the sides it has (a blank added or removed line, separate replacements in order), never a raw hunk header; a failed edit keeps its output and invents no counts; a change list without a real change shows nothing.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/activity/tool-rendering.test.ts",
+          "sha256": "3d58b738e1b27124fc3577b608802620ec5c50d5b18118b980f3a7c105d4a5ec",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for codex edits"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for claude edits"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for pi edits"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for cursor edits"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for opencode-native edits"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for workbuddy-china edits"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for workbuddy-international edits"
+            },
+            {
+              "index": 10,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for hermes edits"
+            },
+            {
+              "index": 11,
+              "name": "Desktop Agent renderer surfaces > uses the same tool detail for puppyone-agent edits"
+            },
+            {
+              "index": 12,
+              "name": "Desktop Agent renderer surfaces > renders Write/Edit activity through shared evidence without row action clutter"
+            },
+            {
+              "index": 13,
+              "name": "Desktop Agent renderer surfaces > preserves 'added blank line' without inventing an absent side"
+            },
+            {
+              "index": 14,
+              "name": "Desktop Agent renderer surfaces > preserves 'removed blank line' without inventing an absent side"
+            },
+            {
+              "index": 15,
+              "name": "Desktop Agent renderer surfaces > preserves 'separate replacements' without inventing an absent side"
+            },
+            {
+              "index": 16,
+              "name": "Desktop Agent renderer surfaces > keeps a failed edit's output visible without inventing zero line counts"
+            },
+            {
+              "index": 17,
+              "name": "Desktop Agent renderer surfaces > does not render a generic File Change row or Review action without a real change"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::an_edit_shows_its_file_its_line_counts_and_only_the_sides_it_has"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::codex_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::claude_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::pi_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::cursor_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::opencode_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::workbuddy_china_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::workbuddy_international_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::hermes_edits_survive_main_and_replay"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::file_change_tests::builtin_acp_fixture_edits_survive_main_and_replay"
+        }
+      ]
+    },
+    {
+      "id": "agent-tool-groups",
+      "acceptance": "Tools get provider-neutral glyphs and only running work moves; adjacent tools of one turn group in order, each step one row high and at most 64 to a group; interactions leave no rows and the tools around a resolved one rejoin; only runs of four or more settled, successful exploration steps fold into one Explored line (never running or failed work), which opens into its steps; one step's detail is open at a time.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/activity/desktop-agent.tool-group.test.tsx",
+          "sha256": "5de3b0c6b43be72a6691dacb61235e36ed1b90ca940bc087347fcee801903f88",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent tool step lists > uses distinct provider-neutral glyphs and animates only active work"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Agent tool step lists > groups only adjacent tools from the same turn without changing their order"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent tool step lists > estimates one application control row per visible step line"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent tool step lists > folds only long runs of settled, successful exploration"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Agent tool step lists > removes resolved approval rows and rejoins the surrounding tool flow"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent tool step lists > keeps permission state available without duplicate transcript rows"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent tool step lists > keeps question state available without duplicate transcript rows"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Agent tool step lists > bounds each visual group so a very long native tool run stays virtualizable"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent tool step lists > renders one line per step and opens one inline detail at a time"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Agent tool step lists > shows a long exploration run as one Explored line that opens into its steps"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::tools_get_neutral_glyphs_and_only_active_work_moves"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::adjacent_tools_of_a_turn_group_in_order_within_a_bound"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::only_long_settled_exploration_folds"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::interactions_leave_no_rows_and_tools_around_them_rejoin"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::a_tool_group_opens_one_step_at_a_time_and_unfolds_its_exploration"
+        }
+      ]
+    },
+    {
+      "id": "agent-provider-activity",
+      "acceptance": "A provider notification is a quiet notice outside the tool flow and the transcript's rows (text around it joins), warnings and errors are notices and never tools, a real unknown tool stays a generic expandable step, compaction is a divider and a finished sign-in shows nothing; reasoning is a folded branch, an empty reasoning boundary shows nothing; Pi tool results stay expandable after a model failure, live or from history, and private reasoning stays out.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/activity/provider-activity-routing.test.tsx",
+          "sha256": "faff42359c490530bb94ecc189f19f0cd03159d9c34e57d9af429e4f6238c519",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Provider activity presentation > renders a chat with a quiet notification without tools, text splits or transcript geometry"
+            },
+            {
+              "index": 1,
+              "name": "Provider activity presentation > shows warning notice text without misrepresenting it as a tool"
+            },
+            {
+              "index": 2,
+              "name": "Provider activity presentation > shows error notice text without misrepresenting it as a tool"
+            },
+            {
+              "index": 3,
+              "name": "Provider activity presentation > keeps a real unknown tool visible and expandable beside a notification"
+            },
+            {
+              "index": 4,
+              "name": "Provider activity presentation > rejects a non-tool passed directly to the tool renderer"
+            },
+            {
+              "index": 5,
+              "name": "Provider activity presentation > renders compaction as a system divider and completed authentication as no current status"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/transcript/reasoning.test.ts",
+          "sha256": "a825804176d01cb62e0c3ae6b58ecab276179bd1c7bff6966974a80675a3e5d0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent renderer surfaces > renders reasoning as a quiet disclosure branch instead of a message bubble"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent renderer surfaces > omits empty reasoning boundaries after the owning turn settles"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent renderer surfaces > renders context compaction as a divider instead of a generic Tool timeline row"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/activity/pi-tool-history.test.tsx",
+          "sha256": "1d57d594f6ee57c5c86dc8f53cc08e891e43c2e882535ca53667b90af41fd59d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Pi tools in the right-side transcript > keeps expandable tool results after a model failure (live)"
+            },
+            {
+              "index": 1,
+              "name": "Pi tools in the right-side transcript > keeps expandable tool results after a model failure (history)"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::provider_notices_stay_out_of_the_tool_flow_and_real_tools_stay_in_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::reasoning_is_a_folded_branch_and_empty_reasoning_and_compaction_are_not_steps"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::activity::tests::pi_tool_results_stay_expandable_after_a_model_failure"
+        }
+      ]
+    },
+    {
+      "id": "agent-file-presence",
+      "acceptance": "A file shows which Agent is reading it (eye) or writing it (hand), by the Agent's name and initials; writing outranks reading, claims stay with their window and project, and a finished claim lingers briefly while a cancelled one goes at once.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/activity/agentFilePresence.test.tsx",
+          "sha256": "f8a34eb527c91ac5adec58a485c5a08edfe544a34ed33c900d3d4fed5d4907a2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent file presence > renders the Codex eye for reads and the Agent hand for writes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::agent_presence::tests::claims_project_onto_their_window_and_file"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::agent_presence::tests::initials_and_easing_follow_the_product"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -42710,6 +43074,16 @@
             {
               "index": 0,
               "name": "ApplicationRenderBoundary > keeps a recoverable shell visible when an uncaught feature render fails"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/agent/activity/tool-rendering.test.ts",
+          "sha256": "3d58b738e1b27124fc3577b608802620ec5c50d5b18118b980f3a7c105d4a5ec",
+          "cases": [
+            {
+              "index": 21,
+              "name": "Desktop Agent renderer surfaces > isolates one crashing tool renderer and preserves following transcript rows"
             }
           ]
         }

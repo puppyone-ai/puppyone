@@ -587,3 +587,112 @@ fn a_small_upward_scroll_releases_following_until_the_bottom_or_jump_to_latest(
         assert!(following(cx), "{up}: the bottom follows again");
     }
 }
+
+/// `desktop-agent.tool-group`: `renders one line per step and opens one
+/// inline detail at a time`; `shows a long exploration run as one Explored
+/// line that opens into its steps`.
+#[gpui::test]
+fn a_tool_group_opens_one_step_at_a_time_and_unfolds_its_exploration(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let (view, cx) = cx.add_window_view(|_, cx| TranscriptView::new(cx));
+    let actor = SessionActor::new(ActorOptions::default()).unwrap();
+    let event = |event: serde_json::Value| {
+        actor
+            .append_event(crate::agent::domain::agent_session_actor::EventInput {
+                session_id: "session".into(),
+                runtime_id: "agent".into(),
+                provider_session_id: None,
+                event,
+            })
+            .unwrap();
+    };
+    event(json!({"type": "turn.started", "turnId": "turn", "payload": {"prompt": "Look"}}));
+    let tool = |item: &str, tool: &str, path: &str, output: &str| {
+        event(
+            json!({"type": "tool.started", "turnId": "turn", "itemId": item,
+            "payload": {"kind": "tool", "tool": tool, "label": tool, "status": "running",
+                "input": {"path": path}}}),
+        );
+        event(
+            json!({"type": "command.output.delta", "turnId": "turn", "itemId": item,
+            "payload": {"delta": output}}),
+        );
+        event(
+            json!({"type": "tool.completed", "turnId": "turn", "itemId": item,
+            "payload": {"kind": "tool", "tool": tool, "label": tool, "status": "completed",
+                "input": {"path": path}}}),
+        );
+    };
+    tool("bash", "bash", "", "passed");
+    tool("read", "read", "package.json", "contents");
+    present(&view, &actor, cx);
+    let ids: Vec<String> = actor
+        .snapshot()
+        .display
+        .parts
+        .iter()
+        .filter(|p| p["kind"] != "user")
+        .map(|p| p["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(ids.len(), 2, "two steps");
+    let leak = |text: String| -> &'static str { Box::leak(text.into_boxed_str()) };
+    let open = |cx: &mut VisualTestContext, id: &str| {
+        let line = cx.debug_bounds(leak(format!("agent-step:{id}"))).unwrap();
+        cx.simulate_click(line.center(), Modifiers::none());
+        draw(cx);
+    };
+    let shown = |cx: &mut VisualTestContext, id: &str| {
+        cx.debug_bounds(leak(format!("agent-step-detail:{id}")))
+            .is_some()
+    };
+    open(cx, &ids[0]);
+    assert!(shown(cx, &ids[0]) && !shown(cx, &ids[1]));
+    open(cx, &ids[1]);
+    assert!(
+        !shown(cx, &ids[0]) && shown(cx, &ids[1]),
+        "one detail at a time"
+    );
+    open(cx, &ids[1]);
+    assert!(!shown(cx, &ids[1]));
+    // Four more settled reads: the run folds into one Explored line.
+    for index in 0..4 {
+        tool(
+            &format!("more-{index}"),
+            "read",
+            &format!("src/{index}.ts"),
+            "text",
+        );
+    }
+    present(&view, &actor, cx);
+    let projection = AgentProjection::project(&actor.snapshot().display, None).unwrap();
+    let tools: Vec<_> = projection
+        .parts
+        .iter()
+        .filter(|p| p.kind != "user")
+        .cloned()
+        .collect();
+    let segments = super::super::activity::agent_tool_steps::agent_tool_step_segments(&tools);
+    let super::super::activity::agent_tool_steps::AgentToolStepSegment::Explored {
+        id, parts, ..
+    } = &segments[segments.len() - 1]
+    else {
+        panic!("an Explored line: {segments:?}")
+    };
+    let fold = cx
+        .debug_bounds(leak(format!("agent-fold:{id}")))
+        .expect("one Explored line");
+    let folded: Vec<String> = parts.iter().map(|p| p.id.clone()).collect();
+    assert!(
+        cx.debug_bounds(leak(format!("agent-step:{}", folded[0])))
+            .is_none()
+    );
+    cx.simulate_click(fold.center(), Modifiers::none());
+    draw(cx);
+    for id in &folded {
+        assert!(
+            cx.debug_bounds(leak(format!("agent-step:{id}"))).is_some(),
+            "{id}"
+        );
+    }
+}
