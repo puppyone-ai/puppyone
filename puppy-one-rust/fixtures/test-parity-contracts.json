@@ -32398,6 +32398,586 @@
           "test": "app::tests::homepage::going_home_holds_only_the_list_until_its_dates_or_the_budget"
         }
       ]
+    },
+    {
+      "id": "editor-pane-layout-transitions",
+      "acceptance": "Splitting a pane puts a new pane on the requested side and focuses it, recursively; closing a pane folds its parent split and keeps the surviving focus; a pane dropped on a side of another lands there without its editor appearing twice; reordering siblings keeps their split's identity, and dropping a pane back into its own slot changes nothing.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/layout/editorPaneLayoutModel.test.ts",
+          "sha256": "e1f9df7778cb87fc35bcba09e0062e69e1a7b90f9c8d7c92a6721918e604c5bb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "EditorPaneLayoutModel > builds recursive right/down splits and focuses the new pane"
+            },
+            {
+              "index": 1,
+              "name": "EditorPaneLayoutModel > collapses the parent split when a pane closes and preserves surviving focus"
+            },
+            {
+              "index": 2,
+              "name": "EditorPaneLayoutModel > places a dragged editor on the requested side of the target pane"
+            },
+            {
+              "index": 3,
+              "name": "EditorPaneLayoutModel > moves an existing pane without duplicating its editor assignment"
+            },
+            {
+              "index": 4,
+              "name": "EditorPaneLayoutModel > reorders sibling panes without replacing their split identity"
+            },
+            {
+              "index": 5,
+              "name": "EditorPaneLayoutModel > returns the same layout when a sibling pane is dropped back into its current slot"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::panes_split_close_and_move_as_the_layout_model_says"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::actual_typescript_pane_transition_oracle"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::pane_move_preserves_leaf_ids_and_sibling_ratio_but_direction_change_resets_it"
+        }
+      ]
+    },
+    {
+      "id": "editor-layout-follows-resources",
+      "acceptance": "Moving a folder rebinds every open document under it, deleting one closes exactly its document subtree, and a restored layout keeps its ratios within 0.15..0.85 and restores a pane whose document is gone as an empty pane.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/layout/editorPaneLayoutModel.test.ts",
+          "sha256": "e1f9df7778cb87fc35bcba09e0062e69e1a7b90f9c8d7c92a6721918e604c5bb",
+          "cases": [
+            {
+              "index": 6,
+              "name": "EditorPaneLayoutModel > rebases resources, removes closed editors, and clamps persisted ratios"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/tabs/editorGroupModel.test.ts",
+          "sha256": "cd46209ab7d14388c7d28f2c0dce18b6aa0055f097489a23ea523307b329e256",
+          "cases": [
+            {
+              "index": 7,
+              "name": "EditorGroupModel > rebases and closes a folder's complete editor subtree"
+            },
+            {
+              "index": 9,
+              "name": "EditorGroupModel > sanitizes persisted state instead of trusting storage"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/layout/desktopEditorWorkbench.test.tsx",
+          "sha256": "e35325dbfb89756fe7a0e4c6f3f7e903552d528fc4d51e005c6a6e1759b6374a",
+          "cases": [
+            {
+              "index": 8,
+              "name": "useDesktopEditorWorkbench > normalizes a stale persisted pane reference into an explicit empty pane"
+            },
+            {
+              "index": 11,
+              "name": "useDesktopEditorWorkbench > validates restored inputs and removes directories before exposing the workbench"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::resource_operations::tests::directory_move_rebinds_all_descendants_and_keeps_editing_ids"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::resource_operations::tests::deleting_a_folder_removes_its_whole_document_subtree_only"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::untrusted_layout_rejects_duplicate_node_ids_and_collapses_duplicate_visible_documents"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::restored_folders_missing_paths_and_foreign_ids_never_become_editor_references"
+        }
+      ]
+    },
+    {
+      "id": "editor-identity-storage-and-path",
+      "acceptance": "An editor is its project's storage plus its path: the same relative path in two projects is two editors with their own writes and lifetimes, closing one project's documents leaves the other's, and a doubled separator names the same editor.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/tabs/editorGroupModel.test.ts",
+          "sha256": "cd46209ab7d14388c7d28f2c0dce18b6aa0055f097489a23ea523307b329e256",
+          "cases": [
+            {
+              "index": 0,
+              "name": "EditorGroupModel > closes a detached Project by its root URI without closing another Project"
+            },
+            {
+              "index": 1,
+              "name": "EditorGroupModel > keeps identical relative paths in different Workspace Folders distinct"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/layout/desktopEditorWorkbench.test.tsx",
+          "sha256": "e35325dbfb89756fe7a0e4c6f3f7e903552d528fc4d51e005c6a6e1759b6374a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "useDesktopEditorWorkbench > uses Root-aware Editor IDs while preserving the visible active path"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::editor_identity_is_storage_and_path_and_odd_addresses_never_alias"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::lifecycle::equal_paths_in_distinct_storages_keep_independent_writes_and_close_lifetimes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::focus_and_workspace_switch_do_not_read_drain_or_revoke_retained_documents"
+        }
+      ]
+    },
+    {
+      "id": "editor-catalog-order-and-mru",
+      "acceptance": "A document opens next to the active one, opening a known document again reuses it with its newer label, closing activates the most recently used remaining document, and moving one before another changes no focus history.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/tabs/editorGroupModel.test.ts",
+          "sha256": "cd46209ab7d14388c7d28f2c0dce18b6aa0055f097489a23ea523307b329e256",
+          "cases": [
+            {
+              "index": 3,
+              "name": "EditorGroupModel > opens next to the active editor and reuses matching resource identity"
+            },
+            {
+              "index": 5,
+              "name": "EditorGroupModel > activates the most recently used remaining editor on close"
+            },
+            {
+              "index": 6,
+              "name": "EditorGroupModel > moves an editor before a target without changing focus history"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::catalog_insertion_mru_reorder_and_close_are_independent_from_panes"
+        }
+      ]
+    },
+    {
+      "id": "editor-workbench-restore-and-reuse",
+      "acceptance": "A project's workbench restores its order, recent use, panes and ratio after its documents are admitted, without the restore overwriting what was stored; duplicate visible documents from an old layout collapse to one pane; opening a document that is already visible focuses its pane instead of splitting; a new split pane is empty; reordering panes keeps what each shows; and a folder never becomes an editor.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/desktopEditorWorkbench.test.tsx",
+          "sha256": "e35325dbfb89756fe7a0e4c6f3f7e903552d528fc4d51e005c6a6e1759b6374a",
+          "cases": [
+            {
+              "index": 2,
+              "name": "useDesktopEditorWorkbench > restores a workspace session without overwriting it during hydration"
+            },
+            {
+              "index": 3,
+              "name": "useDesktopEditorWorkbench > persists pane assignments with the v3 workbench record"
+            },
+            {
+              "index": 4,
+              "name": "useDesktopEditorWorkbench > collapses duplicate visible resources from the retired self-split layout"
+            },
+            {
+              "index": 5,
+              "name": "useDesktopEditorWorkbench > focuses an already visible file instead of splitting it into a duplicate pane"
+            },
+            {
+              "index": 6,
+              "name": "useDesktopEditorWorkbench > focuses an already visible pane when Explorer opens its file again"
+            },
+            {
+              "index": 7,
+              "name": "useDesktopEditorWorkbench > creates an empty pane on the requested side without duplicating the current file"
+            },
+            {
+              "index": 9,
+              "name": "useDesktopEditorWorkbench > reorders sibling panes without clearing their file assignments"
+            },
+            {
+              "index": 10,
+              "name": "useDesktopEditorWorkbench > rejects a folder descriptor at the public workbench boundary"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::native_metadata_roundtrip_restores_order_mru_panes_and_ratio_after_provider_admission"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::standalone_file_runtime_neither_restores_nor_overwrites_its_parent_project_layout"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::untrusted_layout_rejects_duplicate_node_ids_and_collapses_duplicate_visible_documents"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::splitting_is_empty_reopening_focuses_existing_resource_and_close_pane_keeps_reference"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::explorer_drop_reuses_visible_views_and_places_new_documents_at_the_requested_edge"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::panes_split_close_and_move_as_the_layout_model_says"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::failed_open_keeps_previous_visible_workspace_and_folder_never_enters_catalog"
+        }
+      ]
+    },
+    {
+      "id": "editor-workbench-metadata-writes",
+      "acceptance": "Layout and catalog changes in a burst are written once after a short delay, a lifecycle boundary writes at once, and switching to another project still writes the previous project's last change.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/layout/editorWorkbenchPersistence.test.ts",
+          "sha256": "7e1d41fd32e8a109febbcc0f35a5c9ffdc2be18c106f7545ba56390b523d575a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "EditorWorkbenchPersistenceScheduler > coalesces rapid state changes into one delayed write"
+            },
+            {
+              "index": 1,
+              "name": "EditorWorkbenchPersistenceScheduler > flushes the previous workspace before scheduling a different key"
+            },
+            {
+              "index": 2,
+              "name": "EditorWorkbenchPersistenceScheduler > flushes synchronously at an explicit lifecycle boundary"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::layout_metadata_writes_once_after_a_burst_and_at_once_at_a_boundary"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::drag_preview_is_not_persisted_even_when_a_background_save_wakes_the_runtime"
+        }
+      ]
+    },
+    {
+      "id": "editor-split-drag",
+      "acceptance": "Dragging an editor split's edge previews the ratio as the pointer moves anywhere in the window, on either axis; Escape or leaving the window puts back the ratio it had, losing keyboard focus inside the window does not; a release commits the last position once, kept within 0.15..0.85, and a move after it changes nothing; nothing is stored while the drag previews.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
+          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "EditorSplitResizeHandle > previews many pointer moves in one frame and commits only the final ratio"
+            },
+            {
+              "index": 1,
+              "name": "EditorSplitResizeHandle > cancels a preview on Escape without mutating durable layout"
+            },
+            {
+              "index": 2,
+              "name": "EditorSplitResizeHandle > cancels a resize preview when the window loses the session"
+            },
+            {
+              "index": 5,
+              "name": "horizontal editor splitter lifecycle > cancels Escape with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 6,
+              "name": "horizontal editor splitter lifecycle > cancels blur with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 10,
+              "name": "horizontal editor splitter lifecycle > commits the final pointer coordinate once and ignores late callbacks"
+            },
+            {
+              "index": 11,
+              "name": "horizontal editor splitter lifecycle > commits a native mouse release when Chromium omits pointerup"
+            },
+            {
+              "index": 12,
+              "name": "horizontal editor splitter lifecycle > previews from the native mouse stream when pointer capture is silently lost"
+            },
+            {
+              "index": 13,
+              "name": "horizontal editor splitter lifecycle > transfers a mouse resize to the window stream after lost pointer capture"
+            },
+            {
+              "index": 15,
+              "name": "horizontal editor splitter lifecycle > retains pointer ownership when an element inside the window loses keyboard focus"
+            },
+            {
+              "index": 18,
+              "name": "horizontal editor splitter lifecycle > clamps an out-of-bounds release to 0.15 without leaving a live frame"
+            },
+            {
+              "index": 19,
+              "name": "horizontal editor splitter lifecycle > clamps an out-of-bounds release to 0.85 without leaving a live frame"
+            },
+            {
+              "index": 22,
+              "name": "vertical editor splitter lifecycle > cancels Escape with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 23,
+              "name": "vertical editor splitter lifecycle > cancels blur with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 27,
+              "name": "vertical editor splitter lifecycle > commits the final pointer coordinate once and ignores late callbacks"
+            },
+            {
+              "index": 28,
+              "name": "vertical editor splitter lifecycle > commits a native mouse release when Chromium omits pointerup"
+            },
+            {
+              "index": 29,
+              "name": "vertical editor splitter lifecycle > previews from the native mouse stream when pointer capture is silently lost"
+            },
+            {
+              "index": 30,
+              "name": "vertical editor splitter lifecycle > transfers a mouse resize to the window stream after lost pointer capture"
+            },
+            {
+              "index": 32,
+              "name": "vertical editor splitter lifecycle > retains pointer ownership when an element inside the window loses keyboard focus"
+            },
+            {
+              "index": 35,
+              "name": "vertical editor splitter lifecycle > clamps an out-of-bounds release to 0.15 without leaving a live frame"
+            },
+            {
+              "index": 36,
+              "name": "vertical editor splitter lifecycle > clamps an out-of-bounds release to 0.85 without leaving a live frame"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_side_by_side_split_drag_previews_commits_once_and_cancels"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_stacked_split_drag_previews_commits_once_and_cancels"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::drag_preview_is_not_persisted_even_when_a_background_save_wakes_the_runtime"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::resize_cancel_targets_its_original_workspace_not_a_reused_split_id"
+        }
+      ]
+    },
+    {
+      "id": "editor-pane-chrome",
+      "acceptance": "A pane's handle shows while the pointer is in its top third or its menu is open, a lone pane keeps it, and one pane menu is open at a time without a click starting a drag. Dragging the handle over another pane previews the edge it lands on (never its own pane); Escape ends the move with the layout untouched and the next press opens the menu; a release moves the pane there and keeps it focused.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitPaneChrome.test.tsx",
+          "sha256": "fc59ac74eb572f3b789a42d0e3d4797caecfa9648b45978120e14c6f337952ac",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > keeps the pane actions handle when only one pane exists"
+            },
+            {
+              "index": 4,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > reveals pane chrome only when the pointer is in the top third of a pane"
+            },
+            {
+              "index": 5,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > keeps the grab dots visible while the pane menu is open"
+            },
+            {
+              "index": 6,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > uses the grab handle only to move an existing pane"
+            },
+            {
+              "index": 7,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > cancels pane movement without swallowing the next menu press"
+            },
+            {
+              "index": 8,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > keeps pane menus exclusive without entering global drag state on click"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::the_pane_handle_shows_in_the_top_third_and_one_menu_opens_at_a_time"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_pane_moves_by_its_handle_and_escape_cancels_the_move"
+        }
+      ]
+    },
+    {
+      "id": "editor-explorer-drop",
+      "acceptance": "One Explorer file dragged over a pane previews the nearest edge, leaving the window clears the preview, and the drop opens the file at that edge.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitPaneChrome.test.tsx",
+          "sha256": "fc59ac74eb572f3b789a42d0e3d4797caecfa9648b45978120e14c6f337952ac",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > opens one Explorer file at the nearest pane edge on drop"
+            },
+            {
+              "index": 3,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > clears an Explorer split preview when the window loses the drag session"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::an_explorer_file_drops_at_the_nearest_pane_edge"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::explorer_drop_reuses_visible_views_and_places_new_documents_at_the_requested_edge"
+        }
+      ]
+    },
+    {
+      "id": "editor-pane-runtimes-retained",
+      "acceptance": "In a nested three-pane split each document keeps its own editor and its edits while focus moves between panes and while panes are reordered or moved to the other axis; nothing is remounted, and switching which document shows reads no other.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitPaneRuntimes.test.tsx",
+          "sha256": "6f80849b0c18ac7eedd63cd702ddbb78ff7ad0371ee69f1f476c97e54a4cbd7a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopEditorSplitView: editor runtimes across panes > keeps mixed source transitions isolated inside a real three-pane split"
+            },
+            {
+              "index": 1,
+              "name": "DesktopEditorSplitView: editor runtimes across panes > reorders two sibling panes without clearing or remounting their editor runtimes"
+            },
+            {
+              "index": 2,
+              "name": "DesktopEditorSplitView: editor runtimes across panes > reparents panes across nested split axes without remounting any editor runtime"
+            },
+            {
+              "index": 3,
+              "name": "DesktopEditorSplitView: editor runtimes across panes > keeps horizontal Markdown pane scroll and runtimes stable across repeated focus routing"
+            },
+            {
+              "index": 4,
+              "name": "DesktopEditorSplitView: editor runtimes across panes > keeps three CodeMirror focus and selection states isolated across pane activation"
+            },
+            {
+              "index": 5,
+              "name": "DesktopEditorSplitView: editor runtimes across panes > keeps an inactive Markdown table pane byte-for-byte mounted while sibling panes route workspace focus"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/layout/editorSplitPanes.test.tsx",
+          "sha256": "467ba054a8239f0d08891e8413576514b8c88d0d21325dc7be5775e06c85d41b",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DesktopEditorSplitView: what a pane shows > retains the document input through Strict Mode and Files/Settings navigation"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::three_panes_keep_their_own_editors_across_focus_and_moves"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::focus_and_workspace_switch_do_not_read_drain_or_revoke_retained_documents"
+        }
+      ]
+    },
+    {
+      "id": "editor-pane-actions-menu",
+      "acceptance": "A resource-only pane's menu is Open in default app and Close (Close runs the shell's close and closes the menu); a viewer's own controls such as the PDF's Reload sit in the pane menu after that pair, not in a viewer header.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorPaneActionsMenu.test.tsx",
+          "sha256": "0b1c9159804a01ab7946b16fe2df6a1a1969be95e794b81d2ad4db60fb6aa5fe",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Editor pane actions menu > reduces a resource-only pane menu to two icon actions without headings or a filename"
+            },
+            {
+              "index": 1,
+              "name": "Editor pane actions menu > keeps PDF controls in pane chrome instead of rendering a Viewer header"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::a_resource_only_pane_menu_is_open_externally_and_close"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::text_layer_supports_find_selection_copy_links_and_outline"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::pane::tests::entries_follow_the_menu_order_and_skip_disabled_commands"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -34469,6 +35049,16 @@
             {
               "index": 3,
               "name": "workspace folder drop preload boundary > exposes a gesture-bound attach picker without accepting a renderer path"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/tabs/editorGroupModel.test.ts",
+          "sha256": "cd46209ab7d14388c7d28f2c0dce18b6aa0055f097489a23ea523307b329e256",
+          "cases": [
+            {
+              "index": 2,
+              "name": "EditorGroupModel > keeps routed host paths while identity and restore remain Folder-aware"
             }
           ]
         }
@@ -38985,6 +39575,16 @@
               "name": "Cloud History data lifecycle > does not reload when a parent passes an unstable session callback"
             }
           ]
+        },
+        {
+          "path": "tests/component/workbench/layout/editorSplitPaneRuntimes.test.tsx",
+          "sha256": "6f80849b0c18ac7eedd63cd702ddbb78ff7ad0371ee69f1f476c97e54a4cbd7a",
+          "cases": [
+            {
+              "index": 6,
+              "name": "DesktopEditorSplitView: editor runtimes across panes > routes semantic Markdown revisions only to runtimes that consume them"
+            }
+          ]
         }
       ]
     },
@@ -40311,7 +40911,7 @@
     {
       "id": "pane-dom-drag-lifecycle",
       "kind": "out-of-scope",
-      "reason": "TS also ends a pane drag on DOM events with no native counterpart (pagehide, lost pointer capture, the component unmounting). A native drag follows the pointer anywhere in the window and ends on release, Escape or leaving the window, all covered by the pane edge tests.",
+      "reason": "TS also ends a pane or editor split drag on DOM events with no native counterpart (pointercancel, pagehide, a hidden document, lost or failed pointer capture, the component unmounting) and guards against other pointers and other owners' pointer leases. A native drag has one pointer, follows it anywhere in the window and ends on release, Escape or leaving the window, all covered by the pane edge and editor split drag tests.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/panes/layout-policy.md",
       "typescript": [
         {
@@ -40329,6 +40929,68 @@
             {
               "index": 6,
               "name": "desktop side-pane resize: the Explorer > cancels a live width preview on unmount without persisting it"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
+          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
+          "cases": [
+            {
+              "index": 4,
+              "name": "horizontal editor splitter lifecycle > cancels pointercancel with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 7,
+              "name": "horizontal editor splitter lifecycle > cancels pagehide with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 8,
+              "name": "horizontal editor splitter lifecycle > cancels hidden with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 9,
+              "name": "horizontal editor splitter lifecycle > cancels unmount with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 14,
+              "name": "horizontal editor splitter lifecycle > ignores another pointer's move, release, cancellation and capture loss"
+            },
+            {
+              "index": 16,
+              "name": "horizontal editor splitter lifecycle > cleans up a failed pointer capture without committing a layout"
+            },
+            {
+              "index": 17,
+              "name": "horizontal editor splitter lifecycle > does not release another owner's native layout or pointer lease on cancellation"
+            },
+            {
+              "index": 21,
+              "name": "vertical editor splitter lifecycle > cancels pointercancel with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 24,
+              "name": "vertical editor splitter lifecycle > cancels pagehide with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 25,
+              "name": "vertical editor splitter lifecycle > cancels hidden with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 26,
+              "name": "vertical editor splitter lifecycle > cancels unmount with a queued frame and releases only its gesture"
+            },
+            {
+              "index": 31,
+              "name": "vertical editor splitter lifecycle > ignores another pointer's move, release, cancellation and capture loss"
+            },
+            {
+              "index": 33,
+              "name": "vertical editor splitter lifecycle > cleans up a failed pointer capture without committing a layout"
+            },
+            {
+              "index": 34,
+              "name": "vertical editor splitter lifecycle > does not release another owner's native layout or pointer lease on cancellation"
             }
           ]
         }
@@ -40463,6 +41125,170 @@
             {
               "index": 20,
               "name": "a Homepage that never shows part of its list > shows the whole cached list when a slow session outlasts the wait"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "editor-address-normalization",
+      "kind": "out-of-scope",
+      "reason": "TS rewrites `./docs\\a.md`, `docs//a.md` and folder addresses into one canonical string before identity and layout use them. A native editor address is a RelativePath built from path components: `.` and `..` segments are refused, `\\` is an ordinary file-name character on macOS, and a doubled separator collapses to the same key (editor_identity_is_storage_and_path_and_odd_addresses_never_alias), so there is no alternate spelling to rewrite.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/open-references-and-mru.md",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/tabs/editorGroupModel.test.ts",
+          "sha256": "cd46209ab7d14388c7d28f2c0dce18b6aa0055f097489a23ea523307b329e256",
+          "cases": [
+            {
+              "index": 4,
+              "name": "EditorGroupModel > normalizes equivalent resource addresses before identity and layout coordination"
+            },
+            {
+              "index": 8,
+              "name": "EditorGroupModel > normalizes folder addresses when rebasing and closing an editor subtree"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/layout/editorPaneLayoutModel.test.ts",
+          "sha256": "e1f9df7778cb87fc35bcba09e0062e69e1a7b90f9c8d7c92a6721918e604c5bb",
+          "cases": [
+            {
+              "index": 7,
+              "name": "EditorPaneLayoutModel > keeps pane references aligned when resource addresses use equivalent separators"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-workbench-record-migration",
+      "kind": "out-of-scope",
+      "reason": "TS migrates its own older path-only Workbench and Pane records into Root URI records. The native app has its own identity (ADR-009) and keeps its own versioned workbench metadata keyed by the project's storage; it never reads the Electron renderer's records, so there is nothing to migrate.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/metadata-restoration.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/desktopEditorWorkbench.test.tsx",
+          "sha256": "e35325dbfb89756fe7a0e4c6f3f7e903552d528fc4d51e005c6a6e1759b6374a",
+          "cases": [
+            {
+              "index": 1,
+              "name": "useDesktopEditorWorkbench > migrates path-only Workbench and Pane records into one Root URI"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "editor-split-keyboard-resize",
+      "kind": "gap",
+      "reason": "An editor split's handle takes no keyboard focus: there is no arrow-key adjustment on the split's own axis and no equalize command, so the ratio changes only by dragging.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/pane-tree.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
+          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
+          "cases": [
+            {
+              "index": 3,
+              "name": "EditorSplitResizeHandle > keeps keyboard and equalize operations as immediate single commits"
+            },
+            {
+              "index": 20,
+              "name": "horizontal editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
+            },
+            {
+              "index": 37,
+              "name": "vertical editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pane-window-paint-edge",
+      "kind": "out-of-scope",
+      "reason": "TS marks the pane leaves that touch the bottom of the BrowserWindow so its rounded paint edge clips them. A native window clips its own corners, so panes carry no such mark.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/pane-tree.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitPaneChrome.test.tsx",
+          "sha256": "fc59ac74eb572f3b789a42d0e3d4797caecfa9648b45978120e14c6f337952ac",
+          "cases": [
+            {
+              "index": 1,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > marks only nested layout leaves that touch the workbench bottom edge"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pane-activation-on-press",
+      "kind": "out-of-scope",
+      "reason": "TS activates a pane only after the pointer is released so a React re-render cannot break a DOM text selection that starts there. A native pane is activated when the press lands, as native editors do; the selection gesture is the document's own and is not interrupted.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/editor-area.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitPaneChrome.test.tsx",
+          "sha256": "fc59ac74eb572f3b789a42d0e3d4797caecfa9648b45978120e14c6f337952ac",
+          "cases": [
+            {
+              "index": 9,
+              "name": "DesktopEditorSplitView: pane chrome, dropping and moving > activates a non-focusable pane after pointer selection completes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pane-move-snapshot-preview",
+      "kind": "gap",
+      "reason": "While a pane is moved, TS shows a themed shell with a compositor snapshot of the pane following the pointer. The native drag shows a small text chip instead (the handle's tooltip text); there is no snapshot of the pane.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/drops.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/paneMovePreview.test.ts",
+          "sha256": "4c51620363149adf30d878bc0d007bd482b3640a698520050b5aca035f61efa4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pane move preview > builds an immediate themed shell that follows the pointer without cloning pane DOM"
+            },
+            {
+              "index": 1,
+              "name": "pane move preview > requests a compositor snapshot for the pane content bounds"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "editor-empty-pane-quiet-canvas",
+      "kind": "out-of-scope",
+      "reason": "An empty native pane is the quiet editor canvas with only its close button: no 'Select a file to preview' prompt, no opening mark and no loading animation in the pane; a document appears in its pane once it is read (a file window shows the loading mark, without copy). A stored folder reference is dropped at restore, so its pane comes back empty rather than as an unavailable document.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/pane-tree.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitPanes.test.tsx",
+          "sha256": "467ba054a8239f0d08891e8413576514b8c88d0d21325dc7be5775e06c85d41b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopEditorSplitView: what a pane shows > shows an explicit empty state when a split pane has no document"
+            },
+            {
+              "index": 1,
+              "name": "DesktopEditorSplitView: what a pane shows > keeps the opening mark, not the empty prompt, until a project's first document arrives"
+            },
+            {
+              "index": 2,
+              "name": "DesktopEditorSplitView: what a pane shows > uses the official loading animation without visible loading copy"
+            },
+            {
+              "index": 4,
+              "name": "DesktopEditorSplitView: what a pane shows > shows an unavailable state instead of blanking a pane restored as a directory"
             }
           ]
         }

@@ -5,7 +5,10 @@
 use super::*;
 use crate::editor::{
     host::DocumentEditor,
-    workbench::{layout::Direction, pane::Action},
+    workbench::{
+        layout::{Direction, Placement},
+        pane::Action,
+    },
 };
 use core::prelude::v1::test;
 use std::path::Path;
@@ -263,4 +266,377 @@ fn a_read_landing_after_its_pane_closed_cannot_fill_a_pane(cx: &mut TestAppConte
         settle(&view, cx, &|s, cx| s.files(cx).visible_slots().is_empty());
         folders.push(temp);
     }
+}
+
+/// `EditorSplitResizeHandle`, `horizontal / vertical editor splitter
+/// lifecycle`: dragging a split's edge previews the new ratio, Escape or
+/// leaving the window puts back the ratio it had, a release commits the
+/// last position, kept within 0.15..0.85, and a move after it changes
+/// nothing.
+fn drag_an_editor_split(cx: &mut TestAppContext, direction: Direction) {
+    let temp = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(temp.path().join(name), name).unwrap();
+    }
+    let (view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    two_panes(&view, cx, temp.path(), direction);
+    draw(cx);
+    let ratio = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            let state = s.files(cx).state().unwrap();
+            serde_json::to_value(&state.layout).unwrap()["root"]["ratio"]
+                .as_f64()
+                .unwrap()
+        })
+    };
+    let edge = |cx: &mut VisualTestContext| {
+        cx.debug_bounds("editor-resize-editor-split-1")
+            .unwrap()
+            .center()
+    };
+    let at = |edge: Point<Pixels>, by: f32| match direction {
+        Direction::Horizontal => point(edge.x + px(by), edge.y),
+        Direction::Vertical => point(edge.x, edge.y + px(by)),
+    };
+    let drag = |cx: &mut VisualTestContext, by: f32| {
+        draw(cx);
+        let edge = edge(cx);
+        cx.simulate_mouse_down(edge, MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_move(at(edge, by), Some(MouseButton::Left), Modifiers::default());
+        at(edge, by)
+    };
+    assert_eq!(ratio(cx), 0.5);
+    let end = drag(cx, -60.);
+    assert!(ratio(cx) < 0.5, "the drag previews");
+    cx.simulate_keystrokes("escape");
+    assert_eq!(ratio(cx), 0.5);
+    cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::default());
+    assert_eq!(ratio(cx), 0.5, "a release after Escape changes nothing");
+    for (by, clamped) in [(5_000., 0.85), (-5_000., 0.15)] {
+        let end = drag(cx, by);
+        cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::default());
+        assert_eq!(ratio(cx), clamped);
+        cx.simulate_mouse_move(at(end, -by), None, Modifiers::default());
+        assert_eq!(ratio(cx), clamped, "a late move after the release");
+    }
+    drag(cx, 60.);
+    let preview = ratio(cx);
+    assert!(preview > 0.15);
+    cx.update(|w, cx| w.blur(cx));
+    assert_eq!(ratio(cx), preview, "losing keyboard focus keeps the drag");
+    cx.deactivate_window();
+    draw(cx);
+    assert_eq!(ratio(cx), 0.15, "leaving the window puts the ratio back");
+}
+#[gpui::test]
+fn a_side_by_side_split_drag_previews_commits_once_and_cancels(cx: &mut TestAppContext) {
+    drag_an_editor_split(cx, Direction::Horizontal);
+}
+#[gpui::test]
+fn a_stacked_split_drag_previews_commits_once_and_cancels(cx: &mut TestAppContext) {
+    drag_an_editor_split(cx, Direction::Vertical);
+}
+
+fn pane_bounds(view: &Entity<Shell>, cx: &mut VisualTestContext, pane: &str) -> Bounds<Pixels> {
+    view.read_with(cx, |s, cx| s.editor.read(cx).pane_bounds.borrow()[pane])
+}
+
+fn handle_of(cx: &mut VisualTestContext, name: &str) -> Point<Pixels> {
+    let selector: &'static str = Box::leak(format!("pane-handle:{name}").into_boxed_str());
+    cx.debug_bounds(selector).unwrap().center()
+}
+
+fn click_handle(cx: &mut VisualTestContext, name: &str) {
+    let at = handle_of(cx, name);
+    cx.simulate_click(at, Modifiers::default());
+}
+
+fn drop_preview(
+    view: &Entity<Shell>,
+    cx: &mut VisualTestContext,
+) -> Option<(String, Direction, Placement)> {
+    view.read_with(cx, |s, cx| {
+        s.editor
+            .read(cx)
+            .drop
+            .as_ref()
+            .map(|d| (d.pane.clone(), d.direction, d.placement))
+    })
+}
+
+fn dragging(cx: &mut VisualTestContext) -> bool {
+    cx.update(|_, cx| cx.has_active_drag())
+}
+
+/// `DesktopEditorSplitView: pane chrome`: a pane's handle shows while the
+/// pointer is in its top third or its menu is open, a lone pane keeps it,
+/// and one pane menu is open at a time without a click starting a drag.
+#[gpui::test]
+fn the_pane_handle_shows_in_the_top_third_and_one_menu_opens_at_a_time(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(temp.path().join(name), name).unwrap();
+    }
+    let (view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    begin(&view, cx, Intent::OpenFolder(temp.path().into()));
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    begin(&view, cx, Intent::OpenFile("a.md".into()));
+    settle(&view, cx, &|s, cx| s.files(cx).opened().is_some());
+    let (pane, key) = panes(&view, cx)[0].clone();
+    let a = editor_of(&view, cx, &key);
+    let bounds = pane_bounds(&view, cx, &pane);
+    let revealed = |cx: &mut VisualTestContext| a.read_with(cx, |e, _| e.lab_handle_revealed());
+    let at = |share: f32| {
+        point(
+            bounds.center().x,
+            bounds.origin.y + bounds.size.height * share,
+        )
+    };
+    assert!(!revealed(cx));
+    cx.simulate_mouse_move(at(0.2), None, Modifiers::default());
+    assert!(revealed(cx), "the top third shows the handle");
+    cx.simulate_mouse_move(at(0.6), None, Modifiers::default());
+    assert!(!revealed(cx), "below it the handle hides");
+    cx.simulate_mouse_move(at(0.2), None, Modifiers::default());
+    draw(cx);
+    let menu_open = |e: &Entity<DocumentEditor>, cx: &mut VisualTestContext| {
+        e.update_in(cx, |e, w, cx| e.lab_focus(w, cx)).0
+    };
+    click_handle(cx, "a.md");
+    draw(cx);
+    assert!(menu_open(&a, cx), "a lone pane keeps its menu");
+    cx.simulate_mouse_move(at(0.9), None, Modifiers::default());
+    assert!(revealed(cx), "an open menu keeps the handle");
+    click_handle(cx, "a.md");
+    draw(cx);
+    assert!(!menu_open(&a, cx));
+
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.state_mut().unwrap().split(Direction::Horizontal)
+        })
+    });
+    begin(&view, cx, Intent::OpenFile("b.md".into()));
+    settle(&view, cx, &|s, cx| s.files(cx).visible_slots().len() == 2);
+    let second = panes(&view, cx)[1].1.clone();
+    let b = editor_of(&view, cx, &second);
+    draw(cx);
+    click_handle(cx, "a.md");
+    draw(cx);
+    assert_eq!((menu_open(&a, cx), menu_open(&b, cx)), (true, false));
+    assert!(!dragging(cx), "a click is not a drag");
+    click_handle(cx, "b.md");
+    draw(cx);
+    assert_eq!((menu_open(&a, cx), menu_open(&b, cx)), (false, true));
+    assert!(!dragging(cx));
+}
+
+/// `uses the grab handle only to move an existing pane`, `cancels pane
+/// movement without swallowing the next menu press`: dragging a pane's
+/// handle over another pane previews the edge it lands on, Escape ends
+/// the move with the layout untouched and the next press opens the menu,
+/// and a release moves the pane there.
+#[gpui::test]
+fn a_pane_moves_by_its_handle_and_escape_cancels_the_move(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(temp.path().join(name), name).unwrap();
+    }
+    let (view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    let before = two_panes(&view, cx, temp.path(), Direction::Horizontal);
+    draw(cx);
+    let target = pane_bounds(&view, cx, &before[1].0);
+    let edge = point(target.right() - px(12.), target.center().y);
+    let grab = |cx: &mut VisualTestContext| {
+        let from = handle_of(cx, "a.md");
+        cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_move(
+            point(from.x + px(8.), from.y + px(4.)),
+            Some(MouseButton::Left),
+            Modifiers::default(),
+        );
+        draw(cx);
+        assert!(dragging(cx));
+        assert_eq!(drop_preview(&view, cx), None, "never onto its own pane");
+        cx.simulate_mouse_move(edge, Some(MouseButton::Left), Modifiers::default());
+        draw(cx);
+        assert_eq!(
+            drop_preview(&view, cx),
+            Some((
+                before[1].0.clone(),
+                Direction::Horizontal,
+                Placement::Second
+            ))
+        );
+    };
+    grab(cx);
+    cx.simulate_keystrokes("escape");
+    draw(cx);
+    assert!(!dragging(cx));
+    assert_eq!(drop_preview(&view, cx), None);
+    cx.simulate_mouse_up(edge, MouseButton::Left, Modifiers::default());
+    assert_eq!(panes(&view, cx), before, "a cancelled move changes nothing");
+    let a = editor_of(&view, cx, &before[0].1);
+    click_handle(cx, "a.md");
+    draw(cx);
+    assert!(a.update_in(cx, |e, w, cx| e.lab_focus(w, cx)).0);
+    cx.simulate_keystrokes("escape");
+    draw(cx);
+
+    grab(cx);
+    cx.simulate_mouse_up(edge, MouseButton::Left, Modifiers::default());
+    draw(cx);
+    assert!(!dragging(cx));
+    assert_eq!(drop_preview(&view, cx), None);
+    assert_eq!(panes(&view, cx), [before[1].clone(), before[0].clone()]);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.files(cx).state().unwrap().layout.active, before[0].0)
+    });
+}
+
+/// `opens one Explorer file at the nearest pane edge on drop`, `clears an
+/// Explorer split preview when the window loses the drag session`: an
+/// Explorer file dragged over a pane previews the nearest edge, leaving
+/// the window clears it, and a drop opens the file there.
+#[gpui::test]
+fn an_explorer_file_drops_at_the_nearest_pane_edge(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(temp.path().join(name), name).unwrap();
+    }
+    let (view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    begin(&view, cx, Intent::OpenFolder(temp.path().into()));
+    settle(&view, cx, &|s, cx| {
+        s.files(cx).state().is_some()
+            && s.explorer
+                .session
+                .read(cx)
+                .tree()
+                .rows
+                .iter()
+                .any(|r| r.path == std::path::Path::new("b.md"))
+    });
+    begin(&view, cx, Intent::OpenFile("a.md".into()));
+    settle(&view, cx, &|s, cx| s.files(cx).opened().is_some());
+    let (pane, _) = panes(&view, cx)[0].clone();
+    let bounds = pane_bounds(&view, cx, &pane);
+    let edge = point(bounds.right() - px(12.), bounds.center().y);
+    let row = cx.debug_bounds("tree-row-name:b.md").unwrap().center();
+    cx.simulate_mouse_down(row, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_move(
+        point(row.x + px(8.), row.y + px(4.)),
+        Some(MouseButton::Left),
+        Modifiers::default(),
+    );
+    draw(cx);
+    let hover = |cx: &mut VisualTestContext| {
+        cx.simulate_mouse_move(edge, Some(MouseButton::Left), Modifiers::default());
+        draw(cx);
+        assert_eq!(
+            drop_preview(&view, cx),
+            Some((pane.clone(), Direction::Horizontal, Placement::Second))
+        );
+    };
+    hover(cx);
+    cx.deactivate_window();
+    draw(cx);
+    assert_eq!(
+        drop_preview(&view, cx),
+        None,
+        "leaving the window clears it"
+    );
+    cx.update(|w, _| w.activate_window());
+    hover(cx);
+    cx.simulate_mouse_up(edge, MouseButton::Left, Modifiers::default());
+    settle(&view, cx, &|s, cx| s.files(cx).visible_slots().len() == 2);
+    let after = panes(&view, cx);
+    assert_eq!(after[0].0, pane);
+    assert!(after[1].1.ends_with("b.md"), "{after:?}");
+    assert_eq!(drop_preview(&view, cx), None);
+}
+
+/// `DesktopEditorSplitView: editor runtimes across panes`: in a nested
+/// three-pane split each document keeps its own editor and edits while
+/// focus moves between panes and while panes are reordered or moved to
+/// another axis; nothing is remounted.
+#[gpui::test]
+fn three_panes_keep_their_own_editors_across_focus_and_moves(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("a.md"), "# A\n").unwrap();
+    std::fs::write(temp.path().join("b.md"), "# B\n").unwrap();
+    std::fs::write(temp.path().join("c.txt"), "C\n").unwrap();
+    let (view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    two_panes(&view, cx, temp.path(), Direction::Horizontal);
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.state_mut().unwrap().split(Direction::Vertical))
+    });
+    begin(&view, cx, Intent::OpenFile("c.txt".into()));
+    settle(&view, cx, &|s, cx| s.files(cx).visible_slots().len() == 3);
+    let start = panes(&view, cx);
+    let editors: Vec<_> = start
+        .iter()
+        .map(|(_, key)| editor_of(&view, cx, key))
+        .collect();
+    let mut texts = Vec::new();
+    for ((pane, _), (editor, mark)) in start.iter().zip(editors.iter().zip(["1 ", "2 ", "3 "])) {
+        focus_pane(&view, cx, pane);
+        cx.simulate_input(mark);
+        let typed = text(editor, cx);
+        assert!(typed.contains(mark.trim()), "{pane}: {typed:?}");
+        texts.push(typed);
+    }
+    let check = |cx: &mut VisualTestContext, case: &str| {
+        for ((_, key), (editor, text_was)) in start.iter().zip(editors.iter().zip(&texts)) {
+            assert_eq!(
+                editor_of(&view, cx, key).entity_id(),
+                editor.entity_id(),
+                "{case}: {key} keeps its editor"
+            );
+            assert_eq!(&text(editor, cx), text_was, "{case}: {key} keeps its edit");
+        }
+    };
+    for (pane, _) in start.iter().rev() {
+        focus_pane(&view, cx, pane);
+    }
+    check(cx, "focus");
+    let moves = [
+        // Siblings swap places.
+        (
+            start[1].0.clone(),
+            start[2].0.clone(),
+            Direction::Vertical,
+            Placement::Second,
+        ),
+        // The left pane moves under the bottom one, onto the other axis.
+        (
+            start[0].0.clone(),
+            start[1].0.clone(),
+            Direction::Vertical,
+            Placement::Second,
+        ),
+    ];
+    for (source, target, direction, placement) in moves {
+        view.update_in(cx, |s, w, cx| {
+            s.session.docs.update(cx, |d, _| {
+                d.state_mut()
+                    .unwrap()
+                    .layout
+                    .move_pane(&source, &target, direction, placement)
+            });
+            s.sync_editor(w, cx);
+        });
+        draw(cx);
+        assert_ne!(panes(&view, cx), start, "{source} moved");
+        check(cx, &format!("move {source}"));
+    }
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.files(cx).visible_slots().len(), 3);
+    });
 }

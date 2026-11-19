@@ -1162,3 +1162,63 @@ fn wb02_background_project_cap_and_explicit_close_unload_clean_hosts_and_protect
     assert!(r.close_background_project(&p3_key, &wake));
     assert_eq!(r.background_host_keys(), vec![p1_key]);
 }
+/// `EditorWorkbenchPersistenceScheduler`: a burst of layout changes is
+/// written once, with its last state, after a quiet 200ms; a lifecycle
+/// boundary writes at once.
+#[test]
+fn layout_metadata_writes_once_after_a_burst_and_at_once_at_a_boundary() {
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("a.md"), "a").unwrap();
+    let mut r = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    r.state_mut()
+        .unwrap()
+        .split(super::super::layout::Direction::Horizontal);
+    let settled = |r: &Runtime| {
+        r.metadata_inflight == 0 && r.hosts.values().all(|h| h.metadata_due.is_none())
+    };
+    wait(&mut r, settled);
+    let ws = workspace::Workspace::open(root.path()).unwrap();
+    let key = resource_key(&ws.resource_id(std::path::Path::new("")).unwrap());
+    let file = profile
+        .path()
+        .join(format!("{}.json", blake3::hash(key.as_bytes()).to_hex()));
+    let stored_ratio = || {
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        value["layout"]["root"]["ratio"].as_f64()
+    };
+    let wake = Wake::default();
+    for ratio in [0.3, 0.4, 0.6] {
+        r.state_mut()
+            .unwrap()
+            .layout
+            .resize("editor-split-1", ratio);
+        r.persist_metadata(&wake, false);
+        assert_eq!(
+            r.metadata_inflight, 0,
+            "nothing is written during the burst"
+        );
+    }
+    assert!(r.hosts.values().any(|h| h.metadata_due.is_some()));
+    wait(&mut r, settled);
+    assert_eq!(stored_ratio(), Some(0.6));
+    // A boundary writes at once.
+    r.state_mut().unwrap().layout.resize("editor-split-1", 0.7);
+    r.persist_metadata(&wake, true);
+    assert!(r.hosts.values().all(|h| h.metadata_due.is_none()));
+    wait(&mut r, settled);
+    assert_eq!(stored_ratio(), Some(0.7));
+    // Switching to another project still writes this one's last change.
+    r.state_mut().unwrap().layout.resize("editor-split-1", 0.25);
+    r.persist_metadata(&wake, false);
+    let other = tempfile::tempdir().unwrap();
+    open_root(&mut r, other.path());
+    wait(&mut r, settled);
+    assert_eq!(stored_ratio(), Some(0.25));
+}

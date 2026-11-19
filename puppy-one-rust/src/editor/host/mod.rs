@@ -1420,6 +1420,12 @@ impl DocumentEditor {
         (self.chrome.open, document)
     }
 
+    /// Tests: whether the pane's handle shows.
+    #[cfg(any(feature = "dev-capture", feature = "test-support"))]
+    pub fn lab_handle_revealed(&self) -> bool {
+        self.chrome.revealed()
+    }
+
     #[cfg(any(test, feature = "test-support"))]
     pub fn lab_deliver_html_ipc(&self, body: &str, cx: &mut App) {
         if let Some(probe) = self.surface.as_ref().and_then(|s| s.as_test_probe()) {
@@ -1571,6 +1577,7 @@ impl Render for DocumentEditor {
             let handle = pane::handle(
                 self.dark,
                 self.chrome.revealed(),
+                name,
                 handle_label.into(),
                 self.pane_drag.clone(),
                 move |window, cx| {

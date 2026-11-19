@@ -197,7 +197,9 @@ impl EditorArea {
     }
     /// The window left: a drag or a split resize in flight ends.
     pub fn cancel_gestures(&mut self, cx: &mut Context<Self>) {
-        self.drop = None;
+        if self.drop.take().is_some() {
+            cx.notify();
+        }
         self.end_resize(false, cx);
     }
     /// Standalone files decoded from a legacy encoding remain read-only;

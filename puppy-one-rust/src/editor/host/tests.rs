@@ -160,6 +160,44 @@ fn csv_contributes_view_items_and_find(cx: &mut TestAppContext) {
     assert!(view.update(cx, |v, cx| v.find_bar(cx)).is_none());
 }
 
+/// `Editor pane actions menu`: a resource-only pane offers just Open in
+/// default app and Close, with no segments, find or items; Close is the
+/// shell's command and closes the menu. An image keeps that pair first
+/// and adds its zoom items after it.
+#[gpui::test]
+fn a_resource_only_pane_menu_is_open_externally_and_close(cx: &mut TestAppContext) {
+    let (view, messages, cx) = setup(cx, "archive.zip", "");
+    view.update_in(cx, |v, w, cx| {
+        let c = v.contribution(cx);
+        assert!(c.segmented.is_none() && !c.find && c.items.is_empty());
+        assert_eq!(c.entries(), [Action::OpenExternal, Action::Close]);
+        v.toggle_pane_menu(w, cx);
+        v.run_pane_action(Action::Close, w, cx);
+        assert!(!v.chrome.open);
+    });
+    assert!(
+        messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::Action { action } if action == "close-file"))
+    );
+    let (image, _, cx) = setup_with(cx, "image", None, "009_Bauhaus.png", "");
+    image.update(cx, |v, cx| {
+        let c = v.contribution(cx);
+        assert!(c.segmented.is_none() && !c.find);
+        assert_eq!(c.entries()[..2], [Action::OpenExternal, Action::Close]);
+        assert_eq!(
+            c.items.iter().map(|i| i.id).collect::<Vec<_>>(),
+            [
+                "image-zoom-fit",
+                "image-zoom-actual",
+                "image-zoom-in",
+                "image-zoom-out"
+            ]
+        );
+    });
+}
+
 #[gpui::test]
 fn markdown_contributes_its_mode_segments(cx: &mut TestAppContext) {
     let (view, _, cx) = setup(cx, "notes.md", "# Title\n");

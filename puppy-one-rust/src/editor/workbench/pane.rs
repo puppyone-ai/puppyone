@@ -212,6 +212,7 @@ impl Render for PaneDrag {
 pub fn handle(
     dark: bool,
     revealed: bool,
+    name: &str,
     label: SharedString,
     drag: Option<PaneDrag>,
     on_toggle: impl Fn(&mut Window, &mut App) + 'static,
@@ -245,6 +246,10 @@ pub fn handle(
                 .child(
                     div()
                         .id("desktop-editor-pane-handle")
+                        .debug_selector({
+                            let name = name.to_owned();
+                            move || format!("pane-handle:{name}")
+                        })
                         .group("desktop-editor-pane-handle")
                         .w(px(27.))
                         .h(px(13.))
