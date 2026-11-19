@@ -560,6 +560,8 @@ impl JsonAgent for FixtureClient {
                 | O::AcknowledgeFeed
                 | O::ReadFeedWatermark
                 | O::DetachFeed
+                | O::StageReferences
+                | O::ResolveWorkspaceReferences
         )
     }
 

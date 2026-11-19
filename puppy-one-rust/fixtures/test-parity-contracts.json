@@ -35914,6 +35914,89 @@
           "test": "features::desktop_agent::ui::agent_conversation_history::tests::a_saved_chat_opens_while_its_agent_is_not_ready"
         }
       ]
+    },
+    {
+      "id": "agent-chat-drop-target",
+      "acceptance": "The whole chat takes a drop with no change before release and never sends: a dropped folder becomes its path in the draft and a dropped file is staged as an attachment through the one staging path (Finder drop, picker and paste).",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Agent reference ingestion > uses the whole Chat as a silent drop target without changing UI before release"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Agent reference ingestion > inserts a Finder folder path instead of staging it as a file attachment"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Agent reference ingestion > routes Finder drop, picker and every semantically supported pasted File through one staging method"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "features::desktop_agent::ui::panel::tests::finder_drops_insert_folders_as_paths_and_stage_files"
+        }
+      ]
+    },
+    {
+      "id": "agent-composer-visual-attachments",
+      "acceptance": "Raster images sit on the media shelf (resolving, ready or failed) with one accessible remove action and no retry; Markdown and SVG references are inline mentions; deleting a mention releases its reference.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 12,
+              "name": "Desktop Agent reference ingestion > keeps only an accessible remove action on a resolving image"
+            },
+            {
+              "index": 13,
+              "name": "Desktop Agent reference ingestion > keeps only an accessible remove action on a ready image"
+            },
+            {
+              "index": 14,
+              "name": "Desktop Agent reference ingestion > keeps only an accessible remove action on a error image"
+            },
+            {
+              "index": 15,
+              "name": "Desktop Agent reference ingestion > renders images in the media area and Markdown as an atomic inline prompt mention"
+            },
+            {
+              "index": 17,
+              "name": "Desktop Agent reference ingestion > deletes an inline file mention atomically and releases its semantic reference"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::images_sit_on_the_shelf_with_one_remove_and_files_become_mentions"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::a_path_reference_becomes_a_mention_and_leaves_with_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::domain::tests::reserves_visual_cards_for_raster_images"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -45085,6 +45168,102 @@
             {
               "index": 0,
               "name": "Desktop Agent renderer surfaces > registers semantic part extensions by kind and restores the previous renderer on dispose"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reference-drop-feedback",
+      "kind": "gap",
+      "reason": "The chat gives no drop-time feedback: a workspace drag from another workspace is not marked invalid (it is accepted and left to the host, which refuses paths outside the chat's root), and no status announces how many references a drop added or which items of a batch were rejected.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop Agent reference ingestion > marks cross-workspace drags invalid and never grants their paths"
+            },
+            {
+              "index": 16,
+              "name": "Desktop Agent reference ingestion > announces partial batches while retaining the rejected item as an actionable error"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inline-reference-states",
+      "kind": "gap",
+      "reason": "Inline mention chips have no resolving or failed state and no Retry: a resolving file shows one generic Resolving chip instead of its own @name, a failed non-image reference cannot be retried from the composer, and the draft manager's retry has no UI.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/composer.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 10,
+              "name": "Desktop Agent reference ingestion > opens the file picker directly and keeps failed non-image references inline"
+            },
+            {
+              "index": 11,
+              "name": "Desktop Agent reference ingestion > shows resolving files inline while retaining failed images as visual attachments"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "workspace-image-drop-preview",
+      "kind": "gap",
+      "reason": "A workspace image dropped on the chat is added without a visual preview (the panel passes no previews to add_workspace_paths), so its shelf card shows a placeholder icon instead of the authorized thumbnail.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Desktop Agent reference ingestion > loads an authorized visual preview for a workspace image without putting its URL in the path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-reference-drop-plumbing",
+      "kind": "out-of-scope",
+      "reason": "TS claims and inspects native drops through its preload bridge, resolves Workbench resource URIs before authorization (including another attached root's URI), intercepts CodeMirror's native insert of URI text and discards a late asynchronous admission after unmount. Native workspace drags are typed GPUI drags carrying workspace-relative paths resolved against their own workspace, Finder drops arrive as paths in one synchronous event, there is no URI or CodeMirror layer, and authorization happens in the host (reference authorization tests).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Desktop Agent reference ingestion > uses the native drag session owner instead of staging the same file as an attachment"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Agent reference ingestion > discards late native drop admission after its target unmounts"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Agent reference ingestion > resolves Workbench resource URIs before requesting native workspace authorization"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Agent reference ingestion > intercepts a Workspace Resource URI inside CodeMirror before native drop inserts visible URI text"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Agent reference ingestion > preserves another attached root's URI through native authorization"
             }
           ]
         }

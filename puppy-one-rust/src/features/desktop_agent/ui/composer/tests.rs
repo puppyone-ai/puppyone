@@ -234,3 +234,92 @@ fn the_composer_offers_only_the_sessions_model_and_works_without_one(cx: &mut Te
     cx.simulate_click(action.center(), Modifiers::default());
     assert!(!log.borrow().iter().any(|l| l == "submit"), "blocked");
 }
+
+/// `keeps only an accessible remove action on a resolving / ready / error
+/// image`; `shows resolving files inline while retaining failed images as
+/// visual attachments` (the image half); `renders images in the media area
+/// and Markdown as an atomic inline prompt mention`: raster images sit on
+/// the shelf with their status and one remove action; Markdown and SVG
+/// references are inline mentions.
+#[gpui::test]
+fn images_sit_on_the_shelf_with_one_remove_and_files_become_mentions(cx: &mut TestAppContext) {
+    use crate::agent::contract::dto::DraftReference;
+    crate::localization::set_current("en");
+    let (composer, log, cx) = setup(cx);
+    let reference =
+        |value: serde_json::Value| -> DraftReference { serde_json::from_value(value).unwrap() };
+    for status in ["resolving", "ready", "error"] {
+        let mut image = serde_json::json!({
+            "id": "image", "kind": "staged-attachment", "displayName": "capture.png",
+            "mime": "image/png", "size": 8, "status": status,
+        });
+        if status == "error" {
+            image["error"] = serde_json::json!({"code": "staging-failed", "message": "Image could not be prepared"});
+        }
+        composer.update_in(cx, |c, window, cx| {
+            c.set_input(
+                ComposerInput {
+                    references: vec![reference(image)],
+                    ..Default::default()
+                },
+                window,
+                cx,
+            )
+        });
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        let card: &'static str =
+            Box::leak(format!("agent-attachment:capture.png:{status}").into_boxed_str());
+        let card = cx.debug_bounds(card).expect(status);
+        cx.simulate_mouse_move(card.center(), None, Modifiers::default());
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        let remove = cx
+            .debug_bounds("agent-attachment-remove:capture.png")
+            .expect("one remove action");
+        log.borrow_mut().clear();
+        cx.simulate_click(remove.center(), Modifiers::default());
+        assert_eq!(*log.borrow(), ["remove image"], "{status}");
+    }
+
+    composer.update_in(cx, |c, window, cx| {
+        c.set_input(
+            ComposerInput {
+                draft: "Describe this image".into(),
+                references: vec![
+                    reference(serde_json::json!({
+                        "id": "markdown-ref", "kind": "workspace-entry", "entryType": "file",
+                        "relativePath": "docs/SECURITY.md", "displayName": "SECURITY.md",
+                        "mime": "text/markdown", "size": 12, "status": "ready",
+                    })),
+                    reference(serde_json::json!({
+                        "id": "image-ref", "kind": "staged-attachment", "displayName": "capture.png",
+                        "mime": "image/png", "size": 5, "status": "ready",
+                    })),
+                    reference(serde_json::json!({
+                        "id": "svg-ref", "kind": "staged-attachment", "displayName": "diagram.svg",
+                        "mime": "image/svg+xml", "size": 8, "status": "ready",
+                    })),
+                ],
+                ..Default::default()
+            },
+            window,
+            cx,
+        )
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(
+        cx.debug_bounds("agent-attachment:capture.png:ready")
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds("agent-attachment:diagram.svg:ready")
+            .is_none()
+    );
+    let mentioned = log.borrow().last().cloned().unwrap_or_default();
+    assert!(
+        mentioned.contains("\"markdown-ref\"") && mentioned.contains("\"svg-ref\""),
+        "{mentioned}"
+    );
+    assert!(!mentioned.contains("\"image-ref\""), "{mentioned}");
+}

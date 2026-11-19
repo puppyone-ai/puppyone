@@ -586,3 +586,46 @@ fn the_compute_dock_names_its_route_and_hands_off_its_actions(cx: &mut TestAppCo
     draw(cx);
     assert_eq!(discoveries(), before + 1, "the same catalog does not");
 }
+
+/// `inserts a Finder folder path instead of staging it as a file
+/// attachment`; `routes Finder drop, picker and every semantically supported
+/// pasted File through one staging method`: a dropped folder becomes its
+/// path in the draft, a dropped file is staged, and nothing is sent.
+#[gpui::test]
+fn finder_drops_insert_folders_as_paths_and_stage_files(cx: &mut TestAppContext) {
+    use gpui::{ExternalPaths, FileDropEvent};
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let finder = tempfile::tempdir().unwrap();
+    let folder = finder.path().join("Design System");
+    std::fs::create_dir(&folder).unwrap();
+    let file = finder.path().join("capture.png");
+    std::fs::write(&file, b"image").unwrap();
+    let (panel, asked, cx) = seeded(cx, true, None, "");
+    let stagings = || {
+        asked
+            .borrow()
+            .iter()
+            .filter(|op| **op == AgentOperation::StageReferences)
+            .count()
+    };
+    let chat = cx.debug_bounds("agent-chat-panel").unwrap();
+    let drop = |cx: &mut VisualTestContext, path: std::path::PathBuf| {
+        cx.simulate_event(FileDropEvent::Entered {
+            position: chat.center(),
+            paths: ExternalPaths(vec![path].into()),
+        });
+        cx.simulate_event(FileDropEvent::Submit {
+            position: chat.center(),
+        });
+        draw(cx);
+    };
+    drop(cx, folder.clone());
+    let draft = panel.read_with(cx, |p, _| p.controller.get_snapshot().draft);
+    assert!(draft.contains(&*folder.to_string_lossy()), "{draft}");
+    assert_eq!(stagings(), 0, "a folder is not an attachment");
+    drop(cx, file);
+    assert_eq!(stagings(), 1, "a file is staged");
+    assert!(!asked.borrow().contains(&AgentOperation::StartTurn));
+}
