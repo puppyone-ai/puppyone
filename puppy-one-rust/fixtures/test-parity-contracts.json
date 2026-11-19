@@ -23710,6 +23710,130 @@
         }
       ],
       "environment": "the cursor policy and loading model in memory"
+    },
+    {
+      "id": "cloud-environment-binding",
+      "acceptance": "A build binds one Cloud environment and fails closed without it: a packaged app reads only its public, versioned desktop-cloud.json and ignores later environment overrides, a development build reads only the VITE_DESKTOP_CLOUD_* names, and nothing silently falls back to production. An API base must be HTTPS on a PuppyOne host (or loopback for development), end in /api/v1, and carry no credentials, query or other path; the release tooling refuses to stamp anything the app would refuse.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/desktopCloudConfiguration.test.mjs",
+          "sha256": "3a353f6675ae2764d9ae0bf6893a1199f72adbfac2ec6e1b0f1308e58fbe7749",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Desktop Cloud environment binding > does not silently use production when the build configuration is missing"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Cloud environment binding > rejects an unsafe or ambiguous configured API: https://user:secret@qubits-api.puppyone.ai/api/v1"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Cloud environment binding > rejects an unsafe or ambiguous configured API: http://qubits-api.puppyone.ai/api/v1"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Cloud environment binding > rejects an unsafe or ambiguous configured API: https://example.com/api/v1"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Cloud environment binding > rejects an unsafe or ambiguous configured API: https://qubits-api.puppyone.ai/api/v1?token=secret"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Cloud environment binding > rejects an unsafe or ambiguous configured API: https://qubits-api.puppyone.ai/api/v2"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Cloud environment binding > emits the same non-secret build endpoints used by Renderer and ignores later shell overrides"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/build-identity/desktopBuildEnvironment.test.mjs",
+          "sha256": "97c999058f946d4482b44c89ef60cb1d0b84409c08b2273cfc59adff05295652",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop build environment policy > accepts production HTTPS endpoints and loopback development endpoints"
+            },
+            {
+              "index": 1,
+              "name": "desktop build environment policy > fails before bundling when required endpoints are absent"
+            },
+            {
+              "index": 2,
+              "name": "desktop build environment policy > rejects insecure remote, credential-bearing, and malformed API endpoints"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::model::configuration_tests::endpoints_follow_the_desktop_allowlist"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::model::configuration_tests::the_packaged_configuration_is_public_and_versioned"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::model::source_tests::a_packaged_app_reads_only_its_file_and_a_development_build_only_vite_names"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "CloudConfigurationTest.test_puppyone_hosts_and_loopback_are_accepted"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "CloudConfigurationTest.test_anything_else_is_refused"
+        }
+      ],
+      "environment": "configuration documents and environment maps in memory"
+    },
+    {
+      "id": "update-feed-metadata-contract",
+      "acceptance": "The update feed is electron-builder's metadata contract: what the release tooling writes parses back with its version, payload size and SHA-512, the client reads it and chooses its payload, and malformed metadata (a non-semantic version, a bad digest, a zero size, a non-ZIP payload, a path that is not the payload, a bad release date) is refused rather than trusted.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/policy/desktopUpdateFeedVerifier.test.mjs",
+          "sha256": "ef4304561da9be47a686a52f691484e2cf24ef0aaa18f9503e40e64343d086fc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Stable update feed verifier > parses the controlled electron-builder metadata contract"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Stable update feed verifier > rejects malformed metadata instead of trusting YAML-like fields"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "FeedTest.test_written_metadata_passes_the_verifier"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "FeedTest.test_broken_metadata_is_refused"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::feed::tests::electron_updater_metadata_is_read_and_its_payload_chosen"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::feed::tests::every_broken_rule_is_reported"
+        }
+      ],
+      "environment": "feed documents in memory and temporary archives"
     }
   ],
   "openAcceptance": [
@@ -24131,6 +24255,94 @@
               "name": "cross-platform stable release workflow > requires both native builders to consume one shared build timestamp"
             }
           ]
+        },
+        {
+          "path": "tests/unit/platform/capabilities/desktopPlatformContract.test.mjs",
+          "sha256": "1ddc1418f69b4d1432d080a27d2719f4a4c33e01a83f4293aad5effd0e7621c8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop platform contract > normalizes Node identifiers only at the platform boundary"
+            },
+            {
+              "index": 1,
+              "name": "Desktop platform contract > declares one native contract runner for each initial platform"
+            },
+            {
+              "index": 2,
+              "name": "Desktop release and target identities > keeps common release identity separate from target application identity"
+            },
+            {
+              "index": 3,
+              "name": "Desktop release and target identities > preserves the shipped macOS feed while assigning new target coordinates"
+            },
+            {
+              "index": 4,
+              "name": "Desktop release and target identities > uses platform-specific security evidence"
+            },
+            {
+              "index": 5,
+              "name": "target-driven Electron builder configuration > keeps the existing macOS package behavior in the macOS adapter"
+            },
+            {
+              "index": 6,
+              "name": "target-driven Electron builder configuration > removes Mac-only hooks and emits Windows NSIS configuration"
+            },
+            {
+              "index": 7,
+              "name": "target-driven Electron builder configuration > emits an AppImage-only Linux configuration"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/updates/policy/desktopUpdateFeedVerifier.test.mjs",
+          "sha256": "ef4304561da9be47a686a52f691484e2cf24ef0aaa18f9503e40e64343d086fc",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Desktop Stable update feed verifier > accepts the NSIS executable contract for Windows"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/build-identity/desktopReleaseSet.test.mjs",
+          "sha256": "aa566be00112cb7f1c3b475bf1b4d629e567f3a1ec11fb605377639b8769a5cf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop release set > requires macOS and Windows in one stable release set without changing its release identity"
+            },
+            {
+              "index": 1,
+              "name": "desktop release set > allows optional Windows and Linux Internal bundles under one release identity"
+            },
+            {
+              "index": 2,
+              "name": "desktop release set > rejects missing required targets, duplicate targets, and disabled channel targets"
+            },
+            {
+              "index": 3,
+              "name": "desktop release set > uses platform-discriminated security evidence"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/packaging/windowsReleaseSigningConfig.test.mjs",
+          "sha256": "febf4789339e8c6225e87d562302ad9a5f40559ce3b33d0dc712ff252172c3eb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Windows release signing configuration > pins SHA-256 and the full publisher subject used by updater verification"
+            },
+            {
+              "index": 1,
+              "name": "Windows release signing configuration > rejects a CN-only value that is not expressed as a certificate subject"
+            },
+            {
+              "index": 2,
+              "name": "Windows release signing configuration > rejects a configuration that is not an NSIS Windows target"
+            }
+          ]
         }
       ]
     },
@@ -24439,6 +24651,224 @@
             {
               "index": 29,
               "name": "desktop Stable update feed monitor workflow > checks every shipped feed on a schedule without deployment authority"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/updates/policy/desktopUpdateFeedVerifier.test.mjs",
+          "sha256": "ef4304561da9be47a686a52f691484e2cf24ef0aaa18f9503e40e64343d086fc",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Desktop Stable update feed verifier > verifies every registered feed, version alignment, and byte ranges"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Stable update feed verifier > rejects a latest pointer that does not match the release being published"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Stable update feed verifier > rejects origins that do not support exact byte ranges"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Stable update feed verifier > rejects payload size drift between metadata and storage"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Stable update feed verifier > accepts only the explicit expected-version CLI option"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Stable update feed verifier > rejects duplicate feed contracts and invalid retry bounds"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/build-identity/desktopReleaseVersionPolicy.test.mjs",
+          "sha256": "fcfd9bd6ebfc137386dcd8c1a31357d5cee563ee97274e1b479da2f480d2f6c4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop release version monotonicity policy > allows recovery with a version above all history even when latest was rolled back"
+            },
+            {
+              "index": 1,
+              "name": "Desktop release version monotonicity policy > rejects Stable candidate 0.1.14 behind existing 0.3.13 history"
+            },
+            {
+              "index": 2,
+              "name": "Desktop release version monotonicity policy > rejects Stable candidate 0.3.12 behind existing 0.3.13 history"
+            },
+            {
+              "index": 3,
+              "name": "Desktop release version monotonicity policy > rejects Stable candidate 0.3.13 behind existing 0.3.13 history"
+            },
+            {
+              "index": 4,
+              "name": "Desktop release version monotonicity policy > counts withdrawn releases because installed clients can still run them"
+            },
+            {
+              "index": 5,
+              "name": "Desktop release version monotonicity policy > detects a mutable latest pointer behind immutable release history"
+            },
+            {
+              "index": 6,
+              "name": "Desktop release version monotonicity policy > enforces canonical Internal build versions"
+            },
+            {
+              "index": 7,
+              "name": "Desktop release version monotonicity policy > requires latest.json to be represented in the immutable catalog"
+            },
+            {
+              "index": 8,
+              "name": "Desktop release version verifier CLI > parses candidate and monitor modes with trusted default coordinates"
+            },
+            {
+              "index": 9,
+              "name": "Desktop release version verifier CLI > fetches both live contracts and rejects a rollback"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/delivery/desktopReleaseRemoteOptions.test.mjs",
+          "sha256": "186b1103f71e0c5b7b5bfc5e1180b7587598b2ddb5e73793d42f9fca4365a3d9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "release verification command contract > preserves the existing single-bundle Internal and Stable callers"
+            },
+            {
+              "index": 1,
+              "name": "release verification command contract > collects multiple platforms and origins into one configured pool"
+            },
+            {
+              "index": 2,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: []"
+            },
+            {
+              "index": 3,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: [\"--target\",\"mac\"]"
+            },
+            {
+              "index": 4,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: [\"--bundle\",\"mac\"]"
+            },
+            {
+              "index": 5,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: [\"--target\",\"mac\",\"https://host/mac\",\"--bundle\",\"win\",\"--url-prefix\",\"https://host/win\"]"
+            },
+            {
+              "index": 6,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: [\"--target\",\"mac\",\"https://host/mac\",\"--concurrency\",\"0\"]"
+            },
+            {
+              "index": 7,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: [\"--target\",\"mac\",\"https://host/mac\",\"--concurrency\",\"1.5\"]"
+            },
+            {
+              "index": 8,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: [\"--target\",\"mac\",\"https://host/mac\",\"--include-aliases\",\"yes\"]"
+            },
+            {
+              "index": 9,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: [\"--target\",\"mac\",\"https://host/mac\",\"--unknown\",\"1\"]"
+            },
+            {
+              "index": 10,
+              "name": "release verification command contract > rejects incomplete or ambiguous arguments: [\"--bundle\",\"a\",\"--bundle\",\"b\",\"--url-prefix\",\"https://host/mac\"]"
+            },
+            {
+              "index": 11,
+              "name": "release verification command contract > rejects unsafe target prefix http://host/path"
+            },
+            {
+              "index": 12,
+              "name": "release verification command contract > rejects unsafe target prefix https://user:secret@host/path"
+            },
+            {
+              "index": 13,
+              "name": "release verification command contract > rejects unsafe target prefix https://host/path?token=secret"
+            },
+            {
+              "index": 14,
+              "name": "release verification command contract > rejects unsafe target prefix https://host/path#hash"
+            },
+            {
+              "index": 15,
+              "name": "release verification command contract > rejects unsafe pool options before HTTP: {\"concurrency\":9}"
+            },
+            {
+              "index": 16,
+              "name": "release verification command contract > rejects unsafe pool options before HTTP: {\"attempts\":6}"
+            },
+            {
+              "index": 17,
+              "name": "release verification command contract > rejects unsafe pool options before HTTP: {\"idleTimeoutMs\":0}"
+            },
+            {
+              "index": 18,
+              "name": "release verification command contract > rejects unsafe pool options before HTTP: {\"fileTimeoutMs\":null}"
+            },
+            {
+              "index": 19,
+              "name": "release verification command contract > rejects unsafe pool options before HTTP: {\"unsupported\":1}"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/delivery/immutableUploadRecovery.test.mjs",
+          "sha256": "50686cc9bb9e8b577fd9c82efe0f3e13c7c385c28079783a3baa349c85e9f880",
+          "cases": [
+            {
+              "index": 0,
+              "name": "immutable upload incident recovery > retains matching bytes and commits the marker last"
+            },
+            {
+              "index": 1,
+              "name": "immutable upload incident recovery > checks all targets before writing anything when an existing digest differs"
+            },
+            {
+              "index": 2,
+              "name": "immutable upload incident recovery > refuses extra objects rather than deleting them"
+            },
+            {
+              "index": 3,
+              "name": "immutable upload incident recovery > refuses to alter a committed bundle with missing payloads"
+            },
+            {
+              "index": 4,
+              "name": "immutable upload incident recovery > keeps the marker absent when a new payload fails verification"
+            },
+            {
+              "index": 5,
+              "name": "immutable upload incident recovery > does not rewrite any part of an already complete bundle"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/promotion/stablePromotionPolicy.test.mjs",
+          "sha256": "dfa9a1e0e4c2608cc1c1db85c2ae9e391c07a1ddf3afb3f41b950d6d814f3a08",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Stable promotion policy > selects the newest verified Internal release for the exact source commit"
+            },
+            {
+              "index": 1,
+              "name": "Stable promotion policy > never substitutes a newer unapproved Internal build for the selected candidate"
+            },
+            {
+              "index": 2,
+              "name": "Stable promotion policy > rejects unknown commits, legacy manifests, and withdrawn releases"
+            },
+            {
+              "index": 3,
+              "name": "Stable promotion policy > requires an explicit candidate tag for the same base version"
+            },
+            {
+              "index": 4,
+              "name": "Stable promotion policy > keeps authenticated promotion downloads on the Internal distribution origin"
             }
           ]
         }
@@ -24877,6 +25307,254 @@
             {
               "index": 2,
               "name": "xterm WebGL glyph-atlas patch > runs after installs and leaves both published bundles on the safe path"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/packaging/dmgBuilderWindowPatch.test.mjs",
+          "sha256": "8b40e078d30deb3f5911d22c5a6c5f33f0389bfc4c05a7dd60600076b4a47f76",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DMG builder background window patch > keeps the explicitly configured initial window size"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/terminal/startup/nodePtyPermissions.test.mjs",
+          "sha256": "638ebcce681a635c0c1306d1fb069b7958dd9a2005484877d402a5dfa9465f5a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "PTY dependency execution permissions > repairs build/Release even when install scripts were skipped"
+            },
+            {
+              "index": 1,
+              "name": "PTY dependency execution permissions > repairs build/Debug even when install scripts were skipped"
+            },
+            {
+              "index": 2,
+              "name": "PTY dependency execution permissions > repairs prebuilds/darwin-arm64 even when install scripts were skipped"
+            },
+            {
+              "index": 3,
+              "name": "PTY dependency execution permissions > repairs prebuilds/darwin-x64 even when install scripts were skipped"
+            },
+            {
+              "index": 4,
+              "name": "PTY dependency execution permissions > preserves existing read/write permissions"
+            },
+            {
+              "index": 5,
+              "name": "PTY dependency execution permissions > allows missing dependencies in metadata-only preparation fixtures"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/runtime/codeMirrorSchedulingPatch.test.mjs",
+          "sha256": "c9ce815e2f72aaae99c4332d9ab496d3b4df64b814e0f316fba295ceb4353cac",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CodeMirror background work budget > bounds an upstream slice without changing total parse work or grammar"
+            },
+            {
+              "index": 1,
+              "name": "CodeMirror background work budget > is idempotent and fails closed when the dependency implementation changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/processes/electronRuntime.test.mjs",
+          "sha256": "4dc07b6760b7f4eee3ff007c342d0d239dba1e061cb9fb095a1add438911f014",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Electron development runtime > launches the real executable instead of a command shim on Windows"
+            },
+            {
+              "index": 1,
+              "name": "Electron development runtime > uses the package binary on Unix platforms"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/processes/managedChildLifecycle.test.mjs",
+          "sha256": "2d89d944f750a69759b463d33de8accaa2ce2f2bb7162db3eb9bbad1b55bdd75",
+          "cases": [
+            {
+              "index": 0,
+              "name": "cleans up on SIGINT, including terminal hangup"
+            },
+            {
+              "index": 1,
+              "name": "cleans up on SIGTERM, including terminal hangup"
+            },
+            {
+              "index": 2,
+              "name": "cleans up on SIGHUP, including terminal hangup"
+            },
+            {
+              "index": 3,
+              "name": "logs and shuts down after uncaughtException rather than leaving detached services"
+            },
+            {
+              "index": 4,
+              "name": "logs and shuts down after unhandledRejection rather than leaving detached services"
+            },
+            {
+              "index": 5,
+              "name": "still initiates cleanup when the fatal log sink is unavailable"
+            },
+            {
+              "index": 6,
+              "name": "allows graceful exit and resolves only after the owned group disappears"
+            },
+            {
+              "index": 7,
+              "name": "escalates for descendants even when the wrapper has already exited"
+            },
+            {
+              "index": 8,
+              "name": "surfaces cleanup failures instead of silently reporting success"
+            },
+            {
+              "index": 9,
+              "name": "does not signal groups that are already gone"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/processes/managedChildProcess.test.mjs",
+          "sha256": "9942136e5a06c573a257b7c772c9ad7f9d424e0f8f85f9db6f17466af1a7ccf6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "managed development child processes > runs npm through Node on Windows without invoking a command shell"
+            },
+            {
+              "index": 1,
+              "name": "managed development child processes > uses npm directly on Unix platforms"
+            },
+            {
+              "index": 2,
+              "name": "managed development child processes > terminates the detached Unix process group instead of only the wrapper process"
+            },
+            {
+              "index": 3,
+              "name": "managed development child processes > terminates the complete Windows process tree without opening a console window"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/build-identity/interface-style-graph-watcher.test.mjs",
+          "sha256": "0a9b2507d4bb5ca3853f6feada062a46c758666067d91a293f114aecfd8d94d3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "interface Style graph watcher > distinguishes graph mutations from ordinary style and asset content edits"
+            },
+            {
+              "index": 1,
+              "name": "interface Style graph watcher > fingerprints paths and index imports without reacting to leaf style content"
+            },
+            {
+              "index": 2,
+              "name": "interface Style graph watcher > routes verified CSS and asset graph changes through one recursive watcher"
+            },
+            {
+              "index": 3,
+              "name": "interface Style graph watcher > ignores noisy Windows file events when the import graph is unchanged"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/build-identity/styleLayerContract.test.mjs",
+          "sha256": "980297a7fd91a74ebb827e4fad850b64150c79d17e7b5625492001bd7e43f567",
+          "cases": [
+            {
+              "index": 0,
+              "name": "feature stylesheet import edges > finds normal rules even when a sibling is correctly layered"
+            },
+            {
+              "index": 1,
+              "name": "feature stylesheet import edges > carries the named layer through transitive imports"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/build-identity/viteClientHealth.test.mjs",
+          "sha256": "137470f172d2c07df4bb03001260a54286a51316aff718b1293571168654e652",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Vite development client health > finds runtime placeholders left behind by a stale Vite server"
+            },
+            {
+              "index": 1,
+              "name": "Vite development client health > does not confuse Vite pure annotations with runtime placeholders"
+            },
+            {
+              "index": 2,
+              "name": "Vite development client health > blocks Electron startup when the served client is stale"
+            },
+            {
+              "index": 3,
+              "name": "Vite development client health > accepts a transformed client and disables HTTP caching"
+            },
+            {
+              "index": 4,
+              "name": "Vite development client health > reports an unavailable development server without throwing"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/ci/test-layout.test.mjs",
+          "sha256": "8a3a2c237ab7163da4d22c9d182946702c6ba6de3547224fd4775caea9b5d9ad",
+          "cases": [
+            {
+              "index": 0,
+              "name": "test directory boundaries > accepts layered cases, isolated fixtures, benchmarks and frozen archives"
+            },
+            {
+              "index": 1,
+              "name": "test directory boundaries > rejects misplaced cases and old smoke or benchmark locations"
+            },
+            {
+              "index": 2,
+              "name": "test directory boundaries > requires exclusions even when today's source tree contains no tests"
+            },
+            {
+              "index": 3,
+              "name": "test directory boundaries > rejects an undiscoverable spec.ts test instead of silently accepting it"
+            },
+            {
+              "index": 4,
+              "name": "test directory boundaries > rejects an undiscoverable test.js test instead of silently accepting it"
+            },
+            {
+              "index": 5,
+              "name": "test directory boundaries > rejects an undiscoverable test.jsx test instead of silently accepting it"
+            },
+            {
+              "index": 6,
+              "name": "test directory boundaries > rejects an undiscoverable test.cts test instead of silently accepting it"
+            },
+            {
+              "index": 7,
+              "name": "test directory boundaries > rejects an undiscoverable test.mts test instead of silently accepting it"
+            },
+            {
+              "index": 8,
+              "name": "test directory boundaries > rejects an undiscoverable test.cjs test instead of silently accepting it"
+            },
+            {
+              "index": 9,
+              "name": "test directory boundaries > accepts only executable names throughout the declared layers and domains"
+            },
+            {
+              "index": 10,
+              "name": "test directory boundaries > rejects unsupported benchmark extensions and misspelled domains"
             }
           ]
         }
@@ -26027,6 +26705,60 @@
               "name": "native Agent smoke runtime selection > bounds live-service timeouts and readiness output"
             }
           ]
+        },
+        {
+          "path": "tests/unit/agent/sessions/nativeAgentRoundtripRunner.test.mjs",
+          "sha256": "7fe1dbdd64f4488db4b7e76a96ff930571b3769fc4204dc4d494bd9ee63c3d43",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native Agent round-trip smoke runner > verifies the complete codex create, answer, locator, exact resume, follow-up and close contract"
+            },
+            {
+              "index": 1,
+              "name": "native Agent round-trip smoke runner > verifies the complete claude create, answer, locator, exact resume, follow-up and close contract"
+            },
+            {
+              "index": 2,
+              "name": "native Agent round-trip smoke runner > verifies the complete cursor create, answer, locator, exact resume, follow-up and close contract"
+            },
+            {
+              "index": 3,
+              "name": "native Agent round-trip smoke runner > verifies the complete opencode-native create, answer, locator, exact resume, follow-up and close contract"
+            },
+            {
+              "index": 4,
+              "name": "native Agent round-trip smoke runner > verifies the complete pi create, answer, locator, exact resume, follow-up and close contract"
+            },
+            {
+              "index": 5,
+              "name": "native Agent round-trip smoke runner > verifies the complete workbuddy-china create, answer, locator, exact resume, follow-up and close contract"
+            },
+            {
+              "index": 6,
+              "name": "native Agent round-trip smoke runner > verifies the complete workbuddy-international create, answer, locator, exact resume, follow-up and close contract"
+            },
+            {
+              "index": 7,
+              "name": "native Agent round-trip smoke runner > verifies the complete hermes create, answer, locator, exact resume, follow-up and close contract"
+            },
+            {
+              "index": 8,
+              "name": "native Agent round-trip smoke runner > waits for actual native catalog confirmation before closing a completed turn"
+            },
+            {
+              "index": 9,
+              "name": "native Agent round-trip smoke runner > fails closed when a runtime completes without the requested answer token"
+            },
+            {
+              "index": 10,
+              "name": "native Agent round-trip smoke runner > maps raw provider failures to a bounded code without retaining diagnostics"
+            },
+            {
+              "index": 11,
+              "name": "native Agent round-trip smoke runner > fails closed when the canonical feed omits the submitted user message"
+            }
+          ]
         }
       ]
     },
@@ -26171,6 +26903,78 @@
             {
               "index": 0,
               "name": "starts the actual standalone server, checks login once, and tears down only owned services"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/environment/desktopCloudConfiguration.test.mjs",
+          "sha256": "3a353f6675ae2764d9ae0bf6893a1199f72adbfac2ec6e1b0f1308e58fbe7749",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Cloud environment binding > keeps development file values and explicit sandbox overrides consistent"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/environment/localCloudDev.test.mjs",
+          "sha256": "e4924cbc640f20012da000f589f0be6fd86a232c4173e6f7dc47c9864c96b4f7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local Cloud development services > parses quoted values and strips unquoted comments"
+            },
+            {
+              "index": 1,
+              "name": "local Cloud development services > does not launch Cloud merely because endpoints are localhost"
+            },
+            {
+              "index": 2,
+              "name": "local Cloud development services > honors explicit modes, CLI precedence, and rejects invalid/duplicate modes"
+            },
+            {
+              "index": 3,
+              "name": "local Cloud development services > loads explicit mode from local env and resolves relative sibling paths"
+            },
+            {
+              "index": 4,
+              "name": "local Cloud development services > keeps IPv6 URL brackets out of native bind addresses"
+            },
+            {
+              "index": 5,
+              "name": "local Cloud development services > never manages a hosted API or hosted Web origin"
+            },
+            {
+              "index": 6,
+              "name": "local Cloud development services > requires readiness and typed Web identity, not an arbitrary HTTP 200"
+            },
+            {
+              "index": 7,
+              "name": "local Cloud development services > uses built preview by default when explicitly managed; HMR requires dev mode"
+            },
+            {
+              "index": 8,
+              "name": "local Cloud development services > validates login once, then only probes lightweight health; does not stop reused services"
+            },
+            {
+              "index": 9,
+              "name": "local Cloud development services > never silently reuses HMR for a requested production preview"
+            },
+            {
+              "index": 10,
+              "name": "local Cloud development services > rejects a broken login page even if liveness is healthy"
+            },
+            {
+              "index": 11,
+              "name": "local Cloud development services > does not implicitly build a missing preview or spawn a duplicate frontend"
+            },
+            {
+              "index": 12,
+              "name": "local Cloud development services > awaits owned cleanup on startup failure and never starts the next service"
+            },
+            {
+              "index": 13,
+              "name": "local Cloud development services > cleans up when aborted after spawning and stops only its own children once"
             }
           ]
         }
@@ -27943,7 +28747,7 @@
     {
       "id": "cloud-hub-retired-pages",
       "kind": "out-of-scope",
-      "reason": "TS v0.4.4 retired the Cloud Hub: its router, sidebar, main view and Share wizard are deleted (cloudNavigationInformationArchitecture asserts it) and Cloud destinations such as Access, Team and Billing open on the Web. The Overview, Access and Connections, Automation and Organization page components, their route table and stylesheets remain in the repository, but no desktop view mounts them (AutomationRouteSection and OverviewSection are imported by nothing), so these cases describe pages and routes a person cannot reach in the product. The native frontend never had the Hub, and its Cloud pieces (publication, Cloud projects, the Cloud Computer, sharing and plans) have their own rows.",
+      "reason": "TS v0.4.4 retired the Cloud Hub: its router, sidebar, main view and Share wizard are deleted (cloudNavigationInformationArchitecture asserts it) and Cloud destinations such as Access, Team and Billing open on the Web. The Overview, Access and Connections, Automation (with its Synchronize API client), project Settings, Billing and Organization page components, their route table, domain helpers and stylesheets remain in the repository, but no desktop view mounts them (AutomationRouteSection, OverviewSection, CloudProjectSettingsSection and CloudOrganizationBillingPage are imported by nothing, and only the Automation UI calls the Synchronize functions), so these cases describe pages and logic a person cannot reach in the product. The native frontend never had the Hub, and its Cloud pieces (publication, Cloud projects, the Cloud Computer, sharing and plans) have their own rows.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
       "typescript": [
         {
@@ -28093,6 +28897,362 @@
               "name": "global dialog overlay architecture > portals src/features/cloud/sections/access/CreateAccessDialog.tsx through the shared overlay layer"
             }
           ]
+        },
+        {
+          "path": "tests/component/automation/management/automationCreateValidation.test.tsx",
+          "sha256": "80c2d5dcba12faad3a6026a551f575c939f0650a68bfd2af113cc0e3e35b0bcf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Automation configure rendering captured before extraction > keeps required field, source, destination and trigger errors in priority order"
+            },
+            {
+              "index": 1,
+              "name": "Automation configure rendering captured before extraction > disables creation, back, and closing while saving and restores them after failure"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/automation/management/automationDialogFlow.test.tsx",
+          "sha256": "025050bac27d211f78e2d2777b99040ea5c98c52cc82f203f04747286b063d12",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CloudNewAutomationDialog > locks loading wins over error and empty"
+            },
+            {
+              "index": 1,
+              "name": "CloudNewAutomationDialog > locks error wins over empty"
+            },
+            {
+              "index": 2,
+              "name": "CloudNewAutomationDialog > locks empty catalog"
+            },
+            {
+              "index": 3,
+              "name": "CloudNewAutomationDialog > locks missing selected provider"
+            },
+            {
+              "index": 4,
+              "name": "CloudNewAutomationDialog > opens a template directly in its provider-specific builder"
+            },
+            {
+              "index": 5,
+              "name": "CloudNewAutomationDialog > uses source selection only for the generic New action"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/automation/management/automationLandingPage.test.tsx",
+          "sha256": "bb27dea900318cb6aa3dba544cda68ef7dff5ffc60686f9d75b482fbdb060084",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Automation landing page > opens with the four popular source-to-project templates"
+            },
+            {
+              "index": 1,
+              "name": "Automation landing page > filters categories and carries the selected provider into the creation flow"
+            },
+            {
+              "index": 2,
+              "name": "Automation landing page > promotes owned Automations above the secondary source catalog"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/automation/management/automationManageDialog.test.tsx",
+          "sha256": "a1adf3970b4f4d383c5619ad94a7963871eb58303aff8342d73930473ba0c934",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CloudManageAutomationDialog > lazily shows run history and saves source, destination, and trigger edits"
+            },
+            {
+              "index": 1,
+              "name": "CloudManageAutomationDialog > 'Run now' manages the binding, not an Access surface"
+            },
+            {
+              "index": 2,
+              "name": "CloudManageAutomationDialog > 'Pause' manages the binding, not an Access surface"
+            },
+            {
+              "index": 3,
+              "name": "CloudManageAutomationDialog > 'Resume' manages the binding, not an Access surface"
+            },
+            {
+              "index": 4,
+              "name": "CloudManageAutomationDialog > uses an in-app destructive confirmation and labels icon-only actions"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/automation/management/automationOauthWizard.test.tsx",
+          "sha256": "f09d4c6b5e4631dc3e3c827ffe3216d84a9addaf32812b43d09b7f5fde5bc9e5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Automation OAuth wizard > keeps the resolving state visible until account lookup completes"
+            },
+            {
+              "index": 1,
+              "name": "Automation OAuth wizard > shows lookup failure and retries without losing the chosen source"
+            },
+            {
+              "index": 2,
+              "name": "Automation OAuth wizard > derives 'configure' for 'template' entry when connected=true"
+            },
+            {
+              "index": 3,
+              "name": "Automation OAuth wizard > derives 'connect' for 'template' entry when connected=false"
+            },
+            {
+              "index": 4,
+              "name": "Automation OAuth wizard > derives 'configure' for 'new' entry when connected=true"
+            },
+            {
+              "index": 5,
+              "name": "Automation OAuth wizard > derives 'connect' for 'new' entry when connected=false"
+            },
+            {
+              "index": 6,
+              "name": "Automation OAuth wizard > opens authorization, polls only while connected step is active, and advances automatically"
+            },
+            {
+              "index": 7,
+              "name": "Automation OAuth wizard > cancels connection waiting without creating an Automation"
+            },
+            {
+              "index": 8,
+              "name": "Automation OAuth wizard > treats missing server OAuth configuration as unavailable instead of retryable"
+            },
+            {
+              "index": 9,
+              "name": "Automation OAuth wizard > keeps transient authorization failures retryable and shows progress immediately"
+            },
+            {
+              "index": 10,
+              "name": "Automation OAuth wizard > consumes the initial execution result and emits creation feedback"
+            },
+            {
+              "index": 11,
+              "name": "Automation OAuth wizard > renders actionable creation failure copy for 'first sync could not be queued'"
+            },
+            {
+              "index": 12,
+              "name": "Automation OAuth wizard > renders actionable creation failure copy for 'authorization failed'"
+            },
+            {
+              "index": 13,
+              "name": "Automation OAuth wizard > renders actionable creation failure copy for 'Review the source and folder settings'"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/automation/management/synchronizeBindings.test.tsx",
+          "sha256": "55e05c2e14000e1a46d21bd72afa355551af046d11e34c56a1d2e8a3892f7abe",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Synchronize list lifecycle > reloads persisted bindings on remount and retries a failed refresh without Access data"
+            },
+            {
+              "index": 1,
+              "name": "Synchronize list lifecycle > ignores late previous-project responses"
+            },
+            {
+              "index": 2,
+              "name": "Synchronize list lifecycle > immediately hides old data on user changes"
+            },
+            {
+              "index": 3,
+              "name": "Synchronize list lifecycle > immediately hides old data on generation changes"
+            },
+            {
+              "index": 4,
+              "name": "Synchronize list lifecycle > immediately hides old data on server changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/automation/resources/automationResourcePicker.test.tsx",
+          "sha256": "3d9e6a006652a9fc2f3887cdb141ad099e583ea2b47b02ce8f9bb829cb795b96",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Automation resource picker > selects an enumerated provider resource into the source draft"
+            },
+            {
+              "index": 1,
+              "name": "Automation resource picker > falls back to manual source fields on 401 without blocking configuration"
+            },
+            {
+              "index": 2,
+              "name": "Automation resource picker > selects an existing project folder while preserving free-text normalized preview"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/automation/creation/automationCreationFlow.test.ts",
+          "sha256": "ec622e7b7516a27ff83641523b9fb9f1ff641d8cb17365daf0f962acae180fcc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Automation creation flow > only publishes templates backed by currently available Cloud providers"
+            },
+            {
+              "index": 1,
+              "name": "Automation creation flow > carries destination and schedule settings into the Cloud creation request"
+            },
+            {
+              "index": 2,
+              "name": "Automation creation flow > maps schedule presets and rejects invalid custom cron before transport"
+            },
+            {
+              "index": 3,
+              "name": "Automation creation flow > normalizes destination paths while preventing traversal above the project root"
+            },
+            {
+              "index": 4,
+              "name": "Automation creation flow > preserves unknown provider options while allowing editable fields to be cleared"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/automation/management/automationPluginDomain.test.ts",
+          "sha256": "f3cc7e001a49af4371fe2522c585ede7fb31984836806912b992fb13d714b0a1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Automation resource identity > renders a real binding without any Access surface or Scope"
+            },
+            {
+              "index": 1,
+              "name": "Automation resource identity > does not merge same-name bindings or cross project boundaries"
+            },
+            {
+              "index": 2,
+              "name": "Automation resource identity > supports root destinations without manufacturing a root Scope"
+            },
+            {
+              "index": 3,
+              "name": "Automation resource identity > keeps the Cloud web path while the Automation route is not registered"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/automation/management/synchronizeApi.test.ts",
+          "sha256": "9246fd1df8378ab754cbdcdab62ce490e6334a0d6c7ab56d5eeac6a13df6ea31",
+          "cases": [
+            {
+              "index": 0,
+              "name": "canonical Synchronize resource transport > lists actual bindings for an encoded project, never Access or Scope records"
+            },
+            {
+              "index": 1,
+              "name": "canonical Synchronize resource transport > rejects cross-project lists and cross-binding run histories"
+            },
+            {
+              "index": 2,
+              "name": "canonical Synchronize resource transport > rejects missing binding IDs instead of manufacturing a resource identity"
+            },
+            {
+              "index": 3,
+              "name": "canonical Synchronize resource transport > reads canonical run references and rejects legacy responses without fallback"
+            },
+            {
+              "index": 4,
+              "name": "canonical Synchronize resource transport > creates a canonical binding and preserves arbitrary source metadata"
+            },
+            {
+              "index": 5,
+              "name": "canonical Synchronize resource transport > rejects conflicting create identities and does not retry on the legacy API"
+            },
+            {
+              "index": 6,
+              "name": "canonical Synchronize resource transport > rejects missing paths, duplicate IDs and foreign management/history echoes"
+            },
+            {
+              "index": 7,
+              "name": "canonical Synchronize resource transport > targets one binding for pause/resume/refresh/delete without resource lookup by name"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/billing/cloudBillingPage.test.tsx",
+          "sha256": "e42158e4d2e10151dba6108f98071db0edc8ed045951b6dbe049101886c36cbf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CloudGlobalBillingPage > shows an access-load error without misrepresenting the user as a non-owner"
+            },
+            {
+              "index": 1,
+              "name": "CloudGlobalBillingPage > requires an explicit organization choice before loading billing"
+            },
+            {
+              "index": 2,
+              "name": "CloudGlobalBillingPage > renders organization billing without a workspace-scoped project count"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudOverviewLanding.test.tsx",
+          "sha256": "05d55030885b4fc3e1e0489fc61aaba06de61f4fe51e4f0f7749680720cbbc47",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CloudRepositoryOverview landing page > renders the Homepage shell immediately and replaces inline skeletons in place"
+            },
+            {
+              "index": 1,
+              "name": "CloudRepositoryOverview landing page > uses an in-app action dashboard without promoting the web route"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/cloudProjectSettings.test.tsx",
+          "sha256": "0dfe991dafc685a15d652dfaf72c5b2726e58b8587f1cd9d0f3aa5161cef1169",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CloudProjectSettingsSection > uses the catalog style and keeps project settings inside Desktop"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudOverviewMetrics.test.ts",
+          "sha256": "cf7e82d27edca350863ae747d88abc004e84767e4411a51bb3022325871c7c12",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Overview metrics > separates active connections from the total access-point inventory"
+            },
+            {
+              "index": 1,
+              "name": "Cloud Overview metrics > does not count a repository URL or setup placeholders as persisted Access"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Overview metrics > keeps only direct children and orders product folders before files"
+            },
+            {
+              "index": 3,
+              "name": "Cloud Overview metrics > uses authoritative project storage and quota when the dashboard provides them"
+            },
+            {
+              "index": 4,
+              "name": "Cloud Overview metrics > derives each row's modified time from history paths, including folder descendants"
+            },
+            {
+              "index": 5,
+              "name": "Cloud Overview metrics > marks a root-tree storage sum as a lower bound when folders can contain more data"
+            },
+            {
+              "index": 6,
+              "name": "Cloud Overview metrics > does not invent storage usage when the tree contains no measurable files"
+            }
+          ]
         }
       ]
     },
@@ -28137,6 +29297,72 @@
               "name": "Cloudflare D1 Desktop telemetry repository > defines exact unique sets without network or workspace columns"
             }
           ]
+        },
+        {
+          "path": "tests/unit/telemetry/ingest/cloudflare.desktop-telemetry-ingest-contract.test.mjs",
+          "sha256": "815c2e7232069b93a18b5ad5ef0853e4d193c3d74945f182458803231a5e7b3a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloudflare Desktop telemetry ingest contract > accepts the exact shared client schema without retaining the transport timestamp"
+            },
+            {
+              "index": 1,
+              "name": "Cloudflare Desktop telemetry ingest contract > accepts a first-run event and a legacy v1 daily event during the schema migration"
+            },
+            {
+              "index": 2,
+              "name": "Cloudflare Desktop telemetry ingest contract > rejects arbitrary fields and activity timestamps"
+            },
+            {
+              "index": 3,
+              "name": "Cloudflare Desktop telemetry ingest contract > rejects future, stale, oversized, and non-JSON requests"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/telemetry/ingest/cloudflare.desktop-telemetry-repository.test.mjs",
+          "sha256": "fb5a24a3166e28e3c5c06407d8559315ee9ab9498c4585eff614a3b6001c42e6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloudflare D1 Desktop telemetry repository > writes idempotent receipt, daily-active, and monthly-active statements"
+            },
+            {
+              "index": 1,
+              "name": "Cloudflare D1 Desktop telemetry repository > writes a first-run cohort signal without adding it to active-installation sets"
+            },
+            {
+              "index": 2,
+              "name": "Cloudflare D1 Desktop telemetry repository > rolls up the previous UTC day and month before applying bounded retention"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/telemetry/ingest/cloudflare.desktop-telemetry-worker.test.mjs",
+          "sha256": "cf0830dd71647bdc547ac6bdc807b3288c4781674e3266a0e2d8dd2fbaee0447",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloudflare Desktop telemetry Worker > is fail-closed in paused mode without touching storage"
+            },
+            {
+              "index": 1,
+              "name": "Cloudflare Desktop telemetry Worker > rate limits by monthly pseudonymous ID and persists a valid batch"
+            },
+            {
+              "index": 2,
+              "name": "Cloudflare Desktop telemetry Worker > supports a discard kill switch and never persists acknowledged events"
+            },
+            {
+              "index": 3,
+              "name": "Cloudflare Desktop telemetry Worker > rejects a rate-limited request before storage"
+            },
+            {
+              "index": 4,
+              "name": "Cloudflare Desktop telemetry Worker > runs exact rollups and pruning from the scheduled handler"
+            }
+          ]
         }
       ]
     },
@@ -28161,6 +29387,254 @@
             {
               "index": 2,
               "name": "source-control presentation model > derives stable groups and action availability without filesystem or Git side effects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-unreferenced-modules",
+      "kind": "out-of-scope",
+      "reason": "These test TypeScript modules that nothing in the TS v0.4.4 product imports: retained code that no entry point (the renderer, Electron main, preloads, utility processes or workers) reaches, checked with an import-graph walk from those entry points and a search for every exported name (only tests and lint baselines name them). They cover the project backup provider list, the remote update notice, the file-open request coordinator and its content cache, a standalone Terminal session host and the old Terminal workbench header. A person cannot exercise them, so there is no product behaviour to port.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/projects/projectBackupProviders.test.ts",
+          "sha256": "93f636933f0c4788c7611739cb3ed288be8317e2a8d8e56c0492ccc4f8f2ec16",
+          "cases": [
+            {
+              "index": 0,
+              "name": "remote backup observations > reports the remote's last change without treating commit time as backup time"
+            },
+            {
+              "index": 1,
+              "name": "remote backup observations > does not invent a time for an invalid remote date: null"
+            },
+            {
+              "index": 2,
+              "name": "remote backup observations > does not invent a time for an invalid remote date: not-a-date"
+            },
+            {
+              "index": 3,
+              "name": "remote backup observations > keeps each service's time and summary separate from local changes and other services"
+            },
+            {
+              "index": 4,
+              "name": "remote backup observations > uses observed sync counts 0/0 for matching"
+            },
+            {
+              "index": 5,
+              "name": "remote backup observations > uses observed sync counts 2/0 for outgoing"
+            },
+            {
+              "index": 6,
+              "name": "remote backup observations > uses observed sync counts 0/3 for incoming"
+            },
+            {
+              "index": 7,
+              "name": "remote backup observations > uses observed sync counts 2/3 for diverged"
+            },
+            {
+              "index": 8,
+              "name": "remote backup observations > does not use fetch-host refs to claim a backup at a different push destination"
+            },
+            {
+              "index": 9,
+              "name": "remote backup observations > does not borrow another Cloud project's remote version"
+            },
+            {
+              "index": 10,
+              "name": "remote backup observations > does not borrow a matching project ID from another Cloud server"
+            },
+            {
+              "index": 11,
+              "name": "GitHub repository links > opens a clean repository page for https://github.com/team/project.git"
+            },
+            {
+              "index": 12,
+              "name": "GitHub repository links > opens a clean repository page for https://GITHUB.COM/team/project/"
+            },
+            {
+              "index": 13,
+              "name": "GitHub repository links > opens a clean repository page for git@github.com:team/project.git"
+            },
+            {
+              "index": 14,
+              "name": "GitHub repository links > opens a clean repository page for github.com:team/project.git"
+            },
+            {
+              "index": 15,
+              "name": "GitHub repository links > opens a clean repository page for ssh://git@github.com/team/project.git"
+            },
+            {
+              "index": 16,
+              "name": "GitHub repository links > opens a clean repository page for ssh://git@ssh.github.com:443/team/project.git"
+            },
+            {
+              "index": 17,
+              "name": "GitHub repository links > opens a clean repository page for git://github.com/team/project.git"
+            },
+            {
+              "index": 18,
+              "name": "GitHub repository links > opens a clean repository page for https://example-token@github.com/team/project.git?source=desktop#main"
+            },
+            {
+              "index": 19,
+              "name": "GitHub repository links > does not create a GitHub link for an unrecognized repository: https://github.com/team"
+            },
+            {
+              "index": 20,
+              "name": "GitHub repository links > does not create a GitHub link for an unrecognized repository: https://github.com/team/project/tree/main"
+            },
+            {
+              "index": 21,
+              "name": "GitHub repository links > does not create a GitHub link for an unrecognized repository: https://github.com/team/project%2Fother.git"
+            },
+            {
+              "index": 22,
+              "name": "GitHub repository links > does not create a GitHub link for an unrecognized repository: https://github.com.example.test/team/project.git"
+            },
+            {
+              "index": 23,
+              "name": "GitHub repository links > does not create a GitHub link for an unrecognized repository: https://gitlab.com/team/project.git"
+            },
+            {
+              "index": 24,
+              "name": "GitHub repository links > uses the push repository instead of a different fetch repository"
+            },
+            {
+              "index": 25,
+              "name": "GitHub repository links > links the same selected remote as the service's change observation"
+            },
+            {
+              "index": 26,
+              "name": "project hosting services > does not invent a backup for a missing or uninitialized repository"
+            },
+            {
+              "index": 27,
+              "name": "project hosting services > does not present local Git history as a hosting service"
+            },
+            {
+              "index": 28,
+              "name": "project hosting services > classifies the actual remote host: https://github.com/team/project.git"
+            },
+            {
+              "index": 29,
+              "name": "project hosting services > classifies the actual remote host: git@github.com:team/project.git"
+            },
+            {
+              "index": 30,
+              "name": "project hosting services > classifies the actual remote host: github.com:team/project.git"
+            },
+            {
+              "index": 31,
+              "name": "project hosting services > classifies the actual remote host: ssh://git@ssh.github.com:443/team/project.git"
+            },
+            {
+              "index": 32,
+              "name": "project hosting services > classifies the actual remote host: https://GITHUB.COM/team/project.git"
+            },
+            {
+              "index": 33,
+              "name": "project hosting services > classifies the actual remote host: https://gitlab.com/team/project.git"
+            },
+            {
+              "index": 34,
+              "name": "project hosting services > classifies the actual remote host: git@gitlab.com:team/project.git"
+            },
+            {
+              "index": 35,
+              "name": "project hosting services > classifies the actual remote host: https://git.example.test/team/project.git"
+            },
+            {
+              "index": 36,
+              "name": "project hosting services > classifies the actual remote host: /srv/backups/project.git"
+            },
+            {
+              "index": 37,
+              "name": "project hosting services > classifies the actual remote host: https://github.com.example.test/team/project.git"
+            },
+            {
+              "index": 38,
+              "name": "project hosting services > classifies the actual remote host: https://example.test/github.com/project.git"
+            },
+            {
+              "index": 39,
+              "name": "project hosting services > uses the push destination when it differs from the fetch host"
+            },
+            {
+              "index": 40,
+              "name": "project hosting services > deduplicates brands across multiple remotes and ignores empty URLs"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/status/remoteUpdateNotice.test.ts",
+          "sha256": "6ed5e0f6bf28922c982aa1d193c1c2d6775447696bf8fe471c48232ee8d41633",
+          "cases": [
+            {
+              "index": 0,
+              "name": "remote update notice model > summarizes changed files, previews, and update time"
+            },
+            {
+              "index": 1,
+              "name": "remote update notice model > appears for divergence and stays hidden when there is nothing incoming"
+            },
+            {
+              "index": 2,
+              "name": "remote update notice model > falls back to the incoming preview when the aggregate summary is unavailable"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/files/fileOpenRequestCoordinator.test.ts",
+          "sha256": "e260637dff2b3ffbd7d1fe75a5e37ce2278a79aee8a8102e29fd802515078c5f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "revision-bound file opening > aborts A and prevents every stale A commit after B starts"
+            },
+            {
+              "index": 1,
+              "name": "revision-bound file opening > summarizes at least 30 production-style stage samples with p50/p95"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/resources/fileContentCache.test.ts",
+          "sha256": "01be444786b1b3bc52861ef7202f9a90e0ca1260d74ebe53a4b4babafafdb2f7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "bounded file content cache > retains only the most recently used entry count"
+            },
+            {
+              "index": 1,
+              "name": "bounded file content cache > refreshes an existing path to MRU and respects the total source budget"
+            },
+            {
+              "index": 2,
+              "name": "bounded file content cache > does not retain a single over-budget payload"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/terminal/sessions/desktop-terminal.session-host.test.tsx",
+          "sha256": "bf1dbcbb1a02395033348e19f525560efa312fb2d99d4ed1a73542965cbcba7d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal session host lifecycle > keeps one xterm attachment while startup transitions to running"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/launcher/desktop-terminal.create-control.test.tsx",
+          "sha256": "c8271c9e5cb9c2beffe6be6886c9071989cee37c276c72d18a399f6af226cbaf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Unified Workbench create control > creates a blank launcher Item directly without opening a choice menu"
             }
           ]
         }
