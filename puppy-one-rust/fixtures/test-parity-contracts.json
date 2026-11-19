@@ -30153,6 +30153,260 @@
           "test": "workspace::hosts::remote::tests::a_read_survives_a_lost_connection_and_a_write_is_sent_once"
         }
       ]
+    },
+    {
+      "id": "other-computers-settings",
+      "acceptance": "Settings › Computer access reads this computer as its host says: not sharing, with nothing to pause or start at login and a way to share from the Homepage; its shared folders by name and access, with Pause, and Resume while paused; never 'sharing' when its host cannot be reached, and a status read answered after a newer status event never takes its place. The owner's other computers are listed with their presence (online, or when last online), never this one among them, and 'No other computers.' only once that is known; while the list loads this computer still shows. A failed read says the computers could not be loaded with a Retry, never an empty list, keeps known computers through a later failure, and reads asked for while one is under way are that one read. A shared folder opens its own access controls. A computer, another or this one, is removed through one request after the system asks, and a refusal says the computer could not be removed. Starting at login says so when the setting cannot be changed. Signed out the page keeps its purpose and offers signing in.",
+      "typescript": [
+        {
+          "path": "tests/component/hosts/settings/otherComputersSettings.test.tsx",
+          "sha256": "802363ae884315b47b02c342478c2ef68b56891f635523882e6bc38c5278e953",
+          "cases": [
+            {
+              "index": 0,
+              "name": "other computers, in Settings > shows a real off state without irrelevant startup controls"
+            },
+            {
+              "index": 1,
+              "name": "other computers, in Settings > does not turn a failed device read into an empty list, and offers retry"
+            },
+            {
+              "index": 2,
+              "name": "other computers, in Settings > never claims sharing is on when local status is unavailable"
+            },
+            {
+              "index": 3,
+              "name": "other computers, in Settings > shows local status while the computer list is still loading and coalesces focus refreshes"
+            },
+            {
+              "index": 4,
+              "name": "other computers, in Settings > keeps known computers visible when a background refresh fails"
+            },
+            {
+              "index": 5,
+              "name": "other computers, in Settings > shows shared folder names and opens their existing access controls"
+            },
+            {
+              "index": 6,
+              "name": "other computers, in Settings > keeps a status event newer than an outstanding local status read"
+            },
+            {
+              "index": 7,
+              "name": "other computers, in Settings > keeps its purpose and sign-in entry when signed out"
+            },
+            {
+              "index": 8,
+              "name": "other computers, in Settings > lists the owner's other computers with their presence, never this one among them"
+            },
+            {
+              "index": 9,
+              "name": "other computers, in Settings > removes another computer through the App, which asks first"
+            },
+            {
+              "index": 11,
+              "name": "other computers, in Settings > says it could not remove the computer, not a folder, when Main gives no reason"
+            },
+            {
+              "index": 12,
+              "name": "other computers, in Settings > removes this computer from the account, through the same request"
+            },
+            {
+              "index": 13,
+              "name": "other computers, in Settings > says when there are no other computers yet"
+            },
+            {
+              "index": 14,
+              "name": "other computers, in Settings > pauses this computer's sharing and resumes it from the same row"
+            },
+            {
+              "index": 15,
+              "name": "other computers, in Settings > offers Resume while paused, where nothing else would"
+            },
+            {
+              "index": 16,
+              "name": "other computers, in Settings > turns sharing after a restart on through the App"
+            },
+            {
+              "index": 17,
+              "name": "other computers, in Settings > does not offer it where this computer cannot start it"
+            },
+            {
+              "index": 18,
+              "name": "other computers, in Settings > says so when the setting cannot be changed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::other_computers_settings_view::tests::this_computer_and_the_others_read_as_the_host_and_the_catalog_say"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::other_computers_settings_view::tests::signed_out_it_keeps_its_purpose_and_offers_sign_in"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::hosts::link::tests::starting_at_login_says_when_it_cannot_be_changed"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::hosts::tests::the_catalog_keeps_what_it_knew_and_removes_through_one_request"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::hosts::computer_access::tests::the_host_says_what_is_shared_and_the_catalog_says_what_opens_settings"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::hosts::computer_access::tests::sharing_status_and_presence_follow_the_page"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::process::tests::the_login_entry_runs_this_program_as_the_host"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::hosts::link::tests::a_status_event_newer_than_an_outstanding_read_stands"
+        }
+      ]
+    },
+    {
+      "id": "remote-folder-window",
+      "acceptance": "A folder on another computer opens in the window as a project of that computer, not a Cloud project: the Header's place names the computer and speaks the access (Can edit or View only) beside it; only the commands that computer allows are offered (its terminal, its Git) and each runs there; Home leaves it like any project. Its first listing loads once, and what was admitted under an earlier session is refused once the session changes.",
+      "typescript": [
+        {
+          "path": "tests/component/hosts/sharing/deviceFolderHeader.test.tsx",
+          "sha256": "db00f01045e25174a276a956dc0abffa0b9d0903e67387b8df146c3557209fbb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "remote folder Header > uses the shared project and named-computer controls, speaking the access with the computer (false)"
+            },
+            {
+              "index": 1,
+              "name": "remote folder Header > uses the shared project and named-computer controls, speaking the access with the computer (true)"
+            },
+            {
+              "index": 2,
+              "name": "remote folder Header > switches projects from the project menu and goes Home from the place menu"
+            },
+            {
+              "index": 3,
+              "name": "remote folder Header > shows only allowed remote commands with the shared Header button treatment"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/hosts/sharing/remoteFolderLifecycle.test.tsx",
+          "sha256": "4085f9cd1c79c00935fec503b8275cb9a6f89e7c5593d6f15e9cd6f474302e60",
+          "cases": [
+            {
+              "index": 0,
+              "name": "remote folder admission lifecycle > loads the initial directory under StrictMode's effect replay"
+            },
+            {
+              "index": 1,
+              "name": "remote folder admission lifecycle > keeps the current folder usable after rerenders while rejecting old and unmounted sessions"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::other_computers::another_computers_folder_opens_here_and_runs_there"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::device::tests::a_folder_on_another_computer_reads_saves_and_watches_like_a_workspace"
+        }
+      ]
+    },
+    {
+      "id": "folder-sharing-dialog",
+      "acceptance": "Opening a folder to the owner's other computers is asked first and shares view-only unless editing is chosen, closing once shared; declining the question changes nothing and leaves it open. A shared folder's dialog changes access at the folder's current revision, widening only after another yes, one kind of run at a time with the others kept; running needs editing and a sandbox. Stopping is asked once more and closes; a stop that fails says so where it was asked, to try again. The folder's 'All my devices' row turns sharing on through this dialog, names the other computers that can open it ('Studio Mac and 1 other'), and is unticked once stopping is done.",
+      "typescript": [
+        {
+          "path": "tests/component/hosts/sharing/sharingDialog.test.tsx",
+          "sha256": "0de39df503e4a8dec4b4a96022ffcaa9fec5d24bc32de0e2b4835d4120148ca0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "opening a folder on the owner's other computers > shares view-only unless editing is chosen, and closes once the App has shared it"
+            },
+            {
+              "index": 1,
+              "name": "opening a folder on the owner's other computers > stays open when the person declines in the App's own question"
+            },
+            {
+              "index": 2,
+              "name": "changing what other computers may do with a shared folder > makes it view-only at the folder's current revision"
+            },
+            {
+              "index": 3,
+              "name": "changing what other computers may do with a shared folder > allows one kind of run at a time and keeps the others as they are"
+            },
+            {
+              "index": 4,
+              "name": "changing what other computers may do with a shared folder > offers no runs on a view-only folder, and none at all without a sandbox"
+            },
+            {
+              "index": 5,
+              "name": "changing what other computers may do with a shared folder > stops sharing through the App and closes"
+            },
+            {
+              "index": 6,
+              "name": "all my devices, in the folder's place menu > turns a folder that is not shared yet on through the sharing dialog"
+            },
+            {
+              "index": 7,
+              "name": "all my devices, in the folder's place menu > names the other computers that can open a shared folder, and changes how in the same dialog"
+            },
+            {
+              "index": 8,
+              "name": "all my devices, in the folder's place menu > stops sharing from its own row after Main asks, and changes nothing when that is declined"
+            },
+            {
+              "index": 9,
+              "name": "all my devices, in the folder's place menu > unticks All my devices once stopping is done"
+            },
+            {
+              "index": 10,
+              "name": "all my devices, in the folder's place menu > opens the folder's sharing settings when stopping fails, to try again there"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::other_computers::a_folder_here_opens_to_my_other_computers_after_i_allow_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::audience::tests::the_other_computers_are_named_as_a_person_says_them"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::registry::tests::a_shared_folder_keeps_its_id_and_its_consent_here"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::exec::tests::the_folder_sandbox_writes_only_where_it_may_and_never_reads_credentials"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -37270,6 +37524,24 @@
             {
               "index": 6,
               "name": "host IPC > withdraws only a share whose folder has gone from disk, once its project was found elsewhere"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "other-computers-settings-menu-focus",
+      "kind": "out-of-scope",
+      "reason": "TS's computer menu is the page's own and restores the trigger's focus on Escape. The native page opens the shared anchored menu, which closes on Escape or an outside press like every other menu; it has no page-specific focus handling.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/app-link-and-sharing-ui.md",
+      "typescript": [
+        {
+          "path": "tests/component/hosts/settings/otherComputersSettings.test.tsx",
+          "sha256": "802363ae884315b47b02c342478c2ef68b56891f635523882e6bc38c5278e953",
+          "cases": [
+            {
+              "index": 10,
+              "name": "other computers, in Settings > opens only one computer menu and restores focus on Escape"
             }
           ]
         }

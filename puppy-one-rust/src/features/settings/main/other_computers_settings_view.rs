@@ -105,6 +105,7 @@ impl SettingsWorkspaceSurface {
         if can_pause {
             device = device.child(
                 Button::new("sharing-pause")
+                    .debug_selector(|| "sharing-pause".into())
                     .label(tr(if paused {
                         "hosts.sharing.resume"
                     } else {
@@ -139,7 +140,12 @@ impl SettingsWorkspaceSurface {
                         .checked(on)
                         .disabled(pending)
                         .on_change(move |enabled, _, cx| {
-                            autostart.set(enabled);
+                            if let Some(failure) = hosts::start_at_login(&autostart, enabled) {
+                                hosts::global(cx).update(cx, |c, cx| {
+                                    c.action_error = Some(failure);
+                                    cx.notify();
+                                });
+                            }
                             let _ = surface.update(cx, |_, cx| cx.notify());
                         }),
                 ),
@@ -341,8 +347,10 @@ impl SettingsWorkspaceSurface {
 /// actions follow.
 fn computer_row(t: Theme, id: &str, name: String, presence: String) -> Stateful<Div> {
     let ty = theme::ty();
+    let selector = format!("computer-{id}");
     h_flex()
-        .id(SharedString::from(format!("computer-{id}")))
+        .id(SharedString::from(selector.clone()))
+        .debug_selector(move || selector.clone())
         .w_full()
         .min_h(px(44.))
         .gap(px(10.))
@@ -381,4 +389,219 @@ fn computer_row(t: Theme, id: &str, name: String, presence: String) -> Stateful<
                         .child(presence),
                 ),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::features::{
+        hosts::{HostStatus, SharedFolder},
+        settings::PreferencesStore,
+    };
+    use crate::test_support::RecordingText;
+    use core::prelude::v1::test;
+    use gpui::{TestAppContext, TestDispatcher, VisualTestContext};
+    use std::{sync::Arc, time::Duration};
+
+    const THIS: &str = "0d9b7f61-1111-4c2a-8b2e-7a6b5c4d3e2f";
+    const OFFICE: &str = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+    struct Page(Entity<SettingsWorkspaceSurface>);
+    impl Render for Page {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            use crate::ui::appearance::ActiveAppearance as _;
+            div().size_full().child(self.0.update(cx, |s, cx| {
+                let t = cx.palette();
+                s.other_computers(t, cx)
+            }))
+        }
+    }
+    struct Fixture {
+        cx: VisualTestContext,
+        text: Arc<RecordingText>,
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            self.cx.cx.quit();
+        }
+    }
+    impl Fixture {
+        fn mount(signed_in: bool) -> Self {
+            let text = Arc::new(RecordingText::default());
+            let app =
+                TestAppContext::build_with_text_system(TestDispatcher::new(0), None, text.clone());
+            app.executor().allow_parking();
+            crate::localization::set_current("en");
+            let (broker, browser) = if signed_in {
+                crate::cloud::auth::responding_account_fixture(Arc::new(|_| {
+                    Err(crate::cloud::auth::Error::Unavailable)
+                }))
+            } else {
+                let (broker, browser, _control) = crate::cloud::auth::sign_in_fixture();
+                (broker, browser)
+            };
+            app.update(|cx| {
+                gpui_kit::init(cx);
+                crate::features::cloud::account::install_fixture(broker, browser, cx);
+            });
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            let settled = if signed_in {
+                crate::cloud::auth::Status::Authenticated
+            } else {
+                crate::cloud::auth::Status::SignedOut
+            };
+            while app.update(|cx| crate::features::cloud::account::status(cx)) != Some(settled) {
+                app.run_until_parked();
+                assert!(std::time::Instant::now() < deadline);
+            }
+            let window = app.update(|cx| {
+                cx.open_window(
+                    WindowOptions {
+                        window_bounds: Some(WindowBounds::Windowed(Bounds {
+                            origin: Point::default(),
+                            size: size(px(900.), px(1200.)),
+                        })),
+                        ..Default::default()
+                    },
+                    |w, cx| {
+                        let prefs = cx.new(|_| PreferencesStore::memory());
+                        let surface = cx.new(|cx| SettingsWorkspaceSurface::new(prefs, w, cx));
+                        let view = cx.new(|_| Page(surface));
+                        cx.new(|cx| gpui_kit::base::Root::new(view, w, cx))
+                    },
+                )
+                .unwrap()
+            });
+            let mut fixture = Self {
+                cx: VisualTestContext::from_window(window.into(), &app),
+                text,
+            };
+            fixture.draw();
+            fixture
+        }
+        fn draw(&mut self) {
+            self.cx.update(|w, cx| {
+                w.draw(cx).clear(cx);
+            });
+        }
+        fn said(&self, expected: &str) -> bool {
+            self.text
+                .0
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|s| s.contains(expected))
+        }
+        fn catalog(&mut self, devices: serde_json::Value, this: &str) {
+            self.cx.update(|_, cx| {
+                hosts::global(cx).update(cx, |c, cx| {
+                    c.install_fixture(&serde_json::json!({ "devices": devices }), this);
+                    cx.notify();
+                })
+            });
+            self.draw();
+        }
+        fn sharing(&mut self, status: Option<HostStatus>) {
+            self.cx.update(|_, cx| {
+                hosts::host_link(cx).update(cx, |l, cx| {
+                    l.status = status;
+                    cx.notify();
+                })
+            });
+            self.draw();
+        }
+    }
+    fn device(id: &str, name: &str, online: bool, folders: serde_json::Value) -> serde_json::Value {
+        let seen = (chrono::Utc::now() - chrono::Duration::hours(3)).to_rfc3339();
+        serde_json::json!({"id": id, "name": name, "online": online, "last_seen_at": seen,
+            "state": "active", "revision": 1, "folders": folders})
+    }
+
+    /// `OtherComputersSettings`: this computer reads as its host says — not
+    /// sharing, with nothing to pause or start at login and a way to share
+    /// from the Homepage; then its shared folders, by name and access, with
+    /// Pause, and Resume while paused. The other computers are listed with
+    /// their presence while this one never is among them; with none, it
+    /// says so, and while the list loads this computer still shows.
+    #[test]
+    fn this_computer_and_the_others_read_as_the_host_and_the_catalog_say() {
+        let mut f = Fixture::mount(true);
+        // Nothing read yet of the computers: this computer still shows.
+        f.sharing(Some(HostStatus {
+            state: "off".into(),
+            ..Default::default()
+        }));
+        assert!(f.said("Not sharing") && f.said("Share a folder from Homepage."));
+        assert!(f.said("Loading"));
+        assert!(f.cx.debug_bounds("sharing-pause").is_none());
+        assert!(!f.said("Continue sharing at login"));
+        // Only this computer: no others yet.
+        f.catalog(
+            serde_json::json!([device(THIS, "MacBook Pro", true, serde_json::json!([]))]),
+            THIS,
+        );
+        assert!(f.said("No other computers."));
+        // Sharing one folder, view only, with another computer offline.
+        let notes = serde_json::json!([{"id": "notes", "name": "Notes", "state": "active",
+            "revision": 1, "capabilities": ["folder.read"]}]);
+        f.catalog(
+            serde_json::json!([
+                device(THIS, "MacBook Pro", true, notes),
+                device(OFFICE, "Office PC", false, serde_json::json!([]))
+            ]),
+            THIS,
+        );
+        f.sharing(Some(HostStatus {
+            state: "online".into(),
+            device_id: Some(THIS.into()),
+            folders: vec![SharedFolder {
+                folder_id: "notes".into(),
+                name: "Notes".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }));
+        for said in [
+            "MacBook Pro",
+            "1 folder shared",
+            "Notes",
+            "View only",
+            "Pause",
+            "Office PC",
+            "Last online 3 hours ago",
+        ] {
+            assert!(f.said(said), "{said}");
+        }
+        assert!(f.cx.debug_bounds("sharing-pause").is_some());
+        assert!(f.cx.debug_bounds("computer-this-computer").is_some());
+        assert!(
+            f.cx.debug_bounds("computer-dddddddd-dddd-4ddd-8ddd-dddddddddddd")
+                .is_some()
+        );
+        assert!(
+            f.cx.debug_bounds("computer-0d9b7f61-1111-4c2a-8b2e-7a6b5c4d3e2f")
+                .is_none()
+        );
+        // Paused: Resume where Pause was.
+        f.sharing(Some(HostStatus {
+            state: "online".into(),
+            device_id: Some(THIS.into()),
+            paused: true,
+            folders: vec![SharedFolder {
+                folder_id: "notes".into(),
+                name: "Notes".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }));
+        assert!(f.said("Paused") && f.said("Resume"));
+    }
+
+    /// Signed out it keeps its purpose and offers signing in.
+    #[test]
+    fn signed_out_it_keeps_its_purpose_and_offers_sign_in() {
+        let f = Fixture::mount(false);
+        assert!(f.said("Open shared folders across your computers."));
+        assert!(f.said("Sign in"));
+    }
 }

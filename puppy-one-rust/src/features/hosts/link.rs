@@ -60,6 +60,9 @@ pub struct HostLink {
     /// The account the host may borrow, as the App last saw it.
     account: Account,
     pub status: Option<HostStatus>,
+    /// Status events seen; a read answered after a newer event never
+    /// overwrites it.
+    status_events: u64,
     /// Shares and stops the host reported, by root (`markWorkspaceShared`).
     pub marks: Vec<(PathBuf, Option<String>)>,
     /// The person last signed in here, once known.
@@ -79,6 +82,7 @@ pub fn global(cx: &mut App) -> Entity<HostLink> {
         connecting: false,
         account: Arc::default(),
         status: None,
+        status_events: 0,
         marks: Vec::new(),
         last_user: None,
         // Tests bring a host of their own, never this user's.
@@ -287,6 +291,7 @@ impl HostLink {
     fn event(&mut self, event: &str, data: Value, cx: &mut Context<Self>) {
         match event {
             "status" => {
+                self.status_events += 1;
                 // A status event carries no folder list; keep the last one.
                 let folders = self.status.as_ref().map(|s| s.folders.clone());
                 if let Ok(mut status) = serde_json::from_value::<HostStatus>(data) {
@@ -337,13 +342,20 @@ impl HostLink {
     }
     /// Reads the host's status again (with its folders).
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
-        self.call("status", json!({}), cx, |s, result, _| {
+        let since = self.status_events;
+        self.call("status", json!({}), cx, move |s, result, _| {
             if let Ok(status) =
                 result.and_then(|v| serde_json::from_value(v).map_err(|e| e.to_string()))
             {
-                s.status = Some(status);
+                s.read_status(since, status);
             }
         });
+    }
+    /// A status read asked for when `since` events had been seen.
+    fn read_status(&mut self, since: u64, status: HostStatus) {
+        if self.status_events == since {
+            self.status = Some(status);
+        }
     }
     /// This computer's id once it shares, for the signed-in account.
     pub fn device_for(&self, account: &str) -> Option<String> {
@@ -595,6 +607,14 @@ impl HostLink {
     }
 }
 
+/// `setHostAutostart`: what to say when starting at login did not take.
+pub fn start_at_login(
+    autostart: &crate::workspace::hosts::process::Autostart,
+    enabled: bool,
+) -> Option<&'static str> {
+    (autostart.set(enabled) != enabled).then_some("hosts.sharing.startAtLoginFailure")
+}
+
 /// This computer's name, as the owner's other computers see it.
 fn hostname() -> String {
     let mut buffer = [0u8; 256];
@@ -610,4 +630,69 @@ fn hostname() -> String {
         }
     }
     "Computer".into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    /// Starting at login says so when the setting cannot be changed.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn starting_at_login_says_when_it_cannot_be_changed() {
+        crate::localization::set_current("en");
+        let home = tempfile::tempdir().unwrap();
+        let program = std::path::Path::new("/Applications/PuppyOne.app/x");
+        let works = crate::workspace::hosts::process::Autostart::new(home.path(), program);
+        assert_eq!(start_at_login(&works, true), None);
+        assert_eq!(start_at_login(&works, false), None);
+        // Where the login entry cannot be written.
+        let blocked = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(blocked.path().join("Library")).unwrap();
+        std::fs::write(blocked.path().join("Library/LaunchAgents"), "not a folder").unwrap();
+        let refused = crate::workspace::hosts::process::Autostart::new(blocked.path(), program);
+        let failure = start_at_login(&refused, true).unwrap();
+        assert_eq!(
+            crate::localization::t(failure),
+            "Unable to change this setting."
+        );
+    }
+
+    /// A status read answered after a newer status event never takes its
+    /// place: "1 folder shared" stays, not "Not sharing" from before.
+    #[gpui::test]
+    fn a_status_event_newer_than_an_outstanding_read_stands(cx: &mut gpui::TestAppContext) {
+        let link = cx.update(global);
+        link.update(cx, |l, cx| {
+            let since = l.status_events;
+            l.event(
+                "status",
+                json!({"state": "online", "deviceId": "d", "paused": false,
+                    "folders": [{"folderId": "notes", "name": "Notes", "writable": false,
+                        "rootPath": "/n"}]}),
+                cx,
+            );
+            l.read_status(
+                since,
+                HostStatus {
+                    state: "off".into(),
+                    ..Default::default()
+                },
+            );
+            let status = l.status.as_ref().unwrap();
+            assert_eq!(status.state, "online");
+            assert_eq!(status.folders.len(), 1);
+            // A read asked for after it applies.
+            let now = l.status_events;
+            l.read_status(
+                now,
+                HostStatus {
+                    state: "offline".into(),
+                    ..Default::default()
+                },
+            );
+            assert_eq!(l.status.as_ref().unwrap().state, "offline");
+        });
+    }
 }

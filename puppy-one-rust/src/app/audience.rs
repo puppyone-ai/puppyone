@@ -307,6 +307,28 @@ mod tests {
         assert!(!devices.only_this_computer());
     }
 
+    /// `OtherComputersLabel`: the general words before any computer is
+    /// known, then the one, then the first and how many others; paused
+    /// sharing says so.
+    #[test]
+    fn the_other_computers_are_named_as_a_person_says_them() {
+        crate::localization::set_current("en");
+        let names = |list: &[&str]| list.iter().map(|n| n.to_string()).collect::<Vec<_>>();
+        assert_eq!(other_computers(&[], false), "Your other computers");
+        assert_eq!(
+            other_computers(&names(&["Studio Mac"]), false),
+            "Studio Mac"
+        );
+        assert_eq!(
+            other_computers(&names(&["Studio Mac", "Office PC"]), false),
+            "Studio Mac and 1 other"
+        );
+        assert_eq!(
+            other_computers(&names(&["Studio Mac", "Office PC", "Mini"]), true),
+            "Studio Mac and 2 others · Paused"
+        );
+    }
+
     #[test]
     fn nothing_to_say_is_no_audience() {
         assert!(!ProjectAudience::default().any());
