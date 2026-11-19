@@ -507,3 +507,106 @@ fn malformed_display_items_keep_diagnostics_and_allow_later_native_completion() 
         );
     });
 }
+
+// `tests/unit/workbench/item-hosts/electron.agent-sidebar-contracts.test.mjs`:
+// the provider halves of the sidebar display invariants.
+
+/// `does not silently clip claude / pi / acp final text in the adapter`.
+#[test]
+fn no_adapter_clips_a_long_final_answer() {
+    use crate::agent::protocols::acp::acp_event_normalizer::AcpEventNormalizer;
+    let text = format!("{}END", "a".repeat(40_000));
+    for provider in ["claude", "pi", "acp"] {
+        let events = match provider {
+            "claude" => normalize_claude_message(
+                &json!({"type": "assistant", "message": {"id": "answer", "content": [{"type": "text", "text": text}]}}),
+                &mut ClaudeEventState::new(Some("turn"), false),
+            ),
+            "pi" => normalize_pi_rpc_event(
+                &json!({"type": "message_end", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}),
+                &mut PiEventState::new(Some("turn"), None, "pi", "Pi"),
+            ),
+            _ => {
+                let mut normalizer = AcpEventNormalizer::new(Some("turn"));
+                normalizer.normalize(&json!({"sessionId": "thread", "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": text}}}));
+                normalizer.complete_assistant(Some("thread"))
+            }
+        };
+        let actor = actor();
+        for event in events {
+            append(&actor, provider, event);
+        }
+        assert_eq!(
+            actor.display().messages[0]["text"],
+            json!(text),
+            "{provider}"
+        );
+    }
+}
+
+/// `merges ACP partial tool updates, replacements, empty content and
+/// terminal metadata by presence`.
+#[test]
+fn acp_tool_updates_merge_by_presence() {
+    use crate::agent::protocols::acp::acp_event_normalizer::AcpEventNormalizer;
+    let actor = actor();
+    let mut normalizer = AcpEventNormalizer::new(Some("turn"));
+    let mut update = |value: Value| {
+        let mut update = json!({"sessionUpdate": "tool_call_update", "toolCallId": "tool"});
+        for (key, field) in value.as_object().unwrap() {
+            update[key] = field.clone();
+        }
+        for event in normalizer.normalize(&json!({"sessionId": "thread", "update": update})) {
+            append(&actor, "acp", event);
+        }
+    };
+    let content =
+        |text: &str| json!([{"type": "content", "content": {"type": "text", "text": text}}]);
+    update(
+        json!({"sessionUpdate": "tool_call", "kind": "execute", "title": "Bash", "status": "in_progress", "content": content("OLD")}),
+    );
+    update(json!({"content": content("NEW")}));
+    let activity = |actor: &SessionActor| {
+        let a = actor.display().activities[0].clone();
+        (a["kind"].clone(), a["output"].clone(), a["status"].clone())
+    };
+    assert_eq!(
+        activity(&actor),
+        (json!("command"), json!("NEW"), json!("running"))
+    );
+    update(json!({"status": "failed"}));
+    assert_eq!(
+        activity(&actor),
+        (json!("command"), json!("NEW"), json!("failed"))
+    );
+    update(json!({"content": []}));
+    assert_eq!(
+        activity(&actor),
+        (json!("command"), json!(""), json!("failed"))
+    );
+}
+
+/// `does not turn historical replay time into a native Worked duration`.
+#[test]
+fn replayed_history_claims_no_worked_duration() {
+    use crate::agent::runtimes::codex::codex_history_projection::normalize_historical_thread;
+    let now = std::rc::Rc::new(std::cell::Cell::new(1_000_000_i64));
+    let clock = now.clone();
+    let actor = SessionActor::new(ActorOptions {
+        clock: Some(Box::new(move || {
+            clock.set(clock.get() + 1);
+            clock.get()
+        })),
+        ..ActorOptions::default()
+    })
+    .unwrap();
+    let thread = json!({"id": "thread", "turns": [{"id": "historical", "status": "completed",
+        "items": [{"id": "answer", "type": "agentMessage", "text": "An old answer"}]}]});
+    for event in normalize_historical_thread(&thread) {
+        append(&actor, "codex", event);
+    }
+    let display = actor.display();
+    assert_eq!(display.turns[0]["status"], "completed");
+    assert!(display.turns[0]["durationMs"].is_null());
+    assert!(!display.parts.iter().any(|p| p["kind"] == "turn-summary"));
+}

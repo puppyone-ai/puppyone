@@ -33780,6 +33780,304 @@
           "test": "features::workbench::tests::a_hidden_workbench_withdraws_presentation_and_keeps_its_items"
         }
       ]
+    },
+    {
+      "id": "agent-sidebar-display-invariants",
+      "acceptance": "The Agent display keeps what the native side confirmed: a start whose receipt is lost returns the native outcome without resending; an ambiguous command is kept until its native turn confirms it; an admitted input shows once, in its delivery state, and joins its native identity without a second bubble; same-text inputs keep their own failed or unknown states; a lost acknowledgement keeps the native completion; long answers stay whole (a shorter explicit final text corrects them), a known incomplete prefix never replaces streamed text and the 128 KiB display limit is reported; no adapter clips a final answer; ACP tool updates merge by presence; restored turns keep their native duration and replayed history claims none; long inputs stay out of control frames; completion before the start receipt does not reactivate the turn.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/item-hosts/electron.agent-sidebar-contracts.test.mjs",
+          "sha256": "59453b92a9b685bd9a5b1bf94b642fde54971cc580d6328d1e1e5c80b9a834f8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent sidebar protocol and display invariants > returns the native confirmed outcome when the real start transaction loses its receipt"
+            },
+            {
+              "index": 1,
+              "name": "Agent sidebar protocol and display invariants > retains and later confirms an ambiguous command instead of evicting or resending it"
+            },
+            {
+              "index": 2,
+              "name": "Agent sidebar protocol and display invariants > materializes one queued input at admission and joins native identity without another bubble"
+            },
+            {
+              "index": 3,
+              "name": "Agent sidebar protocol and display invariants > materializes one dispatching input at admission and joins native identity without another bubble"
+            },
+            {
+              "index": 4,
+              "name": "Agent sidebar protocol and display invariants > preserves same-text inputs and their failed or unknown delivery state without renderer fallback"
+            },
+            {
+              "index": 5,
+              "name": "Agent sidebar protocol and display invariants > keeps native completion when the start acknowledgement is lost"
+            },
+            {
+              "index": 6,
+              "name": "Agent sidebar protocol and display invariants > retains complete answers above 32K and accepts an explicitly shorter final correction"
+            },
+            {
+              "index": 7,
+              "name": "Agent sidebar protocol and display invariants > does not replace accumulated content with a known incomplete prefix and reports the display limit"
+            },
+            {
+              "index": 8,
+              "name": "Agent sidebar protocol and display invariants > does not repeat an incomplete final prefix after a tool boundary"
+            },
+            {
+              "index": 9,
+              "name": "Agent sidebar protocol and display invariants > uses an explicit native historical duration without using the replay clock"
+            },
+            {
+              "index": 10,
+              "name": "Agent sidebar protocol and display invariants > does not silently clip claude final text in the adapter"
+            },
+            {
+              "index": 11,
+              "name": "Agent sidebar protocol and display invariants > does not silently clip pi final text in the adapter"
+            },
+            {
+              "index": 12,
+              "name": "Agent sidebar protocol and display invariants > does not silently clip acp final text in the adapter"
+            },
+            {
+              "index": 13,
+              "name": "Agent sidebar protocol and display invariants > merges ACP partial tool updates, replacements, empty content and terminal metadata by presence"
+            },
+            {
+              "index": 14,
+              "name": "Agent sidebar protocol and display invariants > keeps large command histories out of IPC frames so a fresh attachment can continue streaming"
+            },
+            {
+              "index": 15,
+              "name": "Agent sidebar protocol and display invariants > does not turn historical replay time into a native Worked duration"
+            },
+            {
+              "index": 16,
+              "name": "Agent sidebar protocol and display invariants > does not reactivate a Codex turn when completion precedes the start receipt"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::a_lost_start_receipt_returns_the_native_confirmed_outcome"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::an_ambiguous_command_is_kept_and_confirmed_by_its_native_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::an_admitted_input_shows_once_and_joins_its_native_identity"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::same_text_inputs_keep_their_own_delivery_states"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::a_lost_start_acknowledgement_keeps_the_native_completion"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::a_long_answer_is_kept_whole_and_a_shorter_final_text_corrects_it"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::a_known_incomplete_prefix_never_replaces_the_text_and_the_limit_is_reported"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::an_incomplete_final_prefix_after_a_tool_is_not_repeated"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::a_restored_turn_keeps_its_native_duration_not_the_replay_clock"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::domain::sidebar_contract_tests::long_accepted_inputs_stay_out_of_the_control_frame"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::no_adapter_clips_a_long_final_answer"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::acp_tool_updates_merge_by_presence"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::display_acceptance_tests::replayed_history_claims_no_worked_duration"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::captures_a_snapshot_before_releasing_a_contiguous_feed"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::concurrency::terminal_event_before_start_receipt_settles_once_without_a_phantom_active_turn"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::does_not_resurrect_a_turn_that_completed_before_turn_start_returned"
+        }
+      ]
+    },
+    {
+      "id": "agent-session-ownership-in-process",
+      "acceptance": "An unavailable resumed conversation falls back to a clean session; commands from before a recovery or another generation are rejected and a retired session id rebinds to its new actor; sessions are bound to one owner and refuse other windows' mutations; resume and fork keep one runtime authority and native identity.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/item-hosts/agent-process-service.test.mjs",
+          "sha256": "d7431b15c44def24cf80ac77671d01a9e42637b01cf7bc7aa5f60f46931d30b0",
+          "cases": [
+            {
+              "index": 7,
+              "name": "per-session Agent process ownership > releases an unavailable resumed conversation so the item can start a new one"
+            },
+            {
+              "index": 8,
+              "name": "per-session Agent process ownership > rebinds a resumed runtime instance and rejects commands from before recovery"
+            },
+            {
+              "index": 10,
+              "name": "per-session Agent process ownership > keeps one utility per item and rejects cross-item/session/project commands"
+            },
+            {
+              "index": 13,
+              "name": "per-session Agent process ownership > rebinds a fork's native identity without allowing stale commands"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::discards_stale_native_session_metadata_and_falls_back_to_a_clean_session"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::accepts_a_command_idempotently_and_rejects_stale_session_generations"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::control::rebinds_the_feed_when_a_retired_session_id_receives_a_new_session_actor"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::service::binds_sessions_to_one_sender_and_rejects_cross_window_mutations"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::application::tests::resolution::resume_and_fork_use_the_same_runtime_authority_and_native_identity"
+        }
+      ]
+    },
+    {
+      "id": "agent-chat-workbench-preparation",
+      "acceptance": "A chat tab binds its runtime at once without the topology waiting for discovery; a restored chat commits only once its native history opens (a failed read offers Retry, confirmed missing history does not), and a reservation that is not committed is detached before its native rollback is awaited.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/item-hosts/desktop-agent.workbench-preparation.test.ts",
+          "sha256": "4076ace59e7249bc5fba1441b0e4b074feb04fc3733b715064ec4694501e0223",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent Chat Workbench preparation > binds the requested runtime without making topology wait for discovery"
+            },
+            {
+              "index": 1,
+              "name": "Agent Chat Workbench preparation > requires native resume to succeed before a restored Workbench Item can commit"
+            },
+            {
+              "index": 2,
+              "name": "Agent Chat Workbench preparation > awaits native rollback when a prepared Workbench Item is not committed"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/agentExecutionClient.test.ts",
+          "sha256": "9a8055ffa1c3fdc2649ae01885c9ce34284d6ca683a95f082d18e3f69f38bf0a",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Agent adaptation of shared item management > binds creation before awaiting native readiness and hands off without waiting"
+            },
+            {
+              "index": 3,
+              "name": "Agent adaptation of shared item management > blocks delayed preparation after closing a tab that has no native session yet"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::binds_a_creation_recipe_before_discovery_without_restoring_history"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::begins_direct_recipe_discovery_without_blocking_admission"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::native_history_read_failure_renders_retry_but_confirmed_missing_history_does_not"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::preserves_an_exact_history_open_error"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller_registry::detaches_an_abandoned_reservation_before_awaiting_rollback"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::controller::closes_a_restored_native_session_when_workbench_preparation_rolls_back"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_dispatch_after_preparation_completes_for_an_invalidated_conversation"
+        }
+      ]
+    },
+    {
+      "id": "agent-chat-tab-presentation",
+      "acceptance": "A chat tab shows its title, runtime and status as the generic tab (running, starting, error or idle) and its accessible name; the native session is the tab's resource, never its identity.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/item-hosts/desktop-agent.workbench.test.ts",
+          "sha256": "aa4507562821d03e44089e37d9ecf921d7fc62c3043163202098fd9833d0ec9a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent Chat Workbench contribution > projects feature state into generic Tab chrome without leaking controller state"
+            },
+            {
+              "index": 1,
+              "name": "Agent Chat Workbench contribution > keeps native session identity out of the Workbench Item identity"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::workbench::item::tests::the_item_snapshot_maps_status_and_labels_like_the_product"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -42393,6 +42691,296 @@
             {
               "index": 4,
               "name": "Desktop Terminal tab session manager > hides local execution controls in the Cloud toolbar"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-item-utility-processes",
+      "kind": "out-of-scope",
+      "reason": "TS runs each Agent chat and terminal in its own Electron UtilityProcess supervised by Main: process admission budgets (CPU, memory, per-project leases), heartbeats and liveness probes, crash replacement after cleanup confirmation, model leases per host, an item lifecycle supervisor with termination receipts and generations, instance RPC with byte bounds, MessagePort session connections bound to frames, and a renderer execution client that adapts them. The native app runs Agent sessions on its in-process Agent host thread and terminals on PTY workers owned by the window, so none of these process boundaries, leases or receipts exist; the in-process equivalents (closing, stale generations, late startup after close) are covered by the agent service, controller and workbench tests.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/right-sidebar/workbench-topology.md",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/item-hosts/agent-host-authority.test.mjs",
+          "sha256": "a0d34688d8ec48714056dbf61f7122f79e69a377ece7b12229f7bc133d575cb1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "revokes a late model lease from an old host without releasing or terminating its replacement"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/agent-process-service.test.mjs",
+          "sha256": "d7431b15c44def24cf80ac77671d01a9e42637b01cf7bc7aa5f60f46931d30b0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "per-session Agent process ownership > releases a crashed item when its native history no longer exists"
+            },
+            {
+              "index": 1,
+              "name": "per-session Agent process ownership > replaces a crashed host once, preserves the conversation, and fences its old instance"
+            },
+            {
+              "index": 2,
+              "name": "per-session Agent process ownership > does not replace a crashed host before cleanup confirmation, and lets close win"
+            },
+            {
+              "index": 3,
+              "name": "per-session Agent process ownership > retains ownership after unconfirmed crash cleanup and retries recovery safely"
+            },
+            {
+              "index": 4,
+              "name": "per-session Agent process ownership > closes a replacement that finishes native startup after its item was closed"
+            },
+            {
+              "index": 5,
+              "name": "per-session Agent process ownership > terminates an item while createSession is stalled, before any session identity is published"
+            },
+            {
+              "index": 6,
+              "name": "per-session Agent process ownership > terminates an item while openSession is stalled, before any session identity is published"
+            },
+            {
+              "index": 9,
+              "name": "per-session Agent process ownership > does not resurrect an item closed while resume is pending"
+            },
+            {
+              "index": 11,
+              "name": "per-session Agent process ownership > retains failed cleanup ownership and retries only cleanup, not commands"
+            },
+            {
+              "index": 12,
+              "name": "per-session Agent process ownership > reserves native history before asynchronous open, including another item"
+            },
+            {
+              "index": 14,
+              "name": "per-session Agent process ownership > closes late native startup when the project generation is no longer current"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/agentExecutionClient.test.ts",
+          "sha256": "9a8055ffa1c3fdc2649ae01885c9ce34284d6ca683a95f082d18e3f69f38bf0a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent adaptation of shared item management > does not terminate an existing execution after a failed resume request"
+            },
+            {
+              "index": 1,
+              "name": "Agent adaptation of shared item management > retains execution identity when a native fork changes its conversation"
+            },
+            {
+              "index": 4,
+              "name": "Agent adaptation of shared item management > seals a failed create before an explicit retry uses a new generation"
+            },
+            {
+              "index": 5,
+              "name": "Agent adaptation of shared item management > keeps the same termination identity after a lost receipt"
+            },
+            {
+              "index": 6,
+              "name": "Agent adaptation of shared item management > does not remove a view using a receipt from another project generation"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/agentSessionClient.test.ts",
+          "sha256": "f20dc5c510e6f5a1f80b74deafb05e1bdc6bda8219a4c370eab3cdfcec726709",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project controller transcript connection > reuses one port for a session and keeps commands on the authorized client"
+            },
+            {
+              "index": 1,
+              "name": "project controller transcript connection > accepts only current-host frames and reports failures only for the current instance"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/host-liveness.test.mjs",
+          "sha256": "d83c0ac0c65b2f4afdda5683aa2402eae3df6492017a7c81683c28679aad4eb1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "execution liveness observation > allows queued heartbeats after sleep, a clock jump, or a stalled supervisor"
+            },
+            {
+              "index": 1,
+              "name": "execution liveness observation > probes independently, reports suspicion, and recovers on a late heartbeat"
+            },
+            {
+              "index": 2,
+              "name": "execution liveness observation > does not confuse a long silent Agent turn with a missing host heartbeat"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/item-lifecycle-menu.test.mjs",
+          "sha256": "30c6b002d1cd955f7e96ff0d075bf1fb5ee83e729e21b641784af6d3b1728a29",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Main-owned execution management > keeps failed cleanup discoverable without a tab and permits a scoped retry"
+            },
+            {
+              "index": 1,
+              "name": "Main-owned execution management > coalesces repeat opens per owner without blocking another window"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/item-lifecycle-supervisor.test.mjs",
+          "sha256": "59040df42b06eafb3a9a42b828afd5c375620db960bdf1b690e0bbfde3c0921a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "shared item lifecycle authority > starts the cleanup deadline at acceptance and records observed exit independently"
+            },
+            {
+              "index": 1,
+              "name": "shared item lifecycle authority > accepts termination without waiting for a hung host and seals new work"
+            },
+            {
+              "index": 2,
+              "name": "shared item lifecycle authority > fences a agent create overtaken by close IPC"
+            },
+            {
+              "index": 3,
+              "name": "shared item lifecycle authority > fences a terminal create overtaken by close IPC"
+            },
+            {
+              "index": 4,
+              "name": "shared item lifecycle authority > retains failed resources and retries only cleanup with the same receipt"
+            },
+            {
+              "index": 5,
+              "name": "shared item lifecycle authority > deduplicates repeat clicks and rejects operation identity reuse on a different target"
+            },
+            {
+              "index": 6,
+              "name": "shared item lifecycle authority > does not terminate a replacement generation or block a Terminal sibling"
+            },
+            {
+              "index": 7,
+              "name": "domain service integration with the shared supervisor > uses identical supervision for Agent and Terminal, without an Agent close RPC prerequisite"
+            },
+            {
+              "index": 8,
+              "name": "domain service integration with the shared supervisor > registers Agent ownership before asynchronous catalog lookup and rejects its late result"
+            },
+            {
+              "index": 9,
+              "name": "management IPC authorization > uses project generation authorization even while closing, without a live session requirement"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/resource-budget.test.mjs",
+          "sha256": "1a955239aa5ea42d2a4ca6a4355b57b58514395d697d1989462c9d22fe24e8cb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "instance process admission > does not count a suspended supervisor as sustained CPU pressure"
+            },
+            {
+              "index": 1,
+              "name": "instance process admission > reserves before startup, and retains failed/hidden leases until explicit exit"
+            },
+            {
+              "index": 2,
+              "name": "instance process admission > scopes project limits by owner and rejects duplicate reservations"
+            },
+            {
+              "index": 3,
+              "name": "instance process admission > enforces per-process and aggregate memory without releasing live leases"
+            },
+            {
+              "index": 4,
+              "name": "instance process admission > requires sustained CPU pressure, resets after a quiet sample, and attributes failure"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/rpc.test.mjs",
+          "sha256": "30d0b63090a7a1203dfea1cf376e5fca9527b110d7751548a753400216315ee9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "instance host RPC > isolates generations and releases capacity only on settlement"
+            },
+            {
+              "index": 1,
+              "name": "instance host RPC > does not retry timed-out commands and ignores late replies"
+            },
+            {
+              "index": 2,
+              "name": "instance host RPC > bounds bytes and rejects all callers on host exit"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/session-connection-ipc.test.mjs",
+          "sha256": "409447a240eec5afdaa8b84759bb9ff33de34ecf1f60c7bbf7aecb4b33ff2905",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project-owned session connections > agent:session-connect binds an existing instance to the originating frame"
+            },
+            {
+              "index": 1,
+              "name": "project-owned session connections > terminal:connect binds an existing instance to the originating frame"
+            },
+            {
+              "index": 2,
+              "name": "project-owned session connections > rejects a stale project before allocating a port"
+            },
+            {
+              "index": 3,
+              "name": "project-owned session connections > rejects stale session identity before allocating a port"
+            },
+            {
+              "index": 4,
+              "name": "project-owned session connections > releases both ends after project-close during connection"
+            },
+            {
+              "index": 5,
+              "name": "project-owned session connections > releases both ends after page-navigation during connection"
+            },
+            {
+              "index": 6,
+              "name": "project-owned session connections > releases both ends after window-close during connection"
+            },
+            {
+              "index": 7,
+              "name": "project-owned session connections > releases both ends after attachment-failure during connection"
+            },
+            {
+              "index": 8,
+              "name": "project-owned session connections > preserves a stale-instance error through the serialized connection reply"
+            },
+            {
+              "index": 9,
+              "name": "project-owned session connections > preserves failure scope so display failure does not claim native process exit"
+            },
+            {
+              "index": 10,
+              "name": "project-owned session connections > reports unexpected runtime failure with instance identity, without treating normal close as a crash"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/item-hosts/utility-host-health.test.mjs",
+          "sha256": "0d7f671d2d8d78efb30865e8fa5e24ed975da891c7681a23590dd39dbd4db5ae",
+          "cases": [
+            {
+              "index": 0,
+              "name": "keeps a silent utility alive through a clock jump and missed heartbeats, while retaining explicit termination"
             }
           ]
         }
